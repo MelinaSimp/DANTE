@@ -1,0 +1,49 @@
+// eslint.config.mjs
+import tseslint from "typescript-eslint";
+import next from "@next/eslint-plugin-next";
+
+export default [
+  // Ignore non-source and generated stuff
+  {
+    ignores: [
+      ".next/**",
+      "node_modules/**",
+      "public/**",
+      "next-env.d.ts",
+      "postcss.config.cjs", // not TypeScript; ignore it
+      "tailwind.config.ts",
+      "components.json",
+      "package-lock.json"
+    ],
+  },
+
+  // Base language rules for TS/TSX
+  ...tseslint.configs.recommendedTypeChecked.map(cfg => ({
+    ...cfg,
+    files: ["**/*.{ts,tsx}"],
+    languageOptions: {
+      ...cfg.languageOptions,
+      parserOptions: {
+        ...cfg.languageOptions?.parserOptions,
+        project: "./tsconfig.json",
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  })),
+
+  // Next.js plugin (no legacy eslint-patch needed)
+  {
+    plugins: { "@next/next": next },
+    rules: {
+      // Keep it calm for now—turn these on later in M6 polish
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+      "@typescript-eslint/ban-ts-comment": "off",
+      "@typescript-eslint/consistent-type-definitions": "off",
+      "@typescript-eslint/array-type": "off",
+      "@typescript-eslint/triple-slash-reference": "off",
+      "no-useless-escape": "off",
+      "@next/next/no-html-link-for-pages": "off",
+    },
+  },
+];

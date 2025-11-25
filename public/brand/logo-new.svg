@@ -1,0 +1,25 @@
+<svg width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+  <!-- Outer frame: four rounded chevrons -->
+  <path d="M 30 20 L 50 40 L 40 40 L 40 50 L 20 30 Z" fill="#4a5568" stroke="none" transform="rotate(0 60 60)"/>
+  <path d="M 30 20 L 50 40 L 40 40 L 40 50 L 20 30 Z" fill="#4a5568" stroke="none" transform="rotate(90 60 60)"/>
+  <path d="M 30 20 L 50 40 L 40 40 L 40 50 L 20 30 Z" fill="#4a5568" stroke="none" transform="rotate(180 60 60)"/>
+  <path d="M 30 20 L 50 40 L 40 40 L 40 50 L 20 30 Z" fill="#4a5568" stroke="none" transform="rotate(270 60 60)"/>
+  
+  <!-- Inner four-petal flower/cross -->
+  <ellipse cx="60" cy="45" rx="8" ry="20" fill="#2d3748" transform="rotate(0 60 60)"/>
+  <ellipse cx="60" cy="75" rx="8" ry="20" fill="#2d3748" transform="rotate(0 60 60)"/>
+  <ellipse cx="45" cy="60" rx="20" ry="8" fill="#2d3748" transform="rotate(0 60 60)"/>
+  <ellipse cx="75" cy="60" rx="20" ry="8" fill="#2d3748" transform="rotate(0 60 60)"/>
+</svg>
+
+
+
+
+
+
+
+
+
+
+
+

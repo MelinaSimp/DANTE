@@ -27,7 +27,16 @@ export default function HeaderClient({
   canSeeAdmin,
   isSuperadmin,
 }: HeaderClientProps) {
-  const pathname = usePathname();
+  let pathname: string | null = null;
+  try {
+    if (typeof window !== 'undefined') {
+      pathname = usePathname();
+    }
+  } catch (error) {
+    console.error('Error getting pathname:', error);
+    pathname = null;
+  }
+  
   const isHome = pathname === "/home";
   
   // Hide header on agents page for fullscreen GigaAI experience
