@@ -57,7 +57,7 @@ export default function HeaderClient({
   );
 
   const renderLink = (href: string, label: string) => {
-    const active = pathname === href || pathname.startsWith(`${href}/`);
+    const active = pathname === href || (pathname && pathname.startsWith(`${href}/`));
     return (
       <Link
         key={href}
