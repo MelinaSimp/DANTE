@@ -3,8 +3,6 @@ export const dynamic = "force-dynamic";
 
 import { createServerSupabase } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import GigaAIClient from "../gigaai/GigaAIClient";
-import { ThemeProvider } from "../gigaai/ThemeProvider";
 
 export default async function AppPage() {
   const supabase = await createServerSupabase();
@@ -17,11 +15,7 @@ export default async function AppPage() {
     redirect("/auth");
   }
 
-  // Show Drift interface with theme provider
-  return (
-    <ThemeProvider>
-      <GigaAIClient />
-    </ThemeProvider>
-  );
+  // Redirect to agents page
+  redirect("/agents");
 }
 
