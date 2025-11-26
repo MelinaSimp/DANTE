@@ -30,31 +30,10 @@ export default async function Home() {
   
   // If user is NOT signed in, show marketing page
   return (
-    <main className="min-h-screen minimal-bg bg-white text-gray-900">
-      <header className="mx-auto max-w-6xl px-4 pt-16 text-center">
-        <h1 className="mt-8 text-4xl md:text-5xl font-bold text-gray-900">
-          AI Receptionist for Service Companies
-        </h1>
-        <p className="mt-4 text-lg md:text-xl text-gray-600 max-w-3xl mx-auto">
-          Never miss another call. Our AI receptionist answers calls, captures caller details, 
-          schedules appointments, and manages your customer interactions 24/7.
-        </p>
-
-        <div className="mt-8 flex items-center justify-center gap-4">
-          <a
-            href="/auth"
-            className="btn-primary px-6 py-3 text-base font-semibold rounded-lg"
-          >
-            Start Free Trial
-          </a>
-          <a
-            href="/compiled"
-            className="btn-secondary px-6 py-3 text-base font-semibold rounded-lg"
-          >
-            See How It Works
-          </a>
-        </div>
-      </header>
-    </main>
+    <div>
+      <h1>AI Receptionist for Service Companies</h1>
+      <p>Never miss another call.</p>
+      <a href="/auth">Start Free Trial</a>
+    </div>
   );
 }
