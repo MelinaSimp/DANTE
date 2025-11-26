@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Phone, CalendarCheck, UserRound, ClipboardList, ChevronRight } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
-import AskDrift from "@/components/home/AskDrift";
+// import AskDrift from "@/components/home/AskDrift";
 
 function firstNameFrom(user: any): string | null {
   const meta = user?.user_metadata || {};
@@ -76,13 +76,13 @@ export default async function HomeLanding() {
               </p>
             </div>
 
-            <AskDrift
+            {/* <AskDrift
               suggestions={[
                 "Summarize this morning's calls",
                 "What follow-ups are overdue?",
                 "Show me upcoming appointments for today",
               ]}
-            />
+            /> */}
           </div>
 
           <aside className="mt-16 w-full max-w-xl rounded-3xl border border-white/10 bg-white/5 p-6 text-center backdrop-blur">
