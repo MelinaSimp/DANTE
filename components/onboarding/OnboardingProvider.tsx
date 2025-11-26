@@ -12,7 +12,7 @@ interface OnboardingContextType {
 
 const OnboardingContext = createContext<OnboardingContextType | undefined>(undefined);
 
-export default function OnboardingProvider({ children }: { children: React.ReactNode }) {
+function OnboardingProvider({ children }: { children: React.ReactNode }) {
   const [isOnboardingVisible, setIsOnboardingVisible] = useState(false);
 
   useEffect(() => {
@@ -20,18 +20,6 @@ export default function OnboardingProvider({ children }: { children: React.React
     if (typeof window === 'undefined') return;
     
     // Onboarding modal disabled - never show automatically
-    // Check if user has completed onboarding
-    // try {
-    //   const hasCompletedOnboarding = localStorage.getItem("onboarding-completed");
-    //   const isFirstVisit = !localStorage.getItem("has-visited");
-    //   
-    //   if (isFirstVisit && !hasCompletedOnboarding) {
-    //     setIsOnboardingVisible(true);
-    //     localStorage.setItem("has-visited", "true");
-    //   }
-    // } catch (error) {
-    //   console.error('Error accessing localStorage:', error);
-    // }
   }, []);
 
   const showOnboarding = () => {
@@ -72,3 +60,5 @@ export function useOnboarding() {
   }
   return context;
 }
+
+export default OnboardingProvider;
