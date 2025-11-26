@@ -3,8 +3,6 @@ export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
-import Image from "next/image";
-import Link from "next/link";
 
 export default async function Home() {
   const supabase = await createServerSupabase();
