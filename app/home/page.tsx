@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import QuickActions from "@/components/home/QuickActions";
-// import AskDrift from "@/components/home/AskDrift";
+import AskDrift from "@/components/home/AskDrift";
 
 function firstNameFrom(user: any): string | null {
   const meta = user?.user_metadata || {};
@@ -48,13 +48,13 @@ export default async function HomeLanding() {
               </p>
             </div>
 
-            {/* <AskDrift
+            <AskDrift
               suggestions={[
                 "Summarize this morning's calls",
                 "What follow-ups are overdue?",
                 "Show me upcoming appointments for today",
               ]}
-            /> */}
+            />
           </div>
 
           <QuickActions />
