@@ -1,6 +1,5 @@
 // app/layout.tsx
 import type { Metadata } from "next";
-import type { ReactNode } from "react";
 import "./globals.css";
 import Header from "@/components/Header";
 import PushNotificationManager from "@/components/PushNotificationManager";
@@ -28,15 +27,15 @@ export const viewport = {
   maximumScale: 1,
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body className="bg-[#242423] min-h-screen antialiased text-white">
         <OnboardingProvider>
           <OfflineIndicator />
-          <PushNotificationManager />
           <Header />
-          <main className="relative z-0 bg-[#242423]">{children}</main>
+          <main className="relative z-0 bg-[#242423]" style={{ background: '#242423', backgroundImage: 'none' }}>{children}</main>
+          <PushNotificationManager />
           <script
             dangerouslySetInnerHTML={{
               __html: `
