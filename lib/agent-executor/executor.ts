@@ -316,9 +316,9 @@ After providing your answer, ask if there's anything else you can help with.`;
     const stepMessage = (step.ai_message || step.name || "").toLowerCase();
     const isInquiryStep = 
       gatherKey.toLowerCase().includes("inquiry") || 
-      gatherKey.toLowerCase().includes("question") ||
-      gatherKey.toLowerCase().includes("help") ||
-      gatherKey.toLowerCase().includes("issue") ||
+                         gatherKey.toLowerCase().includes("question") ||
+                         gatherKey.toLowerCase().includes("help") ||
+                         gatherKey.toLowerCase().includes("issue") ||
       stepMessage.includes("how can i help") ||
       stepMessage.includes("what can i help") ||
       stepMessage.includes("how may i help") ||
@@ -1058,17 +1058,17 @@ Respond with only "true" or "false".`;
 
     try {
       const { data, error } = await this.supabase
-        .from("steps")
-        .select("*")
-        .eq("id", stepId)
-        .single();
+      .from("steps")
+      .select("*")
+      .eq("id", stepId)
+      .single();
 
       if (error) {
         console.error("[Agent Executor] Error loading step:", error);
         return null;
       }
 
-      return data;
+    return data;
     } catch (error: any) {
       console.error("[Agent Executor] Exception loading step:", error);
       return null;
@@ -1118,7 +1118,7 @@ Respond with only "true" or "false".`;
         try {
           console.log(`[Agent Context] Fetching ${sourceType} file content from: ${source.file_url}`);
           const fileContent = await this.fetchFileContent(source.file_url, source.file_type);
-          return {
+    return {
             ...source,
             content: fileContent, // Add extracted content
           };
@@ -1356,7 +1356,7 @@ Respond with only "true" or "false".`;
           sourceCount++;
           const name = source.name ? `${source.name}: ` : "";
           parts.push(`${sourceCount}. ${name}[File available at ${source.file_url} but content could not be extracted]`);
-        }
+    }
       });
       
       if (sourceCount === 0) {

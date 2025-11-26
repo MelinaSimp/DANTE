@@ -14,7 +14,7 @@ export default function OfflineIndicator() {
 
     // Check initial status
     try {
-      setIsOnline(navigator.onLine);
+    setIsOnline(navigator.onLine);
     } catch (error) {
       console.error('Error checking online status:', error);
       setIsOnline(true); // Default to online
@@ -22,16 +22,16 @@ export default function OfflineIndicator() {
 
     // Listen for changes
     try {
-      window.addEventListener("online", handleOnline);
-      window.addEventListener("offline", handleOffline);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
     } catch (error) {
       console.error('Error adding event listeners:', error);
     }
 
     return () => {
       try {
-        window.removeEventListener("online", handleOnline);
-        window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
       } catch (error) {
         console.error('Error removing event listeners:', error);
       }

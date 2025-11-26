@@ -201,7 +201,7 @@ export default function AgentBuilderClient({ workspaceId, initialAgents }: Agent
                     {selectedAgent.status === "deployed" ? (
                       <CheckCircle className="h-3 w-3 text-green-400" />
                     ) : (
-                      <Edit className="h-3 w-3" />
+                    <Edit className="h-3 w-3" />
                     )}
                     {selectedAgent.status === "deployed" ? "deployed" : "draft"}
                   </span>
@@ -303,9 +303,9 @@ export default function AgentBuilderClient({ workspaceId, initialAgents }: Agent
                     }}
                     className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#3351ff] hover:bg-[#4a64ff] text-white text-sm font-medium transition"
                   >
-                    <Rocket className="h-4 w-4" />
-                    Deploy agent
-                  </button>
+                  <Rocket className="h-4 w-4" />
+                  Deploy agent
+                </button>
                 )}
                 <button className="p-2 hover:bg-white/5 rounded-lg transition">
                   <RefreshCw className="h-4 w-4 text-white/60" />

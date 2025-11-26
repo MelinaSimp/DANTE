@@ -340,8 +340,8 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
   const deleteStep = (stepId: string) => {
     const handleDelete = async () => {
       // Show loading state
-      setConfirmationModal({
-        isOpen: true,
+    setConfirmationModal({
+      isOpen: true,
         title: "Deleting Step...",
         message: "Please wait while we delete the step.",
         confirmText: "",
@@ -353,17 +353,17 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
 
       try {
         console.log("[Delete Step] Attempting to delete step:", stepId);
-        const response = await fetch(`/api/steps/${stepId}`, {
-          method: "DELETE",
+          const response = await fetch(`/api/steps/${stepId}`, {
+            method: "DELETE",
           headers: {
             "Content-Type": "application/json",
           },
-        });
+          });
 
         console.log("[Delete Step] Response status:", response.status);
         console.log("[Delete Step] Response ok:", response.ok);
 
-        if (response.ok) {
+          if (response.ok) {
           const result = await response.json();
           console.log("[Delete Step] Delete successful:", result);
           
@@ -378,10 +378,10 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
           });
           
           // Clear editing if this was the step being edited
-          if (editingStepId === stepId) {
-            setEditingStepId(null);
-            setEditingText("");
-          }
+            if (editingStepId === stepId) {
+              setEditingStepId(null);
+              setEditingText("");
+            }
           
           // Close modal after successful delete
           setConfirmationModal({

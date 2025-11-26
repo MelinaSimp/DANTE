@@ -299,11 +299,11 @@ export default function PoliciesPage({ agentId }: PoliciesPageProps) {
           fetch(policy.file_url, { method: 'HEAD', mode: 'no-cors' })
             .then(() => {
               console.log("[Preview] PDF file check passed (no-cors mode)");
-              setPreviewModal({
-                isOpen: true,
-                policy,
-                content: "PDF_PREVIEW", // Special marker for PDF
-                loading: false,
+          setPreviewModal({
+            isOpen: true,
+            policy,
+            content: "PDF_PREVIEW", // Special marker for PDF
+            loading: false,
               });
             })
             .catch(error => {
@@ -347,7 +347,7 @@ export default function PoliciesPage({ agentId }: PoliciesPageProps) {
                     loading: false,
                   });
                 });
-            });
+          });
         } else if (isImage) {
           // For images, show the image
           setPreviewModal({
@@ -624,11 +624,11 @@ export default function PoliciesPage({ agentId }: PoliciesPageProps) {
                   {previewModal.content === "PDF_PREVIEW" && previewModal.policy.file_url ? (
                     <div className="w-full">
                       <div className="w-full h-[60vh] mb-4">
-                        <iframe
-                          src={previewModal.policy.file_url}
-                          className="w-full h-full rounded-lg border border-white/10"
-                          title={previewModal.policy.name}
-                        />
+                      <iframe
+                        src={previewModal.policy.file_url}
+                        className="w-full h-full rounded-lg border border-white/10"
+                        title={previewModal.policy.name}
+                      />
                       </div>
                       <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30">
                         <p className="text-xs text-blue-300 mb-2">

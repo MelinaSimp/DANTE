@@ -300,11 +300,11 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
             .then(() => {
               // no-cors mode doesn't give us status, but if it doesn't throw, assume it's OK
               console.log("[Preview] PDF file check passed (no-cors mode)");
-              setPreviewModal({
-                isOpen: true,
-                dataSource,
-                content: "PDF_PREVIEW", // Special marker for PDF
-                loading: false,
+          setPreviewModal({
+            isOpen: true,
+            dataSource,
+            content: "PDF_PREVIEW", // Special marker for PDF
+            loading: false,
               });
             })
             .catch(error => {
@@ -344,7 +344,7 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
                     loading: false,
                   });
                 });
-            });
+          });
         } else if (isImage) {
           // For images, show the image
           setPreviewModal({
@@ -421,13 +421,13 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
                 content: `⚠️ STORAGE BUCKET NOT FOUND\n\nError: ${errorText || "Bucket not found"}\n\nThis means the "agent-files" storage bucket doesn't exist in Supabase.\n\n🔧 TO FIX:\n\n1. Go to Supabase Dashboard → SQL Editor\n2. Run this SQL script:\n\n   INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)\n   VALUES ('agent-files', 'agent-files', true, 52428800, ARRAY['application/pdf', 'text/plain', 'application/json', 'image/png', 'image/jpeg'])\n   ON CONFLICT (id) DO UPDATE SET public = true;\n\n3. After running the SQL:\n   - Delete this data source entry (click X button)\n   - Re-upload your PDF file\n\n📄 Full setup script: See SETUP_STORAGE_FIXED.sql in your project`,
                 loading: false,
               });
-            } else {
-              setPreviewModal({
-                isOpen: true,
-                dataSource,
+          } else {
+            setPreviewModal({
+              isOpen: true,
+              dataSource,
                 content: `Unable to load file preview.\n\nError: ${response.status} ${response.statusText}\n\nIf this file was uploaded before setting up storage, delete it and re-upload.`,
-                loading: false,
-              });
+              loading: false,
+            });
             }
           }
         }
@@ -634,11 +634,11 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
                   {previewModal.content === "PDF_PREVIEW" && previewModal.dataSource.file_url ? (
                     <div className="w-full">
                       <div className="w-full h-[60vh] mb-4">
-                        <iframe
-                          src={previewModal.dataSource.file_url}
-                          className="w-full h-full rounded-lg border border-white/10"
-                          title={previewModal.dataSource.name}
-                        />
+                      <iframe
+                        src={previewModal.dataSource.file_url}
+                        className="w-full h-full rounded-lg border border-white/10"
+                        title={previewModal.dataSource.name}
+                      />
                       </div>
                       <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30">
                         <p className="text-xs text-blue-300 mb-2">

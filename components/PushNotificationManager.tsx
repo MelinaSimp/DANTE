@@ -11,34 +11,34 @@ export default function PushNotificationManager() {
       // Request notification permission
       const requestPermission = async () => {
         try {
-          const permission = await Notification.requestPermission();
-          if (permission === 'granted') {
-            console.log('Push notifications enabled');
-            
-            // Subscribe to push notifications
-            try {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          console.log('Push notifications enabled');
+          
+          // Subscribe to push notifications
+          try {
               const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
               if (!vapidKey) {
                 console.log('VAPID key not configured, skipping push subscription');
                 return;
               }
-              const registration = await navigator.serviceWorker.ready;
-              const subscription = await registration.pushManager.subscribe({
-                userVisibleOnly: true,
+            const registration = await navigator.serviceWorker.ready;
+            const subscription = await registration.pushManager.subscribe({
+              userVisibleOnly: true,
                 applicationServerKey: vapidKey
-              });
-              
-              // Send subscription to server
-              await fetch('/api/push/subscribe', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(subscription),
-              });
-            } catch (error) {
-              console.error('Push subscription failed:', error);
-            }
+            });
+            
+            // Send subscription to server
+            await fetch('/api/push/subscribe', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(subscription),
+            });
+          } catch (error) {
+            console.error('Push subscription failed:', error);
+          }
           }
         } catch (error) {
           console.error('Notification permission request failed:', error);
