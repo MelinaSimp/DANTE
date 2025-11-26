@@ -87,3 +87,4 @@ All client components now check:
 4. Ensure no server components inside client components
 5. Check for missing dependencies or imports
 
+

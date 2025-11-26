@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import Link from "next/link";
 import { Phone, CalendarCheck, UserRound, ClipboardList, ChevronRight, LucideIcon } from "lucide-react";
 
