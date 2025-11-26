@@ -12,7 +12,7 @@ interface OnboardingContextType {
 
 const OnboardingContext = createContext<OnboardingContextType | undefined>(undefined);
 
-export function OnboardingProvider({ children }: { children: React.ReactNode }) {
+export default function OnboardingProvider({ children }: { children: React.ReactNode }) {
   const [isOnboardingVisible, setIsOnboardingVisible] = useState(false);
 
   useEffect(() => {
