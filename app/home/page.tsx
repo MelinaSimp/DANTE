@@ -89,7 +89,9 @@ export default async function HomeLanding() {
             <p className="text-xs uppercase tracking-[0.3em] text-gray-400">QUICK ACTIONS</p>
             <h2 className="mt-2 text-lg font-semibold text-white">Jump back into work</h2>
             <div className="mt-5 space-y-3">
-              {quickActions.map(({ href, title, description, icon: Icon }) => (
+              {quickActions.map(({ href, title, description, icon: IconComponent }) => {
+                const Icon = IconComponent;
+                return (
                 <Link
                   key={href}
                   href={href}
@@ -97,7 +99,7 @@ export default async function HomeLanding() {
                 >
                   <div className="flex items-center gap-3">
                     <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-black/60 text-white">
-                      <Icon size={20} />
+                      {Icon && <Icon size={20} />}
                     </span>
                     <div className="text-left">
                       <p className="text-sm font-semibold text-white whitespace-nowrap">{title}</p>
@@ -106,7 +108,8 @@ export default async function HomeLanding() {
                   </div>
                   <ChevronRight className="h-4 w-4 text-gray-500 transition group-hover:text-white" />
                 </Link>
-              ))}
+                );
+              })}
             </div>
           </aside>
         </div>
