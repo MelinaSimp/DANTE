@@ -30,7 +30,7 @@ export default async function Home() {
   
   // If user is NOT signed in, show marketing page
   return (
-    <main className="min-h-screen minimal-bg" style={{ background: '#ffffff', color: '#1f2937' }}>
+    <main className="min-h-screen minimal-bg bg-white text-gray-900">
       <header className="mx-auto max-w-6xl px-4 pt-16 text-center">
         <h1 className="mt-8 text-4xl md:text-5xl font-bold text-gray-900">
           AI Receptionist for Service Companies
