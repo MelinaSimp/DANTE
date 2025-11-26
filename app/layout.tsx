@@ -6,7 +6,6 @@ import PushNotificationManager from "@/components/PushNotificationManager";
 import OfflineIndicator from "@/components/OfflineIndicator";
 import { OnboardingProvider } from "@/components/onboarding/OnboardingProvider";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import ClientWrapper from "@/components/ClientWrapper";
 
 export const metadata: Metadata = {
   title: "Drift - Agent Canvas",
@@ -37,13 +36,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Header />
         </div>
         <ErrorBoundary>
-          <ClientWrapper>
-            <OnboardingProvider>
-              <OfflineIndicator />
-              <main className="relative z-0 bg-[#242423]" style={{ background: '#242423', backgroundImage: 'none' }}>{children}</main>
-              <PushNotificationManager />
-            </OnboardingProvider>
-          </ClientWrapper>
+          <OnboardingProvider>
+            <OfflineIndicator />
+            <main className="relative z-0 bg-[#242423]" style={{ background: '#242423', backgroundImage: 'none' }}>{children}</main>
+            <PushNotificationManager />
+          </OnboardingProvider>
         </ErrorBoundary>
         <script
           dangerouslySetInnerHTML={{
