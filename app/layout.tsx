@@ -2,8 +2,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Header from "@/components/Header";
-import PushNotificationManager from "@/components/PushNotificationManager";
-import OfflineIndicator from "@/components/OfflineIndicator";
+// import PushNotificationManager from "@/components/PushNotificationManager";
+// import OfflineIndicator from "@/components/OfflineIndicator";
 // import OnboardingProvider from "@/components/onboarding/OnboardingProvider";
 
 export const metadata: Metadata = {
@@ -31,12 +31,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className="bg-[#242423] min-h-screen antialiased text-white">
-        <OfflineIndicator />
         <div className="hidden">
           <Header />
         </div>
         <main className="relative z-0 bg-[#242423]" style={{ background: '#242423', backgroundImage: 'none' }}>{children}</main>
-        <PushNotificationManager />
         <script
           dangerouslySetInnerHTML={{
             __html: `
