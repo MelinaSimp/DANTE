@@ -2,13 +2,14 @@
 
 import React from "react";
 import Link from "next/link";
-import { Phone, CalendarCheck, UserRound, ClipboardList, ChevronRight, LucideIcon } from "lucide-react";
+import { Phone, CalendarCheck, UserRound, ClipboardList, ChevronRight } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 interface QuickAction {
   href: string;
   title: string;
   description: string;
-  icon: LucideIcon;
+  icon: React.ElementType;
 }
 
 const quickActions: QuickAction[] = [

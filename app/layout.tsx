@@ -34,7 +34,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en">
       <body className="bg-[#242423] min-h-screen antialiased text-white">
         <ErrorBoundaryWrapper>
-          <main className="relative z-0 bg-[#242423]" style={{ background: '#242423', backgroundImage: 'none' }}>{children}</main>
+          <main className="relative z-0 bg-[#242423]">{children}</main>
           <script
             dangerouslySetInnerHTML={{
               __html: `
