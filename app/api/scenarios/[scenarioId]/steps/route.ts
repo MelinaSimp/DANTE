@@ -88,22 +88,29 @@ export async function POST(
     .limit(1)
     .maybeSingle();
 
+  // Build insert payload - only include fields that exist in the schema
+  const insertPayload: any = {
+    scenario_id: params.scenarioId,
+    name,
+    type,
+    sort_order: (maxOrder?.sort_order || 0) + 1,
+  };
+
+  // Add optional fields only if they're provided
+  if (code !== undefined) insertPayload.code = code;
+  if (ai_message !== undefined) insertPayload.ai_message = ai_message;
+
   const { data, error } = await supabaseAdmin
     .from("steps")
-    .insert({
-      scenario_id: params.scenarioId,
-      name,
-      type,
-      code: code || null,
-      ai_message: ai_message || null,
-      sort_order: (maxOrder?.sort_order || 0) + 1,
-    })
+    .insert(insertPayload)
     .select("*")
     .single();
 
   if (error) {
     console.error("Failed to create step", error);
-    return NextResponse.json({ error: "Failed to create step" }, { status: 500 });
+    console.error("Error details:", JSON.stringify(error, null, 2));
+    console.error("Insert payload:", JSON.stringify(insertPayload, null, 2));
+    return NextResponse.json({ error: `Failed to create step: ${error.message}` }, { status: 500 });
   }
 
   return NextResponse.json(data);

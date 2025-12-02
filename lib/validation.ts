@@ -1,189 +1,104 @@
 // lib/validation.ts
+// Validation utilities for forms and user input
 
-export interface ValidationError {
-  field: string;
-  message: string;
+/**
+ * Validates phone number format (E.164)
+ * Returns null if valid, error message if invalid
+ */
+export function validatePhoneNumber(phone: string | null | undefined): string | null {
+  if (!phone) {
+    return "Phone number is required";
+  }
+
+  // Remove all non-digit characters except +
+  const cleaned = phone.replace(/[^\d+]/g, "");
+
+  // Must start with + and have 10-15 digits after country code
+  if (!cleaned.startsWith("+")) {
+    return "Phone number must start with + (e.g., +1234567890)";
+  }
+
+  const digits = cleaned.substring(1);
+  if (digits.length < 10 || digits.length > 15) {
+    return "Phone number must be 10-15 digits after country code";
+  }
+
+  // Check for valid country code (1-3 digits)
+  if (digits.length < 10) {
+    return "Phone number is too short";
+  }
+
+  return null; // Valid
 }
 
-export interface ValidationResult {
-  isValid: boolean;
-  errors: ValidationError[];
-}
+/**
+ * Formats phone number to E.164 format
+ * Assumes US numbers if no country code provided
+ */
+export function formatPhoneToE164(phone: string): string {
+  // Remove all non-digit characters except +
+  const cleaned = phone.replace(/[^\d+]/g, "");
 
-// Contact validation
-export function validateContact(data: {
-  name?: string;
-  email?: string;
-  phone?: string;
-  notes?: string;
-}): ValidationResult {
-  const errors: ValidationError[] = [];
-
-  // Name validation
-  if (!data.name || data.name.trim().length === 0) {
-    errors.push({ field: 'name', message: 'Name is required' });
-  } else if (data.name.trim().length < 2) {
-    errors.push({ field: 'name', message: 'Name must be at least 2 characters long' });
-  } else if (data.name.trim().length > 100) {
-    errors.push({ field: 'name', message: 'Name must be less than 100 characters' });
+  if (cleaned.startsWith("+")) {
+    return cleaned;
   }
 
-  // Phone validation
-  if (!data.phone || data.phone.trim().length === 0) {
-    errors.push({ field: 'phone', message: 'Phone number is required' });
-  } else {
-    const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
-    const cleanPhone = data.phone.replace(/[\s\-\(\)\.]/g, '');
-    if (!phoneRegex.test(cleanPhone)) {
-      errors.push({ field: 'phone', message: 'Please enter a valid phone number' });
-    }
-  }
-
-  // Email validation (optional)
-  if (data.email && data.email.trim().length > 0) {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(data.email.trim())) {
-      errors.push({ field: 'email', message: 'Please enter a valid email address' });
-    } else if (data.email.trim().length > 255) {
-      errors.push({ field: 'email', message: 'Email must be less than 255 characters' });
-    }
-  }
-
-  // Notes validation (optional)
-  if (data.notes && data.notes.length > 1000) {
-    errors.push({ field: 'notes', message: 'Notes must be less than 1000 characters' });
-  }
-
-  return {
-    isValid: errors.length === 0,
-    errors
-  };
-}
-
-// Appointment validation
-export function validateAppointment(data: {
-  contact_id?: string;
-  scheduled_at?: string;
-  duration_minutes?: number;
-  service_type?: string;
-  notes?: string;
-}): ValidationResult {
-  const errors: ValidationError[] = [];
-
-  // Contact ID validation
-  if (!data.contact_id || data.contact_id.trim().length === 0) {
-    errors.push({ field: 'contact_id', message: 'Contact is required' });
-  }
-
-  // Scheduled date validation
-  if (!data.scheduled_at || data.scheduled_at.trim().length === 0) {
-    errors.push({ field: 'scheduled_at', message: 'Appointment date and time is required' });
-  } else {
-    const appointmentDate = new Date(data.scheduled_at);
-    const now = new Date();
-    
-    if (isNaN(appointmentDate.getTime())) {
-      errors.push({ field: 'scheduled_at', message: 'Please enter a valid date and time' });
-    } else if (appointmentDate < now) {
-      errors.push({ field: 'scheduled_at', message: 'Appointment cannot be scheduled in the past' });
-    } else if (appointmentDate > new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000)) {
-      errors.push({ field: 'scheduled_at', message: 'Appointment cannot be scheduled more than 1 year in advance' });
-    }
-  }
-
-  // Duration validation
-  if (!data.duration_minutes || data.duration_minutes <= 0) {
-    errors.push({ field: 'duration_minutes', message: 'Duration must be greater than 0' });
-  } else if (data.duration_minutes > 480) { // 8 hours
-    errors.push({ field: 'duration_minutes', message: 'Duration cannot exceed 8 hours' });
-  }
-
-  // Service type validation
-  if (!data.service_type || data.service_type.trim().length === 0) {
-    errors.push({ field: 'service_type', message: 'Service type is required' });
-  } else if (data.service_type.trim().length > 100) {
-    errors.push({ field: 'service_type', message: 'Service type must be less than 100 characters' });
-  }
-
-  // Notes validation (optional)
-  if (data.notes && data.notes.length > 1000) {
-    errors.push({ field: 'notes', message: 'Notes must be less than 1000 characters' });
-  }
-
-  return {
-    isValid: errors.length === 0,
-    errors
-  };
-}
-
-// Knowledge base validation
-export function validateKnowledgeEntry(data: {
-  category?: string;
-  title?: string;
-  content?: string;
-}): ValidationResult {
-  const errors: ValidationError[] = [];
-
-  // Category validation
-  if (!data.category || data.category.trim().length === 0) {
-    errors.push({ field: 'category', message: 'Category is required' });
-  } else if (data.category.trim().length > 50) {
-    errors.push({ field: 'category', message: 'Category must be less than 50 characters' });
-  }
-
-  // Title validation
-  if (!data.title || data.title.trim().length === 0) {
-    errors.push({ field: 'title', message: 'Title is required' });
-  } else if (data.title.trim().length > 200) {
-    errors.push({ field: 'title', message: 'Title must be less than 200 characters' });
-  }
-
-  // Content validation
-  if (!data.content || data.content.trim().length === 0) {
-    errors.push({ field: 'content', message: 'Content is required' });
-  } else if (data.content.trim().length < 10) {
-    errors.push({ field: 'content', message: 'Content must be at least 10 characters long' });
-  } else if (data.content.length > 5000) {
-    errors.push({ field: 'content', message: 'Content must be less than 5000 characters' });
-  }
-
-  return {
-    isValid: errors.length === 0,
-    errors
-  };
-}
-
-// Generic input sanitization
-export function sanitizeInput(input: string): string {
-  return input
-    .trim()
-    .replace(/[<>]/g, '') // Remove potential HTML tags
-    .replace(/javascript:/gi, '') // Remove javascript: protocol
-    .replace(/on\w+=/gi, ''); // Remove event handlers
-}
-
-// Phone number formatting
-export function formatPhoneNumber(phone: string): string {
-  const cleaned = phone.replace(/\D/g, '');
-  
+  // If 10 digits, assume US (+1)
   if (cleaned.length === 10) {
-    return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
-  } else if (cleaned.length === 11 && cleaned[0] === '1') {
-    return `+1 (${cleaned.slice(1, 4)}) ${cleaned.slice(4, 7)}-${cleaned.slice(7)}`;
+    return `+1${cleaned}`;
   }
-  
-  return phone; // Return original if can't format
+
+  // If 11 digits starting with 1, add +
+  if (cleaned.length === 11 && cleaned.startsWith("1")) {
+    return `+${cleaned}`;
+  }
+
+  // Otherwise, add + prefix
+  return `+${cleaned}`;
 }
 
-// Email validation helper
-export function isValidEmail(email: string): boolean {
+/**
+ * Validates email format
+ */
+export function validateEmail(email: string | null | undefined): string | null {
+  if (!email) {
+    return null; // Email is optional in most cases
+  }
+
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email.trim());
+  if (!emailRegex.test(email)) {
+    return "Please enter a valid email address";
+  }
+
+  return null;
 }
 
-// Phone validation helper
-export function isValidPhone(phone: string): boolean {
-  const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
-  const cleanPhone = phone.replace(/[\s\-\(\)\.]/g, '');
-  return phoneRegex.test(cleanPhone);
+/**
+ * Validates required field
+ */
+export function validateRequired(value: string | null | undefined, fieldName: string): string | null {
+  if (!value || value.trim().length === 0) {
+    return `${fieldName} is required`;
+  }
+  return null;
+}
+
+/**
+ * Validates minimum length
+ */
+export function validateMinLength(value: string, minLength: number, fieldName: string): string | null {
+  if (value.length < minLength) {
+    return `${fieldName} must be at least ${minLength} characters`;
+  }
+  return null;
+}
+
+/**
+ * Validates maximum length
+ */
+export function validateMaxLength(value: string, maxLength: number, fieldName: string): string | null {
+  if (value.length > maxLength) {
+    return `${fieldName} must be no more than ${maxLength} characters`;
+  }
+  return null;
 }

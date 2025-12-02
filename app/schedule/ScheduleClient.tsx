@@ -66,16 +66,16 @@ export default function ScheduleClient({ initialAppointments, workspaceId }: Sch
   return (
     <div className="h-full flex flex-col space-y-6 text-white p-6 overflow-y-auto">
       <div className="max-w-4xl mx-auto w-full">
-        <div className="rounded-lg border border-white/10 bg-[#242423]/90 backdrop-blur-sm p-6">
+        <div className="rounded-2xl border border-white/10 bg-[#242423]/90 backdrop-blur-sm p-6">
       {/* View Toggle */}
       <div className="flex items-center gap-4">
-        <div className="flex rounded-lg border border-white/10 bg-white/5 p-1">
+        <div className="flex rounded-2xl border border-white/10 bg-white/5 p-1">
           <button
             onClick={() => {
               setView("calendar");
               setShowDayView(false);
             }}
-            className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+            className={`px-3 py-1 rounded-2xl text-sm font-medium transition-colors ${
               view === "calendar"
                 ? "bg-white text-gray-900 shadow-md"
                 : "text-white/70 hover:text-white"
@@ -88,7 +88,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId }: Sch
               setView("list");
               setShowDayView(false);
             }}
-            className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+            className={`px-3 py-1 rounded-2xl text-sm font-medium transition-colors ${
               view === "list"
                 ? "bg-white text-gray-900 shadow-md"
                 : "text-white/70 hover:text-white"
@@ -102,7 +102,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId }: Sch
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowDayView(false)}
-              className="px-3 py-1 text-sm rounded-md bg-white/10 text-white/80 hover:bg-white/15"
+              className="px-3 py-1 text-sm rounded-2xl bg-white/10 text-white/80 hover:bg-white/15"
             >
               ← Back to Calendar
             </button>
@@ -124,19 +124,19 @@ export default function ScheduleClient({ initialAppointments, workspaceId }: Sch
               <div className="flex gap-2">
                 <button
                   onClick={() => setSelectedDate(selectedDate.subtract(1, "day"))}
-                  className="p-2 rounded-md border border-white/10 text-white/70 hover:bg-white/10"
+                  className="p-2 rounded-2xl border border-white/10 text-white/70 hover:bg-white/10"
                 >
                   ←
                 </button>
                 <button
                   onClick={() => setSelectedDate(dayjs())}
-                  className="px-3 py-1 text-sm rounded-md bg-[#3351ff] text-white hover:bg-[#4a64ff]"
+                  className="px-3 py-1 text-sm rounded-2xl bg-[#3351ff] text-white hover:bg-[#4a64ff]"
                 >
                   Today
                 </button>
                 <button
                   onClick={() => setSelectedDate(selectedDate.add(1, "day"))}
-                  className="p-2 rounded-md border border-white/10 text-white/70 hover:bg-white/10"
+                  className="p-2 rounded-2xl border border-white/10 text-white/70 hover:bg-white/10"
                 >
                   →
                 </button>
@@ -174,7 +174,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId }: Sch
                       return (
                         <div
                           key={appointment.id}
-                          className="absolute left-0 right-0 rounded-md border border-[#3351ff]/40 bg-[#3351ff]/20 p-2 shadow-sm transition hover:shadow-lg"
+                          className="absolute left-0 right-0 rounded-2xl border border-[#3351ff]/40 bg-[#3351ff]/20 p-2 shadow-sm transition hover:shadow-lg"
                           style={{ top: `${topOffset}px`, height: `${height}px` }}
                         >
                           <div className="flex items-center justify-between h-full">
@@ -219,19 +219,19 @@ export default function ScheduleClient({ initialAppointments, workspaceId }: Sch
                 <div className="flex gap-2">
                   <button
                     onClick={() => setSelectedDate(selectedDate.subtract(1, "month"))}
-                    className="rounded-md border border-white/10 p-2 text-white/70 hover:bg-white/10"
+                    className="rounded-2xl border border-white/10 p-2 text-white/70 hover:bg-white/10"
                   >
                     ←
                   </button>
                   <button
                     onClick={() => setSelectedDate(dayjs())}
-                    className="rounded-md bg-[#3351ff] px-3 py-1 text-sm text-white hover:bg-[#4a64ff]"
+                    className="rounded-2xl bg-[#3351ff] px-3 py-1 text-sm text-white hover:bg-[#4a64ff]"
                   >
                     Today
                   </button>
                   <button
                     onClick={() => setSelectedDate(selectedDate.add(1, "month"))}
-                    className="rounded-md border border-white/10 p-2 text-white/70 hover:bg-white/10"
+                    className="rounded-2xl border border-white/10 p-2 text-white/70 hover:bg-white/10"
                   >
                     →
                   </button>
@@ -263,7 +263,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId }: Sch
                         setSelectedDate(date);
                         setShowDayView(true);
                       }}
-                      className={`rounded-md p-4 text-sm transition min-h-[80px] flex flex-col items-center justify-start ${
+                      className={`rounded-2xl p-4 text-sm transition min-h-[80px] flex flex-col items-center justify-start ${
                         isToday ? "bg-[#3351ff]/25 text-[#7a8dff]" : ""
                       } ${isSelected ? "border-2 border-[#3351ff] bg-[#3351ff]/30 text-white" : "hover:bg-white/10 border border-white/5"}`}
                     >
@@ -292,7 +292,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId }: Sch
               ) : (
                 <div className="space-y-3">
                   {todayAppointments.map((appointment) => (
-                      <div key={appointment.id} className="rounded-lg border border-white/10 bg-white/5 p-3">
+                      <div key={appointment.id} className="rounded-2xl border border-white/10 bg-white/5 p-3">
                         <div className="mb-1 flex items-center justify-between">
                           <span className="text-sm font-medium text-white">
                             {appointment.localTime.format("h:mm A")}

@@ -95,7 +95,7 @@ export default function AuthPage() {
         </div>
 
         {/* Auth Card */}
-        <div className="rounded-2xl border border-white/10 bg-black/40 p-8 backdrop-blur">
+        <div className="rounded-3xl border border-white/10 bg-black/40 p-8 backdrop-blur">
           {/* Toggle */}
           <div className="mb-6 grid grid-cols-2 gap-2">
             <button
@@ -105,7 +105,7 @@ export default function AuthPage() {
                 setError(null);
                 setMessage(null);
               }}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+              className={`rounded-3xl px-4 py-2 text-sm font-medium transition ${
                 !isSignUp
                   ? "bg-[#3351ff] text-white"
                   : "bg-white/5 text-white/60 hover:bg-white/10"
@@ -120,7 +120,7 @@ export default function AuthPage() {
                 setError(null);
                 setMessage(null);
               }}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+              className={`rounded-3xl px-4 py-2 text-sm font-medium transition ${
                 isSignUp
                   ? "bg-[#3351ff] text-white"
                   : "bg-white/5 text-white/60 hover:bg-white/10"
@@ -143,7 +143,7 @@ export default function AuthPage() {
                       type="text"
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
-                      className="w-full rounded-lg border border-white/10 bg-black/40 px-4 py-2.5 text-white placeholder:text-white/40 focus:border-[#3351ff] focus:outline-none"
+                      className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-2.5 text-white placeholder:text-white/40 focus:border-[#3351ff] focus:outline-none"
                       placeholder="John"
                       required={isSignUp}
                     />
@@ -156,7 +156,7 @@ export default function AuthPage() {
                       type="text"
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
-                      className="w-full rounded-lg border border-white/10 bg-black/40 px-4 py-2.5 text-white placeholder:text-white/40 focus:border-[#3351ff] focus:outline-none"
+                      className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-2.5 text-white placeholder:text-white/40 focus:border-[#3351ff] focus:outline-none"
                       placeholder="Doe"
                       required={isSignUp}
                     />
@@ -170,7 +170,7 @@ export default function AuthPage() {
                     type="text"
                     value={companyName}
                     onChange={(e) => setCompanyName(e.target.value)}
-                    className="w-full rounded-lg border border-white/10 bg-black/40 px-4 py-2.5 text-white placeholder:text-white/40 focus:border-[#3351ff] focus:outline-none"
+                    className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-2.5 text-white placeholder:text-white/40 focus:border-[#3351ff] focus:outline-none"
                     placeholder="Your Company"
                     required={isSignUp}
                   />
@@ -186,7 +186,7 @@ export default function AuthPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-lg border border-white/10 bg-black/40 px-4 py-2.5 text-white placeholder:text-white/40 focus:border-[#3351ff] focus:outline-none"
+                className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-2.5 text-white placeholder:text-white/40 focus:border-[#3351ff] focus:outline-none"
                 placeholder="you@company.com"
                 required
               />
@@ -200,7 +200,7 @@ export default function AuthPage() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-lg border border-white/10 bg-black/40 px-4 py-2.5 text-white placeholder:text-white/40 focus:border-[#3351ff] focus:outline-none"
+                className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-2.5 text-white placeholder:text-white/40 focus:border-[#3351ff] focus:outline-none"
                 placeholder="••••••••"
                 required
                 minLength={8}
@@ -208,13 +208,13 @@ export default function AuthPage() {
             </div>
 
             {error && (
-              <div className="rounded-lg bg-red-500/20 border border-red-500/30 px-4 py-3 text-sm text-red-300">
+              <div className="rounded-2xl bg-red-500/20 border border-red-500/30 px-4 py-3 text-sm text-red-300">
                 {error}
               </div>
             )}
 
             {message && (
-              <div className="rounded-lg bg-green-500/20 border border-green-500/30 px-4 py-3 text-sm text-green-300">
+              <div className="rounded-2xl bg-green-500/20 border border-green-500/30 px-4 py-3 text-sm text-green-300">
                 {message}
               </div>
             )}
@@ -222,7 +222,7 @@ export default function AuthPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-lg bg-[#3351ff] hover:bg-[#4a64ff] px-4 py-3 text-white font-medium transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full rounded-3xl bg-[#3351ff] hover:bg-[#4a64ff] px-4 py-3 text-white font-medium transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
                 "Loading..."

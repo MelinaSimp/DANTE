@@ -71,28 +71,10 @@ export async function POST(
     const result = await executor.executeNextStep(message);
 
     if (!result.success) {
-      console.error("[Conversation Message] Agent execution failed:", {
-        conversationId: params.conversationId,
-        error: result.error,
-        stepId: context.currentStepId,
-        agentId: context.agentId,
-      });
-      
-      // In development, show the actual error. In production, show a user-friendly message
-      const isDev = process.env.NODE_ENV === 'development';
-      const errorMessage = isDev 
-        ? `Error: ${result.error || "Unknown error"}` 
-        : "I'm sorry, I encountered an error. Please try again.";
-      
       return NextResponse.json({
         success: false,
         error: result.error,
-        message: errorMessage,
-        debug: isDev ? {
-          stepId: context.currentStepId,
-          agentId: context.agentId,
-          conversationId: params.conversationId,
-        } : undefined,
+        message: "I'm sorry, I encountered an error. Please try again.",
       });
     }
 

@@ -43,7 +43,7 @@ export default function CreateAgentModal({ onClose, onCreate }: CreateAgentModal
       <div className={`relative w-full max-w-2xl rounded-2xl border ${colors.border} bg-[#242423] p-8 shadow-2xl`}>
         <button
           onClick={onClose}
-          className={`absolute right-4 top-4 p-2 ${colors.hover} rounded-lg transition`}
+          className={`absolute right-4 top-4 p-2 ${colors.hover} rounded-full transition`}
         >
           <X className={`h-5 w-5 ${colors.iconSecondary}`} />
         </button>
@@ -63,7 +63,7 @@ export default function CreateAgentModal({ onClose, onCreate }: CreateAgentModal
               <button
                 type="button"
                 onClick={() => setModality("chat")}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition ${
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl transition ${
                   modality === "chat"
                     ? `${colors.selected} border ${colors.border}`
                     : `${colors.bgTertiary} border ${colors.border} ${colors.hover}`
@@ -78,7 +78,7 @@ export default function CreateAgentModal({ onClose, onCreate }: CreateAgentModal
               <button
                 type="button"
                 onClick={() => setModality("voice")}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition ${
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl transition ${
                   modality === "voice"
                     ? `${colors.selected} border ${colors.border}`
                     : `${colors.bgTertiary} border ${colors.border} ${colors.hover}`
@@ -93,7 +93,7 @@ export default function CreateAgentModal({ onClose, onCreate }: CreateAgentModal
               <button
                 type="button"
                 onClick={() => setModality("multi-modal")}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition ${
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl transition ${
                   modality === "multi-modal"
                     ? `${colors.selected} border ${colors.border}`
                     : `${colors.bgTertiary} border ${colors.border} ${colors.hover}`
@@ -117,7 +117,7 @@ export default function CreateAgentModal({ onClose, onCreate }: CreateAgentModal
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Enter agent name"
-              className={`w-full px-4 py-2 rounded-lg border ${colors.border} ${colors.inputBg} ${colors.text} focus:outline-none focus:border-[#3351ff]`}
+              className={`w-full px-4 py-2 rounded-2xl border ${colors.border} ${colors.inputBg} ${colors.text} focus:outline-none focus:border-[#3351ff]`}
               required
             />
           </div>
@@ -133,7 +133,7 @@ export default function CreateAgentModal({ onClose, onCreate }: CreateAgentModal
             <div
               onDrop={handleDrop}
               onDragOver={handleDragOver}
-              className={`border-2 border-dashed ${colors.borderSecondary} rounded-xl p-8 text-center hover:${colors.border} transition ${colors.bgTertiary}`}
+              className={`border-2 border-dashed ${colors.borderSecondary} rounded-2xl p-8 text-center hover:${colors.border} transition ${colors.bgTertiary}`}
             >
               <input
                 type="file"
@@ -174,13 +174,13 @@ export default function CreateAgentModal({ onClose, onCreate }: CreateAgentModal
             <button
               type="button"
               onClick={onClose}
-              className={`px-6 py-2 rounded-lg border ${colors.border} ${colors.bgTertiary} ${colors.text} ${colors.hover} transition`}
+              className={`px-6 py-2 rounded-2xl border ${colors.border} ${colors.bgTertiary} ${colors.text} ${colors.hover} transition`}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className={`px-6 py-2 rounded-lg ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white font-medium transition`}
+              className={`px-6 py-2 rounded-2xl ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white font-medium transition`}
             >
               Create agent
             </button>

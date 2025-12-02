@@ -27,18 +27,12 @@ main {
 
 /* Removed gradient backgrounds - using simple white theme */
 
-/* Minimal background for marketing page */
-.minimal-bg {
-  background: #ffffff;
-  color: #1f2937;
-}
-
 /* Card styles with modern glass effect */
 .card {
   background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 1rem;
+  border-radius: 1.5rem;
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
   transition: all 0.3s ease;
 }
@@ -55,7 +49,7 @@ main {
   background: #3351ff;
   color: #ffffff;
   border: none;
-  border-radius: 0.75rem;
+  border-radius: 1rem;
   padding: 0.75rem 1.5rem;
   font-weight: 600;
   transition: all 0.3s ease;
@@ -73,7 +67,7 @@ main {
   background: rgba(0, 0, 0, 0.4);
   color: #ffffff;
   border: 2px solid rgba(255, 255, 255, 0.1);
-  border-radius: 0.75rem;
+  border-radius: 1rem;
   padding: 0.75rem 1.5rem;
   font-weight: 600;
   transition: all 0.3s ease;
@@ -90,7 +84,7 @@ main {
 .form-input {
   background: rgba(0, 0, 0, 0.6);
   border: 2px solid rgba(255, 255, 255, 0.1);
-  border-radius: 0.75rem;
+  border-radius: 1rem;
   padding: 0.875rem 1rem;
   font-size: 1rem;
   transition: all 0.3s ease;
@@ -130,17 +124,19 @@ main {
 @media (max-width: 768px) {
   .card {
     margin: 0.5rem;
-    border-radius: 0.75rem;
+    border-radius: 1.25rem;
   }
   
   .btn-primary, .btn-secondary {
     padding: 0.625rem 1.25rem;
     font-size: 0.875rem;
+    border-radius: 0.875rem;
   }
   
   .form-input {
     padding: 0.75rem;
     font-size: 0.875rem;
+    border-radius: 0.875rem;
   }
 }
 

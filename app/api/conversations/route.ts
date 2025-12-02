@@ -50,9 +50,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Agent not found" }, { status: 404 });
     }
 
-    if (agent.status !== "deployed") {
-      return NextResponse.json({ error: "Agent is not deployed" }, { status: 400 });
-    }
+    // Allow non-deployed agents for testing (chat interface)
+    // if (agent.status !== "deployed") {
+    //   return NextResponse.json({ error: "Agent is not deployed" }, { status: 400 });
+    // }
 
     // Get first scenario for this agent
     const { data: scenarios } = await supabaseAdmin
@@ -76,6 +77,9 @@ export async function POST(req: NextRequest) {
 
       currentStepId = steps && steps.length > 0 ? steps[0].id : null;
     }
+
+    // If no scenario or step, we'll still create the conversation
+    // The executor will handle this gracefully
 
     // Create conversation
     const { data: conversation, error } = await supabaseAdmin
@@ -160,8 +164,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message || "Internal server error" }, { status: 500 });
   }
 }
-
-
 
 
 

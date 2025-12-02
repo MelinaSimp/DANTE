@@ -52,4 +52,3 @@ After gathering, it wasn't immediately saying the next step's message.
 
 
 
-

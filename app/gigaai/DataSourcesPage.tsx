@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Upload, Database, X, GripVertical, Eye, Download } from "lucide-react";
+import { Upload, Database, X, GripVertical, Eye, Download, CheckCircle } from "lucide-react";
 import ConfirmationModal from "./ConfirmationModal";
 import { useTheme } from "./ThemeProvider";
 
@@ -82,6 +82,15 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
       }
     }
     loadDataSources();
+    
+    // Poll for updates every 5 seconds to check if PDF extraction completed
+    const interval = setInterval(() => {
+      if (agentId) {
+        loadDataSources();
+      }
+    }, 5000);
+    
+    return () => clearInterval(interval);
   }, [agentId]);
 
   const handleDrop = async (e: React.DragEvent) => {
@@ -137,6 +146,7 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
         setDataSources((prev) => [{
           id: newDataSource.id,
           name: newDataSource.name,
+          content: newDataSource.content, // Include content to show checkmark if extracted
           file_url: newDataSource.file_url,
           file_size: newDataSource.file_size,
           file_type: newDataSource.file_type,
@@ -200,6 +210,7 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
         setDataSources((prev) => [{
           id: newDataSource.id,
           name: newDataSource.name,
+          content: newDataSource.content, // Include content to show checkmark if extracted
           file_url: newDataSource.file_url,
           file_size: newDataSource.file_size,
           file_type: newDataSource.file_type,
@@ -294,56 +305,12 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
         const isText = fileType.startsWith("text/");
         
         if (isPDF) {
-          // For PDFs, try to load first to check if file exists
-          console.log("[Preview] Checking PDF file:", dataSource.file_url);
-          fetch(dataSource.file_url, { method: 'HEAD', mode: 'no-cors' })
-            .then(() => {
-              // no-cors mode doesn't give us status, but if it doesn't throw, assume it's OK
-              console.log("[Preview] PDF file check passed (no-cors mode)");
+          // For PDFs, show in iframe
           setPreviewModal({
             isOpen: true,
             dataSource,
             content: "PDF_PREVIEW", // Special marker for PDF
             loading: false,
-              });
-            })
-            .catch(error => {
-              console.error("[Preview] PDF file check failed:", error);
-              // Try with CORS to get actual error
-              fetch(dataSource.file_url, { method: 'HEAD' })
-                .then(response => {
-                  console.log("[Preview] PDF HEAD response:", response.status, response.statusText);
-                  if (response.ok) {
-                    setPreviewModal({
-                      isOpen: true,
-                      dataSource,
-                      content: "PDF_PREVIEW",
-                      loading: false,
-                    });
-                  } else {
-                    const errorText = response.statusText || `HTTP ${response.status}`;
-                    const responseText = await response.text().catch(() => "");
-                    const isBucketError = responseText.includes("Bucket not found") || responseText.includes("bucket");
-                    
-                    setPreviewModal({
-                      isOpen: true,
-                      dataSource,
-                      content: isBucketError
-                        ? `⚠️ STORAGE BUCKET NOT FOUND\n\nError: ${responseText || errorText}\n\nThis means the "agent-files" storage bucket doesn't exist in Supabase.\n\n🔧 TO FIX:\n\n1. Go to Supabase Dashboard → SQL Editor\n2. Run this SQL:\n\n   INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)\n   VALUES ('agent-files', 'agent-files', true, 52428800, ARRAY['application/pdf', 'text/plain', 'application/json', 'image/png', 'image/jpeg'])\n   ON CONFLICT (id) DO UPDATE SET public = true;\n\n3. Delete this entry and re-upload your PDF`
-                        : `⚠️ File Not Found\n\nError: ${errorText}\n\nFile URL: ${dataSource.file_url}\n\nThis file may have been uploaded before the storage bucket was created.\n\nTo fix:\n1. Delete this data source entry\n2. Re-upload the file`,
-                      loading: false,
-                    });
-                  }
-                })
-                .catch(corsError => {
-                  console.error("[Preview] PDF CORS check also failed:", corsError);
-                  setPreviewModal({
-                    isOpen: true,
-                    dataSource,
-                    content: `⚠️ Cannot Access File\n\nFile URL: ${dataSource.file_url}\n\nPossible issues:\n1. Bucket is not public\n2. File doesn't exist\n3. CORS error\n\nTo fix:\n1. Check Supabase Storage → agent-files bucket is public\n2. Delete this entry and re-upload\n3. Check browser console for detailed errors`,
-                    loading: false,
-                  });
-                });
           });
         } else if (isImage) {
           // For images, show the image
@@ -410,25 +377,12 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
               });
             }
           } else {
-            // Check if it's a bucket not found error
-            const errorText = await response.text().catch(() => "");
-            const isBucketError = errorText.includes("Bucket not found") || errorText.includes("bucket") || response.status === 404;
-            
-            if (isBucketError) {
-              setPreviewModal({
-                isOpen: true,
-                dataSource,
-                content: `⚠️ STORAGE BUCKET NOT FOUND\n\nError: ${errorText || "Bucket not found"}\n\nThis means the "agent-files" storage bucket doesn't exist in Supabase.\n\n🔧 TO FIX:\n\n1. Go to Supabase Dashboard → SQL Editor\n2. Run this SQL script:\n\n   INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)\n   VALUES ('agent-files', 'agent-files', true, 52428800, ARRAY['application/pdf', 'text/plain', 'application/json', 'image/png', 'image/jpeg'])\n   ON CONFLICT (id) DO UPDATE SET public = true;\n\n3. After running the SQL:\n   - Delete this data source entry (click X button)\n   - Re-upload your PDF file\n\n📄 Full setup script: See SETUP_STORAGE_FIXED.sql in your project`,
-                loading: false,
-              });
-          } else {
             setPreviewModal({
               isOpen: true,
               dataSource,
-                content: `Unable to load file preview.\n\nError: ${response.status} ${response.statusText}\n\nIf this file was uploaded before setting up storage, delete it and re-upload.`,
+              content: "Unable to load file preview.",
               loading: false,
             });
-            }
           }
         }
       } catch (error) {
@@ -547,9 +501,22 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
                   <GripVertical className={`h-5 w-5 ${colors.iconSecondary}`} />
                   <Database className={`h-5 w-5 ${colors.iconSecondary}`} />
                   <div className="flex-1 min-w-0">
-                    <div className={`text-sm font-medium ${colors.text}`}>{dataSource.name}</div>
+                    <div className="flex items-center gap-2">
+                      <div className={`text-sm font-medium ${colors.text}`}>{dataSource.name}</div>
+                      {/* Show checkmark if PDF has extracted content */}
+                      {dataSource.type === "file" && 
+                       (dataSource.file_type === "application/pdf" || dataSource.name.toLowerCase().endsWith('.pdf')) &&
+                       dataSource.content && 
+                       dataSource.content.trim().length > 0 && (
+                        <CheckCircle className="h-4 w-4 text-green-400 flex-shrink-0" title="Text extracted successfully" />
+                      )}
+                    </div>
                     <div className={`text-xs ${colors.textTertiary} mt-1 line-clamp-2`}>
-                      {dataSource.type === "text" ? dataSource.content : dataSource.file_url ? `File: ${dataSource.name}` : dataSource.name}
+                      {dataSource.type === "text" 
+                        ? dataSource.content 
+                        : dataSource.file_url 
+                          ? `File: ${dataSource.name}${dataSource.content && dataSource.content.trim().length > 0 ? " • Text extracted" : ""}`
+                          : dataSource.name}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -632,40 +599,12 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
               ) : previewModal.content ? (
                 <>
                   {previewModal.content === "PDF_PREVIEW" && previewModal.dataSource.file_url ? (
-                    <div className="w-full">
-                      <div className="w-full h-[60vh] mb-4">
+                    <div className="w-full h-[60vh]">
                       <iframe
                         src={previewModal.dataSource.file_url}
                         className="w-full h-full rounded-lg border border-white/10"
                         title={previewModal.dataSource.name}
                       />
-                      </div>
-                      <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30">
-                        <p className="text-xs text-blue-300 mb-2">
-                          <strong>Note:</strong> If the PDF doesn't appear above, it may not be accessible.
-                        </p>
-                        <div className="flex gap-2">
-                          <a
-                            href={previewModal.dataSource.file_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-blue-300 hover:text-blue-200 underline"
-                          >
-                            Open PDF in new tab →
-                          </a>
-                          <span className="text-xs text-blue-400/70">|</span>
-                          <a
-                            href={previewModal.dataSource.file_url}
-                            download
-                            className="text-xs text-blue-300 hover:text-blue-200 underline"
-                          >
-                            Download PDF →
-                          </a>
-                        </div>
-                        <p className="text-xs text-blue-400/70 mt-2">
-                          File URL: <code className="text-[10px] break-all">{previewModal.dataSource.file_url}</code>
-                        </p>
-                      </div>
                     </div>
                   ) : previewModal.dataSource.type === "file" && 
                     previewModal.dataSource.file_type?.startsWith("image/") ? (
@@ -674,19 +613,7 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
                         src={previewModal.content} 
                         alt={previewModal.dataSource.name}
                         className="max-w-full max-h-[60vh] rounded-lg"
-                        onError={() => {
-                          setPreviewModal({
-                            ...previewModal,
-                            content: `⚠️ File Not Found\n\nThis file was uploaded before the storage bucket was created. The file doesn't exist in storage.\n\nTo fix this:\n1. Close this dialog\n2. Delete this data source entry (click the X button)\n3. Re-upload the file\n\nThe storage bucket is now set up, so new uploads will work correctly.`,
-                          });
-                        }}
                       />
-                    </div>
-                  ) : previewModal.content.includes("⚠️") || previewModal.content.includes("File Not Found") ? (
-                    <div className={`p-4 rounded-lg bg-yellow-500/20 border border-yellow-500/30`}>
-                      <pre className={`whitespace-pre-wrap text-sm text-yellow-200 font-sans`}>
-                        {previewModal.content}
-                      </pre>
                     </div>
                   ) : (
                     <pre className={`whitespace-pre-wrap text-sm ${colors.text} font-mono bg-[#1a1a1a] p-4 rounded-lg overflow-x-auto`}>

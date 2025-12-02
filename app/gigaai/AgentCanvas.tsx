@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { MessageSquare, FileText, GitBranch, Code, Zap, ArrowRight, X, Plus, Trash2, Calendar, CheckCircle } from "lucide-react";
+import { MessageSquare, FileText, GitBranch, Code, Zap, ArrowRight, X, Plus, Trash2, Calendar, CheckCircle, HelpCircle, Repeat, UserCheck, Phone } from "lucide-react";
 import ConfirmationModal from "./ConfirmationModal";
 import { useTheme } from "./ThemeProvider";
 
-type StepType = "say" | "gather" | "code" | "api_call" | "if" | "schedule";
+type StepType = "say" | "gather" | "code" | "api_call" | "schedule" | "qa" | "loop" | "send_sms" | "transfer";
 
 interface Branch {
   id: string;
@@ -38,15 +38,21 @@ interface AgentCanvasProps {
   scenarioName: string;
   onStepSelect?: (step: any) => void;
   theme?: "dark-gray" | "white";
+  isDeployed?: boolean;
 }
 
 const FUNCTION_PALETTE: { type: StepType; label: string; description: string; icon: any }[] = [
   { type: "say", label: "Say", description: "Send a message to the user", icon: MessageSquare },
   { type: "gather", label: "Gather", description: "Collect user input", icon: FileText },
-  { type: "if", label: "If Statement", description: "Create conditional branching", icon: GitBranch },
+  { type: "qa", label: "Q/A", description: "Answer question using data sources", icon: HelpCircle },
+  // REMOVED: { type: "if", label: "If Statement", ... } - Use branches on Gather/Q/A instead
   { type: "code", label: "Code", description: "Run custom code", icon: Code },
   { type: "api_call", label: "API Call", description: "Call an external API", icon: Zap },
   { type: "schedule", label: "Schedule", description: "Schedule an appointment", icon: Calendar },
+  // NEW STEP TYPES:
+  { type: "loop", label: "Loop", description: "Repeat a sequence of steps", icon: Repeat },
+  { type: "send_sms", label: "Send SMS", description: "Send text message to customer", icon: Phone },
+  { type: "transfer", label: "Transfer", description: "Route to specialist agent", icon: UserCheck },
 ];
 
 const AVAILABLE_TAGS = [
@@ -66,21 +72,39 @@ function defaultMessage(type: StepType): string {
       return "Welcome! How can I help you today?";
     case "gather":
       return "What information would you like to collect?";
-    case "if":
-      return "If condition is met";
+    case "qa":
+      return "Answer customer question using data sources";
+    // REMOVED: case "if" - If steps removed
+    case "loop":
+      return "Loop configuration";
+    case "send_sms":
+      return "Send SMS message";
+    case "transfer":
+      return "Transfer to specialist";
     case "code":
       return "// Write your code here";
     case "api_call":
       return "Call API endpoint";
     case "schedule":
       return "Schedule appointment confirmation message";
+    case "loop":
+      return "Loop configuration";
+    case "send_sms":
+      return "Send SMS message";
+    case "transfer":
+      return "Transfer to specialist";
     default:
       return "New step";
   }
 }
 
-export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepSelect }: AgentCanvasProps) {
+export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepSelect, isDeployed = false }: AgentCanvasProps) {
   const { theme, colors } = useTheme();
+  
+  // Debug: Log deployment status
+  useEffect(() => {
+    console.log("[AgentCanvas] isDeployed:", isDeployed);
+  }, [isDeployed]);
   const [scenario, setScenario] = useState<Scenario>({
     id: scenarioId,
     name: scenarioName,
@@ -159,8 +183,26 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
   const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setDraggedOver(false);
+    console.log("[AgentCanvas] handleDrop - isDeployed:", isDeployed);
+    if (isDeployed) {
+      console.log("[AgentCanvas] Blocking drop - agent is deployed");
+      setConfirmationModal({
+        isOpen: true,
+        title: "Cannot Edit",
+        message: "This agent is deployed. Please cancel deployment to make changes.",
+        confirmText: "OK",
+        cancelText: "",
+        variant: "warning",
+        onConfirm: () => setConfirmationModal({ ...confirmationModal, isOpen: false }),
+      });
+      return;
+    }
     const type = event.dataTransfer.getData("step-type") as StepType;
-    if (!type) return;
+    console.log("[AgentCanvas] Dropped step type:", type);
+    if (!type) {
+      console.log("[AgentCanvas] No step type in dataTransfer");
+      return;
+    }
 
     try {
       const message = defaultMessage(type);
@@ -197,12 +239,36 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
   };
 
   const startEditing = (step: Step) => {
+    if (isDeployed) {
+      setConfirmationModal({
+        isOpen: true,
+        title: "Cannot Edit",
+        message: "This agent is deployed. Please cancel deployment to make changes.",
+        confirmText: "OK",
+        cancelText: "",
+        variant: "warning",
+        onConfirm: () => setConfirmationModal({ ...confirmationModal, isOpen: false }),
+      });
+      return;
+    }
     setEditingStepId(step.id);
     setEditingText(step.message);
   };
 
   const saveEditing = async () => {
     if (!editingStepId) return;
+    if (isDeployed) {
+      setConfirmationModal({
+        isOpen: true,
+        title: "Cannot Edit",
+        message: "This agent is deployed. Please cancel deployment to make changes.",
+        confirmText: "OK",
+        cancelText: "",
+        variant: "warning",
+        onConfirm: () => setConfirmationModal({ ...confirmationModal, isOpen: false }),
+      });
+      return;
+    }
     
     try {
       const step = scenario.steps.find((s) => s.id === editingStepId);
@@ -235,6 +301,18 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
   };
 
   const addBranch = async (stepId: string) => {
+    if (isDeployed) {
+      setConfirmationModal({
+        isOpen: true,
+        title: "Cannot Edit",
+        message: "This agent is deployed. Please cancel deployment to make changes.",
+        confirmText: "OK",
+        cancelText: "",
+        variant: "warning",
+        onConfirm: () => setConfirmationModal({ ...confirmationModal, isOpen: false }),
+      });
+      return;
+    }
     try {
       const response = await fetch(`/api/steps/${stepId}/branches`, {
         method: "POST",
@@ -278,6 +356,18 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
   };
 
   const updateBranch = async (stepId: string, branchId: string, updates: Partial<Branch>) => {
+    if (isDeployed) {
+      setConfirmationModal({
+        isOpen: true,
+        title: "Cannot Edit",
+        message: "This agent is deployed. Please cancel deployment to make changes.",
+        confirmText: "OK",
+        cancelText: "",
+        variant: "warning",
+        onConfirm: () => setConfirmationModal({ ...confirmationModal, isOpen: false }),
+      });
+      return;
+    }
     // Optimistically update UI
     setScenario((prev) => ({
       ...prev,
@@ -311,6 +401,18 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
   };
 
   const deleteBranch = async (stepId: string, branchId: string) => {
+    if (isDeployed) {
+      setConfirmationModal({
+        isOpen: true,
+        title: "Cannot Edit",
+        message: "This agent is deployed. Please cancel deployment to make changes.",
+        confirmText: "OK",
+        cancelText: "",
+        variant: "warning",
+        onConfirm: () => setConfirmationModal({ ...confirmationModal, isOpen: false }),
+      });
+      return;
+    }
     try {
       const response = await fetch(`/api/steps/${stepId}/branches/${branchId}`, {
         method: "DELETE",
@@ -338,127 +440,18 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
   };
 
   const deleteStep = (stepId: string) => {
-    const handleDelete = async () => {
-      // Show loading state
-    setConfirmationModal({
-      isOpen: true,
-        title: "Deleting Step...",
-        message: "Please wait while we delete the step.",
-        confirmText: "",
+    if (isDeployed) {
+      setConfirmationModal({
+        isOpen: true,
+        title: "Cannot Edit",
+        message: "This agent is deployed. Please cancel deployment to make changes.",
+        confirmText: "OK",
         cancelText: "",
-        variant: "info",
-        onConfirm: () => {},
-        onCancel: () => {},
+        variant: "warning",
+        onConfirm: () => setConfirmationModal({ ...confirmationModal, isOpen: false }),
       });
-
-      try {
-        console.log("[Delete Step] Attempting to delete step:", stepId);
-          const response = await fetch(`/api/steps/${stepId}`, {
-            method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          });
-
-        console.log("[Delete Step] Response status:", response.status);
-        console.log("[Delete Step] Response ok:", response.ok);
-
-          if (response.ok) {
-          const result = await response.json();
-          console.log("[Delete Step] Delete successful:", result);
-          
-          // Update UI to remove the step
-          setScenario((prev) => {
-            const newSteps = prev.steps.filter((step) => step.id !== stepId);
-            console.log("[Delete Step] Steps before:", prev.steps.length, "Steps after:", newSteps.length);
-            return {
-              ...prev,
-              steps: newSteps,
-            };
-          });
-          
-          // Clear editing if this was the step being edited
-            if (editingStepId === stepId) {
-              setEditingStepId(null);
-              setEditingText("");
-            }
-          
-          // Close modal after successful delete
-          setConfirmationModal({
-            isOpen: false,
-            title: "",
-            message: "",
-            confirmText: "",
-            cancelText: "",
-            variant: "danger",
-            onConfirm: () => {},
-            onCancel: () => {},
-          });
-        } else {
-          // Get error message
-          let errorMessage = "Unknown error";
-          try {
-            const errorData = await response.json();
-            errorMessage = errorData.error || errorData.message || errorData.details || `HTTP ${response.status}`;
-            console.error("[Delete Step] Error response:", errorData);
-          } catch (e) {
-            errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-            console.error("[Delete Step] Failed to parse error response:", e);
-          }
-          
-          console.error("[Delete Step] Failed to delete step:", errorMessage);
-          
-          // Show error in modal
-          setConfirmationModal({
-            isOpen: true,
-            title: "Delete Failed",
-            message: `Failed to delete step: ${errorMessage}\n\nCheck the browser console (F12) for more details.`,
-            confirmText: "OK",
-            cancelText: "",
-            variant: "danger",
-            onConfirm: () => {
-              setConfirmationModal({
-                isOpen: false,
-                title: "",
-                message: "",
-                confirmText: "",
-                cancelText: "",
-                variant: "danger",
-                onConfirm: () => {},
-                onCancel: () => {},
-              });
-            },
-            onCancel: () => {},
-          });
-        }
-      } catch (error: any) {
-        console.error("[Delete Step] Exception during delete:", error);
-        
-        // Show error in modal
-        setConfirmationModal({
-          isOpen: true,
-          title: "Delete Failed",
-          message: `Failed to delete step: ${error?.message || "Network error"}\n\nCheck the browser console (F12) for more details.`,
-          confirmText: "OK",
-          cancelText: "",
-          variant: "danger",
-          onConfirm: () => {
-            setConfirmationModal({
-              isOpen: false,
-              title: "",
-              message: "",
-              confirmText: "",
-              cancelText: "",
-              variant: "danger",
-              onConfirm: () => {},
-              onCancel: () => {},
-            });
-          },
-          onCancel: () => {},
-        });
-      }
-    };
-
+      return;
+    }
     setConfirmationModal({
       isOpen: true,
       title: "Delete Step",
@@ -466,18 +459,26 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
       confirmText: "Delete",
       cancelText: "Cancel",
       variant: "danger",
-      onConfirm: handleDelete,
-      onCancel: () => {
-        setConfirmationModal({
-          isOpen: false,
-          title: "",
-          message: "",
-          confirmText: "",
-          cancelText: "",
-          variant: "danger",
-          onConfirm: () => {},
-          onCancel: () => {},
-        });
+      onConfirm: async () => {
+        setConfirmationModal({ ...confirmationModal, isOpen: false });
+        try {
+          const response = await fetch(`/api/steps/${stepId}`, {
+            method: "DELETE",
+          });
+
+          if (response.ok) {
+            setScenario((prev) => ({
+              ...prev,
+              steps: prev.steps.filter((step) => step.id !== stepId),
+            }));
+            if (editingStepId === stepId) {
+              setEditingStepId(null);
+              setEditingText("");
+            }
+          }
+        } catch (error) {
+          console.error("Failed to delete step:", error);
+        }
       },
     });
   };
@@ -546,7 +547,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                       e.dataTransfer.setData("step-type", fn.type);
                       e.dataTransfer.effectAllowed = "move";
                     }}
-                    className={`flex-shrink-0 cursor-grab active:cursor-grabbing rounded-lg border ${colors.border} ${colors.cardBg} px-4 py-3 text-xs ${colors.text} hover:border-[#3351ff]/50 ${colors.hover} transition`}
+                    className={`flex-shrink-0 cursor-grab active:cursor-grabbing rounded-3xl border ${colors.border} ${colors.cardBg} px-4 py-3 text-xs ${colors.text} hover:border-[#3351ff]/50 ${colors.hover} transition`}
                   >
                     <div className="flex items-center gap-2">
                       <Icon className={`h-4 w-4 ${colors.iconSecondary}`} />
@@ -573,7 +574,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
 
               {/* Drop Zone + Steps - ONE BOX for all steps - Smaller box, centered */}
               <div
-                className={`rounded-lg border border-white/10 bg-[#242423]/90 backdrop-blur-sm px-4 py-4 max-w-4xl mx-auto transition ${
+                className={`rounded-3xl border border-white/10 bg-[#242423]/90 backdrop-blur-sm px-4 py-4 max-w-4xl mx-auto transition ${
                   draggedOver
                     ? "border-[#3351ff] bg-[#3351ff]/10"
                     : ""
@@ -601,7 +602,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                       const firstSayStep = scenario.steps.find(s => s.type === "say");
                       if (firstSayStep && (!firstSayStep.ai_message || firstSayStep.ai_message.trim().length === 0)) {
                         return (
-                          <div className="mb-4 p-3 rounded-lg bg-yellow-500/20 border border-yellow-500/30 flex items-start gap-2">
+                          <div className="mb-4 p-3 rounded-2xl bg-yellow-500/20 border border-yellow-500/30 flex items-start gap-2">
                             <div className="h-4 w-4 rounded-full border-2 border-yellow-400 flex items-center justify-center flex-shrink-0 mt-0.5">
                               <span className="text-[10px] text-yellow-400">!</span>
                             </div>
@@ -630,18 +631,27 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                 ? "Co Say"
                                 : step.type === "gather"
                                 ? "Gather"
-                                : step.type === "if"
-                                ? "If Statement"
+                                : step.type === "qa"
+                                ? "Q/A"
                                 : step.type === "schedule"
                                 ? "Schedule"
                                 : step.type === "code"
                                 ? "Code"
                                 : step.type === "api_call"
                                 ? "API Call"
+                                : step.type === "loop"
+                                ? "Loop"
+                                : step.type === "send_sms"
+                                ? "Send SMS"
+                                : step.type === "transfer"
+                                ? "Transfer"
                                 : "Step"}
                             </span>
                             {step.type === "say" && (
                               <MessageSquare className={`h-3 w-3 ${colors.iconSecondary}`} />
+                            )}
+                            {step.type === "qa" && (
+                              <HelpCircle className={`h-3 w-3 ${colors.iconSecondary}`} />
                             )}
                             {step.type === "schedule" && (
                               <Calendar className={`h-3 w-3 ${colors.iconSecondary}`} />
@@ -661,7 +671,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                           </div>
                           <button
                             onClick={() => deleteStep(step.id)}
-                            className="p-1.5 hover:bg-red-500/20 rounded transition text-red-400/70 hover:text-red-400"
+                            className="p-1.5 hover:bg-red-500/20 rounded-full transition text-red-400/70 hover:text-red-400"
                             title="Delete step"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -676,12 +686,12 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                 value={editingText}
                                 onChange={(e) => setEditingText(e.target.value)}
                                 rows={3}
-                                className={`w-full rounded-lg border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none`}
+                                className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none`}
                               />
                               <div className="flex gap-2">
                                 <button
                                   onClick={saveEditing}
-                                  className={`px-3 py-1.5 rounded-lg ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-[10px] font-medium text-white`}
+                                  className={`px-3 py-1.5 rounded-2xl ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-[10px] font-medium text-white`}
                                 >
                                   Save
                                 </button>
@@ -690,7 +700,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                     setEditingStepId(null);
                                     setEditingText("");
                                   }}
-                                  className={`px-3 py-1.5 rounded-lg border ${colors.border} ${colors.bgSecondary} text-[10px] ${colors.textSecondary} ${colors.hover}`}
+                                  className={`px-3 py-1.5 rounded-2xl border ${colors.border} ${colors.bgSecondary} text-[10px] ${colors.textSecondary} ${colors.hover}`}
                                 >
                                   Cancel
                                 </button>
@@ -706,8 +716,153 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                           )}
                         </div>
 
-                        {/* Conditional Branches */}
-                        {(step.type === "say" || step.type === "if") && (
+                        {/* Q/A Step: Data Source Selector */}
+                        {step.type === "qa" && (
+                          <div className="mb-4 p-3 rounded-2xl border border-blue-500/30 bg-blue-500/10">
+                            <div className="flex items-center justify-between mb-2">
+                              <label className={`text-[10px] font-medium ${colors.textSecondary}`}>
+                                Data Sources
+                              </label>
+                              <button
+                                onClick={() => {
+                                  // TODO: Open data source selector modal
+                                  console.log("Open data source selector for step:", step.id);
+                                }}
+                                className={`text-[10px] ${colors.textTertiary} ${colors.hover} underline`}
+                              >
+                                Select Data Sources
+                              </button>
+                            </div>
+                            <p className={`text-[10px] ${colors.textTertiary}`}>
+                              {step.selected_data_source_ids?.length > 0
+                                ? `${step.selected_data_source_ids.length} data source(s) selected`
+                                : "No data sources selected - AI will answer from general knowledge"}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Loop Step Configuration */}
+                        {step.type === "loop" && (
+                          <div className="mb-4 p-3 rounded-2xl border border-purple-500/30 bg-purple-500/10 space-y-3">
+                            <label className={`block text-[10px] font-medium ${colors.textSecondary}`}>
+                              Loop Configuration
+                            </label>
+                            <div className="space-y-2">
+                              <select
+                                className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} focus:border-[#3351ff] focus:outline-none`}
+                                value={step.loop_config?.loop_type || "for"}
+                                onChange={(e) => {
+                                  // TODO: Update loop_config
+                                  console.log("Update loop type:", e.target.value);
+                                }}
+                              >
+                                <option value="for">For (fixed iterations)</option>
+                                <option value="while">While (condition true)</option>
+                                <option value="until">Until (condition met)</option>
+                              </select>
+                              {step.loop_config?.loop_type === "for" && (
+                                <input
+                                  type="number"
+                                  placeholder="Max iterations"
+                                  className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} focus:border-[#3351ff] focus:outline-none`}
+                                  value={step.loop_config?.max_iterations || 10}
+                                  onChange={(e) => {
+                                    // TODO: Update max_iterations
+                                    console.log("Update max iterations:", e.target.value);
+                                  }}
+                                />
+                              )}
+                              {(step.loop_config?.loop_type === "while" || step.loop_config?.loop_type === "until") && (
+                                <textarea
+                                  placeholder="Condition (e.g., gatheredData.count < 3)"
+                                  className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} focus:border-[#3351ff] focus:outline-none`}
+                                  value={step.loop_config?.condition || ""}
+                                  onChange={(e) => {
+                                    // TODO: Update condition
+                                    console.log("Update condition:", e.target.value);
+                                  }}
+                                />
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Send SMS Step Configuration */}
+                        {step.type === "send_sms" && (
+                          <div className="mb-4 p-3 rounded-2xl border border-green-500/30 bg-green-500/10 space-y-3">
+                            <label className={`block text-[10px] font-medium ${colors.textSecondary}`}>
+                              SMS Configuration
+                            </label>
+                            <div className="space-y-2">
+                              <textarea
+                                placeholder="Message (use {{variable}} for dynamic values)"
+                                className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} focus:border-[#3351ff] focus:outline-none`}
+                                value={step.sms_config?.message || ""}
+                                onChange={(e) => {
+                                  // TODO: Update sms_config.message
+                                  console.log("Update SMS message:", e.target.value);
+                                }}
+                              />
+                              <input
+                                type="text"
+                                placeholder="Phone number (or {{variable}})"
+                                className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} focus:border-[#3351ff] focus:outline-none`}
+                                value={step.sms_config?.phone_number || ""}
+                                onChange={(e) => {
+                                  // TODO: Update phone_number
+                                  console.log("Update phone number:", e.target.value);
+                                }}
+                              />
+                              <input
+                                type="number"
+                                placeholder="Delay (minutes, 0 = send immediately)"
+                                className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} focus:border-[#3351ff] focus:outline-none`}
+                                value={step.sms_config?.delay_minutes || 0}
+                                onChange={(e) => {
+                                  // TODO: Update delay_minutes
+                                  console.log("Update delay:", e.target.value);
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Transfer Step Configuration */}
+                        {step.type === "transfer" && (
+                          <div className="mb-4 p-3 rounded-2xl border border-orange-500/30 bg-orange-500/10 space-y-3">
+                            <label className={`block text-[10px] font-medium ${colors.textSecondary}`}>
+                              Transfer Configuration
+                            </label>
+                            <div className="space-y-2">
+                              <select
+                                className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} focus:border-[#3351ff] focus:outline-none`}
+                                value={step.transfer_config?.transfer_method || "ai_classification"}
+                                onChange={(e) => {
+                                  // TODO: Update transfer_method
+                                  console.log("Update transfer method:", e.target.value);
+                                }}
+                              >
+                                <option value="ai_classification">AI Classification</option>
+                                <option value="keyword">Keyword Match</option>
+                                <option value="direct">Direct Transfer</option>
+                                <option value="gathered_data">From Gathered Data</option>
+                              </select>
+                              <input
+                                type="text"
+                                placeholder="Transfer message"
+                                className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} focus:border-[#3351ff] focus:outline-none`}
+                                value={step.transfer_config?.transfer_message || ""}
+                                onChange={(e) => {
+                                  // TODO: Update transfer_message
+                                  console.log("Update transfer message:", e.target.value);
+                                }}
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Conditional Branches - Now available on Gather and Q/A too */}
+                        {(step.type === "say" || step.type === "gather" || step.type === "qa") && (
                           <div className="space-y-2 ml-0">
                             {step.branches && step.branches.length > 0 ? (
                               step.branches.map((branch) => (
@@ -835,7 +990,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                   }
                 }}
                 rows={3}
-                className={`w-full rounded-lg border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none resize-none`}
+                className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none resize-none`}
                 placeholder="Customer provides their full name and date of birth"
               />
               <p className={`text-[10px] ${colors.textTertiary} mt-1`}>
@@ -853,7 +1008,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                   <button
                     key={tag}
                     onClick={() => selectTag(tag)}
-                    className={`w-full text-left px-3 py-2 rounded-lg border transition text-sm ${
+                    className={`w-full text-left px-3 py-2 rounded-2xl border transition text-sm ${
                       currentBranch?.condition_tag === tag
                         ? `border-[#3351ff] bg-[#3351ff]/20 ${colors.text}`
                         : `${colors.border} ${colors.cardBg} ${colors.textSecondary} ${colors.hover}`
@@ -892,7 +1047,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                   }
                 }}
                 rows={3}
-                className={`w-full rounded-lg border ${colors.border} ${colors.inputBg} ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none resize-none px-3 py-2 text-sm`}
+                className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none resize-none px-3 py-2 text-sm`}
                 placeholder="Identity Verification step"
               />
               <p className={`text-[10px] ${colors.textTertiary} mt-1`}>
@@ -911,7 +1066,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                     <button
                       key={step.id}
                       onClick={() => selectTargetStep(step.message.substring(0, 50))}
-                      className={`w-full text-left px-3 py-2 rounded-lg border ${colors.border} ${colors.cardBg} ${colors.textSecondary} ${colors.hover} transition text-xs`}
+                      className={`w-full text-left px-3 py-2 rounded-2xl border ${colors.border} ${colors.cardBg} ${colors.textSecondary} ${colors.hover} transition text-xs`}
                     >
                       <div className="font-medium text-[10px]">{step.name}</div>
                       <div className={`text-[10px] ${colors.textTertiary} mt-1 line-clamp-2`}>

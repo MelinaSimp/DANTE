@@ -1,6 +1,7 @@
 // app/settings/page.tsx
 import { createServerSupabase } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import DeployButton from "@/components/DeployButton";
 
 export default async function SettingsPage() {
   const supabase = await createServerSupabase();
@@ -17,13 +18,16 @@ export default async function SettingsPage() {
         <div className="absolute bottom-10 right-24 h-72 w-72 rounded-full bg-gradient-to-tr from-[#1b3b6f]/30 via-transparent to-transparent blur-[160px]" />
       </div>
 
-      <div>
-        <p className="text-xs uppercase tracking-[0.4em] text-white/40">Workspace</p>
-        <h1 className="mt-3 text-4xl font-semibold tracking-tight">Settings</h1>
-        <p className="mt-3 max-w-xl text-sm text-white/60">
-          Tune how Drift responds to callers, manage your knowledge base, and review upcoming account
-          tools.
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-[0.4em] text-white/40">Workspace</p>
+          <h1 className="mt-3 text-4xl font-semibold tracking-tight">Settings</h1>
+          <p className="mt-3 max-w-xl text-sm text-white/60">
+            Tune how Drift responds to callers, manage your knowledge base, and review upcoming account
+            tools.
+          </p>
+        </div>
+        <DeployButton />
       </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">

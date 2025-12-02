@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Code, Settings, Key, Webhook, Database, Phone } from "lucide-react";
+import { Code, Settings, Key, Webhook, Database, Phone, UserCheck, Users } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 
 interface AdvancedPageProps {
@@ -15,6 +15,43 @@ export default function AdvancedPage({ agentId, phoneNumber = "", onPhoneNumberC
   const [apiKey, setApiKey] = useState("sk_live_••••••••••••••••");
   const [showApiKey, setShowApiKey] = useState(false);
   const [localPhoneNumber, setLocalPhoneNumber] = useState(phoneNumber);
+  
+  // Agent role/specialist state
+  const [agentRole, setAgentRole] = useState<string>("");
+  const [isSpecialist, setIsSpecialist] = useState(false);
+  const [parentAgentId, setParentAgentId] = useState<string>("");
+  const [routingKeywords, setRoutingKeywords] = useState<string[]>([]);
+  const [keywordInput, setKeywordInput] = useState("");
+  const [availableAgents, setAvailableAgents] = useState<any[]>([]);
+  
+  // Load agent data
+  useEffect(() => {
+    if (!agentId) return;
+    
+    async function loadAgentData() {
+      try {
+        const response = await fetch(`/api/agents/${agentId}`);
+        if (response.ok) {
+          const agent = await response.json();
+          setAgentRole(agent.agent_role || "");
+          setIsSpecialist(agent.is_specialist || false);
+          setParentAgentId(agent.parent_agent_id || "");
+          setRoutingKeywords(agent.routing_keywords || []);
+        }
+        
+        // Load available agents for parent selection
+        const agentsResponse = await fetch("/api/agents");
+        if (agentsResponse.ok) {
+          const agents = await agentsResponse.json();
+          setAvailableAgents(agents.filter((a: any) => a.id !== agentId));
+        }
+      } catch (error) {
+        console.error("Failed to load agent data:", error);
+      }
+    }
+    
+    loadAgentData();
+  }, [agentId]);
 
   // Update local state when prop changes
   useEffect(() => {
@@ -32,6 +69,159 @@ export default function AdvancedPage({ agentId, phoneNumber = "", onPhoneNumberC
         </div>
 
         <div className="space-y-6 rounded-lg border border-white/10 bg-[#242423]/90 backdrop-blur-sm p-6">
+        {/* Agent Role & Specialist Settings */}
+        <div className={`rounded-xl border ${colors.border} ${colors.cardBg} p-6`}>
+          <div className="flex items-center gap-3 mb-4">
+            <UserCheck className={`h-5 w-5 ${colors.iconSecondary}`} />
+            <h3 className={`text-lg font-semibold ${colors.text}`}>Agent Role & Routing</h3>
+          </div>
+          <div className="space-y-4">
+            <div>
+              <label className={`block text-sm font-medium ${colors.textSecondary} mb-2`}>
+                Agent Role
+              </label>
+              <select
+                value={agentRole}
+                onChange={(e) => setAgentRole(e.target.value)}
+                className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-4 py-2 text-sm ${colors.text} focus:border-[#3351ff] focus:outline-none`}
+              >
+                <option value="">General Receptionist</option>
+                <option value="receptionist">Receptionist</option>
+                <option value="specialist">Specialist</option>
+                <option value="mechanic">Mechanic</option>
+                <option value="seller">Sales/Seller</option>
+                <option value="support">Support</option>
+              </select>
+              <p className={`text-xs ${colors.textTertiary} mt-2`}>
+                Define the role of this agent for routing purposes
+              </p>
+            </div>
+            
+            <div className="flex items-center justify-between p-4 rounded-2xl border border-blue-500/30 bg-blue-500/10">
+              <div>
+                <div className={`text-sm font-medium ${colors.text} mb-1`}>Is Specialist</div>
+                <div className={`text-xs ${colors.textTertiary}`}>
+                  Mark this agent as a specialist that can receive transfers
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isSpecialist}
+                  onChange={(e) => setIsSpecialist(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className={`w-11 h-6 ${theme === "white" ? "bg-gray-300" : "bg-white/20"} peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#3351ff] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#3351ff]`}></div>
+              </label>
+            </div>
+            
+            {isSpecialist && (
+              <div>
+                <label className={`block text-sm font-medium ${colors.textSecondary} mb-2`}>
+                  Parent Agent (Main Receptionist)
+                </label>
+                <select
+                  value={parentAgentId}
+                  onChange={(e) => setParentAgentId(e.target.value)}
+                  className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-4 py-2 text-sm ${colors.text} focus:border-[#3351ff] focus:outline-none`}
+                >
+                  <option value="">None</option>
+                  {availableAgents.map((agent) => (
+                    <option key={agent.id} value={agent.id}>
+                      {agent.name}
+                    </option>
+                  ))}
+                </select>
+                <p className={`text-xs ${colors.textTertiary} mt-2`}>
+                  Link this specialist to a main receptionist agent
+                </p>
+              </div>
+            )}
+            
+            <div>
+              <label className={`block text-sm font-medium ${colors.textSecondary} mb-2`}>
+                Routing Keywords
+              </label>
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  value={keywordInput}
+                  onChange={(e) => setKeywordInput(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === "Enter" && keywordInput.trim()) {
+                      setRoutingKeywords([...routingKeywords, keywordInput.trim()]);
+                      setKeywordInput("");
+                    }
+                  }}
+                  placeholder="Enter keyword and press Enter"
+                  className={`flex-1 rounded-2xl border ${colors.border} ${colors.inputBg} px-4 py-2 text-sm ${colors.text} focus:border-[#3351ff] focus:outline-none`}
+                />
+                <button
+                  onClick={() => {
+                    if (keywordInput.trim()) {
+                      setRoutingKeywords([...routingKeywords, keywordInput.trim()]);
+                      setKeywordInput("");
+                    }
+                  }}
+                  className={`px-4 py-2 rounded-2xl ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white text-sm font-medium transition`}
+                >
+                  Add
+                </button>
+              </div>
+              {routingKeywords.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {routingKeywords.map((keyword, idx) => (
+                    <span
+                      key={idx}
+                      className="px-3 py-1 rounded-2xl bg-blue-500/20 border border-blue-500/30 text-blue-300 text-xs flex items-center gap-2"
+                    >
+                      {keyword}
+                      <button
+                        onClick={() => setRoutingKeywords(routingKeywords.filter((_, i) => i !== idx))}
+                        className="hover:text-red-400"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <p className={`text-xs ${colors.textTertiary} mt-2`}>
+                Keywords that trigger routing to this agent (e.g., "car", "repair", "engine")
+              </p>
+            </div>
+            
+            <button
+              onClick={async () => {
+                if (!agentId) return;
+                try {
+                  const response = await fetch(`/api/agents/${agentId}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      agent_role: agentRole || null,
+                      is_specialist: isSpecialist,
+                      parent_agent_id: parentAgentId || null,
+                      routing_keywords: routingKeywords,
+                    }),
+                  });
+                  if (response.ok) {
+                    alert("Agent role settings saved!");
+                  } else {
+                    alert("Failed to save settings");
+                  }
+                } catch (error) {
+                  console.error("Failed to save agent role settings:", error);
+                  alert("Failed to save settings");
+                }
+              }}
+              className={`w-full px-4 py-2 rounded-2xl ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white text-sm font-medium transition`}
+            >
+              Save Role Settings
+            </button>
+          </div>
+        </div>
+
         {/* Phone Number Configuration */}
         <div className={`rounded-xl border ${colors.border} ${colors.cardBg} p-6`}>
           <div className="flex items-center gap-3 mb-4">

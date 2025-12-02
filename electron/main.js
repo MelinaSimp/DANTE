@@ -25,30 +25,16 @@ function createWindow() {
   });
 
   // Load the Vercel-hosted app or local dev server
-  // The custom domain might have redirect issues, so we'll use Vercel URL directly
-  // You can find your Vercel URL in: Vercel Dashboard → Your Project → Settings → Domains
-  // Or check the latest deployment URL
+  // Try most recent production URL first, then fallback
+  const productionUrls = [
+    'https://drift-8ikwfg1wo-drift4.vercel.app',
+    'https://drift-n2gcspjqm-drift4.vercel.app',
+    'https://drift-20qzyh9pe-drift4.vercel.app',
+  ];
   
-  // Try to get Vercel URL from environment or use a known one
-  // Replace this with your actual Vercel deployment URL
-  const vercelUrl = process.env.VERCEL_URL 
-    ? `https://${process.env.VERCEL_URL}`
-    : null; // You can add your Vercel URL here: 'https://drift-xxxxx.vercel.app'
-  
-  const customDomain = 'https://driftai.studio';
-  
-  // Use environment variable if set, otherwise try Vercel URL, then custom domain
-  let url;
-  if (isDev) {
-    url = 'http://localhost:3000';
-  } else if (process.env.ELECTRON_APP_URL) {
-    url = process.env.ELECTRON_APP_URL;
-  } else if (vercelUrl) {
-    url = vercelUrl;
-  } else {
-    // Fallback to custom domain (might have redirect issues)
-    url = customDomain;
-  }
+  const url = isDev 
+    ? 'http://localhost:3000' 
+    : process.env.ELECTRON_APP_URL || productionUrls[0];
   
   console.log(`[Electron] Loading URL: ${url}`);
   
@@ -58,15 +44,32 @@ function createWindow() {
   });
 
   // Handle load errors
+  let retryCount = 0;
+  const maxRetries = productionUrls.length;
+  
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
     console.error(`[Electron] Failed to load: ${errorCode} - ${errorDescription}`);
     console.error(`[Electron] URL: ${validatedURL}`);
     console.error(`[Electron] Error code: ${errorCode}`);
     
-    // Show error dialog
+    // Try fallback URLs for network/SSL errors
+    if (!isDev && retryCount < maxRetries - 1) {
+      retryCount++;
+      const nextUrl = productionUrls[retryCount];
+      console.log(`[Electron] Retry ${retryCount}/${maxRetries - 1}: Trying URL: ${nextUrl}`);
+      setTimeout(() => {
+        mainWindow.loadURL(nextUrl, {
+          userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          httpReferrer: nextUrl
+        });
+      }, 1000);
+      return;
+    }
+    
+    // Show error dialog after all retries failed
     dialog.showErrorBox(
       'Failed to Load App',
-      `Unable to connect to the application.\n\nError: ${errorDescription} (Code: ${errorCode})\n\nURL: ${url}\n\nPlease check your internet connection and try again.\n\nYou can also try running in development mode:\nnpm run electron:dev`
+      `Unable to connect to the application.\n\nError: ${errorDescription} (Code: ${errorCode})\n\nTried URLs:\n${productionUrls.map(u => `- ${u}`).join('\n')}\n\nPlease check your internet connection and try again.\n\nYou can also try running in development mode:\nnpm run electron:dev`
     );
   });
 
@@ -76,21 +79,14 @@ function createWindow() {
   });
 
   // Load the URL with proper user agent to handle redirects
-  // For production, load /auth directly to avoid redirect loops
-  const loadUrl = (!isDev && url.includes('driftai.studio')) 
-    ? `${url}/auth` 
-    : url;
-  
-  console.log(`[Electron] Loading URL: ${loadUrl}`);
-  
-  mainWindow.loadURL(loadUrl, {
+  mainWindow.loadURL(url, {
     userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    httpReferrer: loadUrl
+    httpReferrer: url
   }).catch((error) => {
     console.error(`[Electron] Load error:`, error);
     dialog.showErrorBox(
       'Failed to Load App',
-      `Unable to load the application.\n\nError: ${error.message}\n\nURL: ${loadUrl}`
+      `Unable to load the application.\n\nError: ${error.message}\n\nURL: ${url}`
     );
   });
 
@@ -153,10 +149,9 @@ app.on('web-contents-created', (event, contents) => {
   contents.on('will-navigate', (event, navigationUrl) => {
     const parsedUrl = new URL(navigationUrl);
     
-    // Allow navigation to Vercel domains, custom domain, and localhost
+    // Allow navigation to Vercel domains and localhost
     const allowedDomains = [
       'vercel.app',
-      'driftai.studio',
       'localhost',
       '127.0.0.1'
     ];

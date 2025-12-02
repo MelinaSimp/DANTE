@@ -61,7 +61,6 @@ export async function POST(req: NextRequest) {
     const fileName = `${agentId}/${category}/${timestamp}_${sanitizedName}`;
 
     // Upload to Supabase Storage
-    console.log("[Upload] Uploading file to bucket 'agent-files':", fileName);
     const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
       .from("agent-files")
       .upload(fileName, buffer, {
@@ -70,36 +69,17 @@ export async function POST(req: NextRequest) {
       });
 
     if (uploadError) {
-      console.error("[Upload] File upload error:", uploadError);
-      console.error("[Upload] Error details:", JSON.stringify(uploadError, null, 2));
+      console.error("File upload error:", uploadError);
       return NextResponse.json(
-        { error: "Failed to upload file", details: uploadError.message, code: uploadError.statusCode },
+        { error: "Failed to upload file" },
         { status: 500 }
       );
     }
 
-    console.log("[Upload] File uploaded successfully:", uploadData);
-
-    // Get public URL (bucket should be public now)
+    // Get public URL
     const {
       data: { publicUrl },
     } = supabaseAdmin.storage.from("agent-files").getPublicUrl(fileName);
-
-    console.log("[Upload] Generated public URL:", publicUrl);
-
-    // Verify the file exists by checking if we can list it
-    const { data: listData, error: listError } = await supabaseAdmin.storage
-      .from("agent-files")
-      .list(`${agentId}/${category}`, {
-        limit: 100,
-        search: sanitizedName,
-      });
-
-    if (listError) {
-      console.error("[Upload] Error listing files:", listError);
-    } else {
-      console.log("[Upload] Files in directory:", listData);
-    }
 
     return NextResponse.json({
       url: publicUrl,
@@ -115,6 +95,7 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
 
 
 

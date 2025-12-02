@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { xmlEscape, xmlEscapeAttr } from "@/lib/xml";
 import { normalizePhone } from "@/lib/phone";
+import { generateSpeechTwiml } from "@/lib/elevenlabs/twiml";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 10; // 10 seconds max for Twilio webhooks
@@ -72,7 +73,7 @@ export async function POST(req: NextRequest) {
     // Try to find agent with any of these formats
     let { data: agent } = await supabaseAdmin
       .from("agents")
-      .select("id, workspace_id, name, status, phone_number")
+      .select("id, workspace_id, name, status, phone_number, elevenlabs_voice_id")
       .in("phone_number", uniqueFormats)
       .eq("status", "deployed")
       .maybeSingle();
@@ -97,7 +98,7 @@ export async function POST(req: NextRequest) {
             // Fetch full agent data including workspace_id
             const { data: fullAgent } = await supabaseAdmin
               .from("agents")
-              .select("id, workspace_id, name, status, phone_number")
+              .select("id, workspace_id, name, status, phone_number, elevenlabs_voice_id")
               .eq("id", candidate.id)
               .single();
             if (fullAgent) {
@@ -129,32 +130,39 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Get base URL - prefer environment variable, otherwise construct from request
-    let baseUrl = process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || "";
+    // Get base URL - ALWAYS use current deployment (VERCEL_URL or request host)
+    // Priority: 1) VERCEL_URL (current deployment), 2) Request headers, 3) Environment vars
+    let baseUrl = "";
     
-    // If VERCEL_URL is set, add protocol if missing
-    if (!baseUrl && process.env.VERCEL_URL) {
+    // FIRST: Use VERCEL_URL (this is the CURRENT deployment, always up-to-date)
+    if (process.env.VERCEL_URL) {
       const vercelUrl = process.env.VERCEL_URL;
       baseUrl = vercelUrl.startsWith("http") ? vercelUrl : `https://${vercelUrl}`;
+      console.log("[Twilio Incoming] Using VERCEL_URL (current deployment):", baseUrl);
     }
     
-    // If still no URL, construct from request (most reliable)
+    // SECOND: Construct from request headers (also current deployment)
     if (!baseUrl) {
       const protocol = req.headers.get("x-forwarded-proto") || "https";
       const host = req.headers.get("host") || req.headers.get("x-forwarded-host") || req.nextUrl.host;
       if (host) {
         baseUrl = `${protocol}://${host}`;
+        console.log("[Twilio Incoming] Using request host (current deployment):", baseUrl);
       }
     }
     
-    // Final fallback to production URL (hardcoded as last resort)
-    if (!baseUrl || !baseUrl.startsWith("http")) {
-      baseUrl = "https://driftai.studio";
-      console.warn("[Twilio] Using hardcoded fallback URL:", baseUrl);
+    // THIRD: Fallback to environment variables (might be outdated, but better than nothing)
+    if (!baseUrl) {
+      baseUrl = process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || "";
+      if (baseUrl) {
+        console.warn("[Twilio Incoming] ⚠️ Using environment variable (might be outdated):", baseUrl);
+      }
     }
     
     // Remove trailing slashes and any whitespace/newlines
     baseUrl = baseUrl.replace(/\/+$/, "").trim().replace(/\s+/g, "");
+    
+    console.log("[Twilio Incoming] Final base URL:", baseUrl);
     
     console.log("[Twilio] Using base URL:", baseUrl);
     console.log("[Twilio] Base URL length:", baseUrl.length);
@@ -192,26 +200,27 @@ export async function POST(req: NextRequest) {
       
       if (saySteps.length > 0) {
         greetingStep = saySteps[0];
-        // After speaking the greeting, advance to the next step so it doesn't repeat
-        // Find the next step after the greeting by sort_order
-        const greetingSortOrder = saySteps[0].sort_order || 0;
-        const nextStep = allSteps?.find(s => (s.sort_order || 0) > greetingSortOrder);
-        if (nextStep) {
-          currentStepId = nextStep.id;
+        // Find the next step after the greeting (should be the Gather step)
+        const greetingIndex = allSteps?.findIndex(s => s.id === greetingStep.id) ?? -1;
+        if (greetingIndex >= 0 && allSteps && greetingIndex < allSteps.length - 1) {
+          // Set current_step_id to the next step (Gather step)
+          currentStepId = allSteps[greetingIndex + 1].id;
           console.log("[Twilio] Selected greeting step:", JSON.stringify(greetingStep, null, 2));
-          console.log("[Twilio] Advanced to next step after greeting:", nextStep.id, nextStep.type);
+          console.log("[Twilio] Setting current_step_id to next step:", currentStepId);
         } else {
-          // No next step found, keep greeting step ID (shouldn't happen in normal flow)
+          // If no next step, use greeting step ID (fallback)
           currentStepId = saySteps[0].id;
           console.log("[Twilio] Selected greeting step (no next step found):", JSON.stringify(greetingStep, null, 2));
         }
       } else if (allSteps && allSteps.length > 0) {
         // Fallback to first step of any type
         greetingStep = allSteps[0];
-        // Advance to next step if available
-        const firstSortOrder = allSteps[0].sort_order || 0;
-        const nextStep = allSteps.find(s => (s.sort_order || 0) > firstSortOrder);
-        currentStepId = nextStep?.id || allSteps[0].id;
+        // Try to find next step
+        if (allSteps.length > 1) {
+          currentStepId = allSteps[1].id;
+        } else {
+          currentStepId = allSteps[0].id;
+        }
         console.log("[Twilio] No say steps, using first step:", JSON.stringify(greetingStep, null, 2));
       } else {
         console.log("[Twilio] No steps found in scenario");
@@ -340,19 +349,34 @@ export async function POST(req: NextRequest) {
     console.log("[Twilio] Escaped response URL:", escapedResponseUrl);
     console.log("[Twilio] Escaped URL JSON:", JSON.stringify(escapedResponseUrl));
 
-    // Only include Say tag if there's a greeting configured
+    // Only include speech if there's a greeting configured
     const hasGreeting = greeting && greeting.trim().length > 0;
-    const escapedGreeting = hasGreeting ? xmlEscape(greeting) : "";
+    
+    console.log("[Twilio Incoming] Generating greeting speech...");
+    console.log("[Twilio Incoming] Has greeting:", hasGreeting);
+    console.log("[Twilio Incoming] Greeting text:", greeting?.substring(0, 100));
+    console.log("[Twilio Incoming] Agent voice ID:", agent.elevenlabs_voice_id);
+    console.log("[Twilio Incoming] Base URL:", baseUrl);
+    
+    // Generate speech TwiML (Say or Play based on agent voice configuration)
+    const speechTwiml = hasGreeting
+      ? await generateSpeechTwiml(greeting, agent.elevenlabs_voice_id, baseUrl)
+      : "";
+    
+    console.log("[Twilio Incoming] Generated speech TwiML:", speechTwiml);
+    console.log("[Twilio Incoming] Speech TwiML length:", speechTwiml.length);
 
     // Generate TwiML response
     let twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>`;
     
-    if (hasGreeting) {
+    if (speechTwiml) {
       twiml += `
-  <Say voice="alice">${escapedGreeting}</Say>
+  ${speechTwiml}
   <Pause length="1"/>`;
     }
+    
+    console.log("[Twilio Incoming] Final TwiML:", twiml);
     
     twiml += `
   <Gather input="speech" action="${escapedResponseUrl}" method="POST" speechTimeout="auto" language="en-US">
@@ -366,17 +390,25 @@ export async function POST(req: NextRequest) {
         "Content-Type": "text/xml; charset=utf-8",
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("[Twilio] Incoming call error:", error);
-    const errorTwiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say>Sorry, we're experiencing technical difficulties. Please try again later.</Say>
-  <Hangup/>
-</Response>`;
+    
+    // Log error
+    const { logError, generateErrorTwiML } = await import("@/lib/errors/logger");
+    await logError({
+      type: "twilio_incoming_error",
+      source: "/api/twilio/incoming",
+      error,
+      context: { callSid, from, to },
+      timestamp: new Date().toISOString(),
+      severity: "high"
+    });
+    
+    const errorTwiml = generateErrorTwiML("Sorry, we're experiencing technical difficulties. Please try again later.");
     return new NextResponse(errorTwiml, {
       status: 200,
       headers: {
-        "Content-Type": "text/xml",
+        "Content-Type": "text/xml; charset=utf-8",
       },
     });
   }

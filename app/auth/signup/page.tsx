@@ -128,7 +128,7 @@ export default async function SignupPage({
             name="token"
             defaultValue={normalizeToken(searchParams?.token)}
             placeholder="DRIFT-XXXX-YYYY"
-            className="w-full rounded-xl border border-white/15 bg-black/45 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+            className="w-full rounded-2xl border border-white/15 bg-black/45 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
             required
           />
         </div>
@@ -138,7 +138,7 @@ export default async function SignupPage({
           <input
             name="first_name"
             placeholder="Jane"
-            className="w-full rounded-xl border border-white/15 bg-black/45 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+            className="w-full rounded-2xl border border-white/15 bg-black/45 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
             required
           />
         </div>
@@ -148,7 +148,7 @@ export default async function SignupPage({
           <input
             name="last_name"
             placeholder="Doe"
-            className="w-full rounded-xl border border-white/15 bg-black/45 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+            className="w-full rounded-2xl border border-white/15 bg-black/45 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
             required
           />
         </div>
@@ -159,7 +159,7 @@ export default async function SignupPage({
             name="email"
             type="email"
             placeholder="jane@acme.com"
-            className="w-full rounded-xl border border-white/15 bg-black/45 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+            className="w-full rounded-2xl border border-white/15 bg-black/45 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
             required
           />
         </div>
@@ -170,7 +170,7 @@ export default async function SignupPage({
             name="password"
             type="password"
             placeholder="••••••••"
-            className="w-full rounded-xl border border-white/15 bg-black/45 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+            className="w-full rounded-2xl border border-white/15 bg-black/45 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
             required
             minLength={8}
           />
@@ -180,7 +180,7 @@ export default async function SignupPage({
           <label className="block text-sm font-medium text-white/70">Company type</label>
           <select
             name="company_category"
-            className="w-full rounded-xl border border-white/15 bg-black/45 px-4 py-3 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+            className="w-full rounded-2xl border border-white/15 bg-black/45 px-4 py-3 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
             required
             defaultValue=""
           >

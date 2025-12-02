@@ -66,4 +66,3 @@ SELECT 'Storage bucket setup completed successfully!' as status;
 
 
 
-

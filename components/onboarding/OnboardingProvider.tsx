@@ -1,7 +1,7 @@
 // components/onboarding/OnboardingProvider.tsx
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect } from "react";
 import OnboardingModal from "./OnboardingModal";
 
 interface OnboardingContextType {
@@ -12,14 +12,19 @@ interface OnboardingContextType {
 
 const OnboardingContext = createContext<OnboardingContextType | undefined>(undefined);
 
-function OnboardingProvider({ children }: { children: React.ReactNode }) {
+export function OnboardingProvider({ children }: { children: React.ReactNode }) {
   const [isOnboardingVisible, setIsOnboardingVisible] = useState(false);
 
   useEffect(() => {
-    // Only run on client side
-    if (typeof window === 'undefined') return;
-    
     // Onboarding modal disabled - never show automatically
+    // Check if user has completed onboarding
+    // const hasCompletedOnboarding = localStorage.getItem("onboarding-completed");
+    // const isFirstVisit = !localStorage.getItem("has-visited");
+    
+    // if (isFirstVisit && !hasCompletedOnboarding) {
+    //   setIsOnboardingVisible(true);
+    //   localStorage.setItem("has-visited", "true");
+    // }
   }, []);
 
   const showOnboarding = () => {
@@ -31,13 +36,7 @@ function OnboardingProvider({ children }: { children: React.ReactNode }) {
   };
 
   const handleComplete = () => {
-    try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        localStorage.setItem("onboarding-completed", "true");
-      }
-    } catch (error) {
-      console.error('Error saving to localStorage:', error);
-    }
+    localStorage.setItem("onboarding-completed", "true");
     setIsOnboardingVisible(false);
   };
 
@@ -60,5 +59,3 @@ export function useOnboarding() {
   }
   return context;
 }
-
-export default OnboardingProvider;

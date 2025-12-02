@@ -75,6 +75,38 @@ export async function getSettingsByNumber(toNumber: string) {
   return data as ReceptionistSettings | null;
 }
 
+export async function upsertSettings(
+  workspaceId: string,
+  updates: Partial<ReceptionistSettings>
+): Promise<ReceptionistSettings> {
+  const sanitized: Partial<ReceptionistSettings> = { ...updates };
+  
+  // Normalize phone number if provided
+  if (sanitized.twilio_phone_number !== undefined) {
+    sanitized.twilio_phone_number = sanitizePhone(sanitized.twilio_phone_number) || null;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("receptionist_settings")
+    .upsert(
+      {
+        workspace_id: workspaceId,
+        ...sanitized,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "workspace_id" }
+    )
+    .select("workspace_id, greeting, farewell, twilio_phone_number")
+    .single();
+
+  if (error) {
+    console.error("Failed to upsert receptionist settings", error);
+    throw error;
+  }
+
+  return data as ReceptionistSettings;
+}
+
 export async function getQuestions(workspaceId: string) {
   const { data, error } = await supabaseAdmin
     .from("receptionist_questions")

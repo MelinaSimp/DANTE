@@ -13,7 +13,6 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   timestamp: string;
-  isError?: boolean;
 }
 
 interface ChatInterfaceProps {
@@ -119,56 +118,25 @@ export default function ChatInterface({
       });
 
       if (!response.ok) {
-        throw new Error("Failed to send message");
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.message || "Failed to send message");
       }
 
       const data = await response.json();
 
-      if (!data.success && data.error) {
-        console.error("[Chat Interface] API returned error:", {
-          error: data.error,
-          conversationId: convId,
-          debug: data.debug,
-        });
-        
-        // Log detailed error to browser console for debugging
-        console.group("🔴 Chat Error Details");
-        console.error("Error:", data.error);
-        console.error("Message:", data.message);
-        if (data.debug) {
-          console.error("Debug Info:", data.debug);
-        }
-        console.groupEnd();
-      }
-
       const assistantMessage: Message = {
         role: "assistant",
-        content: data.message || "I'm sorry, I couldn't generate a response.",
+        content: data.message || data.output || "I'm sorry, I couldn't generate a response.",
         timestamp: new Date().toISOString(),
-        isError: !data.success,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (error: any) {
-      console.error("[Chat Interface] Failed to send message:", {
-        error: error.message,
-        stack: error.stack,
-        conversationId: convId,
-        fullError: error,
-      });
-      
-      // Log detailed error to browser console
-      console.group("🔴 Network/Request Error");
-      console.error("Error:", error.message);
-      console.error("Stack:", error.stack);
-      console.error("Full Error:", error);
-      console.groupEnd();
-      
+      console.error("Failed to send message:", error);
       const errorMessage: Message = {
         role: "assistant",
-        content: `Error: ${error.message || "Failed to send message. Please check your browser console (F12) for details."}`,
+        content: error.message || "I'm sorry, I encountered an error. Please try again.",
         timestamp: new Date().toISOString(),
-        isError: true,
       };
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
@@ -193,11 +161,9 @@ export default function ChatInterface({
               }`}
             >
               <div
-                className={`max-w-[80%] rounded-lg px-4 py-2 ${
+                className={`max-w-[80%] rounded-3xl px-4 py-2 ${
                   message.role === "user"
                     ? `${colors.buttonPrimary} text-white`
-                    : message.isError
-                    ? `bg-red-50 border-2 border-red-300 ${colors.text}`
                     : `${colors.cardBg} ${colors.border} border ${colors.text}`
                 }`}
               >
@@ -213,7 +179,7 @@ export default function ChatInterface({
         )}
         {loading && (
           <div className="flex justify-start">
-            <div className={`${colors.cardBg} ${colors.border} border rounded-lg px-4 py-2`}>
+            <div className={`${colors.cardBg} ${colors.border} border rounded-3xl px-4 py-2`}>
               <Loader2 className="h-4 w-4 animate-spin" />
             </div>
           </div>
@@ -230,12 +196,12 @@ export default function ChatInterface({
             onChange={(e) => setInput(e.target.value)}
             placeholder="Type your message..."
             disabled={loading}
-            className={`flex-1 rounded-lg border ${colors.border} ${colors.inputBg} px-4 py-2 ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none disabled:opacity-50`}
+            className={`flex-1 rounded-2xl border ${colors.border} ${colors.inputBg} px-4 py-2 ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none disabled:opacity-50`}
           />
           <button
             type="submit"
             disabled={loading || !input.trim()}
-            className={`px-4 py-2 rounded-lg ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2`}
+            className={`px-4 py-2 rounded-2xl ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2`}
           >
             {loading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -248,7 +214,6 @@ export default function ChatInterface({
     </div>
   );
 }
-
 
 
 

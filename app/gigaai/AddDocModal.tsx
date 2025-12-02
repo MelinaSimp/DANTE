@@ -94,7 +94,7 @@ export default function AddDocModal({ onClose, onAdd, agentId }: AddDocModalProp
                   setFile(null);
                   setName("");
                 }}
-                className={`flex-1 px-4 py-2 rounded-lg border transition ${
+                className={`flex-1 px-4 py-2 rounded-2xl border transition ${
                   type === "file"
                     ? `${colors.selected}`
                     : `${colors.bgTertiary} ${colors.textTertiary} ${colors.hover}`
@@ -112,7 +112,7 @@ export default function AddDocModal({ onClose, onAdd, agentId }: AddDocModalProp
                   setFile(null);
                   setName("");
                 }}
-                className={`flex-1 px-4 py-2 rounded-lg border transition ${
+                className={`flex-1 px-4 py-2 rounded-2xl border transition ${
                   type === "text"
                     ? `${colors.selected}`
                     : `${colors.bgTertiary} ${colors.textTertiary} ${colors.hover}`
@@ -131,7 +131,7 @@ export default function AddDocModal({ onClose, onAdd, agentId }: AddDocModalProp
               <label className={`block text-sm font-medium ${colors.textSecondary} mb-2`}>
                 Upload File
               </label>
-              <div className={`border-2 border-dashed ${colors.borderSecondary} rounded-lg p-6 text-center hover:${colors.border} transition ${colors.bgTertiary}`}>
+              <div className={`border-2 border-dashed ${colors.borderSecondary} rounded-2xl p-6 text-center hover:${colors.border} transition ${colors.bgTertiary}`}>
                 <input
                   type="file"
                   id="file-upload"
@@ -168,7 +168,7 @@ export default function AddDocModal({ onClose, onAdd, agentId }: AddDocModalProp
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g., Compliance guidelines"
-                  className={`w-full rounded-lg border ${colors.border} ${colors.inputBg} ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none px-4 py-2 text-sm`}
+                  className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none px-4 py-2 text-sm`}
                   autoFocus
                 />
               </div>
@@ -181,7 +181,7 @@ export default function AddDocModal({ onClose, onAdd, agentId }: AddDocModalProp
                   onChange={(e) => setTextContent(e.target.value)}
                   rows={6}
                   placeholder="Enter document content here..."
-                  className={`w-full rounded-lg border ${colors.border} ${colors.inputBg} ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none resize-none px-4 py-2 text-sm`}
+                  className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none resize-none px-4 py-2 text-sm`}
                 />
               </div>
             </>
@@ -191,14 +191,14 @@ export default function AddDocModal({ onClose, onAdd, agentId }: AddDocModalProp
             <button
               type="button"
               onClick={onClose}
-              className={`px-4 py-2 rounded-lg border ${colors.border} ${colors.bgTertiary} ${colors.text} ${colors.hover} text-sm transition`}
+              className={`px-4 py-2 rounded-2xl border ${colors.border} ${colors.bgTertiary} ${colors.text} ${colors.hover} text-sm transition`}
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!name.trim() || uploading || (type === "file" && !file) || (type === "text" && !textContent.trim())}
-              className={`px-4 py-2 rounded-lg ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed`}
+              className={`px-4 py-2 rounded-2xl ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               {uploading ? "Uploading..." : "Add Document"}
             </button>

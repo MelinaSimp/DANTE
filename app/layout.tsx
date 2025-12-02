@@ -4,7 +4,7 @@ import "./globals.css";
 import Header from "@/components/Header";
 import PushNotificationManager from "@/components/PushNotificationManager";
 import OfflineIndicator from "@/components/OfflineIndicator";
-import OnboardingProvider from "@/components/onboarding/OnboardingProvider";
+import { OnboardingProvider } from "@/components/onboarding/OnboardingProvider";
 
 export const metadata: Metadata = {
   title: "Drift - Agent Canvas",
@@ -33,31 +33,29 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="bg-[#242423] min-h-screen antialiased text-white">
         <OnboardingProvider>
           <OfflineIndicator />
-          <Header />
+          <div className="hidden">
+            <Header />
+          </div>
           <main className="relative z-0 bg-[#242423]" style={{ background: '#242423', backgroundImage: 'none' }}>{children}</main>
           <PushNotificationManager />
-          <script
-            dangerouslySetInnerHTML={{
-              __html: `
-                if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-                  window.addEventListener('load', function() {
-                    try {
-                      navigator.serviceWorker.register('/sw.js')
-                        .then(function(registration) {
-                          console.log('SW registered: ', registration);
-                        })
-                        .catch(function(registrationError) {
-                          console.log('SW registration failed: ', registrationError);
-                        });
-                    } catch (error) {
-                      console.error('Service worker registration error: ', error);
-                    }
-                  });
-                }
-              `,
-            }}
-          />
         </OnboardingProvider>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/sw.js')
+                    .then(function(registration) {
+                      console.log('SW registered: ', registration);
+                    })
+                    .catch(function(registrationError) {
+                      console.log('SW registration failed: ', registrationError);
+                    });
+                });
+              }
+            `,
+          }}
+        />
       </body>
     </html>
   );

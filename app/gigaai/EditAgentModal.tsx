@@ -10,12 +10,18 @@ interface Agent {
   modality: "chat" | "voice" | "multi-modal";
   description?: string;
   phoneNumber?: string;
+  elevenlabsVoiceId?: string | null;
+}
+
+interface Voice {
+  voice_id: string;
+  name: string;
 }
 
 interface EditAgentModalProps {
   agent: Agent;
   onClose: () => void;
-  onSave: (agentData: { name: string; modality: "chat" | "voice" | "multi-modal"; description?: string; phoneNumber?: string }) => void;
+  onSave: (agentData: { name: string; modality: "chat" | "voice" | "multi-modal"; description?: string; phoneNumber?: string; elevenlabsVoiceId?: string | null }) => void;
 }
 
 export default function EditAgentModal({ agent, onClose, onSave }: EditAgentModalProps) {
@@ -24,13 +30,56 @@ export default function EditAgentModal({ agent, onClose, onSave }: EditAgentModa
   const [modality, setModality] = useState<"chat" | "voice" | "multi-modal">(agent.modality);
   const [description, setDescription] = useState(agent.description || "");
   const [phoneNumber, setPhoneNumber] = useState(agent.phoneNumber || "");
+  const [elevenlabsVoiceId, setElevenlabsVoiceId] = useState<string | null>(agent.elevenlabsVoiceId || null);
+  const [voices, setVoices] = useState<Voice[]>([]);
+  const [loadingVoices, setLoadingVoices] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
 
   useEffect(() => {
     setName(agent.name);
     setModality(agent.modality);
     setDescription(agent.description || "");
     setPhoneNumber(agent.phoneNumber || "");
+    setElevenlabsVoiceId(agent.elevenlabsVoiceId || null);
   }, [agent]);
+
+  useEffect(() => {
+    // Load available voices when modal opens
+    if (modality === "voice" || modality === "multi-modal") {
+      loadVoices();
+    }
+  }, [modality]);
+
+  const loadVoices = async () => {
+    setLoadingVoices(true);
+    setVoiceError(null);
+    try {
+      const response = await fetch("/api/elevenlabs/voices");
+      const data = await response.json();
+      
+      if (response.ok) {
+        const voicesList = data.voices || [];
+        console.log(`[EditAgentModal] Loaded ${voicesList.length} voices`);
+        setVoices(voicesList);
+        
+        if (voicesList.length === 0) {
+          const errorMsg = data.error || "No voices available. Check ELEVENLABS_API_KEY configuration.";
+          setVoiceError(errorMsg);
+          console.warn("[EditAgentModal] No voices available:", errorMsg);
+        }
+      } else {
+        const errorMsg = data.error || data.details || "Failed to load voices";
+        setVoiceError(errorMsg);
+        console.error("Failed to load voices:", data);
+      }
+    } catch (error: any) {
+      const errorMsg = error.message || "Network error loading voices";
+      setVoiceError(errorMsg);
+      console.error("Failed to load voices:", error);
+    } finally {
+      setLoadingVoices(false);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,6 +89,7 @@ export default function EditAgentModal({ agent, onClose, onSave }: EditAgentModa
         modality,
         description: description.trim() || undefined,
         phoneNumber: phoneNumber.trim() || undefined,
+        elevenlabsVoiceId: elevenlabsVoiceId || undefined,
       });
     }
   };
@@ -128,6 +178,44 @@ export default function EditAgentModal({ agent, onClose, onSave }: EditAgentModa
               Enter your Twilio phone number for voice calls
             </p>
           </div>
+
+          {(modality === "voice" || modality === "multi-modal") && (
+            <div>
+              <label className={`block text-sm font-medium ${colors.textSecondary} mb-2`}>
+                Voice (ElevenLabs)
+              </label>
+              {loadingVoices ? (
+                <div className={`text-sm ${colors.textTertiary} py-2`}>Loading voices...</div>
+              ) : (
+                <>
+                  <select
+                    value={elevenlabsVoiceId || ""}
+                    onChange={(e) => setElevenlabsVoiceId(e.target.value || null)}
+                    className={`w-full rounded-lg border ${colors.border} ${colors.inputBg} ${colors.text} focus:border-[#3351ff] focus:outline-none px-4 py-2 text-sm`}
+                  >
+                    <option value="">Use Twilio default voice</option>
+                    {voices.map((voice) => (
+                      <option key={voice.voice_id} value={voice.voice_id}>
+                        {voice.name}
+                      </option>
+                    ))}
+                  </select>
+                  {voiceError && (
+                    <div className={`mt-2 p-3 rounded-lg border border-red-500/50 bg-red-500/10`}>
+                      <p className={`text-sm text-red-400 font-medium mb-1`}>⚠️ Error loading voices:</p>
+                      <p className={`text-xs text-red-300`}>{voiceError}</p>
+                      <p className={`text-xs text-red-300 mt-2`}>
+                        Check: 1) ELEVENLABS_API_KEY is set in Vercel, 2) API key has correct permissions, 3) Browser console for details
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+              <p className={`text-xs ${colors.textTertiary} mt-1`}>
+                Select an ElevenLabs voice for natural-sounding speech. Leave empty to use Twilio's default voice.
+              </p>
+            </div>
+          )}
 
           <div>
             <label className={`block text-sm font-medium ${colors.textSecondary} mb-2`}>

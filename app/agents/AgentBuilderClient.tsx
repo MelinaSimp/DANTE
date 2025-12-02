@@ -193,120 +193,20 @@ export default function AgentBuilderClient({ workspaceId, initialAgents }: Agent
               {/* Right Side Actions */}
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2 text-sm">
-                  <span className={`flex items-center gap-1 px-2 py-1 rounded text-white/70 text-xs ${
-                    selectedAgent.status === "deployed" 
-                      ? "bg-green-500/20 border border-green-500/30" 
-                      : "bg-white/10"
-                  }`}>
-                    {selectedAgent.status === "deployed" ? (
-                      <CheckCircle className="h-3 w-3 text-green-400" />
-                    ) : (
+                  <span className="flex items-center gap-1 px-2 py-1 rounded bg-white/10 text-white/70 text-xs">
                     <Edit className="h-3 w-3" />
-                    )}
-                    {selectedAgent.status === "deployed" ? "deployed" : "draft"}
+                    draft
                   </span>
                   <span className="flex items-center gap-1 text-white/60 text-xs">
-                    <Clock className="h-3 w-3" />
+                    <CheckCircle className="h-3 w-3" />
                     updated a min ago
                   </span>
                 </div>
-                {selectedAgent.status === "deployed" ? (
-                  <button
-                    onClick={async () => {
-                      if (!confirm("Are you sure you want to undeploy this agent? It will stop handling calls/chats immediately. You can still edit while deployed, but undeploying will make it inactive.")) {
-                        return;
-                      }
-                      try {
-                        const response = await fetch(`/api/agents/${selectedAgent.id}`, {
-                          method: "PUT",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ status: "draft" }),
-                        });
-                        if (response.ok) {
-                          const updatedAgent = await response.json();
-                          setAgents(agents.map(a => a.id === selectedAgent.id ? updatedAgent : a));
-                          setSelectedAgent(updatedAgent);
-                          alert("Agent undeployed successfully! The agent is now inactive.");
-                        } else {
-                          const error = await response.json();
-                          alert(`Failed to undeploy agent: ${error.error || "Unknown error"}`);
-                        }
-                      } catch (error) {
-                        console.error("Error undeploying agent:", error);
-                        alert("Failed to undeploy agent. Please check the console for details.");
-                      }
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 text-orange-300 text-sm font-medium transition"
-                    title="Undeploy agent to make it inactive"
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                    Undeploy Agent
-                  </button>
-                ) : (
-                  <button
-                    onClick={async () => {
-                      // Validate agent before deployment
-                      if (!selectedAgent.phone_number && (selectedAgent.modality === "voice" || selectedAgent.modality === "multi-modal")) {
-                        alert("Please add a phone number in Advanced settings before deploying a voice agent.");
-                        return;
-                      }
-                      
-                      // Check if agent has at least one scenario with steps
-                      try {
-                        const scenariosResponse = await fetch(`/api/agents/${selectedAgent.id}/scenarios`);
-                        if (scenariosResponse.ok) {
-                          const scenarios = await scenariosResponse.json();
-                          if (scenarios.length === 0) {
-                            alert("Please add at least one scenario before deploying.");
-                            return;
-                          }
-                          
-                          // Check if first scenario has steps
-                          if (scenarios.length > 0) {
-                            const stepsResponse = await fetch(`/api/scenarios/${scenarios[0].id}/steps`);
-                            if (stepsResponse.ok) {
-                              const steps = await stepsResponse.json();
-                              if (steps.length === 0) {
-                                alert("Please add at least one step to your scenario before deploying.");
-                                return;
-                              }
-                            }
-                          }
-                        }
-                      } catch (e) {
-                        console.error("Error checking scenarios:", e);
-                      }
-                      
-                      if (!confirm("Deploy this agent? It will start handling calls/chats immediately.")) {
-                        return;
-                      }
-                      
-                      try {
-                        const response = await fetch(`/api/agents/${selectedAgent.id}`, {
-                          method: "PUT",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ status: "deployed" }),
-                        });
-                        if (response.ok) {
-                          const updatedAgent = await response.json();
-                          setAgents(agents.map(a => a.id === selectedAgent.id ? updatedAgent : a));
-                          setSelectedAgent(updatedAgent);
-                          alert("Agent deployed successfully!");
-                        } else {
-                          const error = await response.json();
-                          alert(`Failed to deploy agent: ${error.error || "Unknown error"}`);
-                        }
-                      } catch (error) {
-                        console.error("Error deploying agent:", error);
-                        alert("Failed to deploy agent");
-                      }
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#3351ff] hover:bg-[#4a64ff] text-white text-sm font-medium transition"
-                  >
+                <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#3351ff] hover:bg-[#4a64ff] text-white text-sm font-medium transition">
                   <Rocket className="h-4 w-4" />
                   Deploy agent
+                  <ChevronDown className="h-3 w-3" />
                 </button>
-                )}
                 <button className="p-2 hover:bg-white/5 rounded-lg transition">
                   <RefreshCw className="h-4 w-4 text-white/60" />
                 </button>
@@ -344,47 +244,6 @@ export default function AgentBuilderClient({ workspaceId, initialAgents }: Agent
                 }`}
               >
                 Test Results
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Deployed Banner */}
-        {selectedAgent?.status === "deployed" && (
-          <div className="bg-green-500/10 border-b border-green-500/30 px-6 py-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm">
-                <CheckCircle className="h-4 w-4 text-green-400" />
-                <span className="text-green-300 font-medium">Agent is deployed and active</span>
-                <span className="text-green-400/70 text-xs">• You can still edit steps and scenarios</span>
-              </div>
-              <button
-                onClick={async () => {
-                  if (!confirm("Undeploy this agent? It will stop handling calls/chats immediately.")) {
-                    return;
-                  }
-                  try {
-                    const response = await fetch(`/api/agents/${selectedAgent.id}`, {
-                      method: "PUT",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ status: "draft" }),
-                    });
-                    if (response.ok) {
-                      const updatedAgent = await response.json();
-                      setAgents(agents.map(a => a.id === selectedAgent.id ? updatedAgent : a));
-                      setSelectedAgent(updatedAgent);
-                    } else {
-                      const error = await response.json();
-                      alert(`Failed to undeploy: ${error.error || "Unknown error"}`);
-                    }
-                  } catch (error) {
-                    console.error("Error undeploying:", error);
-                    alert("Failed to undeploy agent");
-                  }
-                }}
-                className="text-xs text-green-300 hover:text-green-200 underline"
-              >
-                Undeploy
               </button>
             </div>
           </div>

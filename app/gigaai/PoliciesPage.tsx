@@ -294,59 +294,12 @@ export default function PoliciesPage({ agentId }: PoliciesPageProps) {
         const isText = fileType.startsWith("text/");
         
         if (isPDF) {
-          // For PDFs, first check if file is accessible
-          console.log("[Preview] Checking PDF file:", policy.file_url);
-          fetch(policy.file_url, { method: 'HEAD', mode: 'no-cors' })
-            .then(() => {
-              console.log("[Preview] PDF file check passed (no-cors mode)");
+          // For PDFs, show in iframe
           setPreviewModal({
             isOpen: true,
             policy,
             content: "PDF_PREVIEW", // Special marker for PDF
             loading: false,
-              });
-            })
-            .catch(error => {
-              console.error("[Preview] PDF file check failed:", error);
-              // Try with CORS to get actual error
-              fetch(policy.file_url, { method: 'HEAD' })
-                .then(response => {
-                  console.log("[Preview] PDF HEAD response:", response.status, response.statusText);
-                  if (response.ok) {
-                    setPreviewModal({
-                      isOpen: true,
-                      policy,
-                      content: "PDF_PREVIEW",
-                      loading: false,
-                    });
-                  } else {
-                    const errorText = response.statusText || `HTTP ${response.status}`;
-                    const responseText = await response.text().catch(() => "");
-                    const isBucketError = responseText.includes("Bucket not found") || responseText.includes("bucket");
-                    
-                    setPreviewModal({
-                      isOpen: true,
-                      policy,
-                      content: isBucketError
-                        ? `⚠️ STORAGE BUCKET NOT FOUND\n\nError: ${responseText || errorText}\n\nThis means the "agent-files" storage bucket doesn't exist in Supabase.\n\n🔧 TO FIX:\n\n1. Go to Supabase Dashboard → SQL Editor\n2. Run this SQL:\n\n   INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)\n   VALUES ('agent-files', 'agent-files', true, 52428800, ARRAY['application/pdf', 'text/plain', 'application/json', 'image/png', 'image/jpeg'])\n   ON CONFLICT (id) DO UPDATE SET public = true;\n\n3. Delete this entry and re-upload your PDF`
-                        : `⚠️ File Not Found\n\nError: ${errorText}\n\nFile URL: ${policy.file_url}\n\nThis file may have been uploaded before the storage bucket was created.\n\nTo fix:\n1. Delete this policy entry\n2. Re-upload the file`,
-                      loading: false,
-                    });
-                  }
-                })
-                .catch(corsError => {
-                  console.error("[Preview] PDF CORS check also failed:", corsError);
-                  const isBucketError = corsError?.message?.includes("Bucket not found") || corsError?.message?.includes("bucket");
-                  
-                  setPreviewModal({
-                    isOpen: true,
-                    policy,
-                    content: isBucketError
-                      ? `⚠️ STORAGE BUCKET NOT FOUND\n\nError: Bucket not found\n\nThis means the "agent-files" storage bucket doesn't exist in Supabase.\n\n🔧 TO FIX:\n\n1. Go to Supabase Dashboard → SQL Editor\n2. Run this SQL:\n\n   INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)\n   VALUES ('agent-files', 'agent-files', true, 52428800, ARRAY['application/pdf', 'text/plain', 'application/json', 'image/png', 'image/jpeg'])\n   ON CONFLICT (id) DO UPDATE SET public = true;\n\n3. Delete this entry and re-upload your PDF`
-                      : `⚠️ Cannot Access File\n\nFile URL: ${policy.file_url}\n\nPossible issues:\n1. Bucket is not public\n2. File doesn't exist\n3. CORS error\n\nTo fix:\n1. Check Supabase Storage → agent-files bucket is public\n2. Delete this entry and re-upload\n3. Check browser console for detailed errors`,
-                    loading: false,
-                  });
-                });
           });
         } else if (isImage) {
           // For images, show the image
@@ -622,40 +575,12 @@ export default function PoliciesPage({ agentId }: PoliciesPageProps) {
               ) : previewModal.content ? (
                 <>
                   {previewModal.content === "PDF_PREVIEW" && previewModal.policy.file_url ? (
-                    <div className="w-full">
-                      <div className="w-full h-[60vh] mb-4">
+                    <div className="w-full h-[60vh]">
                       <iframe
                         src={previewModal.policy.file_url}
                         className="w-full h-full rounded-lg border border-white/10"
                         title={previewModal.policy.name}
                       />
-                      </div>
-                      <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30">
-                        <p className="text-xs text-blue-300 mb-2">
-                          <strong>Note:</strong> If the PDF doesn't appear above, it may not be accessible.
-                        </p>
-                        <div className="flex gap-2">
-                          <a
-                            href={previewModal.policy.file_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-blue-300 hover:text-blue-200 underline"
-                          >
-                            Open PDF in new tab →
-                          </a>
-                          <span className="text-xs text-blue-400/70">|</span>
-                          <a
-                            href={previewModal.policy.file_url}
-                            download
-                            className="text-xs text-blue-300 hover:text-blue-200 underline"
-                          >
-                            Download PDF →
-                          </a>
-                        </div>
-                        <p className="text-xs text-blue-400/70 mt-2">
-                          File URL: <code className="text-[10px] break-all">{previewModal.policy.file_url}</code>
-                        </p>
-                      </div>
                     </div>
                   ) : previewModal.policy.type === "file" && 
                     previewModal.policy.file_type?.startsWith("image/") ? (

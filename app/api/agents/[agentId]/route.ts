@@ -77,6 +77,12 @@ export async function PUT(
     updates.phone_number = normalized || body.phone_number; // Fallback to original if normalization fails
   }
   if (body.status !== undefined) updates.status = body.status;
+  if (body.elevenlabs_voice_id !== undefined) updates.elevenlabs_voice_id = body.elevenlabs_voice_id;
+  // New fields for agent role and specialist routing
+  if (body.agent_role !== undefined) updates.agent_role = body.agent_role;
+  if (body.is_specialist !== undefined) updates.is_specialist = body.is_specialist;
+  if (body.parent_agent_id !== undefined) updates.parent_agent_id = body.parent_agent_id;
+  if (body.routing_keywords !== undefined) updates.routing_keywords = body.routing_keywords;
 
   const { data, error } = await supabaseAdmin
     .from("agents")

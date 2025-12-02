@@ -132,7 +132,7 @@ export default function StepEditor({ step, onClose, onSave }: StepEditorProps) {
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-white/5 rounded-lg transition"
+            className="p-2 hover:bg-white/5 rounded-full transition"
           >
             <X className="h-5 w-5 text-white/60" />
           </button>

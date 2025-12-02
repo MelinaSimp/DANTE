@@ -103,56 +103,33 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: Promise<{ stepId: string }> | { stepId: string } }
+  { params }: { params: { stepId: string } }
 ) {
-  // Handle both sync and async params (Next.js 15 compatibility)
-  const resolvedParams = await Promise.resolve(params);
-  const stepId = resolvedParams.stepId;
-
-  console.log("[API] DELETE step request for:", stepId);
-
   const { workspaceId } = await getWorkspace(req);
   if (!workspaceId) {
-    console.error("[API] DELETE step: Unauthorized - no workspaceId");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  console.log("[API] DELETE step: workspaceId:", workspaceId);
-
   // Verify step belongs to workspace
-  const { data: step, error: stepError } = await supabaseAdmin
+  const { data: step } = await supabaseAdmin
     .from("steps")
     .select("scenario_id, scenarios!inner(agent_id, agents!inner(workspace_id))")
-    .eq("id", stepId)
+    .eq("id", params.stepId)
     .maybeSingle();
 
-  if (stepError) {
-    console.error("[API] DELETE step: Error fetching step:", stepError);
-    return NextResponse.json({ error: "Failed to verify step" }, { status: 500 });
-  }
-
-  if (!step) {
-    console.error("[API] DELETE step: Step not found:", stepId);
+  if (!step || ((step.scenarios as any).agents as any).workspace_id !== workspaceId) {
     return NextResponse.json({ error: "Step not found" }, { status: 404 });
   }
 
-  const stepWorkspaceId = ((step.scenarios as any).agents as any).workspace_id;
-  if (stepWorkspaceId !== workspaceId) {
-    console.error("[API] DELETE step: Workspace mismatch. Step workspace:", stepWorkspaceId, "User workspace:", workspaceId);
-    return NextResponse.json({ error: "Step not found" }, { status: 404 });
-  }
-
-  console.log("[API] DELETE step: Deleting step from database:", stepId);
   const { error } = await supabaseAdmin
     .from("steps")
     .delete()
-    .eq("id", stepId);
+    .eq("id", params.stepId);
 
   if (error) {
-    console.error("[API] DELETE step: Database error:", error);
-    return NextResponse.json({ error: "Failed to delete step", details: error.message }, { status: 500 });
+    console.error("Failed to delete step", error);
+    return NextResponse.json({ error: "Failed to delete step" }, { status: 500 });
   }
 
-  console.log("[API] DELETE step: Successfully deleted:", stepId);
   return NextResponse.json({ success: true });
 }

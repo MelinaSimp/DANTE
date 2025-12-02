@@ -5,8 +5,6 @@
 
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import pdfParse from "pdf-parse";
-import { createWorker } from "tesseract.js";
 
 export interface ConversationContext {
   conversationId: string;
@@ -26,6 +24,10 @@ export interface StepResult {
   error?: string;
   gatheredData?: Record<string, any>;
   shouldContinue: boolean;
+  // NEW FIELDS:
+  transferToAgentId?: string | null;  // For transfer steps
+  scheduledSMSId?: string;  // For send_sms steps
+  loopState?: any;  // For loop steps
 }
 
 export class AgentExecutor {
@@ -39,24 +41,15 @@ export class AgentExecutor {
 
   /**
    * Execute the next step in the conversation
+   * Continues executing steps automatically until we get output or need user input
    */
-  async executeNextStep(userInput: string): Promise<StepResult> {
+  async executeNextStep(userInput: string, maxDepth: number = 10): Promise<StepResult> {
     try {
-      // Validate context
-      if (!this.context.agentId) {
-        console.error("[Agent Executor] Missing agentId in context");
+      // Prevent infinite loops
+      if (maxDepth <= 0) {
         return {
           success: false,
-          error: "Agent ID is missing",
-          shouldContinue: false,
-        };
-      }
-
-      if (!this.context.currentStepId) {
-        console.error("[Agent Executor] Missing currentStepId in context");
-        return {
-          success: false,
-          error: "Current step ID is missing",
+          error: "Maximum execution depth reached",
           shouldContinue: false,
         };
       }
@@ -64,68 +57,84 @@ export class AgentExecutor {
       // Load current step
       const step = await this.loadStep(this.context.currentStepId);
       if (!step) {
-        console.error("[Agent Executor] Step not found:", this.context.currentStepId);
+        // If no step configured, use AI to generate a response
+        if (!this.context.currentStepId) {
+          // Get agent info for context
+          const { data: agent } = await this.supabase
+            .from("agents")
+            .select("name, description")
+            .eq("id", this.context.agentId)
+            .single();
+
+          const agentName = agent?.name || "AI Assistant";
+          const agentDesc = agent?.description || "";
+
+          // Use OpenAI to generate a response
+          const apiKey = process.env.OPENAI_API_KEY;
+          if (apiKey) {
+            try {
+              const response = await fetch("https://api.openai.com/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${apiKey}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  model: "gpt-4o-mini",
+                  messages: [
+                    {
+                      role: "system",
+                      content: `You are ${agentName}. ${agentDesc || "You are a helpful AI assistant."} Be friendly and concise.`,
+                    },
+                    ...this.context.transcript.slice(-5).map((msg: any) => ({
+                      role: msg.role,
+                      content: msg.content,
+                    })),
+                    { role: "user", content: userInput },
+                  ],
+                  temperature: 0.7,
+                  max_tokens: 200,
+                }),
+              });
+
+              if (response.ok) {
+                const data = await response.json();
+                const aiResponse = data.choices[0]?.message?.content || "Hello! How can I help you today?";
+                return {
+                  success: true,
+                  output: aiResponse,
+                  nextStepId: null,
+                  shouldContinue: false,
+                };
+              }
+            } catch (error) {
+              console.error("AI generation error:", error);
+            }
+          }
+
+          // Fallback if AI generation fails
+          return {
+            success: true,
+            output: "Hello! I'm your AI assistant. How can I help you today?",
+            nextStepId: null,
+            shouldContinue: false,
+          };
+        }
         return {
           success: false,
-          error: `Step not found: ${this.context.currentStepId}`,
+          error: "Step not found",
           shouldContinue: false,
         };
       }
 
-      // Check if we're in Q&A mode (after inquiry has been answered)
-      // If so, use policies/data sources to answer their question or check satisfaction
-      if (this.context.gatheredData.inquiry_answered) {
-        // First check if they're satisfied and want to end
-        const satisfactionCheck = await this.checkSatisfaction(userInput);
-        if (satisfactionCheck.isSatisfied) {
-          return {
-            success: true,
-            output: satisfactionCheck.closingMessage || "Thank you for calling! Have a great day!",
-            nextStepId: null,
-            nextScenarioId: null,
-            shouldContinue: false, // End conversation
-            gatheredData: this.context.gatheredData,
-          };
+      // Check for loop continuation before loading step
+      const loopContinuation = await this.checkLoopContinuation(this.context.currentStepId);
+      if (loopContinuation) {
+        // We're at the end of a loop, check if we should continue
+        const loopStep = await this.loadStep(loopContinuation);
+        if (loopStep) {
+          return await this.executeLoopStep(loopStep, userInput);
         }
-        
-        // They have another question - answer it using policies/data sources
-        console.log("[Q&A Mode] Customer has a follow-up question, answering with policies/data sources");
-        console.log("[Q&A Mode] Customer question:", userInput);
-        
-        // Load agent context (policies, data sources, personalization)
-        const agentContext = await this.loadAgentContext();
-        const systemPrompt = this.buildSystemPrompt(agentContext);
-        
-        // Build context from conversation history
-        const conversationContext = this.context.transcript
-          .slice(-6) // Last 6 messages for context
-          .map((msg: any) => `${msg.role === "user" ? "Customer" : "Receptionist"}: ${msg.content}`)
-          .join("\n");
-        
-        const userPrompt = `The customer asked: "${userInput}"
-
-${conversationContext ? `Recent conversation context:\n${conversationContext}\n\n` : ""}Based on the policies and knowledge base provided above, provide a helpful, accurate answer. Be concise but complete. If you don't have enough information in the knowledge base, politely say so and offer to help them further or connect them with someone who can help.
-
-After providing your answer, ask if there's anything else you can help with.`;
-
-        // Generate AI response using policies and data sources
-        const answer = await this.generateAIResponseWithContext(systemPrompt, userPrompt);
-        
-        // Update gathered data with the new question
-        const updatedGatheredData = {
-          ...this.context.gatheredData,
-          last_question: userInput,
-        };
-        
-        // Return the answer and continue the conversation
-        return {
-          success: true,
-          output: answer,
-          nextStepId: this.context.currentStepId, // Stay on current step to continue Q&A
-          nextScenarioId: null,
-          shouldContinue: true,
-          gatheredData: updatedGatheredData,
-        };
       }
 
       // Execute step based on type
@@ -137,9 +146,10 @@ After providing your answer, ask if there's anything else you can help with.`;
         case "gather":
           result = await this.executeGatherStep(step, userInput);
           break;
-        case "if":
-          result = await this.executeIfStep(step, userInput);
+        case "qa":
+          result = await this.executeQAStep(step, userInput);
           break;
+        // REMOVED: case "if" - If steps are removed, use branches on Gather/Q/A instead
         case "code":
           result = await this.executeCodeStep(step, userInput);
           break;
@@ -148,6 +158,16 @@ After providing your answer, ask if there's anything else you can help with.`;
           break;
         case "schedule":
           result = await this.executeScheduleStep(step, userInput);
+          break;
+        // NEW STEP TYPES:
+        case "loop":
+          result = await this.executeLoopStep(step, userInput);
+          break;
+        case "send_sms":
+          result = await this.executeSendSMSStep(step, userInput);
+          break;
+        case "transfer":
+          result = await this.executeTransferStep(step, userInput);
           break;
         default:
           result = {
@@ -162,16 +182,40 @@ After providing your answer, ask if there's anything else you can help with.`;
         await this.updateConversationState(result);
       }
 
+      // If we have no output but have a next step, continue executing automatically
+      // This handles cases like: Gather -> IF -> Say (we want to execute IF and Say in one go)
+      if (result.success && 
+          (!result.output || result.output.trim().length === 0) && 
+          result.nextStepId && 
+          result.shouldContinue) {
+        // Update context to the next step
+        const previousContext = { ...this.context };
+        this.context.currentStepId = result.nextStepId;
+        if (result.gatheredData) {
+          this.context.gatheredData = { ...this.context.gatheredData, ...result.gatheredData };
+        }
+        
+        // Continue executing the next step
+        const nextResult = await this.executeNextStep(userInput, maxDepth - 1);
+        
+        // Merge results: use next step's output, but preserve gathered data from both
+        if (nextResult.success) {
+          return {
+            ...nextResult,
+            gatheredData: {
+              ...result.gatheredData,
+              ...nextResult.gatheredData,
+            },
+          };
+        } else {
+          // If next step failed, return the original result
+          return result;
+        }
+      }
+
       return result;
     } catch (error: any) {
-      console.error("[Agent Executor] Execution error:", {
-        error: error.message,
-        stack: error.stack,
-        conversationId: this.context.conversationId,
-        stepId: this.context.currentStepId,
-        agentId: this.context.agentId,
-        fullError: error,
-      });
+      console.error("Agent execution error:", error);
       return {
         success: false,
         error: error.message || "Execution failed",
@@ -191,32 +235,24 @@ After providing your answer, ask if there's anything else you can help with.`;
     
     // Common variable name mappings (e.g., "name" -> "customer_name", "inquiry" -> "inquiry_reason")
     const variableMappings: Record<string, string[]> = {
-      "customer_name": ["name", "customer_name", "customerName", "customer name", "What is your name"],
-      "inquiry_reason": ["inquiry", "inquiry_reason", "inquiryReason", "inquiry reason", "reason", "What would you like help with"],
+      "customer_name": ["name", "customer_name", "customerName", "customer name"],
+      "inquiry_reason": ["inquiry", "inquiry_reason", "inquiryReason", "inquiry reason", "reason"],
     };
-    
-    // Debug: log gathered data
-    console.log("[Variable Substitution] Gathered data keys:", Object.keys(gatheredData));
-    console.log("[Variable Substitution] Gathered data:", JSON.stringify(gatheredData));
-    console.log("[Variable Substitution] Original message:", message);
     
     // Match [variable_name] patterns
     const variablePattern = /\[([^\]]+)\]/g;
     result = result.replace(variablePattern, (match, varName) => {
       const key = varName.trim();
-      console.log("[Variable Substitution] Looking for variable:", key);
       
       // Try exact match first
-      if (gatheredData[key] !== undefined && gatheredData[key] !== null && gatheredData[key] !== "") {
-        console.log("[Variable Substitution] Found exact match:", key, "=", gatheredData[key]);
+      if (gatheredData[key] !== undefined && gatheredData[key] !== null) {
         return String(gatheredData[key]);
       }
       
       // Try case-insensitive match
       const lowerKey = key.toLowerCase();
       for (const [dataKey, value] of Object.entries(gatheredData)) {
-        if (dataKey.toLowerCase() === lowerKey && value !== null && value !== undefined && value !== "") {
-          console.log("[Variable Substitution] Found case-insensitive match:", dataKey, "=", value);
+        if (dataKey.toLowerCase() === lowerKey) {
           return String(value);
         }
       }
@@ -224,40 +260,22 @@ After providing your answer, ask if there's anything else you can help with.`;
       // Try variable mappings (e.g., customer_name -> name)
       if (variableMappings[key]) {
         for (const mappedKey of variableMappings[key]) {
-          if (gatheredData[mappedKey] !== undefined && gatheredData[mappedKey] !== null && gatheredData[mappedKey] !== "") {
-            console.log("[Variable Substitution] Found via mapping:", mappedKey, "=", gatheredData[mappedKey]);
+          if (gatheredData[mappedKey] !== undefined && gatheredData[mappedKey] !== null) {
             return String(gatheredData[mappedKey]);
           }
           // Also try case-insensitive match for mapped keys
           for (const [dataKey, value] of Object.entries(gatheredData)) {
-            if (dataKey.toLowerCase() === mappedKey.toLowerCase() && value !== null && value !== undefined && value !== "") {
-              console.log("[Variable Substitution] Found via case-insensitive mapping:", dataKey, "=", value);
+            if (dataKey.toLowerCase() === mappedKey.toLowerCase()) {
               return String(value);
             }
           }
         }
       }
       
-      // Try partial key matching (e.g., if key is "customer_name" and we have "name")
-      for (const [dataKey, value] of Object.entries(gatheredData)) {
-        if (value !== null && value !== undefined && value !== "") {
-          // Check if the variable name contains the data key or vice versa
-          if (key.toLowerCase().includes(dataKey.toLowerCase()) || dataKey.toLowerCase().includes(key.toLowerCase())) {
-            // Only use if it's a reasonable match (not too generic)
-            if (dataKey.length > 2 && key.length > 2) {
-              console.log("[Variable Substitution] Found via partial match:", dataKey, "=", value);
-              return String(value);
-            }
-          }
-        }
-      }
-      
-      // If not found, return empty string instead of placeholder
-      console.log("[Variable Substitution] Variable not found:", key, "- returning empty string");
-      return "";
+      // If not found, return the original placeholder
+      return match;
     });
     
-    console.log("[Variable Substitution] Final message:", result);
     return result;
   }
 
@@ -308,137 +326,24 @@ After providing your answer, ask if there's anything else you can help with.`;
       [gatherKey]: extractedData.trim(),
     };
 
-    // Check if this is a general question/inquiry gathering step
-    // We'll treat it as an inquiry if:
-    // 1. The step name/message contains inquiry/question keywords, OR
-    // 2. This is the first gather step in the conversation (after greeting), OR
-    // 3. The step is explicitly asking for a question/inquiry
-    const stepMessage = (step.ai_message || step.name || "").toLowerCase();
-    const isInquiryStep = 
-      gatherKey.toLowerCase().includes("inquiry") || 
-                         gatherKey.toLowerCase().includes("question") ||
-                         gatherKey.toLowerCase().includes("help") ||
-                         gatherKey.toLowerCase().includes("issue") ||
-      stepMessage.includes("how can i help") ||
-      stepMessage.includes("what can i help") ||
-      stepMessage.includes("how may i help") ||
-      stepMessage.includes("what would you like") ||
-      stepMessage.includes("what do you need") ||
-      stepMessage.includes("what's your question") ||
-      stepMessage.includes("what is your question") ||
-      // If this is the first gather step (no inquiry_answered flag), treat it as inquiry
-      (!this.context.gatheredData.inquiry_answered && Object.keys(this.context.gatheredData).length === 0);
+    // Check for branches
+    const nextStep = await this.evaluateBranches(step.id, userInput, extractedData);
 
-    let output = "";
-    let nextStepId: string | null = null;
-    let nextStep: { next_step_id?: string | null; next_scenario_id?: string | null } | null = null;
-
-    // If this is an inquiry step and we have user input, answer it using policies/data sources
-    if (isInquiryStep && extractedData.trim().length > 0) {
-      // This is an inquiry - use AI with policies/data sources to answer
-      console.log("[Gather] Detected inquiry/question step, generating AI response with policies/data sources");
-      console.log("[Gather] Customer question:", extractedData.trim());
-      
-      // Load agent context (policies, data sources, personalization)
-      const agentContext = await this.loadAgentContext();
-      
-      // Build prompt for answering the inquiry
-      const systemPrompt = this.buildSystemPrompt(agentContext);
-      
-      const userPrompt = `The customer asked: "${extractedData.trim()}"
-
-Based on the policies and knowledge base provided above, provide a helpful, accurate answer. Be concise but complete. If you don't have enough information in the knowledge base, politely say so and offer to help them further or connect them with someone who can help.
-
-After providing your answer, ask if there's anything else you can help with.`;
-
-      // Generate AI response using policies and data sources
-      output = await this.generateAIResponseWithContext(systemPrompt, userPrompt);
-      
-      // Store that we've answered the inquiry and are now in Q&A mode
-      gatheredData.inquiry_answered = true;
-      gatheredData.inquiry = extractedData.trim();
-      gatheredData.last_question = extractedData.trim();
-      
-      // Stay on the same step (or loop back) to continue Q&A mode
-      // The next iteration will check inquiry_answered and handle follow-up questions
-      nextStepId = step.id; // Stay on this step for Q&A mode
-      console.log("[Gather] Answered inquiry, staying in Q&A mode on step:", step.id);
-    } else {
-      // Regular gather step - check for branches
-      nextStep = await this.evaluateBranches(step.id, userInput, extractedData);
-
-      // If no branch selected, get next step in scenario
-      nextStepId = nextStep?.next_step_id || null;
-      if (!nextStepId && !nextStep?.next_scenario_id) {
-        nextStepId = await this.getNextStepInScenario(step.id);
-      }
+    // If no branch selected, get next step in scenario
+    let nextStepId = nextStep?.next_step_id || null;
+    if (!nextStepId && !nextStep?.next_scenario_id) {
+      nextStepId = await this.getNextStepInScenario(step.id);
     }
 
-    // If there's a next step and we haven't generated output yet, try to find a Say step to execute immediately
-    // This handles chains like: Gather -> IF -> Say (execute all in one go)
-    let finalNextStepId = nextStepId;
-    
-    if (nextStepId && !output) {
-      // Follow the chain of steps until we find a Say step or hit a dead end
-      let currentStepId = nextStepId;
-      let maxDepth = 5; // Prevent infinite loops
-      let depth = 0;
-      
-      while (currentStepId && depth < maxDepth && !output) {
-        const currentStepData = await this.loadStep(currentStepId);
-        if (!currentStepData) break;
-        
-        if (currentStepData.type === "say") {
-          // Found a Say step - use it
-          if (currentStepData.ai_message && currentStepData.ai_message.trim().length > 0) {
-            output = this.substituteVariables(currentStepData.ai_message.trim(), gatheredData);
-          } else {
-            output = await this.generateAIResponse(currentStepData, userInput);
-          }
-          // Find the step after this Say step
-          const stepAfterSay = await this.evaluateBranches(currentStepData.id, userInput, output);
-          if (stepAfterSay?.next_step_id) {
-            finalNextStepId = stepAfterSay.next_step_id;
-          } else {
-            finalNextStepId = await this.getNextStepInScenario(currentStepData.id);
-          }
-          break;
-        } else if (currentStepData.type === "if") {
-          // Execute the IF statement to find which branch to take
-          const branchResult = await this.evaluateBranches(currentStepData.id, userInput, gatheredData);
-          if (branchResult?.next_step_id) {
-            currentStepId = branchResult.next_step_id;
-          } else if (branchResult?.next_scenario_id) {
-            // Branch leads to another scenario - stop here
-            finalNextStepId = null;
-            break;
-          } else {
-            // No branch matched, get next step in scenario
-            currentStepId = await this.getNextStepInScenario(currentStepData.id);
-          }
-        } else {
-          // Other step types (Gather, Code, etc.) - stop here, they'll be handled next iteration
-          finalNextStepId = currentStepId;
-          break;
-        }
-        
-        depth++;
-      }
-      
-      // If we didn't find a Say step, use the final next step ID
-      if (!output) {
-        finalNextStepId = currentStepId;
-      }
-    }
-
-    // Return the output and next step ID
+    // Gather steps don't produce output themselves
+    // The next step will be executed automatically by executeNextStep
     return {
       success: true,
-      output: output, // Will be empty if no Say step found, or the Say step's message
-      nextStepId: finalNextStepId,
+      output: "", // Empty - next step will be executed automatically
+      nextStepId: nextStepId,
       nextScenarioId: nextStep?.next_scenario_id || null,
       gatheredData,
-      shouldContinue: finalNextStepId !== null || nextStep?.next_scenario_id !== null,
+      shouldContinue: nextStepId !== null || nextStep?.next_scenario_id !== null,
     };
   }
 
@@ -472,58 +377,376 @@ After providing your answer, ask if there's anything else you can help with.`;
   }
 
   /**
-   * Execute an "If" step - Conditional branching (silent, no output)
+   * Execute a "Q/A" step - Answer question using data sources
+   * Optimized to call data sources directly instead of making HTTP requests
+   * Now includes follow-up questions and conversation looping
    */
-  private async executeIfStep(step: any, userInput: string): Promise<StepResult> {
-    const branchResult = await this.evaluateBranches(step.id, userInput, this.context.gatheredData);
-    
-    // Get the next step ID from the branch result, or find next step in scenario
-    let nextStepId = branchResult?.next_step_id || null;
-    if (!nextStepId && !branchResult?.next_scenario_id) {
-      nextStepId = await this.getNextStepInScenario(step.id);
+  private async executeQAStep(step: any, userInput: string): Promise<StepResult> {
+    // Check if user wants to end conversation
+    const wantsToEnd = await this.checkIfConversationEnd(userInput);
+    if (wantsToEnd) {
+      return {
+        success: true,
+        output: "Thank you for calling. Have a great day!",
+        shouldContinue: false,
+      };
     }
 
-    // IF statements should not produce output themselves
-    // But if the next step is a "Say" step, we should use its message
-    let output = "";
-    if (nextStepId) {
-      const nextStepData = await this.loadStep(nextStepId);
-      if (nextStepData) {
-        if (nextStepData.type === "say") {
-          // For "say" steps, use configured message if available, otherwise generate
-          if (nextStepData.ai_message && nextStepData.ai_message.trim().length > 0) {
-            // Substitute variables in the message
-            output = this.substituteVariables(nextStepData.ai_message.trim(), this.context.gatheredData);
-            // Update nextStepId to point to the step after this "say" step
-            const stepAfterSay = await this.evaluateBranches(nextStepData.id, userInput, output);
-            if (stepAfterSay?.next_step_id) {
-              nextStepId = stepAfterSay.next_step_id;
-            } else {
-              nextStepId = await this.getNextStepInScenario(nextStepData.id);
-            }
-          } else {
-            output = await this.generateAIResponse(nextStepData, userInput);
-            // Update nextStepId to point to the step after this "say" step
-            const stepAfterSay = await this.evaluateBranches(nextStepData.id, userInput, output);
-            if (stepAfterSay?.next_step_id) {
-              nextStepId = stepAfterSay.next_step_id;
-            } else {
-              nextStepId = await this.getNextStepInScenario(nextStepData.id);
-            }
-          }
-        }
-        // For other step types, output remains empty - they'll be handled in the next iteration
-      }
+    // Get the question from gathered data (usually from previous Gather step)
+    // Try to find the most recent gathered value, or use userInput
+    let question = userInput;
+    if (!question || question.trim().length === 0) {
+      // Try to get from gathered data - use the last value or find by common keys
+      const gatheredValues = Object.values(this.context.gatheredData).filter(v => v && String(v).trim().length > 0);
+      question = gatheredValues.length > 0 ? String(gatheredValues[gatheredValues.length - 1]) : "";
     }
     
-    return {
-      success: true,
-      output: output, // Empty unless next step is a "Say" step
-      nextStepId: nextStepId,
-      nextScenarioId: branchResult?.next_scenario_id || null,
-      shouldContinue: nextStepId !== null || branchResult?.next_scenario_id !== null,
-    };
+    if (!question || question.trim().length === 0) {
+      return {
+        success: false,
+        error: "No question provided for Q/A step",
+        shouldContinue: false,
+      };
+    }
+
+    try {
+      // MODIFIED: Fetch only selected data sources (not all)
+      const selectedDataSourceIds = step.selected_data_source_ids || [];
+      
+      let dataSources = [];
+      if (selectedDataSourceIds.length > 0) {
+        const { data, error: dsError } = await this.supabase
+          .from("agent_data_sources")
+          .select("id, name, type, content, file_url, file_type, integration_type, integration_config, last_synced_at")
+          .in("id", selectedDataSourceIds)
+          .eq("agent_id", this.context.agentId);
+        
+        if (dsError) {
+          console.error("Error fetching data sources:", dsError);
+          return {
+            success: false,
+            error: "Failed to fetch data sources",
+            shouldContinue: false,
+          };
+        }
+        
+        dataSources = data || [];
+      } else {
+        // No data sources selected - can still work with AI-only
+        console.warn("Q/A step has no data sources selected");
+      }
+
+      if (!dataSources || dataSources.length === 0) {
+        const answer = "I'm sorry, I don't have any information available to answer that question.";
+        // Loop back to Gather step for next question
+        const gatherStepId = await this.findGatherStepInScenario(step.id);
+        return {
+          success: true,
+          output: answer,
+          nextStepId: gatherStepId,
+          shouldContinue: gatherStepId !== null,
+        };
+      }
+
+      // MODIFIED: Separate static vs live data sources
+      const staticSources = dataSources.filter((ds: any) => 
+        !ds.integration_type || ds.integration_type === 'static'
+      );
+      const liveSources = dataSources.filter((ds: any) => 
+        ds.integration_type && ds.integration_type !== 'static'
+      );
+      
+      // NEW: Fetch live data sources in parallel
+      const liveDataPromises = liveSources.map(async (ds: any) => {
+        try {
+          const liveData = await this.fetchLiveDataSource(ds);
+          return {
+            name: ds.name,
+            content: liveData,
+            type: ds.integration_type
+          };
+        } catch (error) {
+          console.error(`Error fetching live data source ${ds.name}:`, error);
+          // Fallback to cached content if available
+          return ds.content ? {
+            name: ds.name,
+            content: ds.content,
+            type: 'static'
+          } : null;
+        }
+      });
+      
+      const liveDataResults = await Promise.all(liveDataPromises);
+      const validLiveData = liveDataResults.filter(Boolean);
+      
+      // Combine static and live data
+      const allDataSources = [...staticSources, ...validLiveData];
+
+      // Extract content from all data sources (limit to first 5000 chars per source for speed)
+      const dataSourceContents = await Promise.all(
+        allDataSources.map(async (ds: any) => {
+          if (ds.type === "text" && ds.content) {
+            return { name: ds.name, content: ds.content.substring(0, 5000) };
+          }
+          if (ds.type === "file" && ds.file_url) {
+            // Check if content is already extracted and stored
+            if (ds.content && ds.content.trim().length > 0) {
+              return { name: ds.name, content: ds.content.substring(0, 5000) };
+            }
+            
+            // For PDFs and other files, try to extract text using OpenAI
+            // Check if it's a PDF
+            const isPDF = ds.file_url.toLowerCase().endsWith('.pdf') || 
+                         ds.file_type === 'application/pdf';
+            
+            if (isPDF) {
+              try {
+                // Use OpenAI to extract text from PDF
+                // First, we need to download the PDF and convert it to base64 or use file API
+                // For now, let's try a simpler approach: use OpenAI's file reading if available
+                // Or we can fetch the PDF and use a text extraction service
+                
+                // Since we can't easily parse PDFs in serverless, let's use OpenAI's vision API
+                // But that requires the file to be accessible. For now, return a message that
+                // the file needs to have its content extracted first.
+                
+                // Actually, let's check if we can fetch and parse it
+                // For PDFs, we'll need to use a service or library
+                // For now, skip PDFs without extracted content
+                console.warn(`PDF file ${ds.name} does not have extracted content. Skipping.`);
+                return null;
+              } catch (error) {
+                console.error(`Error processing file ${ds.name}:`, error);
+                return null;
+              }
+            }
+            
+            // For other file types, skip if no content
+            return null;
+          }
+          return null;
+        })
+      );
+      
+      // Filter out nulls
+      const validContents = dataSourceContents.filter(Boolean);
+
+      if (validContents.length === 0) {
+        const answer = "I'm sorry, I couldn't find an answer to that question in my knowledge base.";
+        // Loop back to Gather step for next question
+        const gatherStepId = await this.findGatherStepInScenario(step.id);
+        return {
+          success: true,
+          output: answer,
+          nextStepId: gatherStepId,
+          shouldContinue: gatherStepId !== null,
+        };
+      }
+
+      // Build context from data sources (limit total context size for speed)
+      const context = validContents
+        .slice(0, 5) // Limit to first 5 data sources
+        .map((ds: any) => `[${ds.name}]\n${ds.content}`)
+        .join("\n\n---\n\n")
+        .substring(0, 8000); // Limit total context to 8000 chars
+
+      // Use OpenAI to generate answer and check if question is answerable
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        return {
+          success: false,
+          error: "OpenAI API key not configured",
+          shouldContinue: false,
+        };
+      }
+
+      // First, check if the question is answerable (within company scope)
+      const answerabilityPrompt = `Determine if this question is within the scope of customer support for this company. 
+Questions about the AI itself (e.g., "are you an AI?") are answerable and should be answered honestly.
+Questions completely unrelated to the company (e.g., asking a supercar company about groceries) are NOT answerable.
+
+KNOWLEDGE BASE CONTEXT:
+${context.substring(0, 2000)}
+
+QUESTION: ${question}
+
+Respond with ONLY "answerable" or "not_answerable".`;
+
+      const answerabilityResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: "You are a scope evaluator. Respond with only 'answerable' or 'not_answerable'.",
+            },
+            { role: "user", content: answerabilityPrompt },
+          ],
+          temperature: 0.1,
+          max_tokens: 10,
+        }),
+      });
+
+      let isAnswerable = true;
+      if (answerabilityResponse.ok) {
+        const answerabilityData = await answerabilityResponse.json();
+        const answerabilityResult = answerabilityData.choices[0]?.message?.content?.trim().toLowerCase() || "";
+        isAnswerable = answerabilityResult.includes("answerable") && !answerabilityResult.includes("not");
+      }
+
+      // If not answerable, return fallback message
+      if (!isAnswerable) {
+        const fallbackMessage = "Unfortunately, I am only permitted to answer questions regarding customer support, and this doesn't fall into that basis. Or would you like to ask something else?";
+        // Loop back to Gather step for next question
+        const gatherStepId = await this.findGatherStepInScenario(step.id);
+        return {
+          success: true,
+          output: fallbackMessage,
+          nextStepId: gatherStepId,
+          shouldContinue: gatherStepId !== null,
+        };
+      }
+
+      // Generate answer
+      const answerPrompt = `Answer this question using ONLY the knowledge base below. Be concise (max 2 sentences). 
+If the question is about whether you are an AI, answer honestly that you are an AI assistant.
+If not found, say "I don't have that information."
+
+KNOWLEDGE BASE:
+${context}
+
+QUESTION: ${question}
+
+Answer:`;
+
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: "You are a helpful assistant. Answer concisely using only the provided knowledge base. If asked if you are an AI, be honest.",
+            },
+            { role: "user", content: answerPrompt },
+          ],
+          temperature: 0.3,
+          max_tokens: 200,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("OpenAI API error:", errorText);
+        return {
+          success: false,
+          error: "Failed to generate answer",
+          shouldContinue: false,
+        };
+      }
+
+      const data = await response.json();
+      const answer = data.choices[0]?.message?.content?.trim() || "I'm sorry, I couldn't find an answer to that question.";
+
+      // Check if answer has enough context to generate a follow-up question
+      const hasEnoughContext = context.length > 500 && answer.length > 20 && !answer.toLowerCase().includes("i don't have");
+
+      let finalOutput = answer;
+
+      if (hasEnoughContext) {
+        // Generate a context-aware follow-up question
+        const followUpPrompt = `Based on this answer and context, generate ONE concise follow-up question that dives deeper into the topic. 
+The question should be natural and encourage the customer to ask more about related products/services.
+
+ANSWER GIVEN: ${answer}
+CONTEXT: ${context.substring(0, 3000)}
+
+Generate a follow-up question (max 15 words) that starts with "Would you like to know" or similar. Example: "Would you like to know more about a specific product?"`;
+
+        try {
+          const followUpResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "gpt-4o-mini",
+              messages: [
+                {
+                  role: "system",
+                  content: "You are a conversational assistant. Generate natural follow-up questions.",
+                },
+                { role: "user", content: followUpPrompt },
+              ],
+              temperature: 0.7,
+              max_tokens: 50,
+            }),
+          });
+
+          if (followUpResponse.ok) {
+            const followUpData = await followUpResponse.json();
+            const followUpQuestion = followUpData.choices[0]?.message?.content?.trim();
+            if (followUpQuestion && followUpQuestion.length > 0) {
+              // Remove any quotes or extra formatting
+              const cleanFollowUp = followUpQuestion.replace(/^["']|["']$/g, "").trim();
+              finalOutput = `${answer} ${cleanFollowUp}? Or would you like to ask something else?`;
+            } else {
+              finalOutput = `${answer} Or would you like to ask something else?`;
+            }
+          } else {
+            finalOutput = `${answer} Or would you like to ask something else?`;
+          }
+        } catch (error) {
+          console.error("Error generating follow-up question:", error);
+          finalOutput = `${answer} Or would you like to ask something else?`;
+        }
+      } else {
+        // Not enough context, just append the scripted option
+        finalOutput = `${answer} Or would you like to ask something else?`;
+      }
+
+      // NEW: Check for branches (like Gather step)
+      const branchResult = await this.evaluateBranches(step.id, userInput, {
+        ...this.context.gatheredData,
+        answer: finalOutput  // Include answer in branch evaluation context
+      });
+      
+      // Use branch result or default to next step
+      let nextStepId = branchResult?.next_step_id || null;
+      if (!nextStepId && !branchResult?.next_scenario_id) {
+        // Try to loop back to Gather step for next question
+        const gatherStepId = await this.findGatherStepInScenario(step.id);
+        nextStepId = gatherStepId;
+      }
+      
+      return {
+        success: true,
+        output: finalOutput,
+        nextStepId: nextStepId,
+        nextScenarioId: branchResult?.next_scenario_id || null,
+        shouldContinue: nextStepId !== null || branchResult?.next_scenario_id !== null,
+      };
+    } catch (error: any) {
+      console.error("Q/A step execution error:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to execute Q/A step",
+        shouldContinue: false,
+      };
+    }
   }
+
+  // REMOVED: executeIfStep - If steps are removed, use branches on Gather/Q/A steps instead
 
   /**
    * Execute a "Code" step - Run custom code
@@ -820,32 +1043,20 @@ If critical information is missing (especially scheduledAt or serviceType), set 
   }
 
   /**
-   * Generate AI response using OpenAI with custom context
+   * Generate AI response using OpenAI
    */
-  private async generateAIResponseWithContext(systemPrompt: string, userPrompt: string): Promise<string> {
+  private async generateAIResponse(step: any, userInput: string): Promise<string> {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       throw new Error("OPENAI_API_KEY not configured");
     }
 
-    // Build messages array - safely handle transcript
-    const messages: Array<{ role: string; content: string }> = [
-      { role: "system", content: systemPrompt },
-    ];
-    
-    // Add transcript messages if available and valid
-    if (this.context.transcript && Array.isArray(this.context.transcript)) {
-      const transcriptMessages = this.context.transcript
-        .slice(-10)
-        .filter((msg: any) => msg && msg.role && msg.content) // Filter out invalid messages
-        .map((msg: any) => ({
-          role: msg.role === "user" || msg.role === "assistant" ? msg.role : "user",
-          content: String(msg.content || ""),
-        }));
-      messages.push(...transcriptMessages);
-    }
-    
-    messages.push({ role: "user", content: userPrompt });
+    // Load agent context (policies, data sources, personalization)
+    const agentContext = await this.loadAgentContext();
+
+    // Build prompt
+    const systemPrompt = this.buildSystemPrompt(agentContext);
+    const userPrompt = this.buildUserPrompt(step, userInput, agentContext);
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -855,7 +1066,14 @@ If critical information is missing (especially scheduledAt or serviceType), set 
       },
       body: JSON.stringify({
         model: "gpt-4o-mini",
-        messages,
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...this.context.transcript.slice(-10).map((msg: any) => ({
+            role: msg.role,
+            content: msg.content,
+          })),
+          { role: "user", content: userPrompt },
+        ],
         temperature: 0.7,
         max_tokens: 500,
       }),
@@ -871,92 +1089,6 @@ If critical information is missing (especially scheduledAt or serviceType), set 
   }
 
   /**
-   * Generate AI response using OpenAI
-   */
-  private async generateAIResponse(step: any, userInput: string): Promise<string> {
-    // Load agent context (policies, data sources, personalization)
-    const agentContext = await this.loadAgentContext();
-
-    // Build prompt
-    const systemPrompt = this.buildSystemPrompt(agentContext);
-    const userPrompt = this.buildUserPrompt(step, userInput, agentContext);
-
-    return await this.generateAIResponseWithContext(systemPrompt, userPrompt);
-  }
-
-  /**
-   * Check if customer is satisfied and wants to end the conversation
-   */
-  private async checkSatisfaction(userInput: string): Promise<{ isSatisfied: boolean; closingMessage?: string }> {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      // Simple keyword matching fallback
-      const lowerInput = userInput.toLowerCase();
-      const satisfiedKeywords = ["no", "that's all", "that's it", "nothing else", "all set", "good", "thanks", "thank you"];
-      const isSatisfied = satisfiedKeywords.some(keyword => lowerInput.includes(keyword));
-      return {
-        isSatisfied,
-        closingMessage: isSatisfied ? "Thank you for calling! Have a great day!" : undefined,
-      };
-    }
-
-    const prompt = `Determine if the customer is satisfied and wants to end the conversation.
-
-User said: "${userInput}"
-
-Respond with ONLY valid JSON:
-{
-  "isSatisfied": true or false,
-  "closingMessage": "A brief, friendly closing message if satisfied, or null if not satisfied"
-}
-
-The customer is satisfied if they indicate:
-- They don't need anything else
-- They're all set
-- They're done
-- They're saying goodbye
-- They're thanking you and ending
-
-Be generous - if it's unclear, assume they want to continue.`;
-
-    try {
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: [
-            { role: "system", content: "You are a conversation analyzer. Return only valid JSON." },
-            { role: "user", content: prompt },
-          ],
-          temperature: 0.3,
-          max_tokens: 100,
-        }),
-      });
-
-      if (!response.ok) {
-        return { isSatisfied: false };
-      }
-
-      const data = await response.json();
-      const content = data.choices[0]?.message?.content || "";
-      const cleaned = content.trim().replace(/```json|```/g, "");
-      const parsed = JSON.parse(cleaned);
-
-      return {
-        isSatisfied: parsed.isSatisfied === true,
-        closingMessage: parsed.closingMessage || undefined,
-      };
-    } catch (error) {
-      console.error("[Satisfaction Check] Error:", error);
-      return { isSatisfied: false };
-    }
-  }
-
-  /**
    * Extract information from user input (for Gather steps)
    */
   private async extractInformation(step: any, userInput: string): Promise<string> {
@@ -965,12 +1097,13 @@ Be generous - if it's unclear, assume they want to continue.`;
       return userInput; // Fallback to raw input
     }
 
-    const prompt = `Extract the requested information from the user's message.
+    // Optimized prompt - shorter and more direct
+    const prompt = `Extract the requested info. Return ONLY the value.
 
-Step context: ${step.ai_message || step.prompt || "No context provided"}
-User message: ${userInput}
+Context: ${(step.ai_message || step.prompt || "").substring(0, 100)}
+User: ${userInput}
 
-Extract ONLY the requested information. Return JUST the extracted value, nothing else. Do not add any commentary, explanation, or phrases like "it seems" or "you mentioned". Just return the extracted information.`;
+Value:`;
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -981,11 +1114,11 @@ Extract ONLY the requested information. Return JUST the extracted value, nothing
       body: JSON.stringify({
         model: "gpt-4o-mini",
         messages: [
-          { role: "system", content: "You are an information extraction assistant. Extract only the requested information." },
+          { role: "system", content: "Extract only the value. No commentary." },
           { role: "user", content: prompt },
         ],
-        temperature: 0.3,
-        max_tokens: 200,
+        temperature: 0.1,
+        max_tokens: 50, // Reduced for faster responses
       }),
     });
 
@@ -1013,13 +1146,14 @@ Extract ONLY the requested information. Return JUST the extracted value, nothing
       return userInput.toLowerCase().includes(condition);
     }
 
-    const prompt = `Evaluate if this condition is met:
+    // Optimized prompt - shorter and more direct
+    const prompt = `Is this condition true? Answer only "true" or "false".
 
 Condition: ${branch.condition || branch.condition_tag}
-User input: ${userInput}
-Context: ${JSON.stringify(context)}
+Input: ${userInput}
+Context: ${JSON.stringify(context).substring(0, 200)}
 
-Respond with only "true" or "false".`;
+Answer:`;
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -1051,28 +1185,15 @@ Respond with only "true" or "false".`;
    * Load step from database
    */
   private async loadStep(stepId: string | null): Promise<any> {
-    if (!stepId) {
-      console.warn("[Agent Executor] loadStep called with null stepId");
-      return null;
-    }
+    if (!stepId) return null;
 
-    try {
-      const { data, error } = await this.supabase
+    const { data } = await this.supabase
       .from("steps")
       .select("*")
       .eq("id", stepId)
       .single();
 
-      if (error) {
-        console.error("[Agent Executor] Error loading step:", error);
-        return null;
-      }
-
     return data;
-    } catch (error: any) {
-      console.error("[Agent Executor] Exception loading step:", error);
-      return null;
-    }
   }
 
   /**
@@ -1097,197 +1218,100 @@ Respond with only "true" or "false".`;
   }
 
   /**
+   * Find a Gather step in the scenario to loop back to for continuous conversation
+   */
+  private async findGatherStepInScenario(currentStepId: string): Promise<string | null> {
+    // Get current step to find its scenario
+    const currentStep = await this.loadStep(currentStepId);
+    if (!currentStep || !currentStep.scenario_id) return null;
+
+    // Find the first Gather step in the scenario (or any Gather step)
+    const { data: gatherStep } = await this.supabase
+      .from("steps")
+      .select("id")
+      .eq("scenario_id", currentStep.scenario_id)
+      .eq("type", "gather")
+      .order("sort_order", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    // If no Gather step found, try to find the next step after current
+    if (!gatherStep) {
+      return await this.getNextStepInScenario(currentStepId);
+    }
+
+    return gatherStep.id;
+  }
+
+  /**
+   * Check if the user wants to end the conversation
+   */
+  private async checkIfConversationEnd(userInput: string): Promise<boolean> {
+    if (!userInput || userInput.trim().length === 0) return false;
+
+    const endPhrases = [
+      "thank you",
+      "thanks",
+      "that's all",
+      "thats all",
+      "that is all",
+      "nothing else",
+      "no more",
+      "no thanks",
+      "no thank you",
+      "goodbye",
+      "bye",
+      "have a good day",
+      "have a nice day",
+      "i'm done",
+      "im done",
+      "i am done",
+      "all set",
+      "that's it",
+      "thats it",
+    ];
+
+    const lowerInput = userInput.toLowerCase().trim();
+    
+    // Check for exact matches or phrases contained in input
+    for (const phrase of endPhrases) {
+      if (lowerInput === phrase || lowerInput.includes(phrase)) {
+        // Make sure it's not part of a longer question
+        // If the input is just the phrase or starts/ends with it, it's likely an end signal
+        if (lowerInput === phrase || 
+            lowerInput.startsWith(phrase + " ") || 
+            lowerInput.endsWith(" " + phrase) ||
+            lowerInput.length < phrase.length + 10) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  /**
    * Load agent context (policies, data sources, personalization)
    */
   private async loadAgentContext(): Promise<any> {
     const [policies, dataSources, personalization] = await Promise.all([
-      this.supabase.from("agent_policies").select("*").eq("agent_id", this.context.agentId),
-      this.supabase.from("agent_data_sources").select("*").eq("agent_id", this.context.agentId),
+      this.supabase.from("policies").select("*").eq("agent_id", this.context.agentId),
+      this.supabase.from("data_sources").select("*").eq("agent_id", this.context.agentId),
       this.supabase.from("personalization").select("*").eq("agent_id", this.context.agentId).maybeSingle(),
     ]);
 
-    // Helper function to enrich file-based sources
-    const enrichSource = async (source: any, sourceType: string) => {
-      // If it's a text source with content, use it as-is
-      if (source.type === "text" && source.content) {
-        return source;
-      }
-      
-      // If it's a file source, fetch and extract content
-      if (source.type === "file" && source.file_url) {
-        try {
-          console.log(`[Agent Context] Fetching ${sourceType} file content from: ${source.file_url}`);
-          const fileContent = await this.fetchFileContent(source.file_url, source.file_type);
     return {
-            ...source,
-            content: fileContent, // Add extracted content
-          };
-        } catch (error: any) {
-          console.error(`[Agent Context] Failed to fetch ${sourceType} file content for ${source.name}:`, error);
-          // Return source without content if fetch fails
-          return {
-            ...source,
-            content: `[File content unavailable: ${error.message}]`,
-          };
-        }
-      }
-      
-      // Return as-is if no content to fetch
-      return source;
-    };
-
-    // Enrich both policies and data sources
-    const enrichedPolicies = await Promise.all(
-      (policies.data || []).map((policy: any) => enrichSource(policy, "policy"))
-    );
-    
-    const enrichedDataSources = await Promise.all(
-      (dataSources.data || []).map((source: any) => enrichSource(source, "data source"))
-    );
-
-    console.log(`[Agent Context] Loaded ${enrichedPolicies.length} policies, ${enrichedDataSources.length} data sources`);
-
-    return {
-      policies: enrichedPolicies,
-      dataSources: enrichedDataSources,
+      policies: policies.data || [],
+      dataSources: dataSources.data || [],
       personalization: personalization.data || null,
     };
-  }
-
-  /**
-   * Extract text from images using OCR (Optical Character Recognition)
-   */
-  private async extractTextWithOCR(fileUrl: string, fileType: string): Promise<string> {
-    try {
-      console.log(`[OCR] Starting OCR extraction for ${fileType}...`);
-      
-      // Fetch the image
-      const response = await fetch(fileUrl);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch file for OCR: ${response.status}`);
-      }
-      
-      const arrayBuffer = await response.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      
-      // Initialize Tesseract worker
-      const worker = await createWorker('eng'); // English language
-      
-      try {
-        // Perform OCR
-        const { data: { text } } = await worker.recognize(buffer);
-        
-        // Clean up worker
-        await worker.terminate();
-        
-        const extractedText = text.trim();
-        console.log(`[OCR] Extracted ${extractedText.length} characters`);
-        
-        return extractedText;
-      } catch (ocrError: any) {
-        // Make sure to terminate worker even on error
-        await worker.terminate();
-        throw ocrError;
-      }
-    } catch (error: any) {
-      console.error("[OCR] Error during OCR extraction:", error);
-      throw error;
-    }
-  }
-
-  /**
-   * Fetch and extract text content from a file URL
-   */
-  private async fetchFileContent(fileUrl: string, fileType?: string): Promise<string> {
-    try {
-      // Fetch the file
-      const response = await fetch(fileUrl);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
-      }
-
-      const contentType = fileType || response.headers.get("content-type") || "";
-
-      // Handle different file types
-      if (contentType.includes("text/") || contentType.includes("application/json") || contentType.includes("application/xml")) {
-        // Text-based files
-        return await response.text();
-      } else if (contentType === "application/pdf") {
-        // PDF files - extract text using pdf-parse
-        try {
-          console.log("[Agent Context] Extracting text from PDF...");
-          const arrayBuffer = await response.arrayBuffer();
-          const buffer = Buffer.from(arrayBuffer);
-          
-          // Parse PDF
-          const pdfData = await pdfParse(buffer, {
-            // Options for better extraction
-            max: 0, // 0 = no page limit
-          });
-          
-          const extractedText = pdfData.text.trim();
-          
-          if (!extractedText || extractedText.length === 0) {
-            // PDF appears to be image-based (scanned document) - try OCR on first page
-            console.warn("[Agent Context] PDF appears to be image-based, attempting OCR...");
-            try {
-              // For image-based PDFs, we need to convert pages to images first
-              // This is a simplified approach - in production, you might want to use pdf2pic
-              // For now, we'll note that OCR for image-based PDFs requires page-to-image conversion
-              console.warn("[Agent Context] Image-based PDF detected. OCR for multi-page PDFs requires converting pages to images first, which may not be fully supported.");
-              return `[PDF file: ${fileUrl}. This PDF appears to be a scanned document (image-based). Text extraction from scanned PDFs requires converting each page to an image and then using OCR, which is computationally intensive. For now, please use individual image files (PNG/JPG) for OCR, or convert the PDF pages to images first.]`;
-            } catch (ocrError: any) {
-              console.warn("[Agent Context] OCR processing note:", ocrError.message);
-              return `[PDF file: ${fileUrl}. This PDF appears to contain only images (scanned document). OCR for image-based PDFs requires additional processing.]`;
-            }
-          }
-          
-          console.log(`[Agent Context] Successfully extracted ${extractedText.length} characters from PDF (${pdfData.numpages} pages)`);
-          
-          // If PDF is very large, we'll truncate it later in buildSystemPrompt
-          return extractedText;
-        } catch (pdfError: any) {
-          console.error("[Agent Context] Error parsing PDF:", pdfError);
-          // Provide helpful error message
-          if (pdfError.message?.includes("Invalid PDF")) {
-            throw new Error(`Invalid or corrupted PDF file: ${pdfError.message}`);
-          }
-          throw new Error(`Failed to parse PDF: ${pdfError.message || "Unknown error"}`);
-        }
-      } else if (contentType.startsWith("image/")) {
-        // Images - use OCR to extract text
-        try {
-          console.log("[Agent Context] Extracting text from image using OCR...");
-          const ocrText = await this.extractTextWithOCR(fileUrl, contentType);
-          if (ocrText && ocrText.trim().length > 0) {
-            console.log(`[Agent Context] OCR extracted ${ocrText.length} characters from image`);
-            return ocrText;
-          } else {
-            return `[Image file: ${fileUrl}. OCR was attempted but no text could be extracted. The image may not contain readable text.]`;
-          }
-        } catch (ocrError: any) {
-          console.error("[Agent Context] OCR error:", ocrError);
-          return `[Image file: ${fileUrl}. OCR extraction failed: ${ocrError.message}]`;
-        }
-      } else {
-        // Unknown type - try as text
-        try {
-          return await response.text();
-        } catch {
-          return `[Binary file: ${fileUrl}. Content type: ${contentType}]`;
-        }
-      }
-    } catch (error: any) {
-      console.error("[Agent Context] Error fetching file content:", error);
-      throw error;
-    }
   }
 
   /**
    * Build system prompt from agent context
    */
   private buildSystemPrompt(agentContext: any): string {
-    const parts = ["You are a helpful AI receptionist assistant."];
+    const parts = ["You are a helpful AI assistant."];
 
     // Add personalization
     if (agentContext.personalization) {
@@ -1297,84 +1321,25 @@ Respond with only "true" or "false".`;
       if (p.formality) parts.push(`Formality level: ${p.formality}`);
     }
 
-    // Add policies - these are important guidelines for how to respond
-    if (agentContext.policies && agentContext.policies.length > 0) {
-      let policyCount = 0;
-      const policyParts: string[] = [];
-      
+    // Add policies
+    if (agentContext.policies.length > 0) {
+      parts.push("\nPolicies to follow:");
       agentContext.policies.forEach((policy: any) => {
-        // Include policies with content (either text or extracted from files)
-        if (policy.content && policy.content.trim()) {
-          policyCount++;
-          const name = policy.name ? `${policy.name}: ` : "";
-          const content = policy.content.trim();
-          // Limit content length to avoid token limits (increased for PDFs which can be large)
-          // Keep first 10000 chars for policies (they're important)
-          const truncatedContent = content.length > 10000 
-            ? content.substring(0, 10000) + `... [content truncated, ${content.length - 10000} more characters]` 
-            : content;
-          policyParts.push(`${policyCount}. ${name}${truncatedContent}`);
-        } else if (policy.type === "file" && policy.file_url) {
-          // Even if we couldn't extract content, mention the file exists
-          policyCount++;
-          const name = policy.name ? `${policy.name}: ` : "";
-          policyParts.push(`${policyCount}. ${name}[File available at ${policy.file_url} but content could not be extracted]`);
+        if (policy.content) {
+          parts.push(`- ${policy.content}`);
         }
       });
-      
-      if (policyCount > 0) {
-        parts.push("\n=== COMPANY POLICIES ===");
-        parts.push("Follow these policies when answering customer questions:");
-        parts.push(...policyParts);
-        console.log(`[System Prompt] Loaded ${policyCount} policies`);
-      } else {
-        console.log("[System Prompt] No policies with content found");
-      }
-    } else {
-      console.log("[System Prompt] No policies found");
     }
 
-    // Add data sources - this is the knowledge base for answering questions
-    if (agentContext.dataSources && agentContext.dataSources.length > 0) {
-      parts.push("\n=== KNOWLEDGE BASE ===");
-      parts.push("Use this information to answer customer questions accurately:");
-      let sourceCount = 0;
+    // Add data sources
+    if (agentContext.dataSources.length > 0) {
+      parts.push("\nKnowledge base:");
       agentContext.dataSources.forEach((source: any) => {
-        // Include sources with content (either text or extracted from files)
-        if (source.content && source.content.trim()) {
-          sourceCount++;
-          const name = source.name ? `${source.name}: ` : "";
-          const content = source.content.trim();
-          // Limit content length to avoid token limits (increased for PDFs which can be large)
-          // Keep first 15000 chars per data source (they're the knowledge base)
-          const truncatedContent = content.length > 15000 
-            ? content.substring(0, 15000) + `... [content truncated, ${content.length - 15000} more characters]` 
-            : content;
-          parts.push(`${sourceCount}. ${name}${truncatedContent}`);
-        } else if (source.type === "file" && source.file_url) {
-          // Even if we couldn't extract content, mention the file exists
-          sourceCount++;
-          const name = source.name ? `${source.name}: ` : "";
-          parts.push(`${sourceCount}. ${name}[File available at ${source.file_url} but content could not be extracted]`);
-    }
+        if (source.content) {
+          parts.push(`- ${source.content}`);
+        }
       });
-      
-      if (sourceCount === 0) {
-        parts.push("(No data sources with content available)");
-      } else {
-        console.log(`[System Prompt] Loaded ${sourceCount} data sources`);
-      }
-    } else {
-      console.log("[System Prompt] No data sources found");
     }
-
-    // Add instructions for using the knowledge base
-    parts.push("\n=== INSTRUCTIONS ===");
-    parts.push("- Always refer to the policies and knowledge base above when answering questions");
-    parts.push("- If the information is in the knowledge base, use it to provide accurate answers");
-    parts.push("- If you don't have the information, politely say so and offer to help further");
-    parts.push("- Be friendly, professional, and helpful");
-    parts.push("- Keep responses concise but complete");
 
     return parts.join("\n");
   }
@@ -1433,6 +1398,617 @@ Respond with only "true" or "false".`;
       step_type: "executed",
       output_data: { output: result.output },
     });
+  }
+
+  /**
+   * Execute a "Loop" step - Repeat a sequence of steps
+   */
+  private async executeLoopStep(step: any, userInput: string): Promise<StepResult> {
+    const config = step.loop_config;
+    if (!config) {
+      return {
+        success: false,
+        error: "Loop step missing loop_config",
+        shouldContinue: false,
+      };
+    }
+    
+    // Get or initialize loop state
+    const loopState = this.context.conversationState.loopState || {};
+    const activeLoop = loopState[step.id] || {
+      iteration: 0,
+      startStepId: config.start_step_id,
+      endStepId: config.end_step_id,
+      maxIterations: config.max_iterations || 10,
+    };
+    
+    // Check loop exit conditions
+    if (config.loop_type === "for") {
+      if (activeLoop.iteration >= activeLoop.maxIterations) {
+        // Exit loop - go to next step after loop
+        delete loopState[step.id];
+        this.context.conversationState.loopState = loopState;
+        const nextStepId = await this.getStepAfterLoop(step.id);
+        return {
+          success: true,
+          output: "",
+          nextStepId: nextStepId,
+          shouldContinue: nextStepId !== null,
+        };
+      }
+    } else if (config.loop_type === "while" || config.loop_type === "until") {
+      const conditionMet = await this.evaluateCondition(
+        { condition: config.condition },
+        userInput,
+        this.context.gatheredData
+      );
+      
+      if (config.loop_type === "while" && !conditionMet) {
+        // Exit while loop
+        delete loopState[step.id];
+        this.context.conversationState.loopState = loopState;
+        const nextStepId = await this.getStepAfterLoop(step.id);
+        return {
+          success: true,
+          output: "",
+          nextStepId: nextStepId,
+          shouldContinue: nextStepId !== null,
+        };
+      } else if (config.loop_type === "until" && conditionMet) {
+        // Exit until loop
+        delete loopState[step.id];
+        this.context.conversationState.loopState = loopState;
+        const nextStepId = await this.getStepAfterLoop(step.id);
+        return {
+          success: true,
+          output: "",
+          nextStepId: nextStepId,
+          shouldContinue: nextStepId !== null,
+        };
+      }
+    }
+    
+    // Continue loop - increment iteration and jump to start step
+    activeLoop.iteration++;
+    loopState[step.id] = activeLoop;
+    this.context.conversationState.loopState = loopState;
+    
+    return {
+      success: true,
+      output: "",
+      nextStepId: config.start_step_id,
+      loopState: loopState,
+      shouldContinue: true,
+    };
+  }
+
+  /**
+   * Execute a "Send SMS" step - Send text message to customer
+   */
+  private async executeSendSMSStep(step: any, userInput: string): Promise<StepResult> {
+    const config = step.sms_config;
+    if (!config) {
+      return {
+        success: false,
+        error: "Send SMS step missing sms_config",
+        shouldContinue: false,
+      };
+    }
+    
+    // Substitute variables in message
+    const message = this.substituteVariables(config.message, this.context.gatheredData);
+    
+    // Get phone number from config or gathered data
+    let phoneNumber = config.phone_number;
+    if (phoneNumber && phoneNumber.startsWith("{{") && phoneNumber.endsWith("}}")) {
+      const variableName = phoneNumber.slice(2, -2).trim();
+      phoneNumber = this.context.gatheredData[variableName] || phoneNumber;
+    }
+    
+    if (!phoneNumber) {
+      return {
+        success: false,
+        error: "Phone number not provided for SMS",
+        shouldContinue: false,
+      };
+    }
+    
+    // Normalize phone number
+    const { normalizePhone } = await import("@/lib/phone");
+    const normalizedPhone = normalizePhone(phoneNumber);
+    if (!normalizedPhone) {
+      return {
+        success: false,
+        error: "Invalid phone number format",
+        shouldContinue: false,
+      };
+    }
+    
+    // Check optional condition
+    if (config.condition) {
+      const conditionMet = await this.evaluateCondition(
+        { condition: config.condition },
+        userInput,
+        this.context.gatheredData
+      );
+      if (!conditionMet) {
+        // Skip SMS, continue to next step
+        const nextStepId = await this.getNextStepInScenario(step.id);
+        return {
+          success: true,
+          output: "",
+          nextStepId: nextStepId,
+          shouldContinue: nextStepId !== null,
+        };
+      }
+    }
+    
+    // Schedule or send immediately
+    if (config.delay_minutes && config.delay_minutes > 0) {
+      // Schedule SMS
+      const scheduledAt = new Date(Date.now() + config.delay_minutes * 60 * 1000);
+      
+      // Get workspace_id from agent
+      const { data: agent } = await this.supabase
+        .from("agents")
+        .select("workspace_id")
+        .eq("id", this.context.agentId)
+        .single();
+      
+      if (!agent) {
+        return {
+          success: false,
+          error: "Agent not found",
+          shouldContinue: false,
+        };
+      }
+      
+      const { data: scheduledSMS, error } = await this.supabase
+        .from("scheduled_sms")
+        .insert({
+          conversation_id: this.context.conversationId,
+          workspace_id: agent.workspace_id,
+          agent_id: this.context.agentId,
+          phone_number: normalizedPhone,
+          message: message,
+          scheduled_at: scheduledAt.toISOString(),
+          status: "pending",
+        })
+        .select()
+        .single();
+      
+      if (error) {
+        console.error("Failed to schedule SMS:", error);
+        return {
+          success: false,
+          error: "Failed to schedule SMS",
+          shouldContinue: false,
+        };
+      }
+      
+      return {
+        success: true,
+        output: "",
+        scheduledSMSId: scheduledSMS.id,
+        nextStepId: await this.getNextStepInScenario(step.id),
+        shouldContinue: true,
+      };
+    } else {
+      // Send immediately
+      const sent = await this.sendSMS(normalizedPhone, message);
+      if (!sent) {
+        return {
+          success: false,
+          error: "Failed to send SMS",
+          shouldContinue: false,
+        };
+      }
+      
+      return {
+        success: true,
+        output: "",
+        nextStepId: await this.getNextStepInScenario(step.id),
+        shouldContinue: true,
+      };
+    }
+  }
+
+  /**
+   * Execute a "Transfer" step - Route to specialist agent
+   */
+  private async executeTransferStep(step: any, userInput: string): Promise<StepResult> {
+    const config = step.transfer_config;
+    if (!config) {
+      return {
+        success: false,
+        error: "Transfer step missing transfer_config",
+        shouldContinue: false,
+      };
+    }
+    
+    let targetAgentId: string | null = null;
+    
+    // Determine target agent based on transfer method
+    if (config.transfer_method === "direct" && config.target_agent_id) {
+      targetAgentId = config.target_agent_id;
+    } else if (config.transfer_method === "keyword") {
+      targetAgentId = await this.findAgentByKeywords(userInput, config.target_role);
+    } else if (config.transfer_method === "ai_classification") {
+      const specialistRole = await this.classifySpecialistNeeded(userInput, config);
+      targetAgentId = await this.findSpecialistAgent(specialistRole);
+    } else if (config.transfer_method === "gathered_data") {
+      const need = this.context.gatheredData.customer_need || 
+                   this.context.gatheredData.service_type ||
+                   this.context.gatheredData.request_type;
+      targetAgentId = await this.findSpecialistByNeed(need);
+    }
+    
+    // Fallback to specified fallback agent or current agent
+    if (!targetAgentId) {
+      targetAgentId = config.fallback_agent_id || this.context.agentId;
+    }
+    
+    // Verify agent exists and is deployed
+    const { data: targetAgent } = await this.supabase
+      .from("agents")
+      .select("id, status, workspace_id")
+      .eq("id", targetAgentId)
+      .eq("status", "deployed")
+      .single();
+    
+    if (!targetAgent) {
+      console.error("[Transfer] Target agent not found or not deployed:", targetAgentId);
+      // Fallback to current agent
+      return {
+        success: true,
+        output: config.transfer_message || "I'll continue helping you with that.",
+        shouldContinue: true,
+      };
+    }
+    
+    // Transfer conversation
+    await this.transferConversation(targetAgentId, config.transfer_message);
+    
+    return {
+      success: true,
+      output: config.transfer_message || "Let me connect you with a specialist...",
+      transferToAgentId: targetAgentId,
+      shouldContinue: true,
+    };
+  }
+
+  /**
+   * Check if current step is the end of a loop
+   */
+  private async checkLoopContinuation(currentStepId: string | null): Promise<string | null> {
+    if (!currentStepId) return null;
+    
+    // Find all loop steps
+    const { data: loops } = await this.supabase
+      .from("steps")
+      .select("id, loop_config")
+      .eq("type", "loop")
+      .eq("scenario_id", this.context.scenarioId);
+    
+    if (!loops) return null;
+    
+    for (const loop of loops) {
+      if (loop.loop_config?.end_step_id === currentStepId) {
+        // We're at the end of a loop, return to loop step to re-evaluate
+        return loop.id;
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * Get the step that comes after a loop
+   */
+  private async getStepAfterLoop(loopStepId: string): Promise<string | null> {
+    return await this.getNextStepInScenario(loopStepId);
+  }
+
+  /**
+   * Send SMS via Twilio
+   */
+  private async sendSMS(phoneNumber: string, message: string): Promise<boolean> {
+    try {
+      // Get Twilio credentials
+      const { data: agent } = await this.supabase
+        .from("agents")
+        .select("workspace_id, phone_number")
+        .eq("id", this.context.agentId)
+        .single();
+      
+      if (!agent) {
+        console.error("[SMS] Agent not found");
+        return false;
+      }
+      
+      const { data: twilioCreds } = await this.supabase
+        .from("twilio_credentials")
+        .select("account_sid, auth_token")
+        .eq("workspace_id", agent.workspace_id)
+        .maybeSingle();
+      
+      let accountSid: string | null = null;
+      let authToken: string | null = null;
+      
+      if (twilioCreds?.account_sid && twilioCreds?.auth_token) {
+        accountSid = twilioCreds.account_sid;
+        authToken = twilioCreds.auth_token;
+      } else {
+        // Fallback to environment variables
+        accountSid = process.env.TWILIO_ACCOUNT_SID || null;
+        authToken = process.env.TWILIO_AUTH_TOKEN || null;
+      }
+      
+      if (!accountSid || !authToken) {
+        console.error("[SMS] Twilio credentials not found");
+        return false;
+      }
+      
+      const twilio = (await import("twilio")).default;
+      const client = twilio(accountSid, authToken);
+      
+      await client.messages.create({
+        body: message,
+        from: agent.phone_number || process.env.TWILIO_PHONE_NUMBER || "",
+        to: phoneNumber,
+      });
+      
+      return true;
+    } catch (error) {
+      console.error("[SMS] Error sending SMS:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Classify which specialist is needed using AI
+   */
+  private async classifySpecialistNeeded(
+    userInput: string,
+    config: any
+  ): Promise<string | null> {
+    const prompt = config.classification_prompt || `
+      Based on this customer request, determine which specialist they need:
+      - "mechanic": Car repairs, engine issues, maintenance, vehicle problems
+      - "seller": Purchasing, pricing, product information, buying decisions
+      - "support": General questions, account issues, billing
+      
+      Customer request: "${userInput}"
+      Conversation context: ${JSON.stringify(this.context.gatheredData)}
+      
+      Return only the specialist role name, or "none" if no specialist needed.
+    `;
+    
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      return null;
+    }
+    
+    try {
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content: "You are a routing assistant. Return only the specialist role name." },
+            { role: "user", content: prompt }
+          ],
+          temperature: 0.3,
+          max_tokens: 20,
+        }),
+      });
+      
+      if (!response.ok) {
+        return null;
+      }
+      
+      const data = await response.json();
+      const role = data.choices[0]?.message?.content?.toLowerCase().trim();
+      
+      return role === "none" ? null : role;
+    } catch (error) {
+      console.error("Error classifying specialist:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Find specialist agent by role
+   */
+  private async findSpecialistAgent(role: string | null): Promise<string | null> {
+    if (!role) return null;
+    
+    // Get workspace_id from agent
+    const { data: agent } = await this.supabase
+      .from("agents")
+      .select("workspace_id")
+      .eq("id", this.context.agentId)
+      .single();
+    
+    if (!agent) return null;
+    
+    const { data: agents } = await this.supabase
+      .from("agents")
+      .select("id, agent_role, is_specialist")
+      .eq("workspace_id", agent.workspace_id)
+      .eq("is_specialist", true)
+      .eq("agent_role", role)
+      .eq("status", "deployed")
+      .limit(1);
+    
+    return agents && agents.length > 0 ? agents[0].id : null;
+  }
+
+  /**
+   * Find agent by keywords
+   */
+  private async findAgentByKeywords(userInput: string, targetRole?: string): Promise<string | null> {
+    // Get workspace_id from agent
+    const { data: agent } = await this.supabase
+      .from("agents")
+      .select("workspace_id")
+      .eq("id", this.context.agentId)
+      .single();
+    
+    if (!agent) return null;
+    
+    // Search for agents with matching keywords
+    const { data: agents } = await this.supabase
+      .from("agents")
+      .select("id, routing_keywords, agent_role")
+      .eq("workspace_id", agent.workspace_id)
+      .eq("status", "deployed");
+    
+    if (!agents) return null;
+    
+    const lowerInput = userInput.toLowerCase();
+    
+    for (const candidate of agents) {
+      if (targetRole && candidate.agent_role !== targetRole) continue;
+      
+      if (candidate.routing_keywords && Array.isArray(candidate.routing_keywords)) {
+        for (const keyword of candidate.routing_keywords) {
+          if (lowerInput.includes(keyword.toLowerCase())) {
+            return candidate.id;
+          }
+        }
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * Find specialist by customer need
+   */
+  private async findSpecialistByNeed(need: string): Promise<string | null> {
+    if (!need) return null;
+    
+    // Use AI to map need to specialist role, then find agent
+    const role = await this.classifySpecialistNeeded(need, {});
+    if (!role) return null;
+    
+    return await this.findSpecialistAgent(role);
+  }
+
+  /**
+   * Transfer conversation to new agent
+   */
+  private async transferConversation(targetAgentId: string, message: string): Promise<void> {
+    // Get target agent's first scenario/step
+    const { data: scenarios } = await this.supabase
+      .from("scenarios")
+      .select("id")
+      .eq("agent_id", targetAgentId)
+      .order("created_at", { ascending: true })
+      .limit(1);
+    
+    let currentStepId = null;
+    if (scenarios && scenarios.length > 0) {
+      const { data: steps } = await this.supabase
+        .from("steps")
+        .select("id")
+        .eq("scenario_id", scenarios[0].id)
+        .order("sort_order", { ascending: true })
+        .limit(1);
+      
+      currentStepId = steps && steps.length > 0 ? steps[0].id : null;
+    }
+    
+    // Update conversation
+    const transferRecord = {
+      from: this.context.agentId,
+      to: targetAgentId,
+      timestamp: new Date().toISOString(),
+      reason: "Specialist routing",
+      step_id: this.context.currentStepId,
+    };
+    
+    const { data: conversation } = await this.supabase
+      .from("conversations")
+      .select("transfer_history")
+      .eq("id", this.context.conversationId)
+      .single();
+    
+    const transferHistory = conversation?.transfer_history || [];
+    transferHistory.push(transferRecord);
+    
+    await this.supabase
+      .from("conversations")
+      .update({
+        agent_id: targetAgentId,
+        transferred_from_agent_id: this.context.agentId,
+        transferred_to_agent_id: targetAgentId,
+        transfer_history: transferHistory,
+        current_scenario_id: scenarios?.[0]?.id || null,
+        current_step_id: currentStepId,
+      })
+      .eq("id", this.context.conversationId);
+    
+    // Update context
+    this.context.agentId = targetAgentId;
+    this.context.scenarioId = scenarios?.[0]?.id || null;
+    this.context.currentStepId = currentStepId;
+  }
+
+  /**
+   * Fetch data from live data source (calendar, sheet, API)
+   */
+  private async fetchLiveDataSource(dataSource: any): Promise<string> {
+    const integrationType = dataSource.integration_type;
+    const config = dataSource.integration_config;
+    
+    if (!integrationType || integrationType === 'static') {
+      // Static data source, return stored content
+      return dataSource.content || '';
+    }
+    
+    // Get adapter for integration type
+    const adapter = this.getIntegrationAdapter(integrationType);
+    if (!adapter) {
+      console.error(`No adapter found for integration type: ${integrationType}`);
+      return dataSource.content || '';  // Fallback to cached content
+    }
+    
+    try {
+      // Fetch live data
+      const liveData = await adapter.fetchData(config, dataSource);
+      return liveData;
+    } catch (error) {
+      console.error(`Error fetching live data source ${dataSource.name}:`, error);
+      // Fallback to cached content if available
+      return dataSource.content || '';
+    }
+  }
+
+  /**
+   * Get integration adapter for type
+   */
+  private getIntegrationAdapter(integrationType: string): any {
+    switch (integrationType) {
+      case 'google_calendar': {
+        const { GoogleCalendarAdapter } = require("@/lib/integrations/adapters/google-calendar");
+        return new GoogleCalendarAdapter();
+      }
+      case 'google_sheet': {
+        const { GoogleSheetAdapter } = require("@/lib/integrations/adapters/google-sheet");
+        return new GoogleSheetAdapter();
+      }
+      case 'microsoft_calendar':
+      case 'airtable':
+      default:
+        // Adapters not yet implemented
+        return null;
+    }
   }
 }
 

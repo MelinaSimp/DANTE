@@ -42,7 +42,7 @@ export default function CreateAgentModal({ onClose, onCreate }: CreateAgentModal
       <div className="relative w-full max-w-2xl rounded-2xl border border-white/10 bg-[#1a1612]/95 backdrop-blur p-8 shadow-2xl">
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 p-2 hover:bg-white/5 rounded-lg transition"
+          className="absolute right-4 top-4 p-2 hover:bg-white/5 rounded-full transition"
         >
           <X className="h-5 w-5 text-white/60" />
         </button>
@@ -65,7 +65,7 @@ export default function CreateAgentModal({ onClose, onCreate }: CreateAgentModal
               <button
                 type="button"
                 onClick={() => setModality("chat")}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition ${
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl transition ${
                   modality === "chat"
                     ? "bg-[rgba(139,90,60,0.3)] border border-white/10"
                     : "bg-black/40 border border-white/10 hover:bg-black/50"
@@ -80,7 +80,7 @@ export default function CreateAgentModal({ onClose, onCreate }: CreateAgentModal
               <button
                 type="button"
                 onClick={() => setModality("voice")}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition ${
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl transition ${
                   modality === "voice"
                     ? "bg-[rgba(139,90,60,0.3)] border border-white/10"
                     : "bg-black/40 border border-white/10 hover:bg-black/50"
@@ -95,7 +95,7 @@ export default function CreateAgentModal({ onClose, onCreate }: CreateAgentModal
               <button
                 type="button"
                 onClick={() => setModality("multi-modal")}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition ${
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl transition ${
                   modality === "multi-modal"
                     ? "bg-[rgba(139,90,60,0.3)] border border-white/10"
                     : "bg-black/40 border border-white/10 hover:bg-black/50"
@@ -161,13 +161,13 @@ export default function CreateAgentModal({ onClose, onCreate }: CreateAgentModal
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-2 rounded-lg border border-white/10 bg-black/40 text-white hover:bg-black/60 transition"
+              className="px-6 py-2 rounded-2xl border border-white/10 bg-black/40 text-white hover:bg-black/60 transition"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-6 py-2 rounded-lg bg-[#3351ff] hover:bg-[#4a64ff] text-white font-medium transition"
+              className="px-6 py-2 rounded-2xl bg-[#3351ff] hover:bg-[#4a64ff] text-white font-medium transition"
             >
               Create agent
             </button>
