@@ -14,14 +14,7 @@ export const maxDuration = 60; // 60 seconds for batch processing
  * GET /api/scheduled-sms/process
  * 
  * This endpoint should be called by a cron job (Vercel Cron or external)
- * Example Vercel Cron config (vercel.json):
- * {
- *   "crons": [{
- *     "path": "/api/scheduled-sms/process",
- *     "schedule": "0,5,10,15,20,25,30,35,40,45,50,55 * * * *"
- *   }]
- * }
- * Note: Schedule runs every 5 minutes (using explicit minutes instead of */5)
+ * Configure in vercel.json with a cron schedule that runs every 5 minutes
  */
 export async function GET(req: NextRequest) {
   try {
