@@ -18,9 +18,10 @@ export const maxDuration = 60; // 60 seconds for batch processing
  * {
  *   "crons": [{
  *     "path": "/api/scheduled-sms/process",
- *     "schedule": "*/5 * * * *"  // Every 5 minutes
+ *     "schedule": "*/5 * * * *"
  *   }]
  * }
+ * Note: Schedule runs every 5 minutes
  */
 export async function GET(req: NextRequest) {
   try {
