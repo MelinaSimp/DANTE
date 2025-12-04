@@ -49,9 +49,16 @@ interface AgentCanvasProps {
 // Right sidebar blocks - draggable functions
 const DRAGGABLE_BLOCKS: { type: StepType; label: string; description: string; icon: any }[] = [
   { type: "say", label: "Say", description: "AI model says something", icon: MessageSquare },
+  { type: "gather", label: "Gather", description: "Collect user input", icon: FileText },
+  { type: "qa", label: "Q/A", description: "Answer question using data sources", icon: HelpCircle },
   { type: "branch", label: "Branch", description: "Splits into two paths", icon: GitMerge },
   { type: "call", label: "Call", description: "AI agent has been called", icon: Phone },
   { type: "transfer", label: "Transfer", description: "Transfer to another agent", icon: UserCheck },
+  { type: "code", label: "Code", description: "Run custom code", icon: Code },
+  { type: "api_call", label: "API Call", description: "Call an external API", icon: Zap },
+  { type: "schedule", label: "Schedule", description: "Schedule an appointment", icon: Calendar },
+  { type: "loop", label: "Loop", description: "Repeat a sequence of steps", icon: Repeat },
+  { type: "send_sms", label: "Send SMS", description: "Send text message to customer", icon: Phone },
 ];
 
 // Legacy function palette (keeping for backward compatibility)
