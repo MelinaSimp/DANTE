@@ -126,6 +126,17 @@ export async function DELETE(
     return NextResponse.json({ error: "Step not found" }, { status: 404 });
   }
 
+  // Update conversations that reference this step as current_step_id (set to null)
+  const { error: conversationsError } = await supabaseAdmin
+    .from("conversations")
+    .update({ current_step_id: null })
+    .eq("current_step_id", params.stepId);
+
+  if (conversationsError) {
+    console.error("Failed to update conversations referencing this step", conversationsError);
+    // Continue anyway - might not be critical
+  }
+
   // Delete branches that belong to this step first (if any)
   const { error: branchesError } = await supabaseAdmin
     .from("branches")
