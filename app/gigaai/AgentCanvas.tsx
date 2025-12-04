@@ -915,11 +915,14 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
           }}
           onMouseMove={(e) => {
             if (draggingStep) {
+              e.preventDefault();
               const canvasRect = e.currentTarget.getBoundingClientRect();
+              const scrollLeft = e.currentTarget.scrollLeft;
+              const scrollTop = e.currentTarget.scrollTop;
               setDraggingStep({
                 ...draggingStep,
-                offsetX: e.clientX - canvasRect.left - 160, // 160 = half of block width
-                offsetY: e.clientY - canvasRect.top - 50, // Offset for header
+                offsetX: e.clientX - canvasRect.left + scrollLeft - 160, // 160 = half of block width
+                offsetY: e.clientY - canvasRect.top + scrollTop - 50, // Offset for header
               });
             }
           }}
