@@ -137,6 +137,17 @@ export async function DELETE(
     // Continue anyway - might not be critical
   }
 
+  // Delete conversation_steps records that reference this step
+  const { error: conversationStepsError } = await supabaseAdmin
+    .from("conversation_steps")
+    .delete()
+    .eq("step_id", params.stepId);
+
+  if (conversationStepsError) {
+    console.error("Failed to delete conversation_steps referencing this step", conversationStepsError);
+    // Continue anyway - might not exist
+  }
+
   // Delete branches that belong to this step first (if any)
   const { error: branchesError } = await supabaseAdmin
     .from("branches")
