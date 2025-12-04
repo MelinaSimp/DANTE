@@ -1137,27 +1137,36 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                         
                         const dx = toX - fromX;
                         const dy = toY - fromY;
-                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        const minX = Math.min(fromX, toX);
+                        const minY = Math.min(fromY, toY);
+                        const svgWidth = Math.abs(dx) + 20;
+                        const svgHeight = Math.abs(dy) + 20;
+                        
+                        // Calculate relative coordinates within the SVG
+                        const relFromX = fromX - minX + 10;
+                        const relFromY = fromY - minY + 10;
+                        const relToX = toX - minX + 10;
+                        const relToY = toY - minY + 10;
                         
                         return (
                           <svg
                             key={`conn-${step.id}-${connection.toStepId}-${connIdx}`}
                             className="absolute pointer-events-none z-0"
                             style={{
-                              left: `${Math.min(fromX, toX) - 10}px`,
-                              top: `${Math.min(fromY, toY) - 10}px`,
-                              width: `${Math.abs(dx) + 20}px`,
-                              height: `${Math.abs(dy) + 20}px`,
+                              left: `${minX - 10}px`,
+                              top: `${minY - 10}px`,
+                              width: `${svgWidth}px`,
+                              height: `${svgHeight}px`,
                             }}
                           >
                             <line
-                              x1={fromX < toX ? 10 : Math.abs(dx) + 10}
-                              y1={fromY < toY ? 10 : Math.abs(dy) + 10}
-                              x2={toX < fromX ? 10 : Math.abs(dx) + 10}
-                              y2={toY < fromY ? 10 : Math.abs(dy) + 10}
+                              x1={relFromX}
+                              y1={relFromY}
+                              x2={relToX}
+                              y2={relToY}
                               stroke="#70d4b4"
                               strokeWidth="2"
-                              markerEnd="url(#arrowhead)"
+                              markerEnd={`url(#arrowhead-${step.id}-${connIdx})`}
                             />
                             <defs>
                               <marker
