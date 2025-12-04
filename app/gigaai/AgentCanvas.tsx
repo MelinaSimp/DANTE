@@ -252,6 +252,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
 
   const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
+    event.stopPropagation();
     setDraggedOver(false);
     console.log("[AgentCanvas] handleDrop - isDeployed:", isDeployed, "agentId:", agentId);
     if (isDeployed) {
@@ -984,7 +985,19 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
               backgroundSize: '20px 20px',
               backgroundPosition: '0 0'
             }}
-          onMouseMove={(e) => {
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setDraggedOver(true);
+            }}
+            onDragLeave={(e) => {
+              // Only set draggedOver to false if we're actually leaving the canvas
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                setDraggedOver(false);
+              }
+            }}
+            onDrop={handleDrop}
+            onMouseMove={(e) => {
             if (draggingStep) {
               e.preventDefault();
               const canvasRect = e.currentTarget.getBoundingClientRect();
@@ -1036,12 +1049,6 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                   ? "border-2 border-dashed border-[#3166bf] bg-[#3166bf]/5"
                   : ""
               }`}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDraggedOver(true);
-                }}
-                onDragLeave={() => setDraggedOver(false)}
-                onDrop={handleDrop}
               >
                 {loading ? (
                   <div className={`absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center ${colors.textTertiary} text-sm`}>
