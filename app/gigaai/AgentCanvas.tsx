@@ -604,7 +604,8 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
     }
   };
 
-  const deleteStep = (stepId: string) => {
+  const deleteStep = async (stepId: string) => {
+    console.log("[AgentCanvas] deleteStep - isDeployed:", isDeployed, "stepId:", stepId);
     if (isDeployed) {
       setConfirmationModal({
         isOpen: true,
@@ -990,13 +991,11 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                               className="p-1 hover:bg-white/50 rounded-lg transition flex-shrink-0"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                if (confirm("Delete this step?")) {
-                                  deleteStep(step.id);
-                                }
+                                deleteStep(step.id);
                               }}
                               title="Delete step"
                             >
-                              <MoreVertical className="h-4 w-4 text-[#151515]/50 hover:text-[#151515]" />
+                              <Trash2 className="h-4 w-4 text-[#151515]/50 hover:text-red-500" />
                             </button>
                           </div>
                           
