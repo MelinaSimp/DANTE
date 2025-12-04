@@ -646,12 +646,18 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
               setEditingText("");
             }
           } else {
-            const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
-            console.error("[AgentCanvas] Failed to delete step:", errorData);
+            const errorText = await response.text().catch(() => "Unknown error");
+            let errorData;
+            try {
+              errorData = JSON.parse(errorText);
+            } catch {
+              errorData = { error: errorText || "Unknown error" };
+            }
+            console.error("[AgentCanvas] Failed to delete step - Status:", response.status, "Error:", errorData);
             setConfirmationModal({
               isOpen: true,
               title: "Delete Failed",
-              message: errorData.error || "Failed to delete step. Please try again.",
+              message: errorData.error || `Failed to delete step (Status: ${response.status}). Please try again.`,
               confirmText: "OK",
               cancelText: "",
               variant: "danger",

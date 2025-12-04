@@ -126,6 +126,18 @@ export async function DELETE(
     return NextResponse.json({ error: "Step not found" }, { status: 404 });
   }
 
+  // Delete branches first (if any)
+  const { error: branchesError } = await supabaseAdmin
+    .from("branches")
+    .delete()
+    .eq("step_id", params.stepId);
+
+  if (branchesError) {
+    console.error("Failed to delete branches", branchesError);
+    // Continue anyway - branches might not exist
+  }
+
+  // Delete the step
   const { error } = await supabaseAdmin
     .from("steps")
     .delete()
@@ -133,7 +145,10 @@ export async function DELETE(
 
   if (error) {
     console.error("Failed to delete step", error);
-    return NextResponse.json({ error: "Failed to delete step" }, { status: 500 });
+    console.error("Error details:", JSON.stringify(error, null, 2));
+    return NextResponse.json({ 
+      error: `Failed to delete step: ${error.message || error.details || "Unknown error"}` 
+    }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });
