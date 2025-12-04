@@ -1449,134 +1449,148 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                           )}
                         </div>
                         
-                        {/* Branch Paths - Show True/False paths side-by-side with steps */}
+                        {/* Branch Paths - Show True/False paths with curved connectors */}
                         {step.type === "branch" && step.branches && step.branches.length > 0 && (
-                          <div className="mt-6 flex gap-8">
-                            {step.branches.map((branch, branchIdx) => {
-                              // Find steps that follow this branch by following the sequence
-                              const branchSteps: Step[] = [];
-                              if (branch.next_step_id) {
-                                const startStep = scenario.steps.find(s => s.id === branch.next_step_id);
-                                if (startStep) {
-                                  branchSteps.push(startStep);
-                                  // Find subsequent steps in this branch path
-                                  // Get all steps after the branch step, sorted by sort_order
-                                  const branchStepIndex = scenario.steps.findIndex(s => s.id === step.id);
-                                  const allStepsAfterBranch = scenario.steps
-                                    .filter((s, idx) => idx > branchStepIndex)
-                                    .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
-                                  
-                                  // For now, show steps that come after the branch in sequence
-                                  // In a full implementation, you'd track which steps belong to which branch path
-                                  const nextSteps = allStepsAfterBranch.slice(0, 3); // Show up to 3 steps per branch
-                                  branchSteps.push(...nextSteps.filter(s => !branchSteps.find(bs => bs.id === s.id)));
-                                }
-                              }
-                              
-                              return (
-                                <div key={branch.id} className="flex-1">
-                                  {/* Branch Label with connecting line */}
-                                  <div className="flex items-center gap-2 mb-4">
-                                    <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${
-                                      branchIdx === 0 
-                                        ? "bg-[#f0fdf4] text-[#70d4b4] border border-[#70d4b4]"
-                                        : "bg-[#fef2f2] text-[#f0494a] border border-[#f0494a]"
+                          <div className="mt-8 relative">
+                            {/* Curved connectors from branch block to True/False nodes */}
+                            <div className="absolute top-0 left-0 right-0" style={{ height: '120px', zIndex: 0 }}>
+                              {step.branches.map((branch, branchIdx) => {
+                                const isTrue = branchIdx === 0;
+                                const color = isTrue ? "#70d4b4" : "#9ca3af";
+                                const horizontalOffset = isTrue ? -120 : 120; // True goes left, False goes right
+                                
+                                return (
+                                  <svg
+                                    key={`branch-connector-${branch.id}`}
+                                    className="absolute top-0 left-1/2 transform -translate-x-1/2"
+                                    style={{ width: '400px', height: '120px', pointerEvents: 'none' }}
+                                    viewBox="0 0 400 120"
+                                  >
+                                    {/* Curved path: from center bottom, curve horizontally, then down */}
+                                    <path
+                                      d={`M 200 0 Q ${200 + horizontalOffset * 0.5} 30 ${200 + horizontalOffset} 60 L ${200 + horizontalOffset} 120`}
+                                      stroke={color}
+                                      strokeWidth="2"
+                                      fill="none"
+                                      strokeLinecap="round"
+                                      markerEnd={`url(#arrow-${branch.id})`}
+                                    />
+                                    <defs>
+                                      <marker
+                                        id={`arrow-${branch.id}`}
+                                        markerWidth="10"
+                                        markerHeight="10"
+                                        refX="9"
+                                        refY="3"
+                                        orient="auto"
+                                      >
+                                        <polygon points="0 0, 10 3, 0 6" fill={color} />
+                                      </marker>
+                                    </defs>
+                                  </svg>
+                                );
+                              })}
+                            </div>
+                            
+                            {/* True/False nodes positioned horizontally */}
+                            <div className="flex gap-16 justify-center mt-24 relative z-10">
+                              {step.branches.map((branch, branchIdx) => {
+                                const isTrue = branchIdx === 0;
+                                
+                                return (
+                                  <div key={branch.id} className="flex flex-col items-center" style={{ minWidth: '200px' }}>
+                                    {/* True/False Button Node */}
+                                    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium ${
+                                      isTrue 
+                                        ? "bg-[#f3f4f6] border-[#e5e7eb] text-[#151515]"
+                                        : "bg-[#f3f4f6] border-[#e5e7eb] text-[#151515]"
                                     }`}>
-                                      {branchIdx === 0 ? (
+                                      {isTrue ? (
                                         <>
-                                          <CheckCircle className="h-3 w-3" />
-                                          True
+                                          <div className="w-5 h-5 rounded-full bg-[#70d4b4] flex items-center justify-center">
+                                            <CheckCircle className="h-3 w-3 text-white" />
+                                          </div>
+                                          <span>True</span>
                                         </>
                                       ) : (
                                         <>
-                                          <X className="h-3 w-3" />
-                                          False
+                                          <div className="w-5 h-5 rounded-full bg-[#f0494a] flex items-center justify-center">
+                                            <X className="h-3 w-3 text-white" />
+                                          </div>
+                                          <span>False</span>
                                         </>
                                       )}
                                     </div>
-                                    <div className="h-px bg-[#e5e7eb] flex-1"></div>
-                                  </div>
-                                  
-                                  {/* Steps in this branch path */}
-                                  <div className="space-y-4">
-                                    {branchSteps.length > 0 ? (
-                                      branchSteps.map((branchStep) => {
-                                        const branchStepCategory = getStepCategory(branchStep.type);
-                                        const branchPaletteItem = FUNCTION_PALETTE.find(p => p.type === branchStep.type);
-                                        const BranchStepIcon = branchPaletteItem?.icon || FileText;
-                                        
-                                        return (
-                                          <div key={branchStep.id} className="relative">
-                                            {/* Connecting Line */}
-                                            <div className="flex justify-center mb-2 relative" style={{ height: '32px' }}>
-                                              <ConnectionLine 
-                                                from="bottom" 
-                                                to="top" 
-                                                length={32}
-                                                color="#70d4b4"
-                                                strokeWidth={2}
-                                              />
-                                            </div>
-                                            
-                                            {/* Category Label */}
-                                            <div className="mb-2">
-                                              <span className={`text-[10px] font-medium ${getCategoryColor(branchStepCategory)} uppercase tracking-wide`}>
-                                                {branchStepCategory}
-                                              </span>
-                                            </div>
-                                            
-                                            {/* Step Card */}
-                                            <div className="relative bg-[#f0fdf4] border border-[#e5e7eb] rounded-2xl p-4 hover:shadow-md transition">
-                                              {/* Connection Points - Top, Bottom, Left, Right */}
-                                              {/* Top connection point */}
+                                    
+                                    {/* Vertical line down from True/False node */}
+                                    <div className="mt-4 mb-4 relative" style={{ height: '40px' }}>
+                                      <div 
+                                        className="absolute left-1/2 transform -translate-x-1/2"
+                                        style={{
+                                          width: '2px',
+                                          height: '100%',
+                                          background: isTrue ? '#70d4b4' : '#9ca3af'
+                                        }}
+                                      />
+                                      <div 
+                                        className="absolute bottom-0 left-1/2 transform -translate-x-1/2"
+                                        style={{
+                                          width: '0',
+                                          height: '0',
+                                          borderLeft: '4px solid transparent',
+                                          borderRight: '4px solid transparent',
+                                          borderTop: `8px solid ${isTrue ? '#70d4b4' : '#9ca3af'}`
+                                        }}
+                                      />
+                                    </div>
+                                    
+                                    {/* Steps in this branch path */}
+                                    <div className="w-full space-y-4">
+                                      {branch.next_step_id ? (
+                                        (() => {
+                                          const nextStep = scenario.steps.find(s => s.id === branch.next_step_id);
+                                          if (!nextStep) return null;
+                                          
+                                          const branchStepCategory = getStepCategory(nextStep.type);
+                                          const branchPaletteItem = FUNCTION_PALETTE.find(p => p.type === nextStep.type);
+                                          const BranchStepIcon = branchPaletteItem?.icon || FileText;
+                                          
+                                          return (
+                                            <div key={nextStep.id} className="relative">
+                                              {/* Step Card */}
                                               <div 
-                                                className="absolute -top-2 left-1/2 transform -translate-x-1/2 w-4 h-4 rounded-full bg-[#3166bf] border-2 border-white cursor-pointer hover:bg-[#2a5aa8] hover:scale-110 transition z-20"
-                                                title="Connect from top"
-                                              />
-                                              {/* Bottom connection point */}
-                                              <div 
-                                                className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-4 h-4 rounded-full bg-[#3166bf] border-2 border-white cursor-pointer hover:bg-[#2a5aa8] hover:scale-110 transition z-20"
-                                                title="Connect from bottom"
-                                              />
-                                              {/* Left connection point */}
-                                              <div 
-                                                className="absolute top-1/2 -left-2 transform -translate-y-1/2 w-4 h-4 rounded-full bg-[#3166bf] border-2 border-white cursor-pointer hover:bg-[#2a5aa8] hover:scale-110 transition z-20"
-                                                title="Connect from left"
-                                              />
-                                              {/* Right connection point */}
-                                              <div 
-                                                className="absolute top-1/2 -right-2 transform -translate-y-1/2 w-4 h-4 rounded-full bg-[#3166bf] border-2 border-white cursor-pointer hover:bg-[#2a5aa8] hover:scale-110 transition z-20"
-                                                title="Connect from right"
-                                              />
-                                              
-                                              <div className="flex items-start justify-between">
-                                                <div className="flex items-start gap-3 flex-1">
-                                                  <div className="flex-shrink-0 mt-0.5">
-                                                    <BranchStepIcon className="h-5 w-5 text-[#151515]" />
-                                                  </div>
-                                                  <div className="flex-1 min-w-0">
-                                                    <h4 className="text-sm font-semibold text-[#151515] mb-1">
-                                                      {branchPaletteItem?.label || branchStep.type}
-                                                    </h4>
-                                                    <p className="text-xs text-[#151515]/70">
-                                                      {branchStep.message || branchStep.ai_message || defaultMessage(branchStep.type)}
-                                                    </p>
+                                                className="relative bg-white border border-[#70d4b4] rounded-xl p-4 hover:shadow-md transition"
+                                                style={{ width: '320px', maxWidth: '320px' }}
+                                              >
+                                                <div className="flex items-start justify-between gap-3">
+                                                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                                                    <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-[#f3f4f6] flex items-center justify-center">
+                                                      <BranchStepIcon className="h-5 w-5 text-[#151515]" />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                      <h4 className="text-sm font-semibold text-[#151515] mb-0.5">
+                                                        {nextStep.name || branchPaletteItem?.label || nextStep.type}
+                                                      </h4>
+                                                      <p className="text-xs text-[#6b7280] mt-0.5">
+                                                        {nextStep.message || nextStep.ai_message || defaultMessage(nextStep.type)}
+                                                      </p>
+                                                    </div>
                                                   </div>
                                                 </div>
                                               </div>
                                             </div>
-                                          </div>
-                                        );
-                                      })
-                                    ) : (
-                                      <div className="text-xs text-[#151515]/40 italic pl-4 py-2">
-                                        {branch.condition || "No condition set"}
-                                      </div>
-                                    )}
+                                          );
+                                        })()
+                                      ) : (
+                                        <div className="text-xs text-[#151515]/40 italic text-center py-4">
+                                          Drop a block here
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
-                                </div>
-                              );
-                            })}
+                                );
+                              })}
+                            </div>
                           </div>
                         )}
                       </div>
