@@ -984,6 +984,28 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                         
                         {/* Step Card */}
                         <div className="relative bg-[#f0fdf4] border border-[#e5e7eb] rounded-2xl p-4 hover:shadow-md transition">
+                          {/* Connection Points - Top, Bottom, Left, Right */}
+                          {/* Top connection point */}
+                          <div 
+                            className="absolute -top-2 left-1/2 transform -translate-x-1/2 w-4 h-4 rounded-full bg-[#3166bf] border-2 border-white cursor-pointer hover:bg-[#2a5aa8] hover:scale-110 transition z-20"
+                            title="Connect from top"
+                          />
+                          {/* Bottom connection point */}
+                          <div 
+                            className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-4 h-4 rounded-full bg-[#3166bf] border-2 border-white cursor-pointer hover:bg-[#2a5aa8] hover:scale-110 transition z-20"
+                            title="Connect from bottom"
+                          />
+                          {/* Left connection point */}
+                          <div 
+                            className="absolute top-1/2 -left-2 transform -translate-y-1/2 w-4 h-4 rounded-full bg-[#3166bf] border-2 border-white cursor-pointer hover:bg-[#2a5aa8] hover:scale-110 transition z-20"
+                            title="Connect from left"
+                          />
+                          {/* Right connection point */}
+                          <div 
+                            className="absolute top-1/2 -right-2 transform -translate-y-1/2 w-4 h-4 rounded-full bg-[#3166bf] border-2 border-white cursor-pointer hover:bg-[#2a5aa8] hover:scale-110 transition z-20"
+                            title="Connect from right"
+                          />
+                          
                           <div className="flex items-start justify-between gap-3 relative z-0">
                             <div className="flex items-start gap-3 flex-1 min-w-0">
                               {/* Step Icon */}
@@ -1130,6 +1152,28 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                             
                                             {/* Step Card */}
                                             <div className="relative bg-[#f0fdf4] border border-[#e5e7eb] rounded-2xl p-4 hover:shadow-md transition">
+                                              {/* Connection Points - Top, Bottom, Left, Right */}
+                                              {/* Top connection point */}
+                                              <div 
+                                                className="absolute -top-2 left-1/2 transform -translate-x-1/2 w-4 h-4 rounded-full bg-[#3166bf] border-2 border-white cursor-pointer hover:bg-[#2a5aa8] hover:scale-110 transition z-20"
+                                                title="Connect from top"
+                                              />
+                                              {/* Bottom connection point */}
+                                              <div 
+                                                className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-4 h-4 rounded-full bg-[#3166bf] border-2 border-white cursor-pointer hover:bg-[#2a5aa8] hover:scale-110 transition z-20"
+                                                title="Connect from bottom"
+                                              />
+                                              {/* Left connection point */}
+                                              <div 
+                                                className="absolute top-1/2 -left-2 transform -translate-y-1/2 w-4 h-4 rounded-full bg-[#3166bf] border-2 border-white cursor-pointer hover:bg-[#2a5aa8] hover:scale-110 transition z-20"
+                                                title="Connect from left"
+                                              />
+                                              {/* Right connection point */}
+                                              <div 
+                                                className="absolute top-1/2 -right-2 transform -translate-y-1/2 w-4 h-4 rounded-full bg-[#3166bf] border-2 border-white cursor-pointer hover:bg-[#2a5aa8] hover:scale-110 transition z-20"
+                                                title="Connect from right"
+                                              />
+                                              
                                               <div className="flex items-start justify-between">
                                                 <div className="flex items-start gap-3 flex-1">
                                                   <div className="flex-shrink-0 mt-0.5">
