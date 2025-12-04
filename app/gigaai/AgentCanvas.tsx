@@ -1248,10 +1248,13 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                           const canvasContainer = e.currentTarget.closest('[class*="overflow"]') as HTMLElement;
                           if (canvasContainer) {
                             const canvasRect = canvasContainer.getBoundingClientRect();
+                            // Store initial mouse position and current block position
                             setDraggingStep({
                               stepId: step.id,
-                              offsetX: e.clientX - canvasRect.left - rect.left + stepX,
-                              offsetY: e.clientY - canvasRect.top - rect.top + stepY,
+                              offsetX: stepX, // Keep current position until drag threshold is met
+                              offsetY: stepY,
+                              startX: e.clientX, // Store initial mouse X
+                              startY: e.clientY, // Store initial mouse Y
                             });
                           }
                         }}
