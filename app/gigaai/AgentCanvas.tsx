@@ -123,6 +123,8 @@ function getCategoryColor(category: string): string {
       return "text-[#70d4b4]";
     case "Contact":
       return "text-[#9ca3af]";
+    case "Transfer":
+      return "text-[#9ca3af]";
     default:
       return "text-[#6b7280]";
   }
@@ -874,9 +876,9 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
         {/* Fullscreen Content */}
         <div className={`flex-1 overflow-y-auto ${colors.bg}`} style={{ background: '#ffffff', backgroundImage: 'none' }}>
           <div className="max-w-6xl mx-auto px-8 py-8">
-            <div className="mb-12">
+            <div className="mb-8">
               {/* Scenario Title */}
-              <h3 className={`text-xs font-semibold ${colors.text} mb-4`}>
+              <h3 className={`text-xs font-semibold ${colors.text} mb-6`}>
                 Workflow: "{scenarioName}"
               </h3>
 
@@ -933,16 +935,16 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                       const StepIcon = paletteItem?.icon || FileText;
                       
                       return (
-                      <div key={step.id} className="relative mb-6">
+                      <div key={step.id} className="relative mb-8">
                         {/* Connecting Arrow from previous step */}
                         {stepIdx > 0 && (
-                          <div className="flex justify-center mb-2">
+                          <div className="flex justify-center mb-3">
                             <ArrowDown className="h-6 w-6 text-[#70d4b4]" />
                           </div>
                         )}
                         
                         {/* Category Label */}
-                        <div className="mb-2">
+                        <div className="mb-1.5">
                           <span className={`text-[10px] font-medium ${getCategoryColor(stepCategory)} uppercase tracking-wide`}>
                             {stepCategory}
                           </span>
@@ -950,8 +952,8 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                         
                         {/* Step Card */}
                         <div className="relative bg-[#f0fdf4] border border-[#e5e7eb] rounded-2xl p-4 hover:shadow-md transition">
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-start gap-3 flex-1">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-start gap-3 flex-1 min-w-0">
                               {/* Step Icon */}
                               <div className="flex-shrink-0 mt-0.5">
                                 <StepIcon className="h-5 w-5 text-[#151515]" />
@@ -985,7 +987,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                             
                             {/* Menu Button */}
                             <button
-                              className="p-1 hover:bg-white/50 rounded-lg transition ml-2"
+                              className="p-1 hover:bg-white/50 rounded-lg transition flex-shrink-0"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 if (confirm("Delete this step?")) {
@@ -1137,7 +1139,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
       <div className="w-80 border-l border-[#151515] bg-white flex flex-col">
         {/* Section 1: Draggable Blocks */}
         <div className="p-4 border-b border-[#e5e7eb]">
-          <h3 className="text-xs font-semibold text-[#151515] mb-3 uppercase tracking-wide">Blocks</h3>
+          <h3 className="text-xs font-semibold text-[#151515] mb-3 uppercase tracking-wide">BLOCKS</h3>
           <div className="space-y-2">
             {DRAGGABLE_BLOCKS.map((block) => {
               const Icon = block.icon;
@@ -1151,10 +1153,10 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                   }}
                   className="flex items-center gap-3 p-3 rounded-lg border border-[#e5e7eb] bg-white hover:border-[#3166bf] hover:bg-[#f0fdf4] cursor-grab active:cursor-grabbing transition"
                 >
-                  <Icon className="h-4 w-4 text-[#151515]" />
-                  <div className="flex-1">
+                  <Icon className="h-4 w-4 text-[#151515] flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-[#151515]">{block.label}</div>
-                    <div className="text-xs text-[#151515]/60">{block.description}</div>
+                    <div className="text-xs text-[#151515]/60 mt-0.5">{block.description}</div>
                   </div>
                 </div>
               );
@@ -1164,7 +1166,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
 
         {/* Section 2: Trigger and Branch Tags */}
         <div className="p-4">
-          <h3 className="text-xs font-semibold text-[#151515] mb-3 uppercase tracking-wide">Tags</h3>
+          <h3 className="text-xs font-semibold text-[#151515] mb-3 uppercase tracking-wide">TAGS</h3>
           <div className="space-y-2">
             <div
               draggable
