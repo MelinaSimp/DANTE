@@ -1202,15 +1202,27 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                           </div>
                         )}
                         
-                        {/* Category Label */}
-                        <div className="mb-1.5">
-                          <span className={`text-[10px] font-medium ${getCategoryColor(stepCategory)} uppercase tracking-wide`}>
-                            {stepCategory}
-                          </span>
+                        {/* Category Tag - Above the block */}
+                        <div className="mb-2">
+                          <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold ${
+                            stepCategory === "Trigger" 
+                              ? "bg-[#3166bf] text-white border border-[#2a5aa8]"
+                              : stepCategory === "Branch"
+                              ? "bg-[#9333ea] text-white border border-[#7e22ce]"
+                              : stepCategory === "AI"
+                              ? "bg-[#70d4b4] text-white border border-[#5bb99a]"
+                              : "bg-[#9ca3af] text-white border border-[#6b7280]"
+                          }`}>
+                            {stepCategory === "Trigger" && <Zap className="h-3 w-3" />}
+                            {stepCategory === "Branch" && <GitMerge className="h-3 w-3" />}
+                            {stepCategory === "AI" && <MessageSquare className="h-3 w-3" />}
+                            {stepCategory !== "Trigger" && stepCategory !== "Branch" && stepCategory !== "AI" && <FileText className="h-3 w-3" />}
+                            <span>{stepCategory}</span>
+                          </div>
                         </div>
                         
                         {/* Step Card */}
-                        <div className="relative bg-[#f0fdf4] border border-[#e5e7eb] rounded-2xl p-4 hover:shadow-md transition" style={{ width: '320px', maxWidth: '320px', flexShrink: 0 }}>
+                        <div className="relative bg-white border border-[#70d4b4] rounded-xl p-4 hover:shadow-md transition" style={{ width: '320px', maxWidth: '320px', flexShrink: 0 }}>
                           {/* Connection Points - Top, Bottom, Left, Right */}
                           {/* Top connection point */}
                           <div 
@@ -1270,25 +1282,44 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                           />
                           
                           <div className="flex items-start justify-between gap-3 relative z-0">
-                            <div className="flex items-start gap-3" style={{ width: '100%', maxWidth: '280px' }}>
-                              {/* Step Icon */}
-                              <div className="flex-shrink-0 mt-0.5">
+                            <div className="flex items-start gap-3 flex-1 min-w-0">
+                              {/* Step Icon - In rounded square */}
+                              <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-[#f3f4f6] flex items-center justify-center">
                                 <StepIcon className="h-5 w-5 text-[#151515]" />
                               </div>
                               
                               {/* Step Content */}
-                              <div style={{ flex: '1 1 auto', minWidth: 0, maxWidth: '240px' }}>
-                                <h4 className="text-sm font-semibold text-[#151515] mb-1">
-                                  {paletteItem?.label || step.type}
+                              <div className="flex-1 min-w-0">
+                                <h4 className="text-sm font-semibold text-[#151515] mb-0.5">
+                                  {editingStepId === step.id ? (
+                                    <textarea
+                                      value={editingText}
+                                      onChange={(e) => setEditingText(e.target.value)}
+                                      rows={1}
+                                      className="w-full rounded-lg border border-[#3166bf] bg-white px-2 py-1 text-sm font-semibold text-[#151515] focus:border-[#3166bf] focus:outline-none"
+                                      autoFocus
+                                      placeholder={paletteItem?.label || step.type}
+                                    />
+                                  ) : (
+                                    <span 
+                                      className="cursor-pointer hover:text-[#151515]"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        startEditing(step);
+                                      }}
+                                    >
+                                      {step.name || paletteItem?.label || step.type}
+                                    </span>
+                                  )}
                                 </h4>
-                                <p className="text-xs text-[#151515]/70">
+                                <p className="text-xs text-[#6b7280] mt-0.5">
                                   {editingStepId === step.id ? (
                                     <textarea
                                       value={editingText}
                                       onChange={(e) => setEditingText(e.target.value)}
                                       rows={2}
-                                      className="w-full rounded-lg border border-[#3166bf] bg-white px-2 py-1 text-xs text-[#151515] focus:border-[#3166bf] focus:outline-none"
-                                      autoFocus
+                                      className="w-full rounded-lg border border-[#3166bf] bg-white px-2 py-1 text-xs text-[#6b7280] focus:border-[#3166bf] focus:outline-none"
+                                      placeholder={step.message || step.ai_message || defaultMessage(step.type)}
                                     />
                                   ) : (
                                     <span 
@@ -1305,19 +1336,20 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                               </div>
                             </div>
                             
-                            {/* Delete Button */}
+                            {/* Options Menu (Three dots) */}
                             <button
-                              className="p-1.5 hover:bg-white/50 rounded-lg transition flex-shrink-0 z-10 relative"
+                              className="p-1.5 hover:bg-[#f3f4f6] rounded-lg transition flex-shrink-0 z-10 relative"
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                console.log("[AgentCanvas] Delete button clicked for step:", step.id, "type:", step.type);
+                                // TODO: Show options menu (delete, duplicate, etc.)
+                                console.log("[AgentCanvas] Options menu clicked for step:", step.id);
                                 deleteStep(step.id);
                               }}
-                              title={`Delete ${paletteItem?.label || step.type} step`}
+                              title={`Options for ${paletteItem?.label || step.type}`}
                               type="button"
                             >
-                              <Trash2 className="h-4 w-4 text-[#151515]/50 hover:text-red-500" />
+                              <MoreVertical className="h-4 w-4 text-[#6b7280] hover:text-[#151515]" />
                             </button>
                           </div>
                           
