@@ -906,19 +906,22 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
           </div>
         </div>
 
-        {/* Fullscreen Content - Infinite/Pageless Canvas */}
-        <div className={`flex-1 overflow-auto bg-[#ffffff]`} style={{ background: '#ffffff', backgroundImage: 'none' }}>
-          <div className="min-w-full min-h-full p-8">
-            {/* Scenario Title */}
-            <h3 className={`text-xs font-semibold ${colors.text} mb-6`}>
-              Workflow: "{scenarioName}"
-            </h3>
-
-            {/* Drop Zone + Steps - Infinite pageless canvas, no width restrictions */}
+        {/* Fullscreen Content - Infinite/Pageless Canvas (n8n-style) */}
+        <div className={`flex-1 overflow-auto relative bg-[#fafafa]`} style={{
+          backgroundImage: `
+            linear-gradient(to right, #e5e7eb 1px, transparent 1px),
+            linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)
+          `,
+          backgroundSize: '20px 20px',
+          backgroundPosition: '0 0'
+        }}>
+          {/* Infinite canvas container - like n8n */}
+          <div className="absolute inset-0" style={{ minWidth: '100vw', minHeight: '100vh' }}>
+            {/* Drop Zone + Steps - Truly infinite pageless canvas */}
             <div
-              className={`min-w-full min-h-[600px] w-full transition relative ${
+              className={`absolute inset-0 transition ${
                 draggedOver
-                  ? "border-2 border-dashed border-[#3166bf] bg-[#3166bf]/5 rounded-lg"
+                  ? "border-2 border-dashed border-[#3166bf] bg-[#3166bf]/5"
                   : ""
               }`}
                 onDragOver={(e) => {
@@ -929,16 +932,16 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                 onDrop={handleDrop}
               >
                 {loading ? (
-                  <div className={`text-center ${colors.textTertiary} text-sm py-12`}>
+                  <div className={`absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center ${colors.textTertiary} text-sm`}>
                     <div className="mb-2">Loading steps...</div>
                   </div>
                 ) : scenario.steps.length === 0 ? (
-                  <div className={`text-center ${colors.textTertiary} text-sm py-12`}>
+                  <div className={`absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center ${colors.textTertiary} text-sm`}>
                     <div className="mb-2">👆</div>
                     <div>Drag a block or tag from the right sidebar to create the first step</div>
                   </div>
                 ) : (
-                  <div className="space-y-6">
+                  <div className="relative" style={{ padding: '100px' }}>
                     {/* Warning for missing greeting message */}
                     {(() => {
                       const firstSayStep = scenario.steps.find(s => s.type === "say");
