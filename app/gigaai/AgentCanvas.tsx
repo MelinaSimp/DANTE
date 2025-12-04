@@ -154,7 +154,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
   const [editingBranchId, setEditingBranchId] = useState<string | null>(null);
   const [selectedStepForBranch, setSelectedStepForBranch] = useState<{ scenarioId: string; stepId: string; branchId: string } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [draggingStep, setDraggingStep] = useState<{ stepId: string; offsetX: number; offsetY: number } | null>(null);
+  const [draggingStep, setDraggingStep] = useState<{ stepId: string; offsetX: number; offsetY: number; startX: number; startY: number } | null>(null);
   const [connectingFrom, setConnectingFrom] = useState<{ stepId: string; side: "top" | "bottom" | "left" | "right" } | null>(null);
   const [dataSourceModal, setDataSourceModal] = useState<{
     isOpen: boolean;
@@ -998,18 +998,31 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
             }}
             onDrop={handleDrop}
             onMouseMove={(e) => {
-            if (draggingStep) {
-              e.preventDefault();
-              const canvasRect = e.currentTarget.getBoundingClientRect();
-              const scrollLeft = e.currentTarget.scrollLeft;
-              const scrollTop = e.currentTarget.scrollTop;
-              setDraggingStep({
-                ...draggingStep,
-                offsetX: e.clientX - canvasRect.left + scrollLeft - 160, // 160 = half of block width
-                offsetY: e.clientY - canvasRect.top + scrollTop - 50, // Offset for header
-              });
-            }
-          }}
+              if (draggingStep) {
+                // Calculate distance moved from initial click
+                const dx = e.clientX - draggingStep.startX;
+                const dy = e.clientY - draggingStep.startY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                // Only start dragging if mouse moved more than 5 pixels (prevents accidental drag on click)
+                if (distance > 5) {
+                  e.preventDefault();
+                  const canvasRect = e.currentTarget.getBoundingClientRect();
+                  const scrollLeft = e.currentTarget.scrollLeft;
+                  const scrollTop = e.currentTarget.scrollTop;
+                  
+                  // Calculate new position relative to canvas
+                  const newX = e.clientX - canvasRect.left + scrollLeft - 160; // 160 = half of block width
+                  const newY = e.clientY - canvasRect.top + scrollTop - 50; // Offset for header
+                  
+                  setDraggingStep({
+                    ...draggingStep,
+                    offsetX: newX,
+                    offsetY: newY,
+                  });
+                }
+              }
+            }}
           onMouseUp={() => {
             if (draggingStep) {
               // Save position to API
