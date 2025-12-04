@@ -307,81 +307,118 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
         }),
       });
 
-      if (response.ok) {
-        const newStepData = await response.json();
-        let initialBranches: Branch[] | undefined = undefined;
-        
-        // For branch steps, automatically create True and False branches
-        if (type === "branch") {
-          try {
-            // Create True branch
-            const trueBranchResponse = await fetch(`/api/steps/${newStepData.id}/branches`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                condition: "Condition is true",
-                condition_tag: "true",
-                target: "Next step",
-              }),
-            });
-            
-            // Create False branch
-            const falseBranchResponse = await fetch(`/api/steps/${newStepData.id}/branches`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                condition: "Condition is false",
-                condition_tag: "false",
-                target: "Next step",
-              }),
-            });
-            
-            if (trueBranchResponse.ok && falseBranchResponse.ok) {
-              const trueBranch = await trueBranchResponse.json();
-              const falseBranch = await falseBranchResponse.json();
-              initialBranches = [
-                {
-                  id: trueBranch.id,
-                  condition: trueBranch.condition,
-                  condition_tag: trueBranch.condition_tag,
-                  target: trueBranch.target,
-                  next_step_id: trueBranch.next_step_id,
-                  next_scenario_id: trueBranch.next_scenario_id,
-                },
-                {
-                  id: falseBranch.id,
-                  condition: falseBranch.condition,
-                  condition_tag: falseBranch.condition_tag,
-                  target: falseBranch.target,
-                  next_step_id: falseBranch.next_step_id,
-                  next_scenario_id: falseBranch.next_scenario_id,
-                },
-              ];
-            }
-          } catch (branchError) {
-            console.error("Failed to create initial branches:", branchError);
-          }
-        }
-        
-        const newStep: Step = {
-          id: newStepData.id,
-          type: newStepData.type as StepType,
-          name: newStepData.name,
-          ai_message: newStepData.ai_message,
-          message: newStepData.ai_message || newStepData.name,
-          branches: initialBranches || (type === "say" ? [] : undefined),
-          sort_order: newStepData.sort_order,
-          x: newStepData.x ?? dropX - 160, // Use x from API or fallback to calculated position
-          y: newStepData.y ?? dropY - 20, // Use y from API or fallback to calculated position
-        };
-
-        setScenario((prev) => ({
-          ...prev,
-          steps: [...prev.steps, newStep].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
-        }));
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+        console.error("Failed to create step:", errorData);
+        setConfirmationModal({
+          isOpen: true,
+          title: "Failed to Create Step",
+          message: errorData?.error || "Failed to create step. Please try again.",
+          confirmText: "OK",
+          cancelText: "",
+          variant: "error",
+          onConfirm: () => setConfirmationModal({ ...confirmationModal, isOpen: false }),
+        });
+        return;
       }
-    } catch (error) {
+
+      const newStepData = await response.json();
+      
+      // Always create the step immediately, then create branches asynchronously
+      const newStep: Step = {
+        id: newStepData.id,
+        type: newStepData.type as StepType,
+        name: newStepData.name,
+        ai_message: newStepData.ai_message,
+        message: newStepData.ai_message || newStepData.name,
+        branches: type === "branch" ? [] : (type === "say" ? [] : undefined), // Initialize with empty array for branch steps
+        sort_order: newStepData.sort_order,
+        x: newStepData.x ?? dropX - 160, // Use x from API or fallback to calculated position
+        y: newStepData.y ?? dropY - 20, // Use y from API or fallback to calculated position
+      };
+
+      // Add step to canvas immediately
+      setScenario((prev) => ({
+        ...prev,
+        steps: [...prev.steps, newStep].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
+      }));
+      
+      // For branch steps, create True and False branches asynchronously (don't block UI)
+      if (type === "branch") {
+        // Create branches in background without blocking
+        Promise.all([
+          fetch(`/api/steps/${newStepData.id}/branches`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              condition: "Condition is true",
+              condition_tag: "true",
+              target: "Next step",
+            }),
+          }),
+          fetch(`/api/steps/${newStepData.id}/branches`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              condition: "Condition is false",
+              condition_tag: "false",
+              target: "Next step",
+            }),
+          }),
+        ])
+          .then(async ([trueResponse, falseResponse]) => {
+            if (trueResponse.ok && falseResponse.ok) {
+              const trueBranch = await trueResponse.json();
+              const falseBranch = await falseResponse.json();
+              
+              // Update step with branches
+              setScenario((prev) => ({
+                ...prev,
+                steps: prev.steps.map((s) =>
+                  s.id === newStepData.id
+                    ? {
+                        ...s,
+                        branches: [
+                          {
+                            id: trueBranch.id,
+                            condition: trueBranch.condition,
+                            condition_tag: trueBranch.condition_tag,
+                            target: trueBranch.target,
+                            next_step_id: trueBranch.next_step_id,
+                            next_scenario_id: trueBranch.next_scenario_id,
+                          },
+                          {
+                            id: falseBranch.id,
+                            condition: falseBranch.condition,
+                            condition_tag: falseBranch.condition_tag,
+                            target: falseBranch.target,
+                            next_step_id: falseBranch.next_step_id,
+                            next_scenario_id: falseBranch.next_scenario_id,
+                          },
+                        ],
+                      }
+                    : s
+                ),
+              }));
+            } else {
+              console.error("Failed to create branches:", { trueResponse: !trueResponse.ok, falseResponse: !falseResponse.ok });
+            }
+          })
+          .catch((error) => {
+            console.error("Error creating branches:", error);
+          });
+      }
+    } catch (error: any) {
       console.error("Failed to create step:", error);
+      setConfirmationModal({
+        isOpen: true,
+        title: "Failed to Create Step",
+        message: error?.message || "An unexpected error occurred while creating the step. Please try again.",
+        confirmText: "OK",
+        cancelText: "",
+        variant: "error",
+        onConfirm: () => setConfirmationModal({ ...confirmationModal, isOpen: false }),
+      });
     }
   };
 

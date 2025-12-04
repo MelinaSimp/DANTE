@@ -11,3 +11,4 @@ ADD COLUMN IF NOT EXISTS qa_fallback_message TEXT;
 
 
 
+

@@ -124,3 +124,4 @@ Please check these specific screenshots and provide the hex codes:
    - Red (error) - Screenshots 1, 2, 9
    - Orange/Yellow (warning) - Screenshots 1, 10
 
+

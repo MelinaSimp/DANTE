@@ -24,3 +24,4 @@ FROM steps
 GROUP BY type;
 
 
+

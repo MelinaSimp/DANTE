@@ -117,3 +117,4 @@
 3. **Status tags** - Green "Future" tag with clock icon
 4. **Booking details card** - Styling of the property card
 
+
