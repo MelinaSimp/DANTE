@@ -1388,6 +1388,10 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                             {/* Options Menu (Three dots) */}
                             <button
                               className="p-1.5 hover:bg-[#f3f4f6] rounded-lg transition flex-shrink-0 z-10 relative"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                              }}
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
