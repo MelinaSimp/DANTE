@@ -1011,14 +1011,17 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                               </div>
                             </div>
                             
-                            {/* Menu Button */}
+                            {/* Delete Button */}
                             <button
-                              className="p-1 hover:bg-white/50 rounded-lg transition flex-shrink-0"
+                              className="p-1.5 hover:bg-white/50 rounded-lg transition flex-shrink-0 z-10 relative"
                               onClick={(e) => {
+                                e.preventDefault();
                                 e.stopPropagation();
+                                console.log("[AgentCanvas] Delete button clicked for step:", step.id, "type:", step.type);
                                 deleteStep(step.id);
                               }}
-                              title="Delete step"
+                              title={`Delete ${paletteItem?.label || step.type} step`}
+                              type="button"
                             >
                               <Trash2 className="h-4 w-4 text-[#151515]/50 hover:text-red-500" />
                             </button>
