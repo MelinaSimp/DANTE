@@ -629,11 +629,14 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
       onConfirm: async () => {
         setConfirmationModal({ ...confirmationModal, isOpen: false });
         try {
+          console.log("[AgentCanvas] Attempting to delete step:", stepId);
           const response = await fetch(`/api/steps/${stepId}`, {
             method: "DELETE",
           });
 
+          console.log("[AgentCanvas] Delete response status:", response.status);
           if (response.ok) {
+            console.log("[AgentCanvas] Step deleted successfully");
             setScenario((prev) => ({
               ...prev,
               steps: prev.steps.filter((step) => step.id !== stepId),
@@ -642,9 +645,30 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
               setEditingStepId(null);
               setEditingText("");
             }
+          } else {
+            const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+            console.error("[AgentCanvas] Failed to delete step:", errorData);
+            setConfirmationModal({
+              isOpen: true,
+              title: "Delete Failed",
+              message: errorData.error || "Failed to delete step. Please try again.",
+              confirmText: "OK",
+              cancelText: "",
+              variant: "danger",
+              onConfirm: () => setConfirmationModal({ ...confirmationModal, isOpen: false }),
+            });
           }
-        } catch (error) {
-          console.error("Failed to delete step:", error);
+        } catch (error: any) {
+          console.error("[AgentCanvas] Failed to delete step:", error);
+          setConfirmationModal({
+            isOpen: true,
+            title: "Delete Failed",
+            message: error?.message || "An error occurred while deleting the step. Please try again.",
+            confirmText: "OK",
+            cancelText: "",
+            variant: "danger",
+            onConfirm: () => setConfirmationModal({ ...confirmationModal, isOpen: false }),
+          });
         }
       },
     });
