@@ -897,17 +897,9 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
     <div className={`h-full flex bg-[#ffffff]`} style={{ background: '#ffffff', backgroundImage: 'none' }}>
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden bg-[#ffffff]">
-        {/* Workflow Header */}
-        <div className={`border-b ${colors.border} ${colors.bg} px-6 py-4`}>
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className={`text-base font-semibold ${colors.text}`}>Workflow: {scenarioName}</h2>
-            </div>
-          </div>
-        </div>
-
-        {/* Fullscreen Content - Infinite/Pageless Canvas (n8n-style) */}
-        <div className={`flex-1 overflow-auto relative bg-[#fafafa]`} style={{
+        {/* Fullscreen Content - Infinite/Pageless Canvas (n8n-style, white theme) */}
+        <div className={`flex-1 overflow-auto relative`} style={{
+          background: '#ffffff',
           backgroundImage: `
             linear-gradient(to right, #e5e7eb 1px, transparent 1px),
             linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)
@@ -915,8 +907,13 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
           backgroundSize: '20px 20px',
           backgroundPosition: '0 0'
         }}>
-          {/* Infinite canvas container - like n8n */}
-          <div className="absolute inset-0" style={{ minWidth: '100vw', minHeight: '100vh' }}>
+          {/* Infinite canvas container - truly pageless like n8n */}
+          <div className="absolute" style={{ 
+            width: '10000px',
+            height: '10000px',
+            minWidth: '100vw',
+            minHeight: '100vh'
+          }}>
             {/* Drop Zone + Steps - Truly infinite pageless canvas */}
             <div
               className={`absolute inset-0 transition ${
