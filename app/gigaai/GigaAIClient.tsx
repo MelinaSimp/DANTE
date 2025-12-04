@@ -774,9 +774,6 @@ export default function GigaAIClient() {
   const sidebarIcon = "text-[#151515]";
   const sidebarIconSecondary = "text-[#151515]/70";
 
-  // Hide sidebar when workflow is selected, show on hover at left edge
-  const shouldShowSidebar = !selectedWorkflow || sidebarHovered;
-
   return (
     <div className={`flex h-screen overflow-hidden ${themeClasses.textPrimary} bg-[#ffffff]`} style={{ background: '#ffffff', backgroundImage: 'none' }}>
       {/* Left Edge Hover Zone - Only visible when sidebar is hidden */}
