@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { MessageSquare, FileText, GitBranch, Code, Zap, ArrowRight, ArrowDown, X, Plus, Trash2, Calendar, CheckCircle, HelpCircle, Repeat, UserCheck, Phone, Eye, Play, GitMerge, MoreVertical } from "lucide-react";
 import ConfirmationModal from "./ConfirmationModal";
 import { useTheme } from "./ThemeProvider";
@@ -136,6 +136,7 @@ function getCategoryColor(category: string): string {
 
 export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepSelect, isDeployed = false }: AgentCanvasProps) {
   const { theme, colors } = useTheme();
+  const canvasRef = useRef<HTMLDivElement>(null);
   
   // Debug: Log deployment status
   useEffect(() => {
@@ -274,6 +275,16 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
       return;
     }
 
+    // Calculate drop position relative to the canvas
+    const canvasRect = canvasRef.current?.getBoundingClientRect();
+    if (!canvasRect) {
+      console.error("[AgentCanvas] Canvas ref not available");
+      return;
+    }
+
+    const dropX = event.clientX - canvasRect.left + (canvasRef.current?.scrollLeft || 0);
+    const dropY = event.clientY - canvasRect.top + (canvasRef.current?.scrollTop || 0);
+
     try {
       const message = defaultMessage(type);
       const response = await fetch(`/api/scenarios/${scenarioId}/steps`, {
@@ -283,6 +294,8 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
           name: message,
           type,
           ai_message: type === "say" ? message : null,
+          x: dropX - 160, // Center the block on drop (half of 320px width)
+          y: dropY - 20, // Adjust for potential header/cursor offset
         }),
       });
 
@@ -350,6 +363,8 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
           message: newStepData.ai_message || newStepData.name,
           branches: initialBranches || (type === "say" ? [] : undefined),
           sort_order: newStepData.sort_order,
+          x: newStepData.x ?? dropX - 160, // Use x from API or fallback to calculated position
+          y: newStepData.y ?? dropY - 20, // Use y from API or fallback to calculated position
         };
 
         setScenario((prev) => ({
@@ -956,18 +971,19 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
     <div className={`h-full flex bg-[#ffffff]`} style={{ background: '#ffffff', backgroundImage: 'none' }}>
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden bg-[#ffffff]">
-        {/* Fullscreen Content - Infinite/Pageless Canvas (n8n-style, white theme) */}
-        <div 
-          className={`flex-1 overflow-auto relative`} 
-          style={{
-            background: '#ffffff',
-            backgroundImage: `
-              linear-gradient(to right, #e5e7eb 1px, transparent 1px),
-              linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)
-            `,
-            backgroundSize: '20px 20px',
-            backgroundPosition: '0 0'
-          }}
+          {/* Fullscreen Content - Infinite/Pageless Canvas (n8n-style, white theme) */}
+          <div 
+            ref={canvasRef}
+            className={`flex-1 overflow-auto relative`} 
+            style={{
+              background: '#ffffff',
+              backgroundImage: `
+                linear-gradient(to right, #e5e7eb 1px, transparent 1px),
+                linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)
+              `,
+              backgroundSize: '20px 20px',
+              backgroundPosition: '0 0'
+            }}
           onMouseMove={(e) => {
             if (draggingStep) {
               e.preventDefault();
