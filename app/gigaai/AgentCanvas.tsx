@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { MessageSquare, FileText, GitBranch, Code, Zap, ArrowRight, ArrowDown, X, Plus, Trash2, Calendar, CheckCircle, HelpCircle, Repeat, UserCheck, Phone, Eye, Play, GitMerge, MoreVertical } from "lucide-react";
 import ConfirmationModal from "./ConfirmationModal";
 import { useTheme } from "./ThemeProvider";
+import ConnectionLine from "./ConnectionLine";
 
 type StepType = "trigger" | "say" | "gather" | "code" | "api_call" | "schedule" | "qa" | "loop" | "send_sms" | "transfer" | "branch" | "call";
 
@@ -968,10 +969,16 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                       
                       return (
                       <div key={step.id} className="relative mb-8">
-                        {/* Connecting Arrow from previous step */}
+                        {/* Connecting Line from previous step */}
                         {stepIdx > 0 && (
-                          <div className="flex justify-center mb-3">
-                            <ArrowDown className="h-6 w-6 text-[#70d4b4]" />
+                          <div className="flex justify-center mb-3 relative" style={{ height: '32px' }}>
+                            <ConnectionLine 
+                              from="bottom" 
+                              to="top" 
+                              length={32}
+                              color="#70d4b4"
+                              strokeWidth={2}
+                            />
                           </div>
                         )}
                         
@@ -1138,9 +1145,15 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                         
                                         return (
                                           <div key={branchStep.id} className="relative">
-                                            {/* Connecting Arrow */}
-                                            <div className="flex justify-center mb-2">
-                                              <ArrowDown className="h-6 w-6 text-[#70d4b4]" />
+                                            {/* Connecting Line */}
+                                            <div className="flex justify-center mb-2 relative" style={{ height: '32px' }}>
+                                              <ConnectionLine 
+                                                from="bottom" 
+                                                to="top" 
+                                                length={32}
+                                                color="#70d4b4"
+                                                strokeWidth={2}
+                                              />
                                             </div>
                                             
                                             {/* Category Label */}
