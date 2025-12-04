@@ -1218,14 +1218,19 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                             target.closest('textarea') !== null;
                           const isInput = target instanceof HTMLInputElement || 
                                          target.closest('input') !== null;
-                          const isConnectionPoint = target.closest('[class*="connection"]') !== null ||
-                                                   target.classList.contains('rounded-full');
+                          // Check for connection points (blue circles)
+                          const isConnectionPoint = target.classList.contains('rounded-full') && 
+                                                   (target.classList.contains('bg-[#3166bf]') || 
+                                                    target.classList.contains('bg-[#9333ea]'));
+                          // Check if clicking on SVG icon inside button
+                          const isIconInButton = target.closest('svg') && target.closest('button') !== null;
                           
-                          if (isButton || isTextarea || isInput || isConnectionPoint) {
+                          if (isButton || isTextarea || isInput || isConnectionPoint || isIconInButton) {
                             return;
                           }
                           
                           e.preventDefault();
+                          e.stopPropagation();
                           const rect = e.currentTarget.getBoundingClientRect();
                           const canvasContainer = e.currentTarget.closest('[class*="overflow"]') as HTMLElement;
                           if (canvasContainer) {
