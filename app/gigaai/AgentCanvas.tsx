@@ -938,13 +938,13 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                     <div>Drag a block or tag from the right sidebar to create the first step</div>
                   </div>
                 ) : (
-                  <div className="relative" style={{ padding: '100px' }}>
+                  <div className="relative" style={{ padding: '200px', width: 'fit-content', minWidth: '400px' }}>
                     {/* Warning for missing greeting message */}
                     {(() => {
                       const firstSayStep = scenario.steps.find(s => s.type === "say");
                       if (firstSayStep && (!firstSayStep.ai_message || firstSayStep.ai_message.trim().length === 0)) {
                         return (
-                          <div className="mb-4 p-3 rounded-2xl bg-[#fffbeb] border border-[#fbbf24]/30 flex items-start gap-2">
+                          <div className="absolute top-4 left-4 max-w-md p-3 rounded-2xl bg-[#fffbeb] border border-[#fbbf24]/30 flex items-start gap-2 z-10">
                             <div className="h-4 w-4 rounded-full border-2 border-[#fbbf24] flex items-center justify-center flex-shrink-0 mt-0.5">
                               <span className="text-[10px] text-[#fbbf24]">!</span>
                             </div>
@@ -967,7 +967,11 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                       const StepIcon = paletteItem?.icon || FileText;
                       
                       return (
-                      <div key={step.id} className="relative mb-8">
+                      <div key={step.id} className="absolute" style={{ 
+                        left: `${100 + (stepIdx * 0)}px`,
+                        top: `${100 + (stepIdx * 150)}px`,
+                        width: '320px'
+                      }}>
                         {/* Connecting Line from previous step */}
                         {stepIdx > 0 && (
                           <div className="flex justify-center mb-3 relative" style={{ height: '32px' }}>
@@ -989,7 +993,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                         </div>
                         
                         {/* Step Card */}
-                        <div className="relative bg-[#f0fdf4] border border-[#e5e7eb] rounded-2xl p-4 hover:shadow-md transition">
+                        <div className="relative bg-[#f0fdf4] border border-[#e5e7eb] rounded-2xl p-4 hover:shadow-md transition" style={{ width: '320px' }}>
                           {/* Connection Points - Top, Bottom, Left, Right */}
                           {/* Top connection point */}
                           <div 
