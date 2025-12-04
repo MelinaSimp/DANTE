@@ -5,7 +5,7 @@ import { MessageSquare, FileText, GitBranch, Code, Zap, ArrowRight, ArrowDown, X
 import ConfirmationModal from "./ConfirmationModal";
 import { useTheme } from "./ThemeProvider";
 
-type StepType = "trigger" | "say" | "gather" | "code" | "api_call" | "schedule" | "qa" | "loop" | "send_sms" | "transfer" | "branch";
+type StepType = "trigger" | "say" | "gather" | "code" | "api_call" | "schedule" | "qa" | "loop" | "send_sms" | "transfer" | "branch" | "call";
 
 interface Branch {
   id: string;
@@ -42,6 +42,15 @@ interface AgentCanvasProps {
   isDeployed?: boolean;
 }
 
+// Right sidebar blocks - draggable functions
+const DRAGGABLE_BLOCKS: { type: StepType; label: string; description: string; icon: any }[] = [
+  { type: "say", label: "Say", description: "AI model says something", icon: MessageSquare },
+  { type: "branch", label: "Branch", description: "Splits into two paths", icon: GitMerge },
+  { type: "call", label: "Call", description: "AI agent has been called", icon: Phone },
+  { type: "transfer", label: "Transfer", description: "Transfer to another agent", icon: UserCheck },
+];
+
+// Legacy function palette (keeping for backward compatibility)
 const FUNCTION_PALETTE: { type: StepType; label: string; description: string; icon: any; category: string }[] = [
   { type: "trigger", label: "Trigger", description: "Start the workflow when an event occurs", icon: Play, category: "Trigger" },
   { type: "branch", label: "Branch", description: "Create conditional paths based on conditions", icon: GitMerge, category: "Branch" },
@@ -54,6 +63,7 @@ const FUNCTION_PALETTE: { type: StepType; label: string; description: string; ic
   { type: "loop", label: "Loop", description: "Repeat a sequence of steps", icon: Repeat, category: "Loop" },
   { type: "send_sms", label: "Send SMS", description: "Send text message to customer", icon: Phone, category: "Contact" },
   { type: "transfer", label: "Transfer", description: "Route to specialist agent", icon: UserCheck, category: "Transfer" },
+  { type: "call", label: "Call", description: "AI agent has been called", icon: Phone, category: "Call" },
 ];
 
 const AVAILABLE_TAGS = [
@@ -75,6 +85,8 @@ function defaultMessage(type: StepType): string {
       return "Check condition and branch workflow";
     case "say":
       return "Welcome! How can I help you today?";
+    case "call":
+      return "AI agent has been called";
     case "gather":
       return "What information would you like to collect?";
     case "qa":
@@ -84,7 +96,7 @@ function defaultMessage(type: StepType): string {
     case "send_sms":
       return "Send SMS message";
     case "transfer":
-      return "Transfer to specialist";
+      return "Transfer to another agent with its separate workflow";
     case "code":
       return "// Write your code here";
     case "api_call":
@@ -859,37 +871,6 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
           </div>
         </div>
 
-        {/* Function Palette */}
-        <div className={`border-b ${colors.border} ${colors.bg} px-6 py-4`}>
-          <div className="max-w-6xl mx-auto">
-            <p className={`text-[10px] ${colors.textTertiary} mb-3`}>Drag a function into the workflow below to create a step</p>
-            <div className="flex items-center gap-3 overflow-x-auto pb-2">
-              {FUNCTION_PALETTE.map((fn) => {
-                const Icon = fn.icon;
-                return (
-                  <div
-                    key={fn.type}
-                    draggable
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData("step-type", fn.type);
-                      e.dataTransfer.effectAllowed = "move";
-                    }}
-                    className={`flex-shrink-0 cursor-grab active:cursor-grabbing rounded-2xl border border-[#e5e7eb] bg-[#f0fdf4] px-4 py-3 text-xs ${colors.text} hover:border-[#3166bf] hover:shadow-md transition`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Icon className={`h-4 w-4 text-[#151515]`} />
-                      <div>
-                        <div className={`font-semibold text-xs text-[#151515]`}>{fn.label}</div>
-                        <div className={`text-[10px] text-[#151515]/70`}>{fn.description}</div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
         {/* Fullscreen Content */}
         <div className={`flex-1 overflow-y-auto ${colors.bg}`} style={{ background: '#ffffff', backgroundImage: 'none' }}>
           <div className="max-w-6xl mx-auto px-8 py-8">
@@ -1152,127 +1133,186 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
         </div>
       </div>
 
-      {/* Right Sidebar Workspace */}
-      {selectedStepForBranch && (
-        <div className={`w-80 border-l border-[#151515] bg-[#ffffff] flex flex-col`}>
-          <div className={`border-b ${colors.border} px-4 py-3 flex items-center justify-between`}>
-            <h3 className={`text-sm font-semibold ${colors.text}`}>New Condition</h3>
-            <button
-              onClick={() => setSelectedStepForBranch(null)}
-              className={`p-1 ${colors.hover} rounded transition`}
-            >
-              <X className={`h-4 w-4 ${colors.iconSecondary}`} />
-            </button>
+      {/* Right Sidebar - Draggable Blocks and Tags */}
+      <div className="w-80 border-l border-[#151515] bg-white flex flex-col">
+        {/* Section 1: Draggable Blocks */}
+        <div className="p-4 border-b border-[#e5e7eb]">
+          <h3 className="text-xs font-semibold text-[#151515] mb-3 uppercase tracking-wide">Blocks</h3>
+          <div className="space-y-2">
+            {DRAGGABLE_BLOCKS.map((block) => {
+              const Icon = block.icon;
+              return (
+                <div
+                  key={block.type}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData("step-type", block.type);
+                    e.dataTransfer.effectAllowed = "move";
+                  }}
+                  className="flex items-center gap-3 p-3 rounded-lg border border-[#e5e7eb] bg-white hover:border-[#3166bf] hover:bg-[#f0fdf4] cursor-grab active:cursor-grabbing transition"
+                >
+                  <Icon className="h-4 w-4 text-[#151515]" />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-[#151515]">{block.label}</div>
+                    <div className="text-xs text-[#151515]/60">{block.description}</div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
+        </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-6">
-            {/* Natural Language Condition Input */}
-            <div>
-              <label className={`block text-[10px] font-medium ${colors.textSecondary} mb-2`}>
-                If <span className={colors.textTertiary}>(description of an outcome)</span>
-              </label>
-              <textarea
-                value={currentBranch?.condition || ""}
-                onChange={(e) => {
-                  if (selectedStepForBranch) {
-                    updateBranch(
-                      selectedStepForBranch.stepId,
-                      selectedStepForBranch.branchId,
-                      { condition: e.target.value }
-                    );
-                  }
-                }}
-                rows={3}
-                className={`w-full rounded-2xl border border-[#3166bf] bg-[#ffffff] px-3 py-2 text-xs ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3166bf] focus:outline-none resize-none`}
-                placeholder="Customer provides their full name and date of birth"
-              />
-              <p className={`text-[10px] ${colors.textTertiary} mt-1`}>
-                Describe the outcome or condition in natural language
-              </p>
+        {/* Section 2: Trigger and Branch Tags */}
+        <div className="p-4">
+          <h3 className="text-xs font-semibold text-[#151515] mb-3 uppercase tracking-wide">Tags</h3>
+          <div className="space-y-2">
+            <div
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData("step-type", "trigger");
+                e.dataTransfer.effectAllowed = "move";
+              }}
+              className="flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-[#3166bf] bg-[#3166bf]/10 cursor-grab active:cursor-grabbing transition hover:bg-[#3166bf]/20"
+            >
+              <Play className="h-4 w-4 text-[#3166bf]" />
+              <span className="text-sm font-semibold text-[#3166bf]">Trigger</span>
+            </div>
+            <div
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData("step-type", "branch");
+                e.dataTransfer.effectAllowed = "move";
+              }}
+              className="flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-[#9333ea] bg-[#9333ea]/10 cursor-grab active:cursor-grabbing transition hover:bg-[#9333ea]/20"
+            >
+              <GitMerge className="h-4 w-4 text-[#9333ea]" />
+              <span className="text-sm font-semibold text-[#9333ea]">Branch</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Branch Editing Workspace - Only show when editing a branch */}
+        {selectedStepForBranch && (
+          <div className="flex-1 border-t border-[#e5e7eb] overflow-y-auto flex flex-col">
+            <div className="border-b border-[#e5e7eb] px-4 py-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-[#151515]">New Condition</h3>
+              <button
+                onClick={() => setSelectedStepForBranch(null)}
+                className="p-1 hover:bg-[#f3f4f6] rounded transition"
+              >
+                <X className="h-4 w-4 text-[#151515]/50" />
+              </button>
             </div>
 
-            {/* Tags List - Optional */}
-            <div>
-              <label className={`block text-[10px] font-medium ${colors.textSecondary} mb-2`}>
-                Tags <span className={colors.textTertiary}>(optional)</span>
-              </label>
-              <div className="space-y-2">
-                {AVAILABLE_TAGS.map((tag) => (
-                  <button
-                    key={tag}
-                    onClick={() => selectTag(tag)}
-                    className={`w-full text-left px-3 py-2 rounded-2xl border transition text-sm ${
-                      currentBranch?.condition_tag === tag
-                        ? `border-[#3166bf] bg-[#3166bf]/20 ${colors.text}`
-                        : `border-[#e5e7eb] bg-[#ffffff] ${colors.textSecondary} hover:bg-[#f3f4f6]`
-                    }`}
-                  >
-                    <span
-                      className={`px-2 py-0.5 rounded text-xs font-mono ${
-                        tag.startsWith("@")
-                          ? "bg-[#3166bf]/20 text-[#3166bf] border border-[#3166bf]/30"
-                          : tag === "If Statement"
-                          ? "bg-[#aeb8c9]/20 text-[#3166bf] border border-[#aeb8c9]/30"
-                          : "bg-[#ebf9ef] text-[#70d4b4] border border-[#70d4b4]/30"
-                      }`}
-                    >
-                      {tag}
-                    </span>
-                  </button>
-                ))}
+            <div className="flex-1 overflow-y-auto p-4 space-y-6">
+              {/* Natural Language Condition Input */}
+              <div>
+                  <label className={`block text-[10px] font-medium ${colors.textSecondary} mb-2`}>
+                    If <span className={colors.textTertiary}>(description of an outcome)</span>
+                  </label>
+                  <textarea
+                    value={currentBranch?.condition || ""}
+                    onChange={(e) => {
+                      if (selectedStepForBranch) {
+                        updateBranch(
+                          selectedStepForBranch.stepId,
+                          selectedStepForBranch.branchId,
+                          { condition: e.target.value }
+                        );
+                      }
+                    }}
+                    rows={3}
+                    className={`w-full rounded-2xl border border-[#3166bf] bg-[#ffffff] px-3 py-2 text-xs ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3166bf] focus:outline-none resize-none`}
+                    placeholder="Customer provides their full name and date of birth"
+                  />
+                  <p className={`text-[10px] ${colors.textTertiary} mt-1`}>
+                    Describe the outcome or condition in natural language
+                  </p>
               </div>
-            </div>
 
-            {/* Proceed To Input */}
-            <div>
-              <label className={`block text-[10px] font-medium ${colors.textSecondary} mb-2`}>
-                proceed to <span className={colors.textTertiary}>(could be text or another question)</span>
-              </label>
-              <textarea
-                value={currentBranch?.target || ""}
-                onChange={(e) => {
-                  if (selectedStepForBranch) {
-                    updateBranch(
-                      selectedStepForBranch.stepId,
-                      selectedStepForBranch.branchId,
-                      { target: e.target.value }
-                    );
-                  }
-                }}
-                rows={3}
-                className={`w-full rounded-2xl border border-[#3166bf] bg-[#ffffff] ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3166bf] focus:outline-none resize-none px-3 py-2 text-sm`}
-                placeholder="Identity Verification step"
-              />
-              <p className={`text-[10px] ${colors.textTertiary} mt-1`}>
-                Describe the next step or action in natural language
-              </p>
-            </div>
-
-            {/* Quick Step Suggestions */}
-            {availableSteps.length > 0 && (
+              {/* Tags List - Optional */}
               <div>
                 <label className={`block text-[10px] font-medium ${colors.textSecondary} mb-2`}>
-                  Quick select from existing steps
+                  Tags <span className={colors.textTertiary}>(optional)</span>
                 </label>
                 <div className="space-y-2">
-                  {availableSteps.map((step) => (
+                  {AVAILABLE_TAGS.map((tag) => (
                     <button
-                      key={step.id}
-                      onClick={() => selectTargetStep(step.message.substring(0, 50))}
-                      className={`w-full text-left px-3 py-2 rounded-2xl border ${colors.border} ${colors.cardBg} ${colors.textSecondary} ${colors.hover} transition text-xs`}
+                      key={tag}
+                      onClick={() => selectTag(tag)}
+                      className={`w-full text-left px-3 py-2 rounded-2xl border transition text-sm ${
+                        currentBranch?.condition_tag === tag
+                          ? `border-[#3166bf] bg-[#3166bf]/20 ${colors.text}`
+                          : `border-[#e5e7eb] bg-[#ffffff] ${colors.textSecondary} hover:bg-[#f3f4f6]`
+                      }`}
                     >
-                      <div className="font-medium text-[10px]">{step.name}</div>
-                      <div className={`text-[10px] ${colors.textTertiary} mt-1 line-clamp-2`}>
-                        {step.message}
-                      </div>
+                      <span
+                        className={`px-2 py-0.5 rounded text-xs font-mono ${
+                          tag.startsWith("@")
+                            ? "bg-[#3166bf]/20 text-[#3166bf] border border-[#3166bf]/30"
+                            : tag === "If Statement"
+                            ? "bg-[#aeb8c9]/20 text-[#3166bf] border border-[#aeb8c9]/30"
+                            : "bg-[#ebf9ef] text-[#70d4b4] border border-[#70d4b4]/30"
+                        }`}
+                      >
+                        {tag}
+                      </span>
                     </button>
                   ))}
                 </div>
               </div>
-            )}
+
+              {/* Proceed To Input */}
+              <div>
+                <label className={`block text-[10px] font-medium ${colors.textSecondary} mb-2`}>
+                  proceed to <span className={colors.textTertiary}>(could be text or another question)</span>
+                </label>
+                <textarea
+                  value={currentBranch?.target || ""}
+                  onChange={(e) => {
+                    if (selectedStepForBranch) {
+                      updateBranch(
+                        selectedStepForBranch.stepId,
+                        selectedStepForBranch.branchId,
+                        { target: e.target.value }
+                      );
+                    }
+                  }}
+                  rows={3}
+                  className={`w-full rounded-2xl border border-[#3166bf] bg-[#ffffff] ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3166bf] focus:outline-none resize-none px-3 py-2 text-sm`}
+                  placeholder="Identity Verification step"
+                />
+                <p className={`text-[10px] ${colors.textTertiary} mt-1`}>
+                  Describe the next step or action in natural language
+                </p>
+              </div>
+
+              {/* Quick Step Suggestions */}
+              {availableSteps.length > 0 && (
+                <div>
+                  <label className={`block text-[10px] font-medium ${colors.textSecondary} mb-2`}>
+                    Quick select from existing steps
+                  </label>
+                  <div className="space-y-2">
+                    {availableSteps.map((step) => (
+                      <button
+                        key={step.id}
+                        onClick={() => selectTargetStep(step.message.substring(0, 50))}
+                        className={`w-full text-left px-3 py-2 rounded-2xl border ${colors.border} ${colors.cardBg} ${colors.textSecondary} ${colors.hover} transition text-xs`}
+                      >
+                        <div className="font-medium text-[10px]">{step.name}</div>
+                        <div className={`text-[10px] ${colors.textTertiary} mt-1 line-clamp-2`}>
+                          {step.message}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Confirmation Modal */}
       <ConfirmationModal
@@ -1599,9 +1639,9 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                 Save Selection
               </button>
             </div>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Preview Modal */}
       {previewModal.isOpen && previewModal.dataSource && (

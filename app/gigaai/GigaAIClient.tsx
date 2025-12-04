@@ -400,6 +400,7 @@ export default function GigaAIClient() {
           const response = await fetch(`/api/scenarios/${workflowId}`, {
             method: "DELETE",
           });
+          const responseData = await response.json().catch(() => ({}));
           if (response.ok) {
             setWorkflows((prev) => prev.filter((s) => s.id !== workflowId));
             if (selectedWorkflow?.id === workflowId) {
@@ -407,23 +408,22 @@ export default function GigaAIClient() {
             }
             setShowWorkflowMenu(null);
           } else {
-            const errorData = await response.json().catch(() => ({ error: "Failed to delete workflow" }));
             setConfirmationModal({
               isOpen: true,
               title: "Error",
-              message: errorData.error || "Failed to delete workflow. Please try again.",
+              message: responseData.error || "Failed to delete workflow. Please try again.",
               confirmText: "OK",
               cancelText: "",
               variant: "danger",
               onConfirm: () => setConfirmationModal({ ...confirmationModal, isOpen: false }),
             });
           }
-        } catch (error) {
+        } catch (error: any) {
           console.error("Failed to delete workflow:", error);
           setConfirmationModal({
             isOpen: true,
             title: "Error",
-            message: "An error occurred while deleting the workflow. Please try again.",
+            message: error?.message || "An error occurred while deleting the workflow. Please try again.",
             confirmText: "OK",
             cancelText: "",
             variant: "danger",
