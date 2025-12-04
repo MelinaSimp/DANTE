@@ -1254,7 +1254,7 @@ export default function GigaAIClient() {
         )}
 
         {/* Content Area */}
-        <div className={`flex-1 overflow-y-auto relative ${colors.text}`} style={{ background: '#242423', backgroundImage: 'url(/backgrounds/dunes.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}>
+        <div className={`flex-1 overflow-y-auto relative ${colors.text}`} style={{ background: '#ffffff', backgroundImage: 'none' }}>
             {activePage === "scenarios" ? (
                 // Scenarios page - full page, no gradient background
                 selectedAgent && selectedScenario ? (
@@ -1273,12 +1273,12 @@ export default function GigaAIClient() {
                     )
                   ) : null
                 ) : selectedAgent ? (
-                  <div className="flex items-center justify-center h-full bg-[#242423]" style={{ background: '#242423' }}>
+                  <div className="flex items-center justify-center h-full bg-[#ffffff]" style={{ background: '#ffffff' }}>
                     <div className="text-center max-w-md">
                       <div className="mb-6">
-                        <Folder className={`h-16 w-16 text-white/50 mx-auto mb-4`} />
-                        <h2 className={`text-2xl font-semibold text-white mb-2`}>No scenario selected</h2>
-                        <p className={`text-white/70 text-sm`}>
+                        <Folder className={`h-16 w-16 text-[#151515]/50 mx-auto mb-4`} />
+                        <h2 className={`text-2xl font-semibold text-[#151515] mb-2`}>No scenario selected</h2>
+                        <p className={`text-[#151515]/70 text-sm`}>
                           {scenarios.length === 0
                             ? "Create a scenario to start building your agent flow"
                             : "Select a scenario or create a new one"}
@@ -1287,7 +1287,7 @@ export default function GigaAIClient() {
                       {scenarios.length === 0 ? (
                         <button
                           onClick={() => setShowCreateScenarioModal(true)}
-                          className={`px-8 py-4 rounded-3xl bg-[#3351ff] hover:bg-[#4a64ff] text-white font-medium transition text-lg`}
+                          className={`px-8 py-4 rounded-3xl bg-[#3166bf] hover:bg-[#2a5aa8] text-white font-medium transition text-lg`}
                         >
                           Create your first scenario
                         </button>
@@ -1297,14 +1297,14 @@ export default function GigaAIClient() {
                             <button
                               key={scenario.id}
                               onClick={() => setSelectedScenario(scenario)}
-                              className={`w-full px-6 py-3 rounded-2xl border border-white/10 bg-[#242423] text-white hover:bg-[#242423]/80 transition text-left text-xs`}
+                              className={`w-full px-6 py-3 rounded-2xl border border-[#e5e7eb] bg-[#ffffff] text-[#151515] hover:bg-[#f3f4f6] transition text-left text-xs`}
                             >
                               {scenario.name}
                             </button>
                           ))}
                           <button
                             onClick={() => setShowCreateScenarioModal(true)}
-                            className={`w-full px-6 py-3 rounded-3xl bg-[#3351ff] hover:bg-[#4a64ff] text-white font-medium transition`}
+                            className={`w-full px-6 py-3 rounded-3xl bg-[#3166bf] hover:bg-[#2a5aa8] text-white font-medium transition`}
                           >
                             + Create new scenario
                           </button>

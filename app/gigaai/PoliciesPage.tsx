@@ -387,7 +387,7 @@ export default function PoliciesPage({ agentId }: PoliciesPageProps) {
   };
 
   return (
-    <div className={`h-full flex flex-col overflow-y-auto ${colors.text}`} style={{ backgroundImage: 'url(/backgrounds/tundra.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}>
+    <div className={`h-full flex flex-col overflow-y-auto ${colors.text}`} style={{ background: '#ffffff', backgroundImage: 'none' }}>
       <div className="max-w-4xl mx-auto w-full p-6">
         <div className="mb-6">
           <h2 className={`text-base font-semibold ${colors.text} mb-2`}>Policies</h2>
@@ -398,8 +398,8 @@ export default function PoliciesPage({ agentId }: PoliciesPageProps) {
 
       {/* Error Message */}
       {uploadError && (
-        <div className="mb-4 p-3 rounded-lg bg-red-500/20 border border-red-500/30">
-          <p className="text-sm text-red-300">{uploadError}</p>
+        <div className="mb-4 p-3 rounded-lg bg-[#fef2f2] border border-[#f0494a]/30">
+          <p className="text-sm text-[#f0494a]">{uploadError}</p>
           <button
             onClick={() => setUploadError(null)}
             className="mt-2 text-xs text-red-300 hover:text-red-200 underline"
@@ -411,9 +411,9 @@ export default function PoliciesPage({ agentId }: PoliciesPageProps) {
 
       {/* Drop Zone - Centered box */}
         <div
-          className={`rounded-lg border border-white/10 bg-[#242423]/90 backdrop-blur-sm p-6 transition ${
+          className={`rounded-lg border border-[#e5e7eb] bg-[#ffffff] p-6 transition ${
             draggedOver
-              ? `border-[#3351ff] bg-[#3351ff]/10`
+              ? `border-[#3166bf] bg-[#3166bf]/10`
               : ``
           }`}
         onDragOver={(e) => {
@@ -486,7 +486,7 @@ export default function PoliciesPage({ agentId }: PoliciesPageProps) {
               ))}
             </div>
             <label htmlFor="file-upload" className="cursor-pointer block">
-              <div className="text-center py-6 border-2 border-dashed border-white/20 rounded-lg hover:border-[#3351ff] transition">
+              <div className="text-center py-6 border-2 border-dashed border-[#e5e7eb] rounded-lg hover:border-[#3166bf] transition">
                 <Upload className={`h-8 w-8 ${colors.iconSecondary} mx-auto mb-2`} />
                 <p className={`${colors.textSecondary} text-sm mb-1`}>Drag and drop more files here</p>
                 <p className={`${colors.textTertiary} text-xs`}>or click to browse</p>
@@ -514,12 +514,12 @@ export default function PoliciesPage({ agentId }: PoliciesPageProps) {
             onChange={(e) => setTextInput(e.target.value)}
             placeholder="Enter policy text here..."
             rows={4}
-            className={`w-full rounded-lg border ${colors.border} ${colors.inputBg} px-3 py-2 text-sm ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none mb-3`}
+            className={`w-full rounded-lg border border-[#3166bf] bg-[#ffffff] px-3 py-2 text-sm ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3166bf] focus:outline-none mb-3`}
           />
           <div className="flex gap-2">
             <button
               onClick={addTextPolicy}
-              className="px-4 py-2 rounded-lg bg-[#3351ff] hover:bg-[#4a64ff] text-white text-sm font-medium"
+              className="px-4 py-2 rounded-lg bg-[#3166bf] hover:bg-[#2a5aa8] text-white text-sm font-medium"
             >
               Add Policy
             </button>
