@@ -4,12 +4,12 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 
-interface CreateScenarioModalProps {
+interface CreateWorkflowModalProps {
   onClose: () => void;
   onCreate: (name: string) => void;
 }
 
-export default function CreateScenarioModal({ onClose, onCreate }: CreateScenarioModalProps) {
+export default function CreateWorkflowModal({ onClose, onCreate }: CreateWorkflowModalProps) {
   const { colors } = useTheme();
   const [name, setName] = useState("");
 
@@ -23,9 +23,9 @@ export default function CreateScenarioModal({ onClose, onCreate }: CreateScenari
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className={`w-full max-w-md rounded-2xl border ${colors.border} bg-[#242423] p-6 shadow-2xl`}>
+      <div className={`w-full max-w-md rounded-2xl border ${colors.border} bg-[#ffffff] p-6 shadow-2xl`}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className={`text-lg font-semibold ${colors.text}`}>Create New Scenario</h3>
+          <h3 className={`text-lg font-semibold ${colors.text}`}>Create New Workflow</h3>
           <button
             onClick={onClose}
             className={`p-1 ${colors.hover} rounded transition`}
@@ -36,14 +36,14 @@ export default function CreateScenarioModal({ onClose, onCreate }: CreateScenari
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className={`block text-sm font-medium ${colors.textSecondary} mb-2`}>
-              Scenario Name
+              Workflow Name
             </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g., New account onboarding"
-              className={`w-full rounded-lg border ${colors.border} ${colors.inputBg} ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none px-4 py-2 text-sm`}
+              className={`w-full rounded-lg border border-[#3166bf] bg-[#ffffff] ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3166bf] focus:outline-none px-4 py-2 text-sm`}
               autoFocus
             />
           </div>
@@ -51,16 +51,15 @@ export default function CreateScenarioModal({ onClose, onCreate }: CreateScenari
             <button
               type="button"
               onClick={onClose}
-              className={`px-4 py-2 rounded-lg border ${colors.border} ${colors.bgTertiary} ${colors.text} ${colors.hover} text-sm transition`}
+              className={`px-4 py-2 rounded-lg border ${colors.border} ${colors.cardBg} ${colors.text} text-sm font-medium transition`}
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={!name.trim()}
-              className={`px-4 py-2 rounded-lg ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed`}
+              className={`px-4 py-2 rounded-lg ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white text-sm font-medium transition`}
             >
-              Create Scenario
+              Create Workflow
             </button>
           </div>
         </form>
@@ -68,5 +67,4 @@ export default function CreateScenarioModal({ onClose, onCreate }: CreateScenari
     </div>
   );
 }
-
 

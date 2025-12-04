@@ -779,11 +779,11 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
     <div className={`h-full flex ${colors.bg}`}>
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Scenario Header */}
+        {/* Workflow Header */}
         <div className={`border-b ${colors.border} ${colors.bg} px-6 py-4`}>
           <div className="flex items-center justify-between">
             <div>
-              <h2 className={`text-base font-semibold ${colors.text}`}>Scenario: {scenarioName}</h2>
+              <h2 className={`text-base font-semibold ${colors.text}`}>Workflow: {scenarioName}</h2>
             </div>
           </div>
         </div>
@@ -791,7 +791,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
         {/* Function Palette */}
         <div className={`border-b ${colors.border} ${colors.bg} px-6 py-4`}>
           <div className="max-w-6xl mx-auto">
-            <p className={`text-[10px] ${colors.textTertiary} mb-3`}>Drag a function into the scenario below to create a step</p>
+            <p className={`text-[10px] ${colors.textTertiary} mb-3`}>Drag a function into the workflow below to create a step</p>
             <div className="flex items-center gap-3 overflow-x-auto pb-2">
               {FUNCTION_PALETTE.map((fn) => {
                 const Icon = fn.icon;
@@ -825,7 +825,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
             <div className="mb-12">
               {/* Scenario Title */}
               <h3 className={`text-xs font-semibold ${colors.text} mb-4`}>
-                Scenario 1: "{scenarioName}" Inquiry
+                Workflow: "{scenarioName}"
               </h3>
 
               {/* Drop Zone + Steps - ONE BOX for all steps - Smaller box, centered */}

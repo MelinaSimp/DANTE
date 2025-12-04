@@ -34,14 +34,12 @@ import { useTheme } from "./ThemeProvider";
 import AgentCanvas from "./AgentCanvas";
 import CreateAgentModal from "./CreateAgentModal";
 import EditAgentModal from "./EditAgentModal";
-import CreateScenarioModal from "./CreateScenarioModal";
+import CreateWorkflowModal from "./CreateWorkflowModal";
 import AddDocModal from "./AddDocModal";
 import TestResults from "./TestResults";
-import SchedulePage from "./SchedulePage";
 import PoliciesPage from "./PoliciesPage";
 // REMOVED: DataSourcesPage - Data sources are now managed inline within Q/A steps
 import PersonalizationPage from "./PersonalizationPage";
-import EvaluationPage from "./EvaluationPage";
 import AdvancedPage from "./AdvancedPage";
 import ConfirmationModal from "./ConfirmationModal";
 import ChatInterface from "./ChatInterface";
@@ -58,7 +56,7 @@ interface Agent {
   updated_at: string;
 }
 
-interface Scenario {
+interface Workflow {
   id: string;
   name: string;
   agentId: string;
@@ -78,23 +76,23 @@ export default function GigaAIClient() {
   const { theme, setTheme, colors } = useTheme();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
-  const [scenarios, setScenarios] = useState<Scenario[]>([]);
-  const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
+  const [workflows, setWorkflows] = useState<Workflow[]>([]);
+  const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
   const [supportingDocs, setSupportingDocs] = useState<SupportingDoc[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditAgentModal, setShowEditAgentModal] = useState(false);
-  const [showCreateScenarioModal, setShowCreateScenarioModal] = useState(false);
+  const [showCreateWorkflowModal, setShowCreateWorkflowModal] = useState(false);
   const [showAddDocModal, setShowAddDocModal] = useState(false);
-  const [editingScenarioId, setEditingScenarioId] = useState<string | null>(null);
-  const [editingScenarioName, setEditingScenarioName] = useState("");
+  const [editingWorkflowId, setEditingWorkflowId] = useState<string | null>(null);
+  const [editingWorkflowName, setEditingWorkflowName] = useState("");
   const [activeTab, setActiveTab] = useState<"canvas" | "test">("canvas");
-  const [activePage, setActivePage] = useState<"scenarios" | "schedule" | "policies" | "personalization" | "evaluation" | "advanced">("scenarios");
+  const [activePage, setActivePage] = useState<"scenarios" | "policies" | "personalization" | "advanced">("scenarios");
   const [searchQuery, setSearchQuery] = useState("");
   const [agentsExpanded, setAgentsExpanded] = useState(true);
-  const [scenariosExpanded, setScenariosExpanded] = useState(true);
+  const [workflowsExpanded, setWorkflowsExpanded] = useState(true);
   const [docsExpanded, setDocsExpanded] = useState(true);
   const [showAgentMenu, setShowAgentMenu] = useState<string | null>(null);
-  const [showScenarioMenu, setShowScenarioMenu] = useState<string | null>(null);
+  const [showWorkflowMenu, setShowWorkflowMenu] = useState<string | null>(null);
   const [showDocMenu, setShowDocMenu] = useState<string | null>(null);
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
   const [workspaceName, setWorkspaceName] = useState<string>("Drift");
@@ -114,7 +112,7 @@ export default function GigaAIClient() {
   });
 
   const agentMenuRef = useRef<HTMLDivElement>(null);
-  const scenarioMenuRef = useRef<HTMLDivElement>(null);
+  const workflowMenuRef = useRef<HTMLDivElement>(null);
   const docMenuRef = useRef<HTMLDivElement>(null);
 
   // Load workspace name
@@ -174,28 +172,28 @@ export default function GigaAIClient() {
     loadAgents();
   }, []);
 
-      // Load scenarios and docs when agent is selected
+      // Load workflows and docs when agent is selected
       useEffect(() => {
         async function loadAgentData() {
           if (!selectedAgent) return;
           
           try {
-            // Load scenarios
-            const scenariosResponse = await fetch(`/api/agents/${selectedAgent.id}/scenarios`);
-            if (scenariosResponse.ok) {
-              const scenariosData = await scenariosResponse.json();
-              const loadedScenarios = scenariosData.map((s: any) => ({
+            // Load workflows
+            const workflowsResponse = await fetch(`/api/agents/${selectedAgent.id}/scenarios`);
+            if (workflowsResponse.ok) {
+              const workflowsData = await workflowsResponse.json();
+              const loadedWorkflows = workflowsData.map((s: any) => ({
                 id: s.id,
                 name: s.name,
                 agentId: s.agent_id,
                 created_at: s.created_at,
                 updated_at: s.updated_at,
               }));
-              setScenarios(loadedScenarios);
+              setWorkflows(loadedWorkflows);
               
-              // Auto-select first scenario if none selected and we're on scenarios page
-              if (activePage === "scenarios" && loadedScenarios.length > 0 && !selectedScenario) {
-                setSelectedScenario(loadedScenarios[0]);
+              // Auto-select first workflow if none selected and we're on workflows page
+              if (activePage === "scenarios" && loadedWorkflows.length > 0 && !selectedWorkflow) {
+                setSelectedWorkflow(loadedWorkflows[0]);
               }
             }
 
@@ -216,7 +214,7 @@ export default function GigaAIClient() {
       }
     }
     loadAgentData();
-  }, [selectedAgent, activePage, selectedScenario]);
+  }, [selectedAgent, activePage, selectedWorkflow]);
 
   const handleCreateAgent = async (agentData: { name: string; modality: "chat" | "voice" | "multi-modal"; description?: string }) => {
     try {
@@ -320,7 +318,7 @@ export default function GigaAIClient() {
     }
   };
 
-  const handleCreateScenario = async (name: string) => {
+  const handleCreateWorkflow = async (name: string) => {
     if (!selectedAgent) return;
     if (!name || !name.trim()) return;
 
@@ -332,16 +330,16 @@ export default function GigaAIClient() {
       });
       if (response.ok) {
         const data = await response.json();
-        const newScenario: Scenario = {
+        const newWorkflow: Workflow = {
           id: data.id,
           name: data.name,
           agentId: data.agent_id,
           created_at: data.created_at,
           updated_at: data.updated_at,
         };
-        setScenarios([...scenarios, newScenario]);
-        setSelectedScenario(newScenario);
-        setShowCreateScenarioModal(false);
+        setWorkflows([...workflows, newWorkflow]);
+        setSelectedWorkflow(newWorkflow);
+        setShowCreateWorkflowModal(false);
         setActivePage("scenarios");
       } else {
         console.error("Failed to create scenario");
@@ -351,68 +349,68 @@ export default function GigaAIClient() {
     }
   };
 
-  const handleEditScenario = (scenario: Scenario) => {
-    setEditingScenarioId(scenario.id);
-    setEditingScenarioName(scenario.name);
-    setShowScenarioMenu(null);
+  const handleEditWorkflow = (workflow: Workflow) => {
+    setEditingWorkflowId(workflow.id);
+    setEditingWorkflowName(workflow.name);
+    setShowWorkflowMenu(null);
   };
 
-  const handleSaveScenarioEdit = async () => {
-    if (!editingScenarioId || !editingScenarioName.trim()) return;
+  const handleSaveWorkflowEdit = async () => {
+    if (!editingWorkflowId || !editingWorkflowName.trim()) return;
     
     try {
-      const response = await fetch(`/api/scenarios/${editingScenarioId}`, {
+      const response = await fetch(`/api/scenarios/${editingWorkflowId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: editingScenarioName.trim() }),
+        body: JSON.stringify({ name: editingWorkflowName.trim() }),
       });
       if (response.ok) {
         const data = await response.json();
-        setScenarios((prev) =>
+        setWorkflows((prev) =>
           prev.map((s) =>
-            s.id === editingScenarioId
+            s.id === editingWorkflowId
               ? { ...s, name: data.name, updated_at: data.updated_at }
               : s
           )
         );
-        if (selectedScenario?.id === editingScenarioId) {
-          setSelectedScenario({ ...selectedScenario, name: data.name });
+        if (selectedWorkflow?.id === editingWorkflowId) {
+          setSelectedWorkflow({ ...selectedWorkflow, name: data.name });
         }
-        setEditingScenarioId(null);
-        setEditingScenarioName("");
+        setEditingWorkflowId(null);
+        setEditingWorkflowName("");
       } else {
-        console.error("Failed to update scenario");
+        console.error("Failed to update workflow");
       }
     } catch (error) {
-      console.error("Failed to update scenario:", error);
+      console.error("Failed to update workflow:", error);
     }
   };
 
-  const handleDeleteScenario = async (scenarioId: string) => {
+  const handleDeleteWorkflow = async (workflowId: string) => {
     setConfirmationModal({
       isOpen: true,
-      title: "Delete Scenario",
-      message: "Are you sure you want to delete this scenario? This action cannot be undone.",
+      title: "Delete Workflow",
+      message: "Are you sure you want to delete this workflow? This action cannot be undone.",
       confirmText: "Delete",
       cancelText: "Cancel",
       variant: "danger",
       onConfirm: async () => {
         setConfirmationModal({ ...confirmationModal, isOpen: false });
         try {
-          const response = await fetch(`/api/scenarios/${scenarioId}`, {
+          const response = await fetch(`/api/scenarios/${workflowId}`, {
             method: "DELETE",
           });
           if (response.ok) {
-            setScenarios((prev) => prev.filter((s) => s.id !== scenarioId));
-            if (selectedScenario?.id === scenarioId) {
-              setSelectedScenario(null);
+            setWorkflows((prev) => prev.filter((s) => s.id !== workflowId));
+            if (selectedWorkflow?.id === workflowId) {
+              setSelectedWorkflow(null);
             }
-            setShowScenarioMenu(null);
+            setShowWorkflowMenu(null);
           } else {
-            console.error("Failed to delete scenario");
+            console.error("Failed to delete workflow");
           }
         } catch (error) {
-          console.error("Failed to delete scenario:", error);
+          console.error("Failed to delete workflow:", error);
         }
       },
     });
@@ -486,7 +484,7 @@ export default function GigaAIClient() {
     setConfirmationModal({
       isOpen: true,
       title: "Delete Agent",
-      message: "Are you sure you want to delete this agent? This will delete all scenarios, steps, and related data. This action cannot be undone.",
+      message: "Are you sure you want to delete this agent? This will delete all workflows, steps, and related data. This action cannot be undone.",
       confirmText: "Delete",
       cancelText: "Cancel",
       variant: "danger",
@@ -500,8 +498,8 @@ export default function GigaAIClient() {
             setAgents((prev) => prev.filter((a) => a.id !== agentId));
             if (selectedAgent?.id === agentId) {
               setSelectedAgent(null);
-              setScenarios([]);
-              setSelectedScenario(null);
+              setWorkflows([]);
+              setSelectedWorkflow(null);
               setSupportingDocs([]);
             }
             setShowAgentMenu(null);
@@ -556,12 +554,12 @@ export default function GigaAIClient() {
       return;
     }
 
-    // Check if agent has scenarios
-    if (scenarios.length === 0) {
+    // Check if agent has workflows
+    if (workflows.length === 0) {
       setConfirmationModal({
         isOpen: true,
         title: "Cannot Deploy",
-        message: "Agent must have at least one scenario before deployment.",
+        message: "Agent must have at least one workflow before deployment.",
         confirmText: "OK",
         cancelText: "",
         variant: "warning",
@@ -884,21 +882,15 @@ export default function GigaAIClient() {
             <nav className="p-4 space-y-1 border-t border-[#151515]">
               <NavItem
                 icon={FileText}
-                label="Scenarios"
+                label="Workflows"
                 active={activePage === "scenarios"}
                 onClick={() => {
                   setActivePage("scenarios");
-                  // Auto-select first scenario if available
-                  if (selectedAgent && scenarios.length > 0 && !selectedScenario) {
-                    setSelectedScenario(scenarios[0]);
+                  // Auto-select first workflow if available
+                  if (selectedAgent && workflows.length > 0 && !selectedWorkflow) {
+                    setSelectedWorkflow(workflows[0]);
                   }
                 }}
-              />
-              <NavItem
-                icon={Calendar}
-                label="Schedule"
-                active={activePage === "schedule"}
-                onClick={() => setActivePage("schedule")}
               />
               <NavItem
                 icon={FileText}
@@ -914,12 +906,6 @@ export default function GigaAIClient() {
                 onClick={() => setActivePage("personalization")}
               />
               <NavItem
-                icon={Gauge}
-                label="Evaluation"
-                active={activePage === "evaluation"}
-                onClick={() => setActivePage("evaluation")}
-              />
-              <NavItem
                 icon={Code}
                 label="Advanced"
                 active={activePage === "advanced"}
@@ -928,63 +914,63 @@ export default function GigaAIClient() {
             </nav>
           )}
 
-          {/* Scenarios Section - Only show when agent is selected */}
+          {/* Workflows Section - Only show when agent is selected */}
           {selectedAgent && (
-            <div className="p-4 border-t border-white/10">
+            <div className="p-4 border-t border-[#151515]">
               <div className="mt-4">
               <div className="flex items-center justify-between mb-1">
                   <button
-                      onClick={() => setScenariosExpanded(!scenariosExpanded)}
+                      onClick={() => setWorkflowsExpanded(!workflowsExpanded)}
                       className={`w-full flex items-center justify-between px-3 py-2 rounded-2xl ${sidebarTextSecondary} hover:bg-[#f3f4f6] transition text-xs`}
                   >
                     <div className="flex items-center gap-3">
                       <Folder className={`h-4 w-4 ${sidebarIconSecondary}`} />
-                      Scenarios
+                      Workflows
                     </div>
-                    {scenariosExpanded ? (
+                    {workflowsExpanded ? (
                       <ChevronUp className={`h-3 w-3 ${sidebarIconSecondary}`} />
                     ) : (
                       <ChevronDown className={`h-3 w-3 ${sidebarIconSecondary}`} />
                     )}
                   </button>
               </div>
-              {scenariosExpanded && (
+              {workflowsExpanded && (
                 <div className="ml-4 mt-1 space-y-1">
-                  {/* Scenarios List */}
-                  {scenarios
-                    .filter((scenario) =>
+                  {/* Workflows List */}
+                  {workflows
+                    .filter((workflow) =>
                       !searchQuery ||
-                      scenario.name.toLowerCase().includes(searchQuery.toLowerCase())
+                      workflow.name.toLowerCase().includes(searchQuery.toLowerCase())
                     )
-                    .map((scenario) => (
-                      <div key={scenario.id} className="relative">
-                        {editingScenarioId === scenario.id ? (
+                    .map((workflow) => (
+                      <div key={workflow.id} className="relative">
+                        {editingWorkflowId === workflow.id ? (
                           <div className={`flex items-center gap-2 p-2 rounded-2xl bg-[#ffffff] border border-[#e5e7eb]`}>
                             <input
                               type="text"
-                              value={editingScenarioName}
-                              onChange={(e) => setEditingScenarioName(e.target.value)}
+                              value={editingWorkflowName}
+                              onChange={(e) => setEditingWorkflowName(e.target.value)}
                               onKeyDown={(e) => {
                                 if (e.key === "Enter") {
-                                  handleSaveScenarioEdit();
+                                  handleSaveWorkflowEdit();
                                 } else if (e.key === "Escape") {
-                                  setEditingScenarioId(null);
-                                  setEditingScenarioName("");
+                                  setEditingWorkflowId(null);
+                                  setEditingWorkflowName("");
                                 }
                               }}
                               className={`flex-1 px-2 py-1 rounded-2xl bg-[#ffffff] border border-[#3166bf] text-xs ${sidebarTextColor} focus:border-[#3166bf] focus:outline-none`}
                               autoFocus
                             />
                             <button
-                              onClick={handleSaveScenarioEdit}
+                              onClick={handleSaveWorkflowEdit}
                               className={`p-1 ${themeClasses.bgHover} rounded-full`}
                             >
                               <CheckCircle className="h-4 w-4 text-green-400" />
                             </button>
                             <button
                               onClick={() => {
-                                setEditingScenarioId(null);
-                                setEditingScenarioName("");
+                                setEditingWorkflowId(null);
+                                setEditingWorkflowName("");
                               }}
                               className={`p-1 ${themeClasses.bgHover} rounded-full`}
                             >
@@ -994,36 +980,36 @@ export default function GigaAIClient() {
                         ) : (
                           <button
                             onClick={() => {
-                              setSelectedScenario(scenario);
+                              setSelectedWorkflow(workflow);
                               setActivePage("scenarios");
                             }}
                             className={`w-full text-left px-3 py-2 rounded-2xl text-sm transition flex items-center justify-between group ${
-                              selectedScenario?.id === scenario.id
+                              selectedWorkflow?.id === workflow.id
                                 ? "bg-[#70d4b4] text-[#151515] border border-[#151515]"
                                 : `${sidebarTextTertiary} hover:bg-[#f3f4f6]`
                             }`}
                           >
                             <span className="flex items-center gap-2 flex-1 min-w-0">
                               <FileText className={`h-3 w-3 flex-shrink-0 ${themeClasses.icon}`} />
-                              <span className="truncate">{scenario.name}</span>
+                              <span className="truncate">{workflow.name}</span>
                             </span>
                             <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setShowScenarioMenu(showScenarioMenu === scenario.id ? null : scenario.id);
+                                  setShowWorkflowMenu(showWorkflowMenu === workflow.id ? null : workflow.id);
                                 }}
                                     className={`p-1 hover:bg-[#f3f4f6] rounded-full`}
                                   >
                                     <MoreVertical className={`h-3 w-3 ${sidebarIconSecondary}`} />
                               </button>
                             </div>
-                            {showScenarioMenu === scenario.id && (
+                            {showWorkflowMenu === workflow.id && (
                               <div className={`absolute right-0 top-full mt-1 z-10 bg-[#ffffff] border border-[#e5e7eb] rounded-2xl shadow-lg min-w-[120px]`}>
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleEditScenario(scenario);
+                                    handleEditWorkflow(workflow);
                                   }}
                                   className={`w-full text-left px-3 py-2 text-sm ${sidebarTextSecondary} hover:bg-[#f3f4f6] flex items-center gap-2`}
                                 >
@@ -1033,7 +1019,7 @@ export default function GigaAIClient() {
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      handleDeleteScenario(scenario.id);
+                                      handleDeleteWorkflow(workflow.id);
                                     }}
                                     className={`w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/20 flex items-center gap-2`}
                                   >
@@ -1046,13 +1032,13 @@ export default function GigaAIClient() {
                         )}
                       </div>
                     ))}
-                  {/* Add Scenario Button */}
+                  {/* Add Workflow Button */}
                       <button
-                        onClick={() => setShowCreateScenarioModal(true)}
+                        onClick={() => setShowCreateWorkflowModal(true)}
                         className={`w-full text-left px-3 py-2 rounded-2xl text-xs ${sidebarTextTertiary} hover:bg-[#f3f4f6] flex items-center gap-2 border border-dashed border-[#e5e7eb]`}
                       >
                         <Plus className={`h-3 w-3 ${sidebarIconSecondary}`} />
-                        Add scenario
+                        Add workflow
                       </button>
                 </div>
               )}
@@ -1256,13 +1242,13 @@ export default function GigaAIClient() {
         {/* Content Area */}
         <div className={`flex-1 overflow-y-auto relative ${colors.text}`} style={{ background: '#ffffff', backgroundImage: 'none' }}>
             {activePage === "scenarios" ? (
-                // Scenarios page - full page, no gradient background
-                selectedAgent && selectedScenario ? (
+                // Workflows page - full page, no gradient background
+                selectedAgent && selectedWorkflow ? (
                   activeTab === "canvas" ? (
                     <AgentCanvas
                       agentId={selectedAgent.id}
-                      scenarioId={selectedScenario.id}
-                      scenarioName={selectedScenario.name}
+                      scenarioId={selectedWorkflow.id}
+                      scenarioName={selectedWorkflow.name}
                       isDeployed={selectedAgent?.status?.toLowerCase() === "deployed"}
                     />
                   ) : activeTab === "test" ? (
@@ -1277,36 +1263,36 @@ export default function GigaAIClient() {
                     <div className="text-center max-w-md">
                       <div className="mb-6">
                         <Folder className={`h-16 w-16 text-[#151515]/50 mx-auto mb-4`} />
-                        <h2 className={`text-2xl font-semibold text-[#151515] mb-2`}>No scenario selected</h2>
+                        <h2 className={`text-2xl font-semibold text-[#151515] mb-2`}>No workflow selected</h2>
                         <p className={`text-[#151515]/70 text-sm`}>
-                          {scenarios.length === 0
-                            ? "Create a scenario to start building your agent flow"
-                            : "Select a scenario or create a new one"}
+                          {workflows.length === 0
+                            ? "Create a workflow to start building your agent flow"
+                            : "Select a workflow or create a new one"}
                         </p>
                       </div>
-                      {scenarios.length === 0 ? (
+                      {workflows.length === 0 ? (
                         <button
-                          onClick={() => setShowCreateScenarioModal(true)}
+                          onClick={() => setShowCreateWorkflowModal(true)}
                           className={`px-8 py-4 rounded-3xl bg-[#3166bf] hover:bg-[#2a5aa8] text-white font-medium transition text-lg`}
                         >
-                          Create your first scenario
+                          Create your first workflow
                         </button>
                       ) : (
                         <div className="space-y-3">
-                          {scenarios.map((scenario) => (
+                          {workflows.map((workflow) => (
                             <button
-                              key={scenario.id}
-                              onClick={() => setSelectedScenario(scenario)}
+                              key={workflow.id}
+                              onClick={() => setSelectedWorkflow(workflow)}
                               className={`w-full px-6 py-3 rounded-2xl border border-[#e5e7eb] bg-[#ffffff] text-[#151515] hover:bg-[#f3f4f6] transition text-left text-xs`}
                             >
-                              {scenario.name}
+                              {workflow.name}
                             </button>
                           ))}
                           <button
-                            onClick={() => setShowCreateScenarioModal(true)}
+                            onClick={() => setShowCreateWorkflowModal(true)}
                             className={`w-full px-6 py-3 rounded-3xl bg-[#3166bf] hover:bg-[#2a5aa8] text-white font-medium transition`}
                           >
-                            + Create new scenario
+                            + Create new workflow
                           </button>
                         </div>
                       )}
@@ -1316,14 +1302,10 @@ export default function GigaAIClient() {
               ) : (
                 // All other pages
                 <div className={`h-full ${colors.bg} ${colors.text}`}>
-                  {activePage === "schedule" ? (
-                    <SchedulePage />
-                  ) : activePage === "policies" ? (
+                  {activePage === "policies" ? (
                     selectedAgent ? <PoliciesPage agentId={selectedAgent.id} /> : null
                   ) : activePage === "personalization" ? (
                     <PersonalizationPage agentId={selectedAgent?.id} />
-                  ) : activePage === "evaluation" ? (
-                    selectedAgent ? <EvaluationPage agentId={selectedAgent.id} /> : null
                   ) : activePage === "advanced" ? (
                     selectedAgent ? (
                       <AdvancedPage
@@ -1347,10 +1329,10 @@ export default function GigaAIClient() {
       )}
 
       {/* Create Scenario Modal */}
-      {showCreateScenarioModal && (
-        <CreateScenarioModal
-          onClose={() => setShowCreateScenarioModal(false)}
-          onCreate={handleCreateScenario}
+      {showCreateWorkflowModal && (
+        <CreateWorkflowModal
+          onClose={() => setShowCreateWorkflowModal(false)}
+          onCreate={handleCreateWorkflow}
         />
       )}
 
