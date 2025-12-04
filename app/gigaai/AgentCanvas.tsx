@@ -28,6 +28,7 @@ interface Step {
   selected_data_source_ids?: string[];
   x?: number; // Canvas position
   y?: number; // Canvas position
+  connections?: Array<{ fromSide: "top" | "bottom" | "left" | "right"; toStepId: string; toSide: "top" | "bottom" | "left" | "right" }>; // Connections from this step
 }
 
 interface Scenario {
@@ -153,6 +154,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
   const [selectedStepForBranch, setSelectedStepForBranch] = useState<{ scenarioId: string; stepId: string; branchId: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [draggingStep, setDraggingStep] = useState<{ stepId: string; offsetX: number; offsetY: number } | null>(null);
+  const [connectingFrom, setConnectingFrom] = useState<{ stepId: string; side: "top" | "bottom" | "left" | "right" } | null>(null);
   const [dataSourceModal, setDataSourceModal] = useState<{
     isOpen: boolean;
     stepId: string | null;
@@ -704,6 +706,58 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
     );
   };
 
+  const handleConnectionPointClick = (stepId: string, side: "top" | "bottom" | "left" | "right") => {
+    if (isDeployed) {
+      setConfirmationModal({
+        isOpen: true,
+        title: "Cannot Edit",
+        message: "This agent is deployed. Please cancel deployment to make changes.",
+        confirmText: "OK",
+        cancelText: "",
+        variant: "warning",
+        onConfirm: () => setConfirmationModal({ ...confirmationModal, isOpen: false }),
+      });
+      return;
+    }
+
+    if (!connectingFrom) {
+      // Start a new connection
+      setConnectingFrom({ stepId, side });
+    } else {
+      // Complete the connection
+      if (connectingFrom.stepId === stepId) {
+        // Clicked the same step - cancel connection
+        setConnectingFrom(null);
+      } else {
+        // Connect from connectingFrom to this step
+        const fromStep = scenario.steps.find(s => s.id === connectingFrom.stepId);
+        if (fromStep) {
+          const newConnection = {
+            fromSide: connectingFrom.side,
+            toStepId: stepId,
+            toSide: side,
+          };
+          
+          // Update local state
+          setScenario(prev => ({
+            ...prev,
+            steps: prev.steps.map(s => 
+              s.id === connectingFrom.stepId
+                ? { 
+                    ...s, 
+                    connections: [...(s.connections || []), newConnection]
+                  }
+                : s
+            )
+          }));
+          
+          // TODO: Save connection to API
+          setConnectingFrom(null);
+        }
+      }
+    }
+  };
+
   const getCurrentBranch = () => {
     if (!selectedStepForBranch) return null;
     const step = scenario.steps.find((s) => s.id === selectedStepForBranch.stepId);
@@ -1006,6 +1060,98 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                       }
                       return null;
                     })()}
+                    {/* Render connection lines between connected blocks */}
+                    {scenario.steps.flatMap((step) => {
+                      if (!step.connections || step.connections.length === 0) return [];
+                      return step.connections.map((connection, connIdx) => {
+                        const toStep = scenario.steps.find(s => s.id === connection.toStepId);
+                        if (!toStep) return null;
+                        
+                        const fromStepX = draggingStep?.stepId === step.id 
+                          ? draggingStep.offsetX 
+                          : (step.x ?? 200);
+                        const fromStepY = draggingStep?.stepId === step.id 
+                          ? draggingStep.offsetY 
+                          : (step.y ?? 200);
+                        const toStepX = draggingStep?.stepId === toStep.id 
+                          ? draggingStep.offsetX 
+                          : (toStep.x ?? 200);
+                        const toStepY = draggingStep?.stepId === toStep.id 
+                          ? draggingStep.offsetY 
+                          : (toStep.y ?? 200);
+                        
+                        // Calculate positions for connection points
+                        const blockHeight = 100; // Approximate block height
+                        const blockWidth = 320;
+                        
+                        let fromX = fromStepX + blockWidth / 2;
+                        let fromY = fromStepY;
+                        if (connection.fromSide === "top") {
+                          fromY = fromStepY - 2;
+                        } else if (connection.fromSide === "bottom") {
+                          fromY = fromStepY + blockHeight;
+                        } else if (connection.fromSide === "left") {
+                          fromX = fromStepX - 2;
+                          fromY = fromStepY + blockHeight / 2;
+                        } else if (connection.fromSide === "right") {
+                          fromX = fromStepX + blockWidth + 2;
+                          fromY = fromStepY + blockHeight / 2;
+                        }
+                        
+                        let toX = toStepX + blockWidth / 2;
+                        let toY = toStepY;
+                        if (connection.toSide === "top") {
+                          toY = toStepY - 2;
+                        } else if (connection.toSide === "bottom") {
+                          toY = toStepY + blockHeight;
+                        } else if (connection.toSide === "left") {
+                          toX = toStepX - 2;
+                          toY = toStepY + blockHeight / 2;
+                        } else if (connection.toSide === "right") {
+                          toX = toStepX + blockWidth + 2;
+                          toY = toStepY + blockHeight / 2;
+                        }
+                        
+                        const dx = toX - fromX;
+                        const dy = toY - fromY;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+                        
+                        return (
+                          <svg
+                            key={`conn-${step.id}-${connection.toStepId}-${connIdx}`}
+                            className="absolute pointer-events-none z-0"
+                            style={{
+                              left: `${Math.min(fromX, toX) - 10}px`,
+                              top: `${Math.min(fromY, toY) - 10}px`,
+                              width: `${Math.abs(dx) + 20}px`,
+                              height: `${Math.abs(dy) + 20}px`,
+                            }}
+                          >
+                            <line
+                              x1={fromX < toX ? 10 : Math.abs(dx) + 10}
+                              y1={fromY < toY ? 10 : Math.abs(dy) + 10}
+                              x2={toX < fromX ? 10 : Math.abs(dx) + 10}
+                              y2={toY < fromY ? 10 : Math.abs(dy) + 10}
+                              stroke="#70d4b4"
+                              strokeWidth="2"
+                              markerEnd="url(#arrowhead)"
+                            />
+                            <defs>
+                              <marker
+                                id={`arrowhead-${step.id}-${connIdx}`}
+                                markerWidth="10"
+                                markerHeight="10"
+                                refX="9"
+                                refY="3"
+                                orient="auto"
+                              >
+                                <polygon points="0 0, 10 3, 0 6" fill="#70d4b4" />
+                              </marker>
+                            </defs>
+                          </svg>
+                        );
+                      }).filter(Boolean);
+                    })}
                     {scenario.steps.map((step, stepIdx) => {
                       const stepCategory = getStepCategory(step.type);
                       const paletteItem = FUNCTION_PALETTE.find(p => p.type === step.type);
@@ -1068,23 +1214,59 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                           {/* Connection Points - Top, Bottom, Left, Right */}
                           {/* Top connection point */}
                           <div 
-                            className="absolute -top-2 left-1/2 transform -translate-x-1/2 w-4 h-4 rounded-full bg-[#3166bf] border-2 border-white cursor-pointer hover:bg-[#2a5aa8] hover:scale-110 transition z-20"
-                            title="Connect from top"
+                            className={`absolute -top-2 left-1/2 transform -translate-x-1/2 w-4 h-4 rounded-full border-2 border-white cursor-pointer hover:scale-110 transition z-20 ${
+                              connectingFrom?.stepId === step.id && connectingFrom?.side === "top"
+                                ? "bg-[#9333ea] scale-125"
+                                : "bg-[#3166bf] hover:bg-[#2a5aa8]"
+                            }`}
+                            title={connectingFrom ? "Click another connection point to connect" : "Click to start connection"}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (isDeployed) return;
+                              handleConnectionPointClick(step.id, "top");
+                            }}
                           />
                           {/* Bottom connection point */}
                           <div 
-                            className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-4 h-4 rounded-full bg-[#3166bf] border-2 border-white cursor-pointer hover:bg-[#2a5aa8] hover:scale-110 transition z-20"
-                            title="Connect from bottom"
+                            className={`absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-4 h-4 rounded-full border-2 border-white cursor-pointer hover:scale-110 transition z-20 ${
+                              connectingFrom?.stepId === step.id && connectingFrom?.side === "bottom"
+                                ? "bg-[#9333ea] scale-125"
+                                : "bg-[#3166bf] hover:bg-[#2a5aa8]"
+                            }`}
+                            title={connectingFrom ? "Click another connection point to connect" : "Click to start connection"}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (isDeployed) return;
+                              handleConnectionPointClick(step.id, "bottom");
+                            }}
                           />
                           {/* Left connection point */}
                           <div 
-                            className="absolute top-1/2 -left-2 transform -translate-y-1/2 w-4 h-4 rounded-full bg-[#3166bf] border-2 border-white cursor-pointer hover:bg-[#2a5aa8] hover:scale-110 transition z-20"
-                            title="Connect from left"
+                            className={`absolute top-1/2 -left-2 transform -translate-y-1/2 w-4 h-4 rounded-full border-2 border-white cursor-pointer hover:scale-110 transition z-20 ${
+                              connectingFrom?.stepId === step.id && connectingFrom?.side === "left"
+                                ? "bg-[#9333ea] scale-125"
+                                : "bg-[#3166bf] hover:bg-[#2a5aa8]"
+                            }`}
+                            title={connectingFrom ? "Click another connection point to connect" : "Click to start connection"}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (isDeployed) return;
+                              handleConnectionPointClick(step.id, "left");
+                            }}
                           />
                           {/* Right connection point */}
                           <div 
-                            className="absolute top-1/2 -right-2 transform -translate-y-1/2 w-4 h-4 rounded-full bg-[#3166bf] border-2 border-white cursor-pointer hover:bg-[#2a5aa8] hover:scale-110 transition z-20"
-                            title="Connect from right"
+                            className={`absolute top-1/2 -right-2 transform -translate-y-1/2 w-4 h-4 rounded-full border-2 border-white cursor-pointer hover:scale-110 transition z-20 ${
+                              connectingFrom?.stepId === step.id && connectingFrom?.side === "right"
+                                ? "bg-[#9333ea] scale-125"
+                                : "bg-[#3166bf] hover:bg-[#2a5aa8]"
+                            }`}
+                            title={connectingFrom ? "Click another connection point to connect" : "Click to start connection"}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (isDeployed) return;
+                              handleConnectionPointClick(step.id, "right");
+                            }}
                           />
                           
                           <div className="flex items-start justify-between gap-3 relative z-0">
