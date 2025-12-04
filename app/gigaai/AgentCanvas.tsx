@@ -909,19 +909,18 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
         {/* Fullscreen Content - Infinite/Pageless Canvas */}
         <div className={`flex-1 overflow-auto bg-[#ffffff]`} style={{ background: '#ffffff', backgroundImage: 'none' }}>
           <div className="min-w-full min-h-full p-8">
-            <div className="mb-8">
-              {/* Scenario Title */}
-              <h3 className={`text-xs font-semibold ${colors.text} mb-6`}>
-                Workflow: "{scenarioName}"
-              </h3>
+            {/* Scenario Title */}
+            <h3 className={`text-xs font-semibold ${colors.text} mb-6`}>
+              Workflow: "{scenarioName}"
+            </h3>
 
-              {/* Drop Zone + Steps - Infinite canvas, no width restrictions */}
-              <div
-                className={`min-w-full min-h-[600px] transition ${
-                  draggedOver
-                    ? "border-2 border-dashed border-[#3166bf] bg-[#3166bf]/5 rounded-lg"
-                    : ""
-                }`}
+            {/* Drop Zone + Steps - Infinite pageless canvas, no width restrictions */}
+            <div
+              className={`min-w-full min-h-[600px] w-full transition relative ${
+                draggedOver
+                  ? "border-2 border-dashed border-[#3166bf] bg-[#3166bf]/5 rounded-lg"
+                  : ""
+              }`}
                 onDragOver={(e) => {
                   e.preventDefault();
                   setDraggedOver(true);
