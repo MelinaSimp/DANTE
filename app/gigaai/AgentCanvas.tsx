@@ -1017,14 +1017,14 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                           />
                           
                           <div className="flex items-start justify-between gap-3 relative z-0">
-                            <div className="flex items-start gap-3 flex-1 min-w-0">
+                            <div className="flex items-start gap-3" style={{ width: '100%', maxWidth: '280px' }}>
                               {/* Step Icon */}
                               <div className="flex-shrink-0 mt-0.5">
                                 <StepIcon className="h-5 w-5 text-[#151515]" />
                               </div>
                               
                               {/* Step Content */}
-                              <div className="flex-1 min-w-0">
+                              <div style={{ flex: '1 1 auto', minWidth: 0, maxWidth: '240px' }}>
                                 <h4 className="text-sm font-semibold text-[#151515] mb-1">
                                   {paletteItem?.label || step.type}
                                 </h4>
