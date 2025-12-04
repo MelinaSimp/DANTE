@@ -26,6 +26,8 @@ interface Step {
   branches?: Branch[];
   sort_order?: number;
   selected_data_source_ids?: string[];
+  x?: number; // Canvas position
+  y?: number; // Canvas position
 }
 
 interface Scenario {
@@ -204,7 +206,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
           
           // Load branches for each step
           const stepsWithBranches = await Promise.all(
-            stepsData.map(async (step: any) => {
+            stepsData.map(async (step: any, idx: number) => {
               const branchesResponse = await fetch(`/api/steps/${step.id}/branches`);
               const branches = branchesResponse.ok ? await branchesResponse.json() : [];
               return {
@@ -223,6 +225,8 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                 })),
                 sort_order: step.sort_order,
                 selected_data_source_ids: step.selected_data_source_ids || [],
+                x: step.x ?? 200, // Default x position
+                y: step.y ?? (200 + idx * 180), // Default y position with spacing
               };
             })
           );
@@ -898,15 +902,52 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden bg-[#ffffff]">
         {/* Fullscreen Content - Infinite/Pageless Canvas (n8n-style, white theme) */}
-        <div className={`flex-1 overflow-auto relative`} style={{
-          background: '#ffffff',
-          backgroundImage: `
-            linear-gradient(to right, #e5e7eb 1px, transparent 1px),
-            linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)
-          `,
-          backgroundSize: '20px 20px',
-          backgroundPosition: '0 0'
-        }}>
+        <div 
+          className={`flex-1 overflow-auto relative`} 
+          style={{
+            background: '#ffffff',
+            backgroundImage: `
+              linear-gradient(to right, #e5e7eb 1px, transparent 1px),
+              linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)
+            `,
+            backgroundSize: '20px 20px',
+            backgroundPosition: '0 0'
+          }}
+          onMouseMove={(e) => {
+            if (draggingStep) {
+              const canvasRect = e.currentTarget.getBoundingClientRect();
+              setDraggingStep({
+                ...draggingStep,
+                offsetX: e.clientX - canvasRect.left - 160, // 160 = half of block width
+                offsetY: e.clientY - canvasRect.top - 50, // Offset for header
+              });
+            }
+          }}
+          onMouseUp={() => {
+            if (draggingStep) {
+              // Save position to API
+              const step = scenario.steps.find(s => s.id === draggingStep.stepId);
+              if (step) {
+                // Update local state
+                setScenario(prev => ({
+                  ...prev,
+                  steps: prev.steps.map(s => 
+                    s.id === draggingStep.stepId 
+                      ? { ...s, x: draggingStep.offsetX, y: draggingStep.offsetY }
+                      : s
+                  )
+                }));
+                // TODO: Save to API
+              }
+              setDraggingStep(null);
+            }
+          }}
+          onMouseLeave={() => {
+            if (draggingStep) {
+              setDraggingStep(null);
+            }
+          }}
+        >
           {/* Infinite canvas container - truly pageless like n8n */}
           <div className="absolute" style={{ 
             width: '10000px',
