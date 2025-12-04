@@ -1222,7 +1222,6 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                   </div>
                 )}
               </div>
-            </div>
           </div>
         </div>
       </div>
