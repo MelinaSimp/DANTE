@@ -1207,7 +1207,24 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                           zIndex: draggingStep?.stepId === step.id ? 1000 : 1
                         }}
                         onMouseDown={(e) => {
-                          if (isDeployed || e.target instanceof HTMLButtonElement || e.target instanceof HTMLTextAreaElement) return;
+                          if (isDeployed) return;
+                          
+                          // Check if the click is on an interactive element
+                          const target = e.target as HTMLElement;
+                          const isButton = target instanceof HTMLButtonElement || 
+                                          target.closest('button') !== null ||
+                                          target.closest('[role="button"]') !== null;
+                          const isTextarea = target instanceof HTMLTextAreaElement || 
+                                            target.closest('textarea') !== null;
+                          const isInput = target instanceof HTMLInputElement || 
+                                         target.closest('input') !== null;
+                          const isConnectionPoint = target.closest('[class*="connection"]') !== null ||
+                                                   target.classList.contains('rounded-full');
+                          
+                          if (isButton || isTextarea || isInput || isConnectionPoint) {
+                            return;
+                          }
+                          
                           e.preventDefault();
                           const rect = e.currentTarget.getBoundingClientRect();
                           const canvasContainer = e.currentTarget.closest('[class*="overflow"]') as HTMLElement;
