@@ -1002,7 +1002,10 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                   ) : (
                                     <span 
                                       className="cursor-pointer hover:text-[#151515]"
-                                      onClick={() => startEditing(step)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        startEditing(step);
+                                      }}
                                     >
                                       {step.message || step.ai_message || defaultMessage(step.type)}
                                     </span>
