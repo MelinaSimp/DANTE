@@ -905,7 +905,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                 ) : scenario.steps.length === 0 ? (
                   <div className={`text-center ${colors.textTertiary} text-sm py-12`}>
                     <div className="mb-2">👆</div>
-                    <div>Drag a function from above to create the first step</div>
+                    <div>Drag a block or tag from the right sidebar to create the first step</div>
                   </div>
                 ) : (
                   <div className="space-y-6">
