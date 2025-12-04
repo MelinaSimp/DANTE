@@ -1007,12 +1007,38 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                       const paletteItem = FUNCTION_PALETTE.find(p => p.type === step.type);
                       const StepIcon = paletteItem?.icon || FileText;
                       
+                      const stepX = draggingStep?.stepId === step.id 
+                        ? draggingStep.offsetX 
+                        : (step.x ?? 200);
+                      const stepY = draggingStep?.stepId === step.id 
+                        ? draggingStep.offsetY 
+                        : (step.y ?? (200 + stepIdx * 180));
+                      
                       return (
-                      <div key={step.id} className="absolute" style={{ 
-                        left: `${100 + (stepIdx * 0)}px`,
-                        top: `${100 + (stepIdx * 150)}px`,
-                        width: '320px'
-                      }}>
+                      <div 
+                        key={step.id} 
+                        className="absolute cursor-move select-none" 
+                        style={{ 
+                          left: `${stepX}px`,
+                          top: `${stepY}px`,
+                          width: '320px',
+                          zIndex: draggingStep?.stepId === step.id ? 1000 : 1
+                        }}
+                        onMouseDown={(e) => {
+                          if (isDeployed || e.target instanceof HTMLButtonElement || e.target instanceof HTMLTextAreaElement) return;
+                          e.preventDefault();
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const canvasContainer = e.currentTarget.closest('[class*="overflow"]') as HTMLElement;
+                          if (canvasContainer) {
+                            const canvasRect = canvasContainer.getBoundingClientRect();
+                            setDraggingStep({
+                              stepId: step.id,
+                              offsetX: e.clientX - canvasRect.left - rect.left + stepX,
+                              offsetY: e.clientY - canvasRect.top - rect.top + stepY,
+                            });
+                          }
+                        }}
+                      >
                         {/* Connecting Line from previous step */}
                         {stepIdx > 0 && (
                           <div className="flex justify-center mb-3 relative" style={{ height: '32px' }}>
