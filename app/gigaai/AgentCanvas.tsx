@@ -152,6 +152,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
   const [editingBranchId, setEditingBranchId] = useState<string | null>(null);
   const [selectedStepForBranch, setSelectedStepForBranch] = useState<{ scenarioId: string; stepId: string; branchId: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [draggingStep, setDraggingStep] = useState<{ stepId: string; offsetX: number; offsetY: number } | null>(null);
   const [dataSourceModal, setDataSourceModal] = useState<{
     isOpen: boolean;
     stepId: string | null;
