@@ -111,7 +111,7 @@ export default function AdvancedPage({ agentId, phoneNumber = "", onPhoneNumberC
                 value={agentRole}
                 onChange={(e) => setAgentRole(e.target.value)}
                 placeholder="Type any role name (e.g., customer agent, mechanic, sales rep)"
-                className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-4 py-2 text-sm ${colors.text} focus:border-[#3351ff] focus:outline-none`}
+                className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-4 py-2 text-sm ${colors.text} focus:border-[#3166bf] focus:outline-none`}
               />
               <p className={`text-xs ${colors.textTertiary} mt-2`}>
                 Define the role of this agent for routing purposes. You can type any custom role name (e.g., "customer agent", "mechanic", "sales rep").
@@ -149,7 +149,7 @@ export default function AdvancedPage({ agentId, phoneNumber = "", onPhoneNumberC
                 <select
                   value={parentAgentId}
                   onChange={(e) => setParentAgentId(e.target.value)}
-                  className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-4 py-2 text-sm ${colors.text} focus:border-[#3351ff] focus:outline-none`}
+                  className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-4 py-2 text-sm ${colors.text} focus:border-[#3166bf] focus:outline-none`}
                 >
                   <option value="">None</option>
                   {availableAgents.map((agent) => (
@@ -187,7 +187,7 @@ export default function AdvancedPage({ agentId, phoneNumber = "", onPhoneNumberC
                     }, 10);
                   }}
                   placeholder='Enter keyword and press Enter, or paste array: ["customer", "help", "support"]'
-                  className={`flex-1 rounded-2xl border ${colors.border} ${colors.inputBg} px-4 py-2 text-sm ${colors.text} focus:border-[#3351ff] focus:outline-none`}
+                  className={`flex-1 rounded-2xl border ${colors.border} ${colors.inputBg} px-4 py-2 text-sm ${colors.text} focus:border-[#3166bf] focus:outline-none`}
                 />
                 <button
                   onClick={() => {
@@ -277,7 +277,7 @@ export default function AdvancedPage({ agentId, phoneNumber = "", onPhoneNumberC
                     }
                   }}
                   placeholder="+1234567890"
-                  className={`flex-1 rounded-lg border ${colors.border} ${colors.inputBg} px-4 py-2 text-sm ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none`}
+                  className={`flex-1 rounded-lg border ${colors.border} ${colors.inputBg} px-4 py-2 text-sm ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3166bf] focus:outline-none`}
                 />
               </div>
               <p className={`text-xs ${colors.textTertiary} mt-2`}>
@@ -344,7 +344,7 @@ export default function AdvancedPage({ agentId, phoneNumber = "", onPhoneNumberC
                   type={showApiKey ? "text" : "password"}
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
-                  className={`flex-1 rounded-lg border ${colors.border} ${colors.inputBg} px-4 py-2 text-sm ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none font-mono`}
+                  className={`flex-1 rounded-lg border ${colors.border} ${colors.inputBg} px-4 py-2 text-sm ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3166bf] focus:outline-none font-mono`}
                 />
                 <button
                   onClick={() => setShowApiKey(!showApiKey)}
@@ -428,7 +428,7 @@ export default function AdvancedPage({ agentId, phoneNumber = "", onPhoneNumberC
           </p>
           <textarea
             rows={8}
-            className={`w-full rounded-lg border ${colors.border} ${colors.inputBg} px-4 py-3 text-sm ${colors.text} font-mono focus:border-[#3351ff] focus:outline-none`}
+            className={`w-full rounded-lg border ${colors.border} ${colors.inputBg} px-4 py-3 text-sm ${colors.text} font-mono focus:border-[#3166bf] focus:outline-none`}
             placeholder="// Add your custom code here..."
           />
           <button className={`mt-3 px-4 py-2 rounded-lg ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white text-sm font-medium transition`}>
@@ -461,7 +461,7 @@ export default function AdvancedPage({ agentId, phoneNumber = "", onPhoneNumberC
               <input
                 type="number"
                 defaultValue={100}
-                className={`w-24 rounded-lg border ${colors.border} ${colors.inputBg} px-4 py-2 text-sm ${colors.text} focus:border-[#3351ff] focus:outline-none`}
+                className={`w-24 rounded-lg border ${colors.border} ${colors.inputBg} px-4 py-2 text-sm ${colors.text} focus:border-[#3166bf] focus:outline-none`}
               />
             </div>
             <div className="flex items-center justify-between">
@@ -472,7 +472,7 @@ export default function AdvancedPage({ agentId, phoneNumber = "", onPhoneNumberC
               <input
                 type="number"
                 defaultValue={30}
-                className={`w-24 rounded-lg border ${colors.border} ${colors.inputBg} px-4 py-2 text-sm ${colors.text} focus:border-[#3351ff] focus:outline-none`}
+                className={`w-24 rounded-lg border ${colors.border} ${colors.inputBg} px-4 py-2 text-sm ${colors.text} focus:border-[#3166bf] focus:outline-none`}
               />
             </div>
           </div>
