@@ -137,15 +137,32 @@ export async function DELETE(
     // Continue anyway - branches might not exist
   }
 
-  // Update branches that reference this step as next_step_id (set to null)
-  const { error: updateBranchesError } = await supabaseAdmin
+  // Update or delete branches that reference this step as next_step_id
+  // First, check if any branches reference this step
+  const { data: referencingBranches } = await supabaseAdmin
     .from("branches")
-    .update({ next_step_id: null })
+    .select("id")
     .eq("next_step_id", params.stepId);
 
-  if (updateBranchesError) {
-    console.error("Failed to update branches referencing this step", updateBranchesError);
-    // Continue anyway
+  if (referencingBranches && referencingBranches.length > 0) {
+    // Try to set next_step_id to null
+    const { error: updateBranchesError } = await supabaseAdmin
+      .from("branches")
+      .update({ next_step_id: null })
+      .eq("next_step_id", params.stepId);
+
+    if (updateBranchesError) {
+      console.error("Failed to update branches referencing this step", updateBranchesError);
+      // If update fails, try deleting those branches
+      const { error: deleteRefBranchesError } = await supabaseAdmin
+        .from("branches")
+        .delete()
+        .eq("next_step_id", params.stepId);
+      
+      if (deleteRefBranchesError) {
+        console.error("Failed to delete branches referencing this step", deleteRefBranchesError);
+      }
+    }
   }
 
   // Delete the step
