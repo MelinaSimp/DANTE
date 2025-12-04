@@ -126,6 +126,20 @@ export async function DELETE(
     return NextResponse.json({ error: "Step not found" }, { status: 404 });
   }
 
+  // Delete conversation_steps records that reference this step FIRST (foreign key constraint)
+  const { error: conversationStepsError } = await supabaseAdmin
+    .from("conversation_steps")
+    .delete()
+    .eq("step_id", params.stepId);
+
+  if (conversationStepsError) {
+    console.error("Failed to delete conversation_steps referencing this step", conversationStepsError);
+    // Return error if this fails - it's critical for deletion
+    return NextResponse.json({ 
+      error: `Failed to delete step: Cannot remove conversation_steps records. ${conversationStepsError.message || JSON.stringify(conversationStepsError)}` 
+    }, { status: 500 });
+  }
+
   // Update conversations that reference this step as current_step_id (set to null)
   const { error: conversationsError } = await supabaseAdmin
     .from("conversations")
@@ -135,17 +149,6 @@ export async function DELETE(
   if (conversationsError) {
     console.error("Failed to update conversations referencing this step", conversationsError);
     // Continue anyway - might not be critical
-  }
-
-  // Delete conversation_steps records that reference this step
-  const { error: conversationStepsError } = await supabaseAdmin
-    .from("conversation_steps")
-    .delete()
-    .eq("step_id", params.stepId);
-
-  if (conversationStepsError) {
-    console.error("Failed to delete conversation_steps referencing this step", conversationStepsError);
-    // Continue anyway - might not exist
   }
 
   // Delete branches that belong to this step first (if any)
