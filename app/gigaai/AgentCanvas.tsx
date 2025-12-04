@@ -322,91 +322,103 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
         return;
       }
 
-      const newStepData = await response.json();
+        const newStepData = await response.json();
       
       // Always create the step immediately, then create branches asynchronously
-      const newStep: Step = {
-        id: newStepData.id,
-        type: newStepData.type as StepType,
-        name: newStepData.name,
-        ai_message: newStepData.ai_message,
-        message: newStepData.ai_message || newStepData.name,
+        const newStep: Step = {
+          id: newStepData.id,
+          type: newStepData.type as StepType,
+          name: newStepData.name,
+          ai_message: newStepData.ai_message,
+          message: newStepData.ai_message || newStepData.name,
         branches: type === "branch" ? [] : (type === "say" ? [] : undefined), // Initialize with empty array for branch steps
-        sort_order: newStepData.sort_order,
+          sort_order: newStepData.sort_order,
         x: newStepData.x ?? dropX - 160, // Use x from API or fallback to calculated position
         y: newStepData.y ?? dropY - 20, // Use y from API or fallback to calculated position
-      };
+        };
 
       // Add step to canvas immediately
-      setScenario((prev) => ({
-        ...prev,
-        steps: [...prev.steps, newStep].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
-      }));
+        setScenario((prev) => ({
+          ...prev,
+          steps: [...prev.steps, newStep].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
+        }));
       
       // For branch steps, create True and False branches asynchronously (don't block UI)
       if (type === "branch") {
-        // Create branches in background without blocking
-        Promise.all([
-          fetch(`/api/steps/${newStepData.id}/branches`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              condition: "Condition is true",
-              condition_tag: "true",
-              target: "Next step",
-            }),
-          }),
-          fetch(`/api/steps/${newStepData.id}/branches`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              condition: "Condition is false",
-              condition_tag: "false",
-              target: "Next step",
-            }),
-          }),
-        ])
-          .then(async ([trueResponse, falseResponse]) => {
+        // Create branches in background without blocking - wrap in IIFE to handle errors
+        (async () => {
+          try {
+            const [trueResponse, falseResponse] = await Promise.all([
+              fetch(`/api/steps/${newStepData.id}/branches`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  condition: "Condition is true",
+                  condition_tag: "true",
+                }),
+              }),
+              fetch(`/api/steps/${newStepData.id}/branches`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  condition: "Condition is false",
+                  condition_tag: "false",
+                }),
+              }),
+            ]);
+
             if (trueResponse.ok && falseResponse.ok) {
-              const trueBranch = await trueResponse.json();
-              const falseBranch = await falseResponse.json();
-              
-              // Update step with branches
-              setScenario((prev) => ({
-                ...prev,
-                steps: prev.steps.map((s) =>
-                  s.id === newStepData.id
-                    ? {
-                        ...s,
-                        branches: [
-                          {
-                            id: trueBranch.id,
-                            condition: trueBranch.condition,
-                            condition_tag: trueBranch.condition_tag,
-                            target: trueBranch.target,
-                            next_step_id: trueBranch.next_step_id,
-                            next_scenario_id: trueBranch.next_scenario_id,
-                          },
-                          {
-                            id: falseBranch.id,
-                            condition: falseBranch.condition,
-                            condition_tag: falseBranch.condition_tag,
-                            target: falseBranch.target,
-                            next_step_id: falseBranch.next_step_id,
-                            next_scenario_id: falseBranch.next_scenario_id,
-                          },
-                        ],
-                      }
-                    : s
-                ),
-              }));
+              try {
+                const trueBranchData = await trueResponse.json();
+                const falseBranchData = await falseResponse.json();
+                
+                // Validate that we have the required fields
+                if (trueBranchData?.id && falseBranchData?.id) {
+                  // Update step with branches - map API response to Branch interface
+                  setScenario((prev) => ({
+                    ...prev,
+                    steps: prev.steps.map((s) =>
+                      s.id === newStepData.id
+                        ? {
+                            ...s,
+                            branches: [
+                              {
+                                id: trueBranchData.id,
+                                condition: trueBranchData.condition || "Condition is true",
+                                condition_tag: trueBranchData.condition_tag || "true",
+                                next_step_id: trueBranchData.next_step_id || undefined,
+                                next_scenario_id: trueBranchData.next_scenario_id || undefined,
+                              },
+                              {
+                                id: falseBranchData.id,
+                                condition: falseBranchData.condition || "Condition is false",
+                                condition_tag: falseBranchData.condition_tag || "false",
+                                next_step_id: falseBranchData.next_step_id || undefined,
+                                next_scenario_id: falseBranchData.next_scenario_id || undefined,
+                              },
+                            ],
+                          }
+                        : s
+                    ),
+                  }));
+                }
+              } catch (parseError) {
+                console.error("Error parsing branch response:", parseError);
+              }
             } else {
-              console.error("Failed to create branches:", { trueResponse: !trueResponse.ok, falseResponse: !falseResponse.ok });
+              const trueErrorText = trueResponse.ok ? null : await trueResponse.text().catch(() => "Unknown error");
+              const falseErrorText = falseResponse.ok ? null : await falseResponse.text().catch(() => "Unknown error");
+              console.error("Failed to create branches:", { 
+                trueStatus: trueResponse.status,
+                trueError: trueErrorText,
+                falseStatus: falseResponse.status,
+                falseError: falseErrorText
+              });
             }
-          })
-          .catch((error) => {
+          } catch (error) {
             console.error("Error creating branches:", error);
-          });
+          }
+        })();
       }
     } catch (error: any) {
       console.error("Failed to create step:", error);
@@ -1102,10 +1114,10 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
             {/* Drop Zone + Steps - Truly infinite pageless canvas */}
             <div
               className={`absolute inset-0 transition ${
-                draggedOver
+                  draggedOver
                   ? "border-2 border-dashed border-[#3166bf] bg-[#3166bf]/5"
-                  : ""
-              }`}
+                    : ""
+                }`}
               >
                 {loading ? (
                   <div className={`absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center ${colors.textTertiary} text-sm`}>
@@ -1313,8 +1325,8 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                               color="#70d4b4"
                               strokeWidth={2}
                             />
-                          </div>
-                        )}
+                                  </div>
+                                )}
                         
                         {/* Category Tag - Above the block */}
                         <div className="mb-2">
@@ -1332,8 +1344,8 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                             {stepCategory === "AI" && <MessageSquare className="h-3 w-3" />}
                             {stepCategory !== "Trigger" && stepCategory !== "Branch" && stepCategory !== "AI" && <FileText className="h-3 w-3" />}
                             <span>{stepCategory}</span>
+                              </div>
                           </div>
-                        </div>
                         
                         {/* Step Card */}
                         <div className="relative bg-white border border-[#70d4b4] rounded-xl p-4 hover:shadow-md transition" style={{ width: '320px', maxWidth: '320px', flexShrink: 0 }}>
@@ -1400,15 +1412,15 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                               {/* Step Icon - In rounded square */}
                               <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-[#f3f4f6] flex items-center justify-center">
                                 <StepIcon className="h-5 w-5 text-[#151515]" />
-                              </div>
-                              
+                        </div>
+
                               {/* Step Content */}
                               <div className="flex-1 min-w-0">
                                 <h4 className="text-sm font-semibold text-[#151515] mb-0.5">
-                                  {editingStepId === step.id ? (
-                                    <textarea
-                                      value={editingText}
-                                      onChange={(e) => setEditingText(e.target.value)}
+                          {editingStepId === step.id ? (
+                              <textarea
+                                value={editingText}
+                                onChange={(e) => setEditingText(e.target.value)}
                                       rows={1}
                                       className="w-full rounded-lg border border-[#3166bf] bg-white px-2 py-1 text-sm font-semibold text-[#151515] focus:border-[#3166bf] focus:outline-none"
                                       autoFocus
@@ -1474,25 +1486,25 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                           {/* Edit Actions */}
                           {editingStepId === step.id && (
                             <div className="flex gap-2 mt-3 pt-3 border-t border-[#e5e7eb]">
-                              <button
-                                onClick={saveEditing}
+                                <button
+                                  onClick={saveEditing}
                                 className="px-3 py-1.5 rounded-lg bg-[#3166bf] hover:bg-[#2a5aa8] text-white text-xs font-medium"
-                              >
-                                Save
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setEditingStepId(null);
-                                  setEditingText("");
-                                }}
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setEditingStepId(null);
+                                    setEditingText("");
+                                  }}
                                 className="px-3 py-1.5 rounded-lg border border-[#e5e7eb] bg-white text-[#151515] text-xs font-medium hover:bg-[#f3f4f6]"
-                              >
-                                Cancel
-                              </button>
-                            </div>
+                                >
+                                  Cancel
+                                </button>
+                              </div>
                           )}
                         </div>
-                        
+
                         {/* Branch Paths - Show True/False paths with curved connectors */}
                         {step.type === "branch" && step.branches && step.branches.length > 0 && (
                           <div className="mt-8 relative">
@@ -1534,7 +1546,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                   </svg>
                                 );
                               })}
-                            </div>
+                              </div>
                             
                             {/* True/False nodes positioned horizontally */}
                             <div className="flex gap-16 justify-center mt-24 relative z-10">
@@ -1553,14 +1565,14 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                         <>
                                           <div className="w-5 h-5 rounded-full bg-[#70d4b4] flex items-center justify-center">
                                             <CheckCircle className="h-3 w-3 text-white" />
-                                          </div>
+                              </div>
                                           <span>True</span>
                                         </>
                                       ) : (
                                         <>
                                           <div className="w-5 h-5 rounded-full bg-[#f0494a] flex items-center justify-center">
                                             <X className="h-3 w-3 text-white" />
-                                          </div>
+                            </div>
                                           <span>False</span>
                                         </>
                                       )}
@@ -1584,9 +1596,9 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                           borderLeft: '4px solid transparent',
                                           borderRight: '4px solid transparent',
                                           borderTop: `8px solid ${isTrue ? '#70d4b4' : '#9ca3af'}`
-                                        }}
-                                      />
-                                    </div>
+                                }}
+                              />
+                            </div>
                                     
                                     {/* Steps in this branch path */}
                                     <div className="w-full space-y-4">
@@ -1617,8 +1629,8 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                                       </h4>
                                                       <p className="text-xs text-[#6b7280] mt-0.5">
                                                         {nextStep.message || nextStep.ai_message || defaultMessage(nextStep.type)}
-                                                      </p>
-                                                    </div>
+                              </p>
+                            </div>
                                                   </div>
                                                 </div>
                                               </div>
@@ -1628,24 +1640,24 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                       ) : (
                                         <div className="text-xs text-[#151515]/40 italic text-center py-4">
                                           Drop a block here
-                                        </div>
-                                      )}
+                          </div>
+                        )}
                                     </div>
                                   </div>
                                 );
                               })}
-                            </div>
-                          </div>
+                                  </div>
+                                </div>
                         )}
                       </div>
                     );
                     })}
-                  </div>
-                )}
+                          </div>
+                        )}
               </div>
           </div>
         </div>
-      </div>
+                      </div>
 
       {/* Right Sidebar - Draggable Blocks and Tags */}
       <div className="w-80 border-l border-[#151515] bg-white flex flex-col">
@@ -1669,12 +1681,12 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-[#151515]">{block.label}</div>
                     <div className="text-xs text-[#151515]/60 mt-0.5">{block.description}</div>
-                  </div>
-                </div>
+                          </div>
+                      </div>
               );
             })}
-          </div>
-        </div>
+                  </div>
+              </div>
 
         {/* Section 2: Trigger and Branch Tags */}
         <div className="p-4">
@@ -1690,7 +1702,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
             >
               <Play className="h-4 w-4 text-[#3166bf]" />
               <span className="text-sm font-semibold text-[#3166bf]">Trigger</span>
-            </div>
+              </div>
             <div
               draggable
               onDragStart={(e) => {
@@ -1706,126 +1718,126 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
         </div>
 
         {/* Branch Editing Workspace - Only show when editing a branch */}
-        {selectedStepForBranch && (
+      {selectedStepForBranch && (
           <div className="flex-1 border-t border-[#e5e7eb] overflow-y-auto flex flex-col">
             <div className="border-b border-[#e5e7eb] px-4 py-3 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-[#151515]">New Condition</h3>
-              <button
-                onClick={() => setSelectedStepForBranch(null)}
+            <button
+              onClick={() => setSelectedStepForBranch(null)}
                 className="p-1 hover:bg-[#f3f4f6] rounded transition"
-              >
+            >
                 <X className="h-4 w-4 text-[#151515]/50" />
-              </button>
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-6">
+            {/* Natural Language Condition Input */}
+            <div>
+              <label className={`block text-[10px] font-medium ${colors.textSecondary} mb-2`}>
+                If <span className={colors.textTertiary}>(description of an outcome)</span>
+              </label>
+              <textarea
+                value={currentBranch?.condition || ""}
+                onChange={(e) => {
+                  if (selectedStepForBranch) {
+                    updateBranch(
+                      selectedStepForBranch.stepId,
+                      selectedStepForBranch.branchId,
+                      { condition: e.target.value }
+                    );
+                  }
+                }}
+                rows={3}
+                    className={`w-full rounded-2xl border border-[#3166bf] bg-[#ffffff] px-3 py-2 text-xs ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3166bf] focus:outline-none resize-none`}
+                placeholder="Customer provides their full name and date of birth"
+              />
+              <p className={`text-[10px] ${colors.textTertiary} mt-1`}>
+                Describe the outcome or condition in natural language
+              </p>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-6">
-              {/* Natural Language Condition Input */}
-              <div>
-                  <label className={`block text-[10px] font-medium ${colors.textSecondary} mb-2`}>
-                    If <span className={colors.textTertiary}>(description of an outcome)</span>
-                  </label>
-                  <textarea
-                    value={currentBranch?.condition || ""}
-                    onChange={(e) => {
-                      if (selectedStepForBranch) {
-                        updateBranch(
-                          selectedStepForBranch.stepId,
-                          selectedStepForBranch.branchId,
-                          { condition: e.target.value }
-                        );
-                      }
-                    }}
-                    rows={3}
-                    className={`w-full rounded-2xl border border-[#3166bf] bg-[#ffffff] px-3 py-2 text-xs ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3166bf] focus:outline-none resize-none`}
-                    placeholder="Customer provides their full name and date of birth"
-                  />
-                  <p className={`text-[10px] ${colors.textTertiary} mt-1`}>
-                    Describe the outcome or condition in natural language
-                  </p>
-              </div>
-
-              {/* Tags List - Optional */}
-              <div>
-                <label className={`block text-[10px] font-medium ${colors.textSecondary} mb-2`}>
-                  Tags <span className={colors.textTertiary}>(optional)</span>
-                </label>
-                <div className="space-y-2">
-                  {AVAILABLE_TAGS.map((tag) => (
-                    <button
-                      key={tag}
-                      onClick={() => selectTag(tag)}
-                      className={`w-full text-left px-3 py-2 rounded-2xl border transition text-sm ${
-                        currentBranch?.condition_tag === tag
+            {/* Tags List - Optional */}
+            <div>
+              <label className={`block text-[10px] font-medium ${colors.textSecondary} mb-2`}>
+                Tags <span className={colors.textTertiary}>(optional)</span>
+              </label>
+              <div className="space-y-2">
+                {AVAILABLE_TAGS.map((tag) => (
+                  <button
+                    key={tag}
+                    onClick={() => selectTag(tag)}
+                    className={`w-full text-left px-3 py-2 rounded-2xl border transition text-sm ${
+                      currentBranch?.condition_tag === tag
                           ? `border-[#3166bf] bg-[#3166bf]/20 ${colors.text}`
                           : `border-[#e5e7eb] bg-[#ffffff] ${colors.textSecondary} hover:bg-[#f3f4f6]`
-                      }`}
-                    >
-                      <span
-                        className={`px-2 py-0.5 rounded text-xs font-mono ${
-                          tag.startsWith("@")
+                    }`}
+                  >
+                    <span
+                      className={`px-2 py-0.5 rounded text-xs font-mono ${
+                        tag.startsWith("@")
                             ? "bg-[#3166bf]/20 text-[#3166bf] border border-[#3166bf]/30"
-                            : tag === "If Statement"
+                          : tag === "If Statement"
                             ? "bg-[#aeb8c9]/20 text-[#3166bf] border border-[#aeb8c9]/30"
                             : "bg-[#ebf9ef] text-[#70d4b4] border border-[#70d4b4]/30"
-                        }`}
-                      >
-                        {tag}
-                      </span>
+                      }`}
+                    >
+                      {tag}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Proceed To Input */}
+            <div>
+              <label className={`block text-[10px] font-medium ${colors.textSecondary} mb-2`}>
+                proceed to <span className={colors.textTertiary}>(could be text or another question)</span>
+              </label>
+              <textarea
+                value={currentBranch?.target || ""}
+                onChange={(e) => {
+                  if (selectedStepForBranch) {
+                    updateBranch(
+                      selectedStepForBranch.stepId,
+                      selectedStepForBranch.branchId,
+                      { target: e.target.value }
+                    );
+                  }
+                }}
+                rows={3}
+                  className={`w-full rounded-2xl border border-[#3166bf] bg-[#ffffff] ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3166bf] focus:outline-none resize-none px-3 py-2 text-sm`}
+                placeholder="Identity Verification step"
+              />
+              <p className={`text-[10px] ${colors.textTertiary} mt-1`}>
+                Describe the next step or action in natural language
+              </p>
+            </div>
+
+            {/* Quick Step Suggestions */}
+            {availableSteps.length > 0 && (
+              <div>
+                <label className={`block text-[10px] font-medium ${colors.textSecondary} mb-2`}>
+                  Quick select from existing steps
+                </label>
+                <div className="space-y-2">
+                  {availableSteps.map((step) => (
+                    <button
+                      key={step.id}
+                      onClick={() => selectTargetStep(step.message.substring(0, 50))}
+                      className={`w-full text-left px-3 py-2 rounded-2xl border ${colors.border} ${colors.cardBg} ${colors.textSecondary} ${colors.hover} transition text-xs`}
+                    >
+                      <div className="font-medium text-[10px]">{step.name}</div>
+                      <div className={`text-[10px] ${colors.textTertiary} mt-1 line-clamp-2`}>
+                        {step.message}
+                      </div>
                     </button>
                   ))}
                 </div>
               </div>
-
-              {/* Proceed To Input */}
-              <div>
-                <label className={`block text-[10px] font-medium ${colors.textSecondary} mb-2`}>
-                  proceed to <span className={colors.textTertiary}>(could be text or another question)</span>
-                </label>
-                <textarea
-                  value={currentBranch?.target || ""}
-                  onChange={(e) => {
-                    if (selectedStepForBranch) {
-                      updateBranch(
-                        selectedStepForBranch.stepId,
-                        selectedStepForBranch.branchId,
-                        { target: e.target.value }
-                      );
-                    }
-                  }}
-                  rows={3}
-                  className={`w-full rounded-2xl border border-[#3166bf] bg-[#ffffff] ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3166bf] focus:outline-none resize-none px-3 py-2 text-sm`}
-                  placeholder="Identity Verification step"
-                />
-                <p className={`text-[10px] ${colors.textTertiary} mt-1`}>
-                  Describe the next step or action in natural language
-                </p>
-              </div>
-
-              {/* Quick Step Suggestions */}
-              {availableSteps.length > 0 && (
-                <div>
-                  <label className={`block text-[10px] font-medium ${colors.textSecondary} mb-2`}>
-                    Quick select from existing steps
-                  </label>
-                  <div className="space-y-2">
-                    {availableSteps.map((step) => (
-                      <button
-                        key={step.id}
-                        onClick={() => selectTargetStep(step.message.substring(0, 50))}
-                        className={`w-full text-left px-3 py-2 rounded-2xl border ${colors.border} ${colors.cardBg} ${colors.textSecondary} ${colors.hover} transition text-xs`}
-                      >
-                        <div className="font-medium text-[10px]">{step.name}</div>
-                        <div className={`text-[10px] ${colors.textTertiary} mt-1 line-clamp-2`}>
-                          {step.message}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+            )}
           </div>
-        )}
+        </div>
+      )}
       </div>
 
       {/* Confirmation Modal */}
@@ -2153,9 +2165,9 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                 Save Selection
               </button>
             </div>
-            </div>
           </div>
-        )}
+        </div>
+      )}
 
       {/* Preview Modal */}
       {previewModal.isOpen && previewModal.dataSource && (
