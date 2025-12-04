@@ -135,8 +135,8 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
   
   // Debug: Log deployment status
   useEffect(() => {
-    console.log("[AgentCanvas] isDeployed:", isDeployed);
-  }, [isDeployed]);
+    console.log("[AgentCanvas] Component mounted/updated - isDeployed:", isDeployed, "agentId:", agentId, "scenarioId:", scenarioId);
+  }, [isDeployed, agentId, scenarioId]);
   const [scenario, setScenario] = useState<Scenario>({
     id: scenarioId,
     name: scenarioName,
@@ -244,7 +244,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
   const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setDraggedOver(false);
-    console.log("[AgentCanvas] handleDrop - isDeployed:", isDeployed);
+    console.log("[AgentCanvas] handleDrop - isDeployed:", isDeployed, "agentId:", agentId);
     if (isDeployed) {
       console.log("[AgentCanvas] Blocking drop - agent is deployed");
       setConfirmationModal({
@@ -258,6 +258,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
       });
       return;
     }
+    console.log("[AgentCanvas] Proceeding with drop - agent is not deployed");
     const type = event.dataTransfer.getData("step-type") as StepType;
     console.log("[AgentCanvas] Dropped step type:", type);
     if (!type) {
