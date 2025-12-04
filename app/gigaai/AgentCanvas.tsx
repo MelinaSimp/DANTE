@@ -978,7 +978,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                         
                         {/* Step Card */}
                         <div className="relative bg-[#f0fdf4] border border-[#e5e7eb] rounded-2xl p-4 hover:shadow-md transition">
-                          <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start justify-between gap-3 relative z-0">
                             <div className="flex items-start gap-3 flex-1 min-w-0">
                               {/* Step Icon */}
                               <div className="flex-shrink-0 mt-0.5">
