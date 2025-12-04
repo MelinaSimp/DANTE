@@ -126,15 +126,26 @@ export async function DELETE(
     return NextResponse.json({ error: "Step not found" }, { status: 404 });
   }
 
-  // Delete branches first (if any)
+  // Delete branches that belong to this step first (if any)
   const { error: branchesError } = await supabaseAdmin
     .from("branches")
     .delete()
     .eq("step_id", params.stepId);
 
   if (branchesError) {
-    console.error("Failed to delete branches", branchesError);
+    console.error("Failed to delete branches for step", branchesError);
     // Continue anyway - branches might not exist
+  }
+
+  // Update branches that reference this step as next_step_id (set to null)
+  const { error: updateBranchesError } = await supabaseAdmin
+    .from("branches")
+    .update({ next_step_id: null })
+    .eq("next_step_id", params.stepId);
+
+  if (updateBranchesError) {
+    console.error("Failed to update branches referencing this step", updateBranchesError);
+    // Continue anyway
   }
 
   // Delete the step
@@ -147,7 +158,7 @@ export async function DELETE(
     console.error("Failed to delete step", error);
     console.error("Error details:", JSON.stringify(error, null, 2));
     return NextResponse.json({ 
-      error: `Failed to delete step: ${error.message || error.details || "Unknown error"}` 
+      error: `Failed to delete step: ${error.message || error.details || JSON.stringify(error)}` 
     }, { status: 500 });
   }
 
