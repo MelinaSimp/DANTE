@@ -78,6 +78,8 @@ export default function GigaAIClient() {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
+  const [sidebarVisible, setSidebarVisible] = useState(true);
+  const [sidebarHovered, setSidebarHovered] = useState(false);
   const [supportingDocs, setSupportingDocs] = useState<SupportingDoc[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditAgentModal, setShowEditAgentModal] = useState(false);
@@ -773,10 +775,35 @@ export default function GigaAIClient() {
   const sidebarIcon = "text-[#151515]";
   const sidebarIconSecondary = "text-[#151515]/70";
 
+  // Hide sidebar when workflow is selected, show on hover at left edge
+  const shouldShowSidebar = !selectedWorkflow || sidebarHovered || sidebarVisible;
+
   return (
     <div className={`flex h-screen overflow-hidden ${themeClasses.textPrimary} bg-[#ffffff]`} style={{ background: '#ffffff', backgroundImage: 'none' }}>
+      {/* Left Edge Hover Zone - Only visible when sidebar is hidden */}
+      {selectedWorkflow && !sidebarHovered && !sidebarVisible && (
+        <div
+          className="fixed left-0 top-0 bottom-0 w-4 z-50 cursor-pointer"
+          onMouseEnter={() => setSidebarHovered(true)}
+        />
+      )}
+      
       {/* Left Sidebar */}
-      <div className={`w-64 border-r border-[#151515] ${sidebarBg} flex flex-col`}>
+      <div 
+        className={`${shouldShowSidebar ? 'w-64' : 'w-0'} border-r border-[#151515] ${sidebarBg} flex flex-col transition-all duration-300 overflow-hidden ${
+          selectedWorkflow && !sidebarHovered && !sidebarVisible ? 'opacity-0 -translate-x-full' : 'opacity-100 translate-x-0'
+        }`}
+        onMouseLeave={() => {
+          if (selectedWorkflow) {
+            setSidebarHovered(false);
+          }
+        }}
+        onMouseEnter={() => {
+          if (selectedWorkflow) {
+            setSidebarHovered(true);
+          }
+        }}
+      >
         {/* Top Logo/Brand */}
         <div className={`p-4 border-b ${sidebarBorder}`}>
           <div className="flex items-center justify-between">
@@ -1258,7 +1285,7 @@ export default function GigaAIClient() {
         )}
 
         {/* Content Area */}
-        <div className={`flex-1 overflow-y-auto relative ${colors.text}`} style={{ background: '#ffffff', backgroundImage: 'none' }}>
+        <div className={`flex-1 overflow-hidden relative ${colors.text} bg-[#ffffff]`} style={{ background: '#ffffff', backgroundImage: 'none' }}>
             {activePage === "scenarios" ? (
                 // Workflows page - full page, no gradient background
                 selectedAgent && selectedWorkflow ? (

@@ -861,9 +861,9 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
   };
 
   return (
-    <div className={`h-full flex ${colors.bg}`}>
+    <div className={`h-full flex bg-[#ffffff]`} style={{ background: '#ffffff', backgroundImage: 'none' }}>
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden bg-[#ffffff]">
         {/* Workflow Header */}
         <div className={`border-b ${colors.border} ${colors.bg} px-6 py-4`}>
           <div className="flex items-center justify-between">
@@ -874,7 +874,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
         </div>
 
         {/* Fullscreen Content */}
-        <div className={`flex-1 overflow-y-auto ${colors.bg}`} style={{ background: '#ffffff', backgroundImage: 'none' }}>
+        <div className={`flex-1 overflow-y-auto bg-[#ffffff]`} style={{ background: '#ffffff', backgroundImage: 'none' }}>
           <div className="max-w-6xl mx-auto px-8 py-8">
             <div className="mb-8">
               {/* Scenario Title */}
