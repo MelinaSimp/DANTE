@@ -407,10 +407,28 @@ export default function GigaAIClient() {
             }
             setShowWorkflowMenu(null);
           } else {
-            console.error("Failed to delete workflow");
+            const errorData = await response.json().catch(() => ({ error: "Failed to delete workflow" }));
+            setConfirmationModal({
+              isOpen: true,
+              title: "Error",
+              message: errorData.error || "Failed to delete workflow. Please try again.",
+              confirmText: "OK",
+              cancelText: "",
+              variant: "danger",
+              onConfirm: () => setConfirmationModal({ ...confirmationModal, isOpen: false }),
+            });
           }
         } catch (error) {
           console.error("Failed to delete workflow:", error);
+          setConfirmationModal({
+            isOpen: true,
+            title: "Error",
+            message: "An error occurred while deleting the workflow. Please try again.",
+            confirmText: "OK",
+            cancelText: "",
+            variant: "danger",
+            onConfirm: () => setConfirmationModal({ ...confirmationModal, isOpen: false }),
+          });
         }
       },
     });
