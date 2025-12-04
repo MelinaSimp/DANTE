@@ -127,17 +127,29 @@ export async function DELETE(
   }
 
   // Delete conversation_steps records that reference this step FIRST (foreign key constraint)
-  const { error: conversationStepsError } = await supabaseAdmin
+  // First check if any exist and log for debugging
+  const { data: existingConversationSteps } = await supabaseAdmin
     .from("conversation_steps")
-    .delete()
+    .select("id")
     .eq("step_id", params.stepId);
 
-  if (conversationStepsError) {
-    console.error("Failed to delete conversation_steps referencing this step", conversationStepsError);
-    // Return error if this fails - it's critical for deletion
-    return NextResponse.json({ 
-      error: `Failed to delete step: Cannot remove conversation_steps records. ${conversationStepsError.message || JSON.stringify(conversationStepsError)}` 
-    }, { status: 500 });
+  console.log(`[DELETE Step] Found ${existingConversationSteps?.length || 0} conversation_steps records for step ${params.stepId}`);
+
+  if (existingConversationSteps && existingConversationSteps.length > 0) {
+    const { error: conversationStepsError, data: deletedData } = await supabaseAdmin
+      .from("conversation_steps")
+      .delete()
+      .eq("step_id", params.stepId)
+      .select();
+
+    if (conversationStepsError) {
+      console.error("Failed to delete conversation_steps referencing this step", conversationStepsError);
+      // Return error if this fails - it's critical for deletion
+      return NextResponse.json({ 
+        error: `Failed to delete step: Cannot remove conversation_steps records. ${conversationStepsError.message || JSON.stringify(conversationStepsError)}` 
+      }, { status: 500 });
+    }
+    console.log(`[DELETE Step] Successfully deleted ${deletedData?.length || 0} conversation_steps records`);
   }
 
   // Update conversations that reference this step as current_step_id (set to null)
