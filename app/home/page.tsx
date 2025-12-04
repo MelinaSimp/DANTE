@@ -33,17 +33,17 @@ export default async function HomeLanding() {
   const firstName = firstNameFrom(user);
 
   return (
-    <div className="relative isolate min-h-[calc(100vh-64px)] overflow-hidden text-white">
+    <div className="relative isolate min-h-[calc(100vh-64px)] overflow-hidden text-[#151515]">
 
       <div className="relative mx-auto w-full max-w-5xl px-6 py-24">
         <div className="flex flex-col items-center gap-10">
           <div className="flex w-full max-w-3xl flex-col items-center text-center">
             <div className="space-y-4">
-              <p className="text-xs uppercase tracking-[0.4em] text-gray-400">
+              <p className="text-xs uppercase tracking-[0.4em] text-[#151515]/60">
                 {firstName ? `WELCOME BACK, ${firstName.toUpperCase()}` : "WELCOME BACK"}
               </p>
-              <h1 className="text-4xl font-semibold md:text-5xl text-white">Where should we begin?</h1>
-              <p className="text-sm text-gray-400 md:text-base">
+              <h1 className="text-4xl font-semibold md:text-5xl text-[#151515]">Where should we begin?</h1>
+              <p className="text-sm text-[#151515]/60 md:text-base">
                 Ask Drift anything about your calls, contacts, or upcoming work.
               </p>
             </div>

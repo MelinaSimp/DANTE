@@ -45,6 +45,23 @@ const config: Config = {
         tuscan: "#FAD6A5",
         cosmic: "#FFF8E7",
         badge: "#A67B5B",
+        // New light theme colors
+        brand: {
+          white: "#ffffff",
+          dark: "#151515",
+          blue: {
+            primary: "#3166bf",
+            light: "#aeb8c9",
+            accent: "#afedff",
+          },
+          green: {
+            active: "#70d4b4",
+            text: "#e8f6f3",
+          },
+          red: "#f0494a",
+          yellow: "#fbbf24",
+          orange: "#f49d0d",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

@@ -71,40 +71,71 @@ export async function POST(req: NextRequest) {
     console.log("[Twilio] Normalized 'to':", normalizedTo);
 
     // Try to find agent with any of these formats
+    // PRIORITY: Main receptionist (non-specialist) first, then specialists
     let { data: agent } = await supabaseAdmin
       .from("agents")
-      .select("id, workspace_id, name, status, phone_number, elevenlabs_voice_id")
+      .select("id, workspace_id, name, status, phone_number, elevenlabs_voice_id, is_specialist, parent_agent_id")
       .in("phone_number", uniqueFormats)
       .eq("status", "deployed")
+      .order("is_specialist", { ascending: true }) // false (main) first, then true (specialist)
+      .order("parent_agent_id", { ascending: true, nullsFirst: true }) // agents without parent first
+      .limit(1)
       .maybeSingle();
 
     // If still not found, try case-insensitive partial matching
     if (!agent) {
       // Get all deployed agents to check manually
+      // PRIORITY: Sort by is_specialist (main receptionist first) and parent_agent_id (nulls first)
       const { data: allDeployedAgents } = await supabaseAdmin
         .from("agents")
-        .select("id, name, phone_number, status")
-        .eq("status", "deployed");
+        .select("id, name, phone_number, status, is_specialist, parent_agent_id")
+        .eq("status", "deployed")
+        .order("is_specialist", { ascending: true }) // false (main) first
+        .order("parent_agent_id", { ascending: true, nullsFirst: true }); // agents without parent first
 
       console.log("[Twilio] All deployed agents:", allDeployedAgents);
 
       // Try to find a match by normalizing stored numbers
+      // Prioritize main receptionist (non-specialist) over specialists
       if (allDeployedAgents) {
+        // First pass: look for main receptionist (non-specialist)
         for (const candidate of allDeployedAgents) {
-          if (!candidate.phone_number) continue;
+          if (!candidate.phone_number || candidate.is_specialist) continue;
           
           const normalizedCandidate = normalizePhone(candidate.phone_number);
           if (normalizedCandidate === normalizedTo || normalizedCandidate === to) {
             // Fetch full agent data including workspace_id
             const { data: fullAgent } = await supabaseAdmin
               .from("agents")
-              .select("id, workspace_id, name, status, phone_number, elevenlabs_voice_id")
+              .select("id, workspace_id, name, status, phone_number, elevenlabs_voice_id, is_specialist, parent_agent_id")
               .eq("id", candidate.id)
               .single();
             if (fullAgent) {
               agent = fullAgent;
-              console.log("[Twilio] Found agent by normalizing stored number:", fullAgent);
+              console.log("[Twilio] Found main receptionist agent by normalizing stored number:", fullAgent);
               break;
+            }
+          }
+        }
+        
+        // Second pass: if no main receptionist found, look for specialists
+        if (!agent) {
+          for (const candidate of allDeployedAgents) {
+            if (!candidate.phone_number || !candidate.is_specialist) continue;
+            
+            const normalizedCandidate = normalizePhone(candidate.phone_number);
+            if (normalizedCandidate === normalizedTo || normalizedCandidate === to) {
+              // Fetch full agent data including workspace_id
+              const { data: fullAgent } = await supabaseAdmin
+                .from("agents")
+                .select("id, workspace_id, name, status, phone_number, elevenlabs_voice_id, is_specialist, parent_agent_id")
+                .eq("id", candidate.id)
+                .single();
+              if (fullAgent) {
+                agent = fullAgent;
+                console.log("[Twilio] Found specialist agent by normalizing stored number (fallback):", fullAgent);
+                break;
+              }
             }
           }
         }

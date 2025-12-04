@@ -41,9 +41,9 @@ const quickActions: QuickAction[] = [
 
 export default function QuickActions() {
   return (
-    <aside className="mt-16 w-full max-w-xl rounded-3xl border border-white/10 bg-white/5 p-6 text-center backdrop-blur">
-      <p className="text-xs uppercase tracking-[0.3em] text-gray-400">QUICK ACTIONS</p>
-      <h2 className="mt-2 text-lg font-semibold text-white">Jump back into work</h2>
+    <aside className="mt-16 w-full max-w-xl rounded-3xl border border-[#e5e7eb] bg-[#ffffff] p-6 text-center shadow-sm">
+      <p className="text-xs uppercase tracking-[0.3em] text-[#151515]/60">QUICK ACTIONS</p>
+      <h2 className="mt-2 text-lg font-semibold text-[#151515]">Jump back into work</h2>
       <div className="mt-5 space-y-3">
         {quickActions.map(({ href, title, description, icon: IconComponent }) => {
           // Ensure IconComponent is a valid React component
@@ -52,18 +52,18 @@ export default function QuickActions() {
             <Link
               key={href}
               href={href}
-              className="group flex items-center justify-between rounded-2xl border border-white/10 bg-black/40 px-4 py-4 transition hover:border-blue-500/40 hover:bg-black/30"
+              className="group flex items-center justify-between rounded-2xl border border-[#e5e7eb] bg-[#ffffff] px-4 py-4 transition hover:border-[#3166bf]/40 hover:bg-[#f3f4f6]"
             >
               <div className="flex items-center gap-3">
-                <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-black/60 text-white">
+                <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-[#e5e7eb] bg-[#f3f4f6] text-[#3166bf]">
                   {Icon ? <Icon size={20} /> : <span className="w-5 h-5" />}
                 </span>
                 <div className="text-left">
-                  <p className="text-sm font-semibold text-white whitespace-nowrap">{title}</p>
-                  <p className="text-xs text-gray-400">{description}</p>
+                  <p className="text-sm font-semibold text-[#151515] whitespace-nowrap">{title}</p>
+                  <p className="text-xs text-[#151515]/60">{description}</p>
                 </div>
               </div>
-              <ChevronRight className="h-4 w-4 text-gray-500 transition group-hover:text-white" />
+              <ChevronRight className="h-4 w-4 text-[#151515]/40 transition group-hover:text-[#151515]" />
             </Link>
           );
         })}

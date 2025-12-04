@@ -75,9 +75,10 @@ export async function POST(req: NextRequest) {
         console.log("[Twilio Response] Final base URL:", baseUrl);
 
     // Load conversation and agent (to get voice configuration)
+    // Include transfer fields to detect recent transfers
     const { data: conversation } = await supabaseAdmin
       .from("conversations")
-      .select("*")
+      .select("*, transfer_history, transferred_to_agent_id, transferred_from_agent_id")
       .eq("id", conversationId)
       .single();
 
@@ -177,7 +178,7 @@ export async function POST(req: NextRequest) {
         .eq("id", conversationId);
     }
 
-    // If no speech result, ask again (first time or retry)
+    // If no speech result, check if we need to execute a "Say" step (greeting after transfer)
     if (!speechResult) {
       if (!conversationId) {
         console.error("[Twilio Response] Conversation ID is missing");
@@ -192,6 +193,78 @@ export async function POST(req: NextRequest) {
         });
       }
       
+      // Check if current step is a "Say" step that needs to be executed (greeting after transfer)
+      if (conversation.current_step_id && conversation.current_scenario_id) {
+        const { data: currentStep } = await supabaseAdmin
+          .from("steps")
+          .select("id, type, ai_message")
+          .eq("id", conversation.current_step_id)
+          .single();
+        
+        if (currentStep && currentStep.type === "say" && currentStep.ai_message) {
+          // Execute the Say step automatically
+          const sayContext: ConversationContext = {
+            conversationId: conversation.id,
+            agentId: conversation.agent_id,
+            scenarioId: conversation.current_scenario_id,
+            currentStepId: currentStep.id,
+            gatheredData: conversation.gathered_data || {},
+            conversationState: conversation.conversation_state || {},
+            transcript,
+          };
+          
+          const sayExecutor = new AgentExecutor(sayContext);
+          const sayResult = await sayExecutor.executeNextStep(""); // Empty input triggers Say step
+          
+          if (sayResult.success && sayResult.output) {
+            // Get the next step
+            const { data: allSteps } = await supabaseAdmin
+              .from("steps")
+              .select("id, sort_order")
+              .eq("scenario_id", conversation.current_scenario_id)
+              .order("sort_order", { ascending: true });
+            
+            let nextStepId = currentStep.id;
+            if (allSteps && allSteps.length > 0) {
+              const currentIndex = allSteps.findIndex(s => s.id === currentStep.id);
+              if (currentIndex >= 0 && currentIndex < allSteps.length - 1) {
+                nextStepId = allSteps[currentIndex + 1].id;
+              }
+            }
+            
+            // Update conversation to move past the Say step
+            await supabaseAdmin
+              .from("conversations")
+              .update({ current_step_id: nextStepId })
+              .eq("id", conversationId);
+            
+            // Generate speech for the greeting
+            const speechTwiml = await generateSpeechTwiml(sayResult.output, agentVoiceId, baseUrl);
+            
+            // Ensure baseUrl doesn't have trailing slash and is clean
+            const cleanBaseUrl = baseUrl.trim().replace(/\/+$/, "").replace(/\s+/g, "");
+            const responseUrl = `${cleanBaseUrl}/api/twilio/response?callSid=${encodeURIComponent(callSid)}&conversationId=${encodeURIComponent(conversationId)}`;
+            const escapedResponseUrl = xmlEscapeAttr(responseUrl.trim().replace(/\s+/g, ""));
+            const partialCallbackUrl = `${cleanBaseUrl}/api/twilio/partial?conversationId=${conversationId}`;
+            const escapedPartialCallback = xmlEscapeAttr(partialCallbackUrl);
+            
+            const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  ${speechTwiml}
+  <Pause length="1"/>
+  <Gather input="speech" method="POST" speechTimeout="auto" language="en-US" action="${escapedResponseUrl}" partialResultCallback="${escapedPartialCallback}" partialResultCallbackMethod="POST">
+  </Gather>
+  <Redirect>${escapedResponseUrl}</Redirect>
+</Response>`;
+            return new NextResponse(twiml, {
+              status: 200,
+              headers: { "Content-Type": "text/xml" },
+            });
+          }
+        }
+      }
+      
+      // No Say step to execute, just set up Gather
       // Ensure baseUrl doesn't have trailing slash and is clean
       const cleanBaseUrl = baseUrl.trim().replace(/\/+$/, "").replace(/\s+/g, "");
       const actionUrl = `${cleanBaseUrl}/api/twilio/response?callSid=${encodeURIComponent(callSid)}&conversationId=${encodeURIComponent(conversationId)}`;
@@ -256,20 +329,104 @@ export async function POST(req: NextRequest) {
       })
       .eq("id", conversationId);
 
-    // Create execution context
+    // Check if current step is a "Say" step that needs to be spoken first
+    // This handles both initial greetings and post-transfer greetings
+    let greetingOutput = "";
+    let stepIdForUserInput = conversation.current_step_id;
+    
+    if (conversation.current_step_id && conversation.current_scenario_id) {
+      // Check what the current step is
+      const { data: currentStep } = await supabaseAdmin
+        .from("steps")
+        .select("id, type, ai_message, name, sort_order")
+        .eq("id", conversation.current_step_id)
+        .single();
+      
+      // If current step is a "Say" step, execute it first to get the greeting
+      if (currentStep && currentStep.type === "say") {
+        // Execute the Say step first (with empty input to trigger it)
+        const greetingContext: ConversationContext = {
+          conversationId: conversation.id,
+          agentId: conversation.agent_id,
+          scenarioId: conversation.current_scenario_id,
+          currentStepId: currentStep.id,
+          gatheredData: conversation.gathered_data || {},
+          conversationState: conversation.conversation_state || {},
+          transcript,
+        };
+        
+        const greetingExecutor = new AgentExecutor(greetingContext);
+        const greetingResult = await greetingExecutor.executeNextStep(""); // Empty input triggers Say step
+        
+        if (greetingResult.success && greetingResult.output) {
+          greetingOutput = greetingResult.output;
+          
+          // Get the next step for processing user input
+          const { data: allSteps } = await supabaseAdmin
+            .from("steps")
+            .select("id, type, sort_order")
+            .eq("scenario_id", conversation.current_scenario_id)
+            .order("sort_order", { ascending: true });
+          
+          if (allSteps && allSteps.length > 0) {
+            const currentIndex = allSteps.findIndex(s => s.id === currentStep.id);
+            if (currentIndex >= 0 && currentIndex < allSteps.length - 1) {
+              stepIdForUserInput = allSteps[currentIndex + 1].id;
+            }
+          }
+        }
+      }
+    }
+    
+    // Create execution context for processing user input
     const context: ConversationContext = {
       conversationId: conversation.id,
       agentId: conversation.agent_id,
       scenarioId: conversation.current_scenario_id,
-      currentStepId: conversation.current_step_id,
+      currentStepId: stepIdForUserInput, // Use next step for processing user input
       gatheredData: conversation.gathered_data || {},
       conversationState: conversation.conversation_state || {},
       transcript,
     };
 
-    // Execute agent step
+    // Execute agent step (process user input)
     const executor = new AgentExecutor(context);
     const result = await executor.executeNextStep(speechResult);
+    
+    // Check if a transfer just happened - if so, we need to say the greeting immediately
+    if (result.transferToAgentId && result.transferToAgentId !== conversation.agent_id) {
+      // Transfer happened - get the greeting from the new agent
+      const { data: newAgentScenario } = await supabaseAdmin
+        .from("scenarios")
+        .select("id")
+        .eq("agent_id", result.transferToAgentId)
+        .order("created_at", { ascending: true })
+        .limit(1);
+      
+      if (newAgentScenario && newAgentScenario.length > 0) {
+        const { data: newSteps } = await supabaseAdmin
+          .from("steps")
+          .select("id, type, ai_message")
+          .eq("scenario_id", newAgentScenario[0].id)
+          .order("sort_order", { ascending: true });
+        
+        const firstSayStep = newSteps?.find(s => s.type === "say");
+        if (firstSayStep && firstSayStep.ai_message) {
+          // Prepend the greeting to the transfer message
+          result.output = `${result.output || ""} ${firstSayStep.ai_message}`.trim();
+        }
+      }
+    }
+    
+    // If we have a greeting (from checking current step), prepend it to the result
+    if (greetingOutput) {
+      if (result.output) {
+        result.output = `${greetingOutput} ${result.output}`.trim();
+      } else {
+        // If no result output but we have greeting, use greeting
+        result.output = greetingOutput;
+      }
+    }
 
     if (!result.success) {
       const errorMessage = "I'm sorry, I encountered an error. Please try again.";

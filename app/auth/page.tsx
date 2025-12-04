@@ -75,7 +75,7 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#1a1612] text-white flex items-center justify-center px-4 py-16">
+    <div className="min-h-screen bg-[#ffffff] text-[#151515] flex items-center justify-center px-4 py-16">
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="mb-8 text-center">
@@ -87,7 +87,7 @@ export default function AuthPage() {
           <h1 className="text-3xl font-bold mb-2">
             {isSignUp ? "Create your account" : "Welcome back"}
           </h1>
-          <p className="text-white/60">
+          <p className="text-[#151515]/60">
             {isSignUp
               ? "Start building AI agents today"
               : "Sign in to continue building your AI agents"}
@@ -95,7 +95,7 @@ export default function AuthPage() {
         </div>
 
         {/* Auth Card */}
-        <div className="rounded-3xl border border-white/10 bg-black/40 p-8 backdrop-blur">
+        <div className="rounded-3xl border border-[#e5e7eb] bg-[#ffffff] p-8 shadow-sm">
           {/* Toggle */}
           <div className="mb-6 grid grid-cols-2 gap-2">
             <button
@@ -107,8 +107,8 @@ export default function AuthPage() {
               }}
               className={`rounded-3xl px-4 py-2 text-sm font-medium transition ${
                 !isSignUp
-                  ? "bg-[#3351ff] text-white"
-                  : "bg-white/5 text-white/60 hover:bg-white/10"
+                  ? "bg-[#3166bf] text-white"
+                  : "bg-[#f3f4f6] text-[#151515]/60 hover:bg-[#e5e7eb]"
               }`}
             >
               Sign in
@@ -122,8 +122,8 @@ export default function AuthPage() {
               }}
               className={`rounded-3xl px-4 py-2 text-sm font-medium transition ${
                 isSignUp
-                  ? "bg-[#3351ff] text-white"
-                  : "bg-white/5 text-white/60 hover:bg-white/10"
+                  ? "bg-[#3166bf] text-white"
+                  : "bg-[#f3f4f6] text-[#151515]/60 hover:bg-[#e5e7eb]"
               }`}
             >
               Sign up
@@ -136,41 +136,41 @@ export default function AuthPage() {
               <>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-white/70">
+                    <label className="mb-2 block text-sm font-medium text-[#151515]/70">
                       First name
                     </label>
                     <input
                       type="text"
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
-                      className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-2.5 text-white placeholder:text-white/40 focus:border-[#3351ff] focus:outline-none"
+                      className="w-full rounded-2xl border border-[#3166bf] bg-[#ffffff] px-4 py-2.5 text-[#151515] placeholder:text-[#9ca3af] focus:border-[#3166bf] focus:outline-none focus:ring-2 focus:ring-[#3166bf]/20"
                       placeholder="John"
                       required={isSignUp}
                     />
                   </div>
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-white/70">
+                    <label className="mb-2 block text-sm font-medium text-[#151515]/70">
                       Last name
                     </label>
                     <input
                       type="text"
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
-                      className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-2.5 text-white placeholder:text-white/40 focus:border-[#3351ff] focus:outline-none"
+                      className="w-full rounded-2xl border border-[#3166bf] bg-[#ffffff] px-4 py-2.5 text-[#151515] placeholder:text-[#9ca3af] focus:border-[#3166bf] focus:outline-none focus:ring-2 focus:ring-[#3166bf]/20"
                       placeholder="Doe"
                       required={isSignUp}
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-white/70">
+                  <label className="mb-2 block text-sm font-medium text-[#151515]/70">
                     Company name
                   </label>
                   <input
                     type="text"
                     value={companyName}
                     onChange={(e) => setCompanyName(e.target.value)}
-                    className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-2.5 text-white placeholder:text-white/40 focus:border-[#3351ff] focus:outline-none"
+                    className="w-full rounded-2xl border border-[#3166bf] bg-[#ffffff] px-4 py-2.5 text-[#151515] placeholder:text-[#9ca3af] focus:border-[#3166bf] focus:outline-none focus:ring-2 focus:ring-[#3166bf]/20"
                     placeholder="Your Company"
                     required={isSignUp}
                   />
@@ -179,28 +179,28 @@ export default function AuthPage() {
             )}
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-white/70">
+              <label className="mb-2 block text-sm font-medium text-[#151515]/70">
                 Email
               </label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-2.5 text-white placeholder:text-white/40 focus:border-[#3351ff] focus:outline-none"
+                className="w-full rounded-2xl border border-[#3166bf] bg-[#ffffff] px-4 py-2.5 text-[#151515] placeholder:text-[#9ca3af] focus:border-[#3166bf] focus:outline-none focus:ring-2 focus:ring-[#3166bf]/20"
                 placeholder="you@company.com"
                 required
               />
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-white/70">
+              <label className="mb-2 block text-sm font-medium text-[#151515]/70">
                 Password
               </label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-2.5 text-white placeholder:text-white/40 focus:border-[#3351ff] focus:outline-none"
+                className="w-full rounded-2xl border border-[#3166bf] bg-[#ffffff] px-4 py-2.5 text-[#151515] placeholder:text-[#9ca3af] focus:border-[#3166bf] focus:outline-none focus:ring-2 focus:ring-[#3166bf]/20"
                 placeholder="••••••••"
                 required
                 minLength={8}
@@ -208,13 +208,13 @@ export default function AuthPage() {
             </div>
 
             {error && (
-              <div className="rounded-2xl bg-red-500/20 border border-red-500/30 px-4 py-3 text-sm text-red-300">
+              <div className="rounded-2xl bg-[#fef2f2] border border-[#f0494a]/30 px-4 py-3 text-sm text-[#f0494a]">
                 {error}
               </div>
             )}
 
             {message && (
-              <div className="rounded-2xl bg-green-500/20 border border-green-500/30 px-4 py-3 text-sm text-green-300">
+              <div className="rounded-2xl bg-[#f0fdf4] border border-[#70d4b4]/30 px-4 py-3 text-sm text-[#e8f6f3]">
                 {message}
               </div>
             )}
@@ -222,7 +222,7 @@ export default function AuthPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-3xl bg-[#3351ff] hover:bg-[#4a64ff] px-4 py-3 text-white font-medium transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full rounded-3xl bg-[#3166bf] hover:bg-[#2a5aa8] px-4 py-3 text-white font-medium transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
                 "Loading..."
@@ -236,7 +236,7 @@ export default function AuthPage() {
           </form>
 
           {isSignUp && (
-            <p className="mt-4 text-center text-xs text-white/50">
+            <p className="mt-4 text-center text-xs text-[#151515]/50">
               By signing up, you agree to our Terms of Service and Privacy Policy
             </p>
           )}
@@ -246,7 +246,7 @@ export default function AuthPage() {
         <div className="mt-6 text-center">
           <Link
             href="/"
-            className="text-sm text-white/60 hover:text-white transition"
+            className="text-sm text-[#151515]/60 hover:text-[#151515] transition"
           >
             ← Back to home
           </Link>

@@ -234,3 +234,4 @@ async function handleOAuthCallback(
   return NextResponse.redirect(new URL("/gigaai?success=oauth_connected", req.url));
 }
 
+

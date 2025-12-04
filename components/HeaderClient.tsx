@@ -41,14 +41,14 @@ export default function HeaderClient({
   }
 
   const headerClasses = clsx(
-    "w-full sticky top-0 z-50 border-b border-white/5 bg-black/40 backdrop-blur-xl transition-colors duration-300"
+    "w-full sticky top-0 z-50 border-b border-[#e5e7eb] bg-[#ffffff] transition-colors duration-300"
   );
 
   const containerClasses =
-    "mx-auto flex max-w-6xl items-center justify-between px-4 py-4 text-white";
+    "mx-auto flex max-w-6xl items-center justify-between px-4 py-4 text-[#151515]";
 
   const navWrapperClasses = clsx(
-    "hidden md:flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm font-medium text-white/65 backdrop-blur md:mr-6",
+    "hidden md:flex items-center gap-2 rounded-full border border-[#e5e7eb] bg-[#f3f4f6] px-3 py-1.5 text-sm font-medium text-[#151515] md:mr-6",
     isHome && "pointer-events-none opacity-0"
   );
 
@@ -61,8 +61,8 @@ export default function HeaderClient({
         className={clsx(
           "relative rounded-full px-3 py-1 transition-all whitespace-nowrap",
           active
-            ? "bg-white/20 text-white shadow-[0_8px_24px_rgba(51,81,255,0.35)]"
-            : "text-white/70 hover:text-white"
+            ? "bg-[#70d4b4] text-[#151515] shadow-sm"
+            : "text-[#151515]/70 hover:text-[#151515]"
         )}
       >
         {label}
@@ -100,7 +100,7 @@ export default function HeaderClient({
           {isAuthenticated ? (
             <>
               {!isHome && greeting && (
-                <span className="hidden sm:inline text-sm text-white/70">Welcome, {greeting}</span>
+                <span className="hidden sm:inline text-sm text-[#151515]/70">Welcome, {greeting}</span>
               )}
               <SignOutButton />
             </>

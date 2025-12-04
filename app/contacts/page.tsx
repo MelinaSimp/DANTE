@@ -38,8 +38,8 @@ export default async function ContactsPage() {
     .order("name", { ascending: true });
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 text-white">
-      <h1 className="mb-6 text-3xl font-semibold text-white">Contacts</h1>
+    <div className="mx-auto max-w-6xl px-4 py-8 text-[#151515]">
+      <h1 className="mb-6 text-3xl font-semibold text-[#151515]">Contacts</h1>
       <ContactsClient 
         initialContacts={contacts || []} 
         workspaceId={profile.workspace_id}

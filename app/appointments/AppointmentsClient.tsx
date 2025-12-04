@@ -55,20 +55,20 @@ export default function AppointmentsClient({ initialAppointments, workspaceId }:
   const getStatusColor = (status: string) => {
     switch (status) {
       case "scheduled":
-        return "bg-[#3351ff]/20 text-[#8096ff]";
+        return "bg-[#3166bf]/20 text-[#3166bf]";
       case "confirmed":
-        return "bg-green-400/20 text-green-200";
+        return "bg-[#ebf9ef] text-[#e8f6f3]";
       case "completed":
-        return "bg-white/10 text-white/70";
+        return "bg-[#f3f4f6] text-[#151515]/70";
       case "cancelled":
-        return "bg-red-400/20 text-red-200";
+        return "bg-[#fef2f2] text-[#f0494a]";
       default:
-        return "bg-white/10 text-white/60";
+        return "bg-[#f3f4f6] text-[#151515]/60";
     }
   };
 
   return (
-    <div className="space-y-6 text-white">
+    <div className="space-y-6 text-[#151515]">
       {/* Error and Success Messages */}
       {error && (
         <ErrorMessage 
@@ -85,18 +85,18 @@ export default function AppointmentsClient({ initialAppointments, workspaceId }:
       )}
 
       <div className="flex justify-between items-center">
-        <h2 className="text-lg font-semibold text-white">All Appointments</h2>
+        <h2 className="text-lg font-semibold text-[#151515]">All Appointments</h2>
         <Button 
           onClick={() => setShowAddForm(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white"
+          className="bg-[#3166bf] hover:bg-[#2a5aa8] text-white"
         >
           Add Appointment
         </Button>
       </div>
 
       {showAddForm && (
-        <div className="rounded-2xl border border-white/10 bg-black/40 p-6 shadow-lg">
-          <h3 className="mb-4 text-lg font-semibold text-white">Add New Appointment</h3>
+        <div className="rounded-2xl border border-[#e5e7eb] bg-[#ffffff] p-6 shadow-lg">
+          <h3 className="mb-4 text-lg font-semibold text-[#151515]">Add New Appointment</h3>
           <AddAppointmentForm 
             workspaceId={workspaceId}
             onAppointmentAdded={handleAppointmentAdded}
@@ -111,15 +111,15 @@ export default function AppointmentsClient({ initialAppointments, workspaceId }:
           <LoadingSpinner size="lg" text="Loading appointments..." />
         </div>
       ) : appointments.length === 0 ? (
-        <div className="rounded-2xl border border-white/10 bg-black/30 p-8 text-center shadow-lg">
-          <p className="text-white/70">No appointments yet.</p>
-          <p className="mt-2 text-sm text-white/60">Add your first appointment to get started.</p>
+        <div className="rounded-2xl border border-[#e5e7eb] bg-[#ffffff] p-8 text-center shadow-lg">
+          <p className="text-[#151515]/70">No appointments yet.</p>
+          <p className="mt-2 text-sm text-[#151515]/60">Add your first appointment to get started.</p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/40 shadow-lg">
+        <div className="overflow-hidden rounded-2xl border border-[#e5e7eb] bg-[#ffffff] shadow-lg">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-white/80">
-              <thead className="border-b border-white/10 bg-white/5 text-xs uppercase tracking-wider text-white/50">
+            <table className="w-full text-left text-[#151515]">
+              <thead className="border-b border-[#e5e7eb] bg-[#f3f4f6] text-xs uppercase tracking-wider text-[#151515]/60">
                 <tr>
                   <th className="px-6 py-3">Client</th>
                   <th className="px-6 py-3">Service</th>
@@ -128,33 +128,33 @@ export default function AppointmentsClient({ initialAppointments, workspaceId }:
                   <th className="px-6 py-3">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/10">
+              <tbody className="divide-y divide-[#e5e7eb]">
                 {appointments.map((appointment) => (
-                  <tr key={appointment.id} className="transition hover:bg-white/5">
+                  <tr key={appointment.id} className="transition hover:bg-[#f3f4f6]">
                     <td className="whitespace-nowrap px-6 py-4">
                       <div className="flex items-center">
-                        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#3351ff]/25 text-[#8096ff]">
+                        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#3166bf]/25 text-[#3166bf]">
                           <span className="text-sm font-medium">
                             {appointment.contacts.name.charAt(0).toUpperCase()}
                           </span>
                         </div>
                         <div className="ml-3">
-                          <div className="text-sm font-medium text-white">
+                          <div className="text-sm font-medium text-[#151515]">
                             {appointment.contacts.name}
                           </div>
-                          <div className="text-sm text-white/60">
+                          <div className="text-sm text-[#151515]/60">
                             {appointment.contacts.phone}
                           </div>
                         </div>
                       </div>
                     </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-white/70">
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-[#151515]/70">
                       {appointment.service_type}
                     </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-white/70">
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-[#151515]/70">
                       {dayjs(appointment.scheduled_at).format("MMM D, YYYY h:mm A")}
                     </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-white/70">
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-[#151515]/70">
                       {appointment.duration_minutes} min
                     </td>
                     <td className="whitespace-nowrap px-6 py-4">

@@ -748,19 +748,19 @@ export default function GigaAIClient() {
     textQuaternary: colors.textTertiary,
   };
 
-  // Dark theme sidebar colors
-  const sidebarTextColor = "text-white";
-  const sidebarTextSecondary = "text-white/90";
-  const sidebarTextTertiary = "text-white/70";
-  const sidebarBg = "bg-[#242423]";
-  const sidebarBorder = "border-white/10";
-  const sidebarIcon = "text-white";
-  const sidebarIconSecondary = "text-white/70";
+  // Light theme sidebar colors
+  const sidebarTextColor = "text-[#151515]";
+  const sidebarTextSecondary = "text-[#151515]/90";
+  const sidebarTextTertiary = "text-[#151515]/70";
+  const sidebarBg = "bg-[#ffffff]";
+  const sidebarBorder = "border-[#151515]";
+  const sidebarIcon = "text-[#151515]";
+  const sidebarIconSecondary = "text-[#151515]/70";
 
   return (
-    <div className={`flex h-screen overflow-hidden ${themeClasses.textPrimary} bg-[#242423]`} style={{ background: '#242423', backgroundImage: 'none' }}>
+    <div className={`flex h-screen overflow-hidden ${themeClasses.textPrimary} bg-[#ffffff]`} style={{ background: '#ffffff', backgroundImage: 'none' }}>
       {/* Left Sidebar */}
-      <div className={`w-64 border-r ${sidebarBorder} ${sidebarBg} flex flex-col`}>
+      <div className={`w-64 border-r border-[#151515] ${sidebarBg} flex flex-col`}>
         {/* Top Logo/Brand */}
         <div className={`p-4 border-b ${sidebarBorder}`}>
           <div className="flex items-center justify-between">
@@ -781,7 +781,7 @@ export default function GigaAIClient() {
                   placeholder="Search agents, scenario ⌘K"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className={`w-full pl-9 pr-8 py-2 rounded-2xl bg-[#242423] border border-white/10 ${sidebarTextColor} text-xs placeholder:${sidebarTextTertiary} focus:outline-none focus:border-blue-500`}
+                  className={`w-full pl-9 pr-8 py-2 rounded-2xl bg-[#ffffff] border border-[#3166bf] ${sidebarTextColor} text-xs placeholder:${sidebarTextTertiary} focus:outline-none focus:border-[#3166bf]`}
                 />
           </div>
         </div>
@@ -793,7 +793,7 @@ export default function GigaAIClient() {
             <div className="flex items-center justify-between mb-1">
               <button
                 onClick={() => setAgentsExpanded(!agentsExpanded)}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-2xl ${sidebarTextSecondary} hover:bg-[#242423] transition text-xs`}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-2xl ${sidebarTextSecondary} hover:bg-[#f3f4f6] transition text-xs`}
                   >
                     <div className="flex items-center gap-3">
                       <Folder className={`h-4 w-4 ${sidebarIconSecondary}`} />
@@ -822,8 +822,8 @@ export default function GigaAIClient() {
                       }}
                       className={`w-full text-left px-3 py-2 rounded-2xl text-sm transition flex items-center justify-between ${
                         selectedAgent?.id === agent.id
-                          ? "bg-[#242423] text-white border border-white/20"
-                          : `${sidebarTextTertiary} hover:bg-[#242423]`
+                          ? "bg-[#70d4b4] text-[#151515] border border-[#151515]"
+                          : `${sidebarTextTertiary} hover:bg-[#f3f4f6]`
                       }`}
                     >
                       <span className="flex items-center gap-2 flex-1 min-w-0">
@@ -843,13 +843,13 @@ export default function GigaAIClient() {
                       </div>
                     </button>
                     {showAgentMenu === agent.id && (
-                      <div className={`absolute right-0 top-full mt-1 z-20 bg-[#242423] border ${sidebarBorder} rounded-2xl shadow-lg min-w-[120px]`}>
+                      <div className={`absolute right-0 top-full mt-1 z-20 bg-[#ffffff] border border-[#e5e7eb] rounded-2xl shadow-lg min-w-[120px]`}>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             handleEditAgentClick(agent);
                           }}
-                          className={`w-full text-left px-3 py-2 text-sm ${sidebarTextSecondary} hover:bg-[#2a2a2a] flex items-center gap-2`}
+                          className={`w-full text-left px-3 py-2 text-sm ${sidebarTextSecondary} hover:bg-[#f3f4f6] flex items-center gap-2`}
                         >
                           <Edit className="h-3 w-3" />
                           Edit
@@ -870,7 +870,7 @@ export default function GigaAIClient() {
                 ))}
                 <button
                   onClick={() => setShowCreateModal(true)}
-                      className={`w-full text-left px-3 py-2 rounded-2xl text-xs ${sidebarTextTertiary} hover:bg-[#242423] flex items-center gap-2 border border-dashed ${sidebarBorder}`}
+                      className={`w-full text-left px-3 py-2 rounded-2xl text-xs ${sidebarTextTertiary} hover:bg-[#f3f4f6] flex items-center gap-2 border border-dashed border-[#e5e7eb]`}
                     >
                       <Plus className={`h-3 w-3 ${sidebarIconSecondary}`} />
                       Add agent
@@ -881,7 +881,7 @@ export default function GigaAIClient() {
 
           {/* Navigation - Only show when agent is selected */}
           {selectedAgent && (
-            <nav className="p-4 space-y-1 border-t border-white/10">
+            <nav className="p-4 space-y-1 border-t border-[#151515]">
               <NavItem
                 icon={FileText}
                 label="Scenarios"
@@ -935,7 +935,7 @@ export default function GigaAIClient() {
               <div className="flex items-center justify-between mb-1">
                   <button
                       onClick={() => setScenariosExpanded(!scenariosExpanded)}
-                      className={`w-full flex items-center justify-between px-3 py-2 rounded-2xl ${sidebarTextSecondary} hover:bg-[#242423] transition text-xs`}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-2xl ${sidebarTextSecondary} hover:bg-[#f3f4f6] transition text-xs`}
                   >
                     <div className="flex items-center gap-3">
                       <Folder className={`h-4 w-4 ${sidebarIconSecondary}`} />
@@ -959,7 +959,7 @@ export default function GigaAIClient() {
                     .map((scenario) => (
                       <div key={scenario.id} className="relative">
                         {editingScenarioId === scenario.id ? (
-                          <div className={`flex items-center gap-2 p-2 rounded-2xl bg-[#242423] border ${sidebarBorder}`}>
+                          <div className={`flex items-center gap-2 p-2 rounded-2xl bg-[#ffffff] border border-[#e5e7eb]`}>
                             <input
                               type="text"
                               value={editingScenarioName}
@@ -972,7 +972,7 @@ export default function GigaAIClient() {
                                   setEditingScenarioName("");
                                 }
                               }}
-                              className={`flex-1 px-2 py-1 rounded-2xl bg-[#242423] border border-white/10 text-xs ${sidebarTextColor} focus:border-[#3351ff] focus:outline-none`}
+                              className={`flex-1 px-2 py-1 rounded-2xl bg-[#ffffff] border border-[#3166bf] text-xs ${sidebarTextColor} focus:border-[#3166bf] focus:outline-none`}
                               autoFocus
                             />
                             <button
@@ -999,8 +999,8 @@ export default function GigaAIClient() {
                             }}
                             className={`w-full text-left px-3 py-2 rounded-2xl text-sm transition flex items-center justify-between group ${
                               selectedScenario?.id === scenario.id
-                                ? "bg-[#383939] text-white border border-white/20"
-                                : `${sidebarTextTertiary} hover:bg-[#383939]`
+                                ? "bg-[#70d4b4] text-[#151515] border border-[#151515]"
+                                : `${sidebarTextTertiary} hover:bg-[#f3f4f6]`
                             }`}
                           >
                             <span className="flex items-center gap-2 flex-1 min-w-0">
@@ -1013,19 +1013,19 @@ export default function GigaAIClient() {
                                   e.stopPropagation();
                                   setShowScenarioMenu(showScenarioMenu === scenario.id ? null : scenario.id);
                                 }}
-                                    className={`p-1 hover:bg-[#242423] rounded-full`}
+                                    className={`p-1 hover:bg-[#f3f4f6] rounded-full`}
                                   >
                                     <MoreVertical className={`h-3 w-3 ${sidebarIconSecondary}`} />
                               </button>
                             </div>
                             {showScenarioMenu === scenario.id && (
-                              <div className={`absolute right-0 top-full mt-1 z-10 bg-[#242423] border ${sidebarBorder} rounded-2xl shadow-lg min-w-[120px]`}>
+                              <div className={`absolute right-0 top-full mt-1 z-10 bg-[#ffffff] border border-[#e5e7eb] rounded-2xl shadow-lg min-w-[120px]`}>
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleEditScenario(scenario);
                                   }}
-                                  className={`w-full text-left px-3 py-2 text-sm ${sidebarTextSecondary} hover:bg-[#2a2a2a] flex items-center gap-2`}
+                                  className={`w-full text-left px-3 py-2 text-sm ${sidebarTextSecondary} hover:bg-[#f3f4f6] flex items-center gap-2`}
                                 >
                                   <Edit className="h-3 w-3" />
                                   Edit
@@ -1049,7 +1049,7 @@ export default function GigaAIClient() {
                   {/* Add Scenario Button */}
                       <button
                         onClick={() => setShowCreateScenarioModal(true)}
-                        className={`w-full text-left px-3 py-2 rounded-2xl text-xs ${sidebarTextTertiary} hover:bg-[#242423] flex items-center gap-2 border border-dashed ${sidebarBorder}`}
+                        className={`w-full text-left px-3 py-2 rounded-2xl text-xs ${sidebarTextTertiary} hover:bg-[#f3f4f6] flex items-center gap-2 border border-dashed border-[#e5e7eb]`}
                       >
                         <Plus className={`h-3 w-3 ${sidebarIconSecondary}`} />
                         Add scenario
@@ -1066,7 +1066,7 @@ export default function GigaAIClient() {
               <div className="mt-4">
               <button
                 onClick={() => setDocsExpanded(!docsExpanded)}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-2xl ${sidebarTextSecondary} hover:bg-[#242423] transition text-xs`}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-2xl ${sidebarTextSecondary} hover:bg-[#f3f4f6] transition text-xs`}
               >
                 <div className="flex items-center gap-3">
                   <Folder className={`h-4 w-4 ${sidebarIconSecondary}`} />
@@ -1087,7 +1087,7 @@ export default function GigaAIClient() {
                 ) : (
                   supportingDocs.map((doc) => (
                     <div key={doc.id} className="relative group">
-                            <button className={`w-full text-left px-3 py-2 rounded-2xl text-sm ${sidebarTextTertiary} hover:bg-[#383939] flex items-center justify-between`}>
+                            <button className={`w-full text-left px-3 py-2 rounded-2xl text-sm ${sidebarTextTertiary} hover:bg-[#f3f4f6] flex items-center justify-between`}>
                               <span className="flex items-center gap-2 flex-1 min-w-0">
                                 <FileText className={`h-3 w-3 flex-shrink-0 ${sidebarIconSecondary}`} />
                                 <span className="truncate">{doc.name}</span>
@@ -1102,7 +1102,7 @@ export default function GigaAIClient() {
                                 <MoreVertical className={`h-3 w-3 ${sidebarIconSecondary}`} />
                               </button>
                               {showDocMenu === doc.id && (
-                                <div className={`absolute right-0 top-full mt-1 z-10 bg-[#242423] border ${sidebarBorder} rounded-2xl shadow-lg min-w-[120px]`}>
+                                <div className={`absolute right-0 top-full mt-1 z-10 bg-[#ffffff] border border-[#e5e7eb] rounded-2xl shadow-lg min-w-[120px]`}>
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -1121,7 +1121,7 @@ export default function GigaAIClient() {
                 )}
                       <button
                         onClick={() => setShowAddDocModal(true)}
-                        className={`w-full text-left px-3 py-2 rounded-2xl text-xs ${sidebarTextTertiary} hover:bg-[#242423] flex items-center gap-2 border border-dashed ${sidebarBorder}`}
+                        className={`w-full text-left px-3 py-2 rounded-2xl text-xs ${sidebarTextTertiary} hover:bg-[#f3f4f6] flex items-center gap-2 border border-dashed border-[#e5e7eb]`}
                       >
                         <Plus className={`h-3 w-3 ${sidebarIconSecondary}`} />
                         Add document
@@ -1135,7 +1135,7 @@ export default function GigaAIClient() {
       </div>
 
       {/* Main Content */}
-      <div className={`flex-1 flex flex-col overflow-hidden bg-[#242423]`} style={{ background: '#242423', backgroundImage: 'url(/backgrounds/dunes.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}>
+      <div className={`flex-1 flex flex-col overflow-hidden bg-[#ffffff]`} style={{ background: '#ffffff', backgroundImage: 'none' }}>
         {/* Top Header */}
         {selectedAgent && (
           <div className={`border-b ${themeClasses.border} ${themeClasses.bgSidebar} px-6 py-3`}>
@@ -1172,7 +1172,7 @@ export default function GigaAIClient() {
                 {selectedAgent.status !== "deployed" ? (
                   <button 
                     onClick={handleDeployAgent}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-3xl bg-black border border-white/20 text-white text-xs font-medium transition hover:bg-white/10`}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-3xl bg-[#3166bf] border border-[#3166bf] text-white text-xs font-medium transition hover:bg-[#2a5aa8]`}
                   >
                     <Rocket className="h-3 w-3" />
                     Deploy agent
@@ -1182,7 +1182,7 @@ export default function GigaAIClient() {
                 ) : (
                   <button
                     onClick={handleCancelDeployment}
-                    className={`group flex items-center gap-2 px-4 py-2 rounded-3xl bg-green-500/20 border border-green-500/30 text-green-300 hover:bg-red-500/20 hover:border-red-500/30 hover:text-red-300 text-xs font-medium transition`}
+                    className={`group flex items-center gap-2 px-4 py-2 rounded-3xl bg-[#ebf9ef] border border-[#70d4b4] text-[#e8f6f3] hover:bg-[#fef2f2] hover:border-[#f0494a] hover:text-[#f0494a] text-xs font-medium transition`}
                   >
                     <CheckCircle className="h-3 w-3 group-hover:hidden" />
                     <X className="h-3 w-3 hidden group-hover:block" />
@@ -1208,7 +1208,7 @@ export default function GigaAIClient() {
         {selectedAgent && selectedAgent.modality === "voice" && (
           (!selectedAgent.phoneNumber || selectedAgent.status !== "deployed") && (
             <div className={`px-6 py-3 ${themeClasses.bgSidebar} border-b ${themeClasses.border}`}>
-              <div className={`flex items-center gap-2 px-4 py-2 rounded-2xl bg-yellow-500/20 border border-yellow-500/30 text-yellow-300 text-xs`}>
+              <div className={`flex items-center gap-2 px-4 py-2 rounded-2xl bg-[#fffbeb] border border-[#fbbf24]/30 text-[#fbbf24] text-xs`}>
                 {!selectedAgent.phoneNumber ? (
                   <>
                     <Phone className="h-4 w-4" />
@@ -1233,8 +1233,8 @@ export default function GigaAIClient() {
                 onClick={() => setActiveTab("canvas")}
                 className={`px-4 py-2 min-h-[40px] rounded-3xl border-2 transition text-sm font-medium flex items-center justify-center whitespace-nowrap leading-none ${
                   activeTab === "canvas"
-                    ? "border-blue-600 bg-blue-600/20 text-blue-600"
-                    : `border-white/10 ${themeClasses.textTertiary} hover:border-white/20 hover:${themeClasses.textSecondary}`
+                    ? "border-[#3166bf] bg-[#3166bf]/20 text-[#3166bf]"
+                    : `border-[#e5e7eb] ${themeClasses.textTertiary} hover:border-[#3166bf] hover:${themeClasses.textSecondary}`
                 }`}
               >
                 Agent Canvas
@@ -1398,9 +1398,9 @@ function NavItem({
   active?: boolean;
   onClick?: () => void;
 }) {
-  const bgActive = "bg-[#242423] text-white";
-  const bgInactive = "text-white/90 hover:bg-[#242423]";
-  const iconColorClass = active ? "text-[#FF9838]" : "text-white/70";
+  const bgActive = "bg-[#70d4b4] text-[#151515]";
+  const bgInactive = "text-[#151515]/90 hover:bg-[#f3f4f6]";
+  const iconColorClass = active ? "text-[#3166bf]" : "text-[#151515]/70";
   
   return (
     <button

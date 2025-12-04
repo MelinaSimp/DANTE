@@ -58,6 +58,32 @@ export default function AdvancedPage({ agentId, phoneNumber = "", onPhoneNumberC
     setLocalPhoneNumber(phoneNumber);
   }, [phoneNumber]);
 
+  // Handle keyword input - supports both single keywords and array format
+  const handleKeywordInput = (input: string) => {
+    if (!input.trim()) return;
+
+    // Try to parse as JSON array first
+    try {
+      const parsed = JSON.parse(input);
+      if (Array.isArray(parsed)) {
+        // Valid array format - add all keywords
+        const newKeywords = parsed
+          .filter(k => typeof k === 'string' && k.trim().length > 0)
+          .map(k => k.trim().toLowerCase());
+        setRoutingKeywords([...routingKeywords, ...newKeywords.filter(k => !routingKeywords.includes(k))]);
+        return;
+      }
+    } catch (e) {
+      // Not valid JSON, treat as single keyword
+    }
+
+    // Single keyword - add if not already present
+    const keyword = input.trim().toLowerCase();
+    if (keyword && !routingKeywords.includes(keyword)) {
+      setRoutingKeywords([...routingKeywords, keyword]);
+    }
+  };
+
   return (
     <div className={`h-full flex flex-col ${colors.bg} overflow-y-auto`} style={{ backgroundImage: 'url(/backgrounds/strait.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}>
       <div className="max-w-4xl mx-auto w-full p-6">
@@ -80,21 +106,21 @@ export default function AdvancedPage({ agentId, phoneNumber = "", onPhoneNumberC
               <label className={`block text-sm font-medium ${colors.textSecondary} mb-2`}>
                 Agent Role
               </label>
-              <select
+              <input
+                type="text"
                 value={agentRole}
                 onChange={(e) => setAgentRole(e.target.value)}
+                placeholder="Type any role name (e.g., customer agent, mechanic, sales rep)"
                 className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-4 py-2 text-sm ${colors.text} focus:border-[#3351ff] focus:outline-none`}
-              >
-                <option value="">General Receptionist</option>
-                <option value="receptionist">Receptionist</option>
-                <option value="specialist">Specialist</option>
-                <option value="mechanic">Mechanic</option>
-                <option value="seller">Sales/Seller</option>
-                <option value="support">Support</option>
-              </select>
+              />
               <p className={`text-xs ${colors.textTertiary} mt-2`}>
-                Define the role of this agent for routing purposes
+                Define the role of this agent for routing purposes. You can type any custom role name (e.g., "customer agent", "mechanic", "sales rep").
               </p>
+              <div className={`mt-2 p-2 rounded-xl bg-blue-500/10 border border-blue-500/20`}>
+                <p className={`text-xs text-blue-300`}>
+                  💡 <strong>Tip:</strong> Use the same role name in Transfer steps to route to this agent.
+                </p>
+              </div>
             </div>
             
             <div className="flex items-center justify-between p-4 rounded-2xl border border-blue-500/30 bg-blue-500/10">
@@ -149,17 +175,24 @@ export default function AdvancedPage({ agentId, phoneNumber = "", onPhoneNumberC
                   onChange={(e) => setKeywordInput(e.target.value)}
                   onKeyPress={(e) => {
                     if (e.key === "Enter" && keywordInput.trim()) {
-                      setRoutingKeywords([...routingKeywords, keywordInput.trim()]);
+                      handleKeywordInput(keywordInput.trim());
                       setKeywordInput("");
                     }
                   }}
-                  placeholder="Enter keyword and press Enter"
+                  onPaste={(e) => {
+                    // Allow a small delay to get pasted content
+                    setTimeout(() => {
+                      const pasted = e.clipboardData.getData('text');
+                      handleKeywordInput(pasted);
+                    }, 10);
+                  }}
+                  placeholder='Enter keyword and press Enter, or paste array: ["customer", "help", "support"]'
                   className={`flex-1 rounded-2xl border ${colors.border} ${colors.inputBg} px-4 py-2 text-sm ${colors.text} focus:border-[#3351ff] focus:outline-none`}
                 />
                 <button
                   onClick={() => {
                     if (keywordInput.trim()) {
-                      setRoutingKeywords([...routingKeywords, keywordInput.trim()]);
+                      handleKeywordInput(keywordInput.trim());
                       setKeywordInput("");
                     }
                   }}

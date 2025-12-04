@@ -316,7 +316,19 @@ export class AgentExecutor {
    * Execute a "Gather" step - Extract information from user input
    */
   private async executeGatherStep(step: any, userInput: string): Promise<StepResult> {
-    // Use AI to extract the requested information
+    // If this is the first time hitting this Gather step (no userInput yet), 
+    // return the prompt message to be spoken/displayed
+    if (!userInput || userInput.trim().length === 0) {
+      const promptMessage = step.ai_message || step.name || "Please tell me what you need.";
+      return {
+        success: true,
+        output: promptMessage, // This will be spoken/displayed, then system will listen for input
+        nextStepId: step.id, // Stay on this step to gather input
+        shouldContinue: true,
+      };
+    }
+
+    // User has provided input - extract the information
     const extractedData = await this.extractInformation(step, userInput);
 
     // Store gathered data - use step.name as key, or a default key
@@ -335,8 +347,7 @@ export class AgentExecutor {
       nextStepId = await this.getNextStepInScenario(step.id);
     }
 
-    // Gather steps don't produce output themselves
-    // The next step will be executed automatically by executeNextStep
+    // After gathering, move to next step
     return {
       success: true,
       output: "", // Empty - next step will be executed automatically
@@ -1631,11 +1642,15 @@ Answer:`;
     // Determine target agent based on transfer method
     if (config.transfer_method === "direct" && config.target_agent_id) {
       targetAgentId = config.target_agent_id;
+    } else if (config.transfer_method === "role" && config.target_role) {
+      // NEW: Transfer by typed role name (supports custom roles like "customer agent")
+      targetAgentId = await this.findSpecialistAgent(config.target_role);
+    } else if (config.transfer_method === "ai_classification") {
+      // Use AI to classify, but if target_role is specified, use that as fallback
+      const specialistRole = await this.classifySpecialistNeeded(userInput, config);
+      targetAgentId = await this.findSpecialistAgent(specialistRole || config.target_role);
     } else if (config.transfer_method === "keyword") {
       targetAgentId = await this.findAgentByKeywords(userInput, config.target_role);
-    } else if (config.transfer_method === "ai_classification") {
-      const specialistRole = await this.classifySpecialistNeeded(userInput, config);
-      targetAgentId = await this.findSpecialistAgent(specialistRole);
     } else if (config.transfer_method === "gathered_data") {
       const need = this.context.gatheredData.customer_need || 
                    this.context.gatheredData.service_type ||
@@ -1822,7 +1837,7 @@ Answer:`;
   }
 
   /**
-   * Find specialist agent by role
+   * Find specialist agent by role (supports custom role names, case-insensitive)
    */
   private async findSpecialistAgent(role: string | null): Promise<string | null> {
     if (!role) return null;
@@ -1836,16 +1851,32 @@ Answer:`;
     
     if (!agent) return null;
     
+    // Get all deployed agents in workspace (specialist or not - we'll filter by role)
     const { data: agents } = await this.supabase
       .from("agents")
       .select("id, agent_role, is_specialist")
       .eq("workspace_id", agent.workspace_id)
-      .eq("is_specialist", true)
-      .eq("agent_role", role)
-      .eq("status", "deployed")
-      .limit(1);
+      .eq("status", "deployed");
     
-    return agents && agents.length > 0 ? agents[0].id : null;
+    if (!agents) return null;
+    
+    // Case-insensitive role matching (supports custom roles like "customer agent")
+    const roleLower = role.toLowerCase().trim();
+    
+    for (const candidate of agents) {
+      if (candidate.agent_role) {
+        const candidateRoleLower = candidate.agent_role.toLowerCase().trim();
+        // Exact match or contains match (for roles like "customer agent" matching "customer")
+        if (candidateRoleLower === roleLower || 
+            candidateRoleLower.includes(roleLower) || 
+            roleLower.includes(candidateRoleLower)) {
+          return candidate.id;
+        }
+      }
+    }
+    
+    // If no match found, return null (will use fallback)
+    return null;
   }
 
   /**
@@ -1912,16 +1943,20 @@ Answer:`;
       .order("created_at", { ascending: true })
       .limit(1);
     
+    // Find the first "Say" step for greeting, or first step if no Say step
     let currentStepId = null;
     if (scenarios && scenarios.length > 0) {
       const { data: steps } = await this.supabase
         .from("steps")
-        .select("id")
+        .select("id, type")
         .eq("scenario_id", scenarios[0].id)
-        .order("sort_order", { ascending: true })
-        .limit(1);
+        .order("sort_order", { ascending: true });
       
-      currentStepId = steps && steps.length > 0 ? steps[0].id : null;
+      if (steps && steps.length > 0) {
+        // Prefer first "Say" step for greeting, otherwise first step
+        const firstSayStep = steps.find(s => s.type === "say");
+        currentStepId = firstSayStep ? firstSayStep.id : steps[0].id;
+      }
     }
     
     // Update conversation

@@ -85,6 +85,11 @@ export async function PUT(
   if (body.apis !== undefined) updates.apis = body.apis;
   if (body.global_variables !== undefined) updates.global_variables = body.global_variables;
   if (body.sort_order !== undefined) updates.sort_order = body.sort_order;
+  // New step configuration fields
+  if (body.transfer_config !== undefined) updates.transfer_config = body.transfer_config;
+  if (body.loop_config !== undefined) updates.loop_config = body.loop_config;
+  if (body.sms_config !== undefined) updates.sms_config = body.sms_config;
+  if (body.selected_data_source_ids !== undefined) updates.selected_data_source_ids = body.selected_data_source_ids;
 
   const { data, error } = await supabaseAdmin
     .from("steps")

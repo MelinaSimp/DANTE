@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { MessageSquare, FileText, GitBranch, Code, Zap, ArrowRight, X, Plus, Trash2, Calendar, CheckCircle, HelpCircle, Repeat, UserCheck, Phone } from "lucide-react";
+import { MessageSquare, FileText, GitBranch, Code, Zap, ArrowRight, X, Plus, Trash2, Calendar, CheckCircle, HelpCircle, Repeat, UserCheck, Phone, Eye } from "lucide-react";
 import ConfirmationModal from "./ConfirmationModal";
 import { useTheme } from "./ThemeProvider";
 
@@ -24,6 +24,7 @@ interface Step {
   message: string; // For display, derived from ai_message or name
   branches?: Branch[];
   sort_order?: number;
+  selected_data_source_ids?: string[];
 }
 
 interface Scenario {
@@ -117,6 +118,34 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
   const [editingBranchId, setEditingBranchId] = useState<string | null>(null);
   const [selectedStepForBranch, setSelectedStepForBranch] = useState<{ scenarioId: string; stepId: string; branchId: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [dataSourceModal, setDataSourceModal] = useState<{
+    isOpen: boolean;
+    stepId: string | null;
+  }>({
+    isOpen: false,
+    stepId: null,
+  });
+  const [availableDataSources, setAvailableDataSources] = useState<Array<{ id: string; name: string; type: string; file_url?: string; file_type?: string; content?: string }>>([]);
+  const [selectedDataSourceIds, setSelectedDataSourceIds] = useState<string[]>([]);
+  const [loadingDataSources, setLoadingDataSources] = useState(false);
+  const [showAddDataSource, setShowAddDataSource] = useState(false);
+  const [addDataSourceType, setAddDataSourceType] = useState<"text" | "file">("text");
+  const [newDataSourceName, setNewDataSourceName] = useState("");
+  const [newDataSourceContent, setNewDataSourceContent] = useState("");
+  const [addingDataSource, setAddingDataSource] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [previewModal, setPreviewModal] = useState<{
+    isOpen: boolean;
+    dataSource: { id: string; name: string; type: string; file_url?: string; file_type?: string; content?: string } | null;
+    content: string | null;
+    loading: boolean;
+  }>({
+    isOpen: false,
+    dataSource: null,
+    content: null,
+    loading: false,
+  });
   const [confirmationModal, setConfirmationModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -161,6 +190,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                   next_scenario_id: b.next_scenario_id,
                 })),
                 sort_order: step.sort_order,
+                selected_data_source_ids: step.selected_data_source_ids || [],
               };
             })
           );
@@ -297,6 +327,56 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
       }
     } catch (error) {
       console.error("Failed to save step:", error);
+    }
+  };
+
+  // Update step configuration (transfer_config, loop_config, sms_config, etc.)
+  const updateStepConfig = async (stepId: string, configKey: string, configValue: any) => {
+    if (isDeployed) {
+      setConfirmationModal({
+        isOpen: true,
+        title: "Cannot Edit",
+        message: "This agent is deployed. Please cancel deployment to make changes.",
+        confirmText: "OK",
+        cancelText: "",
+        variant: "warning",
+        onConfirm: () => setConfirmationModal({ ...confirmationModal, isOpen: false }),
+      });
+      return;
+    }
+
+    try {
+      const step = scenario.steps.find((s) => s.id === stepId);
+      if (!step) return;
+
+      // Get current step data
+      const currentStep = step as any;
+      const currentConfig = currentStep[configKey] || {};
+
+      // Merge new config
+      const updatedConfig = { ...currentConfig, ...configValue };
+
+      const response = await fetch(`/api/steps/${stepId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          [configKey]: updatedConfig,
+        }),
+      });
+
+      if (response.ok) {
+        // Update local state
+        setScenario((prev) => ({
+          ...prev,
+          steps: prev.steps.map((s) =>
+            s.id === stepId
+              ? { ...s, [configKey]: updatedConfig }
+              : s
+          ),
+        }));
+      }
+    } catch (error) {
+      console.error(`Failed to update step ${configKey}:`, error);
     }
   };
 
@@ -519,6 +599,182 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
   const currentBranch = getCurrentBranch();
   const availableSteps = getAvailableSteps();
 
+  const previewDataSource = async (dataSource: { id: string; name: string; type: string; file_url?: string; file_type?: string; content?: string }) => {
+    setPreviewModal({
+      isOpen: true,
+      dataSource,
+      content: null,
+      loading: true,
+    });
+
+    if (dataSource.type === "text") {
+      setPreviewModal({
+        isOpen: true,
+        dataSource,
+        content: dataSource.content || "",
+        loading: false,
+      });
+    } else if (dataSource.file_url) {
+      try {
+        const fileType = dataSource.file_type || "";
+        const isPDF = fileType === "application/pdf" || fileType.endsWith("pdf") || dataSource.name.toLowerCase().endsWith('.pdf');
+        const isImage = fileType.startsWith("image/");
+        const isText = fileType.startsWith("text/");
+        
+        if (isPDF) {
+          setPreviewModal({
+            isOpen: true,
+            dataSource,
+            content: "PDF_PREVIEW",
+            loading: false,
+          });
+        } else if (isImage) {
+          setPreviewModal({
+            isOpen: true,
+            dataSource,
+            content: dataSource.file_url,
+            loading: false,
+          });
+        } else if (isText) {
+          const response = await fetch(dataSource.file_url);
+          if (response.ok) {
+            const text = await response.text();
+            setPreviewModal({
+              isOpen: true,
+              dataSource,
+              content: text,
+              loading: false,
+            });
+          } else {
+            setPreviewModal({
+              isOpen: true,
+              dataSource,
+              content: "Unable to load file preview.",
+              loading: false,
+            });
+          }
+        } else {
+          const response = await fetch(dataSource.file_url);
+          if (response.ok) {
+            const contentType = response.headers.get("content-type") || "";
+            
+            if (contentType.startsWith("text/")) {
+              const text = await response.text();
+              setPreviewModal({
+                isOpen: true,
+                dataSource,
+                content: text,
+                loading: false,
+              });
+            } else if (contentType.startsWith("image/")) {
+              setPreviewModal({
+                isOpen: true,
+                dataSource,
+                content: dataSource.file_url,
+                loading: false,
+              });
+            } else if (contentType === "application/pdf" || contentType.includes("pdf")) {
+              setPreviewModal({
+                isOpen: true,
+                dataSource,
+                content: "PDF_PREVIEW",
+                loading: false,
+              });
+            } else {
+              setPreviewModal({
+                isOpen: true,
+                dataSource,
+                content: `File type: ${dataSource.file_type || contentType}\n\nPreview not available for this file type. Click download to view.`,
+                loading: false,
+              });
+            }
+          } else {
+            setPreviewModal({
+              isOpen: true,
+              dataSource,
+              content: "Unable to load file preview.",
+              loading: false,
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load file preview:", error);
+        setPreviewModal({
+          isOpen: true,
+          dataSource,
+          content: "Error loading file preview.",
+          loading: false,
+        });
+      }
+    } else {
+      setPreviewModal({
+        isOpen: true,
+        dataSource,
+        content: "No preview available.",
+        loading: false,
+      });
+    }
+  };
+
+  const handleFileUpload = async (files: File[]) => {
+    if (!agentId || files.length === 0) return;
+    
+    setUploadingFile(true);
+    setUploadError(null);
+    
+    for (const file of files) {
+      try {
+        // Upload file
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("agentId", agentId);
+        formData.append("category", "data-sources");
+
+        const uploadResponse = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!uploadResponse.ok) {
+          const errorData = await uploadResponse.json().catch(() => ({ error: "Upload failed" }));
+          throw new Error(errorData.error || `Upload failed: ${uploadResponse.statusText}`);
+        }
+
+        const uploadData = await uploadResponse.json();
+        
+        // Create data source record
+        const response = await fetch(`/api/agents/${agentId}/data-sources`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: file.name,
+            type: "file",
+            file_url: uploadData.url,
+            file_size: uploadData.fileSize,
+            file_type: uploadData.fileType,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: "Failed to create data source" }));
+          throw new Error(errorData.error || "Failed to create data source record");
+        }
+
+        const newDataSource = await response.json();
+        setAvailableDataSources([...availableDataSources, {
+          id: newDataSource.id,
+          name: newDataSource.name,
+          type: newDataSource.type,
+        }]);
+      } catch (error: any) {
+        console.error("Failed to upload file:", error);
+        setUploadError(error.message || `Failed to upload ${file.name}`);
+      }
+    }
+    
+    setUploadingFile(false);
+  };
+
   return (
     <div className={`h-full flex ${colors.bg}`}>
       {/* Main Content Area */}
@@ -564,7 +820,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
         </div>
 
         {/* Fullscreen Content */}
-        <div className={`flex-1 overflow-y-auto ${colors.bg}`} style={{ backgroundImage: 'url(/backgrounds/dunes.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}>
+        <div className={`flex-1 overflow-y-auto ${colors.bg}`} style={{ background: '#ffffff', backgroundImage: 'none' }}>
           <div className="max-w-6xl mx-auto px-8 py-8">
             <div className="mb-12">
               {/* Scenario Title */}
@@ -574,9 +830,9 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
 
               {/* Drop Zone + Steps - ONE BOX for all steps - Smaller box, centered */}
               <div
-                className={`rounded-3xl border border-white/10 bg-[#242423]/90 backdrop-blur-sm px-4 py-4 max-w-4xl mx-auto transition ${
+                className={`rounded-3xl border border-[#e5e7eb] bg-[#ffffff] px-4 py-4 max-w-4xl mx-auto transition ${
                   draggedOver
-                    ? "border-[#3351ff] bg-[#3351ff]/10"
+                    ? "border-[#3166bf] bg-[#3166bf]/10"
                     : ""
                 }`}
                 onDragOver={(e) => {
@@ -602,15 +858,15 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                       const firstSayStep = scenario.steps.find(s => s.type === "say");
                       if (firstSayStep && (!firstSayStep.ai_message || firstSayStep.ai_message.trim().length === 0)) {
                         return (
-                          <div className="mb-4 p-3 rounded-2xl bg-yellow-500/20 border border-yellow-500/30 flex items-start gap-2">
-                            <div className="h-4 w-4 rounded-full border-2 border-yellow-400 flex items-center justify-center flex-shrink-0 mt-0.5">
-                              <span className="text-[10px] text-yellow-400">!</span>
+                          <div className="mb-4 p-3 rounded-2xl bg-[#fffbeb] border border-[#fbbf24]/30 flex items-start gap-2">
+                            <div className="h-4 w-4 rounded-full border-2 border-[#fbbf24] flex items-center justify-center flex-shrink-0 mt-0.5">
+                              <span className="text-[10px] text-[#fbbf24]">!</span>
                             </div>
                             <div className="flex-1">
-                              <div className={`text-xs font-medium text-yellow-300 mb-1`}>
+                              <div className={`text-xs font-medium text-[#fbbf24] mb-1`}>
                                 Greeting Message Missing
                               </div>
-                              <div className={`text-[10px] text-yellow-300/80`}>
+                              <div className={`text-[10px] text-[#fbbf24]/80`}>
                                 Your first "Co Say" step doesn't have a message configured. Click on it to add your greeting message, otherwise callers will hear the default greeting.
                               </div>
                             </div>
@@ -724,9 +980,45 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                 Data Sources
                               </label>
                               <button
-                                onClick={() => {
-                                  // TODO: Open data source selector modal
-                                  console.log("Open data source selector for step:", step.id);
+                                onClick={async () => {
+                                  if (isDeployed) {
+                                    setConfirmationModal({
+                                      isOpen: true,
+                                      title: "Cannot Edit",
+                                      message: "This agent is deployed. Please cancel deployment to make changes.",
+                                      confirmText: "OK",
+                                      cancelText: "",
+                                      variant: "warning",
+                                      onConfirm: () => setConfirmationModal({ ...confirmationModal, isOpen: false }),
+                                    });
+                                    return;
+                                  }
+                                  // Load data sources and open modal
+                                  setLoadingDataSources(true);
+                                  setShowAddDataSource(false);
+                                  setUploadError(null);
+                                  try {
+                                    const response = await fetch(`/api/agents/${agentId}/data-sources`);
+                                    if (response.ok) {
+                                      const data = await response.json();
+                                      setAvailableDataSources(data.map((ds: any) => ({
+                                        id: ds.id,
+                                        name: ds.name,
+                                        type: ds.type,
+                                        file_url: ds.file_url,
+                                        file_type: ds.file_type,
+                                        content: ds.content,
+                                      })));
+                                      // Set currently selected IDs
+                                      const currentStep = scenario.steps.find(s => s.id === step.id);
+                                      setSelectedDataSourceIds(currentStep?.selected_data_source_ids || []);
+                                      setDataSourceModal({ isOpen: true, stepId: step.id });
+                                    }
+                                  } catch (error) {
+                                    console.error("Failed to load data sources:", error);
+                                  } finally {
+                                    setLoadingDataSources(false);
+                                  }
                                 }}
                                 className={`text-[10px] ${colors.textTertiary} ${colors.hover} underline`}
                               >
@@ -747,13 +1039,15 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                             <label className={`block text-[10px] font-medium ${colors.textSecondary}`}>
                               Loop Configuration
                             </label>
-                            <div className="space-y-2">
+                            <div className="space-y-3">
                               <select
                                 className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} focus:border-[#3351ff] focus:outline-none`}
                                 value={step.loop_config?.loop_type || "for"}
                                 onChange={(e) => {
-                                  // TODO: Update loop_config
-                                  console.log("Update loop type:", e.target.value);
+                                  updateStepConfig(step.id, "loop_config", {
+                                    ...step.loop_config,
+                                    loop_type: e.target.value,
+                                  });
                                 }}
                               >
                                 <option value="for">For (fixed iterations)</option>
@@ -767,22 +1061,75 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                   className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} focus:border-[#3351ff] focus:outline-none`}
                                   value={step.loop_config?.max_iterations || 10}
                                   onChange={(e) => {
-                                    // TODO: Update max_iterations
-                                    console.log("Update max iterations:", e.target.value);
+                                    updateStepConfig(step.id, "loop_config", {
+                                      ...step.loop_config,
+                                      max_iterations: parseInt(e.target.value) || 10,
+                                    });
                                   }}
                                 />
                               )}
                               {(step.loop_config?.loop_type === "while" || step.loop_config?.loop_type === "until") && (
                                 <textarea
                                   placeholder="Condition (e.g., gatheredData.count < 3)"
-                                  className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} focus:border-[#3351ff] focus:outline-none`}
+                                  rows={2}
+                                  className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} focus:border-[#3351ff] focus:outline-none resize-none`}
                                   value={step.loop_config?.condition || ""}
                                   onChange={(e) => {
-                                    // TODO: Update condition
-                                    console.log("Update condition:", e.target.value);
+                                    updateStepConfig(step.id, "loop_config", {
+                                      ...step.loop_config,
+                                      condition: e.target.value,
+                                    });
                                   }}
                                 />
                               )}
+                              <div className="space-y-2">
+                                <label className={`block text-[10px] font-medium ${colors.textSecondary}`}>
+                                  Start Step (first step in loop)
+                                </label>
+                                <select
+                                  className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} focus:border-[#3351ff] focus:outline-none`}
+                                  value={step.loop_config?.start_step_id || ""}
+                                  onChange={(e) => {
+                                    updateStepConfig(step.id, "loop_config", {
+                                      ...step.loop_config,
+                                      start_step_id: e.target.value || null,
+                                    });
+                                  }}
+                                >
+                                  <option value="">Select start step...</option>
+                                  {scenario.steps
+                                    .filter((s) => s.id !== step.id)
+                                    .map((s, idx) => (
+                                      <option key={s.id} value={s.id}>
+                                        Step {idx + 1}: {s.message.substring(0, 40)}
+                                      </option>
+                                    ))}
+                                </select>
+                              </div>
+                              <div className="space-y-2">
+                                <label className={`block text-[10px] font-medium ${colors.textSecondary}`}>
+                                  End Step (last step in loop)
+                                </label>
+                                <select
+                                  className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} focus:border-[#3351ff] focus:outline-none`}
+                                  value={step.loop_config?.end_step_id || ""}
+                                  onChange={(e) => {
+                                    updateStepConfig(step.id, "loop_config", {
+                                      ...step.loop_config,
+                                      end_step_id: e.target.value || null,
+                                    });
+                                  }}
+                                >
+                                  <option value="">Select end step...</option>
+                                  {scenario.steps
+                                    .filter((s) => s.id !== step.id)
+                                    .map((s, idx) => (
+                                      <option key={s.id} value={s.id}>
+                                        Step {idx + 1}: {s.message.substring(0, 40)}
+                                      </option>
+                                    ))}
+                                </select>
+                              </div>
                             </div>
                           </div>
                         )}
@@ -837,26 +1184,77 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                               <select
                                 className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} focus:border-[#3351ff] focus:outline-none`}
                                 value={step.transfer_config?.transfer_method || "ai_classification"}
-                                onChange={(e) => {
-                                  // TODO: Update transfer_method
-                                  console.log("Update transfer method:", e.target.value);
+                                onChange={async (e) => {
+                                  const newConfig = {
+                                    ...(step.transfer_config || {}),
+                                    transfer_method: e.target.value
+                                  };
+                                  await updateStepConfig(step.id, "transfer_config", newConfig);
                                 }}
                               >
-                                <option value="ai_classification">AI Classification</option>
+                                <option value="ai_classification">AI Classification (Auto-detect role)</option>
+                                <option value="role">Transfer by Role (Type role name)</option>
                                 <option value="keyword">Keyword Match</option>
-                                <option value="direct">Direct Transfer</option>
+                                <option value="direct">Direct Transfer (Agent ID)</option>
                                 <option value="gathered_data">From Gathered Data</option>
                               </select>
+                              
+                              {(step.transfer_config?.transfer_method === "role" || step.transfer_config?.transfer_method === "ai_classification") && (
+                                <div>
+                                  <label className={`block text-[10px] ${colors.textTertiary} mb-1`}>
+                                    Target Agent Role (e.g., "customer agent", "mechanic", "sales rep")
+                                  </label>
+                                  <input
+                                    type="text"
+                                    placeholder="Type agent role name (e.g., customer agent, mechanic, sales)"
+                                    className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} focus:border-[#3351ff] focus:outline-none`}
+                                    value={step.transfer_config?.target_role || ""}
+                                    onChange={async (e) => {
+                                      const newConfig = {
+                                        ...(step.transfer_config || {}),
+                                        target_role: e.target.value
+                                      };
+                                      await updateStepConfig(step.id, "transfer_config", newConfig);
+                                    }}
+                                  />
+                                  <p className={`text-[9px] ${colors.textTertiary} mt-1`}>
+                                    The system will find an agent with this role. You can use any custom role name.
+                                  </p>
+                                </div>
+                              )}
+                              
+                              {step.transfer_config?.transfer_method === "direct" && (
+                                <input
+                                  type="text"
+                                  placeholder="Target Agent ID (UUID)"
+                                  className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} focus:border-[#3351ff] focus:outline-none`}
+                                  value={step.transfer_config?.target_agent_id || ""}
+                                  onChange={async (e) => {
+                                    const newConfig = {
+                                      ...(step.transfer_config || {}),
+                                      target_agent_id: e.target.value
+                                    };
+                                    await updateStepConfig(step.id, "transfer_config", newConfig);
+                                  }}
+                                />
+                              )}
+                              
                               <input
                                 type="text"
-                                placeholder="Transfer message"
+                                placeholder="Transfer message (e.g., 'Let me connect you with a specialist...')"
                                 className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} focus:border-[#3351ff] focus:outline-none`}
                                 value={step.transfer_config?.transfer_message || ""}
-                                onChange={(e) => {
-                                  // TODO: Update transfer_message
-                                  console.log("Update transfer message:", e.target.value);
+                                onChange={async (e) => {
+                                  const newConfig = {
+                                    ...(step.transfer_config || {}),
+                                    transfer_message: e.target.value
+                                  };
+                                  await updateStepConfig(step.id, "transfer_config", newConfig);
                                 }}
                               />
+                              <p className={`text-[9px] ${colors.textTertiary} mt-1`}>
+                                This message will be played/sent when transferring the conversation.
+                              </p>
                             </div>
                           </div>
                         )}
@@ -961,7 +1359,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
 
       {/* Right Sidebar Workspace */}
       {selectedStepForBranch && (
-        <div className={`w-80 border-l ${colors.border} bg-[#242423] flex flex-col`}>
+        <div className={`w-80 border-l border-[#151515] bg-[#ffffff] flex flex-col`}>
           <div className={`border-b ${colors.border} px-4 py-3 flex items-center justify-between`}>
             <h3 className={`text-sm font-semibold ${colors.text}`}>New Condition</h3>
             <button
@@ -990,7 +1388,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                   }
                 }}
                 rows={3}
-                className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none resize-none`}
+                className={`w-full rounded-2xl border border-[#3166bf] bg-[#ffffff] px-3 py-2 text-xs ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3166bf] focus:outline-none resize-none`}
                 placeholder="Customer provides their full name and date of birth"
               />
               <p className={`text-[10px] ${colors.textTertiary} mt-1`}>
@@ -1010,17 +1408,17 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                     onClick={() => selectTag(tag)}
                     className={`w-full text-left px-3 py-2 rounded-2xl border transition text-sm ${
                       currentBranch?.condition_tag === tag
-                        ? `border-[#3351ff] bg-[#3351ff]/20 ${colors.text}`
-                        : `${colors.border} ${colors.cardBg} ${colors.textSecondary} ${colors.hover}`
+                        ? `border-[#3166bf] bg-[#3166bf]/20 ${colors.text}`
+                        : `border-[#e5e7eb] bg-[#ffffff] ${colors.textSecondary} hover:bg-[#f3f4f6]`
                     }`}
                   >
                     <span
                       className={`px-2 py-0.5 rounded text-xs font-mono ${
                         tag.startsWith("@")
-                          ? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
+                          ? "bg-[#3166bf]/20 text-[#3166bf] border border-[#3166bf]/30"
                           : tag === "If Statement"
-                          ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
-                          : "bg-green-500/20 text-green-300 border border-green-500/30"
+                          ? "bg-[#aeb8c9]/20 text-[#3166bf] border border-[#aeb8c9]/30"
+                          : "bg-[#ebf9ef] text-[#70d4b4] border border-[#70d4b4]/30"
                       }`}
                     >
                       {tag}
@@ -1047,7 +1445,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                   }
                 }}
                 rows={3}
-                className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none resize-none px-3 py-2 text-sm`}
+                className={`w-full rounded-2xl border border-[#3166bf] bg-[#ffffff] ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3166bf] focus:outline-none resize-none px-3 py-2 text-sm`}
                 placeholder="Identity Verification step"
               />
               <p className={`text-[10px] ${colors.textTertiary} mt-1`}>
@@ -1092,6 +1490,386 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
         onConfirm={confirmationModal.onConfirm}
         onCancel={() => setConfirmationModal({ ...confirmationModal, isOpen: false })}
       />
+
+      {/* Data Source Selector Modal */}
+      {dataSourceModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className={`w-full max-w-2xl max-h-[80vh] rounded-3xl ${colors.bg} ${colors.border} border-2 shadow-2xl flex flex-col`}>
+            <div className="flex items-center justify-between p-6 border-b border-gray-800">
+              <h3 className={`text-lg font-semibold ${colors.text}`}>Select Data Sources</h3>
+              <button
+                onClick={() => setDataSourceModal({ isOpen: false, stepId: null })}
+                className={`p-2 rounded-full ${colors.hover} ${colors.textSecondary} hover:${colors.text}`}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6">
+              {loadingDataSources ? (
+                <div className={`text-center ${colors.textSecondary} py-8`}>Loading data sources...</div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Add Data Source Section */}
+                  {!showAddDataSource ? (
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => {
+                          setShowAddDataSource(true);
+                          setAddDataSourceType("text");
+                        }}
+                        className={`w-full p-4 rounded-2xl border-2 border-dashed ${colors.border} ${colors.bgSecondary} hover:border-[#3351ff]/50 transition text-left`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Plus className={`h-5 w-5 ${colors.textSecondary}`} />
+                          <span className={`font-medium ${colors.text}`}>Add Text Data Source</span>
+                        </div>
+                        <p className={`text-xs ${colors.textTertiary} mt-1 ml-7`}>
+                          Add text content or knowledge base entries
+                        </p>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowAddDataSource(true);
+                          setAddDataSourceType("file");
+                        }}
+                        className={`w-full p-4 rounded-2xl border-2 border-dashed ${colors.border} ${colors.bgSecondary} hover:border-[#3351ff]/50 transition text-left`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Plus className={`h-5 w-5 ${colors.textSecondary}`} />
+                          <span className={`font-medium ${colors.text}`}>Upload File (PDF, DOCX, etc.)</span>
+                        </div>
+                        <p className={`text-xs ${colors.textTertiary} mt-1 ml-7`}>
+                          Upload PDFs, documents, or other files
+                        </p>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className={`p-4 rounded-2xl border ${colors.border} ${colors.bgSecondary} space-y-3`}>
+                      <div className="flex items-center justify-between">
+                        <h4 className={`font-medium ${colors.text}`}>
+                          {addDataSourceType === "text" ? "Add Text Data Source" : "Upload File"}
+                        </h4>
+                        <div className="flex items-center gap-2">
+                          {addDataSourceType === "file" && (
+                            <button
+                              onClick={() => {
+                                setAddDataSourceType("text");
+                                setUploadError(null);
+                              }}
+                              className={`px-3 py-1 rounded-xl text-xs ${colors.textSecondary} ${colors.hover} border ${colors.border}`}
+                            >
+                              Switch to Text
+                            </button>
+                          )}
+                          {addDataSourceType === "text" && (
+                            <button
+                              onClick={() => {
+                                setAddDataSourceType("file");
+                                setUploadError(null);
+                              }}
+                              className={`px-3 py-1 rounded-xl text-xs ${colors.textSecondary} ${colors.hover} border ${colors.border}`}
+                            >
+                              Switch to File
+                            </button>
+                          )}
+                          <button
+                            onClick={() => {
+                              setShowAddDataSource(false);
+                              setNewDataSourceName("");
+                              setNewDataSourceContent("");
+                              setUploadError(null);
+                            }}
+                            className={`p-1 rounded-full ${colors.hover} ${colors.textSecondary}`}
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {addDataSourceType === "text" ? (
+                        <>
+                          <input
+                            type="text"
+                            value={newDataSourceName}
+                            onChange={(e) => setNewDataSourceName(e.target.value)}
+                            placeholder="Data source name (e.g., 'Product Catalog', 'FAQ')"
+                            className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-sm ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none`}
+                          />
+                          <textarea
+                            value={newDataSourceContent}
+                            onChange={(e) => setNewDataSourceContent(e.target.value)}
+                            placeholder="Enter the content for this data source..."
+                            rows={4}
+                            className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-sm ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none resize-none`}
+                          />
+                          <button
+                            onClick={async () => {
+                              if (!newDataSourceName.trim() || !newDataSourceContent.trim()) return;
+                              setAddingDataSource(true);
+                              setUploadError(null);
+                              try {
+                                const response = await fetch(`/api/agents/${agentId}/data-sources`, {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({
+                                    name: newDataSourceName.trim(),
+                                    type: "text",
+                                    content: newDataSourceContent.trim(),
+                                  }),
+                                });
+                                if (response.ok) {
+                                  const newDataSource = await response.json();
+                                  setAvailableDataSources([...availableDataSources, {
+                                    id: newDataSource.id,
+                                    name: newDataSource.name,
+                                    type: newDataSource.type,
+                                  }]);
+                                  setNewDataSourceName("");
+                                  setNewDataSourceContent("");
+                                  setShowAddDataSource(false);
+                                } else {
+                                  const errorData = await response.json().catch(() => ({ error: "Failed to add data source" }));
+                                  setUploadError(errorData.error || "Failed to add data source");
+                                }
+                              } catch (error: any) {
+                                console.error("Failed to add data source:", error);
+                                setUploadError(error.message || "Failed to add data source");
+                              } finally {
+                                setAddingDataSource(false);
+                              }
+                            }}
+                            disabled={addingDataSource || !newDataSourceName.trim() || !newDataSourceContent.trim()}
+                            className={`w-full px-4 py-2 rounded-2xl ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed`}
+                          >
+                            {addingDataSource ? "Adding..." : "Add Data Source"}
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <div
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                            }}
+                            onDrop={async (e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (!e.dataTransfer.files || e.dataTransfer.files.length === 0) return;
+                              await handleFileUpload(Array.from(e.dataTransfer.files));
+                            }}
+                            className={`border-2 border-dashed ${colors.border} rounded-2xl p-6 text-center ${colors.hover}`}
+                          >
+                            <input
+                              type="file"
+                              id="file-upload-modal"
+                              multiple
+                              onChange={async (e) => {
+                                if (e.target.files && e.target.files.length > 0) {
+                                  await handleFileUpload(Array.from(e.target.files));
+                                  e.target.value = "";
+                                }
+                              }}
+                              className="hidden"
+                            />
+                            <label
+                              htmlFor="file-upload-modal"
+                              className="cursor-pointer block"
+                            >
+                              <div className={`flex flex-col items-center gap-2`}>
+                                <FileText className={`h-8 w-8 ${colors.textSecondary}`} />
+                                <div>
+                                  <span className={`font-medium ${colors.text}`}>
+                                    Drop files here or click to browse
+                                  </span>
+                                  <p className={`text-xs ${colors.textTertiary} mt-1`}>
+                                    Supports PDF, DOCX, TXT, and other document formats
+                                  </p>
+                                </div>
+                              </div>
+                            </label>
+                          </div>
+                          {uploadError && (
+                            <div className={`p-3 rounded-2xl bg-red-500/10 border border-red-500/30`}>
+                              <p className={`text-sm text-red-400`}>{uploadError}</p>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Data Sources List */}
+                  {availableDataSources.length === 0 && !showAddDataSource ? (
+                    <div className={`text-center ${colors.textSecondary} py-8`}>
+                      <p className="mb-2">No data sources available.</p>
+                      <p className="text-xs">Click "Add New Data Source" above to create one.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {availableDataSources.map((ds) => (
+                        <label
+                          key={ds.id}
+                          className={`flex items-center gap-3 p-4 rounded-2xl border-2 cursor-pointer transition ${
+                            selectedDataSourceIds.includes(ds.id)
+                              ? `border-[#3351ff] bg-blue-500/10`
+                              : `${colors.border} ${colors.bgSecondary} hover:border-[#3351ff]/50`
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedDataSourceIds.includes(ds.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedDataSourceIds([...selectedDataSourceIds, ds.id]);
+                              } else {
+                                setSelectedDataSourceIds(selectedDataSourceIds.filter(id => id !== ds.id));
+                              }
+                            }}
+                            className="w-5 h-5 rounded border-gray-600 text-[#3351ff] focus:ring-2 focus:ring-[#3351ff] focus:ring-offset-2 focus:ring-offset-gray-900"
+                          />
+                          <div className="flex-1 flex items-center justify-between">
+                            <div>
+                              <div className={`font-medium ${colors.text}`}>{ds.name}</div>
+                              <div className={`text-xs ${colors.textTertiary} mt-1`}>
+                                {ds.type === "text" ? "Text Knowledge Base" : `File: ${ds.file_type || ds.type}`}
+                              </div>
+                            </div>
+                            {(ds.type === "file" || ds.file_url) && (
+                              <button
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  previewDataSource(ds);
+                                }}
+                                className={`p-2 rounded-full ${colors.hover} ${colors.textSecondary} hover:${colors.text} transition`}
+                                title="Preview"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-800">
+              <button
+                onClick={() => {
+                  setDataSourceModal({ isOpen: false, stepId: null });
+                  setShowAddDataSource(false);
+                  setNewDataSourceName("");
+                  setNewDataSourceContent("");
+                  setUploadError(null);
+                }}
+                className={`px-4 py-2 rounded-2xl border ${colors.border} ${colors.bgSecondary} ${colors.textSecondary} ${colors.hover} text-sm font-medium transition`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!dataSourceModal.stepId) return;
+                  
+                  try {
+                    const response = await fetch(`/api/steps/${dataSourceModal.stepId}`, {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        selected_data_source_ids: selectedDataSourceIds,
+                      }),
+                    });
+
+                    if (response.ok) {
+                      // Update local state
+                      setScenario((prev) => ({
+                        ...prev,
+                        steps: prev.steps.map((s) =>
+                          s.id === dataSourceModal.stepId
+                            ? { ...s, selected_data_source_ids: selectedDataSourceIds }
+                            : s
+                        ),
+                      }));
+                      setDataSourceModal({ isOpen: false, stepId: null });
+                    }
+                  } catch (error) {
+                    console.error("Failed to save data source selection:", error);
+                  }
+                }}
+                className={`px-4 py-2 rounded-2xl ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white text-sm font-medium transition`}
+              >
+                Save Selection
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Preview Modal */}
+      {previewModal.isOpen && previewModal.dataSource && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className={`w-full max-w-4xl max-h-[90vh] rounded-3xl ${colors.bg} ${colors.border} border-2 shadow-2xl flex flex-col`}>
+            <div className="flex items-center justify-between p-6 border-b border-gray-800">
+              <div>
+                <h3 className={`text-lg font-semibold ${colors.text}`}>{previewModal.dataSource.name}</h3>
+                <p className={`text-sm ${colors.textTertiary} mt-1`}>
+                  {previewModal.dataSource.type === "text" ? "Text Knowledge Base" : `File: ${previewModal.dataSource.file_type || "Unknown type"}`}
+                </p>
+              </div>
+              <button
+                onClick={() => setPreviewModal({ isOpen: false, dataSource: null, content: null, loading: false })}
+                className={`p-2 rounded-full ${colors.hover} ${colors.textSecondary} hover:${colors.text}`}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6">
+              {previewModal.loading ? (
+                <div className={`text-center ${colors.textTertiary} py-8`}>Loading preview...</div>
+              ) : previewModal.content ? (
+                <div>
+                  {previewModal.content === "PDF_PREVIEW" && previewModal.dataSource.file_url ? (
+                    <iframe
+                      src={previewModal.dataSource.file_url}
+                      className="w-full h-[600px] rounded-2xl border border-gray-700"
+                      title={previewModal.dataSource.name}
+                    />
+                  ) : previewModal.dataSource.type === "file" && 
+                    previewModal.dataSource.file_type?.startsWith("image/") ? (
+                    <img
+                      src={previewModal.content} 
+                      alt={previewModal.dataSource.name}
+                      className="max-w-full h-auto rounded-2xl"
+                    />
+                  ) : (
+                    <pre className={`whitespace-pre-wrap ${colors.text} text-sm font-mono bg-gray-900/50 p-4 rounded-2xl overflow-auto max-h-[600px]`}>
+                      {previewModal.content}
+                    </pre>
+                  )}
+                </div>
+              ) : (
+                <div className={`text-center ${colors.textTertiary}`}>No preview available</div>
+              )}
+            </div>
+
+            {previewModal.dataSource.file_url && (
+              <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-800">
+                <a
+                  href={previewModal.dataSource.file_url}
+                  download
+                  className={`px-4 py-2 rounded-2xl border ${colors.border} ${colors.bgSecondary} ${colors.textSecondary} ${colors.hover} text-sm font-medium transition`}
+                >
+                  Download
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

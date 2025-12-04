@@ -23,3 +23,4 @@ SELECT type, COUNT(*) as count
 FROM steps 
 GROUP BY type;
 
+
