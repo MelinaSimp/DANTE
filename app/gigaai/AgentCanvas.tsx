@@ -993,7 +993,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                         </div>
                         
                         {/* Step Card */}
-                        <div className="relative bg-[#f0fdf4] border border-[#e5e7eb] rounded-2xl p-4 hover:shadow-md transition" style={{ width: '320px' }}>
+                        <div className="relative bg-[#f0fdf4] border border-[#e5e7eb] rounded-2xl p-4 hover:shadow-md transition" style={{ width: '320px', maxWidth: '320px', flexShrink: 0 }}>
                           {/* Connection Points - Top, Bottom, Left, Right */}
                           {/* Top connection point */}
                           <div 
