@@ -1508,27 +1508,28 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                         {/* Branch Paths - Show True/False paths with curved connectors */}
                         {step.type === "branch" && step.branches && step.branches.length > 0 && (
                           <div className="mt-8 relative">
-                            {/* Curved connectors from branch block to True/False nodes */}
-                            <div className="absolute top-0 left-0 right-0" style={{ height: '120px', zIndex: 0 }}>
+                            {/* Smooth curved connectors from branch block to True/False nodes */}
+                            <div className="absolute top-0 left-0 right-0" style={{ height: '140px', zIndex: 0 }}>
                               {step.branches.map((branch, branchIdx) => {
                                 const isTrue = branchIdx === 0;
                                 const color = isTrue ? "#70d4b4" : "#9ca3af";
-                                const horizontalOffset = isTrue ? -120 : 120; // True goes left, False goes right
+                                const horizontalOffset = isTrue ? -140 : 140; // True goes left, False goes right
                                 
                                 return (
                                   <svg
                                     key={`branch-connector-${branch.id}`}
                                     className="absolute top-0 left-1/2 transform -translate-x-1/2"
-                                    style={{ width: '400px', height: '120px', pointerEvents: 'none' }}
-                                    viewBox="0 0 400 120"
+                                    style={{ width: '500px', height: '140px', pointerEvents: 'none' }}
+                                    viewBox="0 0 500 140"
                                   >
-                                    {/* Curved path: from center bottom, curve horizontally, then down */}
+                                    {/* Smooth curved path: from center, curve smoothly to left/right, then down */}
                                     <path
-                                      d={`M 200 0 Q ${200 + horizontalOffset * 0.5} 30 ${200 + horizontalOffset} 60 L ${200 + horizontalOffset} 120`}
+                                      d={`M 250 0 C ${250 + horizontalOffset * 0.15} 25, ${250 + horizontalOffset * 0.45} 50, ${250 + horizontalOffset * 0.75} 75 C ${250 + horizontalOffset * 0.85} 95, ${250 + horizontalOffset * 0.95} 115, ${250 + horizontalOffset} 140`}
                                       stroke={color}
                                       strokeWidth="2"
                                       fill="none"
                                       strokeLinecap="round"
+                                      strokeLinejoin="round"
                                       markerEnd={`url(#arrow-${branch.id})`}
                                     />
                                     <defs>
@@ -1549,7 +1550,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                               </div>
                             
                             {/* True/False nodes positioned horizontally */}
-                            <div className="flex gap-16 justify-center mt-24 relative z-10">
+                            <div className="flex gap-24 justify-center mt-32 relative z-10">
                               {step.branches.map((branch, branchIdx) => {
                                 const isTrue = branchIdx === 0;
                                 

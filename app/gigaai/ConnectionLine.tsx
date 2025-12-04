@@ -54,14 +54,13 @@ export default function ConnectionLine({
       arrowX = svgWidth / 2;
       arrowY = length;
     } else {
-      // L-shaped blocky path: down, then horizontal, then down again
-      // This creates a "curved" path but with sharp blocky corners
+      // Smooth curved path with rounded corners
       const verticalSegment1 = length / 3;
-      const verticalSegment2 = (length * 2) / 3;
       const maxWidth = Math.abs(horizontalOffset) + strokeWidth * 2;
       svgWidth = maxWidth;
       const centerX = maxWidth / 2;
-      pathData = `M ${centerX} 0 L ${centerX} ${verticalSegment1} L ${centerX + horizontalOffset} ${verticalSegment1} L ${centerX + horizontalOffset} ${length}`;
+      // Use cubic Bezier for smooth curves
+      pathData = `M ${centerX} 0 C ${centerX} ${verticalSegment1 * 0.7}, ${centerX + horizontalOffset * 0.3} ${verticalSegment1}, ${centerX + horizontalOffset * 0.5} ${verticalSegment1} C ${centerX + horizontalOffset * 0.7} ${verticalSegment1}, ${centerX + horizontalOffset} ${verticalSegment1 * 1.3}, ${centerX + horizontalOffset} ${length}`;
       arrowX = centerX + horizontalOffset;
       arrowY = length;
     }
@@ -101,13 +100,13 @@ export default function ConnectionLine({
       viewBox={`0 0 ${svgWidth} ${svgHeight}`}
       preserveAspectRatio="none"
     >
-      {/* Main line path - blocky style with sharp corners */}
+      {/* Main line path - smooth style with rounded corners */}
       <path
         d={pathData}
         stroke={color}
         strokeWidth={strokeWidth}
-        strokeLinecap="round" // Slightly rounded ends for polish
-        strokeLinejoin="miter" // Sharp corners for blocky style
+        strokeLinecap="round" // Rounded ends for polish
+        strokeLinejoin="round" // Rounded corners for smooth style
         fill="none"
       />
       {/* Arrowhead at the end pointing down */}
