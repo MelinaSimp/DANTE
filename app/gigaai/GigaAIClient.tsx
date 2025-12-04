@@ -78,7 +78,6 @@ export default function GigaAIClient() {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
-  const [sidebarVisible, setSidebarVisible] = useState(true);
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const [supportingDocs, setSupportingDocs] = useState<SupportingDoc[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -776,22 +775,26 @@ export default function GigaAIClient() {
   const sidebarIconSecondary = "text-[#151515]/70";
 
   // Hide sidebar when workflow is selected, show on hover at left edge
-  const shouldShowSidebar = !selectedWorkflow || sidebarHovered || sidebarVisible;
+  const shouldShowSidebar = !selectedWorkflow || sidebarHovered;
 
   return (
     <div className={`flex h-screen overflow-hidden ${themeClasses.textPrimary} bg-[#ffffff]`} style={{ background: '#ffffff', backgroundImage: 'none' }}>
       {/* Left Edge Hover Zone - Only visible when sidebar is hidden */}
-      {selectedWorkflow && !sidebarHovered && !sidebarVisible && (
+      {selectedWorkflow && !sidebarHovered && (
         <div
-          className="fixed left-0 top-0 bottom-0 w-4 z-50 cursor-pointer"
+          className="fixed left-0 top-0 bottom-0 w-8 z-50"
           onMouseEnter={() => setSidebarHovered(true)}
         />
       )}
       
       {/* Left Sidebar */}
       <div 
-        className={`${shouldShowSidebar ? 'w-64' : 'w-0'} border-r border-[#151515] ${sidebarBg} flex flex-col transition-all duration-300 overflow-hidden ${
-          selectedWorkflow && !sidebarHovered && !sidebarVisible ? 'opacity-0 -translate-x-full' : 'opacity-100 translate-x-0'
+        className={`w-64 border-r border-[#151515] ${sidebarBg} flex flex-col transition-transform duration-300 ease-in-out ${
+          selectedWorkflow && !sidebarHovered 
+            ? 'fixed left-0 top-0 bottom-0 -translate-x-full z-40' 
+            : selectedWorkflow && sidebarHovered
+            ? 'fixed left-0 top-0 bottom-0 translate-x-0 z-40 shadow-2xl'
+            : 'relative z-10'
         }`}
         onMouseLeave={() => {
           if (selectedWorkflow) {
