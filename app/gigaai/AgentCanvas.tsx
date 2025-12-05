@@ -1674,11 +1674,11 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                       </div>
 
       {/* Right Sidebar - Draggable Blocks and Tags */}
-      <div className="w-80 border-l border-[#151515] bg-white flex flex-col">
+      <div className="w-80 border-l border-[#151515] bg-white flex flex-col h-full overflow-hidden">
         {/* Section 1: Draggable Blocks */}
-        <div className="p-4 border-b border-[#e5e7eb]">
-          <h3 className="text-xs font-semibold text-[#151515] mb-3 uppercase tracking-wide">BLOCKS</h3>
-          <div className="space-y-2">
+        <div className="p-4 border-b border-[#e5e7eb] flex flex-col flex-1 min-h-0">
+          <h3 className="text-xs font-semibold text-[#151515] mb-3 uppercase tracking-wide flex-shrink-0">BLOCKS</h3>
+          <div className="space-y-2 overflow-y-auto flex-1 min-h-0">
             {DRAGGABLE_BLOCKS.map((block) => {
               const Icon = block.icon;
               return (
@@ -1689,7 +1689,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                     e.dataTransfer.setData("step-type", block.type);
                     e.dataTransfer.effectAllowed = "move";
                   }}
-                  className="flex items-center gap-3 p-3 rounded-lg border border-[#e5e7eb] bg-white hover:border-[#3166bf] hover:bg-[#f0fdf4] cursor-grab active:cursor-grabbing transition"
+                  className="flex items-center gap-3 p-3 rounded-lg border border-[#e5e7eb] bg-white hover:border-[#3166bf] hover:bg-[#f0fdf4] cursor-grab active:cursor-grabbing transition flex-shrink-0"
                 >
                   <Icon className="h-4 w-4 text-[#151515] flex-shrink-0" />
                   <div className="flex-1 min-w-0">
