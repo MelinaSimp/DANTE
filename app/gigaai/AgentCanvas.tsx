@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { MessageSquare, FileText, GitBranch, Code, Zap, ArrowRight, ArrowDown, X, Plus, Trash2, Calendar, CheckCircle, HelpCircle, Repeat, UserCheck, Phone, Eye, Play, GitMerge, MoreVertical } from "lucide-react";
+import { MessageSquare, FileText, GitBranch, Code, Zap, ArrowRight, ArrowDown, X, Plus, Trash2, Calendar, CheckCircle, HelpCircle, Repeat, UserCheck, Phone, Eye, Play, GitMerge, MoreVertical, Bot } from "lucide-react";
 import ConfirmationModal from "./ConfirmationModal";
 import { useTheme } from "./ThemeProvider";
 import ConnectionLine from "./ConnectionLine";
 
-type StepType = "trigger" | "say" | "gather" | "code" | "api_call" | "schedule" | "qa" | "loop" | "send_sms" | "transfer" | "branch" | "call";
+type StepType = "trigger" | "say" | "gather" | "code" | "api_call" | "schedule" | "qa" | "loop" | "send_sms" | "transfer" | "branch" | "call" | "agent_injection_text" | "agent_injection_phone" | "ai_message";
 
 interface Branch {
   id: string;
@@ -15,6 +15,59 @@ interface Branch {
   target?: string;
   next_step_id?: string;
   next_scenario_id?: string;
+}
+
+// Agent Injection configuration interfaces
+interface AgentInjectionTextConfig {
+  goal?: string;
+  context?: string;
+  taskSteps?: string[]; // Array of task step descriptions
+  fieldsToExtract?: Array<{
+    name: string;
+    description: string;
+    usage?: string;
+  }>;
+}
+
+interface AgentInjectionPhoneConfig extends AgentInjectionTextConfig {
+  style?: {
+    tone?: string;
+    formality?: string;
+    approach?: string;
+  };
+  voicemailBehavior?: {
+    enabled: boolean;
+    message?: string;
+  };
+  transferOptions?: {
+    enabled: boolean;
+    type?: "warm" | "cold";
+    targetPhoneNumber?: string;
+  };
+}
+
+interface AIMessageConfig {
+  channel?: "email" | "sms" | "whatsapp" | "last_message_channel";
+  recipient?: {
+    type: "predefined" | "dynamic";
+    value?: string; // Contact ID or variable reference
+  };
+  template?: string;
+  variables?: Record<string, string>; // Variable mappings from workflow context
+}
+
+interface TriggerConfig {
+  eventType?: string; // e.g., "reservation_created", "task_updated", "custom"
+  conditions?: Array<{
+    field: string;
+    operator: string;
+    value: string;
+  }>;
+  timing?: {
+    type: "immediate" | "scheduled" | "relative";
+    value?: string; // e.g., "3 days before check-in"
+  };
+  filters?: Record<string, any>; // Event-specific filters
 }
 
 interface Step {
@@ -29,6 +82,14 @@ interface Step {
   x?: number; // Canvas position
   y?: number; // Canvas position
   connections?: Array<{ fromSide: "top" | "bottom" | "left" | "right"; toStepId: string; toSide: "top" | "bottom" | "left" | "right" }>; // Connections from this step
+  // New configuration fields for Conduit AI-style nodes
+  agentInjectionTextConfig?: AgentInjectionTextConfig;
+  agentInjectionPhoneConfig?: AgentInjectionPhoneConfig;
+  aiMessageConfig?: AIMessageConfig;
+  triggerConfig?: TriggerConfig;
+  // Data flow fields
+  extractedFields?: Record<string, any>; // Fields extracted by this step
+  workflowContext?: Record<string, any>; // Context data available to this step
 }
 
 interface Scenario {
@@ -59,6 +120,9 @@ const DRAGGABLE_BLOCKS: { type: StepType; label: string; description: string; ic
   { type: "schedule", label: "Schedule", description: "Schedule an appointment", icon: Calendar },
   { type: "loop", label: "Loop", description: "Repeat a sequence of steps", icon: Repeat },
   { type: "send_sms", label: "Send SMS", description: "Send text message to customer", icon: Phone },
+  { type: "agent_injection_text", label: "Agent Injection (Text)", description: "Inject goals and context into text AI agent", icon: Bot },
+  { type: "agent_injection_phone", label: "Agent Injection (Phone)", description: "Inject goals and context into voice AI agent", icon: Phone },
+  { type: "ai_message", label: "AI Message", description: "Send AI-powered message on omni-channel", icon: MessageSquare },
 ];
 
 // Legacy function palette (keeping for backward compatibility)
@@ -75,6 +139,9 @@ const FUNCTION_PALETTE: { type: StepType; label: string; description: string; ic
   { type: "send_sms", label: "Send SMS", description: "Send text message to customer", icon: Phone, category: "Contact" },
   { type: "transfer", label: "Transfer", description: "Route to specialist agent", icon: UserCheck, category: "Transfer" },
   { type: "call", label: "Call", description: "AI agent has been called", icon: Phone, category: "Call" },
+  { type: "agent_injection_text", label: "Agent Injection (Text)", description: "Inject goals and context into text AI agent", icon: Bot, category: "AI" },
+  { type: "agent_injection_phone", label: "Agent Injection (Phone)", description: "Inject goals and context into voice AI agent", icon: Phone, category: "AI" },
+  { type: "ai_message", label: "AI Message", description: "Send AI-powered message on omni-channel", icon: MessageSquare, category: "AI" },
 ];
 
 const AVAILABLE_TAGS = [
@@ -96,6 +163,12 @@ function defaultMessage(type: StepType): string {
       return "Check condition and branch workflow";
     case "say":
       return "Welcome! How can I help you today?";
+    case "agent_injection_text":
+      return "Inject goals and context into text AI agent";
+    case "agent_injection_phone":
+      return "Inject goals and context into voice AI agent";
+    case "ai_message":
+      return "Send AI-powered message";
     case "call":
       return "AI agent has been called";
     case "gather":
@@ -160,6 +233,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
   const [draggedOver, setDraggedOver] = useState(false);
   const [editingBranchId, setEditingBranchId] = useState<string | null>(null);
   const [selectedStepForBranch, setSelectedStepForBranch] = useState<{ scenarioId: string; stepId: string; branchId: string } | null>(null);
+  const [selectedStepForConfig, setSelectedStepForConfig] = useState<string | null>(null); // Step ID selected for configuration panel
   const [loading, setLoading] = useState(true);
   const [draggingStep, setDraggingStep] = useState<{ stepId: string; offsetX: number; offsetY: number; startX: number; startY: number } | null>(null);
   const [connectingFrom, setConnectingFrom] = useState<{ stepId: string; side: "top" | "bottom" | "left" | "right" } | null>(null);
@@ -1351,7 +1425,18 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                           </div>
                         
                         {/* Step Card */}
-                        <div className="relative bg-white border border-[#70d4b4] rounded-xl p-4 hover:shadow-md transition" style={{ width: '320px', maxWidth: '320px', flexShrink: 0 }}>
+                        <div 
+                          className="relative bg-white border border-[#70d4b4] rounded-xl p-4 hover:shadow-md transition cursor-pointer" 
+                          style={{ width: '320px', maxWidth: '320px', flexShrink: 0 }}
+                          onDoubleClick={(e) => {
+                            e.stopPropagation();
+                            if (!isDeployed) {
+                              setSelectedStepForConfig(step.id);
+                              setSelectedStepForBranch(null);
+                            }
+                          }}
+                          title="Double-click to configure"
+                        >
                           {/* Connection Points - Top, Bottom, Left, Right */}
                           {/* Top connection point */}
                           <div 
@@ -1734,6 +1819,277 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
             </div>
           </div>
         </div>
+
+        {/* Step Configuration Panel - Show when a step is selected for configuration */}
+      {selectedStepForConfig && !selectedStepForBranch && (() => {
+        const configStep = scenario.steps.find(s => s.id === selectedStepForConfig);
+        if (!configStep) return null;
+        
+        return (
+          <div className="flex-1 border-t border-[#e5e7eb] overflow-y-auto flex flex-col">
+            <div className="border-b border-[#e5e7eb] px-4 py-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-[#151515]">
+                {configStep.name || FUNCTION_PALETTE.find(p => p.type === configStep.type)?.label || configStep.type}
+              </h3>
+              <button
+                onClick={() => setSelectedStepForConfig(null)}
+                className="p-1 hover:bg-[#f3f4f6] rounded transition"
+              >
+                <X className="h-4 w-4 text-[#151515]/50" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-6">
+              {/* Agent Injection Text Configuration */}
+              {configStep.type === "agent_injection_text" && (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-[#151515] mb-2">
+                      Goal
+                    </label>
+                    <textarea
+                      value={configStep.agentInjectionTextConfig?.goal || ""}
+                      onChange={(e) => {
+                        updateStepConfig(configStep.id, "agentInjectionTextConfig", {
+                          ...configStep.agentInjectionTextConfig,
+                          goal: e.target.value
+                        });
+                      }}
+                      rows={3}
+                      className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#151515] focus:border-[#3166bf] focus:outline-none resize-none"
+                      placeholder="e.g., Extract check-in time preferences"
+                    />
+                    <p className="text-xs text-[#6b7280] mt-1">
+                      Overall goal for the AI agent
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-[#151515] mb-2">
+                      Context
+                    </label>
+                    <textarea
+                      value={configStep.agentInjectionTextConfig?.context || ""}
+                      onChange={(e) => {
+                        updateStepConfig(configStep.id, "agentInjectionTextConfig", {
+                          ...configStep.agentInjectionTextConfig,
+                          context: e.target.value
+                        });
+                      }}
+                      rows={4}
+                      className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#151515] focus:border-[#3166bf] focus:outline-none resize-none"
+                      placeholder="e.g., Reservation details, property rules"
+                    />
+                    <p className="text-xs text-[#6b7280] mt-1">
+                      Relevant context information for the agent
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-[#151515] mb-2">
+                      Task Steps
+                    </label>
+                    <div className="space-y-2">
+                      {(configStep.agentInjectionTextConfig?.taskSteps || []).map((step, idx) => (
+                        <div key={idx} className="flex gap-2">
+                          <textarea
+                            value={step}
+                            onChange={(e) => {
+                              const newSteps = [...(configStep.agentInjectionTextConfig?.taskSteps || [])];
+                              newSteps[idx] = e.target.value;
+                              updateStepConfig(configStep.id, "agentInjectionTextConfig", {
+                                ...configStep.agentInjectionTextConfig,
+                                taskSteps: newSteps
+                              });
+                            }}
+                            rows={2}
+                            className="flex-1 rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#151515] focus:border-[#3166bf] focus:outline-none resize-none"
+                            placeholder="Task step description"
+                          />
+                          <button
+                            onClick={() => {
+                              const newSteps = (configStep.agentInjectionTextConfig?.taskSteps || []).filter((_, i) => i !== idx);
+                              updateStepConfig(configStep.id, "agentInjectionTextConfig", {
+                                ...configStep.agentInjectionTextConfig,
+                                taskSteps: newSteps
+                              });
+                            }}
+                            className="p-2 hover:bg-[#f3f4f6] rounded transition"
+                          >
+                            <X className="h-4 w-4 text-[#6b7280]" />
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => {
+                          const newSteps = [...(configStep.agentInjectionTextConfig?.taskSteps || []), ""];
+                          updateStepConfig(configStep.id, "agentInjectionTextConfig", {
+                            ...configStep.agentInjectionTextConfig,
+                            taskSteps: newSteps
+                          });
+                        }}
+                        className="w-full px-3 py-2 rounded-lg border border-dashed border-[#e5e7eb] text-sm text-[#6b7280] hover:border-[#3166bf] hover:text-[#3166bf] transition"
+                      >
+                        + Add Task Step
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-[#151515] mb-2">
+                      Fields to Extract
+                    </label>
+                    <div className="space-y-2">
+                      {(configStep.agentInjectionTextConfig?.fieldsToExtract || []).map((field, idx) => (
+                        <div key={idx} className="p-3 rounded-lg border border-[#e5e7eb] bg-white space-y-2">
+                          <input
+                            type="text"
+                            value={field.name}
+                            onChange={(e) => {
+                              const newFields = [...(configStep.agentInjectionTextConfig?.fieldsToExtract || [])];
+                              newFields[idx] = { ...field, name: e.target.value };
+                              updateStepConfig(configStep.id, "agentInjectionTextConfig", {
+                                ...configStep.agentInjectionTextConfig,
+                                fieldsToExtract: newFields
+                              });
+                            }}
+                            placeholder="Field name"
+                            className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#151515] focus:border-[#3166bf] focus:outline-none"
+                          />
+                          <textarea
+                            value={field.description}
+                            onChange={(e) => {
+                              const newFields = [...(configStep.agentInjectionTextConfig?.fieldsToExtract || [])];
+                              newFields[idx] = { ...field, description: e.target.value };
+                              updateStepConfig(configStep.id, "agentInjectionTextConfig", {
+                                ...configStep.agentInjectionTextConfig,
+                                fieldsToExtract: newFields
+                              });
+                            }}
+                            rows={2}
+                            placeholder="Field description"
+                            className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#151515] focus:border-[#3166bf] focus:outline-none resize-none"
+                          />
+                          <button
+                            onClick={() => {
+                              const newFields = (configStep.agentInjectionTextConfig?.fieldsToExtract || []).filter((_, i) => i !== idx);
+                              updateStepConfig(configStep.id, "agentInjectionTextConfig", {
+                                ...configStep.agentInjectionTextConfig,
+                                fieldsToExtract: newFields
+                              });
+                            }}
+                            className="w-full px-3 py-1.5 rounded-lg border border-[#e5e7eb] text-sm text-[#6b7280] hover:bg-[#f3f4f6] transition"
+                          >
+                            Remove Field
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => {
+                          const newFields = [...(configStep.agentInjectionTextConfig?.fieldsToExtract || []), { name: "", description: "" }];
+                          updateStepConfig(configStep.id, "agentInjectionTextConfig", {
+                            ...configStep.agentInjectionTextConfig,
+                            fieldsToExtract: newFields
+                          });
+                        }}
+                        className="w-full px-3 py-2 rounded-lg border border-dashed border-[#e5e7eb] text-sm text-[#6b7280] hover:border-[#3166bf] hover:text-[#3166bf] transition"
+                      >
+                        + Add Field to Extract
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Agent Injection Phone Configuration - Similar structure with additional fields */}
+              {configStep.type === "agent_injection_phone" && (
+                <>
+                  {/* Same fields as Text, plus Style, Voicemail, and Transfer */}
+                  <div>
+                    <label className="block text-xs font-medium text-[#151515] mb-2">
+                      Goal
+                    </label>
+                    <textarea
+                      value={configStep.agentInjectionPhoneConfig?.goal || ""}
+                      onChange={(e) => {
+                        updateStepConfig(configStep.id, "agentInjectionPhoneConfig", {
+                          ...configStep.agentInjectionPhoneConfig,
+                          goal: e.target.value
+                        });
+                      }}
+                      rows={3}
+                      className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#151515] focus:border-[#3166bf] focus:outline-none resize-none"
+                      placeholder="e.g., Extract check-in time preferences"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-[#151515] mb-2">
+                      Voice Style
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <input
+                        type="text"
+                        value={configStep.agentInjectionPhoneConfig?.style?.tone || ""}
+                        onChange={(e) => {
+                          updateStepConfig(configStep.id, "agentInjectionPhoneConfig", {
+                            ...configStep.agentInjectionPhoneConfig,
+                            style: {
+                              ...configStep.agentInjectionPhoneConfig?.style,
+                              tone: e.target.value
+                            }
+                          });
+                        }}
+                        placeholder="Tone"
+                        className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#151515] focus:border-[#3166bf] focus:outline-none"
+                      />
+                      <input
+                        type="text"
+                        value={configStep.agentInjectionPhoneConfig?.style?.formality || ""}
+                        onChange={(e) => {
+                          updateStepConfig(configStep.id, "agentInjectionPhoneConfig", {
+                            ...configStep.agentInjectionPhoneConfig,
+                            style: {
+                              ...configStep.agentInjectionPhoneConfig?.style,
+                              formality: e.target.value
+                            }
+                          });
+                        }}
+                        placeholder="Formality"
+                        className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#151515] focus:border-[#3166bf] focus:outline-none"
+                      />
+                      <input
+                        type="text"
+                        value={configStep.agentInjectionPhoneConfig?.style?.approach || ""}
+                        onChange={(e) => {
+                          updateStepConfig(configStep.id, "agentInjectionPhoneConfig", {
+                            ...configStep.agentInjectionPhoneConfig,
+                            style: {
+                              ...configStep.agentInjectionPhoneConfig?.style,
+                              approach: e.target.value
+                            }
+                          });
+                        }}
+                        placeholder="Approach"
+                        className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#151515] focus:border-[#3166bf] focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Add similar sections for Context, Task Steps, Fields, Voicemail, and Transfer */}
+                </>
+              )}
+
+              {/* Default configuration for other step types */}
+              {!["agent_injection_text", "agent_injection_phone"].includes(configStep.type) && (
+                <div className="text-sm text-[#6b7280]">
+                  Configuration options for this step type will be available soon.
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
         {/* Branch Editing Workspace - Only show when editing a branch */}
       {selectedStepForBranch && (
