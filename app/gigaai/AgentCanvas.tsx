@@ -1524,7 +1524,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                   >
                                     {/* Fully smooth curved path: continuous smooth curve from center to True/False node - no sharp corners */}
                                     <path
-                                      d={`M 250 0 C ${250 + horizontalOffset * 0.15} 30, ${250 + horizontalOffset * 0.5} 60, ${250 + horizontalOffset * 0.85} 90 C ${250 + horizontalOffset * 0.95} 110, ${250 + horizontalOffset} 130, ${250 + horizontalOffset} 140`}
+                                      d={`M 250 0 C ${250 + horizontalOffset * 0.1} 20, ${250 + horizontalOffset * 0.4} 50, ${250 + horizontalOffset * 0.7} 80 C ${250 + horizontalOffset * 0.9} 105, ${250 + horizontalOffset * 0.98} 125, ${250 + horizontalOffset} 140`}
                                       stroke={color}
                                       strokeWidth="2"
                                       fill="none"
