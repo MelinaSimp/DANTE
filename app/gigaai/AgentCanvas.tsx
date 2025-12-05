@@ -1510,9 +1510,9 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
 
                         {/* Branch Paths - Show True/False paths with curved connectors */}
                         {step.type === "branch" && step.branches && step.branches.length > 0 && (
-                          <div className="mt-8 relative">
+                          <div className="mt-4 relative">
                             {/* Smooth curved connectors from branch block to True/False nodes */}
-                            <div className="absolute top-0 left-0 right-0" style={{ height: '140px', zIndex: 0 }}>
+                            <div className="absolute top-0 left-0 right-0" style={{ height: '80px', zIndex: 0 }}>
                               {step.branches.map((branch, branchIdx) => {
                                 const isTrue = branchIdx === 0;
                                 const color = isTrue ? "#70d4b4" : "#9ca3af";
@@ -1522,12 +1522,12 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                   <svg
                                     key={`branch-connector-${branch.id}`}
                                     className="absolute top-0 left-1/2 transform -translate-x-1/2"
-                                    style={{ width: '600px', height: '140px', pointerEvents: 'none' }}
-                                    viewBox="0 0 600 140"
+                                    style={{ width: '600px', height: '80px', pointerEvents: 'none' }}
+                                    viewBox="0 0 600 80"
                                   >
-                                    {/* Path: start vertical, small curve transitioning to horizontal, then straight horizontal, then smooth curve down, then straight vertical */}
+                                    {/* Path: start vertical, small curve transitioning to horizontal, then straight horizontal, then smooth curve down */}
                                     <path
-                                      d={`M 300 0 L 300 15 C ${300 + horizontalOffset * 0.2} 20, ${300 + horizontalOffset * 0.5} 25, ${300 + horizontalOffset * 0.7} 30 L ${300 + horizontalOffset} 30 Q ${300 + horizontalOffset} 30, ${300 + horizontalOffset} 40 L ${300 + horizontalOffset} 140`}
+                                      d={`M 300 0 L 300 15 C ${300 + horizontalOffset * 0.2} 20, ${300 + horizontalOffset * 0.5} 25, ${300 + horizontalOffset * 0.7} 30 L ${300 + horizontalOffset} 30 Q ${300 + horizontalOffset} 30, ${300 + horizontalOffset} 40 L ${300 + horizontalOffset} 80`}
                                       stroke={color}
                                       strokeWidth="2"
                                       fill="none"
@@ -1552,8 +1552,8 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                               })}
                               </div>
                             
-                            {/* True/False nodes positioned horizontally - wider spread */}
-                            <div className="flex gap-36 justify-center mt-32 relative z-10">
+                            {/* True/False nodes positioned horizontally - closer to branch block */}
+                            <div className="flex gap-36 justify-center mt-16 relative z-10">
                               {step.branches.map((branch, branchIdx) => {
                                 const isTrue = branchIdx === 0;
                                 
