@@ -1235,6 +1235,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                               y2={relToY}
                               stroke="#70d4b4"
                               strokeWidth="2"
+                              strokeLinecap="round"
                               markerEnd={`url(#arrowhead-${step.id}-${connIdx})`}
                             />
                             <defs>
