@@ -47,19 +47,19 @@ export default function ConnectionLine({
   let arrowY = length;
   
   if (from === "bottom" && to === "top") {
-    // Fully smooth vertical connection with continuous curves
+    // Straight vertical connection for regular steps
     if (horizontalOffset === 0) {
-      // Smooth curved vertical line - more pronounced curve
-      pathData = `M ${svgWidth / 2} 0 C ${svgWidth / 2 + 3} ${length * 0.3}, ${svgWidth / 2 - 3} ${length * 0.7}, ${svgWidth / 2} ${length}`;
+      // Straight vertical line for regular connections
+      pathData = `M ${svgWidth / 2} 0 L ${svgWidth / 2} ${length}`;
       arrowX = svgWidth / 2;
       arrowY = length;
     } else {
-      // Fully smooth curved path with continuous curves - no sharp corners, more pronounced curves
+      // Curved path with smooth corners when there's a horizontal offset
       const maxWidth = Math.abs(horizontalOffset) + strokeWidth * 2;
       svgWidth = maxWidth;
       const centerX = maxWidth / 2;
-      // Use cubic Bezier for smooth, continuous curves throughout - more pronounced
-      pathData = `M ${centerX} 0 C ${centerX} ${length * 0.2}, ${centerX + horizontalOffset * 0.3} ${length * 0.5}, ${centerX + horizontalOffset * 0.6} ${length * 0.7} C ${centerX + horizontalOffset * 0.8} ${length * 0.85}, ${centerX + horizontalOffset * 0.95} ${length * 0.95}, ${centerX + horizontalOffset} ${length}`;
+      // Smooth curved path with rounded corners
+      pathData = `M ${centerX} 0 C ${centerX} ${length * 0.25}, ${centerX + horizontalOffset * 0.3} ${length * 0.5}, ${centerX + horizontalOffset * 0.7} ${length * 0.75} C ${centerX + horizontalOffset * 0.85} ${length * 0.9}, ${centerX + horizontalOffset * 0.95} ${length * 0.98}, ${centerX + horizontalOffset} ${length}`;
       arrowX = centerX + horizontalOffset;
       arrowY = length;
     }
