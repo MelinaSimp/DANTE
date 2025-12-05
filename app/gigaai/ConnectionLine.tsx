@@ -39,9 +39,8 @@ export default function ConnectionLine({
   className = ""
 }: ConnectionLineProps) {
   // Calculate path based on connection sides
-  // Blocky means rectangular paths with sharp corners
   let pathData = "";
-  let svgWidth = Math.max(strokeWidth, 2);
+  let svgWidth = Math.max(strokeWidth, 4); // Minimum 4px width for clean rendering
   let svgHeight = length;
   let arrowX = svgWidth / 2;
   let arrowY = length;
@@ -49,9 +48,10 @@ export default function ConnectionLine({
   if (from === "bottom" && to === "top") {
     // Straight vertical connection for regular steps
     if (horizontalOffset === 0) {
-      // Straight vertical line for regular connections
-      pathData = `M ${svgWidth / 2} 0 L ${svgWidth / 2} ${length}`;
-      arrowX = svgWidth / 2;
+      // Perfectly straight vertical line for regular connections
+      const centerX = svgWidth / 2;
+      pathData = `M ${centerX} 0 L ${centerX} ${length}`;
+      arrowX = centerX;
       arrowY = length;
     } else {
       // Curved path with smooth corners when there's a horizontal offset
