@@ -1522,9 +1522,9 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                     style={{ width: '500px', height: '140px', pointerEvents: 'none' }}
                                     viewBox="0 0 500 140"
                                   >
-                                    {/* Smooth curved path: continuous smooth curve from center to True/False node */}
+                                    {/* Fully smooth curved path: continuous smooth curve from center to True/False node - no sharp corners */}
                                     <path
-                                      d={`M 250 0 C ${250 + horizontalOffset * 0.2} 35, ${250 + horizontalOffset * 0.6} 65, ${250 + horizontalOffset} 100 L ${250 + horizontalOffset} 140`}
+                                      d={`M 250 0 C ${250 + horizontalOffset * 0.15} 30, ${250 + horizontalOffset * 0.5} 60, ${250 + horizontalOffset * 0.85} 90 C ${250 + horizontalOffset * 0.95} 110, ${250 + horizontalOffset} 130, ${250 + horizontalOffset} 140`}
                                       stroke={color}
                                       strokeWidth="2"
                                       fill="none"
@@ -1588,11 +1588,12 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                         preserveAspectRatio="none"
                                       >
                                         <path
-                                          d={`M 2 0 Q 2 ${(branch.next_step_id ? 60 : 40) * 0.5} 2 ${branch.next_step_id ? 60 : 40}`}
+                                          d={`M 2 0 C 2 ${(branch.next_step_id ? 60 : 40) * 0.3}, 2 ${(branch.next_step_id ? 60 : 40) * 0.7}, 2 ${branch.next_step_id ? 60 : 40}`}
                                           stroke={isTrue ? '#70d4b4' : '#9ca3af'}
                                           strokeWidth="2"
                                           fill="none"
                                           strokeLinecap="round"
+                                          strokeLinejoin="round"
                                           markerEnd={`url(#arrow-down-${branch.id})`}
                                         />
                                         <defs>
