@@ -1522,9 +1522,9 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                     style={{ width: '500px', height: '140px', pointerEvents: 'none' }}
                                     viewBox="0 0 500 140"
                                   >
-                                    {/* Smooth curved path: from center, curve smoothly to left/right, then down */}
+                                    {/* Smooth curved path: continuous smooth curve from center to True/False node */}
                                     <path
-                                      d={`M 250 0 C ${250 + horizontalOffset * 0.15} 25, ${250 + horizontalOffset * 0.45} 50, ${250 + horizontalOffset * 0.75} 75 C ${250 + horizontalOffset * 0.85} 95, ${250 + horizontalOffset * 0.95} 115, ${250 + horizontalOffset} 140`}
+                                      d={`M 250 0 C ${250 + horizontalOffset * 0.2} 35, ${250 + horizontalOffset * 0.6} 65, ${250 + horizontalOffset} 100 L ${250 + horizontalOffset} 140`}
                                       stroke={color}
                                       strokeWidth="2"
                                       fill="none"
@@ -1579,26 +1579,35 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                       )}
                                     </div>
                                     
-                                    {/* Vertical line down from True/False node */}
-                                    <div className="mt-4 mb-4 relative" style={{ height: '40px' }}>
-                                      <div 
+                                    {/* Smooth curved connector down from True/False node */}
+                                    <div className="mt-4 mb-4 relative" style={{ height: branch.next_step_id ? '60px' : '40px' }}>
+                                      <svg
                                         className="absolute left-1/2 transform -translate-x-1/2"
-                                        style={{
-                                          width: '2px',
-                                          height: '100%',
-                                          background: isTrue ? '#70d4b4' : '#9ca3af'
-                                        }}
-                                      />
-                                      <div 
-                                        className="absolute bottom-0 left-1/2 transform -translate-x-1/2"
-                                        style={{
-                                          width: '0',
-                                          height: '0',
-                                          borderLeft: '4px solid transparent',
-                                          borderRight: '4px solid transparent',
-                                          borderTop: `8px solid ${isTrue ? '#70d4b4' : '#9ca3af'}`
-                                }}
-                              />
+                                        style={{ width: '4px', height: '100%', pointerEvents: 'none' }}
+                                        viewBox={`0 0 4 ${branch.next_step_id ? 60 : 40}`}
+                                        preserveAspectRatio="none"
+                                      >
+                                        <path
+                                          d={`M 2 0 Q 2 ${(branch.next_step_id ? 60 : 40) * 0.5} 2 ${branch.next_step_id ? 60 : 40}`}
+                                          stroke={isTrue ? '#70d4b4' : '#9ca3af'}
+                                          strokeWidth="2"
+                                          fill="none"
+                                          strokeLinecap="round"
+                                          markerEnd={`url(#arrow-down-${branch.id})`}
+                                        />
+                                        <defs>
+                                          <marker
+                                            id={`arrow-down-${branch.id}`}
+                                            markerWidth="10"
+                                            markerHeight="10"
+                                            refX="5"
+                                            refY="3"
+                                            orient="auto"
+                                          >
+                                            <polygon points="0 0, 10 3, 0 6" fill={isTrue ? '#70d4b4' : '#9ca3af'} />
+                                          </marker>
+                                        </defs>
+                                      </svg>
                             </div>
                                     
                                     {/* Steps in this branch path */}

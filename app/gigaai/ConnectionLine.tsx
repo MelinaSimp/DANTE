@@ -47,39 +47,40 @@ export default function ConnectionLine({
   let arrowY = length;
   
   if (from === "bottom" && to === "top") {
-    // Simple vertical connection (most common - straight line)
+    // Smooth vertical connection with gentle curves
     if (horizontalOffset === 0) {
-      // Straight vertical line - simplest case
-      pathData = `M ${svgWidth / 2} 0 L ${svgWidth / 2} ${length}`;
+      // Slightly curved vertical line for organic feel
+      pathData = `M ${svgWidth / 2} 0 Q ${svgWidth / 2 + 2} ${length * 0.5}, ${svgWidth / 2} ${length}`;
       arrowX = svgWidth / 2;
       arrowY = length;
     } else {
-      // Smooth curved path with rounded corners
-      const verticalSegment1 = length / 3;
+      // Smooth curved path with continuous curves
       const maxWidth = Math.abs(horizontalOffset) + strokeWidth * 2;
       svgWidth = maxWidth;
       const centerX = maxWidth / 2;
-      // Use cubic Bezier for smooth curves
-      pathData = `M ${centerX} 0 C ${centerX} ${verticalSegment1 * 0.7}, ${centerX + horizontalOffset * 0.3} ${verticalSegment1}, ${centerX + horizontalOffset * 0.5} ${verticalSegment1} C ${centerX + horizontalOffset * 0.7} ${verticalSegment1}, ${centerX + horizontalOffset} ${verticalSegment1 * 1.3}, ${centerX + horizontalOffset} ${length}`;
+      // Use cubic Bezier for smooth, continuous curves
+      pathData = `M ${centerX} 0 C ${centerX} ${length * 0.3}, ${centerX + horizontalOffset * 0.4} ${length * 0.6}, ${centerX + horizontalOffset} ${length}`;
       arrowX = centerX + horizontalOffset;
       arrowY = length;
     }
   } else if (from === "left" && to === "top") {
-    // Branch path: horizontal first (left), then vertical down
+    // Branch path: smooth curved path from left
     const horizontalLength = horizontalOffset || 40;
     svgWidth = horizontalLength + strokeWidth * 2;
     const startX = 0;
     const endX = horizontalLength;
-    pathData = `M ${startX} ${strokeWidth} L ${endX} ${strokeWidth} L ${endX} ${length}`;
+    // Smooth curved path
+    pathData = `M ${startX} ${strokeWidth} C ${startX + horizontalLength * 0.3} ${strokeWidth}, ${endX - horizontalLength * 0.1} ${length * 0.4}, ${endX} ${length}`;
     arrowX = endX;
     arrowY = length;
   } else if (from === "right" && to === "top") {
-    // Branch path: horizontal first (right), then vertical down
+    // Branch path: smooth curved path from right
     const horizontalLength = horizontalOffset || 40;
     svgWidth = horizontalLength + strokeWidth * 2;
     const startX = svgWidth;
     const endX = svgWidth - horizontalLength;
-    pathData = `M ${startX} ${strokeWidth} L ${endX} ${strokeWidth} L ${endX} ${length}`;
+    // Smooth curved path
+    pathData = `M ${startX} ${strokeWidth} C ${startX - horizontalLength * 0.3} ${strokeWidth}, ${endX + horizontalLength * 0.1} ${length * 0.4}, ${endX} ${length}`;
     arrowX = endX;
     arrowY = length;
   } else {
