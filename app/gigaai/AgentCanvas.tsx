@@ -1227,6 +1227,8 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                               width: `${svgWidth}px`,
                               height: `${svgHeight}px`,
                             }}
+                            viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+                            preserveAspectRatio="none"
                           >
                             <line
                               x1={relFromX}
