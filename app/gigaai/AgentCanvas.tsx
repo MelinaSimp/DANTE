@@ -1522,9 +1522,9 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                     style={{ width: '600px', height: '140px', pointerEvents: 'none' }}
                                     viewBox="0 0 600 140"
                                   >
-                                    {/* Smooth curved path: move horizontally first, then curve down vertically */}
+                                    {/* Path: straight horizontal, then smooth 90-degree curve down, then straight vertical */}
                                     <path
-                                      d={`M 300 0 C ${300 + horizontalOffset * 0.3} 20, ${300 + horizontalOffset * 0.7} 40, ${300 + horizontalOffset} 60 C ${300 + horizontalOffset} 80, ${300 + horizontalOffset} 110, ${300 + horizontalOffset} 140`}
+                                      d={`M 300 0 L ${300 + horizontalOffset} 0 Q ${300 + horizontalOffset} 0, ${300 + horizontalOffset} 20 L ${300 + horizontalOffset} 140`}
                                       stroke={color}
                                       strokeWidth="2"
                                       fill="none"
