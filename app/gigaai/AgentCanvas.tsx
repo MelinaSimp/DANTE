@@ -1513,18 +1513,18 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                               {step.branches.map((branch, branchIdx) => {
                                 const isTrue = branchIdx === 0;
                                 const color = isTrue ? "#70d4b4" : "#9ca3af";
-                                const horizontalOffset = isTrue ? -140 : 140; // True goes left, False goes right
+                                const horizontalOffset = isTrue ? -180 : 180; // True goes left, False goes right - wider spread
                                 
                                 return (
                                   <svg
                                     key={`branch-connector-${branch.id}`}
                                     className="absolute top-0 left-1/2 transform -translate-x-1/2"
-                                    style={{ width: '500px', height: '140px', pointerEvents: 'none' }}
-                                    viewBox="0 0 500 140"
+                                    style={{ width: '600px', height: '140px', pointerEvents: 'none' }}
+                                    viewBox="0 0 600 140"
                                   >
-                                    {/* Fully smooth curved path: continuous smooth curve from center to True/False node - no sharp corners */}
+                                    {/* Smooth curved path: move horizontally first, then curve down vertically */}
                                     <path
-                                      d={`M 250 0 C ${250 + horizontalOffset * 0.1} 20, ${250 + horizontalOffset * 0.4} 50, ${250 + horizontalOffset * 0.7} 80 C ${250 + horizontalOffset * 0.9} 105, ${250 + horizontalOffset * 0.98} 125, ${250 + horizontalOffset} 140`}
+                                      d={`M 300 0 C ${300 + horizontalOffset * 0.3} 20, ${300 + horizontalOffset * 0.7} 40, ${300 + horizontalOffset} 60 C ${300 + horizontalOffset} 80, ${300 + horizontalOffset} 110, ${300 + horizontalOffset} 140`}
                                       stroke={color}
                                       strokeWidth="2"
                                       fill="none"
@@ -1549,8 +1549,8 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                               })}
                               </div>
                             
-                            {/* True/False nodes positioned horizontally */}
-                            <div className="flex gap-24 justify-center mt-32 relative z-10">
+                            {/* True/False nodes positioned horizontally - wider spread */}
+                            <div className="flex gap-36 justify-center mt-32 relative z-10">
                               {step.branches.map((branch, branchIdx) => {
                                 const isTrue = branchIdx === 0;
                                 
