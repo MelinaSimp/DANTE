@@ -170,6 +170,67 @@ export async function POST(
       );
     }
 
+    // Create event in Google Calendar if agent has Google Calendar integration
+    try {
+      const { data: googleCalendarSource } = await supabaseAdmin
+        .from("agent_data_sources")
+        .select("id, integration_config")
+        .eq("agent_id", params.agentId)
+        .eq("integration_type", "google_calendar")
+        .maybeSingle();
+
+      if (googleCalendarSource && googleCalendarSource.integration_config) {
+        // Get integration credentials
+        const { data: credentials } = await supabaseAdmin
+          .from("integration_credentials")
+          .select("encrypted_oauth_token, encrypted_refresh_token, token_expires_at, config")
+          .eq("workspace_id", profile.workspace_id)
+          .eq("provider", "google")
+          .eq("integration_type", "google")
+          .maybeSingle();
+
+        if (credentials && credentials.encrypted_oauth_token) {
+          // Decode base64-encoded tokens
+          const oauthToken = Buffer.from(credentials.encrypted_oauth_token, "base64").toString("utf-8");
+          const refreshToken = credentials.encrypted_refresh_token
+            ? Buffer.from(credentials.encrypted_refresh_token, "base64").toString("utf-8")
+            : null;
+          
+          const { GoogleCalendarAdapter } = await import("@/lib/integrations/adapters/google-calendar");
+          const adapter = new GoogleCalendarAdapter();
+          
+          const calendarConfig = googleCalendarSource.integration_config as any;
+          const startTime = new Date(scheduledAt).toISOString();
+          const endTime = new Date(scheduledDate.getTime() + (durationMinutes * 60000)).toISOString();
+          
+          const eventId = await adapter.createEvent(
+            {
+              oauth_token: oauthToken,
+              refresh_token: refreshToken || "",
+              token_expires_at: credentials.token_expires_at,
+              calendar_id: calendarConfig.calendar_id || "primary",
+            },
+            {
+              summary: `${serviceType} - ${contactName}`,
+              description: notes || `Appointment with ${contactName} (${normalizedPhone})`,
+              startTime,
+              endTime,
+              calendarId: calendarConfig.calendar_id || "primary",
+            }
+          );
+
+          // Store Google Calendar event ID in appointment notes or metadata
+          if (eventId) {
+            console.log(`Created Google Calendar event: ${eventId} for appointment ${appointment.id}`);
+          }
+        }
+      }
+    } catch (calendarError: any) {
+      // Log error but don't fail the appointment creation
+      console.error("Failed to create Google Calendar event:", calendarError);
+      // Appointment is still created successfully, just without calendar sync
+    }
+
     return NextResponse.json({
       success: true,
       appointment,

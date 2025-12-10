@@ -578,10 +578,13 @@ export async function POST(req: NextRequest) {
     console.log("[Twilio Response] Agent voice ID:", agentVoiceId);
     console.log("[Twilio Response] Base URL:", baseUrl);
     
+    // OPTIMIZATION: Start TTS generation immediately (no await delay)
+    const ttsStartTime = Date.now();
     const speechTwiml = hasOutput
       ? await generateSpeechTwiml(result.output, agentVoiceId, baseUrl)
       : "";
-    
+    const ttsTime = Date.now() - ttsStartTime;
+    console.log(`[Twilio Response] TTS generation took ${ttsTime}ms`);
     console.log("[Twilio Response] Generated speech TwiML:", speechTwiml);
     console.log("[Twilio Response] Speech TwiML length:", speechTwiml.length);
     

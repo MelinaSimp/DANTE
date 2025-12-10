@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Upload, Database, X, GripVertical, Eye, Download, CheckCircle } from "lucide-react";
+import { Upload, Database, X, GripVertical, Eye, Download, CheckCircle, Calendar } from "lucide-react";
 import ConfirmationModal from "./ConfirmationModal";
 import { useTheme } from "./ThemeProvider";
 
@@ -12,7 +12,9 @@ interface DataSource {
   file_url?: string;
   file_size?: number;
   file_type?: string;
-  type: "file" | "text";
+  type: "file" | "text" | "api_key";
+  integration_type?: string;
+  integration_config?: any;
 }
 
 interface DataSourcesPageProps {
@@ -25,6 +27,10 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
   const [draggedOver, setDraggedOver] = useState(false);
   const [showTextInput, setShowTextInput] = useState(false);
   const [textInput, setTextInput] = useState("");
+  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
+  const [apiKeyName, setApiKeyName] = useState("");
+  const [apiKeyValue, setApiKeyValue] = useState("");
+  const [apiKeyType, setApiKeyType] = useState<"google_calendar" | "custom">("google_calendar");
   const [loading, setLoading] = useState(true);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [confirmationModal, setConfirmationModal] = useState<{
@@ -407,13 +413,36 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
           </p>
         </div>
 
-      {/* Add Text Data Source Button */}
-      <div className="mb-4">
+      {/* Add Data Source Buttons */}
+      <div className="mb-4 flex gap-2 flex-wrap">
         <button
-          onClick={() => setShowTextInput(!showTextInput)}
+          onClick={() => {
+            setShowTextInput(!showTextInput);
+            setShowApiKeyInput(false);
+          }}
           className={`px-4 py-2 rounded-lg ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white text-sm font-medium transition`}
         >
           + Add Text Knowledge
+        </button>
+        <button
+          onClick={() => {
+            setShowApiKeyInput(!showApiKeyInput);
+            setShowTextInput(false);
+          }}
+          className={`px-4 py-2 rounded-lg border ${colors.border} ${colors.cardBg} ${colors.text} text-sm font-medium transition`}
+        >
+          + Add API Key
+        </button>
+        <button
+          onClick={async () => {
+            // Redirect to OAuth flow for Google Calendar
+            // After OAuth, webhook will be automatically set up
+            window.location.href = `/api/integrations/google/oauth`;
+          }}
+          className={`px-4 py-2 rounded-lg border ${colors.border} ${colors.cardBg} ${colors.text} text-sm font-medium transition flex items-center gap-2`}
+        >
+          <Calendar className="h-4 w-4" />
+          Connect Google Calendar
         </button>
       </div>
 
@@ -443,6 +472,95 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
             >
               Cancel
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* API Key Input */}
+      {showApiKeyInput && (
+        <div className={`mb-4 p-4 rounded-lg border ${colors.border} ${colors.cardBg}`}>
+          <div className="space-y-3">
+            <div>
+              <label className={`block text-xs font-medium ${colors.textSecondary} mb-1`}>API Key Type</label>
+              <select
+                value={apiKeyType}
+                onChange={(e) => setApiKeyType(e.target.value as "google_calendar" | "custom")}
+                className={`w-full rounded-lg border ${colors.border} ${colors.inputBg} px-3 py-2 text-sm ${colors.text} focus:border-[#3351ff] focus:outline-none`}
+              >
+                <option value="google_calendar">Google Calendar</option>
+                <option value="custom">Custom API Key</option>
+              </select>
+            </div>
+            <div>
+              <label className={`block text-xs font-medium ${colors.textSecondary} mb-1`}>Name</label>
+              <input
+                type="text"
+                value={apiKeyName}
+                onChange={(e) => setApiKeyName(e.target.value)}
+                placeholder={apiKeyType === "google_calendar" ? "Google Calendar API Key" : "API Key Name"}
+                className={`w-full rounded-lg border ${colors.border} ${colors.inputBg} px-3 py-2 text-sm ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none`}
+              />
+            </div>
+            <div>
+              <label className={`block text-xs font-medium ${colors.textSecondary} mb-1`}>API Key</label>
+              <input
+                type="password"
+                value={apiKeyValue}
+                onChange={(e) => setApiKeyValue(e.target.value)}
+                placeholder="Enter API key..."
+                className={`w-full rounded-lg border ${colors.border} ${colors.inputBg} px-3 py-2 text-sm ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none`}
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={async () => {
+                  if (!apiKeyName.trim() || !apiKeyValue.trim() || !agentId) return;
+                  
+                  try {
+                    const response = await fetch(`/api/agents/${agentId}/data-sources`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        name: apiKeyName.trim(),
+                        type: "api_key",
+                        content: apiKeyValue.trim(), // Store API key in content field
+                        integration_type: apiKeyType === "google_calendar" ? "google_calendar" : null,
+                        integration_config: apiKeyType === "google_calendar" ? { provider: "google", type: "calendar" } : {},
+                      }),
+                    });
+
+                    if (response.ok) {
+                      const newDataSource = await response.json();
+                      setDataSources((prev) => [{
+                        id: newDataSource.id,
+                        name: newDataSource.name,
+                        type: "api_key",
+                        integration_type: newDataSource.integration_type,
+                        integration_config: newDataSource.integration_config,
+                      }, ...prev]);
+                      setApiKeyName("");
+                      setApiKeyValue("");
+                      setShowApiKeyInput(false);
+                    }
+                  } catch (error) {
+                    console.error("Failed to add API key:", error);
+                  }
+                }}
+                className={`px-4 py-2 rounded-lg ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white text-sm font-medium`}
+              >
+                Add API Key
+              </button>
+              <button
+                onClick={() => {
+                  setShowApiKeyInput(false);
+                  setApiKeyName("");
+                  setApiKeyValue("");
+                }}
+                className={`px-4 py-2 rounded-lg border ${colors.border} ${colors.cardBg} ${colors.text} text-sm`}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { MessageSquare, FileText, GitBranch, Code, Zap, ArrowRight, ArrowDown, X, Plus, Trash2, Calendar, CheckCircle, HelpCircle, Repeat, UserCheck, Phone, Eye, Play, GitMerge, MoreVertical, Bot } from "lucide-react";
+import { useState, useEffect } from "react";
+import { MessageSquare, FileText, GitBranch, Code, Zap, ArrowRight, X, Plus, Trash2, Calendar, CheckCircle, HelpCircle, Repeat, UserCheck, Phone, Eye, Edit } from "lucide-react";
 import ConfirmationModal from "./ConfirmationModal";
 import { useTheme } from "./ThemeProvider";
-import ConnectionLine from "./ConnectionLine";
 
-type StepType = "trigger" | "say" | "gather" | "code" | "api_call" | "schedule" | "qa" | "loop" | "send_sms" | "transfer" | "branch" | "call" | "agent_injection_text" | "agent_injection_phone" | "ai_message";
+type StepType = "say" | "gather" | "code" | "api_call" | "schedule" | "qa" | "loop" | "send_sms" | "transfer";
 
 interface Branch {
   id: string;
@@ -15,59 +14,6 @@ interface Branch {
   target?: string;
   next_step_id?: string;
   next_scenario_id?: string;
-}
-
-// Agent Injection configuration interfaces
-interface AgentInjectionTextConfig {
-  goal?: string;
-  context?: string;
-  taskSteps?: string[]; // Array of task step descriptions
-  fieldsToExtract?: Array<{
-    name: string;
-    description: string;
-    usage?: string;
-  }>;
-}
-
-interface AgentInjectionPhoneConfig extends AgentInjectionTextConfig {
-  style?: {
-    tone?: string;
-    formality?: string;
-    approach?: string;
-  };
-  voicemailBehavior?: {
-    enabled: boolean;
-    message?: string;
-  };
-  transferOptions?: {
-    enabled: boolean;
-    type?: "warm" | "cold";
-    targetPhoneNumber?: string;
-  };
-}
-
-interface AIMessageConfig {
-  channel?: "email" | "sms" | "whatsapp" | "last_message_channel";
-  recipient?: {
-    type: "predefined" | "dynamic";
-    value?: string; // Contact ID or variable reference
-  };
-  template?: string;
-  variables?: Record<string, string>; // Variable mappings from workflow context
-}
-
-interface TriggerConfig {
-  eventType?: string; // e.g., "reservation_created", "task_updated", "custom"
-  conditions?: Array<{
-    field: string;
-    operator: string;
-    value: string;
-  }>;
-  timing?: {
-    type: "immediate" | "scheduled" | "relative";
-    value?: string; // e.g., "3 days before check-in"
-  };
-  filters?: Record<string, any>; // Event-specific filters
 }
 
 interface Step {
@@ -79,17 +25,6 @@ interface Step {
   branches?: Branch[];
   sort_order?: number;
   selected_data_source_ids?: string[];
-  x?: number; // Canvas position
-  y?: number; // Canvas position
-  connections?: Array<{ fromSide: "top" | "bottom" | "left" | "right"; toStepId: string; toSide: "top" | "bottom" | "left" | "right" }>; // Connections from this step
-  // New configuration fields for Conduit AI-style nodes
-  agentInjectionTextConfig?: AgentInjectionTextConfig;
-  agentInjectionPhoneConfig?: AgentInjectionPhoneConfig;
-  aiMessageConfig?: AIMessageConfig;
-  triggerConfig?: TriggerConfig;
-  // Data flow fields
-  extractedFields?: Record<string, any>; // Fields extracted by this step
-  workflowContext?: Record<string, any>; // Context data available to this step
 }
 
 interface Scenario {
@@ -107,41 +42,18 @@ interface AgentCanvasProps {
   isDeployed?: boolean;
 }
 
-// Right sidebar blocks - draggable functions
-const DRAGGABLE_BLOCKS: { type: StepType; label: string; description: string; icon: any }[] = [
-  { type: "say", label: "Say", description: "AI model says something", icon: MessageSquare },
+const FUNCTION_PALETTE: { type: StepType; label: string; description: string; icon: any }[] = [
+  { type: "say", label: "Say", description: "Send a message to the user", icon: MessageSquare },
   { type: "gather", label: "Gather", description: "Collect user input", icon: FileText },
   { type: "qa", label: "Q/A", description: "Answer question using data sources", icon: HelpCircle },
-  { type: "branch", label: "Branch", description: "Splits into two paths", icon: GitMerge },
-  { type: "call", label: "Call", description: "AI agent has been called", icon: Phone },
-  { type: "transfer", label: "Transfer", description: "Transfer to another agent", icon: UserCheck },
+  // REMOVED: { type: "if", label: "If Statement", ... } - Use branches on Gather/Q/A instead
   { type: "code", label: "Code", description: "Run custom code", icon: Code },
   { type: "api_call", label: "API Call", description: "Call an external API", icon: Zap },
   { type: "schedule", label: "Schedule", description: "Schedule an appointment", icon: Calendar },
+  // NEW STEP TYPES:
   { type: "loop", label: "Loop", description: "Repeat a sequence of steps", icon: Repeat },
   { type: "send_sms", label: "Send SMS", description: "Send text message to customer", icon: Phone },
-  { type: "agent_injection_text", label: "Agent Injection (Text)", description: "Inject goals and context into text AI agent", icon: Bot },
-  { type: "agent_injection_phone", label: "Agent Injection (Phone)", description: "Inject goals and context into voice AI agent", icon: Phone },
-  { type: "ai_message", label: "AI Message", description: "Send AI-powered message on omni-channel", icon: MessageSquare },
-];
-
-// Legacy function palette (keeping for backward compatibility)
-const FUNCTION_PALETTE: { type: StepType; label: string; description: string; icon: any; category: string }[] = [
-  { type: "trigger", label: "Trigger", description: "Start the workflow when an event occurs", icon: Play, category: "Trigger" },
-  { type: "branch", label: "Branch", description: "Create conditional paths based on conditions", icon: GitMerge, category: "Branch" },
-  { type: "say", label: "Say", description: "Send a message to the user", icon: MessageSquare, category: "AI" },
-  { type: "gather", label: "Gather", description: "Collect user input", icon: FileText, category: "Contact" },
-  { type: "qa", label: "Q/A", description: "Answer question using data sources", icon: HelpCircle, category: "AI" },
-  { type: "code", label: "Code", description: "Run custom code", icon: Code, category: "Code" },
-  { type: "api_call", label: "API Call", description: "Call an external API", icon: Zap, category: "API" },
-  { type: "schedule", label: "Schedule", description: "Schedule an appointment", icon: Calendar, category: "Schedule" },
-  { type: "loop", label: "Loop", description: "Repeat a sequence of steps", icon: Repeat, category: "Loop" },
-  { type: "send_sms", label: "Send SMS", description: "Send text message to customer", icon: Phone, category: "Contact" },
-  { type: "transfer", label: "Transfer", description: "Route to specialist agent", icon: UserCheck, category: "Transfer" },
-  { type: "call", label: "Call", description: "AI agent has been called", icon: Phone, category: "Call" },
-  { type: "agent_injection_text", label: "Agent Injection (Text)", description: "Inject goals and context into text AI agent", icon: Bot, category: "AI" },
-  { type: "agent_injection_phone", label: "Agent Injection (Phone)", description: "Inject goals and context into voice AI agent", icon: Phone, category: "AI" },
-  { type: "ai_message", label: "AI Message", description: "Send AI-powered message on omni-channel", icon: MessageSquare, category: "AI" },
+  { type: "transfer", label: "Transfer", description: "Route to specialist agent", icon: UserCheck },
 ];
 
 const AVAILABLE_TAGS = [
@@ -157,71 +69,43 @@ const AVAILABLE_TAGS = [
 
 function defaultMessage(type: StepType): string {
   switch (type) {
-    case "trigger":
-      return "Workflow starts when this event occurs";
-    case "branch":
-      return "Check condition and branch workflow";
     case "say":
       return "Welcome! How can I help you today?";
-    case "agent_injection_text":
-      return "Inject goals and context into text AI agent";
-    case "agent_injection_phone":
-      return "Inject goals and context into voice AI agent";
-    case "ai_message":
-      return "Send AI-powered message";
-    case "call":
-      return "AI agent has been called";
     case "gather":
       return "What information would you like to collect?";
     case "qa":
       return "Answer customer question using data sources";
+    // REMOVED: case "if" - If steps removed
     case "loop":
       return "Loop configuration";
     case "send_sms":
       return "Send SMS message";
     case "transfer":
-      return "Transfer to another agent with its separate workflow";
+      return "Transfer to specialist";
     case "code":
       return "// Write your code here";
     case "api_call":
       return "Call API endpoint";
     case "schedule":
       return "Schedule appointment confirmation message";
+    case "loop":
+      return "Loop configuration";
+    case "send_sms":
+      return "Send SMS message";
+    case "transfer":
+      return "Transfer to specialist";
     default:
       return "New step";
   }
 }
 
-function getStepCategory(type: StepType): string {
-  const paletteItem = FUNCTION_PALETTE.find(p => p.type === type);
-  return paletteItem?.category || "Step";
-}
-
-function getCategoryColor(category: string): string {
-  switch (category) {
-    case "Trigger":
-      return "text-[#3166bf]";
-    case "Branch":
-      return "text-[#9333ea]";
-    case "AI":
-      return "text-[#70d4b4]";
-    case "Contact":
-      return "text-[#9ca3af]";
-    case "Transfer":
-      return "text-[#9ca3af]";
-    default:
-      return "text-[#6b7280]";
-  }
-}
-
 export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepSelect, isDeployed = false }: AgentCanvasProps) {
   const { theme, colors } = useTheme();
-  const canvasRef = useRef<HTMLDivElement>(null);
   
   // Debug: Log deployment status
   useEffect(() => {
-    console.log("[AgentCanvas] Component mounted/updated - isDeployed:", isDeployed, "agentId:", agentId, "scenarioId:", scenarioId);
-  }, [isDeployed, agentId, scenarioId]);
+    console.log("[AgentCanvas] isDeployed:", isDeployed);
+  }, [isDeployed]);
   const [scenario, setScenario] = useState<Scenario>({
     id: scenarioId,
     name: scenarioName,
@@ -233,10 +117,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
   const [draggedOver, setDraggedOver] = useState(false);
   const [editingBranchId, setEditingBranchId] = useState<string | null>(null);
   const [selectedStepForBranch, setSelectedStepForBranch] = useState<{ scenarioId: string; stepId: string; branchId: string } | null>(null);
-  const [selectedStepForConfig, setSelectedStepForConfig] = useState<string | null>(null); // Step ID selected for configuration panel
   const [loading, setLoading] = useState(true);
-  const [draggingStep, setDraggingStep] = useState<{ stepId: string; offsetX: number; offsetY: number; startX: number; startY: number } | null>(null);
-  const [connectingFrom, setConnectingFrom] = useState<{ stepId: string; side: "top" | "bottom" | "left" | "right" } | null>(null);
   const [dataSourceModal, setDataSourceModal] = useState<{
     isOpen: boolean;
     stepId: string | null;
@@ -291,7 +172,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
           
           // Load branches for each step
           const stepsWithBranches = await Promise.all(
-            stepsData.map(async (step: any, idx: number) => {
+            stepsData.map(async (step: any) => {
               const branchesResponse = await fetch(`/api/steps/${step.id}/branches`);
               const branches = branchesResponse.ok ? await branchesResponse.json() : [];
               return {
@@ -310,8 +191,6 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                 })),
                 sort_order: step.sort_order,
                 selected_data_source_ids: step.selected_data_source_ids || [],
-                x: step.x ?? 200, // Default x position
-                y: step.y ?? (200 + idx * 180), // Default y position with spacing
               };
             })
           );
@@ -333,9 +212,8 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
 
   const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
-    event.stopPropagation();
     setDraggedOver(false);
-    console.log("[AgentCanvas] handleDrop - isDeployed:", isDeployed, "agentId:", agentId);
+    console.log("[AgentCanvas] handleDrop - isDeployed:", isDeployed);
     if (isDeployed) {
       console.log("[AgentCanvas] Blocking drop - agent is deployed");
       setConfirmationModal({
@@ -349,23 +227,12 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
       });
       return;
     }
-    console.log("[AgentCanvas] Proceeding with drop - agent is not deployed");
     const type = event.dataTransfer.getData("step-type") as StepType;
     console.log("[AgentCanvas] Dropped step type:", type);
     if (!type) {
       console.log("[AgentCanvas] No step type in dataTransfer");
       return;
     }
-
-    // Calculate drop position relative to the canvas
-    const canvasRect = canvasRef.current?.getBoundingClientRect();
-    if (!canvasRect) {
-      console.error("[AgentCanvas] Canvas ref not available");
-      return;
-    }
-
-    const dropX = event.clientX - canvasRect.left + (canvasRef.current?.scrollLeft || 0);
-    const dropY = event.clientY - canvasRect.top + (canvasRef.current?.scrollTop || 0);
 
     try {
       const message = defaultMessage(type);
@@ -376,135 +243,28 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
           name: message,
           type,
           ai_message: type === "say" ? message : null,
-          x: dropX - 160, // Center the block on drop (half of 320px width)
-          y: dropY - 20, // Adjust for potential header/cursor offset
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
-        console.error("Failed to create step:", errorData);
-        setConfirmationModal({
-          isOpen: true,
-          title: "Failed to Create Step",
-          message: errorData?.error || "Failed to create step. Please try again.",
-          confirmText: "OK",
-          cancelText: "",
-          variant: "error",
-          onConfirm: () => setConfirmationModal({ ...confirmationModal, isOpen: false }),
-        });
-        return;
-      }
-
+      if (response.ok) {
         const newStepData = await response.json();
-      
-      // Always create the step immediately, then create branches asynchronously
         const newStep: Step = {
           id: newStepData.id,
           type: newStepData.type as StepType,
           name: newStepData.name,
           ai_message: newStepData.ai_message,
           message: newStepData.ai_message || newStepData.name,
-        branches: type === "branch" ? [] : (type === "say" ? [] : undefined), // Initialize with empty array for branch steps
+          branches: type === "say" ? [] : undefined,
           sort_order: newStepData.sort_order,
-        x: newStepData.x ?? dropX - 160, // Use x from API or fallback to calculated position
-        y: newStepData.y ?? dropY - 20, // Use y from API or fallback to calculated position
         };
 
-      // Add step to canvas immediately
         setScenario((prev) => ({
           ...prev,
           steps: [...prev.steps, newStep].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)),
         }));
-      
-      // For branch steps, create True and False branches asynchronously (don't block UI)
-      if (type === "branch") {
-        // Create branches in background without blocking - wrap in IIFE to handle errors
-        (async () => {
-          try {
-            const [trueResponse, falseResponse] = await Promise.all([
-              fetch(`/api/steps/${newStepData.id}/branches`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  condition: "Condition is true",
-                  condition_tag: "true",
-                }),
-              }),
-              fetch(`/api/steps/${newStepData.id}/branches`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  condition: "Condition is false",
-                  condition_tag: "false",
-                }),
-              }),
-            ]);
-
-            if (trueResponse.ok && falseResponse.ok) {
-              try {
-                const trueBranchData = await trueResponse.json();
-                const falseBranchData = await falseResponse.json();
-                
-                // Validate that we have the required fields
-                if (trueBranchData?.id && falseBranchData?.id) {
-                  // Update step with branches - map API response to Branch interface
-                  setScenario((prev) => ({
-                    ...prev,
-                    steps: prev.steps.map((s) =>
-                      s.id === newStepData.id
-                        ? {
-                            ...s,
-                            branches: [
-                              {
-                                id: trueBranchData.id,
-                                condition: trueBranchData.condition || "Condition is true",
-                                condition_tag: trueBranchData.condition_tag || "true",
-                                next_step_id: trueBranchData.next_step_id || undefined,
-                                next_scenario_id: trueBranchData.next_scenario_id || undefined,
-                              },
-                              {
-                                id: falseBranchData.id,
-                                condition: falseBranchData.condition || "Condition is false",
-                                condition_tag: falseBranchData.condition_tag || "false",
-                                next_step_id: falseBranchData.next_step_id || undefined,
-                                next_scenario_id: falseBranchData.next_scenario_id || undefined,
-                              },
-                            ],
-                          }
-                        : s
-                    ),
-                  }));
-                }
-              } catch (parseError) {
-                console.error("Error parsing branch response:", parseError);
-              }
-            } else {
-              const trueErrorText = trueResponse.ok ? null : await trueResponse.text().catch(() => "Unknown error");
-              const falseErrorText = falseResponse.ok ? null : await falseResponse.text().catch(() => "Unknown error");
-              console.error("Failed to create branches:", { 
-                trueStatus: trueResponse.status,
-                trueError: trueErrorText,
-                falseStatus: falseResponse.status,
-                falseError: falseErrorText
-              });
-            }
-          } catch (error) {
-            console.error("Error creating branches:", error);
-          }
-        })();
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error("Failed to create step:", error);
-      setConfirmationModal({
-        isOpen: true,
-        title: "Failed to Create Step",
-        message: error?.message || "An unexpected error occurred while creating the step. Please try again.",
-        confirmText: "OK",
-        cancelText: "",
-        variant: "error",
-        onConfirm: () => setConfirmationModal({ ...confirmationModal, isOpen: false }),
-      });
     }
   };
 
@@ -759,8 +519,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
     }
   };
 
-  const deleteStep = async (stepId: string) => {
-    console.log("[AgentCanvas] deleteStep - isDeployed:", isDeployed, "stepId:", stepId);
+  const deleteStep = (stepId: string) => {
     if (isDeployed) {
       setConfirmationModal({
         isOpen: true,
@@ -783,14 +542,11 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
       onConfirm: async () => {
         setConfirmationModal({ ...confirmationModal, isOpen: false });
         try {
-          console.log("[AgentCanvas] Attempting to delete step:", stepId);
           const response = await fetch(`/api/steps/${stepId}`, {
             method: "DELETE",
           });
 
-          console.log("[AgentCanvas] Delete response status:", response.status);
           if (response.ok) {
-            console.log("[AgentCanvas] Step deleted successfully");
             setScenario((prev) => ({
               ...prev,
               steps: prev.steps.filter((step) => step.id !== stepId),
@@ -799,36 +555,9 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
               setEditingStepId(null);
               setEditingText("");
             }
-          } else {
-            const errorText = await response.text().catch(() => "Unknown error");
-            let errorData;
-            try {
-              errorData = JSON.parse(errorText);
-            } catch {
-              errorData = { error: errorText || "Unknown error" };
-            }
-            console.error("[AgentCanvas] Failed to delete step - Status:", response.status, "Error:", errorData);
-            setConfirmationModal({
-              isOpen: true,
-              title: "Delete Failed",
-              message: errorData.error || `Failed to delete step (Status: ${response.status}). Please try again.`,
-              confirmText: "OK",
-              cancelText: "",
-              variant: "danger",
-              onConfirm: () => setConfirmationModal({ ...confirmationModal, isOpen: false }),
-            });
           }
-        } catch (error: any) {
-          console.error("[AgentCanvas] Failed to delete step:", error);
-          setConfirmationModal({
-            isOpen: true,
-            title: "Delete Failed",
-            message: error?.message || "An error occurred while deleting the step. Please try again.",
-            confirmText: "OK",
-            cancelText: "",
-            variant: "danger",
-            onConfirm: () => setConfirmationModal({ ...confirmationModal, isOpen: false }),
-          });
+        } catch (error) {
+          console.error("Failed to delete step:", error);
         }
       },
     });
@@ -850,58 +579,6 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
       selectedStepForBranch.branchId,
       { target: targetName }
     );
-  };
-
-  const handleConnectionPointClick = (stepId: string, side: "top" | "bottom" | "left" | "right") => {
-    if (isDeployed) {
-      setConfirmationModal({
-        isOpen: true,
-        title: "Cannot Edit",
-        message: "This agent is deployed. Please cancel deployment to make changes.",
-        confirmText: "OK",
-        cancelText: "",
-        variant: "warning",
-        onConfirm: () => setConfirmationModal({ ...confirmationModal, isOpen: false }),
-      });
-      return;
-    }
-
-    if (!connectingFrom) {
-      // Start a new connection
-      setConnectingFrom({ stepId, side });
-    } else {
-      // Complete the connection
-      if (connectingFrom.stepId === stepId) {
-        // Clicked the same step - cancel connection
-        setConnectingFrom(null);
-      } else {
-        // Connect from connectingFrom to this step
-        const fromStep = scenario.steps.find(s => s.id === connectingFrom.stepId);
-        if (fromStep) {
-          const newConnection = {
-            fromSide: connectingFrom.side,
-            toStepId: stepId,
-            toSide: side,
-          };
-          
-          // Update local state
-          setScenario(prev => ({
-            ...prev,
-            steps: prev.steps.map(s => 
-              s.id === connectingFrom.stepId
-                ? { 
-                    ...s, 
-                    connections: [...(s.connections || []), newConnection]
-                  }
-                : s
-            )
-          }));
-          
-          // TODO: Save connection to API
-          setConnectingFrom(null);
-        }
-      }
-    }
   };
 
   const getCurrentBranch = () => {
@@ -1098,126 +775,337 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
     setUploadingFile(false);
   };
 
+  // Helper function to render a single step (used for nested steps in loops)
+  const renderStepContent = (step: Step) => {
+    return (
+      <div className="pb-4">
+        {/* Step Label */}
+        <div className="mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className={`text-[10px] font-medium ${colors.textTertiary} uppercase tracking-wide`}>
+              {step.type === "say"
+                ? "Co Say"
+                : step.type === "gather"
+                ? "Gather"
+                : step.type === "qa"
+                ? "Q/A"
+                : step.type === "schedule"
+                ? "Schedule"
+                : step.type === "code"
+                ? "Code"
+                : step.type === "api_call"
+                ? "API Call"
+                : step.type === "loop"
+                ? "Loop"
+                : step.type === "send_sms"
+                ? "Send SMS"
+                : step.type === "transfer"
+                ? "Transfer"
+                : "Step"}
+            </span>
+            {step.type === "say" && (
+              <MessageSquare className={`h-3 w-3 ${colors.iconSecondary}`} />
+            )}
+            {step.type === "qa" && (
+              <HelpCircle className={`h-3 w-3 ${colors.iconSecondary}`} />
+            )}
+            {step.type === "schedule" && (
+              <Calendar className={`h-3 w-3 ${colors.iconSecondary}`} />
+            )}
+            {step.type === "say" && (
+              <div className="flex items-center gap-1" title={step.ai_message && step.ai_message.trim().length > 0 ? "Message configured" : "No message configured - click to edit"}>
+                {step.ai_message && step.ai_message.trim().length > 0 ? (
+                  <CheckCircle className="h-3.5 w-3.5 text-green-400" />
+                ) : (
+                  <div className="h-3.5 w-3.5 rounded-full border-2 border-yellow-400 flex items-center justify-center">
+                    <span className="text-[8px] text-yellow-400">!</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => deleteStep(step.id)}
+            className="p-1.5 hover:bg-red-500/20 rounded-full transition text-red-400/70 hover:text-red-400"
+            title="Delete step"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        {/* Step Message */}
+        <div className="mb-4">
+          {editingStepId === step.id ? (
+            <div className="space-y-3">
+              <textarea
+                value={editingText}
+                onChange={(e) => setEditingText(e.target.value)}
+                rows={3}
+                className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none`}
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={saveEditing}
+                  className={`px-3 py-1.5 rounded-2xl ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-[10px] font-medium text-white`}
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingStepId(null);
+                    setEditingText("");
+                  }}
+                  className={`px-3 py-1.5 rounded-2xl border ${colors.border} ${colors.bgSecondary} text-[10px] ${colors.textSecondary} ${colors.hover}`}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p
+              className={`text-sm ${colors.text} leading-relaxed cursor-pointer ${colors.hover} transition`}
+              onClick={() => startEditing(step)}
+            >
+              "{step.message}"
+            </p>
+          )}
+        </div>
+
+        {/* Step-specific configurations - render all except loop config (since loop is handled separately) */}
+        {step.type === "qa" && (
+          <div className="mb-4 p-3 rounded-2xl border border-blue-500/30 bg-blue-500/10">
+            <div className="flex items-center justify-between mb-2">
+              <label className={`text-[10px] font-medium ${colors.textSecondary}`}>
+                Data Sources
+              </label>
+              {!isDeployed && (
+                <button
+                  onClick={async () => {
+                    setLoadingDataSources(true);
+                    setShowAddDataSource(false);
+                    setUploadError(null);
+                    try {
+                      const response = await fetch(`/api/agents/${agentId}/data-sources`);
+                      if (response.ok) {
+                        const data = await response.json();
+                        setAvailableDataSources(data.map((ds: any) => ({
+                          id: ds.id,
+                          name: ds.name,
+                          type: ds.type,
+                          file_url: ds.file_url,
+                          file_type: ds.file_type,
+                          content: ds.content,
+                          integration_type: ds.integration_type,
+                        })));
+                        const currentStep = scenario.steps.find(s => s.id === step.id);
+                        setSelectedDataSourceIds(currentStep?.selected_data_source_ids || []);
+                        setDataSourceModal({ isOpen: true, stepId: step.id });
+                      }
+                    } catch (error) {
+                      console.error("Failed to load data sources:", error);
+                    } finally {
+                      setLoadingDataSources(false);
+                    }
+                  }}
+                  className={`text-[10px] ${colors.textTertiary} ${colors.hover} underline`}
+                >
+                  Provided Data Sources
+                </button>
+              )}
+            </div>
+            <p className={`text-[10px] ${colors.textTertiary}`}>
+              {step.selected_data_source_ids?.length > 0
+                ? `${step.selected_data_source_ids.length} data source(s) selected`
+                : "No data sources selected - AI will answer from general knowledge"}
+            </p>
+          </div>
+        )}
+
+        {/* Conditional Branches */}
+        {(step.type === "say" || step.type === "gather" || step.type === "qa") && (
+          <div className="space-y-2 ml-0">
+            {step.branches && step.branches.length > 0 ? (
+              step.branches.map((branch) => (
+                <div key={branch.id} className="flex items-start gap-2 text-xs group">
+                  <ArrowRight className={`h-4 w-4 ${colors.iconSecondary} flex-shrink-0 mt-0.5`} />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={colors.textSecondary}>If</span>
+                      <span className={`${colors.text} font-medium`}>{branch.condition || "New condition"}</span>
+                      {branch.condition_tag && (
+                        <span
+                          className={`px-2 py-0.5 rounded text-xs font-mono ${
+                            branch.condition_tag.startsWith("@")
+                              ? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
+                              : branch.condition_tag === "If Statement"
+                              ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
+                              : "bg-green-500/20 text-green-300 border border-green-500/30"
+                          }`}
+                        >
+                          {branch.condition_tag}
+                        </span>
+                      )}
+                      <span className={colors.textSecondary}>proceed to</span>
+                      <button
+                        className={`${colors.text} font-semibold ${colors.hover} underline decoration-dotted`}
+                        onClick={() => {
+                          setSelectedStepForBranch({
+                            scenarioId: scenarioId,
+                            stepId: step.id,
+                            branchId: branch.id,
+                          });
+                        }}
+                      >
+                        {branch.target || "Next step"}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                    <button
+                      onClick={() => {
+                        setSelectedStepForBranch({
+                          scenarioId: scenarioId,
+                          stepId: step.id,
+                          branchId: branch.id,
+                        });
+                      }}
+                      className={`p-1 ${colors.hover} rounded-full`}
+                      title="Edit branch"
+                    >
+                      <Edit className={`h-3 w-3 ${colors.iconSecondary}`} />
+                    </button>
+                    <button
+                      onClick={() => deleteBranch(step.id, branch.id)}
+                      className={`p-1 ${colors.hover} rounded-full`}
+                      title="Delete branch"
+                    >
+                      <Trash2 className={`h-3 w-3 ${colors.iconSecondary}`} />
+                    </button>
+                  </div>
+                </div>
+              ))
+            ) : null}
+            {(step.type === "gather" || step.type === "qa") && (
+              <button
+                onClick={() => {
+                  if (isDeployed) {
+                    setConfirmationModal({
+                      isOpen: true,
+                      title: "Cannot Edit",
+                      message: "This agent is deployed. Please cancel deployment to make changes.",
+                      confirmText: "OK",
+                      cancelText: "",
+                      variant: "warning",
+                      onConfirm: () => setConfirmationModal({ ...confirmationModal, isOpen: false }),
+                    });
+                    return;
+                  }
+                  addBranch(step.id);
+                }}
+                className={`text-[10px] ${colors.textTertiary} ${colors.hover} underline flex items-center gap-1`}
+              >
+                <ArrowRight className="h-3 w-3" />
+                Add conditional branch
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <div className={`h-full flex bg-[#ffffff]`} style={{ background: '#ffffff', backgroundImage: 'none' }}>
+    <div className={`h-full flex ${colors.bg}`}>
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-[#ffffff]">
-          {/* Fullscreen Content - Infinite/Pageless Canvas (n8n-style, white theme) */}
-          <div 
-            ref={canvasRef}
-            className={`flex-1 overflow-auto relative`} 
-            style={{
-              background: '#ffffff',
-              backgroundImage: `
-                linear-gradient(to right, #e5e7eb 1px, transparent 1px),
-                linear-gradient(to bottom, #e5e7eb 1px, transparent 1px)
-              `,
-              backgroundSize: '20px 20px',
-              backgroundPosition: '0 0'
-            }}
-            onDragOver={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setDraggedOver(true);
-            }}
-            onDragLeave={(e) => {
-              // Only set draggedOver to false if we're actually leaving the canvas
-              if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-                setDraggedOver(false);
-              }
-            }}
-            onDrop={handleDrop}
-            onMouseMove={(e) => {
-              if (draggingStep) {
-                // Calculate distance moved from initial click
-                const dx = e.clientX - draggingStep.startX;
-                const dy = e.clientY - draggingStep.startY;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                
-                // Only start dragging if mouse moved more than 5 pixels (prevents accidental drag on click)
-                if (distance > 5) {
-                  e.preventDefault();
-                  const canvasRect = e.currentTarget.getBoundingClientRect();
-                  const scrollLeft = e.currentTarget.scrollLeft;
-                  const scrollTop = e.currentTarget.scrollTop;
-                  
-                  // Calculate new position relative to canvas
-                  const newX = e.clientX - canvasRect.left + scrollLeft - 160; // 160 = half of block width
-                  const newY = e.clientY - canvasRect.top + scrollTop - 50; // Offset for header
-                  
-                  setDraggingStep({
-                    ...draggingStep,
-                    offsetX: newX,
-                    offsetY: newY,
-                  });
-                }
-              }
-            }}
-          onMouseUp={() => {
-            if (draggingStep) {
-              // Save position to API
-              const step = scenario.steps.find(s => s.id === draggingStep.stepId);
-              if (step) {
-                // Update local state
-                setScenario(prev => ({
-                  ...prev,
-                  steps: prev.steps.map(s => 
-                    s.id === draggingStep.stepId 
-                      ? { ...s, x: draggingStep.offsetX, y: draggingStep.offsetY }
-                      : s
-                  )
-                }));
-                // TODO: Save to API
-              }
-              setDraggingStep(null);
-            }
-          }}
-          onMouseLeave={() => {
-            if (draggingStep) {
-              setDraggingStep(null);
-            }
-          }}
-        >
-          {/* Infinite canvas container - truly pageless like n8n */}
-          <div className="absolute" style={{ 
-            width: '10000px',
-            height: '10000px',
-            minWidth: '100vw',
-            minHeight: '100vh'
-          }}>
-            {/* Drop Zone + Steps - Truly infinite pageless canvas */}
-            <div
-              className={`absolute inset-0 transition ${
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Scenario Header */}
+        <div className={`border-b ${colors.border} ${colors.bg} px-6 py-4`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className={`text-base font-semibold ${colors.text}`}>Scenario: {scenarioName}</h2>
+            </div>
+          </div>
+        </div>
+
+        {/* Function Palette */}
+        <div className={`border-b ${colors.border} ${colors.bg} px-6 py-4`}>
+          <div className="max-w-6xl mx-auto">
+            <p className={`text-[10px] ${colors.textTertiary} mb-3`}>Drag a function into the scenario below to create a step</p>
+            <div className="flex items-center gap-3 overflow-x-auto pb-2">
+              {FUNCTION_PALETTE.map((fn) => {
+                const Icon = fn.icon;
+                return (
+                  <div
+                    key={fn.type}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData("step-type", fn.type);
+                      e.dataTransfer.effectAllowed = "move";
+                    }}
+                    className={`flex-shrink-0 cursor-grab active:cursor-grabbing rounded-3xl border ${colors.border} ${colors.cardBg} px-4 py-3 text-xs ${colors.text} hover:border-[#3351ff]/50 ${colors.hover} transition`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Icon className={`h-4 w-4 ${colors.iconSecondary}`} />
+                      <div>
+                        <div className={`font-semibold text-xs ${colors.text}`}>{fn.label}</div>
+                        <div className={`text-[10px] ${colors.textTertiary}`}>{fn.description}</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Fullscreen Content */}
+        <div className={`flex-1 overflow-y-auto ${colors.bg}`} style={{ backgroundImage: 'url(/backgrounds/dunes.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}>
+          <div className="max-w-6xl mx-auto px-8 py-8">
+            <div className="mb-12">
+              {/* Scenario Title */}
+              <h3 className={`text-xs font-semibold ${colors.text} mb-4`}>
+                Scenario 1: "{scenarioName}" Inquiry
+              </h3>
+
+              {/* Drop Zone + Steps - ONE BOX for all steps - Smaller box, centered */}
+              <div
+                className={`rounded-3xl border border-white/10 bg-[#242423]/90 backdrop-blur-sm px-4 py-4 max-w-4xl mx-auto transition ${
                   draggedOver
-                  ? "border-2 border-dashed border-[#3166bf] bg-[#3166bf]/5"
+                    ? "border-[#3351ff] bg-[#3351ff]/10"
                     : ""
                 }`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDraggedOver(true);
+                }}
+                onDragLeave={() => setDraggedOver(false)}
+                onDrop={handleDrop}
               >
                 {loading ? (
-                  <div className={`absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center ${colors.textTertiary} text-sm`}>
+                  <div className={`text-center ${colors.textTertiary} text-sm py-12`}>
                     <div className="mb-2">Loading steps...</div>
                   </div>
                 ) : scenario.steps.length === 0 ? (
-                  <div className={`absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center ${colors.textTertiary} text-sm`}>
+                  <div className={`text-center ${colors.textTertiary} text-sm py-12`}>
                     <div className="mb-2">👆</div>
-                    <div>Drag a block or tag from the right sidebar to create the first step</div>
+                    <div>Drag a function from above to create the first step</div>
                   </div>
                 ) : (
-                  <div className="relative" style={{ padding: '200px', width: 'fit-content', minWidth: '400px' }}>
+                  <div className="space-y-6">
                     {/* Warning for missing greeting message */}
                     {(() => {
                       const firstSayStep = scenario.steps.find(s => s.type === "say");
                       if (firstSayStep && (!firstSayStep.ai_message || firstSayStep.ai_message.trim().length === 0)) {
                         return (
-                          <div className="absolute top-4 left-4 max-w-md p-3 rounded-2xl bg-[#fffbeb] border border-[#fbbf24]/30 flex items-start gap-2 z-10">
-                            <div className="h-4 w-4 rounded-full border-2 border-[#fbbf24] flex items-center justify-center flex-shrink-0 mt-0.5">
-                              <span className="text-[10px] text-[#fbbf24]">!</span>
+                          <div className="mb-4 p-3 rounded-2xl bg-yellow-500/20 border border-yellow-500/30 flex items-start gap-2">
+                            <div className="h-4 w-4 rounded-full border-2 border-yellow-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+                              <span className="text-[10px] text-yellow-400">!</span>
                             </div>
                             <div className="flex-1">
-                              <div className={`text-xs font-medium text-[#fbbf24] mb-1`}>
+                              <div className={`text-xs font-medium text-yellow-300 mb-1`}>
                                 Greeting Message Missing
                               </div>
-                              <div className={`text-[10px] text-[#fbbf24]/80`}>
+                              <div className={`text-[10px] text-yellow-300/80`}>
                                 Your first "Co Say" step doesn't have a message configured. Click on it to add your greeting message, otherwise callers will hear the default greeting.
                               </div>
                             </div>
@@ -1226,881 +1114,408 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                       }
                       return null;
                     })()}
-                    {/* Render connection lines between connected blocks */}
-                    {scenario.steps.flatMap((step) => {
-                      if (!step.connections || step.connections.length === 0) return [];
-                      return step.connections.map((connection, connIdx) => {
-                        const toStep = scenario.steps.find(s => s.id === connection.toStepId);
-                        if (!toStep) return null;
-                        
-                        const fromStepX = draggingStep?.stepId === step.id 
-                          ? draggingStep.offsetX 
-                          : (step.x ?? 200);
-                        const fromStepY = draggingStep?.stepId === step.id 
-                          ? draggingStep.offsetY 
-                          : (step.y ?? 200);
-                        const toStepX = draggingStep?.stepId === toStep.id 
-                          ? draggingStep.offsetX 
-                          : (toStep.x ?? 200);
-                        const toStepY = draggingStep?.stepId === toStep.id 
-                          ? draggingStep.offsetY 
-                          : (toStep.y ?? 200);
-                        
-                        // Calculate positions for connection points
-                        const blockHeight = 100; // Approximate block height
-                        const blockWidth = 320;
-                        
-                        let fromX = fromStepX + blockWidth / 2;
-                        let fromY = fromStepY;
-                        if (connection.fromSide === "top") {
-                          fromY = fromStepY - 2;
-                        } else if (connection.fromSide === "bottom") {
-                          fromY = fromStepY + blockHeight;
-                        } else if (connection.fromSide === "left") {
-                          fromX = fromStepX - 2;
-                          fromY = fromStepY + blockHeight / 2;
-                        } else if (connection.fromSide === "right") {
-                          fromX = fromStepX + blockWidth + 2;
-                          fromY = fromStepY + blockHeight / 2;
-                        }
-                        
-                        let toX = toStepX + blockWidth / 2;
-                        let toY = toStepY;
-                        if (connection.toSide === "top") {
-                          toY = toStepY - 2;
-                        } else if (connection.toSide === "bottom") {
-                          toY = toStepY + blockHeight;
-                        } else if (connection.toSide === "left") {
-                          toX = toStepX - 2;
-                          toY = toStepY + blockHeight / 2;
-                        } else if (connection.toSide === "right") {
-                          toX = toStepX + blockWidth + 2;
-                          toY = toStepY + blockHeight / 2;
-                        }
-                        
-                        const dx = toX - fromX;
-                        const dy = toY - fromY;
-                        const minX = Math.min(fromX, toX);
-                        const minY = Math.min(fromY, toY);
-                        const svgWidth = Math.abs(dx) + 20;
-                        const svgHeight = Math.abs(dy) + 20;
-                        
-                        // Calculate relative coordinates within the SVG
-                        const relFromX = fromX - minX + 10;
-                        const relFromY = fromY - minY + 10;
-                        const relToX = toX - minX + 10;
-                        const relToY = toY - minY + 10;
-                        
-                        return (
-                          <svg
-                            key={`conn-${step.id}-${connection.toStepId}-${connIdx}`}
-                            className="absolute pointer-events-none z-0"
-                            style={{
-                              left: `${minX - 10}px`,
-                              top: `${minY - 10}px`,
-                              width: `${svgWidth}px`,
-                              height: `${svgHeight}px`,
-                            }}
-                            viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-                            preserveAspectRatio="none"
-                          >
-                            <line
-                              x1={relFromX}
-                              y1={relFromY}
-                              x2={relToX}
-                              y2={relToY}
-                              stroke="#70d4b4"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              markerEnd={`url(#arrowhead-${step.id}-${connIdx})`}
-                            />
-                            <defs>
-                              <marker
-                                id={`arrowhead-${step.id}-${connIdx}`}
-                                markerWidth="10"
-                                markerHeight="10"
-                                refX="9"
-                                refY="3"
-                                orient="auto"
-                              >
-                                <polygon points="0 0, 10 3, 0 6" fill="#70d4b4" />
-                              </marker>
-                            </defs>
-                          </svg>
-                        );
-                      }).filter(Boolean);
-                    })}
-                    {scenario.steps.map((step, stepIdx) => {
-                      const stepCategory = getStepCategory(step.type);
-                      const paletteItem = FUNCTION_PALETTE.find(p => p.type === step.type);
-                      const StepIcon = paletteItem?.icon || FileText;
+                    {(() => {
+                      // Group steps by loops - find loop steps and their nested steps
+                      const renderedSteps: Set<string> = new Set();
+                      const result: JSX.Element[] = [];
                       
-                      const stepX = draggingStep?.stepId === step.id 
-                        ? draggingStep.offsetX 
-                        : (step.x ?? 200);
-                      const stepY = draggingStep?.stepId === step.id 
-                        ? draggingStep.offsetY 
-                        : (step.y ?? (200 + stepIdx * 180));
-                      
-                      return (
-                      <div 
-                        key={step.id} 
-                        className="absolute cursor-move select-none" 
-                        style={{ 
-                          left: `${stepX}px`,
-                          top: `${stepY}px`,
-                          width: '320px',
-                          zIndex: draggingStep?.stepId === step.id ? 1000 : 1
-                        }}
-                        onMouseDown={(e) => {
-                          if (isDeployed) return;
-                          
-                          // Check if the click is on an interactive element
-                          const target = e.target as HTMLElement;
-                          const isButton = target instanceof HTMLButtonElement || 
-                                          target.closest('button') !== null ||
-                                          target.closest('[role="button"]') !== null;
-                          const isTextarea = target instanceof HTMLTextAreaElement || 
-                                            target.closest('textarea') !== null;
-                          const isInput = target instanceof HTMLInputElement || 
-                                         target.closest('input') !== null;
-                          // Check for connection points (blue circles)
-                          const isConnectionPoint = target.classList.contains('rounded-full') && 
-                                                   (target.classList.contains('bg-[#3166bf]') || 
-                                                    target.classList.contains('bg-[#9333ea]'));
-                          // Check if clicking on SVG icon inside button
-                          const isIconInButton = target.closest('svg') && target.closest('button') !== null;
-                          
-                          if (isButton || isTextarea || isInput || isConnectionPoint || isIconInButton) {
-                            return;
+                      for (let i = 0; i < scenario.steps.length; i++) {
+                        const step = scenario.steps[i];
+                        if (renderedSteps.has(step.id)) continue;
+                        
+                        if (step.type === "loop") {
+                          // Find all steps after this loop until the next loop or end
+                          const nestedSteps: typeof scenario.steps = [];
+                          for (let j = i + 1; j < scenario.steps.length; j++) {
+                            const nextStep = scenario.steps[j];
+                            if (nextStep.type === "loop") break; // Stop at next loop
+                            nestedSteps.push(nextStep);
+                            renderedSteps.add(nextStep.id);
                           }
                           
-                          e.preventDefault();
-                          e.stopPropagation();
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          const canvasContainer = e.currentTarget.closest('[class*="overflow"]') as HTMLElement;
-                          if (canvasContainer) {
-                            const canvasRect = canvasContainer.getBoundingClientRect();
-                            // Store initial mouse position and current block position
-                            setDraggingStep({
-                              stepId: step.id,
-                              offsetX: stepX, // Keep current position until drag threshold is met
-                              offsetY: stepY,
-                              startX: e.clientX, // Store initial mouse X
-                              startY: e.clientY, // Store initial mouse Y
-                            });
-                          }
-                        }}
-                      >
-                        {/* Connecting Line from previous step */}
-                        {stepIdx > 0 && (
-                          <div className="flex justify-center mb-3 relative" style={{ height: '32px' }}>
-                            <ConnectionLine 
-                              from="bottom" 
-                              to="top" 
-                              length={32}
-                              color="#70d4b4"
-                              strokeWidth={2}
-                            />
-                                  </div>
-                                )}
-                        
-                        {/* Category Tag - Above the block */}
-                        <div className="mb-2">
-                          <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold ${
-                            stepCategory === "Trigger" 
-                              ? "bg-[#3166bf] text-white border border-[#2a5aa8]"
-                              : stepCategory === "Branch"
-                              ? "bg-[#9333ea] text-white border border-[#7e22ce]"
-                              : stepCategory === "AI"
-                              ? "bg-[#70d4b4] text-white border border-[#5bb99a]"
-                              : "bg-[#9ca3af] text-white border border-[#6b7280]"
-                          }`}>
-                            {stepCategory === "Trigger" && <Zap className="h-3 w-3" />}
-                            {stepCategory === "Branch" && <GitMerge className="h-3 w-3" />}
-                            {stepCategory === "AI" && <MessageSquare className="h-3 w-3" />}
-                            {stepCategory !== "Trigger" && stepCategory !== "Branch" && stepCategory !== "AI" && <FileText className="h-3 w-3" />}
-                            <span>{stepCategory}</span>
-                              </div>
-                          </div>
-                        
-                        {/* Step Card */}
-                        <div 
-                          className="relative bg-white border border-[#70d4b4] rounded-xl p-4 hover:shadow-md transition cursor-pointer" 
-                          style={{ width: '320px', maxWidth: '320px', flexShrink: 0 }}
-                          onDoubleClick={(e) => {
-                            e.stopPropagation();
-                            if (!isDeployed) {
-                              setSelectedStepForConfig(step.id);
-                              setSelectedStepForBranch(null);
-                            }
-                          }}
-                          title="Double-click to configure"
-                        >
-                          {/* Connection Points - Top, Bottom, Left, Right */}
-                          {/* Top connection point */}
-                          <div 
-                            className={`absolute -top-2 left-1/2 transform -translate-x-1/2 w-4 h-4 rounded-full border-2 border-white cursor-pointer hover:scale-110 transition z-20 ${
-                              connectingFrom?.stepId === step.id && connectingFrom?.side === "top"
-                                ? "bg-[#9333ea] scale-125"
-                                : "bg-[#3166bf] hover:bg-[#2a5aa8]"
-                            }`}
-                            title={connectingFrom ? "Click another connection point to connect" : "Click to start connection"}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (isDeployed) return;
-                              handleConnectionPointClick(step.id, "top");
-                            }}
-                          />
-                          {/* Bottom connection point */}
-                          <div 
-                            className={`absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-4 h-4 rounded-full border-2 border-white cursor-pointer hover:scale-110 transition z-20 ${
-                              connectingFrom?.stepId === step.id && connectingFrom?.side === "bottom"
-                                ? "bg-[#9333ea] scale-125"
-                                : "bg-[#3166bf] hover:bg-[#2a5aa8]"
-                            }`}
-                            title={connectingFrom ? "Click another connection point to connect" : "Click to start connection"}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (isDeployed) return;
-                              handleConnectionPointClick(step.id, "bottom");
-                            }}
-                          />
-                          {/* Left connection point */}
-                          <div 
-                            className={`absolute top-1/2 -left-2 transform -translate-y-1/2 w-4 h-4 rounded-full border-2 border-white cursor-pointer hover:scale-110 transition z-20 ${
-                              connectingFrom?.stepId === step.id && connectingFrom?.side === "left"
-                                ? "bg-[#9333ea] scale-125"
-                                : "bg-[#3166bf] hover:bg-[#2a5aa8]"
-                            }`}
-                            title={connectingFrom ? "Click another connection point to connect" : "Click to start connection"}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (isDeployed) return;
-                              handleConnectionPointClick(step.id, "left");
-                            }}
-                          />
-                          {/* Right connection point */}
-                          <div 
-                            className={`absolute top-1/2 -right-2 transform -translate-y-1/2 w-4 h-4 rounded-full border-2 border-white cursor-pointer hover:scale-110 transition z-20 ${
-                              connectingFrom?.stepId === step.id && connectingFrom?.side === "right"
-                                ? "bg-[#9333ea] scale-125"
-                                : "bg-[#3166bf] hover:bg-[#2a5aa8]"
-                            }`}
-                            title={connectingFrom ? "Click another connection point to connect" : "Click to start connection"}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (isDeployed) return;
-                              handleConnectionPointClick(step.id, "right");
-                            }}
-                          />
-                          
-                          <div className="flex items-start justify-between gap-3 relative z-0">
-                            <div className="flex items-start gap-3 flex-1 min-w-0">
-                              {/* Step Icon - In rounded square */}
-                              <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-[#f3f4f6] flex items-center justify-center">
-                                <StepIcon className="h-5 w-5 text-[#151515]" />
-                        </div>
-
-                              {/* Step Content */}
-                              <div className="flex-1 min-w-0">
-                                <h4 className="text-sm font-semibold text-[#151515] mb-0.5">
-                          {editingStepId === step.id ? (
-                              <textarea
-                                value={editingText}
-                                onChange={(e) => setEditingText(e.target.value)}
-                                      rows={1}
-                                      className="w-full rounded-lg border border-[#3166bf] bg-white px-2 py-1 text-sm font-semibold text-[#151515] focus:border-[#3166bf] focus:outline-none"
-                                      autoFocus
-                                      placeholder={paletteItem?.label || step.type}
-                                    />
-                                  ) : (
-                                    <span 
-                                      className="cursor-pointer hover:text-[#151515]"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        startEditing(step);
-                                      }}
-                                    >
-                                      {step.name || paletteItem?.label || step.type}
-                                    </span>
-                                  )}
-                                </h4>
-                                <p className="text-xs text-[#6b7280] mt-0.5">
-                                  {editingStepId === step.id ? (
-                                    <textarea
-                                      value={editingText}
-                                      onChange={(e) => setEditingText(e.target.value)}
-                                      rows={2}
-                                      className="w-full rounded-lg border border-[#3166bf] bg-white px-2 py-1 text-xs text-[#6b7280] focus:border-[#3166bf] focus:outline-none"
-                                      placeholder={step.message || step.ai_message || defaultMessage(step.type)}
-                                    />
-                                  ) : (
-                                    <span 
-                                      className="cursor-pointer hover:text-[#151515]"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        startEditing(step);
-                                      }}
-                                    >
-                                      {step.message || step.ai_message || defaultMessage(step.type)}
-                                    </span>
-                                  )}
-                                </p>
-                              </div>
-                            </div>
-                            
-                            {/* Options Menu (Three dots) */}
-                            <button
-                              className="p-1.5 hover:bg-[#f3f4f6] rounded-lg transition flex-shrink-0 z-10 relative"
-                              onMouseDown={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                              }}
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                // TODO: Show options menu (delete, duplicate, etc.)
-                                console.log("[AgentCanvas] Options menu clicked for step:", step.id);
-                                deleteStep(step.id);
-                              }}
-                              title={`Options for ${paletteItem?.label || step.type}`}
-                              type="button"
-                            >
-                              <MoreVertical className="h-4 w-4 text-[#6b7280] hover:text-[#151515]" />
-                            </button>
-                          </div>
-                          
-                          {/* Edit Actions */}
-                          {editingStepId === step.id && (
-                            <div className="flex gap-2 mt-3 pt-3 border-t border-[#e5e7eb]">
-                                <button
-                                  onClick={saveEditing}
-                                className="px-3 py-1.5 rounded-lg bg-[#3166bf] hover:bg-[#2a5aa8] text-white text-xs font-medium"
-                                >
-                                  Save
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setEditingStepId(null);
-                                    setEditingText("");
-                                  }}
-                                className="px-3 py-1.5 rounded-lg border border-[#e5e7eb] bg-white text-[#151515] text-xs font-medium hover:bg-[#f3f4f6]"
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                          )}
-                        </div>
-
-                        {/* Branch Paths - Show True/False paths with curved connectors */}
-                        {step.type === "branch" && step.branches && step.branches.length > 0 && (
-                          <div className="mt-2 relative">
-                            {/* Smooth curved connectors from branch block to True/False nodes */}
-                            <div className="absolute top-0 left-0 right-0" style={{ height: '40px', zIndex: 0 }}>
-                              {step.branches.map((branch, branchIdx) => {
-                                const isTrue = branchIdx === 0;
-                                const color = isTrue ? "#70d4b4" : "#9ca3af";
-                                const horizontalOffset = isTrue ? -180 : 180; // True goes left, False goes right - wider spread
-                                
-                                return (
-                                  <svg
-                                    key={`branch-connector-${branch.id}`}
-                                    className="absolute top-0 left-1/2 transform -translate-x-1/2"
-                                    style={{ width: '600px', height: '40px', pointerEvents: 'none' }}
-                                    viewBox="0 0 600 40"
-                                  >
-                                    {/* Path: start vertical, small curve transitioning to horizontal, then straight horizontal, then smooth curve down */}
-                                    <path
-                                      d={`M 300 0 L 300 8 C ${300 + horizontalOffset * 0.2} 12, ${300 + horizontalOffset * 0.5} 16, ${300 + horizontalOffset * 0.7} 20 L ${300 + horizontalOffset} 20 Q ${300 + horizontalOffset} 20, ${300 + horizontalOffset} 25 L ${300 + horizontalOffset} 40`}
-                                      stroke={color}
-                                      strokeWidth="2"
-                                      fill="none"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      markerEnd={`url(#arrow-${branch.id})`}
-                                    />
-                                    <defs>
-                                      <marker
-                                        id={`arrow-${branch.id}`}
-                                        markerWidth="10"
-                                        markerHeight="10"
-                                        refX="9"
-                                        refY="3"
-                                        orient="auto"
-                                      >
-                                        <polygon points="0 0, 10 3, 0 6" fill={color} />
-                                      </marker>
-                                    </defs>
-                                  </svg>
-                                );
-                              })}
-                              </div>
-                            
-                            {/* True/False nodes positioned horizontally - much closer to branch block */}
-                            <div className="flex gap-36 justify-center mt-8 relative z-10">
-                              {step.branches.map((branch, branchIdx) => {
-                                const isTrue = branchIdx === 0;
-                                
-                                return (
-                                  <div key={branch.id} className="flex flex-col items-center" style={{ minWidth: '200px' }}>
-                                    {/* True/False Button Node */}
-                                    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium ${
-                                      isTrue 
-                                        ? "bg-[#f3f4f6] border-[#e5e7eb] text-[#151515]"
-                                        : "bg-[#f3f4f6] border-[#e5e7eb] text-[#151515]"
-                                    }`}>
-                                      {isTrue ? (
-                                        <>
-                                          <div className="w-5 h-5 rounded-full bg-[#70d4b4] flex items-center justify-center">
-                                            <CheckCircle className="h-3 w-3 text-white" />
-                              </div>
-                                          <span>True</span>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <div className="w-5 h-5 rounded-full bg-[#f0494a] flex items-center justify-center">
-                                            <X className="h-3 w-3 text-white" />
-                            </div>
-                                          <span>False</span>
-                                        </>
-                                      )}
+                          // Render loop with nested steps inside purple container
+                          result.push(
+                            <div key={step.id} className="rounded-3xl border-2 border-purple-500/50 bg-purple-500/15 p-6 space-y-6 shadow-lg shadow-purple-500/10">
+                              {/* Loop Step Header */}
+                              <div className="relative">
+                                <div className="pb-4 border-b border-purple-500/20">
+                                  {/* Loop Label */}
+                                  <div className="mb-3 flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <span className={`text-[10px] font-medium ${colors.textTertiary} uppercase tracking-wide`}>
+                                        Loop
+                                      </span>
+                                      <Repeat className={`h-3 w-3 ${colors.iconSecondary}`} />
                                     </div>
-                                    
-                                    {/* Smooth curved connector down from True/False node */}
-                                    <div className="mt-4 mb-4 relative" style={{ height: branch.next_step_id ? '60px' : '40px' }}>
-                                      <svg
-                                        className="absolute left-1/2 transform -translate-x-1/2"
-                                        style={{ width: '4px', height: '100%', pointerEvents: 'none' }}
-                                        viewBox={`0 0 4 ${branch.next_step_id ? 60 : 40}`}
-                                        preserveAspectRatio="none"
-                                      >
-                                        <path
-                                          d={`M 2 0 C 2 ${(branch.next_step_id ? 60 : 40) * 0.3}, 2 ${(branch.next_step_id ? 60 : 40) * 0.7}, 2 ${branch.next_step_id ? 60 : 40}`}
-                                          stroke={isTrue ? '#70d4b4' : '#9ca3af'}
-                                          strokeWidth="2"
-                                          fill="none"
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                          markerEnd={`url(#arrow-down-${branch.id})`}
+                                    <button
+                                      onClick={() => deleteStep(step.id)}
+                                      className="p-1.5 hover:bg-red-500/20 rounded-full transition text-red-400/70 hover:text-red-400"
+                                      title="Delete step"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                  
+                                  {/* Loop Message */}
+                                  <div className="mb-4">
+                                    {editingStepId === step.id ? (
+                                      <div className="space-y-3">
+                                        <textarea
+                                          value={editingText}
+                                          onChange={(e) => setEditingText(e.target.value)}
+                                          rows={3}
+                                          className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none`}
                                         />
-                                        <defs>
-                                          <marker
-                                            id={`arrow-down-${branch.id}`}
-                                            markerWidth="10"
-                                            markerHeight="10"
-                                            refX="5"
-                                            refY="3"
-                                            orient="auto"
+                                        <div className="flex gap-2">
+                                          <button
+                                            onClick={saveEditing}
+                                            className={`px-3 py-1.5 rounded-2xl ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-[10px] font-medium text-white`}
                                           >
-                                            <polygon points="0 0, 10 3, 0 6" fill={isTrue ? '#70d4b4' : '#9ca3af'} />
-                                          </marker>
-                                        </defs>
-                                      </svg>
-                            </div>
-                                    
-                                    {/* Steps in this branch path */}
-                                    <div className="w-full space-y-4">
-                                      {branch.next_step_id ? (
-                                        (() => {
-                                          const nextStep = scenario.steps.find(s => s.id === branch.next_step_id);
-                                          if (!nextStep) return null;
-                                          
-                                          const branchStepCategory = getStepCategory(nextStep.type);
-                                          const branchPaletteItem = FUNCTION_PALETTE.find(p => p.type === nextStep.type);
-                                          const BranchStepIcon = branchPaletteItem?.icon || FileText;
-                                          
-                                          return (
-                                            <div key={nextStep.id} className="relative">
-                                              {/* Step Card */}
-                                              <div 
-                                                className="relative bg-white border border-[#70d4b4] rounded-xl p-4 hover:shadow-md transition"
-                                                style={{ width: '320px', maxWidth: '320px' }}
-                                              >
-                                                <div className="flex items-start justify-between gap-3">
-                                                  <div className="flex items-start gap-3 flex-1 min-w-0">
-                                                    <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-[#f3f4f6] flex items-center justify-center">
-                                                      <BranchStepIcon className="h-5 w-5 text-[#151515]" />
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                      <h4 className="text-sm font-semibold text-[#151515] mb-0.5">
-                                                        {nextStep.name || branchPaletteItem?.label || nextStep.type}
-                                                      </h4>
-                                                      <p className="text-xs text-[#6b7280] mt-0.5">
-                                                        {nextStep.message || nextStep.ai_message || defaultMessage(nextStep.type)}
-                              </p>
-                            </div>
-                                                  </div>
-                                                </div>
-                                              </div>
-                                            </div>
-                                          );
-                                        })()
-                                      ) : (
-                                        <div className="text-xs text-[#151515]/40 italic text-center py-4">
-                                          Drop a block here
-                          </div>
-                        )}
-                                    </div>
+                                            Save
+                                          </button>
+                                          <button
+                                            onClick={() => {
+                                              setEditingStepId(null);
+                                              setEditingText("");
+                                            }}
+                                            className={`px-3 py-1.5 rounded-2xl border ${colors.border} ${colors.bgSecondary} text-[10px] ${colors.textSecondary} ${colors.hover}`}
+                                          >
+                                            Cancel
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <p
+                                        className={`text-sm ${colors.text} leading-relaxed cursor-pointer ${colors.hover} transition`}
+                                        onClick={() => startEditing(step)}
+                                      >
+                                        "{step.message}"
+                                      </p>
+                                    )}
                                   </div>
-                                );
-                              })}
+                                  
+                                  {/* Loop Configuration */}
+                                  {step.type === "loop" && (
+                                    <div className="mb-4 p-3 rounded-2xl border border-purple-500/40 bg-purple-500/20 space-y-3">
+                                      <label className={`block text-[10px] font-medium ${colors.textSecondary}`}>
+                                        Loop Configuration
+                                      </label>
+                                      <div className="space-y-2">
+                                        <label className={`block text-[10px] ${colors.textTertiary}`}>
+                                          Number of Iterations
+                                        </label>
+                                        <select
+                                          className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} focus:border-[#3351ff] focus:outline-none`}
+                                          value={step.loop_config?.iterations || "1"}
+                                          onChange={async (e) => {
+                                            const newConfig = {
+                                              ...(step.loop_config || {}),
+                                              iterations: e.target.value === "infinity" ? "infinity" : parseInt(e.target.value) || 1
+                                            };
+                                            await updateStepConfig(step.id, "loop_config", newConfig);
+                                          }}
+                                        >
+                                          <option value="1">1 time</option>
+                                          <option value="2">2 times</option>
+                                          <option value="3">3 times</option>
+                                          <option value="infinity">Infinity</option>
+                                        </select>
+                                        <p className={`text-[9px] ${colors.textTertiary} mt-1`}>
+                                          The steps below will be repeated {step.loop_config?.iterations === "infinity" ? "infinitely" : `${step.loop_config?.iterations || 1} time(s)`}.
+                                        </p>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              {/* Nested Steps Inside Loop - Visually contained */}
+                              {nestedSteps.length > 0 ? (
+                                <div className="space-y-6">
+                                  <div className={`text-[10px] font-medium ${colors.textTertiary} uppercase tracking-wide flex items-center gap-2`}>
+                                    <div className="h-px flex-1 bg-purple-500/30"></div>
+                                    <span>Steps in Loop</span>
+                                    <div className="h-px flex-1 bg-purple-500/30"></div>
+                                  </div>
+                                  <div className="space-y-6 pl-4 border-l-2 border-purple-500/40">
+                                    {nestedSteps.map((nestedStep) => (
+                                      <div key={nestedStep.id} className="relative">
+                                        {renderStepContent(nestedStep)}
+                                      </div>
+                                    ))}
                                   </div>
                                 </div>
-                        )}
-                      </div>
-                    );
-                    })}
-                          </div>
-                        )}
+                              ) : (
+                                <div className={`text-center py-8 ${colors.textTertiary} text-xs`}>
+                                  <p>No steps in loop yet. Add steps after the Loop step to include them.</p>
+                                </div>
+                              )}
+                            </div>
+                          );
+                          renderedSteps.add(step.id);
+                        } else {
+                          // Regular step (not part of a loop) - render normally
+                          result.push(
+                            <div key={step.id} className="relative">
+                              <div className="pb-4">
+                                {/* Step Label */}
+                                <div className="mb-3 flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`text-[10px] font-medium ${colors.textTertiary} uppercase tracking-wide`}>
+                                      {step.type === "say"
+                                        ? "Co Say"
+                                        : step.type === "gather"
+                                        ? "Gather"
+                                        : step.type === "qa"
+                                        ? "Q/A"
+                                        : step.type === "schedule"
+                                        ? "Schedule"
+                                        : step.type === "code"
+                                        ? "Code"
+                                        : step.type === "api_call"
+                                        ? "API Call"
+                                        : step.type === "loop"
+                                        ? "Loop"
+                                        : step.type === "send_sms"
+                                        ? "Send SMS"
+                                        : step.type === "transfer"
+                                        ? "Transfer"
+                                        : "Step"}
+                                    </span>
+                                    {step.type === "say" && (
+                                      <MessageSquare className={`h-3 w-3 ${colors.iconSecondary}`} />
+                                    )}
+                                    {step.type === "qa" && (
+                                      <HelpCircle className={`h-3 w-3 ${colors.iconSecondary}`} />
+                                    )}
+                                    {step.type === "schedule" && (
+                                      <Calendar className={`h-3 w-3 ${colors.iconSecondary}`} />
+                                    )}
+                                    {step.type === "say" && (
+                                      <div className="flex items-center gap-1" title={step.ai_message && step.ai_message.trim().length > 0 ? "Message configured" : "No message configured - click to edit"}>
+                                        {step.ai_message && step.ai_message.trim().length > 0 ? (
+                                          <CheckCircle className="h-3.5 w-3.5 text-green-400" />
+                                        ) : (
+                                          <div className="h-3.5 w-3.5 rounded-full border-2 border-yellow-400 flex items-center justify-center">
+                                            <span className="text-[8px] text-yellow-400">!</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <button
+                                    onClick={() => deleteStep(step.id)}
+                                    className="p-1.5 hover:bg-red-500/20 rounded-full transition text-red-400/70 hover:text-red-400"
+                                    title="Delete step"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+
+                                {/* Step Message */}
+                                <div className="mb-4">
+                                  {editingStepId === step.id ? (
+                                    <div className="space-y-3">
+                                      <textarea
+                                        value={editingText}
+                                        onChange={(e) => setEditingText(e.target.value)}
+                                        rows={3}
+                                        className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none`}
+                                      />
+                                      <div className="flex gap-2">
+                                        <button
+                                          onClick={saveEditing}
+                                          className={`px-3 py-1.5 rounded-2xl ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-[10px] font-medium text-white`}
+                                        >
+                                          Save
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            setEditingStepId(null);
+                                            setEditingText("");
+                                          }}
+                                          className={`px-3 py-1.5 rounded-2xl border ${colors.border} ${colors.bgSecondary} text-[10px] ${colors.textSecondary} ${colors.hover}`}
+                                        >
+                                          Cancel
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <p
+                                      className={`text-sm ${colors.text} leading-relaxed cursor-pointer ${colors.hover} transition`}
+                                      onClick={() => startEditing(step)}
+                                    >
+                                      "{step.message}"
+                                    </p>
+                                  )}
+                                </div>
+                                
+                                {/* Step-specific configurations */}
+                                {step.type === "qa" && (
+                                  <div className="mb-4 p-3 rounded-2xl border border-blue-500/30 bg-blue-500/10">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <label className={`text-[10px] font-medium ${colors.textSecondary}`}>
+                                        Data Sources
+                                      </label>
+                                      {!isDeployed && (
+                                        <button
+                                          onClick={async () => {
+                                            setLoadingDataSources(true);
+                                            setShowAddDataSource(false);
+                                            setUploadError(null);
+                                            try {
+                                              const response = await fetch(`/api/agents/${agentId}/data-sources`);
+                                              if (response.ok) {
+                                                const data = await response.json();
+                                                setAvailableDataSources(data.map((ds: any) => ({
+                                                  id: ds.id,
+                                                  name: ds.name,
+                                                  type: ds.type,
+                                                  file_url: ds.file_url,
+                                                  file_type: ds.file_type,
+                                                  content: ds.content,
+                                                  integration_type: ds.integration_type,
+                                                })));
+                                                const currentStep = scenario.steps.find(s => s.id === step.id);
+                                                setSelectedDataSourceIds(currentStep?.selected_data_source_ids || []);
+                                                setDataSourceModal({ isOpen: true, stepId: step.id });
+                                              }
+                                            } catch (error) {
+                                              console.error("Failed to load data sources:", error);
+                                            } finally {
+                                              setLoadingDataSources(false);
+                                            }
+                                          }}
+                                          className={`text-[10px] ${colors.textTertiary} ${colors.hover} underline`}
+                                        >
+                                          Provided Data Sources
+                                        </button>
+                                      )}
+                                    </div>
+                                    <p className={`text-[10px] ${colors.textTertiary}`}>
+                                      {step.selected_data_source_ids?.length > 0
+                                        ? `${step.selected_data_source_ids.length} data source(s) selected`
+                                        : "No data sources selected - AI will answer from general knowledge"}
+                                    </p>
+                                  </div>
+                                )}
+
+                                {/* Conditional Branches */}
+                                {(step.type === "say" || step.type === "gather" || step.type === "qa") && (
+                                  <div className="space-y-2 ml-0">
+                                    {step.branches && step.branches.length > 0 ? (
+                                      step.branches.map((branch) => (
+                                        <div key={branch.id} className="flex items-start gap-2 text-xs group">
+                                          <ArrowRight className={`h-4 w-4 ${colors.iconSecondary} flex-shrink-0 mt-0.5`} />
+                                          <div className="flex-1">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                              <span className={colors.textSecondary}>If</span>
+                                              <span className={`${colors.text} font-medium`}>{branch.condition || "New condition"}</span>
+                                              {branch.condition_tag && (
+                                                <span
+                                                  className={`px-2 py-0.5 rounded text-xs font-mono ${
+                                                    branch.condition_tag.startsWith("@")
+                                                      ? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
+                                                      : branch.condition_tag === "If Statement"
+                                                      ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
+                                                      : "bg-green-500/20 text-green-300 border border-green-500/30"
+                                                  }`}
+                                                >
+                                                  {branch.condition_tag}
+                                                </span>
+                                              )}
+                                              <span className={colors.textSecondary}>proceed to</span>
+                                              <button
+                                                className={`${colors.text} font-semibold ${colors.hover} underline decoration-dotted`}
+                                                onClick={() => {
+                                                  setSelectedStepForBranch({
+                                                    scenarioId: scenarioId,
+                                                    stepId: step.id,
+                                                    branchId: branch.id,
+                                                  });
+                                                }}
+                                              >
+                                                {branch.target || "Next step"}
+                                              </button>
+                                            </div>
+                                          </div>
+                                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                                            <button
+                                              onClick={() => {
+                                                setSelectedStepForBranch({
+                                                  scenarioId: scenarioId,
+                                                  stepId: step.id,
+                                                  branchId: branch.id,
+                                                });
+                                              }}
+                                              className={`p-1 ${colors.hover} rounded-full`}
+                                              title="Edit branch"
+                                            >
+                                              <Edit className={`h-3 w-3 ${colors.iconSecondary}`} />
+                                            </button>
+                                            <button
+                                              onClick={() => deleteBranch(step.id, branch.id)}
+                                              className={`p-1 ${colors.hover} rounded-full`}
+                                              title="Delete branch"
+                                            >
+                                              <Trash2 className={`h-3 w-3 ${colors.iconSecondary}`} />
+                                            </button>
+                                          </div>
+                                        </div>
+                                      ))
+                                    ) : null}
+                                    {(step.type === "gather" || step.type === "qa") && (
+                                      <button
+                                        onClick={() => {
+                                          if (isDeployed) {
+                                            setConfirmationModal({
+                                              isOpen: true,
+                                              title: "Cannot Edit",
+                                              message: "This agent is deployed. Please cancel deployment to make changes.",
+                                              confirmText: "OK",
+                                              cancelText: "",
+                                              variant: "warning",
+                                              onConfirm: () => setConfirmationModal({ ...confirmationModal, isOpen: false }),
+                                            });
+                                            return;
+                                          }
+                                          addBranch(step.id);
+                                        }}
+                                        className={`text-[10px] ${colors.textTertiary} ${colors.hover} underline flex items-center gap-1`}
+                                      >
+                                        <ArrowRight className="h-3 w-3" />
+                                        Add conditional branch
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                          renderedSteps.add(step.id);
+                        }
+                      }
+                      
+                      return result;
+                    })()}
+                  </div>
+                )}
               </div>
-          </div>
-        </div>
-                      </div>
-
-      {/* Right Sidebar - Draggable Blocks and Tags */}
-      <div className="w-80 border-l border-[#151515] bg-white flex flex-col overflow-hidden">
-        {/* Section 1: Draggable Blocks */}
-        <div className="flex flex-col flex-1 min-h-0 border-b border-[#e5e7eb]">
-          <div className="p-4 pb-3 flex-shrink-0">
-            <h3 className="text-xs font-semibold text-[#151515] uppercase tracking-wide">BLOCKS</h3>
-          </div>
-          <div className="px-4 pb-4 overflow-y-auto flex-1 min-h-0">
-            <div className="space-y-2">
-            {DRAGGABLE_BLOCKS.map((block) => {
-              const Icon = block.icon;
-              return (
-                <div
-                  key={block.type}
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData("step-type", block.type);
-                    e.dataTransfer.effectAllowed = "move";
-                  }}
-                  className="flex items-center gap-3 p-3 rounded-lg border border-[#e5e7eb] bg-white hover:border-[#3166bf] hover:bg-[#f0fdf4] cursor-grab active:cursor-grabbing transition flex-shrink-0"
-                >
-                  <Icon className="h-4 w-4 text-[#151515] flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-[#151515]">{block.label}</div>
-                    <div className="text-xs text-[#151515]/60 mt-0.5">{block.description}</div>
-                          </div>
-                      </div>
-              );
-            })}
             </div>
           </div>
         </div>
-
-        {/* Section 2: Trigger and Branch Tags */}
-        <div className="p-4">
-          <h3 className="text-xs font-semibold text-[#151515] mb-3 uppercase tracking-wide">TAGS</h3>
-          <div className="space-y-2">
-            <div
-              draggable
-              onDragStart={(e) => {
-                e.dataTransfer.setData("step-type", "trigger");
-                e.dataTransfer.effectAllowed = "move";
-              }}
-              className="flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-[#3166bf] bg-[#3166bf]/10 cursor-grab active:cursor-grabbing transition hover:bg-[#3166bf]/20"
-            >
-              <Play className="h-4 w-4 text-[#3166bf]" />
-              <span className="text-sm font-semibold text-[#3166bf]">Trigger</span>
-              </div>
-            <div
-              draggable
-              onDragStart={(e) => {
-                e.dataTransfer.setData("step-type", "branch");
-                e.dataTransfer.effectAllowed = "move";
-              }}
-              className="flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-[#9333ea] bg-[#9333ea]/10 cursor-grab active:cursor-grabbing transition hover:bg-[#9333ea]/20"
-            >
-              <GitMerge className="h-4 w-4 text-[#9333ea]" />
-              <span className="text-sm font-semibold text-[#9333ea]">Branch</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Step Configuration Panel - Show when a step is selected for configuration */}
-      {selectedStepForConfig && !selectedStepForBranch && (() => {
-        const configStep = scenario.steps.find(s => s.id === selectedStepForConfig);
-        if (!configStep) return null;
-        
-        return (
-          <div className="flex-1 border-t border-[#e5e7eb] overflow-y-auto flex flex-col">
-            <div className="border-b border-[#e5e7eb] px-4 py-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-[#151515]">
-                {configStep.name || FUNCTION_PALETTE.find(p => p.type === configStep.type)?.label || configStep.type}
-              </h3>
-              <button
-                onClick={() => setSelectedStepForConfig(null)}
-                className="p-1 hover:bg-[#f3f4f6] rounded transition"
-              >
-                <X className="h-4 w-4 text-[#151515]/50" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 space-y-6">
-              {/* Agent Injection Text Configuration */}
-              {configStep.type === "agent_injection_text" && (
-                <>
-                  <div>
-                    <label className="block text-xs font-medium text-[#151515] mb-2">
-                      Goal
-                    </label>
-                    <textarea
-                      value={configStep.agentInjectionTextConfig?.goal || ""}
-                      onChange={(e) => {
-                        updateStepConfig(configStep.id, "agentInjectionTextConfig", {
-                          ...configStep.agentInjectionTextConfig,
-                          goal: e.target.value
-                        });
-                      }}
-                      rows={3}
-                      className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#151515] focus:border-[#3166bf] focus:outline-none resize-none"
-                      placeholder="e.g., Extract check-in time preferences"
-                    />
-                    <p className="text-xs text-[#6b7280] mt-1">
-                      Overall goal for the AI agent
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-[#151515] mb-2">
-                      Context
-                    </label>
-                    <textarea
-                      value={configStep.agentInjectionTextConfig?.context || ""}
-                      onChange={(e) => {
-                        updateStepConfig(configStep.id, "agentInjectionTextConfig", {
-                          ...configStep.agentInjectionTextConfig,
-                          context: e.target.value
-                        });
-                      }}
-                      rows={4}
-                      className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#151515] focus:border-[#3166bf] focus:outline-none resize-none"
-                      placeholder="e.g., Reservation details, property rules"
-                    />
-                    <p className="text-xs text-[#6b7280] mt-1">
-                      Relevant context information for the agent
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-[#151515] mb-2">
-                      Task Steps
-                    </label>
-                    <div className="space-y-2">
-                      {(configStep.agentInjectionTextConfig?.taskSteps || []).map((step, idx) => (
-                        <div key={idx} className="flex gap-2">
-                          <textarea
-                            value={step}
-                            onChange={(e) => {
-                              const newSteps = [...(configStep.agentInjectionTextConfig?.taskSteps || [])];
-                              newSteps[idx] = e.target.value;
-                              updateStepConfig(configStep.id, "agentInjectionTextConfig", {
-                                ...configStep.agentInjectionTextConfig,
-                                taskSteps: newSteps
-                              });
-                            }}
-                            rows={2}
-                            className="flex-1 rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#151515] focus:border-[#3166bf] focus:outline-none resize-none"
-                            placeholder="Task step description"
-                          />
-                          <button
-                            onClick={() => {
-                              const newSteps = (configStep.agentInjectionTextConfig?.taskSteps || []).filter((_, i) => i !== idx);
-                              updateStepConfig(configStep.id, "agentInjectionTextConfig", {
-                                ...configStep.agentInjectionTextConfig,
-                                taskSteps: newSteps
-                              });
-                            }}
-                            className="p-2 hover:bg-[#f3f4f6] rounded transition"
-                          >
-                            <X className="h-4 w-4 text-[#6b7280]" />
-                          </button>
-                        </div>
-                      ))}
-                      <button
-                        onClick={() => {
-                          const newSteps = [...(configStep.agentInjectionTextConfig?.taskSteps || []), ""];
-                          updateStepConfig(configStep.id, "agentInjectionTextConfig", {
-                            ...configStep.agentInjectionTextConfig,
-                            taskSteps: newSteps
-                          });
-                        }}
-                        className="w-full px-3 py-2 rounded-lg border border-dashed border-[#e5e7eb] text-sm text-[#6b7280] hover:border-[#3166bf] hover:text-[#3166bf] transition"
-                      >
-                        + Add Task Step
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-[#151515] mb-2">
-                      Fields to Extract
-                    </label>
-                    <div className="space-y-2">
-                      {(configStep.agentInjectionTextConfig?.fieldsToExtract || []).map((field, idx) => (
-                        <div key={idx} className="p-3 rounded-lg border border-[#e5e7eb] bg-white space-y-2">
-                          <input
-                            type="text"
-                            value={field.name}
-                            onChange={(e) => {
-                              const newFields = [...(configStep.agentInjectionTextConfig?.fieldsToExtract || [])];
-                              newFields[idx] = { ...field, name: e.target.value };
-                              updateStepConfig(configStep.id, "agentInjectionTextConfig", {
-                                ...configStep.agentInjectionTextConfig,
-                                fieldsToExtract: newFields
-                              });
-                            }}
-                            placeholder="Field name"
-                            className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#151515] focus:border-[#3166bf] focus:outline-none"
-                          />
-                          <textarea
-                            value={field.description}
-                            onChange={(e) => {
-                              const newFields = [...(configStep.agentInjectionTextConfig?.fieldsToExtract || [])];
-                              newFields[idx] = { ...field, description: e.target.value };
-                              updateStepConfig(configStep.id, "agentInjectionTextConfig", {
-                                ...configStep.agentInjectionTextConfig,
-                                fieldsToExtract: newFields
-                              });
-                            }}
-                            rows={2}
-                            placeholder="Field description"
-                            className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#151515] focus:border-[#3166bf] focus:outline-none resize-none"
-                          />
-                          <button
-                            onClick={() => {
-                              const newFields = (configStep.agentInjectionTextConfig?.fieldsToExtract || []).filter((_, i) => i !== idx);
-                              updateStepConfig(configStep.id, "agentInjectionTextConfig", {
-                                ...configStep.agentInjectionTextConfig,
-                                fieldsToExtract: newFields
-                              });
-                            }}
-                            className="w-full px-3 py-1.5 rounded-lg border border-[#e5e7eb] text-sm text-[#6b7280] hover:bg-[#f3f4f6] transition"
-                          >
-                            Remove Field
-                          </button>
-                        </div>
-                      ))}
-                      <button
-                        onClick={() => {
-                          const newFields = [...(configStep.agentInjectionTextConfig?.fieldsToExtract || []), { name: "", description: "" }];
-                          updateStepConfig(configStep.id, "agentInjectionTextConfig", {
-                            ...configStep.agentInjectionTextConfig,
-                            fieldsToExtract: newFields
-                          });
-                        }}
-                        className="w-full px-3 py-2 rounded-lg border border-dashed border-[#e5e7eb] text-sm text-[#6b7280] hover:border-[#3166bf] hover:text-[#3166bf] transition"
-                      >
-                        + Add Field to Extract
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {/* Agent Injection Phone Configuration - Similar structure with additional fields */}
-              {configStep.type === "agent_injection_phone" && (
-                <>
-                  {/* Same fields as Text, plus Style, Voicemail, and Transfer */}
-                  <div>
-                    <label className="block text-xs font-medium text-[#151515] mb-2">
-                      Goal
-                    </label>
-                    <textarea
-                      value={configStep.agentInjectionPhoneConfig?.goal || ""}
-                      onChange={(e) => {
-                        updateStepConfig(configStep.id, "agentInjectionPhoneConfig", {
-                          ...configStep.agentInjectionPhoneConfig,
-                          goal: e.target.value
-                        });
-                      }}
-                      rows={3}
-                      className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#151515] focus:border-[#3166bf] focus:outline-none resize-none"
-                      placeholder="e.g., Extract check-in time preferences"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-[#151515] mb-2">
-                      Voice Style
-                    </label>
-                    <div className="grid grid-cols-3 gap-2">
-                      <input
-                        type="text"
-                        value={configStep.agentInjectionPhoneConfig?.style?.tone || ""}
-                        onChange={(e) => {
-                          updateStepConfig(configStep.id, "agentInjectionPhoneConfig", {
-                            ...configStep.agentInjectionPhoneConfig,
-                            style: {
-                              ...configStep.agentInjectionPhoneConfig?.style,
-                              tone: e.target.value
-                            }
-                          });
-                        }}
-                        placeholder="Tone"
-                        className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#151515] focus:border-[#3166bf] focus:outline-none"
-                      />
-                      <input
-                        type="text"
-                        value={configStep.agentInjectionPhoneConfig?.style?.formality || ""}
-                        onChange={(e) => {
-                          updateStepConfig(configStep.id, "agentInjectionPhoneConfig", {
-                            ...configStep.agentInjectionPhoneConfig,
-                            style: {
-                              ...configStep.agentInjectionPhoneConfig?.style,
-                              formality: e.target.value
-                            }
-                          });
-                        }}
-                        placeholder="Formality"
-                        className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#151515] focus:border-[#3166bf] focus:outline-none"
-                      />
-                      <input
-                        type="text"
-                        value={configStep.agentInjectionPhoneConfig?.style?.approach || ""}
-                        onChange={(e) => {
-                          updateStepConfig(configStep.id, "agentInjectionPhoneConfig", {
-                            ...configStep.agentInjectionPhoneConfig,
-                            style: {
-                              ...configStep.agentInjectionPhoneConfig?.style,
-                              approach: e.target.value
-                            }
-                          });
-                        }}
-                        placeholder="Approach"
-                        className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm text-[#151515] focus:border-[#3166bf] focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Add similar sections for Context, Task Steps, Fields, Voicemail, and Transfer */}
-                </>
-              )}
-
-              {/* Default configuration for other step types */}
-              {!["agent_injection_text", "agent_injection_phone"].includes(configStep.type) && (
-                <div className="text-sm text-[#6b7280]">
-                  Configuration options for this step type will be available soon.
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })()}
-
-        {/* Branch Editing Workspace - Only show when editing a branch */}
+      </div>
+      
+      {/* Right Sidebar Workspace */}
       {selectedStepForBranch && (
-          <div className="flex-1 border-t border-[#e5e7eb] overflow-y-auto flex flex-col">
-            <div className="border-b border-[#e5e7eb] px-4 py-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-[#151515]">New Condition</h3>
+        <div className={`w-80 border-l ${colors.border} bg-[#242423] flex flex-col`}>
+          <div className={`border-b ${colors.border} px-4 py-3 flex items-center justify-between`}>
+            <h3 className={`text-sm font-semibold ${colors.text}`}>New Condition</h3>
             <button
               onClick={() => setSelectedStepForBranch(null)}
-                className="p-1 hover:bg-[#f3f4f6] rounded transition"
+              className={`p-1 ${colors.hover} rounded transition`}
             >
-                <X className="h-4 w-4 text-[#151515]/50" />
+              <X className={`h-4 w-4 ${colors.iconSecondary}`} />
             </button>
           </div>
 
@@ -2122,7 +1537,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                   }
                 }}
                 rows={3}
-                    className={`w-full rounded-2xl border border-[#3166bf] bg-[#ffffff] px-3 py-2 text-xs ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3166bf] focus:outline-none resize-none`}
+                className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none resize-none`}
                 placeholder="Customer provides their full name and date of birth"
               />
               <p className={`text-[10px] ${colors.textTertiary} mt-1`}>
@@ -2142,17 +1557,17 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                     onClick={() => selectTag(tag)}
                     className={`w-full text-left px-3 py-2 rounded-2xl border transition text-sm ${
                       currentBranch?.condition_tag === tag
-                          ? `border-[#3166bf] bg-[#3166bf]/20 ${colors.text}`
-                          : `border-[#e5e7eb] bg-[#ffffff] ${colors.textSecondary} hover:bg-[#f3f4f6]`
+                        ? `border-[#3351ff] bg-[#3351ff]/20 ${colors.text}`
+                        : `${colors.border} ${colors.cardBg} ${colors.textSecondary} ${colors.hover}`
                     }`}
                   >
                     <span
                       className={`px-2 py-0.5 rounded text-xs font-mono ${
                         tag.startsWith("@")
-                            ? "bg-[#3166bf]/20 text-[#3166bf] border border-[#3166bf]/30"
+                          ? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
                           : tag === "If Statement"
-                            ? "bg-[#aeb8c9]/20 text-[#3166bf] border border-[#aeb8c9]/30"
-                            : "bg-[#ebf9ef] text-[#70d4b4] border border-[#70d4b4]/30"
+                          ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
+                          : "bg-green-500/20 text-green-300 border border-green-500/30"
                       }`}
                     >
                       {tag}
@@ -2179,7 +1594,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                   }
                 }}
                 rows={3}
-                  className={`w-full rounded-2xl border border-[#3166bf] bg-[#ffffff] ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3166bf] focus:outline-none resize-none px-3 py-2 text-sm`}
+                className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none resize-none px-3 py-2 text-sm`}
                 placeholder="Identity Verification step"
               />
               <p className={`text-[10px] ${colors.textTertiary} mt-1`}>
@@ -2212,7 +1627,6 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
           </div>
         </div>
       )}
-      </div>
 
       {/* Confirmation Modal */}
       <ConfirmationModal
@@ -2231,7 +1645,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className={`w-full max-w-2xl max-h-[80vh] rounded-3xl ${colors.bg} ${colors.border} border-2 shadow-2xl flex flex-col`}>
             <div className="flex items-center justify-between p-6 border-b border-gray-800">
-              <h3 className={`text-lg font-semibold ${colors.text}`}>Select Data Sources</h3>
+              <h3 className={`text-lg font-semibold ${colors.text}`}>Provided Data Sources</h3>
               <button
                 onClick={() => setDataSourceModal({ isOpen: false, stepId: null })}
                 className={`p-2 rounded-full ${colors.hover} ${colors.textSecondary} hover:${colors.text}`}
@@ -2245,211 +1659,25 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                 <div className={`text-center ${colors.textSecondary} py-8`}>Loading data sources...</div>
               ) : (
                 <div className="space-y-4">
-                  {/* Add Data Source Section */}
-                  {!showAddDataSource ? (
-                    <div className="space-y-2">
-                      <button
-                        onClick={() => {
-                          setShowAddDataSource(true);
-                          setAddDataSourceType("text");
-                        }}
-                        className={`w-full p-4 rounded-2xl border-2 border-dashed ${colors.border} ${colors.bgSecondary} hover:border-[#3351ff]/50 transition text-left`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <Plus className={`h-5 w-5 ${colors.textSecondary}`} />
-                          <span className={`font-medium ${colors.text}`}>Add Text Data Source</span>
-                        </div>
-                        <p className={`text-xs ${colors.textTertiary} mt-1 ml-7`}>
-                          Add text content or knowledge base entries
-                        </p>
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowAddDataSource(true);
-                          setAddDataSourceType("file");
-                        }}
-                        className={`w-full p-4 rounded-2xl border-2 border-dashed ${colors.border} ${colors.bgSecondary} hover:border-[#3351ff]/50 transition text-left`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <Plus className={`h-5 w-5 ${colors.textSecondary}`} />
-                          <span className={`font-medium ${colors.text}`}>Upload File (PDF, DOCX, etc.)</span>
-                        </div>
-                        <p className={`text-xs ${colors.textTertiary} mt-1 ml-7`}>
-                          Upload PDFs, documents, or other files
-                        </p>
-                      </button>
-                    </div>
-                  ) : (
-                    <div className={`p-4 rounded-2xl border ${colors.border} ${colors.bgSecondary} space-y-3`}>
-                      <div className="flex items-center justify-between">
-                        <h4 className={`font-medium ${colors.text}`}>
-                          {addDataSourceType === "text" ? "Add Text Data Source" : "Upload File"}
-                        </h4>
-                        <div className="flex items-center gap-2">
-                          {addDataSourceType === "file" && (
-                            <button
-                              onClick={() => {
-                                setAddDataSourceType("text");
-                                setUploadError(null);
-                              }}
-                              className={`px-3 py-1 rounded-xl text-xs ${colors.textSecondary} ${colors.hover} border ${colors.border}`}
-                            >
-                              Switch to Text
-                            </button>
-                          )}
-                          {addDataSourceType === "text" && (
-                            <button
-                              onClick={() => {
-                                setAddDataSourceType("file");
-                                setUploadError(null);
-                              }}
-                              className={`px-3 py-1 rounded-xl text-xs ${colors.textSecondary} ${colors.hover} border ${colors.border}`}
-                            >
-                              Switch to File
-                            </button>
-                          )}
-                          <button
-                            onClick={() => {
-                              setShowAddDataSource(false);
-                              setNewDataSourceName("");
-                              setNewDataSourceContent("");
-                              setUploadError(null);
-                            }}
-                            className={`p-1 rounded-full ${colors.hover} ${colors.textSecondary}`}
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-
-                      {addDataSourceType === "text" ? (
-                        <>
-                          <input
-                            type="text"
-                            value={newDataSourceName}
-                            onChange={(e) => setNewDataSourceName(e.target.value)}
-                            placeholder="Data source name (e.g., 'Product Catalog', 'FAQ')"
-                            className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-sm ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none`}
-                          />
-                          <textarea
-                            value={newDataSourceContent}
-                            onChange={(e) => setNewDataSourceContent(e.target.value)}
-                            placeholder="Enter the content for this data source..."
-                            rows={4}
-                            className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-sm ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none resize-none`}
-                          />
-                          <button
-                            onClick={async () => {
-                              if (!newDataSourceName.trim() || !newDataSourceContent.trim()) return;
-                              setAddingDataSource(true);
-                              setUploadError(null);
-                              try {
-                                const response = await fetch(`/api/agents/${agentId}/data-sources`, {
-                                  method: "POST",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({
-                                    name: newDataSourceName.trim(),
-                                    type: "text",
-                                    content: newDataSourceContent.trim(),
-                                  }),
-                                });
-                                if (response.ok) {
-                                  const newDataSource = await response.json();
-                                  setAvailableDataSources([...availableDataSources, {
-                                    id: newDataSource.id,
-                                    name: newDataSource.name,
-                                    type: newDataSource.type,
-                                  }]);
-                                  setNewDataSourceName("");
-                                  setNewDataSourceContent("");
-                                  setShowAddDataSource(false);
-                                } else {
-                                  const errorData = await response.json().catch(() => ({ error: "Failed to add data source" }));
-                                  setUploadError(errorData.error || "Failed to add data source");
-                                }
-                              } catch (error: any) {
-                                console.error("Failed to add data source:", error);
-                                setUploadError(error.message || "Failed to add data source");
-                              } finally {
-                                setAddingDataSource(false);
-                              }
-                            }}
-                            disabled={addingDataSource || !newDataSourceName.trim() || !newDataSourceContent.trim()}
-                            className={`w-full px-4 py-2 rounded-2xl ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed`}
-                          >
-                            {addingDataSource ? "Adding..." : "Add Data Source"}
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <div
-                            onDragOver={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                            }}
-                            onDrop={async (e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              if (!e.dataTransfer.files || e.dataTransfer.files.length === 0) return;
-                              await handleFileUpload(Array.from(e.dataTransfer.files));
-                            }}
-                            className={`border-2 border-dashed ${colors.border} rounded-2xl p-6 text-center ${colors.hover}`}
-                          >
-                            <input
-                              type="file"
-                              id="file-upload-modal"
-                              multiple
-                              onChange={async (e) => {
-                                if (e.target.files && e.target.files.length > 0) {
-                                  await handleFileUpload(Array.from(e.target.files));
-                                  e.target.value = "";
-                                }
-                              }}
-                              className="hidden"
-                            />
-                            <label
-                              htmlFor="file-upload-modal"
-                              className="cursor-pointer block"
-                            >
-                              <div className={`flex flex-col items-center gap-2`}>
-                                <FileText className={`h-8 w-8 ${colors.textSecondary}`} />
-                                <div>
-                                  <span className={`font-medium ${colors.text}`}>
-                                    Drop files here or click to browse
-                                  </span>
-                                  <p className={`text-xs ${colors.textTertiary} mt-1`}>
-                                    Supports PDF, DOCX, TXT, and other document formats
-                                  </p>
-                                </div>
-                              </div>
-                            </label>
-                          </div>
-                          {uploadError && (
-                            <div className={`p-3 rounded-2xl bg-red-500/10 border border-red-500/30`}>
-                              <p className={`text-sm text-red-400`}>{uploadError}</p>
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  )}
-
+                  {/* Info message */}
+                  <div className={`p-3 rounded-2xl bg-blue-500/10 border border-blue-500/30`}>
+                    <p className={`text-xs ${colors.textSecondary}`}>
+                      Select data sources from the <strong>Data Sources</strong> page. Go to the Data Sources tab to add PDFs, text, or API keys.
+                    </p>
+                  </div>
+                  
                   {/* Data Sources List */}
-                  {availableDataSources.length === 0 && !showAddDataSource ? (
-                    <div className={`text-center ${colors.textSecondary} py-8`}>
-                      <p className="mb-2">No data sources available.</p>
-                      <p className="text-xs">Click "Add New Data Source" above to create one.</p>
+                  {availableDataSources.length === 0 ? (
+                    <div className={`text-center py-8 ${colors.textTertiary}`}>
+                      <p className="text-sm mb-2">No data sources available</p>
+                      <p className="text-xs">Add data sources in the Data Sources page</p>
                     </div>
                   ) : (
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       {availableDataSources.map((ds) => (
                         <label
                           key={ds.id}
-                          className={`flex items-center gap-3 p-4 rounded-2xl border-2 cursor-pointer transition ${
-                            selectedDataSourceIds.includes(ds.id)
-                              ? `border-[#3351ff] bg-blue-500/10`
-                              : `${colors.border} ${colors.bgSecondary} hover:border-[#3351ff]/50`
-                          }`}
+                          className={`flex items-center gap-3 p-3 rounded-2xl border ${colors.border} ${colors.bgSecondary} cursor-pointer hover:border-[#3351ff]/50 transition`}
                         >
                           <input
                             type="checkbox"
@@ -2461,28 +1689,14 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                 setSelectedDataSourceIds(selectedDataSourceIds.filter(id => id !== ds.id));
                               }
                             }}
-                            className="w-5 h-5 rounded border-gray-600 text-[#3351ff] focus:ring-2 focus:ring-[#3351ff] focus:ring-offset-2 focus:ring-offset-gray-900"
+                            className="rounded border-gray-600"
                           />
-                          <div className="flex-1 flex items-center justify-between">
-                            <div>
-                              <div className={`font-medium ${colors.text}`}>{ds.name}</div>
-                              <div className={`text-xs ${colors.textTertiary} mt-1`}>
-                                {ds.type === "text" ? "Text Knowledge Base" : `File: ${ds.file_type || ds.type}`}
-                              </div>
+                          <div className="flex-1">
+                            <div className={`text-sm font-medium ${colors.text}`}>{ds.name}</div>
+                            <div className={`text-xs ${colors.textTertiary}`}>
+                              {ds.type === "text" ? "Text" : ds.type === "api_key" ? "API Key" : ds.file_type || "File"}
+                              {ds.integration_type && ` • ${ds.integration_type}`}
                             </div>
-                            {(ds.type === "file" || ds.file_url) && (
-                              <button
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  previewDataSource(ds);
-                                }}
-                                className={`p-2 rounded-full ${colors.hover} ${colors.textSecondary} hover:${colors.text} transition`}
-                                title="Preview"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </button>
-                            )}
                           </div>
                         </label>
                       ))}
@@ -2501,14 +1715,13 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                   setNewDataSourceContent("");
                   setUploadError(null);
                 }}
-                className={`px-4 py-2 rounded-2xl border ${colors.border} ${colors.bgSecondary} ${colors.textSecondary} ${colors.hover} text-sm font-medium transition`}
+                className={`px-4 py-2 rounded-2xl border ${colors.border} ${colors.bgSecondary} ${colors.textSecondary} ${colors.hover} text-sm font-medium`}
               >
                 Cancel
               </button>
               <button
                 onClick={async () => {
                   if (!dataSourceModal.stepId) return;
-                  
                   try {
                     const response = await fetch(`/api/steps/${dataSourceModal.stepId}`, {
                       method: "PUT",
@@ -2517,91 +1730,32 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                         selected_data_source_ids: selectedDataSourceIds,
                       }),
                     });
-
                     if (response.ok) {
-                      // Update local state
+                      const updatedStep = await response.json();
                       setScenario((prev) => ({
                         ...prev,
                         steps: prev.steps.map((s) =>
                           s.id === dataSourceModal.stepId
-                            ? { ...s, selected_data_source_ids: selectedDataSourceIds }
+                            ? { ...s, selected_data_source_ids: updatedStep.selected_data_source_ids || selectedDataSourceIds }
                             : s
                         ),
                       }));
                       setDataSourceModal({ isOpen: false, stepId: null });
+                    } else {
+                      const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
+                      console.error("Failed to save data source selection:", errorData);
+                      alert(`Failed to save: ${errorData.error || "Please try again"}`);
                     }
                   } catch (error) {
                     console.error("Failed to save data source selection:", error);
+                    alert("Failed to save data source selection. Please try again.");
                   }
                 }}
-                className={`px-4 py-2 rounded-2xl ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white text-sm font-medium transition`}
+                className={`px-4 py-2 rounded-2xl ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white text-sm font-medium`}
               >
                 Save Selection
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Preview Modal */}
-      {previewModal.isOpen && previewModal.dataSource && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className={`w-full max-w-4xl max-h-[90vh] rounded-3xl ${colors.bg} ${colors.border} border-2 shadow-2xl flex flex-col`}>
-            <div className="flex items-center justify-between p-6 border-b border-gray-800">
-              <div>
-                <h3 className={`text-lg font-semibold ${colors.text}`}>{previewModal.dataSource.name}</h3>
-                <p className={`text-sm ${colors.textTertiary} mt-1`}>
-                  {previewModal.dataSource.type === "text" ? "Text Knowledge Base" : `File: ${previewModal.dataSource.file_type || "Unknown type"}`}
-                </p>
-              </div>
-              <button
-                onClick={() => setPreviewModal({ isOpen: false, dataSource: null, content: null, loading: false })}
-                className={`p-2 rounded-full ${colors.hover} ${colors.textSecondary} hover:${colors.text}`}
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-6">
-              {previewModal.loading ? (
-                <div className={`text-center ${colors.textTertiary} py-8`}>Loading preview...</div>
-              ) : previewModal.content ? (
-                <div>
-                  {previewModal.content === "PDF_PREVIEW" && previewModal.dataSource.file_url ? (
-                    <iframe
-                      src={previewModal.dataSource.file_url}
-                      className="w-full h-[600px] rounded-2xl border border-gray-700"
-                      title={previewModal.dataSource.name}
-                    />
-                  ) : previewModal.dataSource.type === "file" && 
-                    previewModal.dataSource.file_type?.startsWith("image/") ? (
-                    <img
-                      src={previewModal.content} 
-                      alt={previewModal.dataSource.name}
-                      className="max-w-full h-auto rounded-2xl"
-                    />
-                  ) : (
-                    <pre className={`whitespace-pre-wrap ${colors.text} text-sm font-mono bg-gray-900/50 p-4 rounded-2xl overflow-auto max-h-[600px]`}>
-                      {previewModal.content}
-                    </pre>
-                  )}
-                </div>
-              ) : (
-                <div className={`text-center ${colors.textTertiary}`}>No preview available</div>
-              )}
-            </div>
-
-            {previewModal.dataSource.file_url && (
-              <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-800">
-                <a
-                  href={previewModal.dataSource.file_url}
-                  download
-                  className={`px-4 py-2 rounded-2xl border ${colors.border} ${colors.bgSecondary} ${colors.textSecondary} ${colors.hover} text-sm font-medium transition`}
-                >
-                  Download
-                </a>
-              </div>
-            )}
           </div>
         </div>
       )}

@@ -30,7 +30,7 @@ export default function EvaluationPage({ agentId }: EvaluationPageProps) {
   return (
     <div className={`h-full flex flex-col ${colors.bg}`}>
       {/* Top Navigation Tabs */}
-      <div className={`border-b ${colors.border} px-6 bg-[#ffffff]`}>
+      <div className={`border-b ${colors.border} px-6 bg-[#242423]/80`}>
         <div className="flex items-center gap-6">
           <button
             onClick={() => {

@@ -44,7 +44,7 @@ export default function PersonalizationPage({ agentId }: PersonalizationPageProp
   };
 
   return (
-    <div className={`h-full flex flex-col overflow-y-auto ${colors.text}`} style={{ background: '#ffffff', backgroundImage: 'none' }}>
+    <div className={`h-full flex flex-col overflow-y-auto ${colors.text}`} style={{ backgroundImage: 'url(/backgrounds/canyon.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}>
       <div className="max-w-4xl mx-auto w-full p-6">
         <div className="mb-6">
           <h2 className={`text-base font-semibold ${colors.text} mb-2`}>Personalization</h2>
@@ -53,7 +53,7 @@ export default function PersonalizationPage({ agentId }: PersonalizationPageProp
           </p>
         </div>
 
-        <div className="space-y-6 rounded-lg border border-[#e5e7eb] bg-[#ffffff] p-6">
+        <div className="space-y-6 rounded-lg border border-white/10 bg-[#242423]/90 backdrop-blur-sm p-6">
         {/* Voice Models */}
         <div className={`rounded-xl border ${colors.border} ${colors.cardBg} p-6`}>
           <div className="flex items-center gap-3 mb-4">
@@ -70,8 +70,8 @@ export default function PersonalizationPage({ agentId }: PersonalizationPageProp
                 onClick={() => setSelectedVoice(model.id)}
                 className={`p-4 rounded-lg border transition text-left ${
                   selectedVoice === model.id
-                    ? "border-[#3166bf] bg-[#3166bf]/20"
-                    : `border-[#e5e7eb] bg-[#ffffff] hover:border-[#3166bf]`
+                    ? "border-[#3351ff] bg-[#3351ff]/20"
+                    : `${colors.border} ${colors.cardBg} hover:${colors.borderSecondary}`
                 }`}
               >
                 <div className={`font-semibold ${colors.text} mb-1`}>{model.name}</div>

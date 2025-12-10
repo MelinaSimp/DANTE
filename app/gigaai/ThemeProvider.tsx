@@ -33,24 +33,24 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 const themeColors = {
   "dark": {
-    bg: "bg-[#ffffff]",
-    bgSecondary: "bg-[#ffffff]",
-    bgTertiary: "bg-[#f3f4f6]",
-    text: "text-[#151515]",
-    textSecondary: "text-[#151515]/90",
-    textTertiary: "text-[#151515]/70",
-    border: "border-[#e5e7eb]",
-    borderSecondary: "border-[#e5e7eb]",
-    icon: "text-[#151515]",
-    iconSecondary: "text-[#151515]/70",
-    iconActive: "text-[#3166bf]",
-    buttonPrimary: "bg-[#3166bf]",
-    buttonPrimaryHover: "hover:bg-[#2a5aa8]",
-    buttonSecondary: "bg-[#f3f4f6]",
-    inputBg: "bg-[#ffffff]",
-    cardBg: "bg-[#ffffff]",
-    selected: "bg-[#70d4b4] text-[#151515] border-[#151515]",
-    hover: "hover:bg-[#f3f4f6]",
+    bg: "bg-[#242423]",
+    bgSecondary: "bg-[#242423]",
+    bgTertiary: "bg-[#242423]",
+    text: "text-white",
+    textSecondary: "text-white/90",
+    textTertiary: "text-white/70",
+    border: "border-white/10",
+    borderSecondary: "border-white/5",
+    icon: "text-white",
+    iconSecondary: "text-white/70",
+    iconActive: "text-[#FF9838]",
+    buttonPrimary: "bg-[#3351ff]",
+    buttonPrimaryHover: "hover:bg-[#4a64ff]",
+    buttonSecondary: "bg-[#242423]",
+    inputBg: "bg-[#242423]",
+    cardBg: "bg-[#242423]",
+    selected: "bg-[#242423] text-white border-white/20",
+    hover: "hover:bg-[#242423]",
   },
 };
 
@@ -74,7 +74,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   return (
     <ThemeContext.Provider value={{ theme, setTheme, colors }}>
-      <div className={colors.bg + " " + colors.text + " min-h-screen"} style={{ background: '#ffffff', backgroundImage: 'none' }}>
+      <div className={colors.bg + " " + colors.text + " min-h-screen"} style={{ background: '#242423', backgroundImage: 'none' }}>
         {children}
       </div>
     </ThemeContext.Provider>

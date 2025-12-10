@@ -87,14 +87,14 @@ async function generateAudioOnDemand(
         },
         body: JSON.stringify({
           text: text.trim(),
-          model_id: "eleven_turbo_v2_5", // Faster model for lower latency
+          model_id: "eleven_turbo_v2_5", // Fastest model for lower latency
           voice_settings: {
-            stability: 0.4, // Lower stability = faster generation
-            similarity_boost: 0.7, // Slightly lower for speed
+            stability: 0.2, // Further reduced for faster generation
+            similarity_boost: 0.5, // Further reduced for speed
             style: 0.0, // Neutral style for faster processing
             use_speaker_boost: false, // Disable for speed
           },
-          output_format: "mp3_44100_128", // Lower quality = faster generation
+          output_format: "mp3_22050_32", // Lower quality = faster generation (optimized for speed)
         }),
       }
     );

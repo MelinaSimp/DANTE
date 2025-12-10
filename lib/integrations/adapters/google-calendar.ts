@@ -101,6 +101,69 @@ export class GoogleCalendarAdapter implements IntegrationAdapter {
     return data.access_token;
   }
   
+  /**
+   * Create an event in Google Calendar
+   */
+  async createEvent(
+    credentials: IntegrationCredentials,
+    eventData: {
+      summary: string;
+      description?: string;
+      startTime: string; // ISO 8601
+      endTime: string; // ISO 8601
+      calendarId?: string;
+    }
+  ): Promise<string> {
+    const token = await this.authenticate(credentials);
+    
+    if (!token) {
+      throw new Error("No valid authentication token");
+    }
+    
+    const calendarId = eventData.calendarId || credentials.calendar_id || "primary";
+    
+    const event = {
+      summary: eventData.summary,
+      description: eventData.description || "",
+      start: {
+        dateTime: eventData.startTime,
+        timeZone: "UTC",
+      },
+      end: {
+        dateTime: eventData.endTime,
+        timeZone: "UTC",
+      },
+    };
+    
+    const response = await fetch(
+      `${this.baseUrl}/calendars/${calendarId}/events`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(event),
+      }
+    );
+    
+    if (!response.ok) {
+      if (response.status === 401) {
+        // Token expired, try refresh
+        const refreshedToken = await this.refreshToken(credentials.refresh_token || "");
+        return await this.createEvent(
+          { ...credentials, oauth_token: refreshedToken },
+          eventData
+        );
+      }
+      const errorText = await response.text();
+      throw new Error(`Google Calendar API error: ${response.status} ${errorText}`);
+    }
+    
+    const data = await response.json();
+    return data.id; // Return event ID
+  }
+
   validateConfig(config: IntegrationConfig): boolean {
     return !!(config.calendar_id || config.provider === "google");
   }

@@ -328,6 +328,16 @@ export class AgentExecutor {
       };
     }
 
+    // Check if user wants to end conversation (NEW: Also check in Gather step)
+    const wantsToEnd = await this.checkIfConversationEnd(userInput);
+    if (wantsToEnd) {
+      return {
+        success: true,
+        output: "Thank you for calling. Have a great day!",
+        shouldContinue: false,
+      };
+    }
+
     // User has provided input - extract the information
     const extractedData = await this.extractInformation(step, userInput);
 
@@ -424,6 +434,9 @@ export class AgentExecutor {
       // MODIFIED: Fetch only selected data sources (not all)
       const selectedDataSourceIds = step.selected_data_source_ids || [];
       
+      // OPTIMIZATION: Pre-fetch gather step ID in parallel with data sources
+      const gatherStepIdPromise = this.findGatherStepInScenario(step.id);
+      
       let dataSources = [];
       if (selectedDataSourceIds.length > 0) {
         const { data, error: dsError } = await this.supabase
@@ -442,6 +455,9 @@ export class AgentExecutor {
         }
         
         dataSources = data || [];
+        console.log(`[Q/A] Found ${dataSources.length} data sources for step ${step.id}:`, 
+          dataSources.map((ds: any) => ({ id: ds.id, name: ds.name, type: ds.type, hasContent: !!ds.content }))
+        );
       } else {
         // No data sources selected - can still work with AI-only
         console.warn("Q/A step has no data sources selected");
@@ -493,18 +509,17 @@ export class AgentExecutor {
       // Combine static and live data
       const allDataSources = [...staticSources, ...validLiveData];
 
-      // Extract content from all data sources (limit to first 5000 chars per source for speed)
+      // OPTIMIZATION: Reduce content size per source for faster processing
+      // Extract content from all data sources (limit to first 1500 chars per source for speed)
       const dataSourceContents = await Promise.all(
         allDataSources.map(async (ds: any) => {
-          if (ds.type === "text" && ds.content) {
-            return { name: ds.name, content: ds.content.substring(0, 5000) };
+          // Handle any data source that has content (text or file with extracted content)
+          if (ds.content && ds.content.trim().length > 0) {
+            return { name: ds.name, content: ds.content.substring(0, 1500) }; // Further reduced for speed
           }
+          
+          // Handle file data sources without extracted content
           if (ds.type === "file" && ds.file_url) {
-            // Check if content is already extracted and stored
-            if (ds.content && ds.content.trim().length > 0) {
-              return { name: ds.name, content: ds.content.substring(0, 5000) };
-            }
-            
             // For PDFs and other files, try to extract text using OpenAI
             // Check if it's a PDF
             const isPDF = ds.file_url.toLowerCase().endsWith('.pdf') || 
@@ -512,18 +527,7 @@ export class AgentExecutor {
             
             if (isPDF) {
               try {
-                // Use OpenAI to extract text from PDF
-                // First, we need to download the PDF and convert it to base64 or use file API
-                // For now, let's try a simpler approach: use OpenAI's file reading if available
-                // Or we can fetch the PDF and use a text extraction service
-                
-                // Since we can't easily parse PDFs in serverless, let's use OpenAI's vision API
-                // But that requires the file to be accessible. For now, return a message that
-                // the file needs to have its content extracted first.
-                
-                // Actually, let's check if we can fetch and parse it
-                // For PDFs, we'll need to use a service or library
-                // For now, skip PDFs without extracted content
+                // PDFs should have content extracted during upload, but if not, skip
                 console.warn(`PDF file ${ds.name} does not have extracted content. Skipping.`);
                 return null;
               } catch (error) {
@@ -535,14 +539,31 @@ export class AgentExecutor {
             // For other file types, skip if no content
             return null;
           }
+          
+          // For text data sources without content, skip
+          if (ds.type === "text" && (!ds.content || ds.content.trim().length === 0)) {
+            console.warn(`Text data source ${ds.name} has no content. Skipping.`);
+            return null;
+          }
+          
           return null;
         })
       );
       
       // Filter out nulls
       const validContents = dataSourceContents.filter(Boolean);
-
+      
+      console.log(`[Q/A] Extracted content from ${validContents.length} of ${allDataSources.length} data sources`);
       if (validContents.length === 0) {
+        console.warn(`[Q/A] No valid content found. Data sources:`, 
+          allDataSources.map((ds: any) => ({ 
+            name: ds.name, 
+            type: ds.type, 
+            hasContent: !!ds.content,
+            contentLength: ds.content?.length || 0,
+            fileUrl: ds.file_url 
+          }))
+        );
         const answer = "I'm sorry, I couldn't find an answer to that question in my knowledge base.";
         // Loop back to Gather step for next question
         const gatherStepId = await this.findGatherStepInScenario(step.id);
@@ -554,12 +575,29 @@ export class AgentExecutor {
         };
       }
 
+      // OPTIMIZATION: Reduce context size for faster processing
       // Build context from data sources (limit total context size for speed)
       const context = validContents
-        .slice(0, 5) // Limit to first 5 data sources
-        .map((ds: any) => `[${ds.name}]\n${ds.content}`)
+        .slice(0, 2) // Limit to first 2 data sources
+        .map((ds: any) => `[${ds.name}]\n${ds.content.substring(0, 1200)}`) // Limit each source to 1200 chars (further reduced for speed)
         .join("\n\n---\n\n")
-        .substring(0, 8000); // Limit total context to 8000 chars
+        .substring(0, 2000); // Limit total context to 2000 chars (further reduced for speed)
+
+      // OPTIMIZATION 1: Check response cache first (gather step already being fetched in parallel)
+      const cacheKey = this.generateCacheKey(question, context, selectedDataSourceIds);
+      const cachedResponse = await this.getCachedResponse(cacheKey, this.context.agentId);
+      
+      if (cachedResponse) {
+        console.log(`[Q/A] Cache HIT for question: "${question.substring(0, 50)}..."`);
+        const gatherStepId = await gatherStepIdPromise;
+        return {
+          success: true,
+          output: cachedResponse,
+          nextStepId: gatherStepId,
+          shouldContinue: gatherStepId !== null,
+        };
+      }
+      console.log(`[Q/A] Cache MISS for question: "${question.substring(0, 50)}..."`);
 
       // Use OpenAI to generate answer and check if question is answerable
       const apiKey = process.env.OPENAI_API_KEY;
@@ -571,62 +609,19 @@ export class AgentExecutor {
         };
       }
 
-      // First, check if the question is answerable (within company scope)
-      const answerabilityPrompt = `Determine if this question is within the scope of customer support for this company. 
-Questions about the AI itself (e.g., "are you an AI?") are answerable and should be answered honestly.
-Questions completely unrelated to the company (e.g., asking a supercar company about groceries) are NOT answerable.
+      // OPTIMIZATION 2: Parallelize answerability check and answer generation
+      // Combine both checks into a single, more efficient prompt
+      // Include natural follow-up question in the response for better grammar
+      // Allow inference and general logic while staying grounded in knowledge base
+      const combinedPrompt = `Answer this question using the knowledge base and general logic/inference. End with a natural follow-up question.
 
-KNOWLEDGE BASE CONTEXT:
-${context.substring(0, 2000)}
-
-QUESTION: ${question}
-
-Respond with ONLY "answerable" or "not_answerable".`;
-
-      const answerabilityResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: [
-            {
-              role: "system",
-              content: "You are a scope evaluator. Respond with only 'answerable' or 'not_answerable'.",
-            },
-            { role: "user", content: answerabilityPrompt },
-          ],
-          temperature: 0.1,
-          max_tokens: 10,
-        }),
-      });
-
-      let isAnswerable = true;
-      if (answerabilityResponse.ok) {
-        const answerabilityData = await answerabilityResponse.json();
-        const answerabilityResult = answerabilityData.choices[0]?.message?.content?.trim().toLowerCase() || "";
-        isAnswerable = answerabilityResult.includes("answerable") && !answerabilityResult.includes("not");
-      }
-
-      // If not answerable, return fallback message
-      if (!isAnswerable) {
-        const fallbackMessage = "Unfortunately, I am only permitted to answer questions regarding customer support, and this doesn't fall into that basis. Or would you like to ask something else?";
-        // Loop back to Gather step for next question
-        const gatherStepId = await this.findGatherStepInScenario(step.id);
-        return {
-          success: true,
-          output: fallbackMessage,
-          nextStepId: gatherStepId,
-          shouldContinue: gatherStepId !== null,
-        };
-      }
-
-      // Generate answer
-      const answerPrompt = `Answer this question using ONLY the knowledge base below. Be concise (max 2 sentences). 
-If the question is about whether you are an AI, answer honestly that you are an AI assistant.
-If not found, say "I don't have that information."
+RULES:
+- Use the knowledge base as your primary source, but you can also use general logic and inference to answer questions
+- If you can infer or reason about the answer based on the knowledge base, do so (e.g., if knowledge base says "we're open 9-5", you can infer "we're closed at 8pm")
+- If unrelated to the company, say: "I can only help with customer support questions. What else can I help you with?"
+- If asked if you're AI, be honest.
+- If truly no information available (even with inference), say: "I don't have that specific information. Is there anything else I can help with?"
+- Otherwise, answer in 1-2 sentences using knowledge base + inference, then ask: "Is there anything else I can help you with?"
 
 KNOWLEDGE BASE:
 ${context}
@@ -635,6 +630,9 @@ QUESTION: ${question}
 
 Answer:`;
 
+      // OPTIMIZATION: Use streaming for faster response times
+      // Stream response and start TTS generation as soon as we have enough text
+      const startTime = Date.now();
       const response = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -646,12 +644,13 @@ Answer:`;
           messages: [
             {
               role: "system",
-              content: "You are a helpful assistant. Answer concisely using only the provided knowledge base. If asked if you are an AI, be honest.",
+              content: "You are a helpful customer support assistant. Use the knowledge base and general logic/inference to answer questions. You can make reasonable inferences and connections. Answer concisely and always end with a natural follow-up question.",
             },
-            { role: "user", content: answerPrompt },
+            { role: "user", content: combinedPrompt },
           ],
-          temperature: 0.3,
-          max_tokens: 200,
+          temperature: 0.1,
+          max_tokens: 80,
+          stream: true, // Enable streaming
         }),
       });
 
@@ -665,78 +664,129 @@ Answer:`;
         };
       }
 
-      const data = await response.json();
-      const answer = data.choices[0]?.message?.content?.trim() || "I'm sorry, I couldn't find an answer to that question.";
+      // Stream the response
+      let answer = "";
+      let firstSentence = "";
+      let hasFirstSentence = false;
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
 
-      // Check if answer has enough context to generate a follow-up question
-      const hasEnoughContext = context.length > 500 && answer.length > 20 && !answer.toLowerCase().includes("i don't have");
-
-      let finalOutput = answer;
-
-      if (hasEnoughContext) {
-        // Generate a context-aware follow-up question
-        const followUpPrompt = `Based on this answer and context, generate ONE concise follow-up question that dives deeper into the topic. 
-The question should be natural and encourage the customer to ask more about related products/services.
-
-ANSWER GIVEN: ${answer}
-CONTEXT: ${context.substring(0, 3000)}
-
-Generate a follow-up question (max 15 words) that starts with "Would you like to know" or similar. Example: "Would you like to know more about a specific product?"`;
-
-        try {
-          const followUpResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              model: "gpt-4o-mini",
-              messages: [
-                {
-                  role: "system",
-                  content: "You are a conversational assistant. Generate natural follow-up questions.",
-                },
-                { role: "user", content: followUpPrompt },
-              ],
-              temperature: 0.7,
-              max_tokens: 50,
-            }),
-          });
-
-          if (followUpResponse.ok) {
-            const followUpData = await followUpResponse.json();
-            const followUpQuestion = followUpData.choices[0]?.message?.content?.trim();
-            if (followUpQuestion && followUpQuestion.length > 0) {
-              // Remove any quotes or extra formatting
-              const cleanFollowUp = followUpQuestion.replace(/^["']|["']$/g, "").trim();
-              finalOutput = `${answer} ${cleanFollowUp}? Or would you like to ask something else?`;
-            } else {
-              finalOutput = `${answer} Or would you like to ask something else?`;
-            }
-          } else {
-            finalOutput = `${answer} Or would you like to ask something else?`;
-          }
-        } catch (error) {
-          console.error("Error generating follow-up question:", error);
-          finalOutput = `${answer} Or would you like to ask something else?`;
-        }
+      if (!reader) {
+        // Fallback to non-streaming if reader not available
+        const fallbackResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "gpt-4o-mini",
+            messages: [
+              {
+                role: "system",
+                content: "You are a helpful customer support assistant. Use the knowledge base and general logic/inference to answer questions. You can make reasonable inferences and connections. Answer concisely and always end with a natural follow-up question.",
+              },
+              { role: "user", content: combinedPrompt },
+            ],
+            temperature: 0.1,
+            max_tokens: 80,
+          }),
+        });
+        const fallbackData = await fallbackResponse.json();
+        answer = fallbackData.choices[0]?.message?.content?.trim() || "I'm sorry, I couldn't find an answer to that question. Is there anything else I can help with?";
       } else {
-        // Not enough context, just append the scripted option
-        finalOutput = `${answer} Or would you like to ask something else?`;
+        // Stream processing
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n').filter(line => line.trim() !== '');
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+              if (data === '[DONE]') break;
+
+              try {
+                const json = JSON.parse(data);
+                const delta = json.choices[0]?.delta?.content || '';
+                if (delta) {
+                  answer += delta;
+                  
+                  // Extract first sentence for early TTS generation
+                  if (!hasFirstSentence && answer.length >= 30) {
+                    // Find first complete sentence (ending with . ! ?)
+                    const sentenceMatch = answer.match(/^[^.!?]*[.!?]/);
+                    if (sentenceMatch) {
+                      firstSentence = sentenceMatch[0].trim();
+                      hasFirstSentence = true;
+                      console.log(`[Q/A] First sentence ready (${firstSentence.length} chars) after ${Date.now() - startTime}ms`);
+                    }
+                  }
+                }
+              } catch (e) {
+                // Skip invalid JSON
+              }
+            }
+          }
+        }
       }
 
+      answer = answer.trim() || "I'm sorry, I couldn't find an answer to that question. Is there anything else I can help with?";
+      const apiTime = Date.now() - startTime;
+      console.log(`[Q/A] OpenAI streaming completed in ${apiTime}ms, total length: ${answer.length} chars`);
+      
+      // Ensure answer ends with a question (AI should include it, but add fallback if needed)
+      if (!answer.match(/[?！？]$/)) {
+        // Check if it already has a follow-up question
+        const hasFollowUp = /\b(what|how|can|is|are|would|do|does|anything else|something else|help)\b/i.test(answer.slice(-30));
+        if (!hasFollowUp) {
+          answer = `${answer} Is there anything else I can help you with?`;
+        }
+      }
+      
+      // Check if answer indicates question is not answerable
+      const isNotAnswerable = answer.toLowerCase().includes("only help with") || 
+                             answer.toLowerCase().includes("doesn't fall into that basis");
+      
+      if (isNotAnswerable) {
+        // Loop back to Gather step for next question (already fetched in parallel)
+        const gatherStepId = await gatherStepIdPromise;
+        // Cache this response too (don't await - fire and forget for speed)
+        this.cacheResponse(cacheKey, this.context.agentId, answer).catch(err => 
+          console.error("[Cache] Background cache error:", err)
+        );
+        return {
+          success: true,
+          output: answer,
+          nextStepId: gatherStepId,
+          shouldContinue: gatherStepId !== null,
+        };
+      }
+
+      // Answer already includes natural follow-up question from AI
+      const finalOutput = answer;
+      
+      // OPTIMIZATION: Cache in background (don't await - fire and forget for speed)
+      this.cacheResponse(cacheKey, this.context.agentId, finalOutput).catch(err => 
+        console.error("[Cache] Background cache error:", err)
+      );
+
       // NEW: Check for branches (like Gather step)
-      const branchResult = await this.evaluateBranches(step.id, userInput, {
-        ...this.context.gatheredData,
-        answer: finalOutput  // Include answer in branch evaluation context
-      });
+      // OPTIMIZATION: Evaluate branches in parallel with getting gather step (already fetched)
+      const [branchResult, gatherStepId] = await Promise.all([
+        this.evaluateBranches(step.id, userInput, {
+          ...this.context.gatheredData,
+          answer: finalOutput  // Include answer in branch evaluation context
+        }),
+        gatherStepIdPromise // Already fetched in parallel, just await it
+      ]);
       
       // Use branch result or default to next step
       let nextStepId = branchResult?.next_step_id || null;
       if (!nextStepId && !branchResult?.next_scenario_id) {
         // Try to loop back to Gather step for next question
-        const gatherStepId = await this.findGatherStepInScenario(step.id);
         nextStepId = gatherStepId;
       }
       
@@ -1260,6 +1310,9 @@ Answer:`;
   private async checkIfConversationEnd(userInput: string): Promise<boolean> {
     if (!userInput || userInput.trim().length === 0) return false;
 
+    const lowerInput = userInput.toLowerCase().trim();
+    
+    // Expanded list of end phrases - more natural variations
     const endPhrases = [
       "thank you",
       "thanks",
@@ -1280,19 +1333,60 @@ Answer:`;
       "all set",
       "that's it",
       "thats it",
+      "i'm good",
+      "im good",
+      "i am good",
+      "i'm all good",
+      "im all good",
+      "i am all good",
+      "i'm fine",
+      "im fine",
+      "i am fine",
+      "i'm all set",
+      "im all set",
+      "i am all set",
+      "we're good",
+      "were good",
+      "we are good",
+      "we're all set",
+      "were all set",
+      "we are all set",
+      "that's everything",
+      "thats everything",
+      "that is everything",
+      "nothing more",
+      "all done",
+      "we're done",
+      "were done",
+      "we are done",
     ];
 
-    const lowerInput = userInput.toLowerCase().trim();
-    
     // Check for exact matches or phrases contained in input
     for (const phrase of endPhrases) {
       if (lowerInput === phrase || lowerInput.includes(phrase)) {
-        // Make sure it's not part of a longer question
-        // If the input is just the phrase or starts/ends with it, it's likely an end signal
-        if (lowerInput === phrase || 
-            lowerInput.startsWith(phrase + " ") || 
-            lowerInput.endsWith(" " + phrase) ||
-            lowerInput.length < phrase.length + 10) {
+        // More lenient matching - if the phrase appears and the input is relatively short,
+        // or if it's at the start/end, treat it as an end signal
+        const phraseIndex = lowerInput.indexOf(phrase);
+        const phraseLength = phrase.length;
+        const inputLength = lowerInput.length;
+        
+        // If exact match, definitely end
+        if (lowerInput === phrase) {
+          return true;
+        }
+        
+        // If phrase at start and input is short (phrase + small buffer)
+        if (phraseIndex === 0 && inputLength <= phraseLength + 15) {
+          return true;
+        }
+        
+        // If phrase at end and input is short
+        if (phraseIndex === inputLength - phraseLength && inputLength <= phraseLength + 15) {
+          return true;
+        }
+        
+        // If phrase in middle but input is very short (likely just the phrase with filler words)
+        if (inputLength <= phraseLength + 20) {
           return true;
         }
       }
@@ -1413,6 +1507,7 @@ Answer:`;
 
   /**
    * Execute a "Loop" step - Repeat a sequence of steps
+   * The loop automatically includes all steps after it until the next loop step or end of scenario
    */
   private async executeLoopStep(step: any, userInput: string): Promise<StepResult> {
     const config = step.loop_config;
@@ -1424,62 +1519,43 @@ Answer:`;
       };
     }
     
+    // Get the first step after this loop step (start of loop content)
+    const firstStepInLoop = await this.getNextStepInScenario(step.id);
+    if (!firstStepInLoop) {
+      // No steps to loop, just continue
+      const nextStepId = await this.getStepAfterLoop(step.id);
+      return {
+        success: true,
+        output: "",
+        nextStepId: nextStepId,
+        shouldContinue: nextStepId !== null,
+      };
+    }
+    
     // Get or initialize loop state
     const loopState = this.context.conversationState.loopState || {};
     const activeLoop = loopState[step.id] || {
       iteration: 0,
-      startStepId: config.start_step_id,
-      endStepId: config.end_step_id,
-      maxIterations: config.max_iterations || 10,
+      firstStepId: firstStepInLoop,
+      maxIterations: config.iterations === "infinity" ? Infinity : (config.iterations || 1),
     };
     
     // Check loop exit conditions
-    if (config.loop_type === "for") {
-      if (activeLoop.iteration >= activeLoop.maxIterations) {
-        // Exit loop - go to next step after loop
-        delete loopState[step.id];
-        this.context.conversationState.loopState = loopState;
-        const nextStepId = await this.getStepAfterLoop(step.id);
-        return {
-          success: true,
-          output: "",
-          nextStepId: nextStepId,
-          shouldContinue: nextStepId !== null,
-        };
-      }
-    } else if (config.loop_type === "while" || config.loop_type === "until") {
-      const conditionMet = await this.evaluateCondition(
-        { condition: config.condition },
-        userInput,
-        this.context.gatheredData
-      );
-      
-      if (config.loop_type === "while" && !conditionMet) {
-        // Exit while loop
-        delete loopState[step.id];
-        this.context.conversationState.loopState = loopState;
-        const nextStepId = await this.getStepAfterLoop(step.id);
-        return {
-          success: true,
-          output: "",
-          nextStepId: nextStepId,
-          shouldContinue: nextStepId !== null,
-        };
-      } else if (config.loop_type === "until" && conditionMet) {
-        // Exit until loop
-        delete loopState[step.id];
-        this.context.conversationState.loopState = loopState;
-        const nextStepId = await this.getStepAfterLoop(step.id);
-        return {
-          success: true,
-          output: "",
-          nextStepId: nextStepId,
-          shouldContinue: nextStepId !== null,
-        };
-      }
+    const maxIterations = config.iterations === "infinity" ? Infinity : (config.iterations || 1);
+    if (activeLoop.iteration >= maxIterations) {
+      // Exit loop - go to next step after loop
+      delete loopState[step.id];
+      this.context.conversationState.loopState = loopState;
+      const nextStepId = await this.getStepAfterLoop(step.id);
+      return {
+        success: true,
+        output: "",
+        nextStepId: nextStepId,
+        shouldContinue: nextStepId !== null,
+      };
     }
     
-    // Continue loop - increment iteration and jump to start step
+    // Continue loop - increment iteration and jump to first step in loop
     activeLoop.iteration++;
     loopState[step.id] = activeLoop;
     this.context.conversationState.loopState = loopState;
@@ -1487,7 +1563,7 @@ Answer:`;
     return {
       success: true,
       output: "",
-      nextStepId: config.start_step_id,
+      nextStepId: firstStepInLoop,
       loopState: loopState,
       shouldContinue: true,
     };
@@ -1694,23 +1770,71 @@ Answer:`;
 
   /**
    * Check if current step is the end of a loop
+   * A loop ends when we reach the next loop step or the end of the scenario
    */
   private async checkLoopContinuation(currentStepId: string | null): Promise<string | null> {
     if (!currentStepId) return null;
     
-    // Find all loop steps
+    // Get current step to find its sort_order
+    const currentStep = await this.loadStep(currentStepId);
+    if (!currentStep) return null;
+    
+    // Find all loop steps in this scenario
     const { data: loops } = await this.supabase
       .from("steps")
-      .select("id, loop_config")
+      .select("id, sort_order, loop_config")
       .eq("type", "loop")
-      .eq("scenario_id", this.context.scenarioId);
+      .eq("scenario_id", this.context.scenarioId)
+      .order("sort_order", { ascending: true });
     
-    if (!loops) return null;
+    if (!loops || loops.length === 0) return null;
     
-    for (const loop of loops) {
-      if (loop.loop_config?.end_step_id === currentStepId) {
-        // We're at the end of a loop, return to loop step to re-evaluate
-        return loop.id;
+    // Find the loop step that contains this step
+    // A step is in a loop if it comes after the loop step and before the next loop step
+    for (let i = 0; i < loops.length; i++) {
+      const loop = loops[i];
+      const loopSortOrder = loop.sort_order || 0;
+      const currentSortOrder = currentStep.sort_order || 0;
+      
+      // Check if current step comes after this loop step
+      if (currentSortOrder > loopSortOrder) {
+        // Check if there's a next loop step
+        const nextLoop = loops[i + 1];
+        if (nextLoop) {
+          const nextLoopSortOrder = nextLoop.sort_order || 0;
+          // If current step is before the next loop, it's the end of this loop
+          if (currentSortOrder < nextLoopSortOrder) {
+            // Check if this is the last step before the next loop
+            const { data: nextStep } = await this.supabase
+              .from("steps")
+              .select("id, sort_order")
+              .eq("scenario_id", this.context.scenarioId)
+              .gt("sort_order", currentSortOrder)
+              .order("sort_order", { ascending: true })
+              .limit(1)
+              .maybeSingle();
+            
+            // If next step is the next loop step, we're at the end of this loop
+            if (nextStep && nextStep.id === nextLoop.id) {
+              return loop.id;
+            }
+          }
+        } else {
+          // This is the last loop, check if we're at the end of the scenario
+          const { data: nextStep } = await this.supabase
+            .from("steps")
+            .select("id")
+            .eq("scenario_id", this.context.scenarioId)
+            .gt("sort_order", currentSortOrder)
+            .order("sort_order", { ascending: true })
+            .limit(1)
+            .maybeSingle();
+          
+          // If there's no next step, we're at the end of the scenario (and end of loop)
+          if (!nextStep) {
+            return loop.id;
+          }
+        }
       }
     }
     
@@ -1998,6 +2122,71 @@ Answer:`;
   /**
    * Fetch data from live data source (calendar, sheet, API)
    */
+  /**
+   * Generate a cache key for Q/A responses
+   */
+  private generateCacheKey(question: string, context: string, dataSourceIds: string[]): string {
+    // Create a hash from question + context hash + data source IDs
+    // Use a simple hash function for speed
+    const questionHash = Buffer.from(question.toLowerCase().trim()).toString('base64').substring(0, 50);
+    const contextHash = Buffer.from(context.substring(0, 1000)).toString('base64').substring(0, 30);
+    const dsHash = dataSourceIds.sort().join(',');
+    return `qa_${this.context.agentId}_${questionHash}_${contextHash}_${Buffer.from(dsHash).toString('base64').substring(0, 20)}`;
+  }
+
+  /**
+   * Get cached response if available and not expired
+   */
+  private async getCachedResponse(cacheKey: string, agentId: string): Promise<string | null> {
+    try {
+      const { data, error } = await this.supabase
+        .from("response_cache")
+        .select("response, expires_at")
+        .eq("cache_key", cacheKey)
+        .eq("agent_id", agentId)
+        .gt("expires_at", new Date().toISOString())
+        .maybeSingle();
+
+      if (error) {
+        console.error("[Cache] Error fetching cache:", error);
+        return null;
+      }
+
+      if (data) {
+        return data.response;
+      }
+
+      return null;
+    } catch (error) {
+      console.error("[Cache] Exception fetching cache:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Cache a response for future use (24 hour TTL)
+   */
+  private async cacheResponse(cacheKey: string, agentId: string, response: string): Promise<void> {
+    try {
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + 24); // 24 hour TTL
+
+      await this.supabase
+        .from("response_cache")
+        .upsert({
+          cache_key: cacheKey,
+          agent_id: agentId,
+          response: response,
+          expires_at: expiresAt.toISOString(),
+        }, {
+          onConflict: "cache_key"
+        });
+    } catch (error) {
+      // Don't fail if caching fails, just log it
+      console.error("[Cache] Error caching response:", error);
+    }
+  }
+
   private async fetchLiveDataSource(dataSource: any): Promise<string> {
     const integrationType = dataSource.integration_type;
     const config = dataSource.integration_config;

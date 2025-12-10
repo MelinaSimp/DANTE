@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import dayjs from "dayjs";
+import { Plus, X, Calendar, Clock, User, Phone, FileText } from "lucide-react";
 
 interface Appointment {
   id: string;
@@ -26,10 +27,20 @@ interface ScheduleClientProps {
 type LocalAppointment = Appointment & { localTime: dayjs.Dayjs };
 
 export default function ScheduleClient({ initialAppointments, workspaceId }: ScheduleClientProps) {
-  const [appointments] = useState<Appointment[]>(initialAppointments);
+  const [appointments, setAppointments] = useState<Appointment[]>(initialAppointments);
   const [view, setView] = useState<"calendar" | "list">("calendar");
   const [selectedDate, setSelectedDate] = useState(dayjs());
   const [showDayView, setShowDayView] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [creating, setCreating] = useState(false);
+  
+  // Form state
+  const [formName, setFormName] = useState("");
+  const [formPhone, setFormPhone] = useState("");
+  const [formDescription, setFormDescription] = useState("");
+  const [formDate, setFormDate] = useState(dayjs().format("YYYY-MM-DD"));
+  const [formTime, setFormTime] = useState(dayjs().add(1, "hour").format("HH:mm"));
+  const [formDuration, setFormDuration] = useState("60");
 
   // Group appointments by date
   const normalizedAppointments: LocalAppointment[] = appointments.map((appointment) => {
@@ -63,9 +74,74 @@ export default function ScheduleClient({ initialAppointments, workspaceId }: Sch
     .sort((a, b) => a.localTime.valueOf() - b.localTime.valueOf());
   const dailyAppointments = todayAppointments;
 
+  // Handle create appointment
+  const handleCreateAppointment = async () => {
+    if (!formName.trim() || !formPhone.trim() || !formDescription.trim()) {
+      alert("Please fill in all required fields");
+      return;
+    }
+
+    setCreating(true);
+    try {
+      // Combine date and time
+      const scheduledAt = dayjs(`${formDate} ${formTime}`).toISOString();
+
+      const response = await fetch("/api/appointments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formName.trim(),
+          phoneNumber: formPhone.trim(),
+          description: formDescription.trim(),
+          scheduledAt,
+          durationMinutes: parseInt(formDuration) || 60,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to create appointment");
+      }
+
+      const data = await response.json();
+      
+      // Reset form
+      setFormName("");
+      setFormPhone("");
+      setFormDescription("");
+      setFormDate(dayjs().format("YYYY-MM-DD"));
+      setFormTime(dayjs().add(1, "hour").format("HH:mm"));
+      setFormDuration("60");
+      setShowCreateModal(false);
+      
+      // Reload page to show new appointment
+      window.location.reload();
+    } catch (error: any) {
+      console.error("Failed to create appointment:", error);
+      alert(error.message || "Failed to create appointment");
+    } finally {
+      setCreating(false);
+    }
+  };
+
   return (
-    <div className="h-full flex flex-col space-y-6 text-white p-6 overflow-y-auto">
+    <div className="h-full flex flex-col space-y-6 text-white p-6 overflow-y-auto relative">
+      {/* Floating Create Button - Always visible */}
+      <button
+        onClick={() => setShowCreateModal(true)}
+        className="fixed bottom-8 right-8 z-50 px-6 py-3 rounded-full bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 transition flex items-center gap-2 shadow-2xl hover:scale-105"
+        style={{ boxShadow: '0 10px 40px rgba(59, 130, 246, 0.5)' }}
+      >
+        <Plus className="h-6 w-6" />
+        Create Appointment
+      </button>
+
       <div className="max-w-4xl mx-auto w-full">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-white">Schedule</h2>
+        </div>
+
         <div className="rounded-2xl border border-white/10 bg-[#242423]/90 backdrop-blur-sm p-6">
       {/* View Toggle */}
       <div className="flex items-center gap-4">
@@ -366,6 +442,133 @@ export default function ScheduleClient({ initialAppointments, workspaceId }: Sch
                 </div>
               ))
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Create Appointment Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#242423] rounded-3xl border border-white/10 p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-semibold text-white">Create Appointment</h3>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="p-2 rounded-full hover:bg-white/10 transition"
+              >
+                <X className="h-5 w-5 text-white/70" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Name */}
+              <div>
+                <label className="block text-sm font-medium text-white/80 mb-2 flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  Name *
+                </label>
+                <input
+                  type="text"
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
+                  placeholder="John Doe"
+                  className="w-full px-4 py-2 rounded-2xl bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Phone */}
+              <div>
+                <label className="block text-sm font-medium text-white/80 mb-2 flex items-center gap-2">
+                  <Phone className="h-4 w-4" />
+                  Phone Number *
+                </label>
+                <input
+                  type="tel"
+                  value={formPhone}
+                  onChange={(e) => setFormPhone(e.target.value)}
+                  placeholder="+1234567890"
+                  className="w-full px-4 py-2 rounded-2xl bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-medium text-white/80 mb-2 flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Description *
+                </label>
+                <textarea
+                  value={formDescription}
+                  onChange={(e) => setFormDescription(e.target.value)}
+                  placeholder="What is the meeting about?"
+                  rows={3}
+                  className="w-full px-4 py-2 rounded-2xl bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                />
+              </div>
+
+              {/* Date and Time */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-white/80 mb-2 flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    Date *
+                  </label>
+                  <input
+                    type="date"
+                    value={formDate}
+                    onChange={(e) => setFormDate(e.target.value)}
+                    min={dayjs().format("YYYY-MM-DD")}
+                    className="w-full px-4 py-2 rounded-2xl bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-white/80 mb-2 flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    Time *
+                  </label>
+                  <input
+                    type="time"
+                    value={formTime}
+                    onChange={(e) => setFormTime(e.target.value)}
+                    className="w-full px-4 py-2 rounded-2xl bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Duration */}
+              <div>
+                <label className="block text-sm font-medium text-white/80 mb-2">
+                  Duration (minutes)
+                </label>
+                <input
+                  type="number"
+                  value={formDuration}
+                  onChange={(e) => setFormDuration(e.target.value)}
+                  min="15"
+                  step="15"
+                  placeholder="60"
+                  className="w-full px-4 py-2 rounded-2xl bg-white/5 border border-white/10 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => setShowCreateModal(false)}
+                  disabled={creating}
+                  className="flex-1 px-4 py-2 rounded-2xl bg-white/10 text-white hover:bg-white/15 transition disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateAppointment}
+                  disabled={creating || !formName.trim() || !formPhone.trim() || !formDescription.trim()}
+                  className="flex-1 px-4 py-2 rounded-2xl bg-blue-500 text-white hover:bg-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {creating ? "Creating..." : "Create & Send SMS"}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

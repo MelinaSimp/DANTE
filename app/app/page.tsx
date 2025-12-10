@@ -6,7 +6,11 @@ import { redirect } from "next/navigation";
 import GigaAIClient from "../gigaai/GigaAIClient";
 import { ThemeProvider } from "../gigaai/ThemeProvider";
 
-export default async function AppPage() {
+export default async function AppPage({
+  searchParams,
+}: {
+  searchParams?: { error?: string; success?: string; message?: string };
+}) {
   const supabase = await createServerSupabase();
   const {
     data: { user },
@@ -20,7 +24,11 @@ export default async function AppPage() {
   // Show Drift interface with theme provider
   return (
     <ThemeProvider>
-      <GigaAIClient />
+      <GigaAIClient 
+        initialError={searchParams?.error}
+        initialSuccess={searchParams?.success}
+        initialMessage={searchParams?.message}
+      />
     </ThemeProvider>
   );
 }

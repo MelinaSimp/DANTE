@@ -20,8 +20,9 @@ async function getWorkspace(req: NextRequest) {
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { stepId: string } }
+  { params }: { params: Promise<{ stepId: string }> }
 ) {
+  const { stepId } = await params;
   const { workspaceId } = await getWorkspace(req);
   if (!workspaceId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -31,7 +32,7 @@ export async function GET(
   const { data: step } = await supabaseAdmin
     .from("steps")
     .select("scenario_id, scenarios!inner(agent_id, agents!inner(workspace_id))")
-    .eq("id", params.stepId)
+    .eq("id", stepId)
     .maybeSingle();
 
   if (!step || ((step.scenarios as any).agents as any).workspace_id !== workspaceId) {
@@ -41,7 +42,7 @@ export async function GET(
   const { data, error } = await supabaseAdmin
     .from("steps")
     .select("*")
-    .eq("id", params.stepId)
+    .eq("id", stepId)
     .single();
 
   if (error) {
@@ -53,8 +54,9 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { stepId: string } }
+  { params }: { params: Promise<{ stepId: string }> }
 ) {
+  const { stepId } = await params;
   const { workspaceId } = await getWorkspace(req);
   if (!workspaceId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -64,7 +66,7 @@ export async function PUT(
   const { data: step } = await supabaseAdmin
     .from("steps")
     .select("scenario_id, scenarios!inner(agent_id, agents!inner(workspace_id))")
-    .eq("id", params.stepId)
+    .eq("id", stepId)
     .maybeSingle();
 
   if (!step || ((step.scenarios as any).agents as any).workspace_id !== workspaceId) {
@@ -94,7 +96,7 @@ export async function PUT(
   const { data, error } = await supabaseAdmin
     .from("steps")
     .update(updates)
-    .eq("id", params.stepId)
+    .eq("id", stepId)
     .select("*")
     .single();
 
@@ -108,8 +110,9 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { stepId: string } }
+  { params }: { params: Promise<{ stepId: string }> }
 ) {
+  const { stepId } = await params;
   const { workspaceId } = await getWorkspace(req);
   if (!workspaceId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -119,101 +122,21 @@ export async function DELETE(
   const { data: step } = await supabaseAdmin
     .from("steps")
     .select("scenario_id, scenarios!inner(agent_id, agents!inner(workspace_id))")
-    .eq("id", params.stepId)
+    .eq("id", stepId)
     .maybeSingle();
 
   if (!step || ((step.scenarios as any).agents as any).workspace_id !== workspaceId) {
     return NextResponse.json({ error: "Step not found" }, { status: 404 });
   }
 
-  // Delete conversation_steps records that reference this step FIRST (foreign key constraint)
-  // First check if any exist and log for debugging
-  const { data: existingConversationSteps } = await supabaseAdmin
-    .from("conversation_steps")
-    .select("id")
-    .eq("step_id", params.stepId);
-
-  console.log(`[DELETE Step] Found ${existingConversationSteps?.length || 0} conversation_steps records for step ${params.stepId}`);
-
-  if (existingConversationSteps && existingConversationSteps.length > 0) {
-    const { error: conversationStepsError, data: deletedData } = await supabaseAdmin
-      .from("conversation_steps")
-      .delete()
-      .eq("step_id", params.stepId)
-      .select();
-
-    if (conversationStepsError) {
-      console.error("Failed to delete conversation_steps referencing this step", conversationStepsError);
-      // Return error if this fails - it's critical for deletion
-      return NextResponse.json({ 
-        error: `Failed to delete step: Cannot remove conversation_steps records. ${conversationStepsError.message || JSON.stringify(conversationStepsError)}` 
-      }, { status: 500 });
-    }
-    console.log(`[DELETE Step] Successfully deleted ${deletedData?.length || 0} conversation_steps records`);
-  }
-
-  // Update conversations that reference this step as current_step_id (set to null)
-  const { error: conversationsError } = await supabaseAdmin
-    .from("conversations")
-    .update({ current_step_id: null })
-    .eq("current_step_id", params.stepId);
-
-  if (conversationsError) {
-    console.error("Failed to update conversations referencing this step", conversationsError);
-    // Continue anyway - might not be critical
-  }
-
-  // Delete branches that belong to this step first (if any)
-  const { error: branchesError } = await supabaseAdmin
-    .from("branches")
-    .delete()
-    .eq("step_id", params.stepId);
-
-  if (branchesError) {
-    console.error("Failed to delete branches for step", branchesError);
-    // Continue anyway - branches might not exist
-  }
-
-  // Update or delete branches that reference this step as next_step_id
-  // First, check if any branches reference this step
-  const { data: referencingBranches } = await supabaseAdmin
-    .from("branches")
-    .select("id")
-    .eq("next_step_id", params.stepId);
-
-  if (referencingBranches && referencingBranches.length > 0) {
-    // Try to set next_step_id to null
-    const { error: updateBranchesError } = await supabaseAdmin
-      .from("branches")
-      .update({ next_step_id: null })
-      .eq("next_step_id", params.stepId);
-
-    if (updateBranchesError) {
-      console.error("Failed to update branches referencing this step", updateBranchesError);
-      // If update fails, try deleting those branches
-      const { error: deleteRefBranchesError } = await supabaseAdmin
-        .from("branches")
-        .delete()
-        .eq("next_step_id", params.stepId);
-      
-      if (deleteRefBranchesError) {
-        console.error("Failed to delete branches referencing this step", deleteRefBranchesError);
-      }
-    }
-  }
-
-  // Delete the step
   const { error } = await supabaseAdmin
     .from("steps")
     .delete()
-    .eq("id", params.stepId);
+    .eq("id", stepId);
 
   if (error) {
     console.error("Failed to delete step", error);
-    console.error("Error details:", JSON.stringify(error, null, 2));
-    return NextResponse.json({ 
-      error: `Failed to delete step: ${error.message || error.details || JSON.stringify(error)}` 
-    }, { status: 500 });
+    return NextResponse.json({ error: "Failed to delete step" }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });

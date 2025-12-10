@@ -14,10 +14,10 @@ export const maxDuration = 60;
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { provider: string } }
+  { params }: { params: Promise<{ provider: string }> }
 ) {
   try {
-    const { provider } = params;
+    const { provider } = await params;
     const { searchParams } = req.nextUrl;
     const code = searchParams.get("code");
     const state = searchParams.get("state"); // Should contain workspace_id
@@ -44,7 +44,7 @@ export async function GET(
     
     if (error) {
       return NextResponse.redirect(
-        new URL(`/gigaai?error=oauth_${error}`, req.url)
+        new URL(`/app?error=oauth_${error}`, req.url)
       );
     }
     
@@ -57,8 +57,13 @@ export async function GET(
     return await handleOAuthCallback(provider, code, profile.workspace_id, req);
   } catch (error: any) {
     console.error("[OAuth] Error:", error);
+    console.error("[OAuth] Error details:", {
+      message: error.message,
+      stack: error.stack,
+      provider: error.provider || "unknown"
+    });
     return NextResponse.redirect(
-      new URL("/gigaai?error=oauth_failed", req.url)
+      new URL(`/app?error=oauth_failed&message=${encodeURIComponent(error.message || "OAuth flow failed")}`, req.url)
     );
   }
 }
@@ -81,11 +86,15 @@ async function initiateOAuthFlow(
     case "google": {
       const clientId = process.env.GOOGLE_CLIENT_ID;
       if (!clientId) {
-        throw new Error("GOOGLE_CLIENT_ID not configured");
+        console.error("[OAuth] GOOGLE_CLIENT_ID not configured in environment variables");
+        // Redirect with a helpful error message
+        return NextResponse.redirect(
+          new URL("/app?error=oauth_config_missing&message=Google+OAuth+credentials+not+configured", req.url)
+        );
       }
       
       const scopes = [
-        "https://www.googleapis.com/auth/calendar.readonly",
+        "https://www.googleapis.com/auth/calendar", // Full calendar access (read + write)
         "https://www.googleapis.com/auth/spreadsheets.readonly"
       ].join(" ");
       
@@ -231,7 +240,66 @@ async function handleOAuthCallback(
       onConflict: "workspace_id,integration_type,provider"
     });
   
-  return NextResponse.redirect(new URL("/gigaai?success=oauth_connected", req.url));
+  // For Google Calendar, automatically set up webhook subscription
+  if (provider === "google") {
+    try {
+      // Set up webhook subscription directly (we have the token)
+      const baseUrl = process.env.PUBLIC_BASE_URL || process.env.VERCEL_URL 
+        ? `https://${process.env.VERCEL_URL}` 
+        : req.nextUrl.origin;
+      
+      const webhookUrl = `${baseUrl}/api/integrations/google-calendar/webhook`;
+      const channelId = `calendar-${workspaceId}-${Date.now()}`;
+      const channelToken = `token-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+
+      const watchResponse = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/primary/events/watch`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${tokenData.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            id: channelId,
+            type: "web_hook",
+            address: webhookUrl,
+            token: channelToken,
+          }),
+        }
+      );
+
+      if (watchResponse.ok) {
+        const watchData = await watchResponse.json();
+        
+        // Update config with webhook info
+        await supabaseAdmin
+          .from("integration_credentials")
+          .update({
+            config: {
+              calendar_id: "primary",
+              webhook_channel_id: channelId,
+              webhook_resource_id: watchData.resourceId,
+              webhook_expiration: watchData.expiration,
+            },
+          })
+          .eq("workspace_id", workspaceId)
+          .eq("provider", "google")
+          .eq("integration_type", "google");
+        
+        console.log("[OAuth] Google Calendar webhook subscription set up successfully");
+      } else {
+        const errorText = await watchResponse.text();
+        console.error("[OAuth] Failed to set up webhook subscription:", errorText);
+        // Don't fail OAuth if webhook setup fails - user can set it up manually later
+      }
+    } catch (error) {
+      console.error("[OAuth] Error setting up webhook:", error);
+      // Continue with OAuth success even if webhook setup fails
+    }
+  }
+  
+  return NextResponse.redirect(new URL("/app?success=oauth_connected", req.url));
 }
 
 
