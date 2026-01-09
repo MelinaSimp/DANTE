@@ -25,7 +25,51 @@ export async function POST(
     // Extract call ID from path if present (e.g., /api/retell/webhook/call_xxx)
     const callIdFromPath = pathSegments.length > 0 ? pathSegments[0] : null;
     
-    const body = await req.json();
+    // Read body once
+    const bodyText = await req.text();
+    const body = JSON.parse(bodyText);
+    
+    // Verify webhook signature (if API key is available)
+    const retellApiKey = process.env.RETELL_API_KEY;
+    const signature = req.headers.get("x-retell-signature");
+    
+    if (retellApiKey && signature) {
+      // Verify signature using Retell SDK
+      try {
+        const { Retell } = await import("retell-sdk");
+        if (Retell && typeof Retell.verify === "function") {
+          const isValid = Retell.verify(bodyText, retellApiKey, signature);
+          if (!isValid) {
+            console.error("[Retell] Invalid webhook signature");
+            return NextResponse.json(
+              { error: "Invalid signature" },
+              { status: 401 }
+            );
+          }
+          console.log("[Retell] Webhook signature verified");
+        } else {
+          console.warn("[Retell] Retell SDK verify function not available, skipping signature verification");
+        }
+      } catch (error: any) {
+        // If Retell SDK not available or verification fails, log but continue
+        // (allows development without SDK, but production should have it)
+        console.warn("[Retell] Could not verify signature:", error.message);
+        if (process.env.NODE_ENV === "production") {
+          // In production, we should fail if verification can't be done
+          console.error("[Retell] Signature verification failed in production");
+          return NextResponse.json(
+            { error: "Signature verification failed" },
+            { status: 401 }
+          );
+        }
+      }
+    } else {
+      if (process.env.NODE_ENV === "production") {
+        console.warn("[Retell] No RETELL_API_KEY configured - webhook verification disabled (not secure for production!)");
+      } else {
+        console.log("[Retell] Webhook verification skipped (no RETELL_API_KEY in development)");
+      }
+    }
     
     console.log("[Retell] Webhook received:", JSON.stringify(body, null, 2));
     console.log("[Retell] Path segments:", pathSegments);
