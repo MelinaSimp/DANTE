@@ -8,28 +8,14 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 /**
- * Retell AI Webhook Handler (Dynamic Route)
- * POST /api/retell/webhook/[callId]
- * GET /api/retell/webhook/[callId]
+ * Retell AI Webhook Handler (Base Route)
+ * POST /api/retell/webhook
+ * GET /api/retell/webhook
  * 
- * Retell may append call ID to the URL: /api/retell/webhook/call_xxx
- * This dynamic route handles paths with call IDs
+ * This handles the base webhook path
  */
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ path?: string[] }> }
-) {
+async function handleRetellWebhook(req: NextRequest, callIdFromPath: string | null = null) {
   try {
-    const resolvedParams = await params;
-    const pathSegments = resolvedParams.path || [];
-    
-    // Extract call ID from path (e.g., /api/retell/webhook/call_xxx)
-    const callIdFromPath = pathSegments.length > 0 ? pathSegments[0] : null;
-    
-    console.log("[Retell] POST request to dynamic route");
-    console.log("[Retell] Path segments:", pathSegments);
-    console.log("[Retell] Call ID from path:", callIdFromPath);
-    
     // Read body once
     const bodyText = await req.text();
     const body = JSON.parse(bodyText);
@@ -64,6 +50,7 @@ export async function POST(
     }
 
     console.log("[Retell] Webhook received:", JSON.stringify(body, null, 2));
+    console.log("[Retell] Call ID from path:", callIdFromPath);
     console.log("[Retell] Event type:", body.event);
 
     const event = body.event || body.type;
@@ -375,7 +362,7 @@ export async function POST(
     console.log("[Retell] Full body:", JSON.stringify(body, null, 2));
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error("[Retell] Dynamic route error:", error);
+    console.error("[Retell] Webhook error:", error);
     return NextResponse.json(
       { error: error.message || "Internal server error" },
       { status: 500 }
@@ -383,29 +370,15 @@ export async function POST(
   }
 }
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ path?: string[] }> }
-) {
-  try {
-    const resolvedParams = await params;
-    const pathSegments = resolvedParams.path || [];
-    console.log("[Retell] GET request received to dynamic route");
-    console.log("[Retell] Path:", req.nextUrl.pathname);
-    console.log("[Retell] Path segments:", pathSegments);
-    
-    // Health check endpoint
-    return NextResponse.json({ 
-      status: "ok", 
-      message: "Retell webhook endpoint is active (dynamic route)",
-      path: pathSegments,
-      fullPath: req.nextUrl.pathname
-    });
-  } catch (error: any) {
-    console.error("[Retell] GET error:", error);
-    return NextResponse.json({ 
-      status: "ok", 
-      message: "Retell webhook endpoint is active (with error)"
-    });
-  }
+export async function POST(req: NextRequest) {
+  return handleRetellWebhook(req, null);
+}
+
+export async function GET(req: NextRequest) {
+  console.log("[Retell] GET request received at base path");
+  return NextResponse.json({ 
+    status: "ok", 
+    message: "Retell webhook endpoint is active",
+    path: "base"
+  });
 }
