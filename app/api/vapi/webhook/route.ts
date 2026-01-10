@@ -726,7 +726,7 @@ export async function POST(req: NextRequest) {
       });
 
       // Find conversation by Vapi call ID
-      const { data: conversation } = await supabaseAdmin
+      let { data: conversation } = await supabaseAdmin
         .from("conversations")
         .select("*")
         .eq("channel_id", vapiCallId)
@@ -735,12 +735,70 @@ export async function POST(req: NextRequest) {
         .limit(1)
         .maybeSingle();
 
+      // If no conversation exists (firstMessage was set directly in Vapi),
+      // create one now with scenario context
       if (!conversation) {
-        console.error("[Vapi] Conversation not found for call ID:", vapiCallId);
-        return NextResponse.json(
-          { error: "Conversation not found" },
-          { status: 404 }
-        );
+        console.log("[Vapi] ⚠️  No conversation found - Creating one now (firstMessage was set directly in Vapi)");
+        
+        // Load scenario to set up conversation context
+        const { data: scenarios } = await supabaseAdmin
+          .from("scenarios")
+          .select("id, name")
+          .eq("agent_id", agent.id)
+          .order("created_at", { ascending: true })
+          .limit(1);
+
+        const scenarioId = scenarios && scenarios.length > 0 ? scenarios[0].id : null;
+        let currentStepId: string | null = null;
+
+        // Get first step ID from scenario
+        if (scenarioId) {
+          const { data: allSteps } = await supabaseAdmin
+            .from("steps")
+            .select("id, type, sort_order")
+            .eq("scenario_id", scenarioId)
+            .order("sort_order", { ascending: true })
+            .limit(1);
+
+          if (allSteps && allSteps.length > 0) {
+            currentStepId = allSteps[0].id;
+          }
+        }
+
+        // Create conversation
+        const { data: newConversation, error: createError } = await supabaseAdmin
+          .from("conversations")
+          .insert({
+            channel_id: vapiCallId,
+            agent_id: agent.id,
+            workspace_id: agent.workspace_id,
+            modality: "voice",
+            status: "active",
+            current_scenario_id: scenarioId,
+            current_step_id: currentStepId,
+            metadata: {
+              phoneNumber: phoneNumber,
+              customerNumber: customerNumber,
+              createdAfterFirstMessage: true, // Flag that this was created after first message
+            },
+          })
+          .select()
+          .single();
+
+        if (createError || !newConversation) {
+          console.error("[Vapi] Failed to create conversation:", createError);
+          return NextResponse.json(
+            { error: "Failed to create conversation" },
+            { status: 500 }
+          );
+        }
+
+        conversation = newConversation;
+        console.log("[Vapi] ✅ Conversation created successfully:", {
+          conversationId: conversation.id,
+          scenarioId: conversation.current_scenario_id,
+          stepId: conversation.current_step_id,
+        });
       }
 
       // Add user message to transcript
@@ -1308,14 +1366,24 @@ export async function POST(req: NextRequest) {
                   });
 
                 // Return greeting immediately (DON'T WAIT for conversation creation)
-                console.log("[Vapi] ✅✅✅ RETURNING GREETING FROM SCENARIO:", greeting.substring(0, 150));
-                return NextResponse.json(
-                  formatVapiResponse({
-                    response: greeting,
-                    endCall: false,
-                    voiceId: agent.elevenlabs_voice_id,
-                  })
-                );
+                // CRITICAL: Make it EXPLICIT that this is the greeting response
+                const greetingResponse = formatVapiResponse({
+                  response: greeting,
+                  endCall: false,
+                  voiceId: agent.elevenlabs_voice_id,
+                });
+                
+                console.log("[Vapi] ✅✅✅ EXPLICITLY RETURNING GREETING FROM SCENARIO:");
+                console.log("[Vapi] Greeting text:", greeting);
+                console.log("[Vapi] Full response being sent to Vapi:", JSON.stringify(greetingResponse, null, 2));
+                
+                // Return with explicit headers and format
+                return NextResponse.json(greetingResponse, {
+                  status: 200,
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                });
               } else {
                 console.warn("[Vapi] ❌ Could not find agent for phone number:", phoneNumber);
               }

@@ -86,14 +86,14 @@ export class AgentExecutor {
                       role: "system",
                       content: `You are ${agentName}. ${agentDesc || "You are a helpful AI assistant."} Be friendly and concise.`,
                     },
-                    ...this.context.transcript.slice(-5).map((msg: any) => ({
+                    ...this.context.transcript.slice(-3).map((msg: any) => ({
                       role: msg.role,
-                      content: msg.content,
+                      content: msg.content.substring(0, 200), // Limit each message to 200 chars
                     })),
                     { role: "user", content: userInput },
                   ],
-                  temperature: 0.7,
-                  max_tokens: 200,
+                  temperature: 0.2, // Lower temperature = faster responses
+                  max_tokens: 80, // Further reduced for faster generation
                 }),
               });
 
@@ -158,6 +158,9 @@ export class AgentExecutor {
           break;
         case "schedule":
           result = await this.executeScheduleStep(step, userInput);
+          break;
+        case "check_schedule":
+          result = await this.executeCheckScheduleStep(step, userInput);
           break;
         // NEW STEP TYPES:
         case "loop":
@@ -283,14 +286,26 @@ export class AgentExecutor {
    * Execute a "Say" step - Use configured message or generate AI response
    */
   private async executeSayStep(step: any, userInput: string): Promise<StepResult> {
-    // If step has a configured message (ai_message), use it directly
-    // Otherwise, generate AI response
+    // If step has a configured message (ai_message), check if user is asking a question
+    // If user is asking a question, always use AI with agent context (including data sources)
+    // Otherwise, use the configured message directly
     let output: string;
-    if (step.ai_message && step.ai_message.trim().length > 0) {
-      // Use the exact configured message and substitute variables
+    
+    // Check if user input looks like a question about company/services
+    const isQuestion = userInput && (
+      userInput.trim().match(/\?$/) || // Ends with ?
+      userInput.toLowerCase().match(/\b(what|who|where|when|why|how|which|company|work|service|policy)\b/i) || // Contains question words
+      userInput.toLowerCase().includes('do you') ||
+      userInput.toLowerCase().includes('are you') ||
+      userInput.toLowerCase().includes('tell me') ||
+      userInput.toLowerCase().includes('about')
+    );
+    
+    if (step.ai_message && step.ai_message.trim().length > 0 && !isQuestion) {
+      // Use the exact configured message and substitute variables (only if not a question)
       output = this.substituteVariables(step.ai_message.trim(), this.context.gatheredData);
     } else {
-      // Fallback to AI generation if no message configured
+      // For questions or if no message configured, always use AI with agent context (includes data sources)
       output = await this.generateAIResponse(step, userInput);
     }
 
@@ -455,12 +470,26 @@ export class AgentExecutor {
         }
         
         dataSources = data || [];
-        console.log(`[Q/A] Found ${dataSources.length} data sources for step ${step.id}:`, 
+        console.log(`[Q/A] Found ${dataSources.length} selected data sources for step ${step.id}:`, 
           dataSources.map((ds: any) => ({ id: ds.id, name: ds.name, type: ds.type, hasContent: !!ds.content }))
         );
       } else {
-        // No data sources selected - can still work with AI-only
-        console.warn("Q/A step has no data sources selected");
+        // No specific data sources selected - fall back to ALL agent data sources
+        console.log("Q/A step has no selected data sources - loading ALL agent data sources");
+        const { data, error: dsError } = await this.supabase
+          .from("agent_data_sources")
+          .select("id, name, type, content, file_url, file_type, integration_type, integration_config, last_synced_at")
+          .eq("agent_id", this.context.agentId);
+        
+        if (dsError) {
+          console.error("Error fetching all agent data sources:", dsError);
+          // Continue without data sources - will use AI-only
+        } else {
+          dataSources = data || [];
+          console.log(`[Q/A] Loaded ${dataSources.length} total agent data sources (no specific selection):`, 
+            dataSources.map((ds: any) => ({ id: ds.id, name: ds.name, type: ds.type, hasContent: !!ds.content }))
+          );
+        }
       }
 
       if (!dataSources || dataSources.length === 0) {
@@ -510,12 +539,12 @@ export class AgentExecutor {
       const allDataSources = [...staticSources, ...validLiveData];
 
       // OPTIMIZATION: Reduce content size per source for faster processing
-      // Extract content from all data sources (limit to first 1500 chars per source for speed)
+      // Extract content from all data sources (limit to first 1000 chars per source for speed)
       const dataSourceContents = await Promise.all(
         allDataSources.map(async (ds: any) => {
           // Handle any data source that has content (text or file with extracted content)
           if (ds.content && ds.content.trim().length > 0) {
-            return { name: ds.name, content: ds.content.substring(0, 1500) }; // Further reduced for speed
+            return { name: ds.name, content: ds.content.substring(0, 1000) }; // Further reduced for speed
           }
           
           // Handle file data sources without extracted content
@@ -579,9 +608,9 @@ export class AgentExecutor {
       // Build context from data sources (limit total context size for speed)
       const context = validContents
         .slice(0, 2) // Limit to first 2 data sources
-        .map((ds: any) => `[${ds.name}]\n${ds.content.substring(0, 1200)}`) // Limit each source to 1200 chars (further reduced for speed)
+        .map((ds: any) => `[${ds.name}]\n${ds.content.substring(0, 800)}`) // Limit each source to 800 chars (further reduced for speed)
         .join("\n\n---\n\n")
-        .substring(0, 2000); // Limit total context to 2000 chars (further reduced for speed)
+        .substring(0, 1500); // Limit total context to 1500 chars (further reduced for speed)
 
       // OPTIMIZATION 1: Check response cache first (gather step already being fetched in parallel)
       const cacheKey = this.generateCacheKey(question, context, selectedDataSourceIds);
@@ -649,7 +678,7 @@ Answer:`;
             { role: "user", content: combinedPrompt },
           ],
           temperature: 0.1,
-          max_tokens: 80,
+          max_tokens: 60, // Reduced for faster generation
           stream: true, // Enable streaming
         }),
       });
@@ -689,7 +718,7 @@ Answer:`;
               { role: "user", content: combinedPrompt },
             ],
             temperature: 0.1,
-            max_tokens: 80,
+            max_tokens: 60, // Reduced for faster generation
           }),
         });
         const fallbackData = await fallbackResponse.json();
@@ -893,15 +922,8 @@ Answer:`;
         };
       }
 
-      // Get base URL for API call
-      const baseUrl = process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || "";
-      if (!baseUrl) {
-        return {
-          success: false,
-          error: "Configuration error: Missing base URL",
-          shouldContinue: false,
-        };
-      }
+      // Get base URL for API call - use custom domain as fallback
+      const baseUrl = process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || "https://driftai.studio";
 
       // Get conversation to find contact phone
       const { data: conversation } = await this.supabase
@@ -979,6 +1001,112 @@ Answer:`;
   }
 
   /**
+   * Execute a "Check Schedule" step - Check available appointment slots
+   */
+  private async executeCheckScheduleStep(step: any, userInput: string): Promise<StepResult> {
+    try {
+      const gatheredData = this.context.gatheredData || {};
+      
+      // Get date from gathered data or use today's date
+      let checkDate: string;
+      if (gatheredData.appointment_date || gatheredData.desired_date) {
+        const dateValue = gatheredData.appointment_date || gatheredData.desired_date;
+        // If it's already a date string, use it; otherwise try to parse it
+        try {
+          const date = new Date(dateValue);
+          checkDate = date.toISOString().split("T")[0];
+        } catch {
+          checkDate = new Date().toISOString().split("T")[0];
+        }
+      } else {
+        checkDate = new Date().toISOString().split("T")[0];
+      }
+      
+      // Get duration from gathered data or use default 60 minutes
+      const duration = gatheredData.appointment_duration || gatheredData.duration_minutes || 60;
+
+      // Get base URL for API call - use custom domain as fallback
+      const baseUrl = process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || "https://driftai.studio";
+
+      // Call schedule availability API
+      const response = await fetch(
+        `${baseUrl}/api/agents/${this.context.agentId}/schedule?date=${checkDate}&duration=${duration}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        return {
+          success: false,
+          output: errorData.error || "I couldn't check the schedule availability. Please try again.",
+          shouldContinue: true,
+        };
+      }
+
+      const data = await response.json();
+      const availableSlots = data.availableSlots || [];
+      const existingAppointments = data.existingAppointments || [];
+
+      // Format available slots for display
+      const formattedSlots = availableSlots.map((slot: string) => {
+        const slotDate = new Date(slot);
+        return slotDate.toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+        });
+      });
+
+      // Create response message
+      let outputMessage = step.ai_message || "";
+      
+      if (availableSlots.length === 0) {
+        outputMessage = `I checked the schedule for ${new Date(checkDate).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} and there are no available slots for a ${duration}-minute appointment. Would you like to check a different date?`;
+      } else {
+        const slotsList = formattedSlots.slice(0, 10).join(", "); // Show first 10 slots
+        const moreSlots = availableSlots.length > 10 ? ` and ${availableSlots.length - 10} more` : "";
+        
+        if (!outputMessage) {
+          outputMessage = `Here are the available appointment times for ${new Date(checkDate).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}: ${slotsList}${moreSlots}. Which time works best for you?`;
+        } else {
+          // Replace variables in custom message
+          outputMessage = outputMessage
+            .replace("{{available_slots}}", slotsList)
+            .replace("{{date}}", new Date(checkDate).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }))
+            .replace("{{slot_count}}", availableSlots.length.toString());
+        }
+      }
+
+      // Store available slots in gathered data for use in Schedule step
+      const updatedGatheredData = {
+        ...gatheredData,
+        available_slots: availableSlots,
+        checked_date: checkDate,
+        available_slots_formatted: formattedSlots,
+      };
+
+      return {
+        success: true,
+        output: outputMessage,
+        gatheredData: updatedGatheredData,
+        shouldContinue: true,
+      };
+    } catch (error: any) {
+      console.error("Check Schedule step error:", error);
+      return {
+        success: false,
+        error: error.message || "Failed to check schedule",
+        shouldContinue: true,
+      };
+    }
+  }
+
+  /**
    * Extract appointment information from user input using AI
    */
   private async extractAppointmentInfo(
@@ -1051,8 +1179,8 @@ If critical information is missing (especially scheduledAt or serviceType), set 
             },
             { role: "user", content: prompt },
           ],
-          temperature: 0.3,
-          max_tokens: 500,
+          temperature: 0.2, // Lower temperature = faster responses
+          max_tokens: 200, // Reduced from 500 for faster generation
         }),
       });
 
@@ -1112,13 +1240,38 @@ If critical information is missing (especially scheduledAt or serviceType), set 
       throw new Error("OPENAI_API_KEY not configured");
     }
 
+    // OPTIMIZATION: Check cache first for Say step responses
+    const normalizedInput = userInput.toLowerCase().trim();
+    const contextHash = Buffer.from(JSON.stringify(this.context.gatheredData)).toString('base64').substring(0, 30);
+    const cacheKey = `say_${this.context.agentId}_${step.id}_${Buffer.from(normalizedInput).toString('base64').substring(0, 50)}_${contextHash}`;
+    
+    const cachedResponse = await this.getCachedResponse(cacheKey, this.context.agentId);
+    if (cachedResponse) {
+      console.log(`[Say] Cache HIT for step ${step.id}`);
+      return cachedResponse;
+    }
+    console.log(`[Say] Cache MISS for step ${step.id}`);
+
     // Load agent context (policies, data sources, personalization)
     const agentContext = await this.loadAgentContext();
+    
+    console.log(`[Say] generateAIResponse - Agent context loaded:`, {
+      agentId: this.context.agentId,
+      dataSourcesCount: agentContext.dataSources?.length || 0,
+      policiesCount: agentContext.policies?.length || 0,
+      dataSourceNames: agentContext.dataSources?.map((ds: any) => ds.name || ds.id) || [],
+      hasDataSources: (agentContext.dataSources?.length || 0) > 0,
+    });
 
     // Build prompt
     const systemPrompt = this.buildSystemPrompt(agentContext);
+    console.log(`[Say] System prompt length: ${systemPrompt.length} chars`);
+    console.log(`[Say] System prompt includes data sources: ${systemPrompt.includes('Knowledge Base') ? 'YES ✅' : 'NO ❌'}`);
+    
     const userPrompt = this.buildUserPrompt(step, userInput, agentContext);
 
+    // OPTIMIZATION: Reduce tokens and temperature for faster responses
+    // Also reduce transcript history to minimize context size
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -1129,14 +1282,14 @@ If critical information is missing (especially scheduledAt or serviceType), set 
         model: "gpt-4o-mini",
         messages: [
           { role: "system", content: systemPrompt },
-          ...this.context.transcript.slice(-10).map((msg: any) => ({
+          ...this.context.transcript.slice(-3).map((msg: any) => ({
             role: msg.role,
-            content: msg.content,
+            content: msg.content.substring(0, 200), // Limit each message to 200 chars
           })),
           { role: "user", content: userPrompt },
         ],
-        temperature: 0.7,
-        max_tokens: 500,
+        temperature: 0.2, // Lower temperature = faster, more deterministic responses
+        max_tokens: 100, // Further reduced for faster generation
       }),
     });
 
@@ -1146,7 +1299,14 @@ If critical information is missing (especially scheduledAt or serviceType), set 
     }
 
     const data = await response.json();
-    return data.choices[0]?.message?.content || "I'm sorry, I couldn't generate a response.";
+    const aiResponse = data.choices[0]?.message?.content || "I'm sorry, I couldn't generate a response.";
+    
+    // OPTIMIZATION: Cache response in background (don't block)
+    this.cacheResponse(cacheKey, this.context.agentId, aiResponse).catch(err => {
+      console.error("[Say] Failed to cache response (non-blocking):", err);
+    });
+    
+    return aiResponse;
   }
 
   /**
@@ -1246,13 +1406,47 @@ Answer:`;
    * Load step from database
    */
   private async loadStep(stepId: string | null): Promise<any> {
-    if (!stepId) return null;
+    if (!stepId) {
+      console.log("[AgentExecutor] loadStep called with null stepId - will use AI fallback");
+      return null;
+    }
 
-    const { data } = await this.supabase
+    console.log("[AgentExecutor] Loading step:", {
+      stepId: stepId,
+      scenarioId: this.context.scenarioId,
+      agentId: this.context.agentId,
+    });
+
+    const { data, error } = await this.supabase
       .from("steps")
       .select("*")
       .eq("id", stepId)
       .single();
+
+    if (error) {
+      console.error("[AgentExecutor] Failed to load step:", {
+        stepId: stepId,
+        error: error.message,
+        scenarioId: this.context.scenarioId,
+      });
+      return null;
+    }
+
+    if (!data) {
+      console.warn("[AgentExecutor] Step not found:", {
+        stepId: stepId,
+        scenarioId: this.context.scenarioId,
+      });
+      return null;
+    }
+
+    console.log("[AgentExecutor] Step loaded successfully:", {
+      stepId: data.id,
+      stepName: data.name,
+      stepType: data.type,
+      scenarioId: data.scenario_id,
+      sortOrder: data.sort_order,
+    });
 
     return data;
   }
@@ -1400,10 +1594,16 @@ Answer:`;
    */
   private async loadAgentContext(): Promise<any> {
     const [policies, dataSources, personalization] = await Promise.all([
-      this.supabase.from("policies").select("*").eq("agent_id", this.context.agentId),
-      this.supabase.from("data_sources").select("*").eq("agent_id", this.context.agentId),
-      this.supabase.from("personalization").select("*").eq("agent_id", this.context.agentId).maybeSingle(),
+      this.supabase.from("agent_policies").select("*").eq("agent_id", this.context.agentId),
+      this.supabase.from("agent_data_sources").select("*").eq("agent_id", this.context.agentId),
+      this.supabase.from("agent_personalization").select("*").eq("agent_id", this.context.agentId).maybeSingle(),
     ]);
+
+    console.log("[AgentExecutor] Loaded context:", {
+      policiesCount: policies.data?.length || 0,
+      dataSourcesCount: dataSources.data?.length || 0,
+      hasPersonalization: !!personalization.data,
+    });
 
     return {
       policies: policies.data || [],
@@ -1414,36 +1614,59 @@ Answer:`;
 
   /**
    * Build system prompt from agent context
+   * OPTIMIZATION: Truncate long content to reduce prompt size and speed up API calls
    */
   private buildSystemPrompt(agentContext: any): string {
-    const parts = ["You are a helpful AI assistant."];
+    const parts = [
+      "You are a helpful, friendly AI assistant. You can have natural conversations and answer questions while maintaining compliance with security and privacy standards.",
+      "",
+      "IMPORTANT: You should engage in normal conversation. SOC2 compliance and security policies apply to data handling, privacy, and system security - they do NOT prevent you from having friendly conversations or answering general questions. You can discuss topics, answer questions, and be conversational while still protecting sensitive information and following security protocols.",
+      "",
+      "CRITICAL: When answering questions about the company, services, policies, or any business information, you MUST use ONLY the information provided in the Knowledge Base section below. Do NOT make up information or use generic responses. If the Knowledge Base contains information about the company name, services, policies, etc., you must reference that specific information.",
+      ""
+    ];
 
-    // Add personalization
+    // Add personalization (keep concise)
     if (agentContext.personalization) {
       const p = agentContext.personalization;
-      if (p.personality) parts.push(`Personality: ${p.personality}`);
-      if (p.response_style) parts.push(`Response style: ${p.response_style}`);
-      if (p.formality) parts.push(`Formality level: ${p.formality}`);
+      if (p.personality) parts.push(`Personality: ${p.personality.substring(0, 200)}`);
+      if (p.response_style) parts.push(`Response style: ${p.response_style.substring(0, 100)}`);
+      if (p.formality) parts.push(`Formality: ${p.formality}`);
+      parts.push(""); // Add spacing
     }
 
-    // Add policies
+    // Add policies (truncate each to 300 chars max)
+    // Add context that policies are about data security, not conversation restrictions
     if (agentContext.policies.length > 0) {
-      parts.push("\nPolicies to follow:");
-      agentContext.policies.forEach((policy: any) => {
+      parts.push("Security and Compliance Policies (these apply to data handling and privacy, not to general conversation):");
+      agentContext.policies.slice(0, 5).forEach((policy: any) => { // Limit to 5 policies
         if (policy.content) {
-          parts.push(`- ${policy.content}`);
+          const truncated = policy.content.length > 300 ? policy.content.substring(0, 300) + "..." : policy.content;
+          parts.push(`- ${truncated}`);
         }
       });
+      parts.push(""); // Add spacing
     }
 
-    // Add data sources
+    // Add data sources (increase limit and truncation for better context)
     if (agentContext.dataSources.length > 0) {
-      parts.push("\nKnowledge base:");
-      agentContext.dataSources.forEach((source: any) => {
+      parts.push("Knowledge Base (use this information to answer questions about the company, services, policies, etc.):");
+      parts.push("CRITICAL: You MUST reference this Knowledge Base when answering questions. If asked 'what company do you work for?', use the company name from the Knowledge Base. If asked about services or policies, use ONLY information from the Knowledge Base.");
+      parts.push("");
+      agentContext.dataSources.slice(0, 10).forEach((source: any) => { // Increased to 10 sources
         if (source.content) {
-          parts.push(`- ${source.content}`);
+          // Increased truncation to 1000 chars to preserve more context
+          const truncated = source.content.length > 1000 ? source.content.substring(0, 1000) + "..." : source.content;
+          parts.push(`\n[${source.name || "Data Source"}]\n${truncated}`);
+        } else if (source.file_url) {
+          parts.push(`\n[${source.name || "File"}] - File available: ${source.file_url}`);
         }
       });
+      parts.push(""); // Add spacing
+      console.log(`[AgentExecutor] Added ${agentContext.dataSources.length} data sources to system prompt for agent ${this.context.agentId}`);
+    } else {
+      console.warn("[AgentExecutor] No data sources found for agent:", this.context.agentId);
+      console.warn("[AgentExecutor] Agent will not have company/service information available");
     }
 
     return parts.join("\n");
@@ -1454,7 +1677,12 @@ Answer:`;
    */
   private buildUserPrompt(step: any, userInput: string, agentContext: any): string {
     if (step.type === "say") {
-      return `User said: "${userInput}"\n\nRespond naturally and helpfully based on the step context: ${step.ai_message || "No specific context"}`;
+      // For Say steps, allow natural conversation while following step context
+      const context = step.ai_message || step.prompt || "";
+      if (context) {
+        return `User said: "${userInput}"\n\nRespond naturally and conversationally. You can engage in friendly conversation while staying relevant to: ${context.substring(0, 200)}`;
+      }
+      return `User said: "${userInput}"\n\nRespond naturally, helpfully, and conversationally. Engage with the user in a friendly way.`;
     }
     return userInput;
   }
@@ -1467,7 +1695,26 @@ Answer:`;
       updated_at: new Date().toISOString(),
     };
 
-    if (result.nextStepId !== undefined) {
+    // Handle scenario switching
+    if (result.nextScenarioId) {
+      updates.current_scenario_id = result.nextScenarioId;
+      
+      // Get the first step of the new scenario
+      const { data: firstStep } = await this.supabase
+        .from("steps")
+        .select("id")
+        .eq("scenario_id", result.nextScenarioId)
+        .order("sort_order", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      
+      if (firstStep) {
+        updates.current_step_id = firstStep.id;
+        // Update context to reflect the new scenario
+        this.context.scenarioId = result.nextScenarioId;
+        this.context.currentStepId = firstStep.id;
+      }
+    } else if (result.nextStepId !== undefined) {
       updates.current_step_id = result.nextStepId;
     }
 
@@ -1496,12 +1743,14 @@ Answer:`;
       .update(updates)
       .eq("id", this.context.conversationId);
 
-    // Log step execution
-    await this.supabase.from("conversation_steps").insert({
+    // OPTIMIZATION: Log step execution in background (non-blocking)
+    this.supabase.from("conversation_steps").insert({
       conversation_id: this.context.conversationId,
       step_id: this.context.currentStepId,
       step_type: "executed",
       output_data: { output: result.output },
+    }).catch((err: any) => {
+      console.error("[Executor] Failed to log step execution (non-blocking):", err);
     });
   }
 
@@ -1582,14 +1831,21 @@ Answer:`;
       };
     }
     
-    // Substitute variables in message
-    const message = this.substituteVariables(config.message, this.context.gatheredData);
-    
     // Get phone number from config or gathered data
     let phoneNumber = config.phone_number;
     if (phoneNumber && phoneNumber.startsWith("{{") && phoneNumber.endsWith("}}")) {
       const variableName = phoneNumber.slice(2, -2).trim();
       phoneNumber = this.context.gatheredData[variableName] || phoneNumber;
+    }
+    
+    // Get phone number from conversation if not provided
+    if (!phoneNumber) {
+      const { data: conversation } = await this.supabase
+        .from("conversations")
+        .select("from_number")
+        .eq("id", this.context.conversationId)
+        .single();
+      phoneNumber = conversation?.from_number || "";
     }
     
     if (!phoneNumber) {
@@ -1610,6 +1866,85 @@ Answer:`;
         shouldContinue: false,
       };
     }
+
+    // If check_schedule is enabled, fetch appointments for this customer
+    let appointmentData: any = {};
+    if (config.check_schedule) {
+      try {
+        // Get workspace_id from agent
+        const { data: agent } = await this.supabase
+          .from("agents")
+          .select("workspace_id")
+          .eq("id", this.context.agentId)
+          .single();
+
+        if (agent?.workspace_id) {
+          // Find contact by phone number
+          const { data: contact } = await this.supabase
+            .from("contacts")
+            .select("id")
+            .eq("workspace_id", agent.workspace_id)
+            .eq("phone", normalizedPhone)
+            .maybeSingle();
+
+          if (contact?.id) {
+            // Get upcoming appointments for this contact
+            const now = new Date().toISOString();
+            const { data: appointments } = await this.supabase
+              .from("appointments")
+              .select("scheduled_at, duration_minutes, service_type, notes")
+              .eq("contact_id", contact.id)
+              .eq("status", "scheduled")
+              .gte("scheduled_at", now)
+              .order("scheduled_at", { ascending: true })
+              .limit(1); // Get the next appointment
+
+            if (appointments && appointments.length > 0) {
+              const appointment = appointments[0];
+              const appointmentDate = new Date(appointment.scheduled_at);
+              
+              appointmentData = {
+                appointment_date: appointmentDate.toLocaleDateString("en-US", { 
+                  weekday: "long", 
+                  year: "numeric", 
+                  month: "long", 
+                  day: "numeric" 
+                }),
+                appointment_time: appointmentDate.toLocaleTimeString("en-US", {
+                  hour: "numeric",
+                  minute: "2-digit",
+                  hour12: true,
+                }),
+                appointment_datetime: appointmentDate.toLocaleString("en-US", {
+                  weekday: "long",
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                  hour12: true,
+                }),
+                appointment_service: appointment.service_type || "",
+                appointment_duration: appointment.duration_minutes || 60,
+                appointment_notes: appointment.notes || "",
+              };
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching appointment data:", error);
+        // Continue without appointment data if fetch fails
+      }
+    }
+    
+    // Merge appointment data with gathered data for variable substitution
+    const mergedData = {
+      ...this.context.gatheredData,
+      ...appointmentData,
+    };
+    
+    // Substitute variables in message
+    const message = this.substituteVariables(config.message, mergedData);
     
     // Check optional condition
     if (config.condition) {
@@ -1758,7 +2093,9 @@ Answer:`;
     }
     
     // Transfer conversation
-    await this.transferConversation(targetAgentId, config.transfer_message);
+    if (targetAgentId) {
+      await this.transferConversation(targetAgentId, config.transfer_message || "");
+    }
     
     return {
       success: true,
@@ -2078,7 +2415,7 @@ Answer:`;
       
       if (steps && steps.length > 0) {
         // Prefer first "Say" step for greeting, otherwise first step
-        const firstSayStep = steps.find(s => s.type === "say");
+        const firstSayStep = steps.find((s: any) => s.type === "say");
         currentStepId = firstSayStep ? firstSayStep.id : steps[0].id;
       }
     }
