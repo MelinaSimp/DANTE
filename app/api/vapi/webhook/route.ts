@@ -849,10 +849,128 @@ export async function POST(req: NextRequest) {
     }
 
     // Handle assistant message (Vapi asking for response)
+    // CRITICAL: If this is the FIRST message in a call (no conversation exists yet),
+    // this might be Vapi asking for the greeting, even if it's not marked as request-start
     if (message?.role === "assistant") {
-      // This is Vapi asking us what to say next
-      // Usually happens after we've already responded, so we can return empty or continue
-      console.log("[Vapi] Assistant message received (likely continuation)");
+      console.log("[Vapi] Assistant message received - Checking if this is first message...");
+      
+      // Check if a conversation already exists for this call
+      const { data: existingConversation } = await supabaseAdmin
+        .from("conversations")
+        .select("id, current_scenario_id, current_step_id")
+        .eq("channel_id", vapiCallId)
+        .eq("modality", "voice")
+        .maybeSingle();
+      
+      if (!existingConversation) {
+        // NO conversation exists = This is the FIRST message in the call!
+        // Vapi might be asking for the greeting without sending request-start
+        console.log("[Vapi] ⚠️  NO CONVERSATION EXISTS - This might be the first greeting request!");
+        console.log("[Vapi] Treating assistant message as first greeting request");
+        
+        // Load scenario and Say step (same logic as request-start)
+        const { data: scenarios } = await supabaseAdmin
+          .from("scenarios")
+          .select("id, name")
+          .eq("agent_id", agent.id)
+          .order("created_at", { ascending: true })
+          .limit(1);
+
+        const scenarioId = scenarios && scenarios.length > 0 ? scenarios[0].id : null;
+        console.log("[Vapi] First message - Scenarios check:", {
+          agentId: agent.id,
+          scenarioCount: scenarios?.length || 0,
+          scenarioId: scenarioId,
+          scenarioName: scenarios?.[0]?.name || null,
+        });
+
+        let currentStepId: string | null = null;
+        if (scenarioId) {
+          const { data: allSteps } = await supabaseAdmin
+            .from("steps")
+            .select("id, type, sort_order, ai_message, name")
+            .eq("scenario_id", scenarioId)
+            .order("sort_order", { ascending: true });
+
+          console.log("[Vapi] First message - Steps found:", {
+            scenarioId: scenarioId,
+            stepCount: allSteps?.length || 0,
+            steps: allSteps?.map(s => ({ id: s.id, type: s.type, name: s.name, sort_order: s.sort_order, hasMessage: !!s.ai_message })) || [],
+          });
+
+          if (allSteps && allSteps.length > 0) {
+            const sayStep = allSteps.find(s => s.type === "say");
+            if (sayStep) {
+              currentStepId = sayStep.id;
+              const greetingIndex = allSteps.findIndex(s => s.id === sayStep.id);
+              if (greetingIndex >= 0 && greetingIndex < allSteps.length - 1) {
+                currentStepId = allSteps[greetingIndex + 1].id;
+              }
+            } else {
+              currentStepId = allSteps[0].id;
+            }
+          }
+        }
+
+        // Get greeting from first Say step
+        let greeting = "Hello! How can I help you today?";
+        if (scenarioId) {
+          const { data: firstSayStep } = await supabaseAdmin
+            .from("steps")
+            .select("ai_message, name, type")
+            .eq("scenario_id", scenarioId)
+            .eq("type", "say")
+            .order("sort_order", { ascending: true })
+            .limit(1)
+            .maybeSingle();
+
+          if (firstSayStep?.ai_message && firstSayStep.ai_message.trim().length > 0) {
+            greeting = firstSayStep.ai_message.trim();
+            console.log("[Vapi] First message - Using greeting from Say step:", greeting.substring(0, 100));
+          }
+        }
+
+        // Create conversation in background
+        supabaseAdmin
+          .from("conversations")
+          .insert({
+            channel_id: vapiCallId,
+            agent_id: agent.id,
+            workspace_id: agent.workspace_id,
+            modality: "voice",
+            status: "active",
+            current_scenario_id: scenarioId,
+            current_step_id: currentStepId,
+            metadata: {
+              phoneNumber: phoneNumber,
+              customerNumber: customerNumber,
+            },
+          })
+          .select()
+          .single()
+          .then(({ data: conversation }) => {
+            console.log("[Vapi] Conversation created (first message):", {
+              conversationId: conversation?.id,
+              scenarioId: conversation?.current_scenario_id,
+              stepId: conversation?.current_step_id,
+            });
+          })
+          .catch(err => {
+            console.error("[Vapi] Conversation creation error (first message):", err);
+          });
+
+        // Return greeting immediately
+        return NextResponse.json(
+          formatVapiResponse({
+            response: greeting,
+            endCall: false,
+            voiceId: agent.elevenlabs_voice_id,
+          })
+        );
+      }
+      
+      // Conversation already exists = This is a continuation, return empty
+      console.log("[Vapi] Assistant message received (continuation - conversation exists)");
       return NextResponse.json(
         formatVapiResponse({
           response: "", // Empty response means continue waiting for user
