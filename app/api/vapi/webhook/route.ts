@@ -1397,19 +1397,96 @@ export async function POST(req: NextRequest) {
     }
 
     // Unknown message type WITH a role field (should be rare, log for debugging)
-    console.warn("[Vapi] Unknown message role:", message?.role || body.message?.role);
-    console.warn("[Vapi] Message type:", message?.type || body.message?.type);
-    console.warn("[Vapi] Full message structure:", {
+    console.warn("[Vapi] ⚠️  UNHANDLED MESSAGE - Full structure:", {
       hasMessage: !!message,
       messageKeys: message ? Object.keys(message) : null,
-      messageRole: message?.role,
-      messageType: message?.type,
+      messageRole: message?.role || body.message?.role,
+      messageType: message?.type || body.message?.type,
       bodyMessageType: body.message?.type,
       bodyMessageRole: body.message?.role,
+      bodyType: body.type,
       bodyKeys: Object.keys(body),
+      hasCall: !!body.call,
+      callId: body.call?.id,
+      hasPhoneNumber: !!body.phoneNumber,
+      phoneNumber: body.phoneNumber?.number,
+      fullBody: JSON.stringify(body, null, 2).substring(0, 3000),
     });
     
-    // Return error only for unknown roles (should be very rare)
+    // CRITICAL: If this is a user message we missed, try to handle it
+    // Check if it has content that looks like user input
+    const potentialUserInput = message?.content || body.message?.content || body.content;
+    if (potentialUserInput && potentialUserInput.trim().length > 0 && 
+        (message?.role === "user" || body.message?.role === "user" || 
+         !message?.role && !body.message?.role)) {
+      console.log("[Vapi] ⚠️  DETECTED USER MESSAGE IN UNHANDLED CASE - Processing as user message");
+      
+      // Try to find conversation and process as user message
+      const callId = body.call?.id || body.message?.call?.id || body.callId;
+      if (callId) {
+        const { data: conversation } = await supabaseAdmin
+          .from("conversations")
+          .select("*")
+          .eq("channel_id", callId)
+          .eq("modality", "voice")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        
+        if (conversation && agent) {
+          const userInput = potentialUserInput.trim();
+          console.log("[Vapi] ✅ Found conversation, processing unhandled user message:", userInput.substring(0, 100));
+          
+          // Process as user message (same logic as above)
+          const transcript = conversation.transcript || [];
+          transcript.push({
+            role: "user",
+            content: userInput,
+            timestamp: new Date().toISOString(),
+          });
+
+          const context: ConversationContext = {
+            conversationId: conversation.id,
+            agentId: conversation.agent_id,
+            scenarioId: conversation.current_scenario_id,
+            currentStepId: conversation.current_step_id,
+            gatheredData: conversation.gathered_data || {},
+            conversationState: conversation.conversation_state || {},
+            transcript,
+          };
+
+          const executor = new AgentExecutor(context);
+          const result = await executor.executeNextStep(userInput);
+          
+          // Update conversation
+          await supabaseAdmin
+            .from("conversations")
+            .update({
+              transcript: [
+                ...transcript,
+                {
+                  role: "assistant",
+                  content: result.output || "",
+                  timestamp: new Date().toISOString(),
+                },
+              ],
+              current_step_id: result.nextStepId,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", conversation.id);
+
+          return NextResponse.json(
+            formatVapiResponse({
+              response: result.output || "I'm here to help! How can I assist you?",
+              endCall: !result.shouldContinue,
+              voiceId: agent.elevenlabs_voice_id,
+            })
+          );
+        }
+      }
+    }
+    
+    // Return error only for truly unknown roles
     return NextResponse.json(
       { 
         error: "Unknown message type with role",
