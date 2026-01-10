@@ -539,21 +539,35 @@ export async function POST(req: NextRequest) {
       // Get first scenario
       const { data: scenarios } = await supabaseAdmin
         .from("scenarios")
-        .select("id")
+        .select("id, name")
         .eq("agent_id", agent.id)
         .order("created_at", { ascending: true })
         .limit(1);
 
       const scenarioId = scenarios && scenarios.length > 0 ? scenarios[0].id : null;
       
+      console.log("[Vapi] Scenarios found for agent:", {
+        agentId: agent.id,
+        agentName: agent.name,
+        scenarioCount: scenarios?.length || 0,
+        scenarioId: scenarioId,
+        scenarioName: scenarios?.[0]?.name || null,
+      });
+      
       // Get first step
       let currentStepId: string | null = null;
       if (scenarioId) {
         const { data: allSteps } = await supabaseAdmin
           .from("steps")
-          .select("id, type, sort_order")
+          .select("id, type, sort_order, name")
           .eq("scenario_id", scenarioId)
           .order("sort_order", { ascending: true });
+        
+        console.log("[Vapi] Steps found for scenario:", {
+          scenarioId: scenarioId,
+          stepCount: allSteps?.length || 0,
+          steps: allSteps?.map(s => ({ id: s.id, type: s.type, name: s.name, sort_order: s.sort_order })) || [],
+        });
         
         if (allSteps && allSteps.length > 0) {
           // Find first Say step for greeting, or use first step
@@ -568,7 +582,16 @@ export async function POST(req: NextRequest) {
           } else {
             currentStepId = allSteps[0].id;
           }
+          console.log("[Vapi] Selected current step:", {
+            currentStepId: currentStepId,
+            stepType: allSteps.find(s => s.id === currentStepId)?.type,
+            stepName: allSteps.find(s => s.id === currentStepId)?.name,
+          });
+        } else {
+          console.warn("[Vapi] No steps found for scenario:", scenarioId);
         }
+      } else {
+        console.warn("[Vapi] No scenario found for agent:", agent.id);
       }
 
       // Create conversation
@@ -682,9 +705,28 @@ export async function POST(req: NextRequest) {
         transcript,
       };
 
+      console.log("[Vapi] Executing agent step with context:", {
+        conversationId: context.conversationId,
+        agentId: context.agentId,
+        scenarioId: context.scenarioId,
+        currentStepId: context.currentStepId,
+        hasGatheredData: Object.keys(context.gatheredData).length > 0,
+        transcriptLength: transcript.length,
+      });
+
       // Execute agent step
       const executor = new AgentExecutor(context);
       const result = await executor.executeNextStep(userInput);
+      
+      console.log("[Vapi] Agent execution result:", {
+        success: result.success,
+        hasOutput: !!result.output,
+        outputLength: result.output?.length || 0,
+        nextStepId: result.nextStepId,
+        nextScenarioId: result.nextScenarioId,
+        shouldContinue: result.shouldContinue,
+        error: result.error,
+      });
 
       if (!result.success) {
         console.error("[Vapi] Agent execution failed:", result.error);
