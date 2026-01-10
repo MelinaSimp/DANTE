@@ -146,13 +146,26 @@ export async function POST(req: NextRequest) {
 
       const scenarioId = scenarios && scenarios.length > 0 ? scenarios[0].id : null;
 
+      console.log("[Vapi] request-start: Scenarios check:", {
+        agentId: agent.id,
+        scenarioCount: scenarios?.length || 0,
+        scenarioId: scenarioId,
+        scenarioName: scenarios?.[0]?.name || null,
+      });
+
       let currentStepId: string | null = null;
       if (scenarioId) {
         const { data: allSteps } = await supabaseAdmin
           .from("steps")
-          .select("id, type, sort_order, ai_message")
+          .select("id, type, sort_order, ai_message, name")
           .eq("scenario_id", scenarioId)
           .order("sort_order", { ascending: true });
+
+        console.log("[Vapi] request-start: Steps found:", {
+          scenarioId: scenarioId,
+          stepCount: allSteps?.length || 0,
+          steps: allSteps?.map(s => ({ id: s.id, type: s.type, name: s.name, sort_order: s.sort_order, hasMessage: !!s.ai_message })) || [],
+        });
 
         if (allSteps && allSteps.length > 0) {
           const sayStep = allSteps.find(s => s.type === "say");
@@ -165,7 +178,16 @@ export async function POST(req: NextRequest) {
           } else {
             currentStepId = allSteps[0].id;
           }
+          console.log("[Vapi] request-start: Selected current step:", {
+            currentStepId: currentStepId,
+            stepType: allSteps.find(s => s.id === currentStepId)?.type,
+            stepName: allSteps.find(s => s.id === currentStepId)?.name,
+          });
+        } else {
+          console.warn("[Vapi] request-start: No steps found for scenario:", scenarioId);
         }
+      } else {
+        console.warn("[Vapi] request-start: No scenario found for agent:", agent.id);
       }
 
       // Get greeting message FIRST (before any DB operations)
@@ -174,16 +196,31 @@ export async function POST(req: NextRequest) {
       if (scenarioId) {
         const { data: firstSayStep } = await supabaseAdmin
           .from("steps")
-          .select("ai_message")
+          .select("ai_message, name, type")
           .eq("scenario_id", scenarioId)
           .eq("type", "say")
           .order("sort_order", { ascending: true })
           .limit(1)
           .maybeSingle();
 
-        if (firstSayStep?.ai_message) {
-          greeting = firstSayStep.ai_message;
+        console.log("[Vapi] request-start: First Say step check:", {
+          scenarioId: scenarioId,
+          foundSayStep: !!firstSayStep,
+          stepName: firstSayStep?.name || null,
+          stepType: firstSayStep?.type || null,
+          hasMessage: !!firstSayStep?.ai_message,
+          messageLength: firstSayStep?.ai_message?.length || 0,
+          messagePreview: firstSayStep?.ai_message?.substring(0, 50) || null,
+        });
+
+        if (firstSayStep?.ai_message && firstSayStep.ai_message.trim().length > 0) {
+          greeting = firstSayStep.ai_message.trim();
+          console.log("[Vapi] request-start: Using greeting from Say step:", greeting.substring(0, 100));
+        } else {
+          console.warn("[Vapi] request-start: First Say step has no ai_message, using default greeting");
         }
+      } else {
+        console.warn("[Vapi] request-start: No scenario found, using default greeting");
       }
 
       // CRITICAL: Return DIRECT response to request-start IMMEDIATELY
@@ -199,6 +236,15 @@ export async function POST(req: NextRequest) {
 
       // Create conversation in background (fire-and-forget)
       // Don't wait for it - respond immediately
+      console.log("[Vapi] Creating conversation with:", {
+        agent_id: agent.id,
+        vapiCallId: vapiCallId,
+        scenarioId: scenarioId,
+        currentStepId: currentStepId,
+        hasScenarioId: !!scenarioId,
+        hasStepId: !!currentStepId,
+      });
+      
       supabaseAdmin
         .from("conversations")
         .insert({
@@ -221,7 +267,13 @@ export async function POST(req: NextRequest) {
           if (error) {
             console.error("[Vapi] Failed to create conversation (background):", error);
           } else {
-            console.log("[Vapi] Conversation created (background):", conversation?.id);
+            console.log("[Vapi] Conversation created (background):", {
+              conversationId: conversation?.id,
+              scenarioId: conversation?.current_scenario_id,
+              stepId: conversation?.current_step_id,
+              hasScenario: !!conversation?.current_scenario_id,
+              hasStep: !!conversation?.current_step_id,
+            });
           }
         })
         .catch(err => {
@@ -658,9 +710,20 @@ export async function POST(req: NextRequest) {
     }
 
     // Handle user message (user spoke)
-    if (message?.role === "user" && message?.content) {
-      const userInput = message.content.trim();
-      console.log("[Vapi] User message received:", userInput.substring(0, 100));
+    // Vapi might send user messages without role field, so check for content instead
+    const hasUserContent = (message?.role === "user" && message?.content) || 
+                          (message?.content && !message?.role && message?.type !== "status-update" && message?.type !== "speech-update") ||
+                          (body.message?.content && body.message?.role === "user") ||
+                          (body.message?.content && !body.message?.role && body.message?.type !== "status-update" && body.message?.type !== "speech-update");
+    
+    if (hasUserContent) {
+      const userInput = (message?.content || body.message?.content || "").trim();
+      console.log("[Vapi] User message received:", {
+        userInput: userInput.substring(0, 100),
+        messageRole: message?.role || body.message?.role,
+        messageType: message?.type || body.message?.type,
+        hasContent: !!userInput,
+      });
 
       // Find conversation by Vapi call ID
       const { data: conversation } = await supabaseAdmin
@@ -799,9 +862,139 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check if message has no role field - this could be a status/speech update we missed
-    // or an acknowledgment message that doesn't need processing
-    if (!message?.role && !body.message?.role) {
+    // Check if message has content but no role - might be a user message Vapi sent without role
+    // Only check this if we haven't already handled it as a user message above
+    const hasContentNoRole = (message?.content || body.message?.content) && 
+                             !message?.role && !body.message?.role &&
+                             message?.type !== "status-update" && 
+                             body.message?.type !== "status-update" &&
+                             message?.type !== "speech-update" &&
+                             body.message?.type !== "speech-update";
+    
+    if (hasContentNoRole && vapiCallId) {
+      const userInput = (message?.content || body.message?.content || "").trim();
+      console.log("[Vapi] Message with content but no role - treating as user message:", {
+        userInput: userInput.substring(0, 100),
+        messageType: message?.type || body.message?.type,
+        callId: vapiCallId,
+      });
+      
+      // Try to find conversation and process as user message
+      const { data: conversation } = await supabaseAdmin
+        .from("conversations")
+        .select("*")
+        .eq("channel_id", vapiCallId)
+        .eq("modality", "voice")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (conversation && userInput) {
+        // Process as user message (same logic as above)
+        console.log("[Vapi] Found conversation, processing as user message");
+        // Add user message to transcript
+        const transcript = conversation.transcript || [];
+        transcript.push({
+          role: "user",
+          content: userInput,
+          timestamp: new Date().toISOString(),
+        });
+
+        // Update conversation with user message
+        await supabaseAdmin
+          .from("conversations")
+          .update({ transcript })
+          .eq("id", conversation.id);
+
+        // Create execution context
+        const context: ConversationContext = {
+          conversationId: conversation.id,
+          agentId: conversation.agent_id,
+          scenarioId: conversation.current_scenario_id,
+          currentStepId: conversation.current_step_id,
+          gatheredData: conversation.gathered_data || {},
+          conversationState: conversation.conversation_state || {},
+          transcript,
+        };
+
+        console.log("[Vapi] Executing agent step with context:", {
+          conversationId: context.conversationId,
+          agentId: context.agentId,
+          scenarioId: context.scenarioId,
+          currentStepId: context.currentStepId,
+          hasGatheredData: Object.keys(context.gatheredData).length > 0,
+          transcriptLength: transcript.length,
+        });
+
+        // Execute agent step
+        const executor = new AgentExecutor(context);
+        const result = await executor.executeNextStep(userInput);
+        
+        console.log("[Vapi] Agent execution result:", {
+          success: result.success,
+          hasOutput: !!result.output,
+          outputLength: result.output?.length || 0,
+          nextStepId: result.nextStepId,
+          nextScenarioId: result.nextScenarioId,
+          shouldContinue: result.shouldContinue,
+          error: result.error,
+        });
+
+        if (result.success && result.output) {
+          // Update conversation with assistant response
+          const updatedTranscript = [
+            ...transcript,
+            {
+              role: "assistant",
+              content: result.output || "",
+              timestamp: new Date().toISOString(),
+            },
+          ];
+
+          const updates: any = {
+            transcript: updatedTranscript,
+            updated_at: new Date().toISOString(),
+          };
+
+          if (result.nextStepId !== undefined) {
+            updates.current_step_id = result.nextStepId;
+          }
+
+          if (result.nextScenarioId) {
+            updates.current_scenario_id = result.nextScenarioId;
+          }
+
+          if (result.gatheredData) {
+            updates.gathered_data = result.gatheredData;
+          }
+
+          if (!result.shouldContinue) {
+            updates.status = "completed";
+          }
+
+          await supabaseAdmin
+            .from("conversations")
+            .update(updates)
+            .eq("id", conversation.id);
+
+          // Return response to Vapi
+          return NextResponse.json(
+            formatVapiResponse({
+              response: result.output,
+              endCall: !result.shouldContinue,
+              voiceId: agent.elevenlabs_voice_id,
+            })
+          );
+        }
+      } else if (!conversation) {
+        console.warn("[Vapi] Message with content but no conversation found, might be before request-start");
+        // If no conversation yet, this might be before request-start - acknowledge and wait
+        return NextResponse.json({ success: true });
+      }
+    }
+
+    // Check if message has no role field and no content - just an acknowledgment/status message
+    if (!message?.role && !body.message?.role && !hasContentNoRole) {
       console.log("[Vapi] Message without role field received");
       console.log("[Vapi] Message details:", {
         messageType: message?.type || body.message?.type || body.type,
@@ -809,6 +1002,7 @@ export async function POST(req: NextRequest) {
         bodyType: body.type,
         hasCall: !!body.call,
         hasMessage: !!body.message,
+        hasContent: !!(message?.content || body.message?.content),
         bodyKeys: Object.keys(body),
       });
       
@@ -819,9 +1013,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true });
       }
       
-      // For any message without role, just acknowledge (don't error)
-      // This prevents 400 errors for Vapi events we don't fully handle yet
-      console.log("[Vapi] Acknowledging message without role (unknown format)");
+      // For any message without role and no content, just acknowledge (don't error)
+      console.log("[Vapi] Acknowledging message without role (no content)");
       return NextResponse.json({ success: true });
     }
 
