@@ -13,9 +13,31 @@ export default function VapiFixPage() {
     setResult(null);
 
     try {
-      const response = await fetch("/api/vapi/fix-config", {
+      // First try the regular endpoint
+      let response = await fetch("/api/vapi/fix-config", {
         method: "GET",
       });
+
+      // If it fails with 500 and mentions VAPI_API_KEY, try direct endpoint with prompt
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        if (errorData.error && errorData.error.includes("VAPI_API_KEY")) {
+          // Prompt user for API key
+          const apiKey = prompt("VAPI_API_KEY not found in environment. Please enter your Vapi API key:");
+          if (!apiKey) {
+            throw new Error("VAPI_API_KEY is required");
+          }
+          
+          // Use direct endpoint with API key in body
+          response = await fetch("/api/vapi/fix-config-direct", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ vapiApiKey: apiKey }),
+          });
+        }
+      }
 
       const text = await response.text();
       let data;
