@@ -28,26 +28,17 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     
-    // Log request headers to see if Vapi includes call context
-    const headers: Record<string, string> = {};
-    req.headers.forEach((value, key) => {
-      headers[key] = value;
-    });
-    console.log("[Vapi] Request headers:", JSON.stringify(headers, null, 2));
-    
-    // Log full payload for debugging (truncate if too long)
-    const bodyStr = JSON.stringify(body, null, 2);
-    if (bodyStr.length > 2000) {
-      console.log("[Vapi] Webhook received (truncated):", bodyStr.substring(0, 2000) + "...");
-    } else {
-      console.log("[Vapi] Webhook received:", bodyStr);
-    }
-    console.log("[Vapi] Message type:", body.message?.type);
-    console.log("[Vapi] Message role:", body.message?.role);
+    // CRITICAL: Log EVERY incoming message to see what Vapi is actually sending
+    console.log("[Vapi] 🔍 WEBHOOK CALLED - Full incoming payload:");
+    console.log("[Vapi] Body type:", body.type);
+    console.log("[Vapi] Body message type:", body.message?.type);
+    console.log("[Vapi] Body message role:", body.message?.role);
+    console.log("[Vapi] Body message content:", body.message?.content?.substring(0, 200) || "(no content)");
     console.log("[Vapi] Body keys:", Object.keys(body));
-    console.log("[Vapi] Has body.call:", !!body.call);
+    console.log("[Vapi] Has body.call:", !!body.call, body.call?.id);
     console.log("[Vapi] Has body.message:", !!body.message);
     console.log("[Vapi] Has body.phoneNumber:", !!body.phoneNumber);
+    console.log("[Vapi] Full body structure (first 2000 chars):", JSON.stringify(body, null, 2).substring(0, 2000));
     
     // Handle end-of-call-report FIRST (before other message extraction)
     // This is sent after the call ends and should be acknowledged immediately
