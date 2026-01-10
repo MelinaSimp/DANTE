@@ -284,29 +284,26 @@ export class AgentExecutor {
 
   /**
    * Execute a "Say" step - Use configured message or generate AI response
+   * CRITICAL: If there's user input, always use AI generation with data sources to answer questions
    */
   private async executeSayStep(step: any, userInput: string): Promise<StepResult> {
-    // If step has a configured message (ai_message), check if user is asking a question
-    // If user is asking a question, always use AI with agent context (including data sources)
-    // Otherwise, use the configured message directly
     let output: string;
     
-    // Check if user input looks like a question about company/services
-    const isQuestion = userInput && (
-      userInput.trim().match(/\?$/) || // Ends with ?
-      userInput.toLowerCase().match(/\b(what|who|where|when|why|how|which|company|work|service|policy)\b/i) || // Contains question words
-      userInput.toLowerCase().includes('do you') ||
-      userInput.toLowerCase().includes('are you') ||
-      userInput.toLowerCase().includes('tell me') ||
-      userInput.toLowerCase().includes('about')
-    );
-    
-    if (step.ai_message && step.ai_message.trim().length > 0 && !isQuestion) {
-      // Use the exact configured message and substitute variables (only if not a question)
+    // CRITICAL: If user provided input, ALWAYS use AI generation with data sources
+    // This ensures all questions are answered using the knowledge base
+    // The static ai_message is only used when there's NO user input (e.g., greeting)
+    if (userInput && userInput.trim().length > 0) {
+      // User provided input - always use AI generation with agent context (includes data sources)
+      console.log(`[Say] User input detected: "${userInput.substring(0, 100)}" - Using AI generation with data sources`);
+      output = await this.generateAIResponse(step, userInput);
+    } else if (step.ai_message && step.ai_message.trim().length > 0) {
+      // No user input yet - use the configured static message (e.g., greeting)
+      console.log(`[Say] No user input - Using static message from step: "${step.ai_message.substring(0, 100)}"`);
       output = this.substituteVariables(step.ai_message.trim(), this.context.gatheredData);
     } else {
-      // For questions or if no message configured, always use AI with agent context (includes data sources)
-      output = await this.generateAIResponse(step, userInput);
+      // No user input and no message configured - generate AI response anyway
+      console.log(`[Say] No user input and no static message - Using AI generation`);
+      output = await this.generateAIResponse(step, userInput || "");
     }
 
     // Check for branches
@@ -1253,22 +1250,41 @@ If critical information is missing (especially scheduledAt or serviceType), set 
     console.log(`[Say] Cache MISS for step ${step.id}`);
 
     // Load agent context (policies, data sources, personalization)
+    console.log(`[Say] generateAIResponse - Loading agent context for agent: ${this.context.agentId}`);
     const agentContext = await this.loadAgentContext();
     
-    console.log(`[Say] generateAIResponse - Agent context loaded:`, {
+    console.log(`[Say] ✅ Agent context loaded:`, {
       agentId: this.context.agentId,
       dataSourcesCount: agentContext.dataSources?.length || 0,
       policiesCount: agentContext.policies?.length || 0,
-      dataSourceNames: agentContext.dataSources?.map((ds: any) => ds.name || ds.id) || [],
-      hasDataSources: (agentContext.dataSources?.length || 0) > 0,
+      hasPersonalization: !!agentContext.personalization,
+      dataSourceNames: agentContext.dataSources?.map((ds: any) => ({
+        id: ds.id,
+        name: ds.name,
+        type: ds.type,
+        hasContent: !!ds.content,
+        contentLength: ds.content?.length || 0,
+      })) || [],
     });
+    
+    if (!agentContext.dataSources || agentContext.dataSources.length === 0) {
+      console.warn(`[Say] ⚠️  NO DATA SOURCES FOUND for agent ${this.context.agentId}!`);
+      console.warn(`[Say] This means the AI won't have access to your knowledge base.`);
+      console.warn(`[Say] Make sure data sources are configured for this agent.`);
+    }
 
     // Build prompt
+    console.log(`[Say] Building system prompt with agent context...`);
     const systemPrompt = this.buildSystemPrompt(agentContext);
-    console.log(`[Say] System prompt length: ${systemPrompt.length} chars`);
-    console.log(`[Say] System prompt includes data sources: ${systemPrompt.includes('Knowledge Base') ? 'YES ✅' : 'NO ❌'}`);
+    console.log(`[Say] System prompt built:`, {
+      promptLength: systemPrompt.length,
+      includesKnowledgeBase: systemPrompt.includes('Knowledge Base'),
+      includesDataSources: systemPrompt.includes('[Data Source]') || systemPrompt.includes('[File]'),
+      knowledgeBaseStartIndex: systemPrompt.indexOf('Knowledge Base'),
+    });
     
     const userPrompt = this.buildUserPrompt(step, userInput, agentContext);
+    console.log(`[Say] User prompt: "${userPrompt.substring(0, 200)}"`);
 
     // OPTIMIZATION: Reduce tokens and temperature for faster responses
     // Also reduce transcript history to minimize context size
@@ -1593,17 +1609,44 @@ Answer:`;
    * Load agent context (policies, data sources, personalization)
    */
   private async loadAgentContext(): Promise<any> {
+    console.log(`[AgentExecutor] Loading agent context for agent: ${this.context.agentId}`);
+    
     const [policies, dataSources, personalization] = await Promise.all([
       this.supabase.from("agent_policies").select("*").eq("agent_id", this.context.agentId),
       this.supabase.from("agent_data_sources").select("*").eq("agent_id", this.context.agentId),
       this.supabase.from("agent_personalization").select("*").eq("agent_id", this.context.agentId).maybeSingle(),
     ]);
 
-    console.log("[AgentExecutor] Loaded context:", {
+    console.log("[AgentExecutor] ✅ Context loaded:", {
+      agentId: this.context.agentId,
       policiesCount: policies.data?.length || 0,
+      policiesError: policies.error?.message || null,
       dataSourcesCount: dataSources.data?.length || 0,
+      dataSourcesError: dataSources.error?.message || null,
       hasPersonalization: !!personalization.data,
+      personalizationError: personalization.error?.message || null,
     });
+    
+    if (dataSources.error) {
+      console.error(`[AgentExecutor] ❌ Error loading data sources:`, dataSources.error);
+    }
+    
+    if (!dataSources.data || dataSources.data.length === 0) {
+      console.warn(`[AgentExecutor] ⚠️  NO DATA SOURCES found for agent ${this.context.agentId}!`);
+      console.warn(`[AgentExecutor] This means the AI won't have access to your knowledge base.`);
+      console.warn(`[AgentExecutor] Check that data sources are properly configured for this agent.`);
+    } else {
+      console.log(`[AgentExecutor] ✅ Found ${dataSources.data.length} data source(s):`, 
+        dataSources.data.map((ds: any) => ({
+          id: ds.id,
+          name: ds.name,
+          type: ds.type,
+          hasContent: !!ds.content,
+          contentLength: ds.content?.length || 0,
+          hasFile: !!ds.file_url,
+        }))
+      );
+    }
 
     return {
       policies: policies.data || [],
