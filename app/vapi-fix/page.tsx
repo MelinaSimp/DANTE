@@ -17,10 +17,19 @@ export default function VapiFixPage() {
         method: "GET",
       });
 
-      const data = await response.json();
+      const text = await response.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(`Invalid JSON response: ${text.substring(0, 200)}`);
+      }
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to fix configuration");
+        const errorMsg = data.error || data.message || "Failed to fix configuration";
+        const details = data.details || data.vapiApiKeySet !== undefined ? 
+          `Key exists: ${data.vapiApiKeySet}, Length: ${data.vapiApiKeyLength}` : '';
+        throw new Error(`${errorMsg}${details ? ` (${details})` : ''}`);
       }
 
       setResult(data);
