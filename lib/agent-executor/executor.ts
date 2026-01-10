@@ -138,15 +138,29 @@ export class AgentExecutor {
       }
 
       // Execute step based on type
+      console.log(`[AgentExecutor] 🔍 Executing step:`, {
+        stepId: step.id,
+        stepName: step.name || '(unnamed)',
+        stepType: step.type,
+        hasUserInput: !!userInput && userInput.trim().length > 0,
+        userInputPreview: userInput?.substring(0, 100) || '(no input)',
+        scenarioId: this.context.scenarioId,
+        agentId: this.context.agentId,
+        currentStepId: this.context.currentStepId,
+      });
+      
       let result: StepResult;
       switch (step.type) {
         case "say":
+          console.log(`[AgentExecutor] 📢 Executing SAY step - Will use AI generation with data sources if user input provided`);
           result = await this.executeSayStep(step, userInput);
           break;
         case "gather":
+          console.log(`[AgentExecutor] 📝 Executing GATHER step - Extracts information, doesn't use data sources for answering`);
           result = await this.executeGatherStep(step, userInput);
           break;
         case "qa":
+          console.log(`[AgentExecutor] ❓ Executing Q/A step - Uses data sources for answering questions`);
           result = await this.executeQAStep(step, userInput);
           break;
         // REMOVED: case "if" - If steps are removed, use branches on Gather/Q/A instead
