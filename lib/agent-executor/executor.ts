@@ -1360,6 +1360,25 @@ If critical information is missing (especially scheduledAt or serviceType), set 
     const data = await response.json();
     const aiResponse = data.choices[0]?.message?.content || "I'm sorry, I couldn't generate a response.";
     
+    console.log(`[Say] ✅ AI response generated:`, {
+      responseLength: aiResponse.length,
+      responsePreview: aiResponse.substring(0, 300),
+      tokensUsed: data.usage?.total_tokens || 'unknown',
+      promptTokens: data.usage?.prompt_tokens || 'unknown',
+      completionTokens: data.usage?.completion_tokens || 'unknown',
+    });
+    
+    // Check if response looks like it's ignoring Knowledge Base (generic responses like "24/7")
+    const genericResponses = ['24/7', 'always available', 'all the time', 'round the clock'];
+    const looksGeneric = genericResponses.some(phrase => aiResponse.toLowerCase().includes(phrase.toLowerCase()));
+    if (looksGeneric && (agentContext.dataSources?.length || 0) > 0) {
+      console.warn(`[Say] ⚠️  WARNING: AI response contains generic phrases but data sources exist!`);
+      console.warn(`[Say] Response: "${aiResponse}"`);
+      console.warn(`[Say] This suggests the AI might be ignoring the Knowledge Base.`);
+      console.warn(`[Say] Data sources count: ${agentContext.dataSources.length}`);
+      console.warn(`[Say] Check if Knowledge Base was included in the system prompt.`);
+    }
+    
     // OPTIMIZATION: Cache response in background (don't block)
     this.cacheResponse(cacheKey, this.context.agentId, aiResponse).catch(err => {
       console.error("[Say] Failed to cache response (non-blocking):", err);
