@@ -232,7 +232,18 @@ export class AgentExecutor {
 
       return result;
     } catch (error: any) {
-      console.error("Agent execution error:", error);
+      console.error("[AgentExecutor] ❌ CRITICAL ERROR:", error);
+      console.error("[AgentExecutor] Error stack:", error.stack);
+      console.error("[AgentExecutor] Error details:", {
+        message: error.message,
+        name: error.name,
+        context: {
+          agentId: this.context.agentId,
+          scenarioId: this.context.scenarioId,
+          currentStepId: this.context.currentStepId,
+          conversationId: this.context.conversationId,
+        },
+      });
       return {
         success: false,
         error: error.message || "Execution failed",
