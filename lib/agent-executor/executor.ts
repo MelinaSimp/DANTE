@@ -1312,15 +1312,22 @@ If critical information is missing (especially scheduledAt or serviceType), set 
     // Build prompt
     console.log(`[Say] Building system prompt with agent context...`);
     const systemPrompt = this.buildSystemPrompt(agentContext);
-    console.log(`[Say] System prompt built:`, {
+    console.log(`[Say] ✅ System prompt built:`, {
       promptLength: systemPrompt.length,
       includesKnowledgeBase: systemPrompt.includes('Knowledge Base'),
       includesDataSources: systemPrompt.includes('[Data Source]') || systemPrompt.includes('[File]'),
       knowledgeBaseStartIndex: systemPrompt.indexOf('Knowledge Base'),
+      knowledgeBaseContent: systemPrompt.includes('Knowledge Base') 
+        ? systemPrompt.substring(systemPrompt.indexOf('Knowledge Base'), systemPrompt.indexOf('Knowledge Base') + 500)
+        : 'NOT FOUND',
     });
     
     const userPrompt = this.buildUserPrompt(step, userInput, agentContext);
     console.log(`[Say] User prompt: "${userPrompt.substring(0, 200)}"`);
+    
+    // Log the FULL prompt being sent to OpenAI (truncated for logs)
+    const fullPrompt = `SYSTEM: ${systemPrompt.substring(0, 500)}...\nUSER: ${userPrompt.substring(0, 200)}`;
+    console.log(`[Say] 📤 Full prompt being sent to OpenAI (truncated):`, fullPrompt);
 
     // OPTIMIZATION: Reduce tokens and temperature for faster responses
     // Also reduce transcript history to minimize context size
@@ -1701,8 +1708,14 @@ Answer:`;
       "",
       "IMPORTANT: You should engage in normal conversation. SOC2 compliance and security policies apply to data handling, privacy, and system security - they do NOT prevent you from having friendly conversations or answering general questions. You can discuss topics, answer questions, and be conversational while still protecting sensitive information and following security protocols.",
       "",
-      "CRITICAL: When answering questions about the company, services, policies, or any business information, you MUST use ONLY the information provided in the Knowledge Base section below. Do NOT make up information or use generic responses. If the Knowledge Base contains information about the company name, services, policies, etc., you must reference that specific information.",
-      ""
+      "CRITICAL RULES FOR ANSWERING QUESTIONS:",
+      "1. You MUST use ONLY the information provided in the Knowledge Base section below.",
+      "2. Do NOT make up information, use generic responses, or infer information not in the Knowledge Base.",
+      "3. If the Knowledge Base does NOT contain the answer, say 'I don't have that information in my knowledge base.'",
+      "4. Do NOT say things like 'available 24/7' unless it's explicitly stated in the Knowledge Base.",
+      "5. If asked about hours, availability, services, or company info, check the Knowledge Base first.",
+      "6. If the Knowledge Base is empty or doesn't have the answer, be honest: 'I don't have that specific information.'",
+      "",
     ];
 
     // Add personalization (keep concise)
@@ -1730,7 +1743,10 @@ Answer:`;
     // Add data sources (increase limit and truncation for better context)
     if (agentContext.dataSources.length > 0) {
       parts.push("Knowledge Base (use this information to answer questions about the company, services, policies, etc.):");
-      parts.push("CRITICAL: You MUST reference this Knowledge Base when answering questions. If asked 'what company do you work for?', use the company name from the Knowledge Base. If asked about services or policies, use ONLY information from the Knowledge Base.");
+      parts.push("KNOWLEDGE BASE - USE THIS FOR ALL ANSWERS:");
+      parts.push("CRITICAL: You MUST use ONLY information from the Knowledge Base below. Do NOT make up or infer information.");
+      parts.push("CRITICAL: If the Knowledge Base doesn't have an answer, say 'I don't have that information.'");
+      parts.push("CRITICAL: Do NOT say things like '24/7', 'always available', or generic responses unless explicitly in the Knowledge Base.");
       parts.push("");
       agentContext.dataSources.slice(0, 10).forEach((source: any) => { // Increased to 10 sources
         if (source.content) {
