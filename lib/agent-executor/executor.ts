@@ -340,6 +340,7 @@ export class AgentExecutor {
 
   /**
    * Execute a "Gather" step - Extract information from user input
+   * CRITICAL: If user asks a question, use AI generation with data sources to answer it
    */
   private async executeGatherStep(step: any, userInput: string): Promise<StepResult> {
     // If this is the first time hitting this Gather step (no userInput yet), 
@@ -364,7 +365,28 @@ export class AgentExecutor {
       };
     }
 
-    // User has provided input - extract the information
+    // CRITICAL: If user input looks like a question, use AI generation with data sources to answer it
+    // Don't just extract it - actually answer the question!
+    const looksLikeQuestion = userInput && (
+      userInput.trim().match(/\?$/) || // Ends with ?
+      userInput.toLowerCase().match(/\b(what|who|where|when|why|how|which|company|work|service|policy|do you|are you|tell me|about)\b/i)
+    );
+    
+    if (looksLikeQuestion) {
+      console.log(`[Gather] User input looks like a question: "${userInput.substring(0, 100)}" - Using AI generation with data sources to answer`);
+      // Treat this as a Say step - use AI generation with data sources
+      const output = await this.generateAIResponse(step, userInput);
+      
+      // Stay on this step (don't move forward) so we can handle follow-up questions
+      return {
+        success: true,
+        output: output,
+        nextStepId: step.id, // Stay on Gather step for potential follow-up questions
+        shouldContinue: true,
+      };
+    }
+
+    // User has provided input (not a question) - extract the information
     const extractedData = await this.extractInformation(step, userInput);
 
     // Store gathered data - use step.name as key, or a default key
