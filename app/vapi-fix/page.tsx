@@ -6,36 +6,45 @@ export default function VapiFixPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [apiKey, setApiKey] = useState("");
+  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
 
-  const handleFix = async () => {
+  const handleFix = async (useDirectEndpoint = false, providedApiKey = "") => {
     setLoading(true);
     setError(null);
     setResult(null);
 
     try {
-      // First try the regular endpoint
-      let response = await fetch("/api/vapi/fix-config", {
-        method: "GET",
-      });
+      let response;
+      
+      if (useDirectEndpoint || providedApiKey) {
+        // Use direct endpoint with API key in body
+        if (!providedApiKey && !apiKey) {
+          throw new Error("VAPI_API_KEY is required");
+        }
+        
+        response = await fetch("/api/vapi/fix-config-direct", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ vapiApiKey: providedApiKey || apiKey }),
+        });
+      } else {
+        // First try the regular endpoint
+        response = await fetch("/api/vapi/fix-config", {
+          method: "GET",
+        });
 
-      // If it fails with 500 and mentions VAPI_API_KEY, try direct endpoint with prompt
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        if (errorData.error && errorData.error.includes("VAPI_API_KEY")) {
-          // Prompt user for API key
-          const apiKey = prompt("VAPI_API_KEY not found in environment. Please enter your Vapi API key:");
-          if (!apiKey) {
-            throw new Error("VAPI_API_KEY is required");
+        // If it fails with 500 and mentions VAPI_API_KEY, show input field
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          if (errorData.error && errorData.error.includes("VAPI_API_KEY")) {
+            setShowApiKeyInput(true);
+            setError("VAPI_API_KEY not found in environment. Please enter your Vapi API key below.");
+            setLoading(false);
+            return;
           }
-          
-          // Use direct endpoint with API key in body
-          response = await fetch("/api/vapi/fix-config-direct", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ vapiApiKey: apiKey }),
-          });
         }
       }
 
@@ -70,21 +79,61 @@ export default function VapiFixPage() {
           This will automatically diagnose and fix your Vapi configuration to ensure it uses your webhook for real-time conversations.
         </p>
 
-        <button
-          onClick={handleFix}
-          disabled={loading}
-          className="w-full bg-blue-600 text-white py-3 px-6 rounded-md font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors mb-6"
-        >
-          {loading ? "Diagnosing and Fixing..." : "🔧 Diagnose & Fix Configuration"}
-        </button>
+        {showApiKeyInput && (
+          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+            <h3 className="text-yellow-800 font-medium mb-2">⚠️ API Key Required</h3>
+            <p className="text-yellow-700 text-sm mb-4">
+              VAPI_API_KEY is not available in environment variables. Please enter it manually:
+            </p>
+            <div className="space-y-3">
+              <input
+                type="password"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder="Enter your Vapi API key (e.g., 2bf8f671-ccbb-440b-bf7e-9d5985ad3152)"
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleFix(true, apiKey)}
+                  disabled={loading || !apiKey.trim()}
+                  className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                >
+                  {loading ? "Fixing..." : "🔧 Fix with API Key"}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowApiKeyInput(false);
+                    setApiKey("");
+                    setError(null);
+                  }}
+                  disabled={loading}
+                  className="px-4 py-2 border border-gray-300 rounded-md font-medium hover:bg-gray-50 disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
-        {error && (
+        {!showApiKeyInput && (
+          <button
+            onClick={() => handleFix(false)}
+            disabled={loading}
+            className="w-full bg-blue-600 text-white py-3 px-6 rounded-md font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors mb-6"
+          >
+            {loading ? "Diagnosing and Fixing..." : "🔧 Diagnose & Fix Configuration"}
+          </button>
+        )}
+
+        {error && !showApiKeyInput && (
           <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-md">
             <h3 className="text-red-800 font-medium mb-2">❌ Error</h3>
             <p className="text-red-600 text-sm">{error}</p>
             {error.includes("VAPI_API_KEY") && (
               <p className="text-red-600 text-sm mt-2">
-                💡 Make sure VAPI_API_KEY is set in Vercel environment variables.
+                💡 Make sure VAPI_API_KEY is set in Vercel environment variables, or enter it manually above.
               </p>
             )}
           </div>
