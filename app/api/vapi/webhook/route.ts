@@ -1131,8 +1131,153 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true });
       }
       
-      // For any message without role and no content, just acknowledge (don't error)
-      console.log("[Vapi] Acknowledging message without role (no content)");
+      // For any message without role and no content, check if this is actually a call start request
+      // Vapi might send a message without role/content at call start to request the greeting
+      console.log("[Vapi] Message without role (no content) - Checking if this is call start...");
+      console.log("[Vapi] Message without role details:", {
+        hasCall: !!body.call,
+        callId: body.call?.id,
+        hasPhoneNumber: !!body.phoneNumber,
+        phoneNumber: body.phoneNumber?.number,
+        hasAssistant: !!body.assistant,
+        assistantId: body.assistant?.id,
+        messageType: body.message?.type,
+        bodyType: body.type,
+        bodyKeys: Object.keys(body),
+        messageKeys: body.message ? Object.keys(body.message) : null,
+        fullBody: JSON.stringify(body, null, 2).substring(0, 1000),
+      });
+      
+      // Check if this is the start of a call (has call ID but no conversation exists)
+      const vapiCallId = body.call?.id;
+      if (vapiCallId && !message?.content && !body.message?.content) {
+        // This might be Vapi requesting the first greeting!
+        // Check if conversation already exists
+        const { data: existingConversation } = await supabaseAdmin
+          .from("conversations")
+          .select("id")
+          .eq("channel_id", vapiCallId)
+          .eq("modality", "voice")
+          .maybeSingle();
+        
+        if (!existingConversation) {
+          // NO conversation exists + message without role + has call ID = This is the greeting request!
+          console.log("[Vapi] ⚠️  NO CONVERSATION + message without role + has call ID = This is likely the first greeting request!");
+          
+          // Extract phone number to find agent
+          const phoneNumber = body.phoneNumber?.number || body.call?.phoneNumber;
+          const normalizedPhone = normalizePhone(phoneNumber);
+          
+          if (normalizedPhone && phoneNumber) {
+            const possibleFormats = [
+              normalizedPhone,
+              phoneNumber,
+              normalizedPhone?.replace(/^\+1/, ""),
+              phoneNumber?.replace(/^\+1/, ""),
+            ].filter(Boolean) as string[];
+            const uniqueFormats = [...new Set(possibleFormats)];
+            
+            // Find agent
+            const { data: agent } = await supabaseAdmin
+              .from("agents")
+              .select("id, workspace_id, name, elevenlabs_voice_id")
+              .in("phone_number", uniqueFormats)
+              .in("modality", ["voice", "multi-modal"])
+              .eq("status", "deployed")
+              .limit(1)
+              .maybeSingle();
+            
+            if (agent) {
+              console.log("[Vapi] ✅ Found agent - Loading scenario and greeting...");
+              
+              // Load scenario and Say step (same logic as request-start)
+              const { data: scenarios } = await supabaseAdmin
+                .from("scenarios")
+                .select("id, name")
+                .eq("agent_id", agent.id)
+                .order("created_at", { ascending: true })
+                .limit(1);
+
+              const scenarioId = scenarios && scenarios.length > 0 ? scenarios[0].id : null;
+              let greeting = "Hello! How can I help you today?";
+              let currentStepId: string | null = null;
+
+              if (scenarioId) {
+                const { data: firstSayStep } = await supabaseAdmin
+                  .from("steps")
+                  .select("ai_message, name, type")
+                  .eq("scenario_id", scenarioId)
+                  .eq("type", "say")
+                  .order("sort_order", { ascending: true })
+                  .limit(1)
+                  .maybeSingle();
+
+                if (firstSayStep?.ai_message && firstSayStep.ai_message.trim().length > 0) {
+                  greeting = firstSayStep.ai_message.trim();
+                  console.log("[Vapi] ✅ Using greeting from Say step:", greeting.substring(0, 100));
+                  
+                  // Get current step ID
+                  const { data: allSteps } = await supabaseAdmin
+                    .from("steps")
+                    .select("id, type, sort_order")
+                    .eq("scenario_id", scenarioId)
+                    .order("sort_order", { ascending: true });
+
+                  if (allSteps && allSteps.length > 0) {
+                    const sayStep = allSteps.find(s => s.type === "say");
+                    if (sayStep) {
+                      const greetingIndex = allSteps.findIndex(s => s.id === sayStep.id);
+                      if (greetingIndex >= 0 && greetingIndex < allSteps.length - 1) {
+                        currentStepId = allSteps[greetingIndex + 1].id;
+                      } else {
+                        currentStepId = sayStep.id;
+                      }
+                    } else {
+                      currentStepId = allSteps[0].id;
+                    }
+                  }
+                }
+              }
+
+              // Create conversation in background
+              supabaseAdmin
+                .from("conversations")
+                .insert({
+                  channel_id: vapiCallId,
+                  agent_id: agent.id,
+                  workspace_id: agent.workspace_id,
+                  modality: "voice",
+                  status: "active",
+                  current_scenario_id: scenarioId,
+                  current_step_id: currentStepId,
+                  metadata: {
+                    phoneNumber: phoneNumber,
+                    customerNumber: body.customer?.number || body.call?.customer?.number,
+                  },
+                })
+                .then(() => {
+                  console.log("[Vapi] ✅ Conversation created (first greeting request)");
+                })
+                .catch(err => {
+                  console.error("[Vapi] Failed to create conversation:", err);
+                });
+
+              // Return greeting immediately
+              console.log("[Vapi] ✅ Returning greeting from scenario:", greeting.substring(0, 100));
+              return NextResponse.json(
+                formatVapiResponse({
+                  response: greeting,
+                  endCall: false,
+                  voiceId: agent.elevenlabs_voice_id,
+                })
+              );
+            }
+          }
+        }
+      }
+      
+      // Not a call start request, just acknowledge
+      console.log("[Vapi] Acknowledging message without role (no content) - Not call start");
       return NextResponse.json({ success: true });
     }
 
