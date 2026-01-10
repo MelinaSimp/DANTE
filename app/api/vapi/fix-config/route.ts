@@ -11,9 +11,18 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   try {
     const vapiApiKey = process.env.VAPI_API_KEY;
+    console.log("[Vapi Fix] VAPI_API_KEY check:", {
+      exists: !!vapiApiKey,
+      length: vapiApiKey?.length || 0,
+      prefix: vapiApiKey?.substring(0, 10) || "N/A",
+    });
+    
     if (!vapiApiKey) {
       return NextResponse.json(
-        { error: "VAPI_API_KEY not configured in Vercel environment variables" },
+        { 
+          error: "VAPI_API_KEY not configured in Vercel environment variables",
+          hint: "Make sure VAPI_API_KEY is set for Production environment and redeploy"
+        },
         { status: 500 }
       );
     }
@@ -57,7 +66,10 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const assistants = await listResponse.json();
+    const assistantsData = await listResponse.json();
+    
+    // Handle both array and object responses from Vapi
+    const assistants = Array.isArray(assistantsData) ? assistantsData : (assistantsData.data || [assistantsData]);
     
     if (!assistants || assistants.length === 0) {
       return NextResponse.json(
@@ -66,7 +78,14 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const assistantId = assistants[0].id;
+    const assistantId = assistants[0].id || assistants[0].assistantId;
+    
+    if (!assistantId) {
+      return NextResponse.json(
+        { error: "Could not extract assistant ID from response", assistantsData },
+        { status: 500 }
+      );
+    }
     diagnosis.assistantId = assistantId;
     console.log(`[Vapi Fix] Using assistant: ${assistants[0].name} (${assistantId})`);
 
@@ -200,10 +219,13 @@ export async function GET(req: NextRequest) {
       });
 
       if (phoneResponse.ok) {
-        const phoneNumbers = await phoneResponse.json();
-        const linkedNumber = Array.isArray(phoneNumbers) 
-          ? phoneNumbers.find((pn: any) => pn.assistantId === assistantId)
-          : phoneNumbers;
+        const phoneNumbersData = await phoneResponse.json();
+        const phoneNumbers = Array.isArray(phoneNumbersData) 
+          ? phoneNumbersData 
+          : (phoneNumbersData.data || [phoneNumbersData]);
+        const linkedNumber = phoneNumbers.find((pn: any) => 
+          pn.assistantId === assistantId || pn.assistant?.id === assistantId
+        );
 
         if (linkedNumber) {
           phoneNumberInfo = {
@@ -277,8 +299,14 @@ export async function GET(req: NextRequest) {
     });
   } catch (error: any) {
     console.error("[Vapi Fix] Error:", error);
+    console.error("[Vapi Fix] Error stack:", error.stack);
     return NextResponse.json(
-      { error: error.message || "Internal server error" },
+      { 
+        error: error.message || "Internal server error",
+        details: process.env.NODE_ENV === "development" ? error.stack : undefined,
+        vapiApiKeySet: !!process.env.VAPI_API_KEY,
+        vapiApiKeyLength: process.env.VAPI_API_KEY?.length || 0,
+      },
       { status: 500 }
     );
   }
