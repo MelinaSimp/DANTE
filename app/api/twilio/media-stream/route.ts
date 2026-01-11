@@ -5,18 +5,15 @@
  * for ultra-low latency voice calls (200-500ms vs 1-2 seconds with Gather).
  * 
  * Configure in Twilio Console:
- * Phone Number > Voice Configuration > Media Streams > Enable
- * WebSocket URL: wss://driftai.studio/api/twilio/media-stream
+ * Phone Number > Voice Configuration > A call comes in > Webhook: https://driftai.studio/api/twilio/media-stream
  */
 
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { normalizePhone } from "@/lib/phone";
-import { AgentExecutor, ConversationContext } from "@/lib/agent-executor/executor";
-import { generateSpeechTwiml } from "@/lib/elevenlabs/twiml";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 300; // 5 minutes for WebSocket connections
+export const maxDuration = 10; // 10 seconds max for Twilio webhooks
 
 // Helper function to extract call information from either GET (query params) or POST (form data)
 async function getCallInfo(req: NextRequest) {
@@ -40,110 +37,159 @@ async function getCallInfo(req: NextRequest) {
   return { callSid, from, to };
 }
 
-// TwiML handler for Media Streams initialization
-export async function GET(req: NextRequest) {
-  const { callSid, from, to } = await getCallInfo(req);
+function generateErrorTwiML(message: string): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say>${message}</Say>
+  <Hangup/>
+</Response>`;
+}
 
-  console.log("[Media Stream] WebSocket connection request:", { callSid, from, to });
+// Main handler for Media Streams initialization
+async function handleMediaStream(req: NextRequest) {
+  // Declare variables outside try block so they're accessible in catch
+  let callSid = "";
+  let from = "";
+  let to = "";
+  
+  try {
+    const callInfo = await getCallInfo(req);
+    callSid = callInfo.callSid;
+    from = callInfo.from;
+    to = callInfo.to;
 
-  if (!callSid || !to) {
-    return new Response("Missing call information", { status: 400 });
-  }
+    console.log("[Media Stream] WebSocket connection request:", { callSid, from, to });
 
-  // Find agent by phone number
-  const normalizedPhone = normalizePhone(to);
-  if (!normalizedPhone) {
-    return new Response("Invalid phone number format", { status: 400 });
-  }
-
-  const possibleFormats = [
-    normalizedPhone,
-    to,
-    normalizedPhone.replace(/^\+1/, ""),
-    to.replace(/^\+1/, ""),
-  ].filter(Boolean) as string[];
-
-  const uniqueFormats = [...new Set(possibleFormats)];
-
-  const { data: agent } = await supabaseAdmin
-    .from("agents")
-    .select("id, workspace_id, name, status, phone_number, elevenlabs_voice_id, modality")
-    .in("phone_number", uniqueFormats)
-    .in("modality", ["voice", "multi-modal"])
-    .eq("status", "deployed")
-    .limit(1)
-    .maybeSingle();
-
-  if (!agent) {
-    return new Response("Agent not found", { status: 404 });
-  }
-
-  // Create or get conversation
-  let { data: conversation } = await supabaseAdmin
-    .from("conversations")
-    .select("*")
-    .eq("channel_id", callSid)
-    .eq("modality", "voice")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (!conversation) {
-    // Create new conversation
-    const { data: scenarios } = await supabaseAdmin
-      .from("scenarios")
-      .select("id")
-      .eq("agent_id", agent.id)
-      .order("created_at", { ascending: true })
-      .limit(1);
-
-    const scenarioId = scenarios && scenarios.length > 0 ? scenarios[0].id : null;
-    let currentStepId: string | null = null;
-
-    if (scenarioId) {
-      const { data: steps } = await supabaseAdmin
-        .from("steps")
-        .select("id")
-        .eq("scenario_id", scenarioId)
-        .order("sort_order", { ascending: true })
-        .limit(1);
-
-      if (steps && steps.length > 0) {
-        currentStepId = steps[0].id;
-      }
+    if (!callSid || !to) {
+      console.error("[Media Stream] Missing call information:", { callSid, to });
+      return new NextResponse(generateErrorTwiML("Sorry, this line is not configured."), {
+        status: 200,
+        headers: { "Content-Type": "text/xml; charset=utf-8" },
+      });
     }
 
-    const { data: newConversation } = await supabaseAdmin
+    // Find agent by phone number
+    const normalizedPhone = normalizePhone(to);
+    if (!normalizedPhone) {
+      console.error("[Media Stream] Invalid phone number format:", to);
+      return new NextResponse(generateErrorTwiML("Invalid phone number format."), {
+        status: 200,
+        headers: { "Content-Type": "text/xml; charset=utf-8" },
+      });
+    }
+
+    const possibleFormats = [
+      normalizedPhone,
+      to,
+      normalizedPhone.replace(/^\+1/, ""),
+      to.replace(/^\+1/, ""),
+    ].filter(Boolean) as string[];
+
+    const uniqueFormats = [...new Set(possibleFormats)];
+
+    const { data: agent, error: agentError } = await supabaseAdmin
+      .from("agents")
+      .select("id, workspace_id, name, status, phone_number, elevenlabs_voice_id, modality")
+      .in("phone_number", uniqueFormats)
+      .in("modality", ["voice", "multi-modal"])
+      .eq("status", "deployed")
+      .limit(1)
+      .maybeSingle();
+
+    if (agentError) {
+      console.error("[Media Stream] Database error finding agent:", agentError);
+      return new NextResponse(generateErrorTwiML("Database error. Please try again."), {
+        status: 200,
+        headers: { "Content-Type": "text/xml; charset=utf-8" },
+      });
+    }
+
+    if (!agent) {
+      console.error("[Media Stream] Agent not found for phone number:", uniqueFormats);
+      return new NextResponse(generateErrorTwiML("Agent not found for this number."), {
+        status: 200,
+        headers: { "Content-Type": "text/xml; charset=utf-8" },
+      });
+    }
+
+    // Create or get conversation
+    let { data: conversation, error: conversationError } = await supabaseAdmin
       .from("conversations")
-      .insert({
-        channel_id: callSid,
-        agent_id: agent.id,
-        workspace_id: agent.workspace_id,
-        modality: "voice",
-        status: "active",
-        current_scenario_id: scenarioId,
-        current_step_id: currentStepId,
-        metadata: {
-          phoneNumber: to,
-          customerNumber: from,
-          mediaStream: true,
-        },
-      })
-      .select()
-      .single();
+      .select("*")
+      .eq("channel_id", callSid)
+      .eq("modality", "voice")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    conversation = newConversation;
-  }
+    if (conversationError) {
+      console.error("[Media Stream] Database error finding conversation:", conversationError);
+    }
 
-  // Return TwiML that enables Media Streams, connecting to Railway WebSocket server
-  const baseUrl = process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || "https://driftai.studio";
-  // Railway WebSocket server URL (set via environment variable or use default)
-  const railwayUrl = process.env.RAILWAY_WEBSOCKET_URL || "wss://motivated-perfection-production.up.railway.app";
-  const mediaStreamUrl = `${railwayUrl}/media-stream?CallSid=${callSid}&From=${encodeURIComponent(from)}&To=${encodeURIComponent(to)}`;
+    if (!conversation) {
+      // Create new conversation
+      const { data: scenarios } = await supabaseAdmin
+        .from("scenarios")
+        .select("id")
+        .eq("agent_id", agent.id)
+        .order("created_at", { ascending: true })
+        .limit(1);
 
-  // Media Streams handles all audio via WebSocket - no need for <Gather>
-  // The Railway server will handle the conversation flow
-  const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+      const scenarioId = scenarios && scenarios.length > 0 ? scenarios[0].id : null;
+      let currentStepId: string | null = null;
+
+      if (scenarioId) {
+        const { data: steps } = await supabaseAdmin
+          .from("steps")
+          .select("id")
+          .eq("scenario_id", scenarioId)
+          .order("sort_order", { ascending: true })
+          .limit(1);
+
+        if (steps && steps.length > 0) {
+          currentStepId = steps[0].id;
+        }
+      }
+
+      const { data: newConversation, error: createError } = await supabaseAdmin
+        .from("conversations")
+        .insert({
+          channel_id: callSid,
+          agent_id: agent.id,
+          workspace_id: agent.workspace_id,
+          modality: "voice",
+          status: "active",
+          current_scenario_id: scenarioId,
+          current_step_id: currentStepId,
+          metadata: {
+            phoneNumber: to,
+            customerNumber: from,
+            mediaStream: true,
+          },
+        })
+        .select()
+        .single();
+
+      if (createError) {
+        console.error("[Media Stream] Failed to create conversation:", createError);
+        return new NextResponse(generateErrorTwiML("Failed to initialize call session."), {
+          status: 200,
+          headers: { "Content-Type": "text/xml; charset=utf-8" },
+        });
+      }
+
+      conversation = newConversation;
+    }
+
+    // Return TwiML that enables Media Streams, connecting to Railway WebSocket server
+    const baseUrl = process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || "https://driftai.studio";
+    // Railway WebSocket server URL (set via environment variable or use default)
+    const railwayUrl = process.env.RAILWAY_WEBSOCKET_URL || "wss://motivated-perfection-production.up.railway.app";
+    const mediaStreamUrl = `${railwayUrl}/media-stream?CallSid=${callSid}&From=${encodeURIComponent(from)}&To=${encodeURIComponent(to)}`;
+
+    // Media Streams handles all audio via WebSocket - no need for <Gather>
+    // The Railway server will handle the conversation flow
+    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Start>
     <Stream url="${mediaStreamUrl}" />
@@ -151,125 +197,27 @@ export async function GET(req: NextRequest) {
   <Say>Hello! How can I help you today?</Say>
 </Response>`;
 
-  return new Response(twiml, {
-    status: 200,
-    headers: { "Content-Type": "text/xml; charset=utf-8" },
-  });
+    console.log("[Media Stream] Returning TwiML with Media Stream URL:", mediaStreamUrl);
+
+    return new NextResponse(twiml, {
+      status: 200,
+      headers: { "Content-Type": "text/xml; charset=utf-8" },
+    });
+  } catch (error: any) {
+    console.error("[Media Stream] Unexpected error:", error);
+    return new NextResponse(generateErrorTwiML("An unexpected error occurred. Please try again."), {
+      status: 200,
+      headers: { "Content-Type": "text/xml; charset=utf-8" },
+    });
+  }
+}
+
+// TwiML handler for Media Streams initialization
+export async function GET(req: NextRequest) {
+  return handleMediaStream(req);
 }
 
 // Also support POST (Twilio can use either GET or POST)
 export async function POST(req: NextRequest) {
-  const { callSid, from, to } = await getCallInfo(req);
-
-  console.log("[Media Stream] WebSocket connection request:", { callSid, from, to });
-
-  if (!callSid || !to) {
-    return new Response("Missing call information", { status: 400 });
-  }
-
-  // Find agent by phone number
-  const normalizedPhone = normalizePhone(to);
-  if (!normalizedPhone) {
-    return new Response("Invalid phone number format", { status: 400 });
-  }
-
-  const possibleFormats = [
-    normalizedPhone,
-    to,
-    normalizedPhone.replace(/^\+1/, ""),
-    to.replace(/^\+1/, ""),
-  ].filter(Boolean) as string[];
-
-  const uniqueFormats = [...new Set(possibleFormats)];
-
-  const { data: agent } = await supabaseAdmin
-    .from("agents")
-    .select("id, workspace_id, name, status, phone_number, elevenlabs_voice_id, modality")
-    .in("phone_number", uniqueFormats)
-    .in("modality", ["voice", "multi-modal"])
-    .eq("status", "deployed")
-    .limit(1)
-    .maybeSingle();
-
-  if (!agent) {
-    return new Response("Agent not found", { status: 404 });
-  }
-
-  // Create or get conversation
-  let { data: conversation } = await supabaseAdmin
-    .from("conversations")
-    .select("*")
-    .eq("channel_id", callSid)
-    .eq("modality", "voice")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (!conversation) {
-    // Create new conversation
-    const { data: scenarios } = await supabaseAdmin
-      .from("scenarios")
-      .select("id")
-      .eq("agent_id", agent.id)
-      .order("created_at", { ascending: true })
-      .limit(1);
-
-    const scenarioId = scenarios && scenarios.length > 0 ? scenarios[0].id : null;
-    let currentStepId: string | null = null;
-
-    if (scenarioId) {
-      const { data: steps } = await supabaseAdmin
-        .from("steps")
-        .select("id")
-        .eq("scenario_id", scenarioId)
-        .order("sort_order", { ascending: true })
-        .limit(1);
-
-      if (steps && steps.length > 0) {
-        currentStepId = steps[0].id;
-      }
-    }
-
-    const { data: newConversation } = await supabaseAdmin
-      .from("conversations")
-      .insert({
-        channel_id: callSid,
-        agent_id: agent.id,
-        workspace_id: agent.workspace_id,
-        modality: "voice",
-        status: "active",
-        current_scenario_id: scenarioId,
-        current_step_id: currentStepId,
-        metadata: {
-          phoneNumber: to,
-          customerNumber: from,
-          mediaStream: true,
-        },
-      })
-      .select()
-      .single();
-
-    conversation = newConversation;
-  }
-
-  // Return TwiML that enables Media Streams, connecting to Railway WebSocket server
-  const baseUrl = process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || "https://driftai.studio";
-  // Railway WebSocket server URL (set via environment variable or use default)
-  const railwayUrl = process.env.RAILWAY_WEBSOCKET_URL || "wss://motivated-perfection-production.up.railway.app";
-  const mediaStreamUrl = `${railwayUrl}/media-stream?CallSid=${callSid}&From=${encodeURIComponent(from)}&To=${encodeURIComponent(to)}`;
-
-  // Media Streams handles all audio via WebSocket - no need for <Gather>
-  // The Railway server will handle the conversation flow
-  const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Start>
-    <Stream url="${mediaStreamUrl}" />
-  </Start>
-  <Say>Hello! How can I help you today?</Say>
-</Response>`;
-
-  return new Response(twiml, {
-    status: 200,
-    headers: { "Content-Type": "text/xml; charset=utf-8" },
-  });
+  return handleMediaStream(req);
 }
