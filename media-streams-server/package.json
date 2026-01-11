@@ -1,0 +1,20 @@
+{
+  "name": "twilio-media-streams-server",
+  "version": "1.0.0",
+  "description": "WebSocket server for Twilio Media Streams",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "dependencies": {
+    "ws": "^8.14.2",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
