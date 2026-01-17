@@ -12,14 +12,20 @@ export const maxDuration = 30; // Vapi allows longer timeouts
 const callInfoCache = new Map<string, { callId: string; phoneNumber: string; customerNumber: string }>();
 
 /**
- * Vapi Webhook Handler
+ * ⚠️ DEPRECATED: Vapi Webhook Handler
  * POST /api/vapi/webhook
  * 
- * This endpoint receives webhooks from Vapi for voice calls
- * Configure this URL in your Vapi assistant settings:
- * Settings > Server URL > https://your-domain.com/api/vapi/webhook
+ * This endpoint is NO LONGER USED. We've migrated from Vapi to Twilio Media Streams.
  * 
- * Vapi will call this endpoint:
+ * Current voice call flow:
+ * - Twilio → /api/twilio/media-stream → Railway WebSocket Server
+ * - See /api/twilio/media-stream for the active endpoint
+ * 
+ * This file is kept for reference only. Vapi is deprecated.
+ * 
+ * OLD DOCUMENTATION (for reference):
+ * This endpoint received webhooks from Vapi for voice calls.
+ * Vapi would call this endpoint:
  * 1. When a call starts (with system message)
  * 2. When user speaks (with user message)
  * 3. When assistant needs to respond (with assistant message)
