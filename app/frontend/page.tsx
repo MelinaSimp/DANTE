@@ -177,19 +177,13 @@ export default function FrontendPage() {
 
   return (
     <div className="min-h-screen bg-[#f5f5f7] flex" style={{ background: '#f5f5f7' }}>
-      {/* Left Sidebar - Apple Glass Style */}
+      {/* Left Sidebar - Apple Glass Style (matching backend) */}
       <div className="fixed left-0 top-0 h-full w-72 z-50">
         <div 
-          className="h-full border-r border-gray-200/50 shadow-2xl"
-          style={{
-            background: 'rgba(255, 255, 255, 0.15)',
-            backdropFilter: 'blur(60px) saturate(180%)',
-            WebkitBackdropFilter: 'blur(60px) saturate(180%)',
-            isolation: 'isolate',
-          }}
+          className="h-full border-r border-gray-200/30 bg-white/90 backdrop-blur-sm shadow-2xl"
         >
           {/* Sidebar Header */}
-          <div className="p-6 border-b border-gray-200/30">
+          <div className="p-6 border-b border-gray-200/20">
             <Link href="/" className="inline-flex items-center gap-2">
               <img 
                 src="/brand/logo-circle.png" 
