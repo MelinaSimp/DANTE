@@ -180,11 +180,12 @@ export default function FrontendPage() {
       {/* Left Sidebar - Apple Glass Style */}
       <div className="fixed left-0 top-0 h-full w-72 z-50">
         <div 
-          className="h-full border-r border-white/40 shadow-xl"
+          className="h-full border-r border-gray-200/50 shadow-2xl"
           style={{
-            background: 'rgba(255, 255, 255, 0.25)',
-            backdropFilter: 'blur(40px) saturate(180%)',
-            WebkitBackdropFilter: 'blur(40px) saturate(180%)',
+            background: 'rgba(255, 255, 255, 0.15)',
+            backdropFilter: 'blur(60px) saturate(180%)',
+            WebkitBackdropFilter: 'blur(60px) saturate(180%)',
+            isolation: 'isolate',
           }}
         >
           {/* Sidebar Header */}
