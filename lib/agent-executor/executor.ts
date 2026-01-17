@@ -1,10 +1,15 @@
 /**
  * Agent Execution Engine
  * Core runtime that executes agent scenarios and steps during conversations
+ * 
+ * Version: 3.0 (Fixed Supabase insert error - removed conversation_steps logging)
  */
 
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+
+// Version identifier to verify deployed code
+export const EXECUTOR_VERSION = "3.0-no-insert-catch";
 
 export interface ConversationContext {
   conversationId: string;

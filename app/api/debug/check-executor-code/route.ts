@@ -4,55 +4,52 @@ export const dynamic = "force-dynamic";
 
 /**
  * Diagnostic endpoint to check which version of executor.ts is deployed
- * This checks if the problematic conversation_steps insert code is present
+ * This verifies the fix for the Supabase insert error is live
  */
 export async function GET(req: NextRequest) {
   try {
-    // Read the actual executor file to check its content
-    const fs = await import("fs/promises");
-    const path = await import("path");
+    // Try to import the executor to get its version
+    let executorVersion = "unknown";
+    let hasFixedCode = false;
     
-    const executorPath = path.join(process.cwd(), "lib/agent-executor/executor.ts");
-    const executorCode = await fs.readFile(executorPath, "utf-8");
+    try {
+      const executorModule = await import("@/lib/agent-executor/executor");
+      executorVersion = (executorModule as any).EXECUTOR_VERSION || "unknown";
+      hasFixedCode = executorVersion === "3.0-no-insert-catch";
+    } catch (error: any) {
+      return NextResponse.json({
+        status: "error",
+        error: "Could not import executor module",
+        details: error.message,
+      }, { status: 500 });
+    }
     
-    // Check for the problematic pattern
-    const hasOldPattern = executorCode.includes(
-      '.from("conversation_steps").insert({'
-    ) && executorCode.includes('.catch((err: any) =>');
-    
-    // Check for the fix (removed code with comment)
-    const hasFixComment = executorCode.includes(
-      'Removed logging to conversation_steps table to avoid Supabase query builder issues'
-    );
-    
-    // Count how many times conversation_steps appears
-    const conversationStepsMatches = (executorCode.match(/conversation_steps/g) || []).length;
-    
-    // Get git commit info
-    const { execSync } = await import("child_process");
+    // Get git commit info (if available)
     let gitCommit = "unknown";
     let gitMessage = "unknown";
     try {
-      gitCommit = execSync("git rev-parse HEAD", { encoding: "utf-8" }).trim();
-      gitMessage = execSync("git log -1 --pretty=%B", { encoding: "utf-8" }).trim();
+      const { execSync } = await import("child_process");
+      gitCommit = execSync("git rev-parse HEAD", { encoding: "utf-8" }).trim().substring(0, 7);
+      gitMessage = execSync("git log -1 --pretty=%B", { encoding: "utf-8" }).trim().substring(0, 100);
     } catch (e) {
-      // Git info not available
+      // Git info not available in Vercel
     }
     
     return NextResponse.json({
       status: "ok",
-      deployedVersion: {
-        gitCommit: gitCommit.substring(0, 7),
-        gitMessage: gitMessage.substring(0, 100),
+      deployedCode: {
+        executorVersion: executorVersion,
+        hasFixedCode: hasFixedCode,
+        fixApplied: hasFixedCode,
       },
-      codeCheck: {
-        hasOldPattern: hasOldPattern,
-        hasFixComment: hasFixComment,
-        conversationStepsMentions: conversationStepsMatches,
-        isFixed: !hasOldPattern && hasFixComment,
+      deployment: {
+        gitCommit: gitCommit,
+        gitMessage: gitMessage,
       },
-      filePath: executorPath,
       timestamp: new Date().toISOString(),
+      checkResult: hasFixedCode 
+        ? "✅ FIXED: Code version 3.0 is deployed - the Supabase insert error should be resolved"
+        : "⚠️ OLD CODE: Version " + executorVersion + " is deployed - the fix may not be live yet",
     });
   } catch (error: any) {
     return NextResponse.json({
