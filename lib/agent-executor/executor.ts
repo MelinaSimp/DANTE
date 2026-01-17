@@ -1869,16 +1869,19 @@ Answer:`;
       .eq("id", this.context.conversationId);
 
     // OPTIMIZATION: Log step execution in background (non-blocking)
-    this.supabase.from("conversation_steps").insert({
-      conversation_id: this.context.conversationId,
-      step_id: this.context.currentStepId,
-      step_type: "executed",
-      output_data: { output: result.output },
-    }).then(() => {
-      // Success - no action needed
-    }).catch((err: any) => {
-      console.error("[Executor] Failed to log step execution (non-blocking):", err);
-    });
+    // Use void to explicitly ignore the promise result
+    void (async () => {
+      try {
+        await this.supabase.from("conversation_steps").insert({
+          conversation_id: this.context.conversationId,
+          step_id: this.context.currentStepId,
+          step_type: "executed",
+          output_data: { output: result.output },
+        });
+      } catch (err: any) {
+        console.error("[Executor] Failed to log step execution (non-blocking):", err);
+      }
+    })();
   }
 
   /**
