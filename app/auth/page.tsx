@@ -5,7 +5,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
-import { Sparkles, ArrowRight } from "lucide-react";
 
 export default function AuthPage() {
   const router = useRouter();
@@ -18,6 +17,7 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [keepSignedIn, setKeepSignedIn] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,110 +68,86 @@ export default function AuthPage() {
         }
       }
     } catch (err: any) {
-      setError(err.message || "An error occurred");
+      // Check if it's a network/fetch error
+      if (err.message?.includes("Failed to fetch") || err.message?.includes("NetworkError")) {
+        setError("Unable to connect to authentication service. Please check your internet connection and try again. If the problem persists, the Supabase configuration may be missing.");
+      } else {
+        setError(err.message || "An error occurred");
+      }
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#1a1612] text-white flex items-center justify-center px-4 py-16">
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="mb-8 text-center">
-          <Link href="/" className="inline-flex items-center gap-3 mb-6">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-pink-500 via-purple-500 to-blue-500 flex items-center justify-center">
-            </div>
-            <span className="text-2xl font-semibold">Drift</span>
-          </Link>
-          <h1 className="text-3xl font-bold mb-2">
-            {isSignUp ? "Create your account" : "Welcome back"}
-          </h1>
-          <p className="text-white/60">
-            {isSignUp
-              ? "Start building AI agents today"
-              : "Sign in to continue building your AI agents"}
-          </p>
-        </div>
+    <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center px-4 py-16">
+      {/* Top Logo - Apple style */}
+      <div className="absolute top-8 left-8">
+        <Link href="/" className="inline-flex items-center gap-2">
+          <img 
+            src="/brand/logo-circle.png" 
+            alt="Drift Logo"
+            className="w-6 h-6 rounded-full object-cover"
+          />
+          <span className="text-lg font-medium text-gray-900">Drift</span>
+        </Link>
+      </div>
 
-        {/* Auth Card */}
-        <div className="rounded-3xl border border-white/10 bg-black/40 p-8 backdrop-blur">
-          {/* Toggle */}
-          <div className="mb-6 grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setIsSignUp(false);
-                setError(null);
-                setMessage(null);
-              }}
-              className={`rounded-3xl px-4 py-2 text-sm font-medium transition ${
-                !isSignUp
-                  ? "bg-[#3351ff] text-white"
-                  : "bg-white/5 text-white/60 hover:bg-white/10"
-              }`}
-            >
-              Sign in
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setIsSignUp(true);
-                setError(null);
-                setMessage(null);
-              }}
-              className={`rounded-3xl px-4 py-2 text-sm font-medium transition ${
-                isSignUp
-                  ? "bg-[#3351ff] text-white"
-                  : "bg-white/5 text-white/60 hover:bg-white/10"
-              }`}
-            >
-              Sign up
-            </button>
+      <div className="w-full max-w-[420px]">
+        {/* Main Auth Card - Apple style white card */}
+        <div className="bg-white rounded-2xl shadow-lg p-10">
+          {/* Logo with colorful pattern background */}
+          <div className="mb-8 flex justify-center">
+            <div className="relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-orange-400 via-pink-500 via-purple-500 to-blue-500 rounded-full blur-xl opacity-60 animate-pulse"></div>
+              <div className="relative bg-white rounded-full p-3">
+                <img 
+                  src="/brand/logo-circle.png" 
+                  alt="Drift Logo"
+                  className="w-12 h-12 rounded-full object-cover"
+                />
+              </div>
+            </div>
           </div>
 
+          {/* Title */}
+          <h1 className="text-2xl font-semibold text-gray-900 text-center mb-8">
+            {isSignUp ? "Create your account" : "Sign in with Drift"}
+          </h1>
+
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
             {isSignUp && (
               <>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-white/70">
-                      First name
-                    </label>
                     <input
                       type="text"
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
-                      className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-2.5 text-white placeholder:text-white/40 focus:border-[#3351ff] focus:outline-none"
-                      placeholder="John"
+                      className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition"
+                      placeholder="First name"
                       required={isSignUp}
                     />
                   </div>
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-white/70">
-                      Last name
-                    </label>
                     <input
                       type="text"
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
-                      className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-2.5 text-white placeholder:text-white/40 focus:border-[#3351ff] focus:outline-none"
-                      placeholder="Doe"
+                      className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition"
+                      placeholder="Last name"
                       required={isSignUp}
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-white/70">
-                    Company name
-                  </label>
                   <input
                     type="text"
                     value={companyName}
                     onChange={(e) => setCompanyName(e.target.value)}
-                    className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-2.5 text-white placeholder:text-white/40 focus:border-[#3351ff] focus:outline-none"
-                    placeholder="Your Company"
+                    className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition"
+                    placeholder="Company name"
                     required={isSignUp}
                   />
                 </div>
@@ -179,42 +155,52 @@ export default function AuthPage() {
             )}
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-white/70">
-                Email
-              </label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-2.5 text-white placeholder:text-white/40 focus:border-[#3351ff] focus:outline-none"
-                placeholder="you@company.com"
+                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition"
+                placeholder="Email"
                 required
               />
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-white/70">
-                Password
-              </label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-2xl border border-white/10 bg-black/40 px-4 py-2.5 text-white placeholder:text-white/40 focus:border-[#3351ff] focus:outline-none"
-                placeholder="••••••••"
+                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition"
+                placeholder="Password"
                 required
                 minLength={8}
               />
             </div>
 
+            {/* Keep me signed in checkbox - Apple style */}
+            {!isSignUp && (
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="keepSignedIn"
+                  checked={keepSignedIn}
+                  onChange={(e) => setKeepSignedIn(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <label htmlFor="keepSignedIn" className="ml-2 text-sm text-gray-600">
+                  Keep me signed in
+                </label>
+              </div>
+            )}
+
             {error && (
-              <div className="rounded-2xl bg-red-500/20 border border-red-500/30 px-4 py-3 text-sm text-red-300">
+              <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
                 {error}
               </div>
             )}
 
             {message && (
-              <div className="rounded-2xl bg-green-500/20 border border-green-500/30 px-4 py-3 text-sm text-green-300">
+              <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-700">
                 {message}
               </div>
             )}
@@ -222,34 +208,71 @@ export default function AuthPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-3xl bg-[#3351ff] hover:bg-[#4a64ff] px-4 py-3 text-white font-medium transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full rounded-lg bg-blue-600 hover:bg-blue-700 px-4 py-3 text-white font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? (
-                "Loading..."
-              ) : (
-                <>
-                  {isSignUp ? "Create account" : "Sign in"}
-                  <ArrowRight className="h-4 w-4" />
-                </>
-              )}
+              {loading ? "Loading..." : (isSignUp ? "Create account" : "Sign in")}
             </button>
           </form>
 
+          {/* Links - Apple style */}
+          <div className="mt-6 space-y-3 text-center">
+            {!isSignUp && (
+              <>
+                <Link
+                  href="#"
+                  className="text-sm text-blue-600 hover:text-blue-700 hover:underline"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    // TODO: Implement forgot password
+                  }}
+                >
+                  Forgotten your email or password?
+                </Link>
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSignUp(true);
+                      setError(null);
+                      setMessage(null);
+                    }}
+                    className="text-sm text-blue-600 hover:text-blue-700 hover:underline"
+                  >
+                    Create account
+                  </button>
+                </div>
+              </>
+            )}
+            {isSignUp && (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSignUp(false);
+                    setError(null);
+                    setMessage(null);
+                  }}
+                  className="text-sm text-blue-600 hover:text-blue-700 hover:underline"
+                >
+                  Already have an account? Sign in
+                </button>
+              </div>
+            )}
+          </div>
+
           {isSignUp && (
-            <p className="mt-4 text-center text-xs text-white/50">
-              By signing up, you agree to our Terms of Service and Privacy Policy
+            <p className="mt-6 text-center text-xs text-gray-500">
+              By signing up, you agree to our{" "}
+              <Link href="#" className="text-blue-600 hover:underline">Terms of Service</Link>{" "}
+              and{" "}
+              <Link href="#" className="text-blue-600 hover:underline">Privacy Policy</Link>
             </p>
           )}
         </div>
 
-        {/* Back to home */}
-        <div className="mt-6 text-center">
-          <Link
-            href="/"
-            className="text-sm text-white/60 hover:text-white transition"
-          >
-            ← Back to home
-          </Link>
+        {/* Footer - Apple style */}
+        <div className="mt-8 text-center text-xs text-gray-500">
+          Copyright © {new Date().getFullYear()} Drift AI. All rights reserved.
         </div>
       </div>
     </div>
