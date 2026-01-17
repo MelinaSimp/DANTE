@@ -80,7 +80,7 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center px-4 py-16">
+    <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center px-4 py-16" style={{ background: '#f5f5f7' }}>
       {/* Top Logo - Apple style */}
       <div className="absolute top-8 left-8">
         <Link href="/" className="inline-flex items-center gap-2">
@@ -89,13 +89,13 @@ export default function AuthPage() {
             alt="Drift Logo"
             className="w-6 h-6 rounded-full object-cover"
           />
-          <span className="text-lg font-medium text-gray-900">Drift</span>
+          <span className="text-lg font-medium text-gray-900" style={{ color: '#111827' }}>Drift</span>
         </Link>
       </div>
 
       <div className="w-full max-w-[420px]">
         {/* Main Auth Card - Apple style white card */}
-        <div className="bg-white rounded-2xl shadow-lg p-10">
+        <div className="bg-white rounded-2xl shadow-lg p-10" style={{ background: '#ffffff' }}>
           {/* Logo with colorful pattern background */}
           <div className="mb-8 flex justify-center">
             <div className="relative">
@@ -111,7 +111,7 @@ export default function AuthPage() {
           </div>
 
           {/* Title */}
-          <h1 className="text-2xl font-semibold text-gray-900 text-center mb-8">
+          <h1 className="text-2xl font-semibold text-gray-900 text-center mb-8" style={{ color: '#111827' }}>
             {isSignUp ? "Create your account" : "Sign in with Drift"}
           </h1>
 
@@ -126,6 +126,7 @@ export default function AuthPage() {
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
                       className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition"
+                      style={{ background: '#ffffff', color: '#111827', borderColor: '#d1d5db' }}
                       placeholder="First name"
                       required={isSignUp}
                     />
@@ -136,6 +137,7 @@ export default function AuthPage() {
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
                       className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition"
+                      style={{ background: '#ffffff', color: '#111827', borderColor: '#d1d5db' }}
                       placeholder="Last name"
                       required={isSignUp}
                     />
@@ -187,7 +189,7 @@ export default function AuthPage() {
                   onChange={(e) => setKeepSignedIn(e.target.checked)}
                   className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                 />
-                <label htmlFor="keepSignedIn" className="ml-2 text-sm text-gray-600">
+                <label htmlFor="keepSignedIn" className="ml-2 text-sm text-gray-600" style={{ color: '#4b5563' }}>
                   Keep me signed in
                 </label>
               </div>
@@ -271,7 +273,7 @@ export default function AuthPage() {
         </div>
 
         {/* Footer - Apple style */}
-        <div className="mt-8 text-center text-xs text-gray-500">
+        <div className="mt-8 text-center text-xs text-gray-500" style={{ color: '#6b7280' }}>
           Copyright © {new Date().getFullYear()} Drift AI. All rights reserved.
         </div>
       </div>
