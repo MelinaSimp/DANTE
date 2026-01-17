@@ -1,7 +1,7 @@
 // app/auth/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
@@ -18,6 +18,31 @@ export default function AuthPage() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [keepSignedIn, setKeepSignedIn] = useState(false);
+
+  // Override global dark theme for auth page
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const main = document.querySelector('main');
+    
+    // Apply light theme with !important via inline styles
+    html.style.setProperty('background', '#f5f5f7', 'important');
+    body.style.setProperty('background', '#f5f5f7', 'important');
+    body.style.setProperty('color', '#111827', 'important');
+    if (main) {
+      (main as HTMLElement).style.setProperty('background', '#f5f5f7', 'important');
+    }
+    
+    // Cleanup on unmount (restore defaults)
+    return () => {
+      html.style.removeProperty('background');
+      body.style.removeProperty('background');
+      body.style.removeProperty('color');
+      if (main) {
+        (main as HTMLElement).style.removeProperty('background');
+      }
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
