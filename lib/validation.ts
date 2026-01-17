@@ -102,3 +102,96 @@ export function validateMaxLength(value: string, maxLength: number, fieldName: s
   }
   return null;
 }
+
+/**
+ * Sanitizes user input to prevent XSS attacks
+ * Trims whitespace and escapes HTML entities
+ */
+export function sanitizeInput(input: string | null | undefined): string {
+  if (!input) {
+    return '';
+  }
+
+  // Trim whitespace
+  let sanitized = String(input).trim();
+
+  // Escape HTML entities to prevent XSS
+  sanitized = sanitized
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+
+  // Limit length to prevent DoS (10,000 characters max)
+  if (sanitized.length > 10000) {
+    sanitized = sanitized.substring(0, 10000);
+  }
+
+  return sanitized;
+}
+
+/**
+ * Contact validation result
+ */
+export interface ContactValidationResult {
+  isValid: boolean;
+  errors: string[];
+}
+
+/**
+ * Validates contact data
+ */
+export function validateContact(data: {
+  name: string;
+  email?: string;
+  phone?: string;
+  notes?: string;
+}): ContactValidationResult {
+  const errors: string[] = [];
+
+  // Validate name (required)
+  const nameError = validateRequired(data.name, 'Name');
+  if (nameError) {
+    errors.push(nameError);
+  } else {
+    const nameLengthError = validateMaxLength(data.name, 255, 'Name');
+    if (nameLengthError) {
+      errors.push(nameLengthError);
+    }
+  }
+
+  // Validate email (optional but must be valid if provided)
+  if (data.email && data.email.trim().length > 0) {
+    const emailError = validateEmail(data.email);
+    if (emailError) {
+      errors.push(emailError);
+    } else {
+      const emailLengthError = validateMaxLength(data.email, 255, 'Email');
+      if (emailLengthError) {
+        errors.push(emailLengthError);
+      }
+    }
+  }
+
+  // Validate phone (optional but must be valid if provided)
+  if (data.phone && data.phone.trim().length > 0) {
+    const phoneError = validatePhoneNumber(data.phone);
+    if (phoneError) {
+      errors.push(phoneError);
+    }
+  }
+
+  // Validate notes (optional, but limit length if provided)
+  if (data.notes && data.notes.trim().length > 0) {
+    const notesLengthError = validateMaxLength(data.notes, 5000, 'Notes');
+    if (notesLengthError) {
+      errors.push(notesLengthError);
+    }
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+  };
+}
