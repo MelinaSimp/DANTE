@@ -1874,6 +1874,8 @@ Answer:`;
       step_id: this.context.currentStepId,
       step_type: "executed",
       output_data: { output: result.output },
+    }).then(() => {
+      // Success - no action needed
     }).catch((err: any) => {
       console.error("[Executor] Failed to log step execution (non-blocking):", err);
     });
