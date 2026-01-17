@@ -80,10 +80,13 @@ export default function SelectPage() {
               {/* Icon with colorful gradient background - Apple style */}
               <div className="relative mb-6">
                 <div className="absolute inset-0 bg-gradient-to-br from-blue-400 via-purple-500 to-pink-500 rounded-full blur-xl opacity-40 group-hover:opacity-60 animate-pulse"></div>
-                <div className="relative bg-gray-900 rounded-full p-4 shadow-md">
-                  {/* Simple diamond icon - no lines, just the diamond shape */}
-                  <div className="w-16 h-16 flex items-center justify-center">
-                    <div className="w-10 h-10 bg-white transform rotate-45 rounded-sm"></div>
+                <div className="relative bg-white rounded-full p-4 shadow-md overflow-hidden">
+                  <div className="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center" style={{ clipPath: 'inset(15% 15% 15% 15%)' }}>
+                    <img 
+                      src="/brand/frontend-icon.png?v=3" 
+                      alt="Frontend"
+                      className="w-full h-full object-contain scale-125"
+                    />
                   </div>
                 </div>
               </div>
