@@ -80,10 +80,10 @@ export default function SelectPage() {
               {/* Icon with colorful gradient background - Apple style */}
               <div className="relative mb-6">
                 <div className="absolute inset-0 bg-gradient-to-br from-blue-400 via-purple-500 to-pink-500 rounded-full blur-xl opacity-40 group-hover:opacity-60 animate-pulse"></div>
-                <div className="relative bg-white rounded-full p-4 shadow-md w-20 h-20 flex items-center justify-center">
-                  {/* Simple diamond/star shape without extra lines */}
-                  <div className="w-10 h-10 relative">
-                    <div className="absolute inset-0 transform rotate-45 border-4 border-blue-600 rounded-sm"></div>
+                <div className="relative bg-gray-900 rounded-full p-4 shadow-md">
+                  {/* Simple diamond icon - no lines, just the diamond shape */}
+                  <div className="w-16 h-16 flex items-center justify-center">
+                    <div className="w-10 h-10 bg-white transform rotate-45 rounded-sm"></div>
                   </div>
                 </div>
               </div>
@@ -107,11 +107,12 @@ export default function SelectPage() {
               {/* Icon with colorful gradient background - Apple style */}
               <div className="relative mb-6">
                 <div className="absolute inset-0 bg-gradient-to-br from-orange-400 via-red-500 to-pink-500 rounded-full blur-xl opacity-40 group-hover:opacity-60 animate-pulse"></div>
-                <div className="relative bg-gray-900 rounded-full p-4 shadow-md w-20 h-20 flex items-center justify-center">
-                  {/* Simple diamond/star shape without extra lines */}
-                  <div className="w-10 h-10 relative">
-                    <div className="absolute inset-0 transform rotate-45 border-4 border-white rounded-sm"></div>
-                  </div>
+                <div className="relative bg-gray-900 rounded-full p-4 shadow-md">
+                  <img 
+                    src="/brand/backend-icon.png?v=3" 
+                    alt="Backend"
+                    className="w-16 h-16 rounded-full object-contain"
+                  />
                 </div>
               </div>
               
