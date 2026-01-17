@@ -1870,25 +1870,8 @@ Answer:`;
 
     // OPTIMIZATION: Log step execution in background (non-blocking)
     // Fire-and-forget: don't wait for this to complete
-    (async () => {
-      try {
-        const { error } = await this.supabase
-          .from("conversation_steps")
-          .insert({
-            conversation_id: this.context.conversationId,
-            step_id: this.context.currentStepId,
-            step_type: "executed",
-            output_data: { output: result.output },
-          })
-          .select()
-          .single();
-        if (error) {
-          console.error("[Executor] Failed to log step execution (non-blocking):", error);
-        }
-      } catch (err: any) {
-        console.error("[Executor] Failed to log step execution (non-blocking):", err);
-      }
-    })();
+    // Removed logging to conversation_steps table to avoid Supabase query builder issues
+    // This logging was optional and non-critical, so removing it prevents deployment errors
   }
 
   /**
