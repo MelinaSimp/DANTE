@@ -177,8 +177,57 @@ export default function FrontendPage() {
 
   return (
     <div className="min-h-screen bg-[#f5f5f7] flex" style={{ background: '#f5f5f7' }}>
+      {/* Left Sidebar - Apple Glass Style */}
+      <div className="fixed left-0 top-0 h-full w-72 z-50">
+        <div 
+          className="h-full bg-white/30 backdrop-blur-xl border-r border-white/30 shadow-xl"
+          style={{
+            background: 'rgba(255, 255, 255, 0.3)',
+            backdropFilter: 'blur(20px) saturate(180%)',
+            WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+          }}
+        >
+          {/* Sidebar Header */}
+          <div className="p-6 border-b border-gray-200/30">
+            <Link href="/" className="inline-flex items-center gap-2">
+              <img 
+                src="/brand/logo-circle.png" 
+                alt="Drift Logo"
+                className="w-6 h-6 rounded-full object-cover"
+              />
+              <span className="text-lg font-medium text-gray-900">Drift</span>
+            </Link>
+          </div>
+
+          {/* Navigation Items */}
+          <nav className="p-4 space-y-2">
+            {sidebarItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = item.active;
+              
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+                    isActive
+                      ? "bg-blue-600/10 text-blue-600"
+                      : "text-gray-700 hover:bg-white/30"
+                  }`}
+                >
+                  <Icon className={`w-5 h-5 ${isActive ? "text-blue-600" : "text-gray-600"}`} />
+                  <span className={`text-sm font-medium ${isActive ? "text-blue-600" : "text-gray-700"}`}>
+                    {item.name}
+                  </span>
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+      </div>
+
       {/* Main Content Area */}
-      <div className="flex-1 flex items-center justify-center px-4 py-16">
+      <div className="flex-1 flex items-center justify-center px-4 py-16 ml-72">
         {agents.length === 0 ? (
           <div className="text-center">
             <h1 className="text-3xl font-light text-gray-900 mb-4">No agents found</h1>
@@ -265,55 +314,6 @@ export default function FrontendPage() {
             )}
           </div>
         )}
-      </div>
-
-      {/* Right Sidebar - Apple Glass Style */}
-      <div className="fixed right-0 top-0 h-full w-72 z-50">
-        <div 
-          className="h-full bg-white/70 backdrop-blur-2xl border-l border-white/20 shadow-2xl"
-          style={{
-            background: 'rgba(255, 255, 255, 0.7)',
-            backdropFilter: 'blur(40px)',
-            WebkitBackdropFilter: 'blur(40px)',
-          }}
-        >
-          {/* Sidebar Header */}
-          <div className="p-6 border-b border-gray-200/50">
-            <Link href="/" className="inline-flex items-center gap-2">
-              <img 
-                src="/brand/logo-circle.png" 
-                alt="Drift Logo"
-                className="w-6 h-6 rounded-full object-cover"
-              />
-              <span className="text-lg font-medium text-gray-900">Drift</span>
-            </Link>
-          </div>
-
-          {/* Navigation Items */}
-          <nav className="p-4 space-y-2">
-            {sidebarItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = item.active;
-              
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
-                    isActive
-                      ? "bg-blue-600/10 text-blue-600"
-                      : "text-gray-700 hover:bg-gray-100/50"
-                  }`}
-                >
-                  <Icon className={`w-5 h-5 ${isActive ? "text-blue-600" : "text-gray-500"}`} />
-                  <span className={`text-sm font-medium ${isActive ? "text-blue-600" : "text-gray-700"}`}>
-                    {item.name}
-                  </span>
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
       </div>
     </div>
   );
