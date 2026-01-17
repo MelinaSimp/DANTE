@@ -183,21 +183,73 @@ async function handleMediaStream(req: NextRequest) {
 
     // Return TwiML that enables Media Streams, connecting to Railway WebSocket server
     const baseUrl = process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || "https://driftai.studio";
+    
     // Railway WebSocket server URL (set via environment variable or use default)
-    const railwayUrl = process.env.RAILWAY_WEBSOCKET_URL || "wss://motivated-perfection-production.up.railway.app";
-    const mediaStreamUrl = `${railwayUrl}/media-stream?CallSid=${callSid}&From=${encodeURIComponent(from)}&To=${encodeURIComponent(to)}`;
-
-    // Media Streams handles all audio via WebSocket - no need for <Gather>
-    // The Railway server will handle the conversation flow
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+    let railwayUrl = process.env.RAILWAY_WEBSOCKET_URL || "wss://motivated-perfection-production.up.railway.app";
+    
+    // Validate Railway URL format
+    if (!railwayUrl.startsWith("wss://") && !railwayUrl.startsWith("ws://")) {
+      console.warn("[Media Stream] Railway URL missing protocol, adding wss://");
+      railwayUrl = railwayUrl.startsWith("http://") 
+        ? railwayUrl.replace("http://", "wss://")
+        : railwayUrl.startsWith("https://")
+        ? railwayUrl.replace("https://", "wss://")
+        : `wss://${railwayUrl}`;
+    }
+    
+    // Validate URL doesn't have trailing slashes or spaces
+    railwayUrl = railwayUrl.trim().replace(/\/+$/, "");
+    
+    // Check Railway health before using (non-blocking)
+    let useMediaStreams = true;
+    try {
+      const healthUrl = railwayUrl.replace("wss://", "https://").replace("ws://", "http://") + "/health";
+      const healthCheck = await fetch(healthUrl, { 
+        method: "GET",
+        signal: AbortSignal.timeout(2000) // 2 second timeout
+      }).catch(() => null);
+      
+      if (!healthCheck || !healthCheck.ok) {
+        console.warn("[Media Stream] Railway health check failed, falling back to regular Twilio flow");
+        useMediaStreams = false;
+      }
+    } catch (healthError) {
+      console.warn("[Media Stream] Railway health check error (non-blocking):", healthError);
+      // Continue anyway - Media Streams might still work
+    }
+    
+    let twiml: string;
+    
+    if (useMediaStreams) {
+      // Build Media Stream URL with proper encoding
+      const mediaStreamUrl = `${railwayUrl}/media-stream?CallSid=${encodeURIComponent(callSid)}&From=${encodeURIComponent(from)}&To=${encodeURIComponent(to)}`;
+      
+      // Media Streams handles all audio via WebSocket - no need for <Gather>
+      // The Railway server will handle the conversation flow
+      twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Start>
-    <Stream url="${mediaStreamUrl}" />
+    <Stream url="${mediaStreamUrl.replace(/&/g, "&amp;")}" />
   </Start>
   <Say>Hello! How can I help you today?</Say>
 </Response>`;
-
-    console.log("[Media Stream] Returning TwiML with Media Stream URL:", mediaStreamUrl);
+      
+      console.log("[Media Stream] Returning TwiML with Media Stream URL:", mediaStreamUrl);
+    } else {
+      // Fallback to regular Twilio flow if Railway is unavailable
+      console.log("[Media Stream] Falling back to regular Twilio flow");
+      const responseUrl = `${baseUrl}/api/twilio/response?callSid=${encodeURIComponent(callSid)}&conversationId=${conversation.id}`;
+      
+      twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say>Hello! How can I help you today?</Say>
+  <Pause length="1"/>
+  <Gather input="speech" method="POST" speechTimeout="auto" language="en-US" action="${responseUrl.replace(/&/g, "&amp;")}">
+  </Gather>
+</Response>`;
+      
+      console.log("[Media Stream] Using fallback TwiML with response URL:", responseUrl);
+    }
 
     return new NextResponse(twiml, {
       status: 200,
