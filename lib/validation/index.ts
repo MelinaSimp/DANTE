@@ -4,6 +4,7 @@
  */
 
 // Re-export all functions from validation.ts
+// Using absolute import to avoid path resolution issues
 export {
   validatePhoneNumber,
   formatPhoneToE164,
@@ -14,7 +15,7 @@ export {
   sanitizeInput,
   validateContact,
   type ContactValidationResult,
-} from "../validation";
+} from "@/lib/validation.ts";
 
 // Re-export agent validator functions
 export {
