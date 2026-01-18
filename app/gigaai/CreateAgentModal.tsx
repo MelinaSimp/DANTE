@@ -40,7 +40,7 @@ export default function CreateAgentModal({ onClose, onCreate }: CreateAgentModal
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className={`relative w-full max-w-2xl rounded-2xl border ${colors.border} bg-[#242423] p-8 shadow-2xl`}>
+      <div className={`relative w-full max-w-2xl rounded-2xl border ${colors.border} bg-black p-8 shadow-2xl`}>
         <button
           onClick={onClose}
           className={`absolute right-4 top-4 p-2 ${colors.hover} rounded-full transition`}
@@ -178,12 +178,15 @@ export default function CreateAgentModal({ onClose, onCreate }: CreateAgentModal
             >
               Cancel
             </button>
-            <button
-              type="submit"
-              className={`px-6 py-2 rounded-2xl ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white font-medium transition`}
-            >
-              Create agent
-            </button>
+            <div className="relative inline-block">
+              <div className="absolute -inset-1 bg-gradient-to-br from-orange-500 via-orange-600 to-red-500 rounded-2xl blur-sm opacity-50"></div>
+              <button
+                type="submit"
+                className={`relative px-6 py-2 rounded-2xl ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white font-medium transition`}
+              >
+                Create agent
+              </button>
+            </div>
           </div>
         </form>
       </div>

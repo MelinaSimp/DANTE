@@ -195,13 +195,16 @@ export default function AddDocModal({ onClose, onAdd, agentId }: AddDocModalProp
             >
               Cancel
             </button>
-            <button
-              type="submit"
-              disabled={!name.trim() || uploading || (type === "file" && !file) || (type === "text" && !textContent.trim())}
-              className={`px-4 py-2 rounded-2xl ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed`}
-            >
-              {uploading ? "Uploading..." : "Add Document"}
-            </button>
+            <div className="relative inline-block">
+              <div className="absolute -inset-1 bg-gradient-to-br from-orange-500 via-orange-600 to-red-500 rounded-2xl blur-sm opacity-50"></div>
+              <button
+                type="submit"
+                disabled={!name.trim() || uploading || (type === "file" && !file) || (type === "text" && !textContent.trim())}
+                className={`relative px-4 py-2 rounded-2xl ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                {uploading ? "Uploading..." : "Add Document"}
+              </button>
+            </div>
           </div>
         </form>
       </div>

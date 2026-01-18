@@ -33,9 +33,9 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 const themeColors = {
   "dark": {
-    bg: "bg-[#242423]",
-    bgSecondary: "bg-[#242423]",
-    bgTertiary: "bg-[#242423]",
+    bg: "bg-black",
+    bgSecondary: "bg-black",
+    bgTertiary: "bg-black",
     text: "text-white",
     textSecondary: "text-white/90",
     textTertiary: "text-white/70",
@@ -44,13 +44,13 @@ const themeColors = {
     icon: "text-white",
     iconSecondary: "text-white/70",
     iconActive: "text-[#FF9838]",
-    buttonPrimary: "bg-[#3351ff]",
-    buttonPrimaryHover: "hover:bg-[#4a64ff]",
-    buttonSecondary: "bg-[#242423]",
-    inputBg: "bg-[#242423]",
-    cardBg: "bg-[#242423]",
-    selected: "bg-[#242423] text-white border-white/20",
-    hover: "hover:bg-[#242423]",
+    buttonPrimary: "bg-[#f97316]",
+    buttonPrimaryHover: "hover:bg-[#ea580c]",
+    buttonSecondary: "bg-black",
+    inputBg: "bg-black",
+    cardBg: "bg-black",
+    selected: "bg-black text-white border-white/20",
+    hover: "hover:bg-black",
   },
 };
 
@@ -74,7 +74,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   return (
     <ThemeContext.Provider value={{ theme, setTheme, colors }}>
-      <div className={colors.bg + " " + colors.text + " min-h-screen"} style={{ background: '#242423', backgroundImage: 'none' }}>
+      <div className={colors.bg + " " + colors.text + " min-h-screen"} style={{ background: '#000000', backgroundImage: 'none' }}>
         {children}
       </div>
     </ThemeContext.Provider>
