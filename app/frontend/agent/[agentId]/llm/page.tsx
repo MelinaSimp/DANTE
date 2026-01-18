@@ -7,7 +7,7 @@ import { Send, Loader2, FileText, X, Download, Plus, Search, Trash2, Menu, Messa
 import { Skeleton, ChatListSkeleton, MessageSkeleton } from "@/components/ui/skeleton";
 import { Tooltip } from "@/components/ui/tooltip";
 import { EmptyState } from "@/components/ui/empty-state";
-import ConfirmationModal from "@/app/gigaai/ConfirmationModal";
+import ConfirmationModal from "@/components/frontend/ConfirmationModal";
 
 interface Message {
   role: "user" | "assistant";
