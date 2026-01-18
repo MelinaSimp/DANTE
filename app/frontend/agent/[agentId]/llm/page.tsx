@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, FormEvent } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { Send, Loader2, FileText, X, Download, Plus, Search, Trash2, Menu, MessageSquare, ArrowLeft, FileText as FileTextIcon, Save } from "lucide-react";
+import { Send, Loader2, FileText, X, Download, Plus, Search, Trash2, Menu, MessageSquare, ArrowLeft, Save } from "lucide-react";
 import { Skeleton, ChatListSkeleton, MessageSkeleton } from "@/components/ui/skeleton";
 import { Tooltip } from "@/components/ui/tooltip";
 import { EmptyState } from "@/components/ui/empty-state";
