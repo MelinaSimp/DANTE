@@ -222,15 +222,17 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
     <div className={`h-full flex flex-col space-y-6 ${containerText} p-6 overflow-y-auto relative ${containerBg}`}>
       {/* Floating Create Button - Always visible */}
       {isWhite ? (
-        <div className="fixed bottom-8 right-8 z-50 relative inline-block">
-          <div className="absolute inset-0 bg-gradient-to-br from-purple-400 via-pink-500 to-blue-500 rounded-full blur-sm opacity-50 -inset-1"></div>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="relative px-6 py-3 rounded-full bg-black text-white hover:bg-gray-800 text-sm font-semibold transition flex items-center gap-2 shadow-xl hover:scale-105"
-          >
-            <Plus className="h-6 w-6" />
-            Create Appointment
-          </button>
+        <div className="fixed bottom-8 right-8 z-50">
+          <div className="relative inline-block">
+            <div className="absolute -inset-1 bg-gradient-to-br from-purple-400 via-pink-500 to-blue-500 rounded-full blur-sm opacity-50"></div>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="relative px-6 py-3 rounded-full bg-black text-white hover:bg-gray-800 text-sm font-semibold transition flex items-center gap-2 shadow-xl hover:scale-105"
+            >
+              <Plus className="h-6 w-6" />
+              Create Appointment
+            </button>
+          </div>
         </div>
       ) : (
         <button
