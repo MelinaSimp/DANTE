@@ -336,7 +336,7 @@ export default function FrontendPage() {
                   return (
                     <button
                       key={agent.id}
-                      onClick={() => router.push(`/frontend/agent/${agent.id}`)}
+                      onClick={() => router.push(`/frontend/agent/${agent.id}/llm`)}
                       className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200 hover:shadow-md transition-all text-left group"
                     >
                       {/* Agent Header */}
