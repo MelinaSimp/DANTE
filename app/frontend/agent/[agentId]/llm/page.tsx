@@ -626,59 +626,60 @@ export default function FrontendLLMPage() {
                 </label>
                 {templateMode === "pdf" ? (
                   currentGuideline?.pdfUrl ? (
-                  <div className="w-full min-h-[200px] px-3 py-4 rounded-xl border-2 border-black bg-gray-50 flex flex-col items-center justify-center gap-3">
-                    <FileText className="h-12 w-12 text-gray-600" />
-                    <div className="text-center">
-                      <p className="text-sm font-medium text-gray-900">PDF Template Uploaded</p>
-                      <a
-                        href={currentGuideline.pdfUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-blue-600 hover:underline mt-1 block"
+                    <div className="w-full min-h-[200px] px-3 py-4 rounded-xl border-2 border-black bg-gray-50 flex flex-col items-center justify-center gap-3">
+                      <FileText className="h-12 w-12 text-gray-600" />
+                      <div className="text-center">
+                        <p className="text-sm font-medium text-gray-900">PDF Template Uploaded</p>
+                        <a
+                          href={currentGuideline.pdfUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-600 hover:underline mt-1 block"
+                        >
+                          {currentGuideline.pdfUrl.split("/").pop() || "View PDF"}
+                        </a>
+                      </div>
+                      <button
+                        onClick={() => setCurrentGuideline((prev: any) => ({ ...prev, pdfUrl: null, pdfExtractedText: null }))}
+                        className="px-3 py-1 rounded-lg border border-red-300 text-red-600 text-xs hover:bg-red-50 transition"
                       >
-                        {currentGuideline.pdfUrl.split("/").pop() || "View PDF"}
-                      </a>
+                        Remove PDF
+                      </button>
                     </div>
-                    <button
-                      onClick={() => setCurrentGuideline((prev: any) => ({ ...prev, pdfUrl: null, pdfExtractedText: null }))}
-                      className="px-3 py-1 rounded-lg border border-red-300 text-red-600 text-xs hover:bg-red-50 transition"
-                    >
-                      Remove PDF
-                    </button>
-                  </div>
-                ) : (
-                  <div className="w-full min-h-[200px] px-3 py-4 rounded-xl border-2 border-dashed border-gray-300 bg-white flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-black hover:bg-gray-50 transition">
-                    <input
-                      type="file"
-                      accept=".pdf"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          handlePDFUpload(file);
-                        }
-                      }}
-                      className="hidden"
-                      id="pdf-upload-input"
-                      disabled={uploadingPDF}
-                    />
-                    <label htmlFor="pdf-upload-input" className="cursor-pointer flex flex-col items-center gap-2">
-                      {uploadingPDF ? (
-                        <>
-                          <Loader2 className="h-8 w-8 text-gray-400 animate-spin" />
-                          <span className="text-xs text-gray-500">Uploading PDF...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="h-8 w-8 text-gray-400" />
-                          <span className="text-xs text-gray-600 text-center">
-                            Click to upload PDF template
-                            <br />
-                            <span className="text-gray-400">Only PDF files are supported</span>
-                          </span>
-                        </>
-                      )}
-                    </label>
-                  </div>
+                  ) : (
+                    <div className="w-full min-h-[200px] px-3 py-4 rounded-xl border-2 border-dashed border-gray-300 bg-white flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-black hover:bg-gray-50 transition">
+                      <input
+                        type="file"
+                        accept=".pdf"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            handlePDFUpload(file);
+                          }
+                        }}
+                        className="hidden"
+                        id="pdf-upload-input"
+                        disabled={uploadingPDF}
+                      />
+                      <label htmlFor="pdf-upload-input" className="cursor-pointer flex flex-col items-center gap-2">
+                        {uploadingPDF ? (
+                          <>
+                            <Loader2 className="h-8 w-8 text-gray-400 animate-spin" />
+                            <span className="text-xs text-gray-500">Uploading PDF...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="h-8 w-8 text-gray-400" />
+                            <span className="text-xs text-gray-600 text-center">
+                              Click to upload PDF template
+                              <br />
+                              <span className="text-gray-400">Only PDF files are supported</span>
+                            </span>
+                          </>
+                        )}
+                      </label>
+                    </div>
+                  )
                 ) : (
                   <textarea
                     value={currentGuideline?.template || ""}
