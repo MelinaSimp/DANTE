@@ -93,10 +93,14 @@ export default function FrontendLLMPage() {
       const response = await fetch(`/api/llm/guidelines?${params.toString()}`);
       if (response.ok) {
         const data = await response.json();
-        setGuidelines(data.guidelines || []);
-        if (data.guidelines && data.guidelines.length > 0 && !currentGuideline) {
-          setCurrentGuideline(data.guidelines[0]);
-        } else if (data.guidelines.length === 0) {
+        const mappedGuidelines = (data.guidelines || []).map((g: any) => ({
+          ...g,
+          isAgentTemplate: g.is_agent_template ?? g.isAgentTemplate ?? true,
+        }));
+        setGuidelines(mappedGuidelines);
+        if (mappedGuidelines.length > 0 && !currentGuideline) {
+          setCurrentGuideline(mappedGuidelines[0]);
+        } else if (mappedGuidelines.length === 0) {
           setCurrentGuideline({ name: "Default Template", template: "", isAgentTemplate: true });
         }
       }
@@ -505,7 +509,7 @@ export default function FrontendLLMPage() {
                 <option value="new">+ New Template</option>
                 {guidelines.map((g) => (
                   <option key={g.id} value={g.id}>
-                    {g.name} {g.is_agent_template ? "(Agent)" : "(Chat)"}
+                    {g.name} {g.isAgentTemplate ? "(Agent)" : "(Chat)"}
                   </option>
                 ))}
               </select>
