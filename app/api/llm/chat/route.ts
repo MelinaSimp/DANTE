@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { message, history = [], agentId, files = [] } = await req.json();
+    const { message, history = [], agentId, chatId, files = [] } = await req.json();
 
     if (!message || typeof message !== "string" || message.trim().length === 0) {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
@@ -35,13 +36,54 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Load guidelines/templates if available
+    let guidelinesContent = "";
+    if (agentId || chatId) {
+      try {
+        let guidelinesQuery = supabaseAdmin
+          .from("llm_guidelines")
+          .select("template, name, is_agent_template")
+          .eq("is_active", true);
+
+        if (agentId && chatId) {
+          guidelinesQuery = guidelinesQuery.or(`agent_id.eq.${agentId},chat_id.eq.${chatId}`);
+        } else if (agentId) {
+          guidelinesQuery = guidelinesQuery.eq("agent_id", agentId);
+        } else if (chatId) {
+          guidelinesQuery = guidelinesQuery.eq("chat_id", chatId);
+        }
+
+        const { data: guidelines } = await guidelinesQuery.order("is_agent_template", { ascending: false });
+
+        if (guidelines && guidelines.length > 0) {
+          // Combine all active guidelines, prioritizing agent-level templates
+          const combinedTemplate = guidelines
+            .map((g) => `[${g.name}]\n${g.template}`)
+            .join("\n\n---\n\n");
+          guidelinesContent = `\n\nCUSTOM GUIDELINES & TEMPLATES:\nThe user has provided specific guidelines and templates that you MUST follow. These override default behavior when applicable:\n\n${combinedTemplate}\n\nWhen following these guidelines, pay attention to inline comments (marked with // or #) as they provide important context about what to do.`;
+        }
+      } catch (error) {
+        console.error("Error loading guidelines:", error);
+        // Continue without guidelines if there's an error
+      }
+    }
+
     // Build conversation history
     let systemContent = `You are Drift, a helpful AI assistant. Be friendly, concise, and helpful. Answer questions clearly and provide useful information.
 
 CRITICAL RULES:
-1. SPELLING: Always use correct spelling and grammar. Double-check all words, especially technical terms, names, and numbers. Never use misspellings or typos. Proofread your responses before sending.
+1. SPELLING & GRAMMAR: 
+   - ALWAYS use correct spelling and grammar. This is non-negotiable.
+   - Double-check and proofread EVERY response before sending.
+   - Pay special attention to: technical terms, proper nouns, names, numbers, dates, and units of measurement.
+   - If you are unsure about spelling, use a dictionary or verify the correct spelling.
+   - Common misspellings are NOT acceptable. Examples: "recieve" → "receive", "seperate" → "separate", "definately" → "definitely".
+   - For technical terms, use the standard spelling (e.g., "JavaScript" not "Javascript", "API" not "Api").
+   - NEVER send a response with misspellings or typos. If you catch an error, correct it immediately.
 
-2. DATA VISUALIZATION: When users provide data (spreadsheets, tables, or text with numbers), automatically generate appropriate visualizations:
+2. DATA VISUALIZATION: 
+   - When users provide data (spreadsheets, tables, CSV, or text with numbers), AUTOMATICALLY generate appropriate visualizations WITHOUT being asked.
+   - This is especially important for one-page distillations or data summaries.
    - For time series data: Use line charts or area charts
    - For comparisons: Use bar charts or column charts
    - For distributions: Use pie charts or histograms
@@ -57,6 +99,7 @@ CRITICAL RULES:
          "title": "Chart Title"
        }
      }
+   - If the user provides a spreadsheet or structured data, you MUST create a visualization even if they don't explicitly ask for it.
 
 3. GUIDELINES & TEMPLATES: When analyzing data or documents, ALWAYS follow these key points in order:
    a) PURPOSE: Identify the main purpose/goal of the data or document
@@ -69,7 +112,7 @@ CRITICAL RULES:
    
    Always structure your analysis using these sections when dealing with data or documents.
 
-You CAN generate PDFs - when users ask for a PDF, provide the content in a well-formatted way that can be converted to PDF. Use clear headings, bullet points, and organized sections.`;
+You CAN generate PDFs - when users ask for a PDF, provide the content in a well-formatted way that can be converted to PDF. Use clear headings, bullet points, and organized sections.${guidelinesContent}`;
     
     // Add PDF content to system context if files are provided
     if (files && files.length > 0) {

@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, FormEvent } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { Send, Loader2, FileText, X, Download, Plus, Search, Trash2, Menu, MessageSquare, ArrowLeft } from "lucide-react";
+import { Send, Loader2, FileText, X, Download, Plus, Search, Trash2, Menu, MessageSquare, ArrowLeft, FileText as FileTextIcon, Save } from "lucide-react";
 import { Skeleton, ChatListSkeleton, MessageSkeleton } from "@/components/ui/skeleton";
 import { Tooltip } from "@/components/ui/tooltip";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -50,6 +50,10 @@ export default function FrontendLLMPage() {
   const [loadingChats, setLoadingChats] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ chatId: string; title: string } | null>(null);
+  const [sidebarTab, setSidebarTab] = useState<"chats" | "guidelines">("chats");
+  const [guidelines, setGuidelines] = useState<any[]>([]);
+  const [currentGuideline, setCurrentGuideline] = useState<{ id?: string; name: string; template: string; isAgentTemplate: boolean } | null>(null);
+  const [savingGuideline, setSavingGuideline] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -73,6 +77,76 @@ export default function FrontendLLMPage() {
   useEffect(() => {
     inputRef.current?.focus();
   }, [currentChatId]);
+
+  useEffect(() => {
+    if (sidebarTab === "guidelines") {
+      loadGuidelines();
+    }
+  }, [sidebarTab, agentId, currentChatId]);
+
+  const loadGuidelines = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (agentId) params.append("agentId", agentId);
+      if (currentChatId) params.append("chatId", currentChatId);
+      
+      const response = await fetch(`/api/llm/guidelines?${params.toString()}`);
+      if (response.ok) {
+        const data = await response.json();
+        setGuidelines(data.guidelines || []);
+        if (data.guidelines && data.guidelines.length > 0 && !currentGuideline) {
+          setCurrentGuideline(data.guidelines[0]);
+        } else if (data.guidelines.length === 0) {
+          setCurrentGuideline({ name: "Default Template", template: "", isAgentTemplate: true });
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load guidelines:", error);
+    }
+  };
+
+  const saveGuideline = async () => {
+    if (!currentGuideline || !currentGuideline.template.trim()) return;
+    
+    setSavingGuideline(true);
+    try {
+      const url = currentGuideline.id 
+        ? `/api/llm/guidelines`
+        : `/api/llm/guidelines`;
+      
+      const method = currentGuideline.id ? "PUT" : "POST";
+      const body: any = {
+        name: currentGuideline.name,
+        template: currentGuideline.template,
+        isAgentTemplate: currentGuideline.isAgentTemplate,
+      };
+      
+      if (currentGuideline.id) {
+        body.id = currentGuideline.id;
+      } else {
+        if (agentId) body.agentId = agentId;
+        if (currentChatId) body.chatId = currentChatId;
+      }
+
+      const response = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        await loadGuidelines();
+        if (data.guideline) {
+          setCurrentGuideline(data.guideline);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to save guideline:", error);
+    } finally {
+      setSavingGuideline(false);
+    }
+  };
 
   const loadChats = async () => {
     setLoadingChats(true);
@@ -195,6 +269,8 @@ export default function FrontendLLMPage() {
         body: JSON.stringify({
           message: input,
           history: messages.slice(-10), // Pass conversation history
+          agentId: agentId,
+          chatId: chatId,
           files: uploadedFiles.map((f) => ({
             id: f.id,
             name: f.name,
@@ -310,6 +386,30 @@ export default function FrontendLLMPage() {
           sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         } fixed md:static inset-y-0 left-0 z-50 w-64 border-r-2 border-black bg-white flex flex-col transition-transform duration-300`}
       >
+        {/* Tabs */}
+        <div className="flex border-b-2 border-black">
+          <button
+            onClick={() => setSidebarTab("chats")}
+            className={`flex-1 px-4 py-2 text-sm font-medium transition ${
+              sidebarTab === "chats"
+                ? "bg-black text-white"
+                : "bg-white text-black hover:bg-gray-50"
+            }`}
+          >
+            Chats
+          </button>
+          <button
+            onClick={() => setSidebarTab("guidelines")}
+            className={`flex-1 px-4 py-2 text-sm font-medium transition ${
+              sidebarTab === "guidelines"
+                ? "bg-black text-white"
+                : "bg-white text-black hover:bg-gray-50"
+            }`}
+          >
+            Guidelines
+          </button>
+        </div>
+
         {/* Header */}
         <div className="p-3 border-b-2 border-black flex items-center gap-2">
           <button
@@ -330,22 +430,24 @@ export default function FrontendLLMPage() {
           </Tooltip>
         </div>
 
-        {/* Search */}
-        <div className="p-3 border-b-2 border-black">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-600" />
-            <input
-              type="text"
-              placeholder="Search chats"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 rounded-2xl bg-white border-2 border-black text-black text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black/20"
-            />
-          </div>
-        </div>
+        {sidebarTab === "chats" ? (
+          <>
+            {/* Search */}
+            <div className="p-3 border-b-2 border-black">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-600" />
+                <input
+                  type="text"
+                  placeholder="Search chats"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 rounded-2xl bg-white border-2 border-black text-black text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black/20"
+                />
+              </div>
+            </div>
 
-        {/* Chat List */}
-        <div className="flex-1 overflow-y-auto">
+            {/* Chat List */}
+            <div className="flex-1 overflow-y-auto">
           {loadingChats ? (
             <ChatListSkeleton />
           ) : filteredChats.length === 0 ? (
@@ -384,6 +486,101 @@ export default function FrontendLLMPage() {
             </div>
           )}
         </div>
+        ) : (
+          /* Guidelines Panel */
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="p-3 border-b-2 border-black flex items-center justify-between">
+              <select
+                value={currentGuideline?.id || "new"}
+                onChange={(e) => {
+                  if (e.target.value === "new") {
+                    setCurrentGuideline({ name: "New Template", template: "", isAgentTemplate: true });
+                  } else {
+                    const guideline = guidelines.find(g => g.id === e.target.value);
+                    if (guideline) setCurrentGuideline(guideline);
+                  }
+                }}
+                className="flex-1 px-3 py-2 rounded-xl border-2 border-black text-black text-sm bg-white focus:outline-none"
+              >
+                <option value="new">+ New Template</option>
+                {guidelines.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name} {g.is_agent_template ? "(Agent)" : "(Chat)"}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-3 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Template Name</label>
+                <input
+                  type="text"
+                  value={currentGuideline?.name || ""}
+                  onChange={(e) => setCurrentGuideline(prev => prev ? { ...prev, name: e.target.value } : null)}
+                  className="w-full px-3 py-2 rounded-xl border-2 border-black text-black text-sm bg-white focus:outline-none"
+                  placeholder="Template name"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Scope</label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setCurrentGuideline(prev => prev ? { ...prev, isAgentTemplate: true } : null)}
+                    className={`flex-1 px-3 py-2 rounded-xl border-2 text-sm transition ${
+                      currentGuideline?.isAgentTemplate
+                        ? "border-black bg-black text-white"
+                        : "border-gray-300 bg-white text-black hover:bg-gray-50"
+                    }`}
+                  >
+                    Agent
+                  </button>
+                  <button
+                    onClick={() => setCurrentGuideline(prev => prev ? { ...prev, isAgentTemplate: false } : null)}
+                    className={`flex-1 px-3 py-2 rounded-xl border-2 text-sm transition ${
+                      !currentGuideline?.isAgentTemplate
+                        ? "border-black bg-black text-white"
+                        : "border-gray-300 bg-white text-black hover:bg-gray-50"
+                    }`}
+                  >
+                    Chat
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex-1 min-h-0">
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Template (use // or # for inline comments)
+                </label>
+                <textarea
+                  value={currentGuideline?.template || ""}
+                  onChange={(e) => setCurrentGuideline(prev => prev ? { ...prev, template: e.target.value } : null)}
+                  className="w-full h-full min-h-[300px] px-3 py-2 rounded-xl border-2 border-black text-black text-sm bg-white focus:outline-none font-mono resize-none"
+                  placeholder={`Example template with inline comments:
+
+// This is a comment explaining what to do
+When analyzing data, always:
+1. Identify key metrics // Look for numbers and percentages
+2. Note trends // Check for increases/decreases over time
+3. Highlight anomalies // Flag anything unusual
+
+# Another comment style
+For spreadsheets, create visualizations automatically.`}
+                />
+              </div>
+
+              <button
+                onClick={saveGuideline}
+                disabled={savingGuideline || !currentGuideline?.template.trim()}
+                className="w-full px-4 py-2 rounded-xl border-2 border-black bg-black text-white hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
+              >
+                <Save className="h-4 w-4" />
+                {savingGuideline ? "Saving..." : "Save Template"}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Main Chat Area */}
