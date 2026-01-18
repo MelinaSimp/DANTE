@@ -505,13 +505,16 @@ export default function FrontendLLMPage() {
             <ArrowLeft className="h-4 w-4 text-black" />
           </button>
           <Tooltip content="Start a new conversation">
-            <button
-              onClick={createNewChat}
-              className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-gray-300 hover:bg-gray-50 transition text-gray-900 text-sm"
-            >
-              <Plus className="h-4 w-4" />
-              New chat
-            </button>
+            <div className="flex-1 relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-400 via-pink-500 to-blue-500 rounded-xl blur-sm opacity-50"></div>
+              <button
+                onClick={createNewChat}
+                className="relative flex-1 flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-gray-300 hover:bg-gray-50 transition text-gray-900 text-sm w-full"
+              >
+                <Plus className="h-4 w-4" />
+                New chat
+              </button>
+            </div>
           </Tooltip>
         </div>
 
@@ -725,14 +728,17 @@ Example:
                 )}
               </div>
 
-              <button
-                onClick={saveGuideline}
-                disabled={savingGuideline || (!currentGuideline?.template?.trim() && !currentGuideline?.pdfUrl) || uploadingPDF}
-                className="w-full px-4 py-2 rounded-xl border-2 border-black bg-black text-white hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
-              >
-                <Save className="h-4 w-4" />
-                {savingGuideline ? "Saving..." : "Save Guidelines"}
-              </button>
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-purple-400 via-pink-500 to-blue-500 rounded-xl blur-sm opacity-50"></div>
+                <button
+                  onClick={saveGuideline}
+                  disabled={savingGuideline || (!currentGuideline?.template?.trim() && !currentGuideline?.pdfUrl) || uploadingPDF}
+                  className="relative w-full px-4 py-2 rounded-xl border-2 border-black bg-black text-white hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
+                >
+                  <Save className="h-4 w-4" />
+                  {savingGuideline ? "Saving..." : "Save Guidelines"}
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -849,17 +855,20 @@ Example:
                     <FileText className="h-4 w-4 text-black" />
                   </button>
                 </div>
-                <button
-                  type="submit"
-                  disabled={loading || !input.trim()}
-                  className="p-3 rounded-2xl bg-black text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                >
-                  {loading ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <Send className="h-5 w-5" />
-                  )}
-                </button>
+                <div className="relative">
+                  <div className="absolute inset-0 bg-gradient-to-br from-purple-400 via-pink-500 to-blue-500 rounded-2xl blur-sm opacity-50"></div>
+                  <button
+                    type="submit"
+                    disabled={loading || !input.trim()}
+                    className="relative p-3 rounded-2xl bg-black text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  >
+                    {loading ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <Send className="h-5 w-5" />
+                    )}
+                  </button>
+                </div>
               </form>
             </div>
           </>

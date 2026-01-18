@@ -292,12 +292,15 @@ export default function FrontendPage() {
                 <Bot className="h-16 w-16 text-gray-400 mx-auto mb-4" />
                 <h2 className="text-2xl font-semibold text-gray-900 mb-2">No agents found</h2>
                 <p className="text-gray-600 mb-6">Please create an agent in the backend first.</p>
-                <button
-                  onClick={() => router.push("/select")}
-                  className="px-6 py-3 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors font-medium"
-                >
-                  Go Back
-                </button>
+                <div className="relative">
+                  <div className="absolute inset-0 bg-gradient-to-br from-purple-400 via-pink-500 to-blue-500 rounded-xl blur-sm opacity-50"></div>
+                  <button
+                    onClick={() => router.push("/select")}
+                    className="relative px-6 py-3 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors font-medium"
+                  >
+                    Go Back
+                  </button>
+                </div>
               </div>
             </div>
           ) : (

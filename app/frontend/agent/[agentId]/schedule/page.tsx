@@ -90,12 +90,15 @@ export default function SchedulePage() {
       <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center" style={{ background: '#f5f5f7' }}>
         <div className="text-center">
           <h1 className="text-2xl font-semibold text-gray-900 mb-4">No workspace found</h1>
-          <button
-            onClick={() => router.push("/frontend")}
-            className="px-6 py-3 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-          >
-            Go Back
-          </button>
+          <div className="relative">
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-400 via-pink-500 to-blue-500 rounded-xl blur-sm opacity-50"></div>
+            <button
+              onClick={() => router.push("/frontend")}
+              className="relative px-6 py-3 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+            >
+              Go Back
+            </button>
+          </div>
         </div>
       </div>
     );
