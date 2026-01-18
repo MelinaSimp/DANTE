@@ -28,8 +28,6 @@ import {
   Sun,
   Calendar,
   Clock,
-  Sparkles,
-  Brain,
   Shield,
 } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
@@ -48,7 +46,6 @@ import AdvancedPage from "./AdvancedPage";
 import ConfirmationModal from "./ConfirmationModal";
 import ChatInterface from "./ChatInterface";
 import InboxPage from "./InboxPage";
-import LLMPage from "./LLMPage";
 import ValidationPanel from "./ValidationPanel";
 import FlowTester from "./FlowTester";
 import { ToastProvider, useToast } from "@/components/ui/toast";
@@ -106,7 +103,7 @@ function GigaAIClient({ initialError, initialSuccess, initialMessage }: GigaAICl
   const [editingScenarioId, setEditingScenarioId] = useState<string | null>(null);
   const [editingScenarioName, setEditingScenarioName] = useState("");
   const [activeTab, setActiveTab] = useState<"canvas" | "test">("canvas");
-  const [activePage, setActivePage] = useState<"scenarios" | "schedule" | "policies" | "data-sources" | "personalization" | "evaluation" | "advanced" | "inbox" | "llm">("scenarios");
+  const [activePage, setActivePage] = useState<"scenarios" | "schedule" | "policies" | "data-sources" | "personalization" | "evaluation" | "advanced" | "inbox">("scenarios");
   const [searchQuery, setSearchQuery] = useState("");
   const [agentsExpanded, setAgentsExpanded] = useState(true);
   const [scenariosExpanded, setScenariosExpanded] = useState(true);
@@ -1028,12 +1025,6 @@ function GigaAIClient({ initialError, initialSuccess, initialMessage }: GigaAICl
                 active={activePage === "advanced"}
                 onClick={() => setActivePage("advanced")}
               />
-              <NavItem
-                icon={Brain}
-                label="LLM"
-                active={activePage === "llm"}
-                onClick={() => setActivePage("llm")}
-              />
               {/* Inbox only for chat and multi-modal agents */}
               {(selectedAgent.modality === "chat" || selectedAgent.modality === "multi-modal") && (
                 <NavItem
@@ -1496,8 +1487,6 @@ function GigaAIClient({ initialError, initialSuccess, initialMessage }: GigaAICl
                         </div>
                       </div>
                     )
-                  ) : activePage === "llm" ? (
-                    <LLMPage agentId={selectedAgent?.id} />
                   ) : null}
                 </div>
               )}
