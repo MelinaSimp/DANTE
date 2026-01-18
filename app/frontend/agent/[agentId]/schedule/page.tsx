@@ -15,6 +15,34 @@ export default function SchedulePage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Override global dark theme styles for Apple-style light theme
+    const html = document.documentElement;
+    const body = document.body;
+    const main = document.querySelector('main');
+    
+    const originalHtmlBg = html.style.background;
+    const originalBodyBg = body.style.background;
+    const originalBodyColor = body.style.color;
+    const originalMainBg = main ? (main as HTMLElement).style.background : null;
+    
+    html.style.setProperty('background', '#f5f5f7', 'important');
+    body.style.setProperty('background', '#f5f5f7', 'important');
+    body.style.setProperty('color', '#111827', 'important');
+    if (main) {
+      (main as HTMLElement).style.setProperty('background', '#f5f5f7', 'important');
+    }
+
+    return () => {
+      html.style.setProperty('background', originalHtmlBg, 'important');
+      body.style.setProperty('background', originalBodyBg, 'important');
+      body.style.setProperty('color', originalBodyColor, 'important');
+      if (main && originalMainBg !== null) {
+        (main as HTMLElement).style.setProperty('background', originalMainBg, 'important');
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     async function loadData() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -51,20 +79,20 @@ export default function SchedulePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="text-gray-400">Loading...</div>
+      <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center" style={{ background: '#f5f5f7' }}>
+        <div className="text-gray-500">Loading...</div>
       </div>
     );
   }
 
   if (!workspaceId) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center" style={{ background: '#f5f5f7' }}>
         <div className="text-center">
-          <h1 className="text-2xl font-light text-black mb-4">No workspace found</h1>
+          <h1 className="text-2xl font-semibold text-gray-900 mb-4">No workspace found</h1>
           <button
             onClick={() => router.push("/frontend")}
-            className="px-6 py-3 rounded-2xl bg-black text-white hover:bg-gray-800 transition-colors"
+            className="px-6 py-3 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors"
           >
             Go Back
           </button>
@@ -74,17 +102,17 @@ export default function SchedulePage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      <div className="max-w-7xl mx-auto px-4 py-12">
+    <div className="min-h-screen bg-[#f5f5f7]" style={{ background: '#f5f5f7' }}>
+      <div className="max-w-7xl mx-auto px-8 py-8">
         {/* Header */}
-        <div className="mb-12">
+        <div className="mb-8">
           <button
             onClick={() => router.push(`/frontend/agent/${agentId}`)}
-            className="text-gray-400 hover:text-black mb-6 transition-colors text-lg"
+            className="text-gray-600 hover:text-gray-900 mb-6 transition-colors text-sm font-medium flex items-center gap-2"
           >
             ← Back
           </button>
-          <h1 className="text-5xl font-light text-black mb-8">Schedule</h1>
+          <h1 className="text-3xl font-semibold text-gray-900 mb-2">Schedule</h1>
         </div>
 
         {/* Schedule Client */}
