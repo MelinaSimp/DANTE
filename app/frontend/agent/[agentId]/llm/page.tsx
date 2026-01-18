@@ -625,7 +625,7 @@ export default function FrontendLLMPage() {
                   Guidelines {templateMode === "pdf" ? "PDF" : "Text"}
                 </label>
                 {templateMode === "pdf" ? (
-                {currentGuideline?.pdfUrl ? (
+                  currentGuideline?.pdfUrl ? (
                   <div className="w-full min-h-[200px] px-3 py-4 rounded-xl border-2 border-black bg-gray-50 flex flex-col items-center justify-center gap-3">
                     <FileText className="h-12 w-12 text-gray-600" />
                     <div className="text-center">
