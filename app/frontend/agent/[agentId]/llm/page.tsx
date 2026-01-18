@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, FormEvent } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { Send, Loader2, FileText, X, Download, Plus, Search, Trash2, Menu, MessageSquare, ArrowLeft, Save } from "lucide-react";
+import { Send, Loader2, FileText, X, Download, Plus, Search, Trash2, Menu, MessageSquare, ArrowLeft, Save, Upload } from "lucide-react";
 import { Skeleton, ChatListSkeleton, MessageSkeleton } from "@/components/ui/skeleton";
 import { Tooltip } from "@/components/ui/tooltip";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -52,7 +52,7 @@ export default function FrontendLLMPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ chatId: string; title: string } | null>(null);
   const [sidebarTab, setSidebarTab] = useState<"chats" | "guidelines">("chats");
   const [guidelines, setGuidelines] = useState<any[]>([]);
-  const [currentGuideline, setCurrentGuideline] = useState<{ id?: string; name: string; template: string; isAgentTemplate: boolean } | null>(null);
+  const [currentGuideline, setCurrentGuideline] = useState<{ id?: string; name: string; template?: string; pdfUrl?: string | null; pdfExtractedText?: string | null; isAgentTemplate: boolean } | null>(null);
   const [savingGuideline, setSavingGuideline] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -90,12 +90,14 @@ export default function FrontendLLMPage() {
         const mappedGuidelines = (data.guidelines || []).map((g: any) => ({
           ...g,
           isAgentTemplate: g.is_agent_template ?? g.isAgentTemplate ?? true,
+          pdfUrl: g.pdf_url,
+          pdfExtractedText: g.pdf_extracted_text,
         }));
         setGuidelines(mappedGuidelines);
         if (mappedGuidelines.length > 0 && !currentGuideline) {
           setCurrentGuideline(mappedGuidelines[0]);
         } else if (mappedGuidelines.length === 0) {
-          setCurrentGuideline({ name: "Default Template", template: "", isAgentTemplate: true });
+          setCurrentGuideline({ name: "Default Template", template: "", pdfUrl: null, pdfExtractedText: null, isAgentTemplate: true });
         }
       }
     } catch (error) {
@@ -109,21 +111,61 @@ export default function FrontendLLMPage() {
     }
   }, [sidebarTab, agentId, currentChatId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const handlePDFUpload = async (file: File) => {
+    setUploadingPDF(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("/api/llm/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setCurrentGuideline((prev: any) => ({
+          ...prev,
+          pdfUrl: data.url,
+          pdfExtractedText: data.extractedText,
+          template: "", // Clear text template when PDF is uploaded
+        }));
+      } else {
+        const error = await response.json();
+        console.error("PDF upload failed:", error);
+        alert(`Failed to upload PDF: ${error.error || "Unknown error"}`);
+      }
+    } catch (error) {
+      console.error("Failed to upload PDF:", error);
+      alert("Failed to upload PDF. Please try again.");
+    } finally {
+      setUploadingPDF(false);
+    }
+  };
+
   const saveGuideline = async () => {
-    if (!currentGuideline || !currentGuideline.template.trim()) return;
+    if (!currentGuideline || (!currentGuideline.template?.trim() && !currentGuideline.pdfUrl)) return;
     
     setSavingGuideline(true);
     try {
-      const url = currentGuideline.id 
-        ? `/api/llm/guidelines`
-        : `/api/llm/guidelines`;
+      const url = `/api/llm/guidelines`;
       
       const method = currentGuideline.id ? "PUT" : "POST";
       const body: any = {
         name: currentGuideline.name,
-        template: currentGuideline.template,
         isAgentTemplate: currentGuideline.isAgentTemplate,
       };
+      
+      // Include template OR PDF, not both
+      if (currentGuideline.pdfUrl) {
+        body.pdfUrl = currentGuideline.pdfUrl;
+        body.pdfExtractedText = currentGuideline.pdfExtractedText || null;
+        body.template = "";
+      } else {
+        body.template = currentGuideline.template || "";
+        body.pdfUrl = null;
+        body.pdfExtractedText = null;
+      }
       
       if (currentGuideline.id) {
         body.id = currentGuideline.id;
@@ -145,6 +187,8 @@ export default function FrontendLLMPage() {
           setCurrentGuideline({
             ...data.guideline,
             isAgentTemplate: data.guideline.is_agent_template ?? data.guideline.isAgentTemplate ?? true,
+            pdfUrl: data.guideline.pdf_url,
+            pdfExtractedText: data.guideline.pdf_extracted_text,
           });
         }
       }
@@ -501,8 +545,8 @@ export default function FrontendLLMPage() {
               <select
                 value={currentGuideline?.id || "new"}
                 onChange={(e) => {
-                  if (e.target.value === "new") {
-                    setCurrentGuideline({ name: "New Template", template: "", isAgentTemplate: true });
+                    if (e.target.value === "new") {
+                      setCurrentGuideline({ name: "New Template", template: "", pdfUrl: null, pdfExtractedText: null, isAgentTemplate: true });
                   } else {
                     const guideline = guidelines.find(g => g.id === e.target.value);
                     if (guideline) {
@@ -564,28 +608,68 @@ export default function FrontendLLMPage() {
 
               <div className="flex-1 min-h-0">
                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Template (use // or # for inline comments)
+                  Template PDF
                 </label>
-                <textarea
-                  value={currentGuideline?.template || ""}
-                  onChange={(e) => setCurrentGuideline(prev => prev ? { ...prev, template: e.target.value } : null)}
-                  className="w-full h-full min-h-[300px] px-3 py-2 rounded-xl border-2 border-black text-black text-sm bg-white focus:outline-none font-mono resize-none"
-                  placeholder={`Example template with inline comments:
-
-// This is a comment explaining what to do
-When analyzing data, always:
-1. Identify key metrics // Look for numbers and percentages
-2. Note trends // Check for increases/decreases over time
-3. Highlight anomalies // Flag anything unusual
-
-# Another comment style
-For spreadsheets, create visualizations automatically.`}
-                />
+                {currentGuideline?.pdfUrl ? (
+                  <div className="w-full min-h-[200px] px-3 py-4 rounded-xl border-2 border-black bg-gray-50 flex flex-col items-center justify-center gap-3">
+                    <FileText className="h-12 w-12 text-gray-600" />
+                    <div className="text-center">
+                      <p className="text-sm font-medium text-gray-900">PDF Template Uploaded</p>
+                      <a
+                        href={currentGuideline.pdfUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:underline mt-1 block"
+                      >
+                        {currentGuideline.pdfUrl.split("/").pop() || "View PDF"}
+                      </a>
+                    </div>
+                    <button
+                      onClick={() => setCurrentGuideline((prev: any) => ({ ...prev, pdfUrl: null, pdfExtractedText: null }))}
+                      className="px-3 py-1 rounded-lg border border-red-300 text-red-600 text-xs hover:bg-red-50 transition"
+                    >
+                      Remove PDF
+                    </button>
+                  </div>
+                ) : (
+                  <div className="w-full min-h-[200px] px-3 py-4 rounded-xl border-2 border-dashed border-gray-300 bg-white flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-black hover:bg-gray-50 transition">
+                    <input
+                      type="file"
+                      accept=".pdf"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          handlePDFUpload(file);
+                        }
+                      }}
+                      className="hidden"
+                      id="pdf-upload-input"
+                      disabled={uploadingPDF}
+                    />
+                    <label htmlFor="pdf-upload-input" className="cursor-pointer flex flex-col items-center gap-2">
+                      {uploadingPDF ? (
+                        <>
+                          <Loader2 className="h-8 w-8 text-gray-400 animate-spin" />
+                          <span className="text-xs text-gray-500">Uploading PDF...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-8 w-8 text-gray-400" />
+                          <span className="text-xs text-gray-600 text-center">
+                            Click to upload PDF template
+                            <br />
+                            <span className="text-gray-400">Only PDF files are supported</span>
+                          </span>
+                        </>
+                      )}
+                    </label>
+                  </div>
+                )}
               </div>
 
               <button
                 onClick={saveGuideline}
-                disabled={savingGuideline || !currentGuideline?.template.trim()}
+                disabled={savingGuideline || (!currentGuideline?.template?.trim() && !currentGuideline?.pdfUrl) || uploadingPDF}
                 className="w-full px-4 py-2 rounded-xl border-2 border-black bg-black text-white hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
               >
                 <Save className="h-4 w-4" />

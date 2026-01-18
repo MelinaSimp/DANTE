@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
       try {
         let guidelinesQuery = supabaseAdmin
           .from("llm_guidelines")
-          .select("template, name, is_agent_template")
+          .select("template, name, is_agent_template, pdf_url, pdf_extracted_text")
           .eq("is_active", true)
           .order("is_agent_template", { ascending: false });
 
@@ -59,7 +59,11 @@ export async function POST(req: NextRequest) {
         if (guidelines && guidelines.length > 0) {
           // Combine all active guidelines, prioritizing agent-level templates
           const combinedTemplate = guidelines
-            .map((g) => `[${g.name}]\n${g.template}`)
+            .map((g) => {
+              // Use PDF extracted text if available, otherwise use template text
+              const content = g.pdf_extracted_text || g.template || "";
+              return `[${g.name}]\n${content}`;
+            })
             .join("\n\n---\n\n");
           guidelinesContent = `\n\nCUSTOM GUIDELINES & TEMPLATES:\nThe user has provided specific guidelines and templates that you MUST follow. These override default behavior when applicable:\n\n${combinedTemplate}\n\nWhen following these guidelines, pay attention to inline comments (marked with // or #) as they provide important context about what to do.`;
         }

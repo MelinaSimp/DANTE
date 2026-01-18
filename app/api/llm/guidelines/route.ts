@@ -11,6 +11,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60; // Longer timeout for PDF processing
 
 export async function GET(req: NextRequest) {
   try {
@@ -73,10 +74,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { agentId, chatId, name, template, isAgentTemplate } = await req.json();
+    const { agentId, chatId, name, template, isAgentTemplate, pdfUrl, pdfExtractedText } = await req.json();
 
-    if (!template || typeof template !== "string") {
-      return NextResponse.json({ error: "Template content is required" }, { status: 400 });
+    // Either template or pdfUrl must be provided
+    if ((!template || typeof template !== "string" || template.trim() === "") && (!pdfUrl || typeof pdfUrl !== "string" || pdfUrl.trim() === "")) {
+      return NextResponse.json({ error: "Template content or PDF file is required" }, { status: 400 });
     }
 
     if (!agentId && !chatId) {
@@ -125,7 +127,9 @@ export async function POST(req: NextRequest) {
         agent_id: agentId || null,
         chat_id: chatId || null,
         name: name || "Default Template",
-        template,
+        template: template || null,
+        pdf_url: pdfUrl || null,
+        pdf_extracted_text: pdfExtractedText || null,
         is_agent_template: isAgentTemplate !== false,
       })
       .select()
@@ -157,7 +161,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id, name, template, isActive } = await req.json();
+    const { id, name, template, isActive, pdfUrl, pdfExtractedText } = await req.json();
 
     if (!id) {
       return NextResponse.json({ error: "Guideline ID is required" }, { status: 400 });
@@ -177,6 +181,8 @@ export async function PUT(req: NextRequest) {
     const updateData: any = { updated_at: new Date().toISOString() };
     if (name !== undefined) updateData.name = name;
     if (template !== undefined) updateData.template = template;
+    if (pdfUrl !== undefined) updateData.pdf_url = pdfUrl;
+    if (pdfExtractedText !== undefined) updateData.pdf_extracted_text = pdfExtractedText;
     if (isActive !== undefined) updateData.is_active = isActive;
 
     const { data: guideline, error } = await supabaseAdmin
