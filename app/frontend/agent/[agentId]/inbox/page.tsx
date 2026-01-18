@@ -33,6 +33,7 @@ export default function InboxPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"todo" | "follow-up" | "done">("todo");
   const [searchQuery, setSearchQuery] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     // Override global dark theme styles for Apple-style light theme
@@ -207,6 +208,33 @@ export default function InboxPage() {
     return filtered.sort((a, b) => {
       return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
     });
+  };
+
+  const deleteConversation = async (conversationId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card click
+    if (!confirm("Are you sure you want to delete this conversation?")) {
+      return;
+    }
+
+    setDeletingId(conversationId);
+    try {
+      const response = await fetch(`/api/conversations/${conversationId}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        // Remove from local state
+        setConversations(prev => prev.filter(c => c.id !== conversationId));
+      } else {
+        const error = await response.json();
+        alert(`Failed to delete conversation: ${error.error || "Unknown error"}`);
+      }
+    } catch (error) {
+      console.error("Failed to delete conversation:", error);
+      alert("Failed to delete conversation. Please try again.");
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   // Sidebar navigation items
@@ -384,7 +412,7 @@ export default function InboxPage() {
                   return (
                     <div
                       key={conversation.id}
-                      className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-all cursor-pointer"
+                      className="group bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-all cursor-pointer"
                     >
                       <div className="flex items-start gap-4">
                         {/* Avatar */}
@@ -421,6 +449,14 @@ export default function InboxPage() {
                                 {conversation.from_number.replace(/^\+1/, "")}
                               </span>
                             )}
+                            <button
+                              onClick={(e) => deleteConversation(conversation.id, e)}
+                              disabled={deletingId === conversation.id}
+                              className="ml-auto opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-50 text-red-600 transition disabled:opacity-50"
+                              title="Delete conversation"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
                           </div>
                         </div>
                       </div>
