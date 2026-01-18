@@ -142,7 +142,10 @@ export default function FrontendLLMPage() {
         const data = await response.json();
         await loadGuidelines();
         if (data.guideline) {
-          setCurrentGuideline(data.guideline);
+          setCurrentGuideline({
+            ...data.guideline,
+            isAgentTemplate: data.guideline.is_agent_template ?? data.guideline.isAgentTemplate ?? true,
+          });
         }
       }
     } catch (error) {
@@ -501,7 +504,12 @@ export default function FrontendLLMPage() {
                     setCurrentGuideline({ name: "New Template", template: "", isAgentTemplate: true });
                   } else {
                     const guideline = guidelines.find(g => g.id === e.target.value);
-                    if (guideline) setCurrentGuideline(guideline);
+                    if (guideline) {
+                      setCurrentGuideline({
+                        ...guideline,
+                        isAgentTemplate: guideline.isAgentTemplate ?? guideline.is_agent_template ?? true,
+                      });
+                    }
                   }
                 }}
                 className="flex-1 px-3 py-2 rounded-xl border-2 border-black text-black text-sm bg-white focus:outline-none"

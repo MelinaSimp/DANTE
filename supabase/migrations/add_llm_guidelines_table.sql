@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS llm_guidelines (
 -- Enable RLS
 ALTER TABLE llm_guidelines ENABLE ROW LEVEL SECURITY;
 
--- RLS Policies
+-- RLS Policies (drop existing first)
+DROP POLICY IF EXISTS "Users can read guidelines for their workspace agents" ON llm_guidelines;
 CREATE POLICY "Users can read guidelines for their workspace agents" ON llm_guidelines
   FOR SELECT
   USING (
@@ -41,6 +42,7 @@ CREATE POLICY "Users can read guidelines for their workspace agents" ON llm_guid
     )
   );
 
+DROP POLICY IF EXISTS "Users can create guidelines for their workspace agents" ON llm_guidelines;
 CREATE POLICY "Users can create guidelines for their workspace agents" ON llm_guidelines
   FOR INSERT
   WITH CHECK (
@@ -59,6 +61,7 @@ CREATE POLICY "Users can create guidelines for their workspace agents" ON llm_gu
     )
   );
 
+DROP POLICY IF EXISTS "Users can update guidelines for their workspace agents" ON llm_guidelines;
 CREATE POLICY "Users can update guidelines for their workspace agents" ON llm_guidelines
   FOR UPDATE
   USING (
@@ -77,6 +80,7 @@ CREATE POLICY "Users can update guidelines for their workspace agents" ON llm_gu
     )
   );
 
+DROP POLICY IF EXISTS "Users can delete guidelines for their workspace agents" ON llm_guidelines;
 CREATE POLICY "Users can delete guidelines for their workspace agents" ON llm_guidelines
   FOR DELETE
   USING (
