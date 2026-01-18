@@ -4,7 +4,7 @@
 import { useEffect } from "react";
 import { useParams, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Bot, Calendar, Database, Shield, Sparkles, BarChart3 } from "lucide-react";
+import { Bot, Calendar, Inbox, Sparkles, BarChart3 } from "lucide-react";
 
 export default function AgentSelectionPage() {
   const params = useParams();
@@ -56,17 +56,10 @@ export default function AgentSelectionPage() {
       requiresAgent: true
     },
     { 
-      name: "Data Sources", 
-      icon: Database, 
-      href: `/frontend/agent/${agentId}/data-sources`,
-      active: pathname?.includes("/data-sources"),
-      requiresAgent: true
-    },
-    { 
-      name: "Policies", 
-      icon: Shield, 
-      href: `/frontend/agent/${agentId}/policies`,
-      active: pathname?.includes("/policies"),
+      name: "Inbox", 
+      icon: Inbox, 
+      href: `/frontend/agent/${agentId}/inbox`,
+      active: pathname?.includes("/inbox"),
       requiresAgent: true
     },
     { 
