@@ -55,6 +55,7 @@ export default function FrontendLLMPage() {
   const [currentGuideline, setCurrentGuideline] = useState<{ id?: string; name: string; template?: string; pdfUrl?: string | null; pdfExtractedText?: string | null; isAgentTemplate: boolean } | null>(null);
   const [savingGuideline, setSavingGuideline] = useState(false);
   const [uploadingPDF, setUploadingPDF] = useState(false);
+  const [templateMode, setTemplateMode] = useState<"pdf" | "text">("text");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -98,7 +99,11 @@ export default function FrontendLLMPage() {
         if (mappedGuidelines.length > 0 && !currentGuideline) {
           setCurrentGuideline(mappedGuidelines[0]);
         } else if (mappedGuidelines.length === 0) {
-          setCurrentGuideline({ name: "Default Template", template: "", pdfUrl: null, pdfExtractedText: null, isAgentTemplate: true });
+          setCurrentGuideline({ name: "Default Guidelines", template: "", pdfUrl: null, pdfExtractedText: null, isAgentTemplate: true });
+          setTemplateMode(mappedGuidelines[0]?.pdfUrl ? "pdf" : "text");
+        } else {
+          // Set mode based on first guideline
+          setTemplateMode(mappedGuidelines[0]?.pdfUrl ? "pdf" : "text");
         }
       }
     } catch (error) {
@@ -547,7 +552,8 @@ export default function FrontendLLMPage() {
                 value={currentGuideline?.id || "new"}
                 onChange={(e) => {
                     if (e.target.value === "new") {
-                      setCurrentGuideline({ name: "New Template", template: "", pdfUrl: null, pdfExtractedText: null, isAgentTemplate: true });
+                      setCurrentGuideline({ name: "New Guidelines", template: "", pdfUrl: null, pdfExtractedText: null, isAgentTemplate: true });
+                      setTemplateMode("text");
                   } else {
                     const guideline = guidelines.find(g => g.id === e.target.value);
                     if (guideline) {
@@ -555,15 +561,16 @@ export default function FrontendLLMPage() {
                         ...guideline,
                         isAgentTemplate: guideline.isAgentTemplate ?? guideline.is_agent_template ?? true,
                       });
+                      setTemplateMode(guideline.pdfUrl ? "pdf" : "text");
                     }
                   }
                 }}
                 className="flex-1 px-3 py-2 rounded-xl border-2 border-black text-black text-sm bg-white focus:outline-none"
               >
-                <option value="new">+ New Template</option>
+                <option value="new">+ New Guidelines</option>
                 {guidelines.map((g) => (
                   <option key={g.id} value={g.id}>
-                    {g.name} {g.isAgentTemplate ? "(Agent)" : "(Chat)"}
+                    {g.name}
                   </option>
                 ))}
               </select>
@@ -571,46 +578,53 @@ export default function FrontendLLMPage() {
             
             <div className="flex-1 overflow-y-auto p-3 space-y-3">
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Template Name</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Guidelines Name</label>
                 <input
                   type="text"
                   value={currentGuideline?.name || ""}
                   onChange={(e) => setCurrentGuideline(prev => prev ? { ...prev, name: e.target.value } : null)}
                   className="w-full px-3 py-2 rounded-xl border-2 border-black text-black text-sm bg-white focus:outline-none"
-                  placeholder="Template name"
+                  placeholder="Guidelines name"
                 />
               </div>
               
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Scope</label>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Input Format</label>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => setCurrentGuideline(prev => prev ? { ...prev, isAgentTemplate: true } : null)}
+                    onClick={() => {
+                      setTemplateMode("text");
+                      setCurrentGuideline(prev => prev ? { ...prev, pdfUrl: null, pdfExtractedText: null } : null);
+                    }}
                     className={`flex-1 px-3 py-2 rounded-xl border-2 text-sm transition ${
-                      currentGuideline?.isAgentTemplate
+                      templateMode === "text"
                         ? "border-black bg-black text-white"
                         : "border-gray-300 bg-white text-black hover:bg-gray-50"
                     }`}
                   >
-                    Agent
+                    Text
                   </button>
                   <button
-                    onClick={() => setCurrentGuideline(prev => prev ? { ...prev, isAgentTemplate: false } : null)}
+                    onClick={() => {
+                      setTemplateMode("pdf");
+                      setCurrentGuideline(prev => prev ? { ...prev, template: "" } : null);
+                    }}
                     className={`flex-1 px-3 py-2 rounded-xl border-2 text-sm transition ${
-                      !currentGuideline?.isAgentTemplate
+                      templateMode === "pdf"
                         ? "border-black bg-black text-white"
                         : "border-gray-300 bg-white text-black hover:bg-gray-50"
                     }`}
                   >
-                    Chat
+                    PDF
                   </button>
                 </div>
               </div>
 
               <div className="flex-1 min-h-0">
                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Template PDF
+                  Guidelines {templateMode === "pdf" ? "PDF" : "Text"}
                 </label>
+                {templateMode === "pdf" ? (
                 {currentGuideline?.pdfUrl ? (
                   <div className="w-full min-h-[200px] px-3 py-4 rounded-xl border-2 border-black bg-gray-50 flex flex-col items-center justify-center gap-3">
                     <FileText className="h-12 w-12 text-gray-600" />
@@ -665,6 +679,20 @@ export default function FrontendLLMPage() {
                       )}
                     </label>
                   </div>
+                ) : (
+                  <textarea
+                    value={currentGuideline?.template || ""}
+                    onChange={(e) => setCurrentGuideline(prev => prev ? { ...prev, template: e.target.value, pdfUrl: null, pdfExtractedText: null } : null)}
+                    className="w-full h-full min-h-[300px] px-3 py-2 rounded-xl border-2 border-black text-black text-sm bg-white focus:outline-none font-mono resize-none"
+                    placeholder={`Enter guidelines that the AI must follow in every chat:
+
+Example:
+- Always be professional and helpful
+- If you don't know something, say "I don't have that information, but I can connect you with someone who can help"
+- Use the customer's name when available
+- Keep responses concise and clear
+- Ask clarifying questions if the request is unclear`}
+                  />
                 )}
               </div>
 
@@ -674,7 +702,7 @@ export default function FrontendLLMPage() {
                 className="w-full px-4 py-2 rounded-xl border-2 border-black bg-black text-white hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
               >
                 <Save className="h-4 w-4" />
-                {savingGuideline ? "Saving..." : "Save Template"}
+                {savingGuideline ? "Saving..." : "Save Guidelines"}
               </button>
             </div>
           </div>
