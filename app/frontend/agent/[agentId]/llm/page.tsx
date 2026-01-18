@@ -54,6 +54,7 @@ export default function FrontendLLMPage() {
   const [guidelines, setGuidelines] = useState<any[]>([]);
   const [currentGuideline, setCurrentGuideline] = useState<{ id?: string; name: string; template?: string; pdfUrl?: string | null; pdfExtractedText?: string | null; isAgentTemplate: boolean } | null>(null);
   const [savingGuideline, setSavingGuideline] = useState(false);
+  const [uploadingPDF, setUploadingPDF] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
