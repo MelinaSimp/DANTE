@@ -78,12 +78,6 @@ export default function FrontendLLMPage() {
     inputRef.current?.focus();
   }, [currentChatId]);
 
-  useEffect(() => {
-    if (sidebarTab === "guidelines") {
-      loadGuidelines();
-    }
-  }, [sidebarTab, agentId, currentChatId]);
-
   const loadGuidelines = async () => {
     try {
       const params = new URLSearchParams();
@@ -108,6 +102,12 @@ export default function FrontendLLMPage() {
       console.error("Failed to load guidelines:", error);
     }
   };
+
+  useEffect(() => {
+    if (sidebarTab === "guidelines") {
+      loadGuidelines();
+    }
+  }, [sidebarTab, agentId, currentChatId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const saveGuideline = async () => {
     if (!currentGuideline || !currentGuideline.template.trim()) return;
