@@ -492,7 +492,8 @@ export default function FrontendLLMPage() {
               ))}
             </div>
           )}
-        </div>
+          </div>
+          </>
         ) : (
           /* Guidelines Panel */
           <div className="flex-1 flex flex-col overflow-hidden">
