@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import Link from "next/link";
-import { Bot, Calendar, Database, Shield, Sparkles } from "lucide-react";
+import { Bot, Calendar, Database, Shield, Sparkles, ArrowRight, MessageSquare, Phone, Clock } from "lucide-react";
 
 interface Agent {
   id: string;
@@ -221,94 +221,134 @@ export default function FrontendPage() {
         </div>
       </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex items-center justify-center px-4 py-16 ml-72">
-        {agents.length === 0 ? (
-          <div className="text-center">
-            <h1 className="text-3xl font-light text-gray-900 mb-4">No agents found</h1>
-            <p className="text-gray-600 mb-6">Please create an agent in the backend first.</p>
-            <button
-              onClick={() => router.push("/select")}
-              className="px-6 py-3 rounded-2xl bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-            >
-              Go Back
-            </button>
-          </div>
-        ) : (
-          <div className="w-full max-w-4xl">
-            {/* Header */}
-            <div className="text-center mb-12">
+      {/* Main Content Area - Dashboard Style */}
+      <div className="flex-1 ml-72 flex flex-col h-screen overflow-hidden">
+        {/* Top Navigation Bar */}
+        <div className="bg-white border-b border-gray-200 px-8 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
               <button
                 onClick={() => router.push("/select")}
-                className="text-gray-400 hover:text-gray-900 mb-6 transition-colors text-sm"
+                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
               >
-                ← Back
+                <ArrowRight className="h-5 w-5 text-gray-600 rotate-180" />
               </button>
-              <h1 className="text-4xl font-light text-gray-900 mb-2">Select an Agent</h1>
-              <p className="text-gray-600">
-                {currentIndex + 1} of {agents.length}
-              </p>
+              <h1 className="text-xl font-semibold text-gray-900">Agents</h1>
             </div>
-
-            {/* Agent Carousel */}
-            <div className="relative flex items-center justify-center">
-              {/* Previous Button */}
-              {agents.length > 1 && (
-                <button
-                  onClick={handlePrev}
-                  className="absolute left-0 z-10 w-12 h-12 rounded-full bg-white border border-gray-200 shadow-lg hover:shadow-xl transition-all flex items-center justify-center text-gray-600 hover:text-gray-900"
-                >
-                  ←
-                </button>
-              )}
-
-              {/* Agent Circle */}
-              <div className="flex-1 flex items-center justify-center">
-                <button
-                  onClick={handleAgentClick}
-                  className="group relative w-80 h-80 rounded-full cursor-pointer transition-transform hover:scale-105"
-                  style={{
-                    background: `radial-gradient(circle, ${gradientColors[0]} 0%, ${gradientColors[1]} 50%, ${gradientColors[2]} 100%)`,
-                    boxShadow: "0 20px 60px rgba(0, 0, 0, 0.3)",
-                  }}
-                >
-                  <div className="absolute inset-0 rounded-full bg-white/0 group-hover:bg-white/10 transition-colors" />
-                  <div className="relative h-full flex flex-col items-center justify-center text-white px-8">
-                    <h2 className="text-3xl font-light mb-2">{currentAgent?.name}</h2>
-                    {currentAgent?.description && (
-                      <p className="text-sm opacity-90 text-center">{currentAgent.description}</p>
-                    )}
-                  </div>
-                </button>
-              </div>
-
-              {/* Next Button */}
-              {agents.length > 1 && (
-                <button
-                  onClick={handleNext}
-                  className="absolute right-0 z-10 w-12 h-12 rounded-full bg-white border border-gray-200 shadow-lg hover:shadow-xl transition-all flex items-center justify-center text-gray-600 hover:text-gray-900"
-                >
-                  →
-                </button>
-              )}
-            </div>
-
-            {/* Dots Indicator */}
-            {agents.length > 1 && (
-              <div className="flex justify-center gap-2 mt-8">
-                {agents.map((_, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setCurrentIndex(index)}
-                    className={`h-2 rounded-full transition-all ${
-                      index === currentIndex ? "bg-gray-900 w-8" : "bg-gray-300 w-2"
-                    }`}
-                  />
-                ))}
-              </div>
-            )}
+            <nav className="flex gap-6">
+              <button className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
+                Overview
+              </button>
+              <button className="text-sm font-medium text-blue-600 border-b-2 border-blue-600 pb-1">
+                Agents
+              </button>
+              <button className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
+                Analytics
+              </button>
+            </nav>
           </div>
-        )}
+        </div>
+
+        {/* Dashboard Content */}
+        <div className="flex-1 overflow-y-auto px-8 py-6 bg-[#f5f5f7]">
+          {agents.length === 0 ? (
+            <div className="max-w-2xl mx-auto text-center pt-16">
+              <div className="bg-white rounded-2xl shadow-sm p-12 border border-gray-200">
+                <Bot className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                <h2 className="text-2xl font-semibold text-gray-900 mb-2">No agents found</h2>
+                <p className="text-gray-600 mb-6">Please create an agent in the backend first.</p>
+                <button
+                  onClick={() => router.push("/select")}
+                  className="px-6 py-3 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors font-medium"
+                >
+                  Go Back
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="max-w-7xl mx-auto">
+              {/* Stats Overview */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200">
+                  <div className="text-sm text-gray-600 mb-2">Total Agents</div>
+                  <div className="text-3xl font-semibold text-gray-900">{agents.length}</div>
+                </div>
+                <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200">
+                  <div className="text-sm text-gray-600 mb-2">Active Agents</div>
+                  <div className="text-3xl font-semibold text-gray-900">
+                    {agents.filter(a => a.status === 'deployed').length}
+                  </div>
+                </div>
+                <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200">
+                  <div className="text-sm text-gray-600 mb-2">Draft Agents</div>
+                  <div className="text-3xl font-semibold text-gray-900">
+                    {agents.filter(a => a.status === 'draft').length}
+                  </div>
+                </div>
+              </div>
+
+              {/* Agent Cards Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {agents.map((agent) => {
+                  const agentGradient = JSON.parse(agent.gradient_color || generateGradientColor(agent.id)) as string[];
+                  return (
+                    <button
+                      key={agent.id}
+                      onClick={() => router.push(`/frontend/agent/${agent.id}`)}
+                      className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200 hover:shadow-md transition-all text-left group"
+                    >
+                      {/* Agent Header */}
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold"
+                            style={{
+                              background: `linear-gradient(135deg, ${agentGradient[0]} 0%, ${agentGradient[1]} 100%)`,
+                            }}
+                          >
+                            {agent.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
+                              {agent.name}
+                            </h3>
+                            <span className={`text-xs px-2 py-1 rounded-full ${
+                              agent.status === 'deployed'
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-gray-100 text-gray-600'
+                            }`}>
+                              {agent.status}
+                            </span>
+                          </div>
+                        </div>
+                        <ArrowRight className="h-5 w-5 text-gray-400 group-hover:text-blue-600 transition-colors" />
+                      </div>
+
+                      {/* Agent Description */}
+                      {agent.description && (
+                        <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+                          {agent.description}
+                        </p>
+                      )}
+
+                      {/* Agent Metrics */}
+                      <div className="flex items-center gap-6 pt-4 border-t border-gray-100">
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <MessageSquare className="h-4 w-4" />
+                          <span className="text-xs">0 conversations</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <Clock className="h-4 w-4" />
+                          <span className="text-xs">0 min avg</span>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
