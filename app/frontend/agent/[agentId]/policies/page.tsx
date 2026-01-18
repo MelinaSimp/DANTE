@@ -6,7 +6,7 @@ import { useParams, usePathname } from "next/navigation";
 import { Upload, FileText, X, GripVertical, Eye, Download } from "lucide-react";
 import Link from "next/link";
 import { Bot, Calendar as CalIcon, Database as DbIcon, Shield, Sparkles, BarChart3 } from "lucide-react";
-import ConfirmationModal from "@/app/gigaai/ConfirmationModal";
+import ConfirmationModal from "@/components/frontend/ConfirmationModal";
 
 interface Policy {
   id: string;
