@@ -129,8 +129,8 @@ export default function FrontendPage() {
 
   const handleAgentClick = () => {
     if (currentAgent) {
-      // Go directly to LLM page instead of agent detail page
-      router.push(`/frontend/agent/${currentAgent.id}/llm`);
+      // Go to agent selection page - user can then choose from sidebar
+      router.push(`/frontend/agent/${currentAgent.id}`);
     }
   };
 
@@ -336,7 +336,7 @@ export default function FrontendPage() {
                   return (
                     <button
                       key={agent.id}
-                      onClick={() => router.push(`/frontend/agent/${agent.id}/llm`)}
+                      onClick={() => router.push(`/frontend/agent/${agent.id}`)}
                       className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200 hover:shadow-md transition-all text-left group"
                     >
                       {/* Agent Header */}
