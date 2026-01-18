@@ -754,12 +754,15 @@ Example:
               </div>
               <h2 className="text-2xl font-light text-black mb-2">Start a conversation</h2>
               <p className="text-gray-600 mb-6">Ask me anything or upload a file to get started</p>
-              <button
-                onClick={createNewChat}
-                className="px-6 py-2 rounded-2xl border-2 border-black bg-black text-white hover:bg-gray-800 transition"
-              >
-                New Chat
-              </button>
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-purple-400 via-pink-500 to-blue-500 rounded-2xl blur-sm opacity-50"></div>
+                <button
+                  onClick={createNewChat}
+                  className="relative px-6 py-2 rounded-2xl border-2 border-black bg-black text-white hover:bg-gray-800 transition"
+                >
+                  New Chat
+                </button>
+              </div>
             </div>
           </div>
         ) : (
