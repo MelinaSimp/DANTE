@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { useParams, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import Link from "next/link";
-import { Bot, Calendar as CalIcon, Database as DbIcon, Shield, Sparkles, BarChart3, Inbox, Search, Filter, MessageSquare, Phone, CheckCircle, XCircle, AlertCircle, HelpCircle } from "lucide-react";
+import { Bot, Calendar as CalIcon, Database as DbIcon, Shield, Sparkles, BarChart3, Inbox, Search, Filter, MessageSquare, Phone, CheckCircle, XCircle, AlertCircle, HelpCircle, Trash2 } from "lucide-react";
 
 interface Conversation {
   id: string;

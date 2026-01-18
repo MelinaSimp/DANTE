@@ -61,6 +61,34 @@ export default function FrontendLLMPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    // Override global dark theme styles for Apple-style light theme
+    const html = document.documentElement;
+    const body = document.body;
+    const main = document.querySelector('main');
+    
+    const originalHtmlBg = html.style.background;
+    const originalBodyBg = body.style.background;
+    const originalBodyColor = body.style.color;
+    const originalMainBg = main ? (main as HTMLElement).style.background : null;
+    
+    html.style.setProperty('background', '#f5f5f7', 'important');
+    body.style.setProperty('background', '#f5f5f7', 'important');
+    body.style.setProperty('color', '#111827', 'important');
+    if (main) {
+      (main as HTMLElement).style.setProperty('background', '#f5f5f7', 'important');
+    }
+
+    return () => {
+      html.style.setProperty('background', originalHtmlBg, 'important');
+      body.style.setProperty('background', originalBodyBg, 'important');
+      body.style.setProperty('color', originalBodyColor, 'important');
+      if (main && originalMainBg !== null) {
+        (main as HTMLElement).style.setProperty('background', originalMainBg, 'important');
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     loadChats();
   }, []);
 
@@ -419,7 +447,7 @@ export default function FrontendLLMPage() {
   );
 
   return (
-    <div className="flex h-screen bg-white">
+    <div className="flex h-screen bg-[#f5f5f7]" style={{ background: '#f5f5f7' }}>
       {/* Mobile Sidebar Toggle */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -437,20 +465,20 @@ export default function FrontendLLMPage() {
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar - Apple Glass Style */}
       <div
         className={`${
           sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
-        } fixed md:static inset-y-0 left-0 z-50 w-64 border-r-2 border-black bg-white flex flex-col transition-transform duration-300`}
+        } fixed md:static inset-y-0 left-0 z-50 w-64 border-r border-gray-300/10 bg-gray-200/90 backdrop-blur-sm shadow-2xl flex flex-col transition-transform duration-300`}
       >
         {/* Tabs */}
-        <div className="flex border-b-2 border-black">
+        <div className="flex border-b border-gray-200/20">
           <button
             onClick={() => setSidebarTab("chats")}
             className={`flex-1 px-4 py-2 text-sm font-medium transition ${
               sidebarTab === "chats"
-                ? "bg-black text-white"
-                : "bg-white text-black hover:bg-gray-50"
+                ? "bg-blue-600/10 text-blue-600"
+                : "text-gray-700 hover:bg-white/30"
             }`}
           >
             Chats
@@ -459,8 +487,8 @@ export default function FrontendLLMPage() {
             onClick={() => setSidebarTab("guidelines")}
             className={`flex-1 px-4 py-2 text-sm font-medium transition ${
               sidebarTab === "guidelines"
-                ? "bg-black text-white"
-                : "bg-white text-black hover:bg-gray-50"
+                ? "bg-blue-600/10 text-blue-600"
+                : "text-gray-700 hover:bg-white/30"
             }`}
           >
             Guidelines
@@ -468,7 +496,7 @@ export default function FrontendLLMPage() {
         </div>
 
         {/* Header */}
-        <div className="p-3 border-b-2 border-black flex items-center gap-2">
+        <div className="p-3 border-b border-gray-200/20 flex items-center gap-2">
           <button
             onClick={() => router.push(`/frontend/agent/${agentId}`)}
             className="md:hidden p-1 hover:bg-gray-50 rounded transition"
@@ -479,7 +507,7 @@ export default function FrontendLLMPage() {
           <Tooltip content="Start a new conversation">
             <button
               onClick={createNewChat}
-              className="flex-1 flex items-center gap-2 px-3 py-2 rounded-2xl border-2 border-black hover:bg-gray-50 transition text-black text-sm"
+              className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-gray-300 hover:bg-gray-50 transition text-gray-900 text-sm"
             >
               <Plus className="h-4 w-4" />
               New chat
@@ -490,15 +518,15 @@ export default function FrontendLLMPage() {
         {sidebarTab === "chats" ? (
           <>
             {/* Search */}
-            <div className="p-3 border-b-2 border-black">
+            <div className="p-3 border-b border-gray-200/20">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-600" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <input
                   type="text"
                   placeholder="Search chats"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 rounded-2xl bg-white border-2 border-black text-black text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black/20"
+                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-white border border-gray-300 text-gray-900 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 />
               </div>
             </div>
