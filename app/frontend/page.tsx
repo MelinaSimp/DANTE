@@ -194,7 +194,7 @@ export default function FrontendPage() {
         >
           {/* Sidebar Header */}
           <div className="p-6 border-b border-gray-200/20">
-            <Link href="/" className="inline-flex items-center gap-2">
+            <Link href="/frontend" className="inline-flex items-center gap-2">
               <img 
                 src="/brand/logo-circle.png" 
                 alt="Drift Logo"
