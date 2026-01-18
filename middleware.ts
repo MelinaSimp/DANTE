@@ -49,18 +49,24 @@ export async function middleware(req: NextRequest) {
     }
   );
 
-  // Handle root path redirect
-  if (pathname === "/") {
+  // Protected routes that require authentication
+  const protectedRoutes = ["/app", "/admin", "/frontend", "/home", "/select", "/superadmin"];
+  const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
+
+  // Check authentication for protected routes
+  if (isProtectedRoute || pathname === "/") {
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (user) {
-      // User is signed in - let the page component handle the redirect
-      return response;
-    } else {
+    if (!user) {
       // User is not signed in - redirect to auth
       return NextResponse.redirect(new URL("/auth", req.url));
+    }
+
+    // For root path, let the page component handle the redirect
+    if (pathname === "/") {
+      return response;
     }
   }
 

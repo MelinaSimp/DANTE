@@ -16,7 +16,7 @@ export default async function InvitesPage() {
     .eq("id", auth.user.id)
     .maybeSingle();
 
-  if (!hasSuperadminAccess(auth.user.email, me?.is_superadmin)) redirect("/");
+  if (!hasSuperadminAccess(auth.user.email, me?.is_superadmin)) redirect("/home");
 
   // Get all workspaces for invitation management
   const { data: workspaces } = await supabase

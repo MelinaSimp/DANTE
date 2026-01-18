@@ -131,8 +131,8 @@ Answer:`;
           },
           { role: "user", content: prompt },
         ],
-        temperature: 0.3,
-        max_tokens: 500,
+        temperature: 0.2, // Lower temperature for faster, more deterministic responses
+        max_tokens: 300, // Reduced from 500 for faster generation
       }),
     });
 
@@ -163,6 +163,9 @@ Answer:`;
     );
   }
 }
+
+
+
 
 
 

@@ -70,16 +70,31 @@ export async function POST(req: NextRequest) {
       .eq("id", conversationId);
 
     // Get base URL
-    let baseUrl = process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || "";
+    // Priority: 1) Request host (current deployment), 2) VERCEL_URL, 3) Environment vars, 4) Custom domain
+    let baseUrl = "";
+    
+    // FIRST: Use request host (most reliable for current deployment)
+    const protocol = req.headers.get("x-forwarded-proto") || "https";
+    const host = req.headers.get("host") || req.headers.get("x-forwarded-host") || req.nextUrl.host;
+    if (host) {
+      baseUrl = `${protocol}://${host}`;
+    }
+    
+    // SECOND: Use VERCEL_URL if no host
     if (!baseUrl && process.env.VERCEL_URL) {
       baseUrl = process.env.VERCEL_URL.startsWith("http")
         ? process.env.VERCEL_URL
         : `https://${process.env.VERCEL_URL}`;
     }
+    
+    // THIRD: Use environment variables
     if (!baseUrl) {
-      const protocol = req.headers.get("x-forwarded-proto") || "https";
-      const host = req.headers.get("host") || req.nextUrl.host;
-      baseUrl = host ? `${protocol}://${host}` : "https://driftai.studio";
+      baseUrl = process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || "";
+    }
+    
+    // FOURTH: Fallback to custom domain
+    if (!baseUrl) {
+      baseUrl = "https://driftai.studio";
     }
     baseUrl = baseUrl.replace(/\/+$/, "").trim();
 
@@ -235,6 +250,8 @@ function escapeXml(text: string): string {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&apos;");
 }
+
+
 
 
 

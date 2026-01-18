@@ -36,19 +36,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Default server URL to current domain
-    // Try to get from request headers first, then environment, then fallback
-    let webhookUrl = serverUrl;
-    
-    if (!webhookUrl) {
-      // Try to get from request origin (current deployment)
-      const origin = req.headers.get("origin") || req.headers.get("host");
-      if (origin && !origin.includes("localhost")) {
-        webhookUrl = `https://${origin.replace(/^https?:\/\//, "")}/api/vapi/webhook`;
-      } else {
-        // Use environment variables or fallback
-        webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://drift-k6yfyzx15-drift4.vercel.app"}/api/vapi/webhook`;
-      }
-    }
+    const webhookUrl = serverUrl || `${process.env.NEXT_PUBLIC_APP_URL || "https://driftai.studio"}/api/vapi/webhook`;
 
     // Get current assistant configuration
     const getResponse = await fetch(`https://api.vapi.ai/assistant/${assistantId}`, {
@@ -72,14 +60,24 @@ export async function POST(req: NextRequest) {
     console.log("[Vapi] Current assistant config:", JSON.stringify(currentAssistant, null, 2));
 
     // Update assistant configuration to use Server URL
-    // Set model to null to force Server URL mode (this is the key!)
-    const updatePayload: any = {
-      // Keep existing voice settings (ElevenLabs)
+    // Clear system prompt and messages so Vapi uses our webhook
+    const updatePayload = {
+      // Keep existing voice settings
       voice: currentAssistant.voice || {},
       
-      // CRITICAL: Set model to null to force Server URL mode
-      // This ensures Vapi ONLY uses our webhook, not built-in LLM
-      model: null,
+      // Keep existing model but clear messages
+      model: {
+        ...(currentAssistant.model || {}),
+        // Clear system prompt
+        messages: [
+          {
+            type: "request-start",
+            blocking: false,
+          },
+        ],
+        // Remove any system/user/assistant messages
+        // This forces Vapi to use Server URL for all responses
+      },
       
       // Set Server URL
       serverUrl: webhookUrl,

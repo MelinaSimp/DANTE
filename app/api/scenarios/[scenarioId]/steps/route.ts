@@ -20,8 +20,9 @@ async function getWorkspace(req: NextRequest) {
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { scenarioId: string } }
+  { params }: { params: Promise<{ scenarioId: string }> }
 ) {
+  const { scenarioId } = await params;
   const { workspaceId } = await getWorkspace(req);
   if (!workspaceId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -31,7 +32,7 @@ export async function GET(
   const { data: scenario } = await supabaseAdmin
     .from("scenarios")
     .select("agent_id, agents!inner(workspace_id)")
-    .eq("id", params.scenarioId)
+    .eq("id", scenarioId)
     .maybeSingle();
 
   if (!scenario || (scenario.agents as any).workspace_id !== workspaceId) {
@@ -41,7 +42,7 @@ export async function GET(
   const { data, error } = await supabaseAdmin
     .from("steps")
     .select("*")
-    .eq("scenario_id", params.scenarioId)
+    .eq("scenario_id", scenarioId)
     .order("sort_order", { ascending: true });
 
   if (error) {
@@ -54,8 +55,9 @@ export async function GET(
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { scenarioId: string } }
+  { params }: { params: Promise<{ scenarioId: string }> }
 ) {
+  const { scenarioId } = await params;
   const { workspaceId } = await getWorkspace(req);
   if (!workspaceId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -65,7 +67,7 @@ export async function POST(
   const { data: scenario } = await supabaseAdmin
     .from("scenarios")
     .select("agent_id, agents!inner(workspace_id)")
-    .eq("id", params.scenarioId)
+    .eq("id", scenarioId)
     .maybeSingle();
 
   if (!scenario || (scenario.agents as any).workspace_id !== workspaceId) {
@@ -83,14 +85,14 @@ export async function POST(
   const { data: maxOrder } = await supabaseAdmin
     .from("steps")
     .select("sort_order")
-    .eq("scenario_id", params.scenarioId)
+    .eq("scenario_id", scenarioId)
     .order("sort_order", { ascending: false })
     .limit(1)
     .maybeSingle();
 
   // Build insert payload - only include fields that exist in the schema
   const insertPayload: any = {
-    scenario_id: params.scenarioId,
+    scenario_id: scenarioId,
     name,
     type,
     sort_order: (maxOrder?.sort_order || 0) + 1,

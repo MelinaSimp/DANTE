@@ -21,8 +21,9 @@ async function getWorkspace(req: NextRequest) {
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { agentId: string } }
+  { params }: { params: Promise<{ agentId: string }> }
 ) {
+  const { agentId } = await params;
   const { workspaceId } = await getWorkspace(req);
   if (!workspaceId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -31,7 +32,7 @@ export async function GET(
   const { data, error } = await supabaseAdmin
     .from("agents")
     .select("*")
-    .eq("id", params.agentId)
+    .eq("id", agentId)
     .eq("workspace_id", workspaceId)
     .single();
 
@@ -44,8 +45,9 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { agentId: string } }
+  { params }: { params: Promise<{ agentId: string }> }
 ) {
+  const { agentId } = await params;
   const { workspaceId } = await getWorkspace(req);
   if (!workspaceId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -55,7 +57,7 @@ export async function PUT(
   const { data: agent } = await supabaseAdmin
     .from("agents")
     .select("workspace_id")
-    .eq("id", params.agentId)
+    .eq("id", agentId)
     .eq("workspace_id", workspaceId)
     .maybeSingle();
 
@@ -87,7 +89,7 @@ export async function PUT(
   const { data, error } = await supabaseAdmin
     .from("agents")
     .update(updates)
-    .eq("id", params.agentId)
+    .eq("id", agentId)
     .select("*")
     .single();
 
@@ -101,8 +103,9 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { agentId: string } }
+  { params }: { params: Promise<{ agentId: string }> }
 ) {
+  const { agentId } = await params;
   const { workspaceId } = await getWorkspace(req);
   if (!workspaceId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -112,7 +115,7 @@ export async function DELETE(
   const { data: agent } = await supabaseAdmin
     .from("agents")
     .select("workspace_id")
-    .eq("id", params.agentId)
+    .eq("id", agentId)
     .eq("workspace_id", workspaceId)
     .maybeSingle();
 
@@ -123,7 +126,7 @@ export async function DELETE(
   const { error } = await supabaseAdmin
     .from("agents")
     .delete()
-    .eq("id", params.agentId);
+    .eq("id", agentId);
 
   if (error) {
     console.error("Failed to delete agent", error);

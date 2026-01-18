@@ -1,4 +1,6 @@
 // app/app/page.tsx
+// This is the "Backend" interface for managing agents (GigaAI Client)
+// Users can access this from the /select page by clicking "Backend"
 export const dynamic = "force-dynamic";
 
 import { createServerSupabase } from "@/lib/supabase/server";
@@ -22,6 +24,7 @@ export default async function AppPage({
   }
 
   // Show Drift interface with theme provider
+  // This is the "Backend" interface for managing agents
   return (
     <ThemeProvider>
       <GigaAIClient 

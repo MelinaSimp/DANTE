@@ -29,6 +29,8 @@ import {
   Calendar,
   Clock,
   Sparkles,
+  Brain,
+  Shield,
 } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 import AgentCanvas from "./AgentCanvas";
@@ -46,6 +48,13 @@ import AdvancedPage from "./AdvancedPage";
 import ConfirmationModal from "./ConfirmationModal";
 import ChatInterface from "./ChatInterface";
 import InboxPage from "./InboxPage";
+import LLMPage from "./LLMPage";
+import ValidationPanel from "./ValidationPanel";
+import FlowTester from "./FlowTester";
+import { ToastProvider, useToast } from "@/components/ui/toast";
+import { Tooltip } from "@/components/ui/tooltip";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton, AgentListSkeleton } from "@/components/ui/skeleton";
 
 interface Agent {
   id: string;
@@ -81,12 +90,14 @@ interface GigaAIClientProps {
   initialMessage?: string;
 }
 
-export default function GigaAIClient({ initialError, initialSuccess, initialMessage }: GigaAIClientProps = {}) {
+function GigaAIClient({ initialError, initialSuccess, initialMessage }: GigaAIClientProps = {}) {
   const { theme, setTheme, colors } = useTheme();
+  const toast = useToast();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
+  const [selectedScenarioWithSteps, setSelectedScenarioWithSteps] = useState<any>(null);
   const [supportingDocs, setSupportingDocs] = useState<SupportingDoc[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditAgentModal, setShowEditAgentModal] = useState(false);
@@ -95,7 +106,7 @@ export default function GigaAIClient({ initialError, initialSuccess, initialMess
   const [editingScenarioId, setEditingScenarioId] = useState<string | null>(null);
   const [editingScenarioName, setEditingScenarioName] = useState("");
   const [activeTab, setActiveTab] = useState<"canvas" | "test">("canvas");
-  const [activePage, setActivePage] = useState<"scenarios" | "schedule" | "policies" | "data-sources" | "personalization" | "evaluation" | "advanced" | "inbox">("scenarios");
+  const [activePage, setActivePage] = useState<"scenarios" | "schedule" | "policies" | "data-sources" | "personalization" | "evaluation" | "advanced" | "inbox" | "llm">("scenarios");
   const [searchQuery, setSearchQuery] = useState("");
   const [agentsExpanded, setAgentsExpanded] = useState(true);
   const [scenariosExpanded, setScenariosExpanded] = useState(true);
@@ -105,6 +116,10 @@ export default function GigaAIClient({ initialError, initialSuccess, initialMess
   const [showDocMenu, setShowDocMenu] = useState<string | null>(null);
   const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
   const [workspaceName, setWorkspaceName] = useState<string>("Drift");
+  const [isSuperadmin, setIsSuperadmin] = useState<boolean>(false);
+  const [showValidationPanel, setShowValidationPanel] = useState(false);
+  const [showFlowTester, setShowFlowTester] = useState(false);
+  const [hasTwilioCredentials, setHasTwilioCredentials] = useState(false);
   const [confirmationModal, setConfirmationModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -166,6 +181,26 @@ export default function GigaAIClient({ initialError, initialSuccess, initialMess
       });
     }
   }, [initialError, initialSuccess, initialMessage]);
+
+  // Check superadmin status
+  useEffect(() => {
+    async function checkSuperadmin() {
+      try {
+        const response = await fetch("/api/me");
+        if (response.ok) {
+          const data = await response.json();
+          const isAdmin = data.is_superadmin === true;
+          console.log("[Admin] Superadmin check:", { isAdmin, data });
+          setIsSuperadmin(isAdmin);
+        } else {
+          console.error("[Admin] Failed to fetch /api/me:", response.status);
+        }
+      } catch (error) {
+        console.error("[Admin] Error checking superadmin status:", error);
+      }
+    }
+    checkSuperadmin();
+  }, []);
 
   // Load workspace name
   useEffect(() => {
@@ -245,7 +280,8 @@ export default function GigaAIClient({ initialError, initialSuccess, initialMess
               
               // Auto-select first scenario if none selected and we're on scenarios page
               if (activePage === "scenarios" && loadedScenarios.length > 0 && !selectedScenario) {
-                setSelectedScenario(loadedScenarios[0]);
+                const firstScenario = loadedScenarios[0];
+                setSelectedScenario(firstScenario);
               }
             }
 
@@ -268,6 +304,53 @@ export default function GigaAIClient({ initialError, initialSuccess, initialMess
     loadAgentData();
   }, [selectedAgent, activePage, selectedScenario]);
 
+  // Load scenario steps when scenario is selected
+  useEffect(() => {
+    async function loadScenarioSteps() {
+      if (!selectedScenario) {
+        setSelectedScenarioWithSteps(null);
+        return;
+      }
+      try {
+        const response = await fetch(`/api/scenarios/${selectedScenario.id}/steps`);
+        if (response.ok) {
+          const stepsData = await response.json();
+          
+          // Load branches for each step
+          const stepsWithBranches = await Promise.all(
+            stepsData.map(async (step: any) => {
+              try {
+                const branchesResponse = await fetch(`/api/steps/${step.id}/branches`);
+                const branches = branchesResponse.ok ? await branchesResponse.json() : [];
+                return {
+                  ...step,
+                  branches: branches.map((b: any) => ({
+                    id: b.id,
+                    condition: b.condition,
+                    condition_tag: b.condition_tag,
+                    target: b.target,
+                    next_step_id: b.next_step_id,
+                    next_scenario_id: b.next_scenario_id,
+                  })),
+                };
+              } catch (error) {
+                return { ...step, branches: [] };
+              }
+            })
+          );
+          
+          setSelectedScenarioWithSteps({
+            ...selectedScenario,
+            steps: stepsWithBranches.sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0)),
+          });
+        }
+      } catch (error) {
+        console.error("Failed to load scenario steps:", error);
+      }
+    }
+    loadScenarioSteps();
+  }, [selectedScenario]);
+
   const handleCreateAgent = async (agentData: { name: string; modality: "chat" | "voice" | "multi-modal"; description?: string }) => {
     try {
       const response = await fetch("/api/agents", {
@@ -277,19 +360,20 @@ export default function GigaAIClient({ initialError, initialSuccess, initialMess
       });
       if (response.ok) {
         const data = await response.json();
-        const newAgent: Agent = {
-          id: data.id,
-          name: data.name,
-          modality: data.modality,
-          status: data.status,
-          description: data.description,
-          phoneNumber: data.phone_number,
-          created_at: data.created_at,
-          updated_at: data.updated_at,
-        };
-        setAgents([newAgent, ...agents]);
-        setSelectedAgent(newAgent);
-        setShowCreateModal(false);
+            const newAgent: Agent = {
+              id: data.id,
+              name: data.name,
+              modality: data.modality,
+              status: data.status,
+              description: data.description,
+              phoneNumber: data.phone_number,
+              created_at: data.created_at,
+              updated_at: data.updated_at,
+            };
+            setAgents([newAgent, ...agents]);
+            setSelectedAgent(newAgent);
+            setShowCreateModal(false);
+            toast.success("Agent created", `${newAgent.name} has been created successfully`);
       } else {
         console.error("Failed to create agent");
       }
@@ -592,33 +676,12 @@ export default function GigaAIClient({ initialError, initialSuccess, initialMess
   const handleDeployAgent = async () => {
     if (!selectedAgent) return;
 
-    // Validate agent has required configuration
-    if (selectedAgent.modality === "voice" && !selectedAgent.phoneNumber) {
-      setConfirmationModal({
-        isOpen: true,
-        title: "Cannot Deploy",
-        message: "Voice agents require a phone number. Please add a phone number in Advanced settings.",
-        confirmText: "OK",
-        cancelText: "",
-        variant: "warning",
-        onConfirm: () => setConfirmationModal({ ...confirmationModal, isOpen: false }),
-      });
-      return;
-    }
+    // Show validation panel first
+    setShowValidationPanel(true);
+  };
 
-    // Check if agent has scenarios
-    if (scenarios.length === 0) {
-      setConfirmationModal({
-        isOpen: true,
-        title: "Cannot Deploy",
-        message: "Agent must have at least one scenario before deployment.",
-        confirmText: "OK",
-        cancelText: "",
-        variant: "warning",
-        onConfirm: () => setConfirmationModal({ ...confirmationModal, isOpen: false }),
-      });
-      return;
-    }
+  const handleDeployAfterValidation = async () => {
+    if (!selectedAgent) return;
 
     setConfirmationModal({
       isOpen: true,
@@ -644,42 +707,21 @@ export default function GigaAIClient({ initialError, initialSuccess, initialMess
             );
             
             // Show success message
-            setConfirmationModal({
-              isOpen: true,
-              title: "Agent Deployed",
-              message: `"${selectedAgent.name}" is now live and ready to handle ${selectedAgent.modality} conversations!${
+            toast.success(
+              "Agent Deployed",
+              `"${selectedAgent.name}" is now live and ready to handle ${selectedAgent.modality} conversations!${
                 selectedAgent.modality === "voice" && selectedAgent.phoneNumber
                   ? ` Calls to ${selectedAgent.phoneNumber} will be handled by this agent.`
                   : ""
-              }`,
-              confirmText: "OK",
-              cancelText: "",
-              variant: "info",
-              onConfirm: () => setConfirmationModal({ ...confirmationModal, isOpen: false }),
-            });
+              }`
+            );
           } else {
             const error = await response.json();
-            setConfirmationModal({
-              isOpen: true,
-              title: "Deployment Failed",
-              message: error.error || "Failed to deploy agent. Please try again.",
-              confirmText: "OK",
-              cancelText: "",
-              variant: "warning",
-              onConfirm: () => setConfirmationModal({ ...confirmationModal, isOpen: false }),
-            });
+            toast.error("Deployment Failed", error.error || "Failed to deploy agent. Please try again.");
           }
         } catch (error) {
           console.error("Failed to deploy agent:", error);
-          setConfirmationModal({
-            isOpen: true,
-            title: "Deployment Failed",
-            message: "An error occurred while deploying the agent. Please try again.",
-            confirmText: "OK",
-            cancelText: "",
-            variant: "warning",
-            onConfirm: () => setConfirmationModal({ ...confirmationModal, isOpen: false }),
-          });
+          toast.error("Deployment Failed", "An error occurred while deploying the agent. Please try again.");
         }
       },
     });
@@ -712,15 +754,7 @@ export default function GigaAIClient({ initialError, initialSuccess, initialMess
             );
             
             // Show success message
-            setConfirmationModal({
-              isOpen: true,
-              title: "Deployment Cancelled",
-              message: `"${selectedAgent.name}" is now in draft mode. You can edit it again.`,
-              confirmText: "OK",
-              cancelText: "",
-              variant: "info",
-              onConfirm: () => setConfirmationModal({ ...confirmationModal, isOpen: false }),
-            });
+            toast.success("Deployment Cancelled", `"${selectedAgent.name}" is now in draft mode. You can edit it again.`);
           } else {
             const error = await response.json();
             setConfirmationModal({
@@ -815,8 +849,6 @@ export default function GigaAIClient({ initialError, initialSuccess, initialMess
         <div className={`p-4 border-b ${sidebarBorder}`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 via-pink-500 to-orange-500 flex items-center justify-center flex-shrink-0">
-              </div>
               <span className={`text-lg font-semibold ${sidebarTextColor}`}>{workspaceName}</span>
             </div>
           </div>
@@ -831,7 +863,7 @@ export default function GigaAIClient({ initialError, initialSuccess, initialMess
                   placeholder="Search agents, scenario ⌘K"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className={`w-full pl-9 pr-8 py-2 rounded-2xl bg-[#242423] border border-white/10 ${sidebarTextColor} text-xs placeholder:${sidebarTextTertiary} focus:outline-none focus:border-blue-500`}
+                  className={`w-full pl-9 pr-8 py-2 rounded-2xl bg-[#242423] border border-white/10 ${sidebarTextColor} text-xs placeholder:${sidebarTextTertiary} focus:outline-none focus:border-orange-500`}
                 />
           </div>
         </div>
@@ -856,14 +888,23 @@ export default function GigaAIClient({ initialError, initialSuccess, initialMess
                 )}
               </button>
             </div>
-            {agentsExpanded && (
-              <div className="ml-4 mt-1 space-y-1">
-                {agents
-                  .filter((agent) => 
-                    !searchQuery || 
-                    agent.name.toLowerCase().includes(searchQuery.toLowerCase())
-                  )
-                  .map((agent) => (
+                {agentsExpanded && (
+                  <div className="ml-4 mt-1 space-y-1">
+                    {agents.length === 0 ? (
+                      <EmptyState
+                        icon={Folder}
+                        title="No agents yet"
+                        description="Create your first agent to get started"
+                        action={{ label: "Create Agent", onClick: () => setShowCreateModal(true) }}
+                        className="py-4"
+                      />
+                    ) : (
+                      agents
+                        .filter((agent) => 
+                          !searchQuery || 
+                          agent.name.toLowerCase().includes(searchQuery.toLowerCase())
+                        )
+                        .map((agent) => (
                   <div key={agent.id} className="relative group" ref={agentMenuRef}>
                     <button
                       onClick={() => {
@@ -881,15 +922,17 @@ export default function GigaAIClient({ initialError, initialSuccess, initialMess
                         <span className="truncate">{agent.name}</span>
                       </span>
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowAgentMenu(showAgentMenu === agent.id ? null : agent.id);
-                          }}
-                          className="p-1 hover:bg-white/10 rounded-full"
-                        >
-                          <MoreVertical className="h-3 w-3" />
-                        </button>
+                        <Tooltip content="Agent options">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowAgentMenu(showAgentMenu === agent.id ? null : agent.id);
+                            }}
+                            className="p-1 hover:bg-white/10 rounded-full"
+                          >
+                            <MoreVertical className="h-3 w-3" />
+                          </button>
+                        </Tooltip>
                       </div>
                     </button>
                     {showAgentMenu === agent.id && (
@@ -917,14 +960,19 @@ export default function GigaAIClient({ initialError, initialSuccess, initialMess
                       </div>
                     )}
                   </div>
-                ))}
-                <button
-                  onClick={() => setShowCreateModal(true)}
-                      className={`w-full text-left px-3 py-2 rounded-2xl text-xs ${sidebarTextTertiary} hover:bg-[#242423] flex items-center gap-2 border border-dashed ${sidebarBorder}`}
-                    >
-                      <Plus className={`h-3 w-3 ${sidebarIconSecondary}`} />
-                      Add agent
-                    </button>
+                ))
+                      )}
+                    {agents.length > 0 && (
+                      <Tooltip content="Create a new agent">
+                        <button
+                          onClick={() => setShowCreateModal(true)}
+                          className={`w-full text-left px-3 py-2 rounded-2xl text-xs ${sidebarTextTertiary} hover:bg-[#242423] flex items-center gap-2 border border-dashed ${sidebarBorder}`}
+                        >
+                          <Plus className={`h-3 w-3 ${sidebarIconSecondary}`} />
+                          Add agent
+                        </button>
+                      </Tooltip>
+                    )}
               </div>
             )}
           </div>
@@ -981,10 +1029,44 @@ export default function GigaAIClient({ initialError, initialSuccess, initialMess
                 onClick={() => setActivePage("advanced")}
               />
               <NavItem
-                icon={MessageSquare}
-                label="Inbox"
-                active={activePage === "inbox"}
-                onClick={() => setActivePage("inbox")}
+                icon={Brain}
+                label="LLM"
+                active={activePage === "llm"}
+                onClick={() => setActivePage("llm")}
+              />
+              {/* Inbox only for chat and multi-modal agents */}
+              {(selectedAgent.modality === "chat" || selectedAgent.modality === "multi-modal") && (
+                <NavItem
+                  icon={MessageSquare}
+                  label="Inbox"
+                  active={activePage === "inbox"}
+                  onClick={() => setActivePage("inbox")}
+                />
+              )}
+              {/* Admin link for superadmins - always show at bottom */}
+              {isSuperadmin && (
+                <NavItem
+                  icon={Shield}
+                  label="Admin"
+                  active={false}
+                  onClick={() => {
+                    window.location.href = "/admin";
+                  }}
+                />
+              )}
+            </nav>
+          )}
+          
+          {/* Admin link for superadmins - show even when no agent selected */}
+          {!selectedAgent && isSuperadmin && (
+            <nav className="p-4 space-y-1 border-t border-white/10">
+              <NavItem
+                icon={Shield}
+                label="Admin"
+                active={false}
+                onClick={() => {
+                  window.location.href = "/admin";
+                }}
               />
             </nav>
           )}
@@ -1033,7 +1115,7 @@ export default function GigaAIClient({ initialError, initialSuccess, initialMess
                                   setEditingScenarioName("");
                                 }
                               }}
-                              className={`flex-1 px-2 py-1 rounded-2xl bg-[#242423] border border-white/10 text-xs ${sidebarTextColor} focus:border-[#3351ff] focus:outline-none`}
+                              className={`flex-1 px-2 py-1 rounded-2xl bg-[#242423] border border-white/10 text-xs ${sidebarTextColor} focus:border-[#f97316] focus:outline-none`}
                               autoFocus
                             />
                             <button
@@ -1294,7 +1376,7 @@ export default function GigaAIClient({ initialError, initialSuccess, initialMess
                 onClick={() => setActiveTab("canvas")}
                 className={`px-4 py-2 min-h-[40px] rounded-3xl border-2 transition text-sm font-medium flex items-center justify-center whitespace-nowrap leading-none ${
                   activeTab === "canvas"
-                    ? "border-blue-600 bg-blue-600/20 text-blue-600"
+                    ? "border-orange-600 bg-orange-600/20 text-orange-600"
                     : `border-white/10 ${themeClasses.textTertiary} hover:border-white/20 hover:${themeClasses.textSecondary}`
                 }`}
               >
@@ -1304,7 +1386,7 @@ export default function GigaAIClient({ initialError, initialSuccess, initialMess
                 onClick={() => setActiveTab("test")}
                 className={`px-4 py-2 min-h-[40px] rounded-3xl border-2 transition text-sm font-medium flex items-center justify-center whitespace-nowrap leading-none ${
                   activeTab === "test"
-                    ? "border-blue-600 bg-blue-600/20 text-blue-600"
+                    ? "border-orange-600 bg-orange-600/20 text-orange-600"
                     : `border-white/10 ${themeClasses.textTertiary} hover:border-white/20 hover:${themeClasses.textSecondary}`
                 }`}
               >
@@ -1325,6 +1407,7 @@ export default function GigaAIClient({ initialError, initialSuccess, initialMess
                       scenarioId={selectedScenario.id}
                       scenarioName={selectedScenario.name}
                       isDeployed={selectedAgent?.status?.toLowerCase() === "deployed"}
+                      onTestFlow={() => setShowFlowTester(true)}
                     />
                   ) : activeTab === "test" ? (
                     selectedAgent.modality === "chat" ? (
@@ -1336,24 +1419,23 @@ export default function GigaAIClient({ initialError, initialSuccess, initialMess
                 ) : selectedAgent ? (
                   <div className="flex items-center justify-center h-full bg-[#242423]" style={{ background: '#242423' }}>
                     <div className="text-center max-w-md">
-                      <div className="mb-6">
-                        <Folder className={`h-16 w-16 text-white/50 mx-auto mb-4`} />
-                        <h2 className={`text-2xl font-semibold text-white mb-2`}>No scenario selected</h2>
-                        <p className={`text-white/70 text-sm`}>
-                          {scenarios.length === 0
-                            ? "Create a scenario to start building your agent flow"
-                            : "Select a scenario or create a new one"}
-                        </p>
-                      </div>
                       {scenarios.length === 0 ? (
-                        <button
-                          onClick={() => setShowCreateScenarioModal(true)}
-                          className={`px-8 py-4 rounded-3xl bg-[#3351ff] hover:bg-[#4a64ff] text-white font-medium transition text-lg`}
-                        >
-                          Create your first scenario
-                        </button>
+                        <EmptyState
+                          icon={Layers}
+                          title="No scenarios yet"
+                          description="Create a scenario to start building your agent flow"
+                          action={{ label: "Create Scenario", onClick: () => setShowCreateScenarioModal(true) }}
+                        />
                       ) : (
-                        <div className="space-y-3">
+                        <EmptyState
+                          icon={Layers}
+                          title="No scenario selected"
+                          description="Select a scenario or create a new one"
+                          action={{ label: "Create Scenario", onClick: () => setShowCreateScenarioModal(true) }}
+                        />
+                      )}
+                      {scenarios.length > 0 && (
+                        <div className="space-y-3 max-w-md mx-auto">
                           {scenarios.map((scenario) => (
                             <button
                               key={scenario.id}
@@ -1363,12 +1445,14 @@ export default function GigaAIClient({ initialError, initialSuccess, initialMess
                               {scenario.name}
                             </button>
                           ))}
-                          <button
-                            onClick={() => setShowCreateScenarioModal(true)}
-                            className={`w-full px-6 py-3 rounded-3xl bg-[#3351ff] hover:bg-[#4a64ff] text-white font-medium transition`}
-                          >
-                            + Create new scenario
-                          </button>
+                          <Tooltip content="Create a new scenario">
+                            <button
+                              onClick={() => setShowCreateScenarioModal(true)}
+                              className={`w-full px-6 py-3 rounded-3xl bg-[#f97316] hover:bg-[#ea580c] text-white font-medium transition`}
+                            >
+                              + Create new scenario
+                            </button>
+                          </Tooltip>
                         </div>
                       )}
                     </div>
@@ -1396,9 +1480,21 @@ export default function GigaAIClient({ initialError, initialSuccess, initialMess
                       />
                     ) : null
                   ) : activePage === "inbox" ? (
-                    selectedAgent ? (
+                    selectedAgent && (selectedAgent.modality === "chat" || selectedAgent.modality === "multi-modal") ? (
                       <InboxPage agentId={selectedAgent.id} />
-                    ) : null
+                    ) : (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="text-center">
+                          <MessageSquare className="h-16 w-16 mx-auto mb-4 text-white/50" />
+                          <h2 className="text-2xl font-semibold text-white mb-2">Inbox Not Available</h2>
+                          <p className="text-white/70 text-sm">
+                            The Inbox feature is only available for chat and multi-modal agents.
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  ) : activePage === "llm" ? (
+                    <LLMPage agentId={selectedAgent?.id} />
                   ) : null}
                 </div>
               )}
@@ -1450,9 +1546,57 @@ export default function GigaAIClient({ initialError, initialSuccess, initialMess
         onConfirm={confirmationModal.onConfirm}
         onCancel={() => setConfirmationModal({ ...confirmationModal, isOpen: false })}
       />
+
+      {/* Validation Panel */}
+      {selectedAgent && (
+        <ValidationPanel
+          agent={selectedAgent}
+          scenarios={scenarios}
+          isOpen={showValidationPanel}
+          onClose={() => setShowValidationPanel(false)}
+          onFixIssue={(error) => {
+            // Navigate to the issue location
+            if (error.location) {
+              const parts = error.location.split(":");
+              if (parts[0] === "scenario") {
+                const scenario = scenarios.find((s) => s.id === parts[1]);
+                if (scenario) {
+                  setSelectedScenario(scenario);
+                  setActivePage("scenarios");
+                }
+              }
+            }
+          }}
+          onProceedWithDeployment={handleDeployAfterValidation}
+          hasTwilioCredentials={hasTwilioCredentials}
+        />
+      )}
+
+      {/* Flow Tester */}
+      {selectedAgent && selectedScenario && selectedScenarioWithSteps && (
+        <FlowTester
+          agentId={selectedAgent.id}
+          scenarioId={selectedScenario.id}
+          scenario={selectedScenarioWithSteps}
+          isOpen={showFlowTester}
+          onClose={() => setShowFlowTester(false)}
+          agentModality={selectedAgent.modality}
+        />
+      )}
     </div>
   );
 }
+
+// Wrap with ToastProvider
+function GigaAIClientWithToast(props: GigaAIClientProps) {
+  return (
+    <ToastProvider>
+      <GigaAIClient {...props} />
+    </ToastProvider>
+  );
+}
+
+export default GigaAIClientWithToast;
 
 function NavItem({
   icon: Icon,

@@ -53,47 +53,66 @@ export async function POST(req: NextRequest) {
 
     console.log("[Twilio SMS] Looking for agent with phone number formats:", uniqueFormats);
 
-    // Find agent by phone number
+    // Find agent by phone number - ONLY chat or multi-modal agents (not voice-only)
+    // This allows chat and voice agents to share the same phone number
+    // SMS will route to chat/multi-modal, calls will route to voice/multi-modal
     let { data: agent } = await supabaseAdmin
       .from("agents")
-      .select("id, workspace_id, name, status, phone_number")
+      .select("id, workspace_id, name, status, phone_number, modality")
       .in("phone_number", uniqueFormats)
+      .in("modality", ["chat", "multi-modal"]) // Only chat or multi-modal agents for SMS
+      .eq("status", "deployed")
+      .order("modality", { ascending: true }) // Prefer "chat" over "multi-modal" if both exist
+      .limit(1)
       .maybeSingle();
 
     // Try case-insensitive partial matching if not found
     if (!agent) {
       const { data: allAgents } = await supabaseAdmin
         .from("agents")
-        .select("id, workspace_id, name, phone_number, status");
+        .select("id, workspace_id, name, phone_number, status, modality")
+        .in("modality", ["chat", "multi-modal"]) // Only chat or multi-modal agents
+        .eq("status", "deployed");
 
       if (allAgents) {
-        for (const candidate of allAgents) {
+        // Sort to prefer "chat" over "multi-modal"
+        const sortedAgents = allAgents.sort((a, b) => {
+          if (a.modality === "chat" && b.modality !== "chat") return -1;
+          if (a.modality !== "chat" && b.modality === "chat") return 1;
+          return 0;
+        });
+
+        for (const candidate of sortedAgents) {
           if (!candidate.phone_number) continue;
           
           const normalizedCandidate = normalizePhone(candidate.phone_number);
           if (normalizedCandidate === normalizedTo || normalizedCandidate === to) {
             const { data: fullAgent } = await supabaseAdmin
               .from("agents")
-              .select("id, workspace_id, name, status, phone_number")
+              .select("id, workspace_id, name, status, phone_number, modality")
               .eq("id", candidate.id)
               .single();
             if (fullAgent) {
               agent = fullAgent;
+              console.log("[Twilio SMS] Found chat/multi-modal agent:", fullAgent.id, "modality:", fullAgent.modality);
               break;
             }
           }
         }
       }
+    } else {
+      console.log("[Twilio SMS] Found chat/multi-modal agent:", agent.id, "modality:", agent.modality);
     }
 
     if (!agent) {
-      console.error("[Twilio SMS] Agent not found for phone number:", to);
+      console.error("[Twilio SMS] No chat/multi-modal agent found for phone number:", to);
       console.error("[Twilio SMS] Tried formats:", uniqueFormats);
-      // Get all agents for debugging
+      // Get all agents for debugging (including voice agents to show they exist but aren't used for SMS)
       const { data: allAgents } = await supabaseAdmin
         .from("agents")
-        .select("id, name, phone_number, status");
+        .select("id, name, phone_number, status, modality");
       console.error("[Twilio SMS] All agents in database:", allAgents);
+      console.error("[Twilio SMS] Note: SMS only works with 'chat' or 'multi-modal' agents. Voice-only agents are ignored.");
       // Return empty response (Twilio will not send anything)
       return new NextResponse("", { status: 200 });
     }

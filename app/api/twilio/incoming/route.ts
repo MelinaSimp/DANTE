@@ -8,19 +8,26 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 10; // 10 seconds max for Twilio webhooks
 
 /**
- * Twilio Incoming Call Webhook
+ * Twilio Incoming Call Webhook (Optimized)
  * POST /api/twilio/incoming
  * 
- * This endpoint receives incoming call webhooks from Twilio
+ * This endpoint receives incoming call webhooks from Twilio.
  * Configure this URL in your Twilio phone number settings:
- * Voice & Fax > A CALL COMES IN > Webhook
+ * Voice & Fax > A CALL COMES IN > Webhook: https://driftai.studio/api/twilio/incoming
+ * 
+ * This is the primary voice call handler with latency optimizations.
  */
 export async function POST(req: NextRequest) {
+  // Declare variables outside try block so they're accessible in catch
+  let callSid = "";
+  let from = "";
+  let to = "";
+  
   try {
     const formData = await req.formData();
-    const callSid = formData.get("CallSid")?.toString() || "";
-    const from = formData.get("From")?.toString() || "";
-    const to = formData.get("To")?.toString() || "";
+    callSid = formData.get("CallSid")?.toString() || "";
+    from = formData.get("From")?.toString() || "";
+    to = formData.get("To")?.toString() || "";
     const callStatus = formData.get("CallStatus")?.toString() || "";
 
     console.log("[Twilio] Incoming call:", { callSid, from, to, callStatus });
@@ -71,27 +78,35 @@ export async function POST(req: NextRequest) {
     console.log("[Twilio] Normalized 'to':", normalizedTo);
 
     // Try to find agent with any of these formats
+    // ONLY voice or multi-modal agents (not chat-only)
+    // This allows chat and voice agents to share the same phone number
+    // SMS will route to chat/multi-modal, calls will route to voice/multi-modal
     // PRIORITY: Main receptionist (non-specialist) first, then specialists
     let { data: agent } = await supabaseAdmin
       .from("agents")
-      .select("id, workspace_id, name, status, phone_number, elevenlabs_voice_id, is_specialist, parent_agent_id")
+      .select("id, workspace_id, name, status, phone_number, elevenlabs_voice_id, is_specialist, parent_agent_id, modality")
       .in("phone_number", uniqueFormats)
+      .in("modality", ["voice", "multi-modal"]) // Only voice or multi-modal agents for calls
       .eq("status", "deployed")
       .order("is_specialist", { ascending: true }) // false (main) first, then true (specialist)
       .order("parent_agent_id", { ascending: true, nullsFirst: true }) // agents without parent first
+      .order("modality", { ascending: true }) // Prefer "voice" over "multi-modal" if both exist
       .limit(1)
       .maybeSingle();
 
     // If still not found, try case-insensitive partial matching
     if (!agent) {
       // Get all deployed agents to check manually
+      // ONLY voice or multi-modal agents (not chat-only)
       // PRIORITY: Sort by is_specialist (main receptionist first) and parent_agent_id (nulls first)
       const { data: allDeployedAgents } = await supabaseAdmin
         .from("agents")
-        .select("id, name, phone_number, status, is_specialist, parent_agent_id")
+        .select("id, name, phone_number, status, is_specialist, parent_agent_id, modality")
+        .in("modality", ["voice", "multi-modal"]) // Only voice or multi-modal agents
         .eq("status", "deployed")
         .order("is_specialist", { ascending: true }) // false (main) first
-        .order("parent_agent_id", { ascending: true, nullsFirst: true }); // agents without parent first
+        .order("parent_agent_id", { ascending: true, nullsFirst: true }) // agents without parent first
+        .order("modality", { ascending: true }); // Prefer "voice" over "multi-modal"
 
       console.log("[Twilio] All deployed agents:", allDeployedAgents);
 
@@ -107,7 +122,7 @@ export async function POST(req: NextRequest) {
             // Fetch full agent data including workspace_id
             const { data: fullAgent } = await supabaseAdmin
               .from("agents")
-              .select("id, workspace_id, name, status, phone_number, elevenlabs_voice_id, is_specialist, parent_agent_id")
+              .select("id, workspace_id, name, status, phone_number, elevenlabs_voice_id, is_specialist, parent_agent_id, modality")
               .eq("id", candidate.id)
               .single();
             if (fullAgent) {
@@ -128,7 +143,7 @@ export async function POST(req: NextRequest) {
               // Fetch full agent data including workspace_id
               const { data: fullAgent } = await supabaseAdmin
                 .from("agents")
-                .select("id, workspace_id, name, status, phone_number, elevenlabs_voice_id, is_specialist, parent_agent_id")
+                .select("id, workspace_id, name, status, phone_number, elevenlabs_voice_id, is_specialist, parent_agent_id, modality")
                 .eq("id", candidate.id)
                 .single();
               if (fullAgent) {
@@ -143,12 +158,13 @@ export async function POST(req: NextRequest) {
     }
 
     if (!agent) {
-      console.error("[Twilio] Agent not found for phone number. Tried formats:", uniqueFormats);
-      // Get all agents for debugging
+      console.error("[Twilio] No voice/multi-modal agent found for phone number. Tried formats:", uniqueFormats);
+      // Get all agents for debugging (including chat agents to show they exist but aren't used for voice)
       const { data: allAgents } = await supabaseAdmin
         .from("agents")
-        .select("id, name, phone_number, status");
+        .select("id, name, phone_number, status, modality");
       console.log("[Twilio] All agents in database:", allAgents);
+      console.log("[Twilio] Note: Voice calls only work with 'voice' or 'multi-modal' agents. Chat-only agents are ignored.");
       
       const errorTwiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -182,11 +198,13 @@ export async function POST(req: NextRequest) {
       }
     }
     
-    // THIRD: Fallback to environment variables (might be outdated, but better than nothing)
+    // THIRD: Fallback to environment variables or custom domain
     if (!baseUrl) {
-      baseUrl = process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || "";
-      if (baseUrl) {
-        console.warn("[Twilio Incoming] ⚠️ Using environment variable (might be outdated):", baseUrl);
+      baseUrl = process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || "https://driftai.studio";
+      if (baseUrl === "https://driftai.studio") {
+        console.log("[Twilio Incoming] Using custom domain: driftai.studio");
+      } else {
+        console.log("[Twilio Incoming] Using environment variable:", baseUrl);
       }
     }
     
@@ -212,8 +230,8 @@ export async function POST(req: NextRequest) {
     console.log("[Twilio] Found scenarios:", scenarios);
     console.log("[Twilio] Scenario ID:", scenarioId);
 
-    let currentStepId = null;
-    let greetingStep = null;
+    let currentStepId: string | null = null;
+    let greetingStep: { id: string; type: string; ai_message?: string; name?: string; sort_order?: number } | null = null;
     
     if (scenarioId) {
       // Get ALL steps to see what we have
@@ -232,7 +250,7 @@ export async function POST(req: NextRequest) {
       if (saySteps.length > 0) {
         greetingStep = saySteps[0];
         // Find the next step after the greeting (should be the Gather step)
-        const greetingIndex = allSteps?.findIndex(s => s.id === greetingStep.id) ?? -1;
+        const greetingIndex = allSteps?.findIndex(s => s.id === greetingStep?.id) ?? -1;
         if (greetingIndex >= 0 && allSteps && greetingIndex < allSteps.length - 1) {
           // Set current_step_id to the next step (Gather step)
           currentStepId = allSteps[greetingIndex + 1].id;

@@ -53,9 +53,9 @@ export default function PersonalizationPage({ agentId }: PersonalizationPageProp
           </p>
         </div>
 
-        <div className="space-y-6 rounded-lg border border-white/10 bg-[#242423]/90 backdrop-blur-sm p-6">
+        <div className="space-y-6 rounded-3xl border border-white/10 bg-[#242423]/90 backdrop-blur-sm p-6">
         {/* Voice Models */}
-        <div className={`rounded-xl border ${colors.border} ${colors.cardBg} p-6`}>
+        <div className={`rounded-3xl border ${colors.border} ${colors.cardBg} p-6`}>
           <div className="flex items-center gap-3 mb-4">
             <Volume2 className={`h-5 w-5 ${colors.iconSecondary}`} />
             <h3 className={`text-lg font-semibold ${colors.text}`}>Voice Model</h3>
@@ -68,7 +68,7 @@ export default function PersonalizationPage({ agentId }: PersonalizationPageProp
               <button
                 key={model.id}
                 onClick={() => setSelectedVoice(model.id)}
-                className={`p-4 rounded-lg border transition text-left ${
+                className={`p-4 rounded-3xl border transition text-left ${
                   selectedVoice === model.id
                     ? "border-[#3351ff] bg-[#3351ff]/20"
                     : `${colors.border} ${colors.cardBg} hover:${colors.borderSecondary}`
@@ -82,7 +82,7 @@ export default function PersonalizationPage({ agentId }: PersonalizationPageProp
         </div>
 
         {/* Character Traits */}
-        <div className={`rounded-xl border ${colors.border} ${colors.cardBg} p-6`}>
+        <div className={`rounded-3xl border ${colors.border} ${colors.cardBg} p-6`}>
           <div className="flex items-center gap-3 mb-4">
             <Sparkles className={`h-5 w-5 ${colors.iconSecondary}`} />
             <h3 className={`text-lg font-semibold ${colors.text}`}>Character Traits</h3>
@@ -100,7 +100,7 @@ export default function PersonalizationPage({ agentId }: PersonalizationPageProp
                   type="text"
                   value={trait.value}
                   onChange={(e) => updateTrait(trait.id, e.target.value)}
-                  className={`flex-1 rounded-lg border ${colors.border} ${colors.inputBg} px-4 py-2 text-sm ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none`}
+                  className={`flex-1 rounded-2xl border ${colors.border} ${colors.inputBg} px-4 py-2 text-sm ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none`}
                   placeholder="Enter trait value"
                 />
               </div>
@@ -109,7 +109,7 @@ export default function PersonalizationPage({ agentId }: PersonalizationPageProp
         </div>
 
         {/* Additional Settings */}
-        <div className={`rounded-xl border ${colors.border} ${colors.cardBg} p-6`}>
+        <div className={`rounded-3xl border ${colors.border} ${colors.cardBg} p-6`}>
           <div className="flex items-center gap-3 mb-4">
             <Settings className={`h-5 w-5 ${colors.iconSecondary}`} />
             <h3 className={`text-lg font-semibold ${colors.text}`}>Additional Settings</h3>
@@ -120,7 +120,7 @@ export default function PersonalizationPage({ agentId }: PersonalizationPageProp
                 <div className={`text-sm font-medium ${colors.text}`}>Response Length</div>
                 <div className={`text-xs ${colors.textSecondary}`}>Control how verbose the agent is</div>
               </div>
-              <select className={`rounded-lg border ${colors.border} ${colors.inputBg} px-4 py-2 text-sm ${colors.text} focus:border-[#3351ff] focus:outline-none`}>
+              <select className={`rounded-2xl border ${colors.border} ${colors.inputBg} px-4 py-2 text-sm ${colors.text} focus:border-[#3351ff] focus:outline-none`}>
                 <option>Concise</option>
                 <option>Moderate</option>
                 <option>Detailed</option>
@@ -131,7 +131,7 @@ export default function PersonalizationPage({ agentId }: PersonalizationPageProp
                 <div className={`text-sm font-medium ${colors.text}`}>Language</div>
                 <div className={`text-xs ${colors.textSecondary}`}>Primary language for responses</div>
               </div>
-              <select className={`rounded-lg border ${colors.border} ${colors.inputBg} px-4 py-2 text-sm ${colors.text} focus:border-[#3351ff] focus:outline-none`}>
+              <select className={`rounded-2xl border ${colors.border} ${colors.inputBg} px-4 py-2 text-sm ${colors.text} focus:border-[#3351ff] focus:outline-none`}>
                 <option>English</option>
                 <option>Spanish</option>
                 <option>French</option>
@@ -184,7 +184,7 @@ export default function PersonalizationPage({ agentId }: PersonalizationPageProp
                 alert("Failed to save settings");
               }
             }}
-            className={`px-6 py-3 rounded-lg ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white font-medium transition`}
+            className={`px-6 py-3 rounded-2xl ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white font-medium transition`}
           >
             Save Changes
           </button>

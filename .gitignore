@@ -37,6 +37,10 @@ next-env.d.ts
 
 # electron
 /dist-electron
+# Allow downloads in public folder for website distribution
+!public/downloads/*.dmg
+!public/downloads/*.exe
+!public/downloads/*.AppImage
 *.dmg
 *.exe
 *.AppImage

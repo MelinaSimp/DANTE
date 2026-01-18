@@ -43,7 +43,8 @@ export default async function SchedulePage() {
       contacts (
         id,
         name,
-        phone
+        phone,
+        email
       )
     `)
     .eq("workspace_id", profile.workspace_id)

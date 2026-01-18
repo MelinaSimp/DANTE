@@ -1,20 +1,15 @@
+# Vercel ignore file - exclude large directories from deployment
 node_modules
 .next
-.git
-.env.local
-.env*.local
-.DS_Store
+dist-electron
+electron
 *.log
-.vercel
+.DS_Store
+*.pem
+*.key
+*.crt
 
-
-
-
-
-
-
-
-
-
-
-
+# Keep these if needed, but they might be large
+# Uncomment if you need to exclude more
+# public/downloads/*
+# supabase/migrations/*.sql

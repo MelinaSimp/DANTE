@@ -8,11 +8,13 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 10; // 10 seconds max for Twilio webhooks
 
 /**
- * Twilio Response Handler
+ * Twilio Response Handler (Optimized)
  * POST /api/twilio/response
  * 
- * This endpoint handles user speech responses during a call
- * Called automatically by Twilio's <Gather> action
+ * This endpoint handles user speech responses during a call.
+ * Called automatically by Twilio's <Gather> action.
+ * 
+ * Optimized for low latency with parallel processing and caching.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -74,8 +76,7 @@ export async function POST(req: NextRequest) {
         
         console.log("[Twilio Response] Final base URL:", baseUrl);
 
-    // Load conversation and agent (to get voice configuration)
-    // Include transfer fields to detect recent transfers
+    // OPTIMIZATION: Load conversation first, then load agent in parallel with other operations
     const { data: conversation } = await supabaseAdmin
       .from("conversations")
       .select("*, transfer_history, transferred_to_agent_id, transferred_from_agent_id")
@@ -451,7 +452,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Update conversation
+    // OPTIMIZATION: Prepare database updates and URL construction in parallel with TTS generation
     const updates: any = {
       updated_at: new Date().toISOString(),
       transcript: [
@@ -464,7 +465,23 @@ export async function POST(req: NextRequest) {
       ],
     };
 
-    if (result.nextStepId !== undefined) {
+    // Handle scenario switching
+    if (result.nextScenarioId) {
+      updates.current_scenario_id = result.nextScenarioId;
+      
+      // Get the first step of the new scenario
+      const { data: firstStep } = await supabaseAdmin
+        .from("steps")
+        .select("id")
+        .eq("scenario_id", result.nextScenarioId)
+        .order("sort_order", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      
+      if (firstStep) {
+        updates.current_step_id = firstStep.id;
+      }
+    } else if (result.nextStepId !== undefined) {
       updates.current_step_id = result.nextStepId;
     }
 
@@ -476,12 +493,42 @@ export async function POST(req: NextRequest) {
       updates.status = "completed";
     }
 
-    await supabaseAdmin
-      .from("conversations")
-      .update(updates)
-      .eq("id", conversationId);
+    // Prepare URL construction (doesn't need to wait)
+    const cleanBaseUrl = baseUrl.trim().replace(/\/+$/, "").replace(/\s+/g, "");
+    const responseUrl = `${cleanBaseUrl}/api/twilio/response?callSid=${encodeURIComponent(callSid)}&conversationId=${encodeURIComponent(conversationId)}`;
+    const cleanResponseUrl = responseUrl.trim().replace(/\s+/g, "").replace(/\n/g, "").replace(/\r/g, "");
+    const escapedResponseUrl = xmlEscapeAttr(cleanResponseUrl);
+    const partialCallbackUrl = `${cleanBaseUrl}/api/twilio/partial?conversationId=${encodeURIComponent(conversationId)}`;
+    const escapedPartialCallback = xmlEscapeAttr(partialCallbackUrl);
 
-    // Generate TwiML response
+    // OPTIMIZATION: Run database update and TTS generation in parallel
+    const hasOutput = result.output && result.output.trim().length > 0;
+    
+    console.log("[Twilio Response] Starting parallel operations (DB update + TTS)...");
+    const parallelStartTime = Date.now();
+    
+    const [_, speechTwiml] = await Promise.all([
+      // Database update (fire and forget - don't block on it)
+      supabaseAdmin
+        .from("conversations")
+        .update(updates)
+        .eq("id", conversationId)
+        .then(() => {
+          console.log(`[Twilio Response] Database update completed in ${Date.now() - parallelStartTime}ms`);
+        })
+        .catch(err => {
+          console.error("[Twilio Response] Database update error (non-blocking):", err);
+        }),
+      // TTS generation (this is what we're waiting for)
+      hasOutput
+        ? generateSpeechTwiml(result.output, agentVoiceId, baseUrl)
+        : Promise.resolve("")
+    ]);
+    
+    const parallelTime = Date.now() - parallelStartTime;
+    console.log(`[Twilio Response] Parallel operations (DB + TTS) completed in ${parallelTime}ms`);
+
+    // Validate URL before using
     if (!conversationId) {
       console.error("[Twilio Response] Conversation ID is missing for response URL");
       const errorTwiml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -495,14 +542,6 @@ export async function POST(req: NextRequest) {
       });
     }
     
-    // Ensure baseUrl doesn't have trailing slash and is clean
-    const cleanBaseUrl = baseUrl.trim().replace(/\/+$/, "").replace(/\s+/g, "");
-    const responseUrl = `${cleanBaseUrl}/api/twilio/response?callSid=${encodeURIComponent(callSid)}&conversationId=${encodeURIComponent(conversationId)}`;
-    
-    console.log("[Twilio Response] Constructed response URL:", responseUrl);
-    console.log("[Twilio Response] Response URL JSON:", JSON.stringify(responseUrl));
-    
-    // Validate URL before using
     try {
       const testUrl = new URL(responseUrl);
       console.log("[Twilio Response] URL validation passed:", testUrl.href);
@@ -520,33 +559,16 @@ export async function POST(req: NextRequest) {
       });
     }
     
-    // Clean the URL one more time before escaping (remove any whitespace/newlines)
-    const cleanResponseUrl = responseUrl.trim().replace(/\s+/g, "").replace(/\n/g, "").replace(/\r/g, "");
-    const escapedResponseUrl = xmlEscapeAttr(cleanResponseUrl);
-    
-    // Add partial result callback for interruptability
-    const partialCallbackUrl = `${cleanBaseUrl}/api/twilio/partial?conversationId=${encodeURIComponent(conversationId)}`;
-    const escapedPartialCallback = xmlEscapeAttr(partialCallbackUrl);
-    
     console.log("[Twilio Response] Clean response URL:", cleanResponseUrl);
     console.log("[Twilio Response] Escaped response URL:", escapedResponseUrl);
     console.log("[Twilio Response] Partial callback URL:", partialCallbackUrl);
 
     if (!result.shouldContinue) {
       // End conversation - only say something if there's configured output
-      const hasOutput = result.output && result.output.trim().length > 0;
-      
       console.log("[Twilio Response] Ending conversation...");
       console.log("[Twilio Response] Has output:", hasOutput);
       console.log("[Twilio Response] Output text:", result.output?.substring(0, 100));
-      console.log("[Twilio Response] Agent voice ID:", agentVoiceId);
-      console.log("[Twilio Response] Base URL:", baseUrl);
-      
-      const speechTwiml = hasOutput
-        ? await generateSpeechTwiml(result.output, agentVoiceId, baseUrl)
-        : "";
-      
-      console.log("[Twilio Response] End conversation speech TwiML:", speechTwiml);
+      console.log("[Twilio Response] Speech TwiML:", speechTwiml);
       
       let twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>`;
@@ -569,22 +591,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Continue conversation
-    // Only include speech if there's actual output to speak
-    const hasOutput = result.output && result.output.trim().length > 0;
-    
-    console.log("[Twilio Response] Generating speech TwiML...");
-    console.log("[Twilio Response] Has output:", hasOutput);
-    console.log("[Twilio Response] Output text:", result.output?.substring(0, 100));
-    console.log("[Twilio Response] Agent voice ID:", agentVoiceId);
-    console.log("[Twilio Response] Base URL:", baseUrl);
-    
-    // OPTIMIZATION: Start TTS generation immediately (no await delay)
-    const ttsStartTime = Date.now();
-    const speechTwiml = hasOutput
-      ? await generateSpeechTwiml(result.output, agentVoiceId, baseUrl)
-      : "";
-    const ttsTime = Date.now() - ttsStartTime;
-    console.log(`[Twilio Response] TTS generation took ${ttsTime}ms`);
+    console.log("[Twilio Response] Generated speech TwiML:", speechTwiml);
+    console.log("[Twilio Response] Speech TwiML length:", speechTwiml.length);
     console.log("[Twilio Response] Generated speech TwiML:", speechTwiml);
     console.log("[Twilio Response] Speech TwiML length:", speechTwiml.length);
     

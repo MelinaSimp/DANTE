@@ -163,7 +163,8 @@ export default function InboxPage({ agentId }: InboxPageProps) {
       if (diffMins < 60) return `${diffMins}m ago`;
       if (diffHours < 24) return `${diffHours}h ago`;
       if (diffDays < 7) return `${diffDays}d ago`;
-      return format(date, "MMM d, yyyy");
+      // Format date using native Date methods
+      return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
     } catch {
       return "";
     }
@@ -235,7 +236,7 @@ export default function InboxPage({ agentId }: InboxPageProps) {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as "active" | "completed" | "all")}
-              className={`px-3 py-1.5 rounded-2xl border ${colors.border} ${colors.inputBg} ${colors.text} text-sm focus:outline-none focus:border-[#3351ff]`}
+              className={`px-3 py-1.5 rounded-2xl border ${colors.border} ${colors.inputBg} ${colors.text} text-sm focus:outline-none focus:border-[#f97316]`}
             >
               <option value="active">Active</option>
               <option value="completed">Completed</option>
@@ -252,7 +253,7 @@ export default function InboxPage({ agentId }: InboxPageProps) {
             placeholder="Search by phone number or message..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className={`w-full pl-10 pr-4 py-2 rounded-2xl border ${colors.border} ${colors.inputBg} ${colors.text} placeholder:${colors.textTertiary} text-sm focus:outline-none focus:border-[#3351ff]`}
+            className={`w-full pl-10 pr-4 py-2 rounded-2xl border ${colors.border} ${colors.inputBg} ${colors.text} placeholder:${colors.textTertiary} text-sm focus:outline-none focus:border-[#f97316]`}
           />
         </div>
       </div>
@@ -283,7 +284,7 @@ export default function InboxPage({ agentId }: InboxPageProps) {
                     onClick={() => setSelectedConversation(conversation)}
                     className={`w-full text-left p-4 hover:bg-gray-100 dark:hover:bg-gray-800 transition ${
                       isSelected
-                        ? "bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500"
+                        ? "bg-orange-50 dark:bg-orange-900/20 border-l-4 border-orange-500"
                         : ""
                     }`}
                   >
@@ -381,14 +382,14 @@ export default function InboxPage({ agentId }: InboxPageProps) {
                           className={`max-w-[70%] rounded-2xl px-4 py-2 ${
                             isUser
                               ? `${colors.bgSecondary} ${colors.text}`
-                              : "bg-blue-500 text-white"
+                              : "bg-orange-500 text-white"
                           }`}
                         >
                           <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                           {timestamp && (
                             <p
                               className={`text-xs mt-1 ${
-                                isUser ? colors.textTertiary : "text-blue-100"
+                                isUser ? colors.textTertiary : "text-orange-100"
                               }`}
                             >
                               {timestamp}
@@ -426,7 +427,7 @@ export default function InboxPage({ agentId }: InboxPageProps) {
                   <button
                     onClick={handleSendReply}
                     disabled={!replyText.trim() || sendingReply}
-                    className={`px-4 py-2 rounded-2xl bg-blue-500 text-white font-medium text-sm hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2`}
+                    className={`px-4 py-2 rounded-2xl bg-orange-500 text-white font-medium text-sm hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2`}
                   >
                     {sendingReply ? (
                       <>

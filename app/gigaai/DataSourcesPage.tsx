@@ -420,7 +420,7 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
             setShowTextInput(!showTextInput);
             setShowApiKeyInput(false);
           }}
-          className={`px-4 py-2 rounded-lg ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white text-sm font-medium transition`}
+          className={`px-4 py-2 rounded-2xl ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white text-sm font-medium transition`}
         >
           + Add Text Knowledge
         </button>
@@ -429,7 +429,7 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
             setShowApiKeyInput(!showApiKeyInput);
             setShowTextInput(false);
           }}
-          className={`px-4 py-2 rounded-lg border ${colors.border} ${colors.cardBg} ${colors.text} text-sm font-medium transition`}
+          className={`px-4 py-2 rounded-2xl border ${colors.border} ${colors.cardBg} ${colors.text} text-sm font-medium transition`}
         >
           + Add API Key
         </button>
@@ -439,7 +439,7 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
             // After OAuth, webhook will be automatically set up
             window.location.href = `/api/integrations/google/oauth`;
           }}
-          className={`px-4 py-2 rounded-lg border ${colors.border} ${colors.cardBg} ${colors.text} text-sm font-medium transition flex items-center gap-2`}
+          className={`px-4 py-2 rounded-2xl border ${colors.border} ${colors.cardBg} ${colors.text} text-sm font-medium transition flex items-center gap-2`}
         >
           <Calendar className="h-4 w-4" />
           Connect Google Calendar
@@ -448,18 +448,18 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
 
       {/* Text Input */}
       {showTextInput && (
-        <div className={`mb-4 p-4 rounded-lg border ${colors.border} ${colors.cardBg}`}>
+        <div className={`mb-4 p-4 rounded-2xl border ${colors.border} ${colors.cardBg}`}>
           <textarea
             value={textInput}
             onChange={(e) => setTextInput(e.target.value)}
             placeholder="Enter knowledge base content here..."
             rows={4}
-            className={`w-full rounded-lg border ${colors.border} ${colors.inputBg} px-3 py-2 text-sm ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none mb-3`}
+            className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-sm ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none mb-3`}
           />
           <div className="flex gap-2">
             <button
               onClick={addTextDataSource}
-              className={`px-4 py-2 rounded-lg ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white text-sm font-medium`}
+              className={`px-4 py-2 rounded-2xl ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white text-sm font-medium`}
             >
               Add Data Source
             </button>
@@ -468,7 +468,7 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
                 setShowTextInput(false);
                 setTextInput("");
               }}
-              className={`px-4 py-2 rounded-lg border ${colors.border} ${colors.cardBg} ${colors.text} text-sm`}
+              className={`px-4 py-2 rounded-2xl border ${colors.border} ${colors.cardBg} ${colors.text} text-sm`}
             >
               Cancel
             </button>
@@ -478,14 +478,14 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
 
       {/* API Key Input */}
       {showApiKeyInput && (
-        <div className={`mb-4 p-4 rounded-lg border ${colors.border} ${colors.cardBg}`}>
+        <div className={`mb-4 p-4 rounded-2xl border ${colors.border} ${colors.cardBg}`}>
           <div className="space-y-3">
             <div>
               <label className={`block text-xs font-medium ${colors.textSecondary} mb-1`}>API Key Type</label>
               <select
                 value={apiKeyType}
                 onChange={(e) => setApiKeyType(e.target.value as "google_calendar" | "custom")}
-                className={`w-full rounded-lg border ${colors.border} ${colors.inputBg} px-3 py-2 text-sm ${colors.text} focus:border-[#3351ff] focus:outline-none`}
+                className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-sm ${colors.text} focus:border-[#3351ff] focus:outline-none`}
               >
                 <option value="google_calendar">Google Calendar</option>
                 <option value="custom">Custom API Key</option>
@@ -498,7 +498,7 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
                 value={apiKeyName}
                 onChange={(e) => setApiKeyName(e.target.value)}
                 placeholder={apiKeyType === "google_calendar" ? "Google Calendar API Key" : "API Key Name"}
-                className={`w-full rounded-lg border ${colors.border} ${colors.inputBg} px-3 py-2 text-sm ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none`}
+                className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-sm ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none`}
               />
             </div>
             <div>
@@ -508,7 +508,7 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
                 value={apiKeyValue}
                 onChange={(e) => setApiKeyValue(e.target.value)}
                 placeholder="Enter API key..."
-                className={`w-full rounded-lg border ${colors.border} ${colors.inputBg} px-3 py-2 text-sm ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none`}
+                className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-sm ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none`}
               />
             </div>
             <div className="flex gap-2">
@@ -546,7 +546,7 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
                     console.error("Failed to add API key:", error);
                   }
                 }}
-                className={`px-4 py-2 rounded-lg ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white text-sm font-medium`}
+                className={`px-4 py-2 rounded-2xl ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white text-sm font-medium`}
               >
                 Add API Key
               </button>
@@ -556,7 +556,7 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
                   setApiKeyName("");
                   setApiKeyValue("");
                 }}
-                className={`px-4 py-2 rounded-lg border ${colors.border} ${colors.cardBg} ${colors.text} text-sm`}
+                className={`px-4 py-2 rounded-2xl border ${colors.border} ${colors.cardBg} ${colors.text} text-sm`}
               >
                 Cancel
               </button>
@@ -567,7 +567,7 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
 
         {/* Error Message */}
       {uploadError && (
-        <div className="mb-4 p-3 rounded-lg bg-red-500/20 border border-red-500/30">
+        <div className="mb-4 p-3 rounded-2xl bg-red-500/20 border border-red-500/30">
           <p className="text-sm text-red-300">{uploadError}</p>
           <button
             onClick={() => setUploadError(null)}
@@ -580,7 +580,7 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
 
       {/* Drop Zone - Centered box */}
         <div
-          className={`rounded-lg border border-white/10 bg-[#242423]/90 backdrop-blur-sm p-6 transition ${
+          className={`rounded-3xl border border-white/10 bg-[#242423]/90 backdrop-blur-sm p-6 transition ${
             draggedOver
               ? `border-[#3351ff] bg-[#3351ff]/10`
               : ``
@@ -614,7 +614,7 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
               {dataSources.map((dataSource) => (
                 <div
                   key={dataSource.id}
-                  className={`flex items-center gap-3 p-4 rounded-lg border ${colors.border} ${colors.cardBg} ${colors.hover} transition`}
+                  className={`flex items-center gap-3 p-4 rounded-2xl border ${colors.border} ${colors.cardBg} ${colors.hover} transition`}
                 >
                   <GripVertical className={`h-5 w-5 ${colors.iconSecondary}`} />
                   <Database className={`h-5 w-5 ${colors.iconSecondary}`} />
@@ -640,7 +640,7 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => previewDataSource(dataSource)}
-                      className={`p-2 ${colors.hover} rounded-lg transition`}
+                      className={`p-2 ${colors.hover} rounded-2xl transition`}
                       title="Preview"
                     >
                       <Eye className={`h-4 w-4 ${colors.iconSecondary}`} />
@@ -650,7 +650,7 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
                         href={dataSource.file_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className={`p-2 ${colors.hover} rounded-lg transition`}
+                        className={`p-2 ${colors.hover} rounded-2xl transition`}
                         title="Download"
                       >
                         <Download className={`h-4 w-4 ${colors.iconSecondary}`} />
@@ -658,7 +658,7 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
                     )}
                     <button
                       onClick={() => removeDataSource(dataSource.id)}
-                      className={`p-2 ${colors.hover} rounded-lg transition`}
+                      className={`p-2 ${colors.hover} rounded-2xl transition`}
                       title="Delete"
                     >
                       <X className={`h-4 w-4 ${colors.iconSecondary}`} />
@@ -668,7 +668,7 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
               ))}
             </div>
             <label htmlFor="file-upload" className="cursor-pointer block">
-              <div className="text-center py-6 border-2 border-dashed border-white/20 rounded-lg hover:border-[#3351ff] transition">
+              <div className="text-center py-6 border-2 border-dashed border-white/20 rounded-3xl hover:border-[#3351ff] transition">
                 <Database className={`h-8 w-8 ${colors.iconSecondary} mx-auto mb-2`} />
                 <p className={`${colors.textSecondary} text-sm mb-1`}>Drag and drop more files here</p>
                 <p className={`${colors.textTertiary} text-xs`}>or click to browse</p>
@@ -704,7 +704,7 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
               </div>
               <button
                 onClick={() => setPreviewModal({ isOpen: false, dataSource: null, content: null, loading: false })}
-                className={`p-2 ${colors.hover} rounded-lg transition`}
+                className={`p-2 ${colors.hover} rounded-2xl transition`}
               >
                 <X className={`h-5 w-5 ${colors.iconSecondary}`} />
               </button>
@@ -720,7 +720,7 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
                     <div className="w-full h-[60vh]">
                       <iframe
                         src={previewModal.dataSource.file_url}
-                        className="w-full h-full rounded-lg border border-white/10"
+                        className="w-full h-full rounded-2xl border border-white/10"
                         title={previewModal.dataSource.name}
                       />
                     </div>
@@ -730,11 +730,11 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
                       <img 
                         src={previewModal.content} 
                         alt={previewModal.dataSource.name}
-                        className="max-w-full max-h-[60vh] rounded-lg"
+                        className="max-w-full max-h-[60vh] rounded-2xl"
                       />
                     </div>
                   ) : (
-                    <pre className={`whitespace-pre-wrap text-sm ${colors.text} font-mono bg-[#1a1a1a] p-4 rounded-lg overflow-x-auto`}>
+                    <pre className={`whitespace-pre-wrap text-sm ${colors.text} font-mono bg-[#1a1a1a] p-4 rounded-2xl overflow-x-auto`}>
                       {previewModal.content}
                     </pre>
                   )}
@@ -751,7 +751,7 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
                   href={previewModal.dataSource.file_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={`px-4 py-2 rounded-lg ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white text-sm font-medium transition flex items-center gap-2`}
+                  className={`px-4 py-2 rounded-2xl ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white text-sm font-medium transition flex items-center gap-2`}
                 >
                   <Download className="h-4 w-4" />
                   Download

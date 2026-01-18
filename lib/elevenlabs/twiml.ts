@@ -89,8 +89,8 @@ async function generateAudioOnDemand(
           text: text.trim(),
           model_id: "eleven_turbo_v2_5", // Fastest model for lower latency
           voice_settings: {
-            stability: 0.2, // Further reduced for faster generation
-            similarity_boost: 0.5, // Further reduced for speed
+            stability: 0.15, // Lower = faster generation (reduced from 0.2)
+            similarity_boost: 0.4, // Lower = faster (reduced from 0.5)
             style: 0.0, // Neutral style for faster processing
             use_speaker_boost: false, // Disable for speed
           },

@@ -20,8 +20,9 @@ async function getWorkspace(req: NextRequest) {
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { stepId: string } }
+  { params }: { params: Promise<{ stepId: string }> }
 ) {
+  const { stepId } = await params;
   const { workspaceId } = await getWorkspace(req);
   if (!workspaceId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -31,7 +32,7 @@ export async function GET(
   const { data: step } = await supabaseAdmin
     .from("steps")
     .select("scenario_id, scenarios!inner(agent_id, agents!inner(workspace_id))")
-    .eq("id", params.stepId)
+    .eq("id", stepId)
     .maybeSingle();
 
   if (!step || ((step.scenarios as any).agents as any).workspace_id !== workspaceId) {
@@ -41,7 +42,7 @@ export async function GET(
   const { data, error } = await supabaseAdmin
     .from("step_branches")
     .select("*")
-    .eq("step_id", params.stepId)
+    .eq("step_id", stepId)
     .order("sort_order", { ascending: true });
 
   if (error) {
@@ -54,8 +55,9 @@ export async function GET(
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { stepId: string } }
+  { params }: { params: Promise<{ stepId: string }> }
 ) {
+  const { stepId } = await params;
   const { workspaceId } = await getWorkspace(req);
   if (!workspaceId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -65,7 +67,7 @@ export async function POST(
   const { data: step } = await supabaseAdmin
     .from("steps")
     .select("scenario_id, scenarios!inner(agent_id, agents!inner(workspace_id))")
-    .eq("id", params.stepId)
+    .eq("id", stepId)
     .maybeSingle();
 
   if (!step || ((step.scenarios as any).agents as any).workspace_id !== workspaceId) {
@@ -83,7 +85,7 @@ export async function POST(
   const { data: maxOrder } = await supabaseAdmin
     .from("step_branches")
     .select("sort_order")
-    .eq("step_id", params.stepId)
+    .eq("step_id", stepId)
     .order("sort_order", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -91,7 +93,7 @@ export async function POST(
   const { data, error } = await supabaseAdmin
     .from("step_branches")
     .insert({
-      step_id: params.stepId,
+      step_id: stepId,
       condition,
       condition_tag: condition_tag || null,
       next_step_id: next_step_id || null,

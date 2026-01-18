@@ -129,7 +129,8 @@ export default function FrontendPage() {
 
   const handleAgentClick = () => {
     if (currentAgent) {
-      router.push(`/frontend/agent/${currentAgent.id}`);
+      // Go directly to LLM page instead of agent detail page
+      router.push(`/frontend/agent/${currentAgent.id}/llm`);
     }
   };
 

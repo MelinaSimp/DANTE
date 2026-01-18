@@ -46,7 +46,7 @@ main {
 
 /* Button styles - solid colors only */
 .btn-primary {
-  background: #3351ff;
+  background: #f97316;
   color: #ffffff;
   border: none;
   border-radius: 1rem;
@@ -54,13 +54,13 @@ main {
   font-weight: 600;
   transition: all 0.3s ease;
   cursor: pointer;
-  box-shadow: 0 4px 15px 0 rgba(51, 81, 255, 0.3);
+  box-shadow: 0 4px 15px 0 rgba(249, 115, 22, 0.3);
 }
 
 .btn-primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px 0 rgba(51, 81, 255, 0.4);
-  background: #4a64ff;
+  box-shadow: 0 6px 20px 0 rgba(249, 115, 22, 0.4);
+  background: #ea580c;
 }
 
 .btn-secondary {
@@ -94,14 +94,14 @@ main {
 
 .form-input:focus {
   outline: none;
-  border-color: rgba(51, 81, 255, 0.5);
+  border-color: rgba(249, 115, 22, 0.5);
   background: rgba(0, 0, 0, 0.7);
-  box-shadow: 0 0 0 3px rgba(51, 81, 255, 0.1);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
 }
 
 /* Text gradient effects - removed, using solid colors */
 .text-gradient {
-  color: #3351ff;
+  color: #f97316;
 }
 
 /* Animations */

@@ -398,7 +398,7 @@ export default function PoliciesPage({ agentId }: PoliciesPageProps) {
 
       {/* Error Message */}
       {uploadError && (
-        <div className="mb-4 p-3 rounded-lg bg-red-500/20 border border-red-500/30">
+        <div className="mb-4 p-3 rounded-2xl bg-red-500/20 border border-red-500/30">
           <p className="text-sm text-red-300">{uploadError}</p>
           <button
             onClick={() => setUploadError(null)}
@@ -411,7 +411,7 @@ export default function PoliciesPage({ agentId }: PoliciesPageProps) {
 
       {/* Drop Zone - Centered box */}
         <div
-          className={`rounded-lg border border-white/10 bg-[#242423]/90 backdrop-blur-sm p-6 transition ${
+          className={`rounded-3xl border border-white/10 bg-[#242423]/90 backdrop-blur-sm p-6 transition ${
             draggedOver
               ? `border-[#3351ff] bg-[#3351ff]/10`
               : ``
@@ -445,7 +445,7 @@ export default function PoliciesPage({ agentId }: PoliciesPageProps) {
               {policies.map((policy) => (
                 <div
                   key={policy.id}
-                  className={`flex items-center gap-3 p-4 rounded-lg border ${colors.border} ${colors.cardBg} ${colors.hover} transition`}
+                  className={`flex items-center gap-3 p-4 rounded-2xl border ${colors.border} ${colors.cardBg} ${colors.hover} transition`}
                 >
                   <GripVertical className={`h-5 w-5 ${colors.iconSecondary}`} />
                   <FileText className={`h-5 w-5 ${colors.iconSecondary}`} />
@@ -458,7 +458,7 @@ export default function PoliciesPage({ agentId }: PoliciesPageProps) {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => previewPolicy(policy)}
-                      className={`p-2 ${colors.hover} rounded-lg transition`}
+                      className={`p-2 ${colors.hover} rounded-2xl transition`}
                       title="Preview"
                     >
                       <Eye className={`h-4 w-4 ${colors.iconSecondary}`} />
@@ -468,7 +468,7 @@ export default function PoliciesPage({ agentId }: PoliciesPageProps) {
                         href={policy.file_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className={`p-2 ${colors.hover} rounded-lg transition`}
+                        className={`p-2 ${colors.hover} rounded-2xl transition`}
                         title="Download"
                       >
                         <Download className={`h-4 w-4 ${colors.iconSecondary}`} />
@@ -476,7 +476,7 @@ export default function PoliciesPage({ agentId }: PoliciesPageProps) {
                     )}
                     <button
                       onClick={() => removePolicy(policy.id)}
-                      className={`p-2 ${colors.hover} rounded-lg transition`}
+                      className={`p-2 ${colors.hover} rounded-2xl transition`}
                       title="Delete"
                     >
                       <X className={`h-4 w-4 ${colors.iconSecondary}`} />
@@ -486,7 +486,7 @@ export default function PoliciesPage({ agentId }: PoliciesPageProps) {
               ))}
             </div>
             <label htmlFor="file-upload" className="cursor-pointer block">
-              <div className="text-center py-6 border-2 border-dashed border-white/20 rounded-lg hover:border-[#3351ff] transition">
+              <div className="text-center py-6 border-2 border-dashed border-white/20 rounded-3xl hover:border-[#3351ff] transition">
                 <Upload className={`h-8 w-8 ${colors.iconSecondary} mx-auto mb-2`} />
                 <p className={`${colors.textSecondary} text-sm mb-1`}>Drag and drop more files here</p>
                 <p className={`${colors.textTertiary} text-xs`}>or click to browse</p>
@@ -500,7 +500,7 @@ export default function PoliciesPage({ agentId }: PoliciesPageProps) {
       <div className="mt-4">
         <button
           onClick={() => setShowTextInput(!showTextInput)}
-          className={`px-4 py-2 rounded-lg ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white text-sm font-medium transition`}
+          className={`px-4 py-2 rounded-2xl ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white text-sm font-medium transition`}
         >
           + Add Text Policy
         </button>
@@ -508,18 +508,18 @@ export default function PoliciesPage({ agentId }: PoliciesPageProps) {
 
       {/* Text Input */}
       {showTextInput && (
-        <div className={`mt-4 p-4 rounded-lg border ${colors.border} ${colors.cardBg}`}>
+        <div className={`mt-4 p-4 rounded-2xl border ${colors.border} ${colors.cardBg}`}>
           <textarea
             value={textInput}
             onChange={(e) => setTextInput(e.target.value)}
             placeholder="Enter policy text here..."
             rows={4}
-            className={`w-full rounded-lg border ${colors.border} ${colors.inputBg} px-3 py-2 text-sm ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none mb-3`}
+            className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-sm ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none mb-3`}
           />
           <div className="flex gap-2">
             <button
               onClick={addTextPolicy}
-              className="px-4 py-2 rounded-lg bg-[#3351ff] hover:bg-[#4a64ff] text-white text-sm font-medium"
+              className="px-4 py-2 rounded-2xl bg-[#3351ff] hover:bg-[#4a64ff] text-white text-sm font-medium"
             >
               Add Policy
             </button>
@@ -528,7 +528,7 @@ export default function PoliciesPage({ agentId }: PoliciesPageProps) {
                 setShowTextInput(false);
                 setTextInput("");
               }}
-              className={`px-4 py-2 rounded-lg border ${colors.border} ${colors.cardBg} ${colors.text} text-sm`}
+              className={`px-4 py-2 rounded-2xl border ${colors.border} ${colors.cardBg} ${colors.text} text-sm`}
             >
               Cancel
             </button>
@@ -562,7 +562,7 @@ export default function PoliciesPage({ agentId }: PoliciesPageProps) {
               </div>
               <button
                 onClick={() => setPreviewModal({ isOpen: false, policy: null, content: null, loading: false })}
-                className={`p-2 ${colors.hover} rounded-lg transition`}
+                className={`p-2 ${colors.hover} rounded-2xl transition`}
               >
                 <X className={`h-5 w-5 ${colors.iconSecondary}`} />
               </button>
@@ -578,7 +578,7 @@ export default function PoliciesPage({ agentId }: PoliciesPageProps) {
                     <div className="w-full h-[60vh]">
                       <iframe
                         src={previewModal.policy.file_url}
-                        className="w-full h-full rounded-lg border border-white/10"
+                        className="w-full h-full rounded-2xl border border-white/10"
                         title={previewModal.policy.name}
                       />
                     </div>
@@ -588,11 +588,11 @@ export default function PoliciesPage({ agentId }: PoliciesPageProps) {
                       <img 
                         src={previewModal.content} 
                         alt={previewModal.policy.name}
-                        className="max-w-full max-h-[60vh] rounded-lg"
+                        className="max-w-full max-h-[60vh] rounded-2xl"
                       />
                     </div>
                   ) : (
-                    <pre className={`whitespace-pre-wrap text-sm ${colors.text} font-mono bg-[#1a1a1a] p-4 rounded-lg overflow-x-auto`}>
+                    <pre className={`whitespace-pre-wrap text-sm ${colors.text} font-mono bg-[#1a1a1a] p-4 rounded-2xl overflow-x-auto`}>
                       {previewModal.content}
                     </pre>
                   )}
@@ -609,7 +609,7 @@ export default function PoliciesPage({ agentId }: PoliciesPageProps) {
                   href={previewModal.policy.file_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={`px-4 py-2 rounded-lg ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white text-sm font-medium transition flex items-center gap-2`}
+                  className={`px-4 py-2 rounded-2xl ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white text-sm font-medium transition flex items-center gap-2`}
                 >
                   <Download className="h-4 w-4" />
                   Download

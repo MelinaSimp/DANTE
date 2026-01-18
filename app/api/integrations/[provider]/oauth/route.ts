@@ -31,10 +31,10 @@ export async function GET(
       return NextResponse.redirect(new URL("/auth?error=unauthorized", req.url));
     }
     
-    // Get workspace
+    // Get workspace and profile info
     const { data: profile } = await supabase
       .from("profiles")
-      .select("workspace_id")
+      .select("workspace_id, is_superadmin, role")
       .eq("id", user.id)
       .single();
     
@@ -43,8 +43,13 @@ export async function GET(
     }
     
     if (error) {
+      // Redirect to appropriate page based on user role
+      const redirectPath = (profile?.is_superadmin || profile?.role?.toLowerCase() === "owner") 
+        ? "/admin" 
+        : "/home";
+      
       return NextResponse.redirect(
-        new URL(`/app?error=oauth_${error}`, req.url)
+        new URL(`${redirectPath}?error=oauth_${error}`, req.url)
       );
     }
     
@@ -54,7 +59,7 @@ export async function GET(
     }
     
     // Exchange code for token
-    return await handleOAuthCallback(provider, code, profile.workspace_id, req);
+    return await handleOAuthCallback(provider, code, profile.workspace_id, user.id, req);
   } catch (error: any) {
     console.error("[OAuth] Error:", error);
     console.error("[OAuth] Error details:", {
@@ -62,8 +67,9 @@ export async function GET(
       stack: error.stack,
       provider: error.provider || "unknown"
     });
+    // Redirect to /home on error (can't check user role in catch block easily)
     return NextResponse.redirect(
-      new URL(`/app?error=oauth_failed&message=${encodeURIComponent(error.message || "OAuth flow failed")}`, req.url)
+      new URL(`/home?error=oauth_failed&message=${encodeURIComponent(error.message || "OAuth flow failed")}`, req.url)
     );
   }
 }
@@ -87,9 +93,9 @@ async function initiateOAuthFlow(
       const clientId = process.env.GOOGLE_CLIENT_ID;
       if (!clientId) {
         console.error("[OAuth] GOOGLE_CLIENT_ID not configured in environment variables");
-        // Redirect with a helpful error message
+        // Redirect with a helpful error message - use /home as default
         return NextResponse.redirect(
-          new URL("/app?error=oauth_config_missing&message=Google+OAuth+credentials+not+configured", req.url)
+          new URL("/home?error=oauth_config_missing&message=Google+OAuth+credentials+not+configured", req.url)
         );
       }
       
@@ -143,6 +149,7 @@ async function handleOAuthCallback(
   provider: string,
   code: string,
   workspaceId: string,
+  userId: string,
   req: NextRequest
 ): Promise<NextResponse> {
   const baseUrl = req.nextUrl.origin;
@@ -299,7 +306,21 @@ async function handleOAuthCallback(
     }
   }
   
-  return NextResponse.redirect(new URL("/app?success=oauth_connected", req.url));
+  // Redirect to appropriate page based on user role
+  const supabase = await createServerSupabase();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("is_superadmin, role")
+    .eq("id", userId)
+    .maybeSingle();
+
+  // If superadmin or owner, redirect to admin page
+  if (profile?.is_superadmin || profile?.role?.toLowerCase() === "owner") {
+    return NextResponse.redirect(new URL("/admin?success=oauth_connected", req.url));
+  } else {
+    // Regular user, redirect to the personalized home hub
+    return NextResponse.redirect(new URL("/home?success=oauth_connected", req.url));
+  }
 }
 
 

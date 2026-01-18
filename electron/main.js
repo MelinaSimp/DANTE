@@ -27,9 +27,10 @@ function createWindow() {
   // Load the Vercel-hosted app or local dev server
   // Try most recent production URL first, then fallback
   const productionUrls = [
-    'https://drift-8ikwfg1wo-drift4.vercel.app',
-    'https://drift-n2gcspjqm-drift4.vercel.app',
-    'https://drift-20qzyh9pe-drift4.vercel.app',
+    'https://drift-heosv3djy-drift4.vercel.app', // Latest production URL
+    'https://drift-nl8gtkql9-drift4.vercel.app',
+    'https://drift-h3siydwxq-drift4.vercel.app',
+    'https://driftai.studio', // Custom domain fallback
   ];
   
   const url = isDev 

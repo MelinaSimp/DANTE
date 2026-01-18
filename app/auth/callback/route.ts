@@ -92,7 +92,7 @@ export async function GET(req: Request) {
       // Ensure user has a workspace and profile
       await ensureUserWorkspace(data.user, supabase);
       
-      return NextResponse.redirect(new URL("/app", requestUrl.origin));
+      return NextResponse.redirect(new URL("/select", requestUrl.origin));
     }
   }
 
@@ -105,7 +105,7 @@ export async function GET(req: Request) {
     // Ensure user has a workspace and profile
     await ensureUserWorkspace(user, supabase);
     
-    return NextResponse.redirect(new URL("/app", requestUrl.origin));
+    return NextResponse.redirect(new URL("/select", requestUrl.origin));
   }
 
   // No user found, redirect to auth page

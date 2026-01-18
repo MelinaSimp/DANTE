@@ -13,8 +13,10 @@ export const maxDuration = 60; // 60 seconds for batch processing
  * Process scheduled SMS messages
  * GET /api/scheduled-sms/process
  * 
- * This endpoint should be called by a cron job (Vercel Cron or external)
- * Configure in vercel.json with a cron schedule that runs every 5 minutes
+ * This endpoint is called by Vercel Cron daily at midnight (Hobby plan limitation)
+ * For more frequent processing, upgrade to Pro plan or use external cron service
+ * 
+ * Note: Immediate reminders are sent right away when appointments are created (for testing)
  */
 export async function GET(req: NextRequest) {
   try {

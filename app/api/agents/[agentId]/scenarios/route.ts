@@ -20,8 +20,9 @@ async function getWorkspace(req: NextRequest) {
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { agentId: string } }
+  { params }: { params: Promise<{ agentId: string }> }
 ) {
+  const { agentId } = await params;
   const { workspaceId } = await getWorkspace(req);
   if (!workspaceId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -31,7 +32,7 @@ export async function GET(
   const { data: agent } = await supabaseAdmin
     .from("agents")
     .select("workspace_id")
-    .eq("id", params.agentId)
+    .eq("id", agentId)
     .eq("workspace_id", workspaceId)
     .maybeSingle();
 
@@ -42,7 +43,7 @@ export async function GET(
   const { data, error } = await supabaseAdmin
     .from("scenarios")
     .select("*")
-    .eq("agent_id", params.agentId)
+    .eq("agent_id", agentId)
     .order("sort_order", { ascending: true });
 
   if (error) {
@@ -55,8 +56,9 @@ export async function GET(
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { agentId: string } }
+  { params }: { params: Promise<{ agentId: string }> }
 ) {
+  const { agentId } = await params;
   const { workspaceId } = await getWorkspace(req);
   if (!workspaceId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -66,7 +68,7 @@ export async function POST(
   const { data: agent } = await supabaseAdmin
     .from("agents")
     .select("workspace_id")
-    .eq("id", params.agentId)
+    .eq("id", agentId)
     .eq("workspace_id", workspaceId)
     .maybeSingle();
 
@@ -85,7 +87,7 @@ export async function POST(
   const { data: maxOrder } = await supabaseAdmin
     .from("scenarios")
     .select("sort_order")
-    .eq("agent_id", params.agentId)
+    .eq("agent_id", agentId)
     .order("sort_order", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -93,7 +95,7 @@ export async function POST(
   const { data, error } = await supabaseAdmin
     .from("scenarios")
     .insert({
-      agent_id: params.agentId,
+      agent_id: agentId,
       name,
       description: description || null,
       sort_order: (maxOrder?.sort_order || 0) + 1,

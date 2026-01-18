@@ -13,7 +13,16 @@ if (!serviceRole) throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
  */
 export const supabaseAdmin: SupabaseClient = createClient(url, serviceRole, {
   auth: { persistSession: false, autoRefreshToken: false },
-  global: { headers: { "X-Client-Info": "drift-crm-server" } },
+  global: { 
+    headers: { "X-Client-Info": "drift-crm-server" },
+    fetch: (url, options = {}) => {
+      return fetch(url, {
+        ...options,
+        // Add timeout to prevent hanging connections
+        signal: AbortSignal.timeout(30000), // 30 second timeout
+      });
+    },
+  },
 });
 
 /**
@@ -22,6 +31,15 @@ export const supabaseAdmin: SupabaseClient = createClient(url, serviceRole, {
 export function adminClient(): SupabaseClient {
   return createClient(url, serviceRole, {
     auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: { "X-Client-Info": "drift-crm-server" } },
+    global: { 
+      headers: { "X-Client-Info": "drift-crm-server" },
+      fetch: (url, options = {}) => {
+        return fetch(url, {
+          ...options,
+          // Add timeout to prevent hanging connections
+          signal: AbortSignal.timeout(30000), // 30 second timeout
+        });
+      },
+    },
   });
 }
