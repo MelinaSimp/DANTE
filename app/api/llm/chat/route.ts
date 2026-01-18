@@ -43,7 +43,8 @@ export async function POST(req: NextRequest) {
         let guidelinesQuery = supabaseAdmin
           .from("llm_guidelines")
           .select("template, name, is_agent_template")
-          .eq("is_active", true);
+          .eq("is_active", true)
+          .order("is_agent_template", { ascending: false });
 
         if (agentId && chatId) {
           guidelinesQuery = guidelinesQuery.or(`agent_id.eq.${agentId},chat_id.eq.${chatId}`);
@@ -53,7 +54,7 @@ export async function POST(req: NextRequest) {
           guidelinesQuery = guidelinesQuery.eq("chat_id", chatId);
         }
 
-        const { data: guidelines } = await guidelinesQuery.order("is_agent_template", { ascending: false });
+        const { data: guidelines } = await guidelinesQuery;
 
         if (guidelines && guidelines.length > 0) {
           // Combine all active guidelines, prioritizing agent-level templates
