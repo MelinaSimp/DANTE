@@ -133,43 +133,53 @@ export default function FrontendPage() {
     }
   };
 
+  // Extract agentId from pathname if on agent-specific page
+  const agentIdMatch = pathname?.match(/\/frontend\/agent\/([^/]+)/);
+  const currentAgentId = agentIdMatch ? agentIdMatch[1] : null;
+
   // Sidebar navigation items
   const sidebarItems = [
     { 
       name: "Agents", 
       icon: Bot, 
       href: "/frontend",
-      active: pathname === "/frontend" || pathname?.startsWith("/frontend/agent")
+      active: pathname === "/frontend" || pathname?.startsWith("/frontend/agent"),
+      requiresAgent: false
     },
     { 
       name: "Calendar", 
       icon: Calendar, 
-      href: "/frontend/calendar",
-      active: pathname === "/frontend/calendar"
+      href: currentAgentId ? `/frontend/agent/${currentAgentId}/schedule` : "#",
+      active: pathname?.includes("/schedule"),
+      requiresAgent: true
     },
     { 
       name: "Data Sources", 
       icon: Database, 
-      href: "/frontend/data-sources",
-      active: pathname === "/frontend/data-sources"
+      href: currentAgentId ? `/frontend/agent/${currentAgentId}/data-sources` : "#",
+      active: pathname?.includes("/data-sources"),
+      requiresAgent: true
     },
     { 
       name: "Policies", 
       icon: Shield, 
-      href: "/frontend/policies",
-      active: pathname === "/frontend/policies"
+      href: currentAgentId ? `/frontend/agent/${currentAgentId}/policies` : "#",
+      active: pathname?.includes("/policies"),
+      requiresAgent: true
     },
     { 
       name: "LLM", 
       icon: Sparkles, 
-      href: "/frontend/llm",
-      active: pathname === "/frontend/llm"
+      href: currentAgentId ? `/frontend/agent/${currentAgentId}/llm` : "#",
+      active: pathname?.includes("/llm"),
+      requiresAgent: true
     },
     { 
       name: "Insights", 
       icon: BarChart3, 
-      href: "/frontend/insights",
-      active: pathname === "/frontend/insights"
+      href: currentAgentId ? `/frontend/agent/${currentAgentId}/insights` : "#",
+      active: pathname?.includes("/insights"),
+      requiresAgent: true
     },
   ];
 
@@ -205,27 +215,46 @@ export default function FrontendPage() {
             {sidebarItems.map((item) => {
               const Icon = item.icon;
               const isActive = item.active;
+              const isDisabled = item.requiresAgent && !currentAgentId;
               
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
-                    isActive
-                      ? "bg-blue-600/10 text-blue-600"
-                      : "text-gray-700 hover:bg-white/30"
-                  }`}
-                >
+              const linkContent = (
+                <div className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+                  isActive
+                    ? "bg-blue-600/10 text-blue-600"
+                    : isDisabled
+                    ? "text-gray-400 cursor-not-allowed opacity-50"
+                    : "text-gray-700 hover:bg-white/30"
+                }`}>
                   {/* Icon with purplish gradient halo */}
                   <div className="relative">
                     <div className="absolute inset-0 bg-gradient-to-br from-purple-400 via-pink-500 to-blue-500 rounded-full blur-sm opacity-50"></div>
                     <div className="relative bg-white rounded-full p-2">
-                      <Icon className={`w-4 h-4 ${isActive ? "text-blue-600" : "text-gray-600"}`} />
+                      <Icon className={`w-4 h-4 ${isActive ? "text-blue-600" : isDisabled ? "text-gray-400" : "text-gray-600"}`} />
                     </div>
                   </div>
-                  <span className={`text-sm font-medium ${isActive ? "text-blue-600" : "text-gray-700"}`}>
+                  <span className={`text-sm font-medium ${isActive ? "text-blue-600" : isDisabled ? "text-gray-400" : "text-gray-700"}`}>
                     {item.name}
                   </span>
+                </div>
+              );
+
+              if (isDisabled) {
+                return (
+                  <div
+                    key={item.href}
+                    title="Select an agent first"
+                  >
+                    {linkContent}
+                  </div>
+                );
+              }
+
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                >
+                  {linkContent}
                 </Link>
               );
             })}
