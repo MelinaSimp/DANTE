@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import Link from "next/link";
-import { Bot, Calendar, Database, Shield, Sparkles, ArrowRight, MessageSquare, Phone, Clock } from "lucide-react";
+import { Bot, Calendar, Database, Shield, Sparkles, ArrowRight, MessageSquare, Phone, Clock, BarChart3 } from "lucide-react";
 
 interface Agent {
   id: string;
@@ -165,6 +165,12 @@ export default function FrontendPage() {
       href: "/frontend/llm",
       active: pathname === "/frontend/llm"
     },
+    { 
+      name: "Insights", 
+      icon: BarChart3, 
+      href: "/frontend/insights",
+      active: pathname === "/frontend/insights"
+    },
   ];
 
   if (loading) {
@@ -210,7 +216,13 @@ export default function FrontendPage() {
                       : "text-gray-700 hover:bg-white/30"
                   }`}
                 >
-                  <Icon className={`w-5 h-5 ${isActive ? "text-blue-600" : "text-gray-600"}`} />
+                  {/* Icon with purplish gradient halo */}
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-gradient-to-br from-purple-400 via-pink-500 to-blue-500 rounded-full blur-sm opacity-50"></div>
+                    <div className="relative bg-white rounded-full p-2">
+                      <Icon className={`w-4 h-4 ${isActive ? "text-blue-600" : "text-gray-600"}`} />
+                    </div>
+                  </div>
                   <span className={`text-sm font-medium ${isActive ? "text-blue-600" : "text-gray-700"}`}>
                     {item.name}
                   </span>
