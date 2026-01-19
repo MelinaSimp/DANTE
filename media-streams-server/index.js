@@ -71,6 +71,9 @@ wss.on('connection', (ws, req) => {
       } else if (data.event === 'start') {
         console.log(`[Media Stream] Stream started: ${connectionId}`, data.start);
         connection.streamSid = data.start.streamSid;
+        
+        // Send initial greeting when stream starts
+        sendInitialGreeting(connection);
       } else if (data.event === 'media') {
         // Received audio chunk from caller
         const audioPayload = data.media.payload;
