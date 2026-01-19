@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 // Backend password - should be set in environment variable
 // Default password for development (change in production!)
-const BACKEND_PASSWORD = process.env.BACKEND_PASSWORD || "drift2024";
+const BACKEND_PASSWORD = process.env.BACKEND_PASSWORD || "Adhuvishu1";
 
 export async function POST(req: NextRequest) {
   try {
