@@ -28,6 +28,7 @@ import {
   Sun,
   Calendar,
   Clock,
+  Sparkles,
   Shield,
 } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
