@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { normalizePhone } from "@/lib/phone";
+import { generateSpeechTwiml } from "@/lib/elevenlabs/twiml";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 10; // 10 seconds max for Twilio webhooks
@@ -43,6 +44,25 @@ function generateErrorTwiML(message: string): string {
   <Say>${message}</Say>
   <Hangup/>
 </Response>`;
+}
+
+// Helper function to get greeting from step
+async function getGreetingFromStep(stepId: string): Promise<string> {
+  try {
+    const { data: step } = await supabaseAdmin
+      .from("steps")
+      .select("ai_message, name, type")
+      .eq("id", stepId)
+      .single();
+    
+    if (step && step.type === "say") {
+      return step.ai_message || step.name || "Hello! How can I help you today?";
+    }
+    return "Hello! How can I help you today?";
+  } catch (error) {
+    console.error("[Media Stream] Error getting greeting from step:", error);
+    return "Hello! How can I help you today?";
+  }
 }
 
 // Main handler for Media Streams initialization
@@ -222,16 +242,16 @@ async function handleMediaStream(req: NextRequest) {
     
     if (useMediaStreams) {
       // Build Media Stream URL with proper encoding
-      const mediaStreamUrl = `${railwayUrl}/media-stream?CallSid=${encodeURIComponent(callSid)}&From=${encodeURIComponent(from)}&To=${encodeURIComponent(to)}`;
+      const mediaStreamUrl = `${railwayUrl}/media-stream?CallSid=${encodeURIComponent(callSid)}&From=${encodeURIComponent(from)}&To=${encodeURIComponent(to)}&conversationId=${encodeURIComponent(conversation.id)}`;
       
-      // Media Streams handles all audio via WebSocket - no need for <Gather>
-      // The Railway server will handle the conversation flow
+      // Media Streams handles ALL audio via WebSocket - don't use <Say> here
+      // The Railway server will send the greeting audio through the WebSocket
+      // The <Stream> tag keeps the call active indefinitely until the WebSocket closes
       twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Start>
     <Stream url="${mediaStreamUrl.replace(/&/g, "&amp;")}" />
   </Start>
-  <Say>Hello! How can I help you today?</Say>
 </Response>`;
       
       console.log("[Media Stream] Returning TwiML with Media Stream URL:", mediaStreamUrl);
