@@ -1,13 +1,16 @@
 // app/select/page.tsx - Frontend/Backend Selection Page
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 
 export default function SelectPage() {
   const router = useRouter();
+  const [showBackendPassword, setShowBackendPassword] = useState(false);
+  const [backendPassword, setBackendPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
 
   useEffect(() => {
     // Check if user is authenticated
@@ -17,6 +20,38 @@ export default function SelectPage() {
       }
     });
   }, [router]);
+
+  const handleBackendAccess = async () => {
+    if (!backendPassword.trim()) {
+      setPasswordError("Please enter a password");
+      return;
+    }
+
+    // Verify password via API
+    try {
+      const response = await fetch("/api/backend/verify-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: backendPassword }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.valid) {
+          // Store in sessionStorage so they don't have to enter it again this session
+          sessionStorage.setItem("backend_authenticated", "true");
+          router.push("/app");
+        } else {
+          setPasswordError("Incorrect password");
+        }
+      } else {
+        setPasswordError("Error verifying password. Please try again.");
+      }
+    } catch (error) {
+      console.error("Password verification error:", error);
+      setPasswordError("Error verifying password. Please try again.");
+    }
+  };
 
   // Override global dark theme for select page
   useEffect(() => {
@@ -101,11 +136,12 @@ export default function SelectPage() {
           </button>
 
           {/* Backend Card */}
-          <button
-            onClick={() => router.push("/app")}
-            className="group relative bg-white rounded-2xl shadow-lg p-10 hover:shadow-xl transition-all duration-300 border border-gray-100"
-            style={{ background: '#ffffff' }}
-          >
+          <div className="relative">
+            <button
+              onClick={() => setShowBackendPassword(!showBackendPassword)}
+              className="group relative bg-white rounded-2xl shadow-lg p-10 hover:shadow-xl transition-all duration-300 border border-gray-100 w-full"
+              style={{ background: '#ffffff' }}
+            >
             <div className="flex flex-col items-center text-center">
               {/* Icon with colorful gradient background - Apple style */}
               <div className="relative mb-6">
@@ -127,6 +163,56 @@ export default function SelectPage() {
               </p>
             </div>
           </button>
+
+          {/* Password Input - Slides down from button */}
+          {showBackendPassword && (
+            <div className="mt-4 bg-white rounded-2xl shadow-lg p-6 border border-gray-100 animate-in slide-in-from-top-2 duration-300">
+              <div className="space-y-4">
+                <label className="block text-sm font-medium text-gray-900" style={{ color: '#111827' }}>
+                  Enter Backend Password
+                </label>
+                <input
+                  type="password"
+                  value={backendPassword}
+                  onChange={(e) => {
+                    setBackendPassword(e.target.value);
+                    setPasswordError("");
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleBackendAccess();
+                    }
+                  }}
+                  placeholder="Password"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-gray-900"
+                  style={{ background: '#ffffff' }}
+                  autoFocus
+                />
+                {passwordError && (
+                  <p className="text-sm text-red-600">{passwordError}</p>
+                )}
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleBackendAccess}
+                    className="flex-1 px-4 py-3 rounded-xl bg-black text-white font-medium hover:bg-gray-800 transition"
+                  >
+                    Access Backend
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowBackendPassword(false);
+                      setBackendPassword("");
+                      setPasswordError("");
+                    }}
+                    className="px-4 py-3 rounded-xl border border-gray-300 text-gray-700 font-medium hover:bg-gray-50 transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          </div>
         </div>
       </div>
     </div>

@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 
 import { createServerSupabase } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import GigaAIClient from "../gigaai/GigaAIClient";
 import { ThemeProvider } from "../gigaai/ThemeProvider";
 
@@ -21,6 +22,17 @@ export default async function AppPage({
   // If user is not signed in, redirect to auth
   if (!user) {
     redirect("/auth");
+  }
+
+  // Check backend password authentication
+  // This is a simple check - in production you might want more robust session management
+  const cookieStore = await cookies();
+  const backendAuth = cookieStore.get("backend_authenticated");
+  
+  // If not authenticated, redirect to select page
+  // Note: We'll set this cookie when password is verified
+  if (!backendAuth || backendAuth.value !== "true") {
+    redirect("/select?backend=required");
   }
 
   // Show Drift interface with theme provider
