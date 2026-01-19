@@ -74,6 +74,9 @@ wss.on('connection', (ws, req) => {
         
         // Send initial greeting when stream starts
         sendInitialGreeting(connection);
+        
+        // Send initial greeting when stream starts
+        sendInitialGreeting(connection);
       } else if (data.event === 'media') {
         // Received audio chunk from caller
         const audioPayload = data.media.payload;
@@ -149,6 +152,45 @@ async function processAudioChunk(connection) {
     connection.audioBuffer = Buffer.alloc(0);
   } catch (error) {
     console.error(`[Media Stream] Error processing audio: ${error.message}`);
+  }
+}
+
+/**
+ * Send initial greeting when stream starts
+ */
+async function sendInitialGreeting(connection) {
+  try {
+    if (!connection.conversationId) {
+      console.warn(`[Media Stream] No conversationId, skipping greeting`);
+      return;
+    }
+
+    console.log(`[Media Stream] Sending initial greeting for conversation: ${connection.conversationId}`);
+
+    // Call Next.js API to get the greeting (empty input triggers greeting)
+    const response = await fetch(`${NEXTJS_API_URL}/api/twilio/media-stream-execute`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        conversationId: connection.conversationId,
+        userInput: '', // Empty input triggers greeting
+      }),
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      
+      if (result.output && result.output.trim().length > 0) {
+        // Stream the greeting audio
+        await streamAudioResponse(connection, result.output, result.voiceId);
+      }
+    } else {
+      console.error(`[Media Stream] Failed to get greeting: ${response.status}`);
+    }
+  } catch (error) {
+    console.error(`[Media Stream] Error sending initial greeting: ${error.message}`);
   }
 }
 
