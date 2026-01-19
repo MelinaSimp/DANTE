@@ -220,23 +220,27 @@ async function handleMediaStream(req: NextRequest) {
     // Validate URL doesn't have trailing slashes or spaces
     railwayUrl = railwayUrl.trim().replace(/\/+$/, "");
     
+    // TEMPORARILY DISABLED: Force fallback to regular Twilio flow for testing
+    // Media Streams WebSocket connection isn't working - using regular Twilio flow instead
+    let useMediaStreams = false;
+    
+    // TODO: Re-enable Media Streams once Railway WebSocket connection is fixed
     // Check Railway health before using (non-blocking)
-    let useMediaStreams = true;
-    try {
-      const healthUrl = railwayUrl.replace("wss://", "https://").replace("ws://", "http://") + "/health";
-      const healthCheck = await fetch(healthUrl, { 
-        method: "GET",
-        signal: AbortSignal.timeout(2000) // 2 second timeout
-      }).catch(() => null);
-      
-      if (!healthCheck || !healthCheck.ok) {
-        console.warn("[Media Stream] Railway health check failed, falling back to regular Twilio flow");
-        useMediaStreams = false;
-      }
-    } catch (healthError) {
-      console.warn("[Media Stream] Railway health check error (non-blocking):", healthError);
-      // Continue anyway - Media Streams might still work
-    }
+    // try {
+    //   const healthUrl = railwayUrl.replace("wss://", "https://").replace("ws://", "http://") + "/health";
+    //   const healthCheck = await fetch(healthUrl, { 
+    //     method: "GET",
+    //     signal: AbortSignal.timeout(2000) // 2 second timeout
+    //   }).catch(() => null);
+    //   
+    //   if (!healthCheck || !healthCheck.ok) {
+    //     console.warn("[Media Stream] Railway health check failed, falling back to regular Twilio flow");
+    //     useMediaStreams = false;
+    //   }
+    // } catch (healthError) {
+    //   console.warn("[Media Stream] Railway health check error (non-blocking):", healthError);
+    //   // Continue anyway - Media Streams might still work
+    // }
     
     let twiml: string;
     
