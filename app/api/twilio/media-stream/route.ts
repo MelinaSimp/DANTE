@@ -266,7 +266,10 @@ async function handleMediaStream(req: NextRequest) {
   </Start>
 </Response>`;
       
-      console.log("[Media Stream] Returning TwiML with Media Stream URL:", mediaStreamUrl);
+      console.log("[Media Stream] ✅ Using Media Streams");
+      console.log("[Media Stream] Railway URL:", railwayUrl);
+      console.log("[Media Stream] Full Media Stream URL:", mediaStreamUrl);
+      console.log("[Media Stream] Returning TwiML:", twiml);
     } else {
       // Fallback to regular Twilio flow if Railway is unavailable
       console.log("[Media Stream] Falling back to regular Twilio flow");
