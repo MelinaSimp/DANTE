@@ -31,21 +31,49 @@ const activeConnections = new Map();
 // Create HTTP server
 const server = http.createServer();
 
+// Health check endpoint (handle before WebSocket upgrades)
+server.on('request', (req, res) => {
+  if (req.url === '/health' || req.url === '/health/') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      status: 'ok',
+      connections: activeConnections.size,
+      timestamp: new Date().toISOString(),
+    }));
+  } else if (req.url === '/media-stream') {
+    // WebSocket upgrade request - let WebSocket server handle it
+    res.writeHead(426, { 'Upgrade': 'websocket' });
+    res.end('WebSocket upgrade required');
+  } else {
+    res.writeHead(404);
+    res.end('Not found');
+  }
+});
+
 // Create WebSocket server
 const wss = new WebSocket.Server({ 
   server,
-  path: '/media-stream'
+  path: '/media-stream',
+  perMessageDeflate: false, // Disable compression for lower latency
+  clientTracking: true,
 });
 
 wss.on('connection', (ws, req) => {
   const connectionId = uuidv4();
-  const url = new URL(req.url, `http://${req.headers.host}`);
+  
+  // Handle both http:// and https:// for URL parsing
+  const protocol = req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+  const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost';
+  const url = new URL(req.url, `${protocol}://${host}`);
+  
   const callSid = url.searchParams.get('CallSid') || '';
   const from = url.searchParams.get('From') || '';
   const to = url.searchParams.get('To') || '';
   const conversationId = url.searchParams.get('conversationId') || '';
 
-  console.log(`[Media Stream] New connection: ${connectionId}`, { callSid, from, to, conversationId });
+  console.log(`[Media Stream] ✅ New connection: ${connectionId}`, { callSid, from, to, conversationId });
+  console.log(`[Media Stream] Request URL: ${req.url}`);
+  console.log(`[Media Stream] Request headers:`, JSON.stringify(req.headers, null, 2));
 
   const connection = {
     id: connectionId,
@@ -300,23 +328,15 @@ function cleanupConnection(connectionId) {
   }
 }
 
-// Start server
-server.listen(PORT, () => {
-  console.log(`[Media Stream] WebSocket server listening on port ${PORT}`);
-  console.log(`[Media Stream] Next.js API URL: ${NEXTJS_API_URL}`);
+// Handle WebSocket upgrade requests (for debugging)
+server.on('upgrade', (request, socket, head) => {
+  console.log(`[Media Stream] Upgrade request received for: ${request.url}`);
+  console.log(`[Media Stream] Headers:`, JSON.stringify(request.headers, null, 2));
 });
 
-// Health check endpoint
-server.on('request', (req, res) => {
-  if (req.url === '/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      status: 'ok',
-      connections: activeConnections.size,
-      timestamp: new Date().toISOString(),
-    }));
-  } else {
-    res.writeHead(404);
-    res.end('Not found');
-  }
+// Start server - bind to 0.0.0.0 to accept connections from Railway's reverse proxy
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`[Media Stream] WebSocket server listening on port ${PORT}`);
+  console.log(`[Media Stream] Next.js API URL: ${NEXTJS_API_URL}`);
+  console.log(`[Media Stream] Server bound to 0.0.0.0 (accepting external connections)`);
 });
