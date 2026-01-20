@@ -220,9 +220,10 @@ async function handleMediaStream(req: NextRequest) {
     // Validate URL doesn't have trailing slashes or spaces
     railwayUrl = railwayUrl.trim().replace(/\/+$/, "");
     
-    // TEMPORARY FALLBACK: Set env var FORCE_REGULAR_TWILIO=true to disable Media Streams
-    // This helps test if regular Twilio flow works while debugging Media Streams
-    const forceRegularTwilio = process.env.FORCE_REGULAR_TWILIO === 'true';
+    // TEMPORARY: Disable Media Streams to get calls working first
+    // We'll debug Media Streams separately once calls are working
+    const forceRegularTwilio = true; // Temporarily force regular Twilio flow
+    // const forceRegularTwilio = process.env.FORCE_REGULAR_TWILIO === 'true';
     
     // Check Railway health before using (non-blocking)
     let useMediaStreams = !forceRegularTwilio;
