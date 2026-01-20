@@ -10,6 +10,10 @@
     {
       "path": "/api/scheduled-sms/process",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/keepalive/railway",
+      "schedule": "*/10 * * * *"
     }
   ]
 }
