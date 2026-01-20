@@ -224,20 +224,30 @@ async function handleMediaStream(req: NextRequest) {
     let useMediaStreams = true;
     try {
       const healthUrl = railwayUrl.replace("wss://", "https://").replace("ws://", "http://") + "/health";
+      console.log("[Media Stream] Checking Railway health:", healthUrl);
+      
       const healthCheck = await fetch(healthUrl, { 
         method: "GET",
         signal: AbortSignal.timeout(2000) // 2 second timeout
-      }).catch(() => null);
+      }).catch((error) => {
+        console.warn("[Media Stream] Railway health check fetch error:", error.message);
+        return null;
+      });
       
-      if (!healthCheck || !healthCheck.ok) {
-        console.warn("[Media Stream] Railway health check failed, falling back to regular Twilio flow");
+      if (!healthCheck) {
+        console.warn("[Media Stream] Railway health check failed (no response), falling back to regular Twilio flow");
+        useMediaStreams = false;
+      } else if (!healthCheck.ok) {
+        console.warn(`[Media Stream] Railway health check failed (status: ${healthCheck.status}), falling back to regular Twilio flow`);
         useMediaStreams = false;
       } else {
-        console.log("[Media Stream] Railway health check passed, using Media Streams");
+        const healthData = await healthCheck.json().catch(() => null);
+        console.log("[Media Stream] Railway health check passed, using Media Streams", healthData);
       }
-    } catch (healthError) {
-      console.warn("[Media Stream] Railway health check error (non-blocking):", healthError);
-      // Continue anyway - Media Streams might still work
+    } catch (healthError: any) {
+      console.warn("[Media Stream] Railway health check error (non-blocking):", healthError?.message || healthError);
+      useMediaStreams = false;
+      // Continue anyway - fallback to regular Twilio flow
     }
     
     let twiml: string;
