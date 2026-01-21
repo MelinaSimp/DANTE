@@ -64,7 +64,10 @@ wss.on('connection', (ws, req) => {
   // Handle both http:// and https:// for URL parsing
   const protocol = req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost';
-  const url = new URL(req.url, `${protocol}://${host}`);
+  
+  // req.url might not include query params, check req.url first, then parse
+  let requestUrl = req.url || '/media-stream';
+  const url = new URL(requestUrl, `${protocol}://${host}`);
   
   const callSid = url.searchParams.get('CallSid') || '';
   const from = url.searchParams.get('From') || '';
@@ -73,7 +76,13 @@ wss.on('connection', (ws, req) => {
 
   console.log(`[Media Stream] ✅ New connection: ${connectionId}`, { callSid, from, to, conversationId });
   console.log(`[Media Stream] Request URL: ${req.url}`);
-  console.log(`[Media Stream] Request headers:`, JSON.stringify(req.headers, null, 2));
+  console.log(`[Media Stream] Full URL with query: ${requestUrl}`);
+  console.log(`[Media Stream] Parsed conversationId: "${conversationId}"`);
+  
+  if (!conversationId) {
+    console.warn(`[Media Stream] ⚠️ WARNING: conversationId is missing from URL parameters!`);
+    console.warn(`[Media Stream] URL search params:`, Object.fromEntries(url.searchParams));
+  }
 
   const connection = {
     id: connectionId,
