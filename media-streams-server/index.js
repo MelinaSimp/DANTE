@@ -109,8 +109,11 @@ wss.on('connection', (ws, req) => {
         console.log(`[Media Stream] Stream started: ${connectionId}`, data.start);
         connection.streamSid = data.start.streamSid;
         
-        // Send initial greeting when stream starts
-        sendInitialGreeting(connection);
+        // Try to get conversationId from customParameters if missing
+        if (!connection.conversationId && data.start.customParameters) {
+          connection.conversationId = data.start.customParameters.conversationId || '';
+          console.log(`[Media Stream] Got conversationId from customParameters: "${connection.conversationId}"`);
+        }
         
         // Send initial greeting when stream starts
         sendInitialGreeting(connection);
