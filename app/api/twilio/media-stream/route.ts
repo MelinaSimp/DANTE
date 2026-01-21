@@ -201,8 +201,10 @@ async function handleMediaStream(req: NextRequest) {
       conversation = newConversation;
     }
 
-    // Return TwiML that enables Media Streams, connecting to Railway WebSocket server
-    const baseUrl = process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || "https://driftai.studio";
+    // Use the request origin as the canonical base URL for any TwiML redirects/actions.
+    // This avoids Twilio being sent to stale Vercel deployment URLs (which can 404).
+    const requestOrigin = new URL(req.url).origin;
+    const baseUrl = requestOrigin;
     
     // Railway WebSocket server URL (set via environment variable or use default)
     let railwayUrl = process.env.RAILWAY_WEBSOCKET_URL || "wss://motivated-perfection-production.up.railway.app";
@@ -268,13 +270,15 @@ async function handleMediaStream(req: NextRequest) {
       // Media Streams handles ALL audio via WebSocket - don't use <Say> here
       // The Railway server will send the greeting audio through the WebSocket
       // The <Stream> tag keeps the call active indefinitely until the WebSocket closes
+      const redirectUrl = `${baseUrl}/api/twilio/media-stream`;
+
       twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Start>
     <Stream url="${mediaStreamUrl.replace(/&/g, "&amp;")}" />
   </Start>
   <Pause length="60" />
-  <Redirect>${`${baseUrl}/api/twilio/media-stream?callSid=${encodeURIComponent(callSid)}`.replace(/&/g, "&amp;")}</Redirect>
+  <Redirect method="POST">${redirectUrl.replace(/&/g, "&amp;")}</Redirect>
 </Response>`;
       
       console.log("[Media Stream] ✅ Using Media Streams");
