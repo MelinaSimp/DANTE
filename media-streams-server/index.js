@@ -109,10 +109,38 @@ wss.on('connection', (ws, req) => {
         console.log(`[Media Stream] Stream started: ${connectionId}`, data.start);
         connection.streamSid = data.start.streamSid;
         
+        // Update callSid from start event (it's more reliable than URL params)
+        if (data.start.callSid) {
+          connection.callSid = data.start.callSid;
+          console.log(`[Media Stream] Got callSid from start event: "${connection.callSid}"`);
+        }
+        
         // Try to get conversationId from customParameters if missing
         if (!connection.conversationId && data.start.customParameters) {
           connection.conversationId = data.start.customParameters.conversationId || '';
           console.log(`[Media Stream] Got conversationId from customParameters: "${connection.conversationId}"`);
+        }
+        
+        // If conversationId is still missing, look it up by callSid
+        if (!connection.conversationId && connection.callSid) {
+          console.log(`[Media Stream] Looking up conversation by callSid: "${connection.callSid}"`);
+          try {
+            const lookupResponse = await fetch(`${NEXTJS_API_URL}/api/twilio/media-stream-lookup`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ callSid: connection.callSid }),
+            });
+            
+            if (lookupResponse.ok) {
+              const lookupData = await lookupResponse.json();
+              if (lookupData.conversationId) {
+                connection.conversationId = lookupData.conversationId;
+                console.log(`[Media Stream] ✅ Found conversationId: "${connection.conversationId}"`);
+              }
+            }
+          } catch (error) {
+            console.error(`[Media Stream] Error looking up conversation: ${error.message}`);
+          }
         }
         
         // Send initial greeting when stream starts
