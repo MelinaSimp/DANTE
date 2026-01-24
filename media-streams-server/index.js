@@ -427,15 +427,15 @@ async function streamAudioResponse(connection, text, voiceId) {
     console.log(`[Media Stream] 🔄 Converted to mulaw 8kHz: ${mulaw8k.length} bytes`);
 
     // Twilio expects mulaw 8kHz; 100ms = 800 bytes
-    // Send chunks with small delays to avoid overwhelming Twilio's buffer
+    // CRITICAL: Send chunks at REAL-TIME rate (100ms per chunk) for Twilio to play them correctly
     const chunkSize = 800;
     const totalChunks = Math.ceil(mulaw8k.length / chunkSize);
     let chunksSent = 0;
     
-    console.log(`[Media Stream] 📤 Sending ${totalChunks} audio chunks to Twilio (${(totalChunks * 0.1).toFixed(1)}s of audio)...`);
+    console.log(`[Media Stream] 📤 Streaming ${totalChunks} audio chunks to Twilio at real-time rate (${(totalChunks * 0.1).toFixed(1)}s of audio)...`);
     
-    // Send chunks with 20ms delay between each (faster than real-time but not overwhelming)
-    // This ensures Twilio's buffer can handle the audio properly
+    // Send chunks at real-time rate (100ms per chunk = 800 bytes per 100ms)
+    // This matches Twilio's expected playback rate
     for (let i = 0; i < mulaw8k.length; i += chunkSize) {
       const chunk = mulaw8k.slice(i, i + chunkSize);
       const chunkIndex = Math.floor(i / chunkSize);
@@ -458,21 +458,27 @@ async function streamAudioResponse(connection, text, voiceId) {
           
           // Log first chunk for debugging
           if (chunksSent === 1) {
-            console.log(`[Media Stream] 📤 First chunk sent: ${message.substring(0, 100)}...`);
+            console.log(`[Media Stream] 📤 First chunk sent at real-time rate`);
+            console.log(`[Media Stream] 📤 Message format: ${message.substring(0, 150)}...`);
+          }
+          
+          // Log progress every 10 chunks
+          if (chunksSent % 10 === 0) {
+            console.log(`[Media Stream] 📤 Sent ${chunksSent}/${totalChunks} chunks (${(chunksSent * 0.1).toFixed(1)}s)`);
           }
           
           // Log when all chunks are sent
           if (chunksSent === totalChunks) {
-            console.log(`[Media Stream] ✅ Successfully sent all ${chunksSent} audio chunks to Twilio`);
-            console.log(`[Media Stream] 📊 Audio duration: ~${(totalChunks * 0.1).toFixed(1)}s`);
+            console.log(`[Media Stream] ✅ Successfully streamed all ${chunksSent} audio chunks to Twilio`);
+            console.log(`[Media Stream] 📊 Total audio duration: ~${(totalChunks * 0.1).toFixed(1)}s`);
           }
         } else {
           console.warn(`[Media Stream] ⚠️  WebSocket not open (state: ${connection.ws.readyState}), cannot send chunk ${chunkIndex}`);
         }
-      }, chunkIndex * 20); // 20ms delay per chunk (5x faster than real-time)
+      }, chunkIndex * 100); // 100ms delay = real-time playback rate
     }
     
-    console.log(`[Media Stream] 📤 Queued ${totalChunks} audio chunks for streaming`);
+    console.log(`[Media Stream] 📤 Queued ${totalChunks} audio chunks for real-time streaming (will complete in ~${(totalChunks * 0.1).toFixed(1)}s)`);
   } catch (error) {
     console.error(`[Media Stream] ❌ Error streaming audio:`, {
       error: error.message,
