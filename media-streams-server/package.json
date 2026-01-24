@@ -8,6 +8,7 @@
     "dev": "nodemon index.js"
   },
   "dependencies": {
+    "alawmulaw": "^3.0.0",
     "ws": "^8.14.2",
     "uuid": "^9.0.1"
   },
