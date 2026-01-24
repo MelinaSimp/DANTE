@@ -368,12 +368,19 @@ function pcm16kToMulaw8k(pcmBuffer) {
   for (let i = 0; i < numSamples; i++) {
     pcm16[i] = pcmBuffer.readInt16LE(i * 2);
   }
-  // Downsample 16kHz -> 8kHz (take every other sample)
+  
+  // Downsample 16kHz -> 8kHz using averaging (better quality than taking every other sample)
   const pcm8k = new Int16Array(Math.floor(numSamples / 2));
   for (let i = 0; i < pcm8k.length; i++) {
-    pcm8k[i] = pcm16[i * 2];
+    // Average two consecutive samples to reduce aliasing
+    const sample1 = pcm16[i * 2];
+    const sample2 = pcm16[i * 2 + 1] || sample1; // Use same sample if odd length
+    pcm8k[i] = Math.round((sample1 + sample2) / 2);
   }
-  return Buffer.from(alawmulaw.mulaw.encode(pcm8k));
+  
+  // Encode to mulaw (returns Uint8Array)
+  const mulawSamples = alawmulaw.mulaw.encode(pcm8k);
+  return Buffer.from(mulawSamples);
 }
 
 /**
