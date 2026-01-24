@@ -115,6 +115,9 @@ wss.on('connection', (ws, req) => {
     try {
       const data = JSON.parse(message.toString());
       
+      // Log all events for debugging
+      console.log(`[Media Stream] 📨 Received event: ${data.event} for connection: ${connectionId}`);
+      
       if (data.event === 'connected') {
         console.log(`[Media Stream] 🔗 Connected event received for: ${connectionId}`);
       } else if (data.event === 'start') {
@@ -186,9 +189,16 @@ wss.on('connection', (ws, req) => {
       } else if (data.event === 'stop') {
         console.log(`[Media Stream] Stream stopped: ${connectionId}`);
         cleanupConnection(connectionId);
+      } else if (data.event === 'mark') {
+        console.log(`[Media Stream] 📍 Mark event received:`, data.mark);
+      } else if (data.event === 'error') {
+        console.error(`[Media Stream] ❌ ERROR from Twilio:`, data);
+      } else {
+        console.log(`[Media Stream] 📨 Unknown event type:`, data);
       }
     } catch (error) {
       console.error(`[Media Stream] Error processing message: ${error.message}`);
+      console.error(`[Media Stream] Raw message:`, message.toString().substring(0, 200));
     }
   });
 
@@ -453,8 +463,14 @@ async function streamAudioResponse(connection, text, voiceId) {
           
           // Send as JSON string
           const message = JSON.stringify(mediaMessage);
-          connection.ws.send(message);
-          chunksSent++;
+          
+          try {
+            connection.ws.send(message);
+            chunksSent++;
+          } catch (sendError) {
+            console.error(`[Media Stream] ❌ Error sending chunk ${chunkIndex}:`, sendError.message);
+            return; // Stop sending if there's an error
+          }
           
           // Log first chunk for debugging
           if (chunksSent === 1) {
