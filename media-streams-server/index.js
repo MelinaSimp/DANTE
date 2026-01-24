@@ -166,7 +166,10 @@ wss.on('connection', (ws, req) => {
         }
         
         // Send initial greeting when stream starts
-        sendInitialGreeting(connection);
+        // Add small delay to ensure Twilio stream is fully initialized
+        setTimeout(() => {
+          sendInitialGreeting(connection);
+        }, 200); // 200ms delay to ensure stream is ready
       } else if (data.event === 'media') {
         // Received audio chunk from caller
         const audioPayload = data.media.payload;
