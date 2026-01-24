@@ -82,10 +82,10 @@ wss.on('connection', (ws, req) => {
   const to = url.searchParams.get('To') || '';
   const conversationId = url.searchParams.get('conversationId') || '';
 
-  await sendLog('info', `✅ New WebSocket connection: ${connectionId}`, { callSid, from, to, conversationId, requestUrl: req.url });
+  sendLog('info', `✅ New WebSocket connection: ${connectionId}`, { callSid, from, to, conversationId, requestUrl: req.url });
   
   if (!conversationId) {
-    await sendLog('warn', `⚠️ WARNING: conversationId is missing from URL parameters!`, { 
+    sendLog('warn', `⚠️ WARNING: conversationId is missing from URL parameters!`, { 
       callSid, 
       from, 
       to, 
@@ -113,15 +113,15 @@ wss.on('connection', (ws, req) => {
       const data = JSON.parse(message.toString());
       
       if (data.event === 'connected') {
-        await sendLog('info', `WebSocket connected: ${connectionId}`, { connectionId });
+        sendLog('info', `WebSocket connected: ${connectionId}`, { connectionId });
       } else if (data.event === 'start') {
-        await sendLog('info', `Stream started: ${connectionId}`, { connectionId, streamSid: data.start.streamSid, callSid: data.start.callSid });
+        sendLog('info', `Stream started: ${connectionId}`, { connectionId, streamSid: data.start.streamSid, callSid: data.start.callSid });
         connection.streamSid = data.start.streamSid;
         
         // Update callSid from start event (it's more reliable than URL params)
         if (data.start.callSid) {
           connection.callSid = data.start.callSid;
-          await sendLog('info', `Got callSid from start event: "${connection.callSid}"`, { callSid: connection.callSid });
+          sendLog('info', `Got callSid from start event: "${connection.callSid}"`, { callSid: connection.callSid });
         }
         
         // Try to get conversationId from customParameters (Twilio <Parameter name="conversationId" value="..." />)
@@ -129,13 +129,13 @@ wss.on('connection', (ws, req) => {
           const cp = data.start.customParameters;
           connection.conversationId = (cp.conversationId || cp.ConversationId || '') + '';
           if (connection.conversationId) {
-            await sendLog('info', `Got conversationId from customParameters: "${connection.conversationId}"`, { conversationId: connection.conversationId });
+            sendLog('info', `Got conversationId from customParameters: "${connection.conversationId}"`, { conversationId: connection.conversationId });
           }
         }
         
         // If conversationId is still missing, look it up by callSid
         if (!connection.conversationId && connection.callSid) {
-          await sendLog('info', `Looking up conversation by callSid: "${connection.callSid}"`, { callSid: connection.callSid });
+          sendLog('info', `Looking up conversation by callSid: "${connection.callSid}"`, { callSid: connection.callSid });
           try {
             const lookupResponse = await fetch(`${NEXTJS_API_URL}/api/twilio/media-stream-lookup`, {
               method: 'POST',
@@ -147,16 +147,16 @@ wss.on('connection', (ws, req) => {
               const lookupData = await lookupResponse.json();
               if (lookupData.conversationId) {
                 connection.conversationId = lookupData.conversationId;
-                await sendLog('info', `✅ Found conversationId: "${connection.conversationId}"`, { conversationId: connection.conversationId, callSid: connection.callSid });
+                sendLog('info', `✅ Found conversationId: "${connection.conversationId}"`, { conversationId: connection.conversationId, callSid: connection.callSid });
               } else {
-                await sendLog('warn', `Lookup ok but no conversationId in body`, { callSid: connection.callSid });
+                sendLog('warn', `Lookup ok but no conversationId in body`, { callSid: connection.callSid });
               }
             } else {
               const errBody = await lookupResponse.text();
-              await sendLog('error', `Lookup failed: ${lookupResponse.status}`, { callSid: connection.callSid, error: errBody });
+              sendLog('error', `Lookup failed: ${lookupResponse.status}`, { callSid: connection.callSid, error: errBody });
             }
           } catch (error) {
-            await sendLog('error', `Error looking up conversation: ${error.message}`, { callSid: connection.callSid, error: error.message });
+            sendLog('error', `Error looking up conversation: ${error.message}`, { callSid: connection.callSid, error: error.message });
           }
         }
         
@@ -175,7 +175,7 @@ wss.on('connection', (ws, req) => {
           await processAudioChunk(connection);
         }
       } else if (data.event === 'stop') {
-        await sendLog('info', `Stream stopped: ${connectionId}`, { connectionId });
+        sendLog('info', `Stream stopped: ${connectionId}`, { connectionId });
         cleanupConnection(connectionId);
       }
     } catch (error) {
@@ -246,12 +246,12 @@ async function processAudioChunk(connection) {
 async function sendInitialGreeting(connection) {
   try {
     if (!connection.conversationId) {
-      await sendLog('warn', `No conversationId, skipping greeting`, { connectionId: connection.id });
+      sendLog('warn', `No conversationId, skipping greeting`, { connectionId: connection.id });
       return;
     }
 
     const startTime = Date.now();
-    await sendLog('info', `Sending initial greeting for conversation: ${connection.conversationId}`, { conversationId: connection.conversationId });
+    sendLog('info', `Sending initial greeting for conversation: ${connection.conversationId}`, { conversationId: connection.conversationId });
 
     // Call Next.js API to get the greeting (empty input triggers greeting)
     const response = await fetch(`${NEXTJS_API_URL}/api/twilio/media-stream-execute`, {
@@ -269,18 +269,18 @@ async function sendInitialGreeting(connection) {
     if (response.ok) {
       const result = await response.json();
       if (result.output && result.output.trim().length > 0) {
-        await sendLog('info', `Greeting received (${result.output.length} chars) in ${responseTime}ms`, { 
+        sendLog('info', `Greeting received (${result.output.length} chars) in ${responseTime}ms`, { 
           conversationId: connection.conversationId, 
           responseTime,
           outputLength: result.output.length 
         });
         await streamAudioResponse(connection, result.output, result.voiceId);
       } else {
-        await sendLog('warn', `Greeting API ok but no output`, { conversationId: connection.conversationId, responseTime });
+        sendLog('warn', `Greeting API ok but no output`, { conversationId: connection.conversationId, responseTime });
       }
     } else {
       const errBody = await response.text();
-      await sendLog('error', `Failed to get greeting: ${response.status}`, { 
+      sendLog('error', `Failed to get greeting: ${response.status}`, { 
         conversationId: connection.conversationId, 
         status: response.status, 
         error: errBody,
@@ -288,7 +288,7 @@ async function sendInitialGreeting(connection) {
       });
     }
   } catch (error) {
-    await sendLog('error', `Error sending initial greeting: ${error.message}`, { 
+    sendLog('error', `Error sending initial greeting: ${error.message}`, { 
       conversationId: connection.conversationId, 
       error: error.message 
     });
@@ -301,7 +301,7 @@ async function sendInitialGreeting(connection) {
 async function processUserInput(connection, userInput) {
   try {
     const startTime = Date.now();
-    await sendLog('info', `Processing user input: "${userInput}"`, { 
+    sendLog('info', `Processing user input: "${userInput}"`, { 
       conversationId: connection.conversationId, 
       userInput: userInput.substring(0, 100) // Truncate for logs
     });
@@ -323,7 +323,7 @@ async function processUserInput(connection, userInput) {
       const result = await response.json();
       
       if (result.output && result.output.trim().length > 0) {
-        await sendLog('info', `Agent response received (${result.output.length} chars) in ${responseTime}ms`, { 
+        sendLog('info', `Agent response received (${result.output.length} chars) in ${responseTime}ms`, { 
           conversationId: connection.conversationId, 
           responseTime,
           outputLength: result.output.length 
@@ -331,11 +331,11 @@ async function processUserInput(connection, userInput) {
         // Convert text to speech and stream back
         await streamAudioResponse(connection, result.output, result.voiceId);
       } else {
-        await sendLog('warn', `Agent response ok but no output`, { conversationId: connection.conversationId, responseTime });
+        sendLog('warn', `Agent response ok but no output`, { conversationId: connection.conversationId, responseTime });
       }
     } else {
       const errBody = await response.text();
-      await sendLog('error', `Agent execution failed: ${response.status}`, { 
+      sendLog('error', `Agent execution failed: ${response.status}`, { 
         conversationId: connection.conversationId, 
         status: response.status, 
         error: errBody,
@@ -343,7 +343,7 @@ async function processUserInput(connection, userInput) {
       });
     }
   } catch (error) {
-    await sendLog('error', `Error processing user input: ${error.message}`, { 
+    sendLog('error', `Error processing user input: ${error.message}`, { 
       conversationId: connection.conversationId, 
       error: error.message 
     });
@@ -381,11 +381,11 @@ async function streamAudioResponse(connection, text, voiceId) {
     const ttsStartTime = Date.now();
     const effectiveVoiceId = voiceId || DEFAULT_VOICE_ID;
     if (!ELEVENLABS_API_KEY) {
-      await sendLog('warn', `No ElevenLabs API key, skipping TTS`, { conversationId: connection.conversationId });
+      sendLog('warn', `No ElevenLabs API key, skipping TTS`, { conversationId: connection.conversationId });
       return;
     }
     
-    await sendLog('info', `Starting TTS generation for ${text.length} chars`, { 
+    sendLog('info', `Starting TTS generation for ${text.length} chars`, { 
       conversationId: connection.conversationId, 
       voiceId: effectiveVoiceId,
       textLength: text.length 
@@ -412,7 +412,7 @@ async function streamAudioResponse(connection, text, voiceId) {
     const ttsResponseTime = Date.now() - ttsStartTime;
     if (!ttsResponse.ok) {
       const errorText = await ttsResponse.text();
-      await sendLog('error', `ElevenLabs TTS error: ${ttsResponse.status}`, { 
+      sendLog('error', `ElevenLabs TTS error: ${ttsResponse.status}`, { 
         conversationId: connection.conversationId, 
         status: ttsResponse.status, 
         error: errorText,
@@ -424,7 +424,7 @@ async function streamAudioResponse(connection, text, voiceId) {
     const audioBuffer = Buffer.from(await ttsResponse.arrayBuffer());
     const mulaw8k = pcm16kToMulaw8k(audioBuffer);
     
-    await sendLog('info', `TTS generated (${audioBuffer.length} bytes) in ${ttsResponseTime}ms, streaming to Twilio`, { 
+    sendLog('info', `TTS generated (${audioBuffer.length} bytes) in ${ttsResponseTime}ms, streaming to Twilio`, { 
       conversationId: connection.conversationId, 
       audioSize: audioBuffer.length,
       mulawSize: mulaw8k.length,
@@ -448,13 +448,13 @@ async function streamAudioResponse(connection, text, voiceId) {
     }
     
     const totalTime = Date.now() - ttsStartTime;
-    await sendLog('info', `Audio streamed to Twilio (${chunksSent} chunks) in ${totalTime}ms total`, { 
+    sendLog('info', `Audio streamed to Twilio (${chunksSent} chunks) in ${totalTime}ms total`, { 
       conversationId: connection.conversationId, 
       chunksSent,
       totalTime 
     });
   } catch (error) {
-    await sendLog('error', `Error streaming audio: ${error.message}`, { 
+    sendLog('error', `Error streaming audio: ${error.message}`, { 
       conversationId: connection.conversationId, 
       error: error.message 
     });
@@ -480,8 +480,8 @@ server.on('upgrade', (request, socket, head) => {
 });
 
 // Start server - bind to 0.0.0.0 to accept connections from Railway's reverse proxy
-server.listen(PORT, '0.0.0.0', async () => {
-  await sendLog('info', `WebSocket server started`, { 
+server.listen(PORT, '0.0.0.0', () => {
+  sendLog('info', `WebSocket server started`, { 
     port: PORT, 
     nextjsApiUrl: NEXTJS_API_URL,
     elevenlabsConfigured: !!ELEVENLABS_API_KEY 
