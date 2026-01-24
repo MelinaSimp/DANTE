@@ -423,42 +423,42 @@ async function streamAudioResponse(connection, text, voiceId) {
     console.log(`[Media Stream] 🔄 Converted to mulaw 8kHz: ${mulaw8k.length} bytes`);
 
     // Twilio expects mulaw 8kHz; 100ms = 800 bytes
-    // Send chunks at real-time rate (100ms per chunk) so Twilio can play them properly
+    // Send chunks immediately - Twilio will buffer and play them
     const chunkSize = 800;
     let chunksSent = 0;
     
-    // Helper to send chunk with delay
-    const sendChunk = (chunk, index) => {
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          if (connection.ws.readyState === WebSocket.OPEN) {
-            const base64Chunk = chunk.toString('base64');
-            connection.ws.send(JSON.stringify({
-              event: 'media',
-              streamSid: connection.streamSid,
-              media: { payload: base64Chunk },
-            }));
-            chunksSent++;
-            resolve();
-          } else {
-            console.warn(`[Media Stream] ⚠️  WebSocket not open, cannot send chunk ${index}`);
-            resolve();
-          }
-        }, index * 100); // 100ms delay per chunk (real-time playback rate)
-      });
-    };
+    console.log(`[Media Stream] 📤 Sending ${Math.ceil(mulaw8k.length / chunkSize)} audio chunks to Twilio...`);
     
-    // Send all chunks with proper timing
-    const sendPromises = [];
     for (let i = 0; i < mulaw8k.length; i += chunkSize) {
       const chunk = mulaw8k.slice(i, i + chunkSize);
-      sendPromises.push(sendChunk(chunk, Math.floor(i / chunkSize)));
+      const base64Chunk = chunk.toString('base64');
+      
+      if (connection.ws.readyState === WebSocket.OPEN) {
+        const mediaMessage = {
+          event: 'media',
+          streamSid: connection.streamSid,
+          media: { 
+            payload: base64Chunk 
+          },
+        };
+        
+        // Send as JSON string
+        const message = JSON.stringify(mediaMessage);
+        connection.ws.send(message);
+        chunksSent++;
+        
+        // Log first and last chunk for debugging
+        if (chunksSent === 1) {
+          console.log(`[Media Stream] 📤 First chunk sent: ${message.substring(0, 100)}...`);
+        }
+      } else {
+        console.warn(`[Media Stream] ⚠️  WebSocket not open (state: ${connection.ws.readyState}), cannot send chunk ${chunksSent}`);
+        break;
+      }
     }
     
-    // Wait for all chunks to be sent (but don't block - they'll send over time)
-    await Promise.all(sendPromises);
-    
-    console.log(`[Media Stream] ✅ Successfully sent ${chunksSent} audio chunks to Twilio (streaming over ${Math.ceil(chunksSent * 0.1)}s)`);
+    console.log(`[Media Stream] ✅ Successfully sent ${chunksSent} audio chunks to Twilio`);
+    console.log(`[Media Stream] 📊 Audio stats: ${mulaw8k.length} bytes mulaw = ~${(mulaw8k.length / 800).toFixed(1)}s of audio`);
   } catch (error) {
     console.error(`[Media Stream] ❌ Error streaming audio:`, {
       error: error.message,
