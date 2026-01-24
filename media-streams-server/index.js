@@ -170,8 +170,10 @@ wss.on('connection', (ws, req) => {
         
         // Send initial greeting when stream starts
         // Add delay to ensure Twilio stream is fully initialized and ready to receive audio
+        console.log(`[Media Stream] 📅 Scheduling greeting in 500ms. conversationId: ${connection.conversationId || 'MISSING'}, callSid: ${connection.callSid || 'MISSING'}`);
         setTimeout(() => {
           console.log(`[Media Stream] ⏳ Delay complete, sending greeting...`);
+          console.log(`[Media Stream] 🔍 Connection state: conversationId=${connection.conversationId || 'MISSING'}, callSid=${connection.callSid || 'MISSING'}, ws.readyState=${connection.ws?.readyState || 'NO_WS'}`);
           sendInitialGreeting(connection);
         }, 500); // 500ms delay to ensure stream is fully ready
       } else if (data.event === 'media') {
