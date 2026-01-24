@@ -1,32 +1,62 @@
 /**
- * Execute agent step for Media Streams
- * Called by the WebSocket server to get agent responses
+ * Execute agent step for Media Streams - SIMPLIFIED VERSION
+ * Direct LLM call with function calling for scheduling (faster, ~2-3s instead of ~9s)
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { AgentExecutor, ConversationContext } from "@/lib/agent-executor/executor";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
-export async function POST(req: NextRequest) {
-  try {
-    const { conversationId, userInput } = await req.json();
+// Helper to normalize phone numbers
+function normalizePhone(phone: string): string | null {
+  if (!phone) return null;
+  const cleaned = phone.replace(/\D/g, "");
+  if (cleaned.length === 10) return `+1${cleaned}`;
+  if (cleaned.length === 11 && cleaned.startsWith("1")) return `+${cleaned}`;
+  if (phone.startsWith("+")) return phone;
+  return null;
+}
 
-    if (!conversationId || !userInput) {
+export async function POST(req: NextRequest) {
+  const startTime = Date.now();
+  try {
+    const body = await req.json();
+    const conversationId = body.conversationId;
+    const userInput = (body.userInput ?? "") as string;
+
+    if (!conversationId) {
       return NextResponse.json(
-        { error: "Missing conversationId or userInput" },
+        { error: "Missing conversationId" },
         { status: 400 }
       );
     }
 
-    // Load conversation
-    const { data: conversation } = await supabaseAdmin
-      .from("conversations")
-      .select("*")
-      .eq("id", conversationId)
-      .single();
+    // Load conversation and agent in parallel
+    const [conversationResult, agentResult] = await Promise.all([
+      supabaseAdmin
+        .from("conversations")
+        .select("*")
+        .eq("id", conversationId)
+        .single(),
+      supabaseAdmin
+        .from("conversations")
+        .select("agent_id")
+        .eq("id", conversationId)
+        .single()
+        .then(async (conv) => {
+          if (!conv.data) return { data: null };
+          return supabaseAdmin
+            .from("agents")
+            .select("id, name, description, elevenlabs_voice_id")
+            .eq("id", conv.data.agent_id)
+            .single();
+        }),
+    ]);
+
+    const conversation = conversationResult.data;
+    const agent = agentResult.data;
 
     if (!conversation) {
       return NextResponse.json(
@@ -35,77 +65,288 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Add user message to transcript
+    if (!agent) {
+      return NextResponse.json(
+        { error: "Agent not found" },
+        { status: 404 }
+      );
+    }
+
+    // Load data sources (knowledge base)
+    const { data: dataSources } = await supabaseAdmin
+      .from("agent_data_sources")
+      .select("id, name, type, content")
+      .eq("agent_id", agent.id)
+      .limit(20); // Increased to 20 sources for better coverage
+
+    // Build knowledge base from data sources
+    // Note: For file-based sources (PDFs), content should be extracted text stored in the 'content' field
+    const knowledgeBase = (dataSources || [])
+      .filter((ds: any) => ds.content && ds.content.trim().length > 0)
+      .map((ds: any) => {
+        // Use first 2000 chars per source for better context (increased from 1000)
+        const content = ds.content.substring(0, 2000);
+        return `[${ds.name || ds.type || 'Data Source'}]: ${content}`;
+      })
+      .join("\n\n");
+
+    // Get conversation history (last 3 messages)
     const transcript = conversation.transcript || [];
-    transcript.push({
-      role: "user",
-      content: userInput,
-      timestamp: new Date().toISOString(),
+    const recentMessages = transcript.slice(-3).map((msg: any) => ({
+      role: msg.role,
+      content: msg.content.substring(0, 200), // Limit length
+    }));
+
+    // Add user input to transcript
+    const updatedTranscript = [
+      ...transcript,
+      {
+        role: "user",
+        content: userInput,
+        timestamp: new Date().toISOString(),
+      },
+    ];
+
+    // Build system prompt
+    const systemPrompt = `You are ${agent.name || "AI Assistant"}. ${agent.description || "You are a helpful AI assistant."}
+
+${knowledgeBase ? `KNOWLEDGE BASE (use this to answer questions):
+${knowledgeBase}
+
+IMPORTANT: Use ONLY information from the Knowledge Base above. If the Knowledge Base doesn't have the answer, say "I don't have that information in my knowledge base."` : ""}
+
+You can help with:
+- Answering questions using the knowledge base
+- Scheduling appointments (use the schedule_appointment function)
+- Checking appointment availability (use the check_availability function)
+
+Be friendly, concise, and natural. For voice conversations, keep responses short (1-2 sentences).`;
+
+    // OpenAI function definitions
+    const functions = [
+      {
+        name: "schedule_appointment",
+        description: "Schedule an appointment for the caller",
+        parameters: {
+          type: "object",
+          properties: {
+            contactName: {
+              type: "string",
+              description: "The caller's name",
+            },
+            scheduledAt: {
+              type: "string",
+              description: "Date and time in ISO 8601 format (YYYY-MM-DDTHH:MM:SS)",
+            },
+            serviceType: {
+              type: "string",
+              description: "Type of service or appointment (e.g., 'Consultation', 'Meeting')",
+            },
+            durationMinutes: {
+              type: "number",
+              description: "Duration in minutes (default: 60)",
+            },
+            notes: {
+              type: "string",
+              description: "Additional notes about the appointment",
+            },
+          },
+          required: ["scheduledAt", "serviceType"],
+        },
+      },
+      {
+        name: "check_availability",
+        description: "Check available appointment time slots for a specific date",
+        parameters: {
+          type: "object",
+          properties: {
+            date: {
+              type: "string",
+              description: "Date in YYYY-MM-DD format",
+            },
+            durationMinutes: {
+              type: "number",
+              description: "Duration in minutes (default: 60)",
+            },
+          },
+          required: ["date"],
+        },
+      },
+    ];
+
+    // Prepare messages for OpenAI
+    const messages: any[] = [
+      { role: "system", content: systemPrompt },
+      ...recentMessages,
+      { role: "user", content: userInput || "Hello, introduce yourself." },
+    ];
+
+    // Call OpenAI with function calling
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error("OPENAI_API_KEY not configured");
+    }
+
+    const openaiStartTime = Date.now();
+    let openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages,
+        functions,
+        function_call: "auto",
+        temperature: 0.2,
+        max_tokens: 150,
+      }),
     });
 
-    // Create execution context
-    const context: ConversationContext = {
-      conversationId: conversation.id,
-      agentId: conversation.agent_id,
-      scenarioId: conversation.current_scenario_id,
-      currentStepId: conversation.current_step_id,
-      gatheredData: conversation.gathered_data || {},
-      conversationState: conversation.conversation_state || {},
-      transcript,
-    };
+    if (!openaiResponse.ok) {
+      const error = await openaiResponse.text();
+      throw new Error(`OpenAI API error: ${error}`);
+    }
 
-    // Execute agent step
-    const executor = new AgentExecutor(context);
-    const result = await executor.executeNextStep(userInput);
+    const openaiData = await openaiResponse.json();
+    const openaiEndTime = Date.now();
+    console.log(`[Media Stream Execute] ⏱️  OpenAI call took ${openaiEndTime - openaiStartTime}ms`);
 
-    // Update conversation
+    let assistantMessage = openaiData.choices[0]?.message;
+    let finalOutput = "";
+    let functionCallResult = null;
+
+    // Handle function calls
+    if (assistantMessage.function_call) {
+      const functionName = assistantMessage.function_call.name;
+      const functionArgs = JSON.parse(assistantMessage.function_call.arguments || "{}");
+
+      console.log(`[Media Stream Execute] 🔧 Function call: ${functionName}`, functionArgs);
+
+      if (functionName === "schedule_appointment") {
+        // Get contact phone from conversation
+        const contactPhone = conversation.from_number || conversation.metadata?.customerNumber || "";
+
+        const baseUrl = process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || "https://driftai.studio";
+        const scheduleResponse = await fetch(`${baseUrl}/api/agents/${agent.id}/schedule`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contactName: functionArgs.contactName || "Caller",
+            contactPhone: contactPhone,
+            scheduledAt: functionArgs.scheduledAt,
+            serviceType: functionArgs.serviceType,
+            durationMinutes: functionArgs.durationMinutes || 60,
+            notes: functionArgs.notes || "",
+            fromNumber: contactPhone,
+          }),
+        });
+
+        if (scheduleResponse.ok) {
+          const scheduleData = await scheduleResponse.json();
+          functionCallResult = `Appointment scheduled successfully for ${new Date(functionArgs.scheduledAt).toLocaleString()}.`;
+        } else {
+          const errorData = await scheduleResponse.json();
+          functionCallResult = errorData.error || "Failed to schedule appointment. Please try again.";
+        }
+      } else if (functionName === "check_availability") {
+        const baseUrl = process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || "https://driftai.studio";
+        const checkResponse = await fetch(
+          `${baseUrl}/api/agents/${agent.id}/schedule?date=${functionArgs.date}&duration=${functionArgs.durationMinutes || 60}`,
+          {
+            method: "GET",
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+
+        if (checkResponse.ok) {
+          const checkData = await checkResponse.json();
+          const slots = checkData.availableSlots || [];
+          if (slots.length > 0) {
+            const formattedSlots = slots.slice(0, 5).map((slot: string) => {
+              return new Date(slot).toLocaleTimeString("en-US", {
+                hour: "numeric",
+                minute: "2-digit",
+                hour12: true,
+              });
+            });
+            functionCallResult = `Available times on ${new Date(functionArgs.date).toLocaleDateString()}: ${formattedSlots.join(", ")}${slots.length > 5 ? ` and ${slots.length - 5} more` : ""}.`;
+          } else {
+            functionCallResult = `No available slots on ${new Date(functionArgs.date).toLocaleDateString()}. Would you like to check a different date?`;
+          }
+        } else {
+          functionCallResult = "I couldn't check availability. Please try again.";
+        }
+      }
+
+      // Call OpenAI again with function result to get natural language response
+      if (functionCallResult) {
+        messages.push(assistantMessage);
+        messages.push({
+          role: "function",
+          name: functionName,
+          content: functionCallResult,
+        });
+
+        const secondResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "gpt-4o-mini",
+            messages,
+            temperature: 0.2,
+            max_tokens: 100,
+          }),
+        });
+
+        const secondData = await secondResponse.json();
+        finalOutput = secondData.choices[0]?.message?.content || functionCallResult;
+      } else {
+        finalOutput = assistantMessage.content || "I've processed your request.";
+      }
+    } else {
+      finalOutput = assistantMessage.content || "I'm sorry, I couldn't generate a response.";
+    }
+
+    // Update conversation transcript
     const updates: any = {
       transcript: [
-        ...transcript,
+        ...updatedTranscript,
         {
           role: "assistant",
-          content: result.output || "",
+          content: finalOutput,
           timestamp: new Date().toISOString(),
         },
       ],
       updated_at: new Date().toISOString(),
     };
 
-    if (result.nextStepId !== undefined) {
-      updates.current_step_id = result.nextStepId;
-    }
-
-    if (result.nextScenarioId) {
-      updates.current_scenario_id = result.nextScenarioId;
-    }
-
-    if (result.gatheredData) {
-      updates.gathered_data = result.gatheredData;
-    }
-
-    if (!result.shouldContinue) {
-      updates.status = "completed";
-    }
-
     // Update in background (don't wait)
-    supabaseAdmin
-      .from("conversations")
-      .update(updates)
-      .eq("id", conversation.id)
-      .catch(err => console.error("[Media Stream Execute] DB update error:", err));
+    (async () => {
+      try {
+        await supabaseAdmin
+          .from("conversations")
+          .update(updates)
+          .eq("id", conversation.id);
+      } catch (err: any) {
+        console.error("[Media Stream Execute] DB update error:", err);
+      }
+    })();
 
-    // Get agent voice ID
-    const { data: agent } = await supabaseAdmin
-      .from("agents")
-      .select("elevenlabs_voice_id")
-      .eq("id", conversation.agent_id)
-      .single();
+    const totalTime = Date.now() - startTime;
+    console.log(`[Media Stream Execute] ⏱️  Total execution time: ${totalTime}ms`);
+
+    const voiceId = agent.elevenlabs_voice_id || "21m00Tcm4TlvDq8ikWAM";
 
     return NextResponse.json({
-      success: result.success,
-      output: result.output || "",
-      voiceId: agent?.elevenlabs_voice_id || null,
-      shouldContinue: result.shouldContinue,
+      success: true,
+      output: finalOutput,
+      voiceId,
+      shouldContinue: true,
     });
   } catch (error: any) {
     console.error("[Media Stream Execute] Error:", error);

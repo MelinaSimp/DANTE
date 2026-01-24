@@ -449,10 +449,14 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                         setShowDayView(true);
                       }}
                       className={`rounded-2xl p-4 text-sm transition min-h-[80px] flex flex-col items-center justify-start ${isWhite ? "border-2" : "border"} ${divider} ${
-                        isToday ? (isWhite ? "bg-gray-50" : "bg-[#f97316]/25 text-[#fb923c]") : ""
+                        isToday && !isSelected ? (isWhite ? "bg-black text-white" : "bg-[#f97316]/25 text-[#fb923c]") : ""
                       } ${isSelected ? (isWhite ? "bg-black text-white" : "border-2 border-[#f97316] bg-[#f97316]/30 text-white") : `${hoverBg} ${isWhite ? "bg-white" : "border-white/5"}`}`}
                       >
-                        <div className="text-center font-medium text-base mb-1">{day}</div>
+                        <div className={`text-center font-medium text-base mb-1 ${
+                          isToday && !isSelected ? (isWhite ? "text-white font-bold" : "text-[#fb923c]") : 
+                          isSelected ? (isWhite ? "text-white" : "text-white") : 
+                          (isWhite ? "text-black" : "text-white")
+                        }`}>{day}</div>
                         {dayAppointments.length > 0 && (
                           <div className={`mt-auto text-xs font-semibold ${isSelected ? (isWhite ? "text-white" : "text-white") : (isWhite ? "text-black" : "text-[#fb923c]")}`}>
                           {dayAppointments.length} appt{dayAppointments.length > 1 ? "s" : ""}

@@ -305,85 +305,175 @@ export default function FrontendPage() {
             </div>
           ) : (
             <div className="max-w-7xl mx-auto">
-              {/* Stats Overview */}
+              {/* Stats Overview - Polished */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200">
-                  <div className="text-sm text-gray-600 mb-2">Total Agents</div>
-                  <div className="text-3xl font-semibold text-gray-900">{agents.length}</div>
+                <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-200 hover:shadow-lg transition-all">
+                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Total Agents</div>
+                  <div className="text-4xl font-bold text-gray-900">{agents.length}</div>
                 </div>
-                <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200">
-                  <div className="text-sm text-gray-600 mb-2">Active Agents</div>
-                  <div className="text-3xl font-semibold text-gray-900">
+                <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-200 hover:shadow-lg transition-all">
+                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Active Agents</div>
+                  <div className="text-4xl font-bold text-green-600">
                     {agents.filter(a => a.status === 'deployed').length}
                   </div>
                 </div>
-                <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200">
-                  <div className="text-sm text-gray-600 mb-2">Draft Agents</div>
-                  <div className="text-3xl font-semibold text-gray-900">
+                <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-200 hover:shadow-lg transition-all">
+                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Draft Agents</div>
+                  <div className="text-4xl font-bold text-gray-600">
                     {agents.filter(a => a.status === 'draft').length}
                   </div>
                 </div>
               </div>
 
-              {/* Agent Cards Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {agents.map((agent) => {
-                  const agentGradient = JSON.parse(agent.gradient_color || generateGradientColor(agent.id)) as string[];
-                  return (
-                    <button
-                      key={agent.id}
-                      onClick={() => router.push(`/frontend/agent/${agent.id}`)}
-                      className="bg-white rounded-2xl shadow-sm p-6 border border-gray-200 hover:shadow-md transition-all text-left group"
-                    >
-                      {/* Agent Header */}
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold"
-                            style={{
-                              background: `linear-gradient(135deg, ${agentGradient[0]} 0%, ${agentGradient[1]} 100%)`,
-                            }}
-                          >
-                            {agent.name.charAt(0).toUpperCase()}
-                          </div>
-                          <div>
-                            <h3 className="text-lg font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
+              {/* Conditional Layout: Hero Card for 1 agent, Grid for 2+ */}
+              {agents.length === 1 ? (
+                /* Single Agent - Centered Hero Card */
+                <div className="flex justify-center">
+                  <div className="w-full max-w-2xl">
+                    {agents.map((agent) => {
+                      const agentGradient = JSON.parse(agent.gradient_color || generateGradientColor(agent.id)) as string[];
+                      return (
+                        <button
+                          key={agent.id}
+                          onClick={() => router.push(`/frontend/agent/${agent.id}`)}
+                          className="w-full bg-white rounded-3xl shadow-xl p-8 border border-gray-200 hover:shadow-2xl hover:scale-[1.02] transition-all text-left group"
+                        >
+                          {/* Hero Agent Card */}
+                          <div className="flex flex-col items-center text-center mb-6">
+                            {/* Large Avatar */}
+                            <div
+                              className="w-24 h-24 rounded-3xl flex items-center justify-center text-white font-bold text-3xl mb-4 shadow-lg"
+                              style={{
+                                background: `linear-gradient(135deg, ${agentGradient[0]} 0%, ${agentGradient[1]} 50%, ${agentGradient[2] || agentGradient[1]} 100%)`,
+                              }}
+                            >
+                              {agent.name.charAt(0).toUpperCase()}
+                            </div>
+                            
+                            {/* Agent Name & Status */}
+                            <h3 className="text-2xl font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
                               {agent.name}
                             </h3>
-                            <span className={`text-xs px-2 py-1 rounded-full ${
+                            <span className={`text-sm px-3 py-1.5 rounded-full font-medium ${
                               agent.status === 'deployed'
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-gray-100 text-gray-600'
+                                ? 'bg-green-100 text-green-700 border border-green-200'
+                                : 'bg-gray-100 text-gray-600 border border-gray-200'
                             }`}>
                               {agent.status}
                             </span>
                           </div>
-                        </div>
-                        <ArrowRight className="h-5 w-5 text-gray-400 group-hover:text-blue-600 transition-colors" />
-                      </div>
 
-                      {/* Agent Description */}
-                      {agent.description && (
-                        <p className="text-sm text-gray-600 mb-4 line-clamp-2">
-                          {agent.description}
-                        </p>
-                      )}
+                          {/* Agent Description */}
+                          {agent.description && (
+                            <p className="text-base text-gray-600 mb-6 text-center leading-relaxed">
+                              {agent.description}
+                            </p>
+                          )}
 
-                      {/* Agent Metrics */}
-                      <div className="flex items-center gap-6 pt-4 border-t border-gray-100">
-                        <div className="flex items-center gap-2 text-gray-600">
-                          <MessageSquare className="h-4 w-4" />
-                          <span className="text-xs">0 conversations</span>
+                          {/* Agent Metrics - Centered */}
+                          <div className="flex items-center justify-center gap-8 pt-6 border-t border-gray-200">
+                            <div className="flex items-center gap-2 text-gray-600">
+                              <div className="p-2 bg-gray-100 rounded-xl">
+                                <MessageSquare className="h-5 w-5" />
+                              </div>
+                              <div className="text-left">
+                                <div className="text-xs text-gray-500 uppercase tracking-wide">Conversations</div>
+                                <div className="text-lg font-semibold text-gray-900">0</div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 text-gray-600">
+                              <div className="p-2 bg-gray-100 rounded-xl">
+                                <Clock className="h-5 w-5" />
+                              </div>
+                              <div className="text-left">
+                                <div className="text-xs text-gray-500 uppercase tracking-wide">Avg Duration</div>
+                                <div className="text-lg font-semibold text-gray-900">0 min</div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Action Indicator */}
+                          <div className="mt-6 flex justify-center">
+                            <div className="relative group/arrow">
+                              <div className="absolute inset-0 bg-gradient-to-br from-purple-400 via-pink-500 to-blue-500 rounded-xl blur-sm opacity-50 group-hover/arrow:opacity-75 transition-opacity"></div>
+                              <div className="relative flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-50 border border-gray-200 group-hover/arrow:bg-gray-100 transition-colors">
+                                <span className="text-sm font-medium text-gray-700">View Details</span>
+                                <ArrowRight className="h-4 w-4 text-gray-600 group-hover/arrow:text-blue-600 transition-colors" />
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                /* Multiple Agents - Responsive Grid */
+                <div className={`grid gap-6 ${
+                  agents.length === 2 
+                    ? 'grid-cols-1 md:grid-cols-2' 
+                    : agents.length === 3
+                    ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
+                    : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
+                }`}>
+                  {agents.map((agent) => {
+                    const agentGradient = JSON.parse(agent.gradient_color || generateGradientColor(agent.id)) as string[];
+                    return (
+                      <button
+                        key={agent.id}
+                        onClick={() => router.push(`/frontend/agent/${agent.id}`)}
+                        className="bg-white rounded-2xl shadow-md p-6 border border-gray-200 hover:shadow-xl hover:scale-[1.02] transition-all text-left group"
+                      >
+                        {/* Agent Header */}
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-lg shadow-md"
+                              style={{
+                                background: `linear-gradient(135deg, ${agentGradient[0]} 0%, ${agentGradient[1]} 100%)`,
+                              }}
+                            >
+                              {agent.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <h3 className="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors mb-1">
+                                {agent.name}
+                              </h3>
+                              <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                                agent.status === 'deployed'
+                                  ? 'bg-green-100 text-green-700 border border-green-200'
+                                  : 'bg-gray-100 text-gray-600 border border-gray-200'
+                              }`}>
+                                {agent.status}
+                              </span>
+                            </div>
+                          </div>
+                          <ArrowRight className="h-5 w-5 text-gray-400 group-hover:text-blue-600 transition-colors flex-shrink-0" />
                         </div>
-                        <div className="flex items-center gap-2 text-gray-600">
-                          <Clock className="h-4 w-4" />
-                          <span className="text-xs">0 min avg</span>
+
+                        {/* Agent Description */}
+                        {agent.description && (
+                          <p className="text-sm text-gray-600 mb-4 line-clamp-2 leading-relaxed">
+                            {agent.description}
+                          </p>
+                        )}
+
+                        {/* Agent Metrics */}
+                        <div className="flex items-center gap-6 pt-4 border-t border-gray-100">
+                          <div className="flex items-center gap-2 text-gray-600">
+                            <MessageSquare className="h-4 w-4" />
+                            <span className="text-xs font-medium">0 conversations</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-gray-600">
+                            <Clock className="h-4 w-4" />
+                            <span className="text-xs font-medium">0 min avg</span>
+                          </div>
                         </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>
