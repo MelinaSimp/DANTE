@@ -69,6 +69,10 @@ const wss = new WebSocket.Server({
 wss.on('connection', (ws, req) => {
   const connectionId = uuidv4();
   
+  console.log(`[Media Stream] 🔌 NEW WEBSOCKET CONNECTION: ${connectionId}`);
+  console.log(`[Media Stream] Request URL: ${req.url}`);
+  console.log(`[Media Stream] Headers:`, JSON.stringify(req.headers, null, 2));
+  
   // Handle both http:// and https:// for URL parsing
   const protocol = req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'localhost';
@@ -112,10 +116,12 @@ wss.on('connection', (ws, req) => {
       const data = JSON.parse(message.toString());
       
       if (data.event === 'connected') {
-        console.log(`[Media Stream] Connected: ${connectionId}`);
+        console.log(`[Media Stream] 🔗 Connected event received for: ${connectionId}`);
       } else if (data.event === 'start') {
-        console.log(`[Media Stream] Stream started: ${connectionId}`, data.start);
+        console.log(`[Media Stream] 🚀 START event received for: ${connectionId}`);
+        console.log(`[Media Stream] Start data:`, JSON.stringify(data.start, null, 2));
         connection.streamSid = data.start.streamSid;
+        console.log(`[Media Stream] Stream SID: ${connection.streamSid}`);
         
         // Update callSid from start event (it's more reliable than URL params)
         if (data.start.callSid) {
