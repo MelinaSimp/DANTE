@@ -400,7 +400,7 @@ async function streamAudioResponse(connection, text, voiceId) {
       {
         method: 'POST',
         headers: {
-          'Accept': 'audio/pcm',
+          'Accept': 'audio/mulaw', // Request mulaw format directly
           'Content-Type': 'application/json',
           'xi-api-key': ELEVENLABS_API_KEY,
         },
@@ -408,7 +408,7 @@ async function streamAudioResponse(connection, text, voiceId) {
           text: text.trim(),
           model_id: 'eleven_turbo_v2_5',
           voice_settings: { stability: 0.15, similarity_boost: 0.4 },
-          output_format: 'pcm_16000',
+          output_format: 'ulaw_8000', // Direct mulaw 8kHz - no conversion needed!
         }),
       }
     );
@@ -430,10 +430,10 @@ async function streamAudioResponse(connection, text, voiceId) {
 
     console.log(`[Media Stream] ✅ ElevenLabs response OK, processing audio...`);
     const audioBuffer = Buffer.from(await ttsResponse.arrayBuffer());
-    console.log(`[Media Stream] 📦 Audio buffer size: ${audioBuffer.length} bytes`);
+    console.log(`[Media Stream] 📦 Audio buffer size: ${audioBuffer.length} bytes (mulaw 8kHz from ElevenLabs)`);
     
-    const mulaw8k = pcm16kToMulaw8k(audioBuffer);
-    console.log(`[Media Stream] 🔄 Converted to mulaw 8kHz: ${mulaw8k.length} bytes`);
+    // ElevenLabs already provides mulaw 8kHz - no conversion needed!
+    const mulaw8k = audioBuffer;
 
     // Twilio expects mulaw 8kHz; 100ms = 800 bytes
     // CRITICAL: Send chunks at REAL-TIME rate (100ms per chunk) for Twilio to play them correctly
