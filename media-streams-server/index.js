@@ -423,25 +423,42 @@ async function streamAudioResponse(connection, text, voiceId) {
     console.log(`[Media Stream] 🔄 Converted to mulaw 8kHz: ${mulaw8k.length} bytes`);
 
     // Twilio expects mulaw 8kHz; 100ms = 800 bytes
+    // Send chunks at real-time rate (100ms per chunk) so Twilio can play them properly
     const chunkSize = 800;
     let chunksSent = 0;
+    
+    // Helper to send chunk with delay
+    const sendChunk = (chunk, index) => {
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          if (connection.ws.readyState === WebSocket.OPEN) {
+            const base64Chunk = chunk.toString('base64');
+            connection.ws.send(JSON.stringify({
+              event: 'media',
+              streamSid: connection.streamSid,
+              media: { payload: base64Chunk },
+            }));
+            chunksSent++;
+            resolve();
+          } else {
+            console.warn(`[Media Stream] ⚠️  WebSocket not open, cannot send chunk ${index}`);
+            resolve();
+          }
+        }, index * 100); // 100ms delay per chunk (real-time playback rate)
+      });
+    };
+    
+    // Send all chunks with proper timing
+    const sendPromises = [];
     for (let i = 0; i < mulaw8k.length; i += chunkSize) {
       const chunk = mulaw8k.slice(i, i + chunkSize);
-      const base64Chunk = chunk.toString('base64');
-      if (connection.ws.readyState === WebSocket.OPEN) {
-        connection.ws.send(JSON.stringify({
-          event: 'media',
-          streamSid: connection.streamSid,
-          media: { payload: base64Chunk },
-        }));
-        chunksSent++;
-      } else {
-        console.warn(`[Media Stream] ⚠️  WebSocket not open, cannot send chunk ${chunksSent}`);
-        break;
-      }
+      sendPromises.push(sendChunk(chunk, Math.floor(i / chunkSize)));
     }
     
-    console.log(`[Media Stream] ✅ Successfully sent ${chunksSent} audio chunks to Twilio`);
+    // Wait for all chunks to be sent (but don't block - they'll send over time)
+    await Promise.all(sendPromises);
+    
+    console.log(`[Media Stream] ✅ Successfully sent ${chunksSent} audio chunks to Twilio (streaming over ${Math.ceil(chunksSent * 0.1)}s)`);
   } catch (error) {
     console.error(`[Media Stream] ❌ Error streaming audio:`, {
       error: error.message,
