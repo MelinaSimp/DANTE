@@ -236,55 +236,56 @@ async function handleMediaStream(req: NextRequest) {
         const healthUrl = railwayUrl.replace("wss://", "https://").replace("ws://", "http://") + "/health";
         console.log("[Media Stream] Checking Railway health:", healthUrl);
         
-        const healthCheck = await fetch(healthUrl, { 
+        // Increased timeout to 5 seconds and make it non-blocking
+        // If health check fails, we'll still try Media Streams (Railway might be slow but working)
+        const healthCheckPromise = fetch(healthUrl, { 
           method: "GET",
-          signal: AbortSignal.timeout(2000) // 2 second timeout
+          signal: AbortSignal.timeout(5000) // 5 second timeout
         }).catch((error) => {
           console.warn("[Media Stream] Railway health check fetch error:", error.message);
           return null;
         });
         
-        if (!healthCheck) {
-          console.warn("[Media Stream] Railway health check failed (no response), falling back to regular Twilio flow");
-          useMediaStreams = false;
-        } else if (!healthCheck.ok) {
-          console.warn(`[Media Stream] Railway health check failed (status: ${healthCheck.status}), falling back to regular Twilio flow`);
-          useMediaStreams = false;
-        } else {
-          const healthData = await healthCheck.json().catch(() => null);
-          console.log("[Media Stream] Railway health check passed, using Media Streams", healthData);
-        }
+        // Don't wait for health check - proceed with Media Streams if Railway URL is configured
+        // The health check is just a warning, not a blocker
+        healthCheckPromise.then((healthCheck) => {
+          if (healthCheck && healthCheck.ok) {
+            healthCheck.json().then((healthData) => {
+              console.log("[Media Stream] Railway health check passed", healthData);
+            }).catch(() => {});
+          } else {
+            console.warn("[Media Stream] Railway health check failed, but proceeding with Media Streams anyway");
+          }
+        }).catch(() => {});
+        
+        // Always use Media Streams if Railway URL is configured (health check is just informational)
+        console.log("[Media Stream] Proceeding with Media Streams (health check is non-blocking)");
       } catch (healthError: any) {
         console.warn("[Media Stream] Railway health check error (non-blocking):", healthError?.message || healthError);
-        useMediaStreams = false;
-        // Continue anyway - fallback to regular Twilio flow
+        // Don't disable Media Streams on health check error - Railway might still work
       }
     }
     
     let twiml: string;
     
     if (useMediaStreams) {
-      // Build Media Stream URL with proper encoding
-      const mediaStreamUrl = `${railwayUrl}/media-stream?CallSid=${encodeURIComponent(callSid)}&From=${encodeURIComponent(from)}&To=${encodeURIComponent(to)}&conversationId=${encodeURIComponent(conversation.id)}`;
-      
-      // Media Streams handles ALL audio via WebSocket - don't use <Say> here
-      // The Railway server will send the greeting audio through the WebSocket
-      // The <Stream> tag keeps the call active indefinitely until the WebSocket closes
-      const redirectUrl = `${baseUrl}/api/twilio/media-stream`;
+      // Use <Connect><Stream> for BIDIRECTIONAL audio. <Start><Stream> is receive-only.
+      // Twilio: "The url does not support query string parameters." Use <Parameter> instead.
+      const mediaStreamUrl = `${railwayUrl}/media-stream`;
+      const convIdEscaped = conversation.id.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
 
       twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Start>
-    <Stream url="${mediaStreamUrl.replace(/&/g, "&amp;")}" />
-  </Start>
-  <Pause length="60" />
-  <Redirect method="POST">${redirectUrl.replace(/&/g, "&amp;")}</Redirect>
+  <Connect>
+    <Stream url="${mediaStreamUrl}">
+      <Parameter name="conversationId" value="${convIdEscaped}" />
+    </Stream>
+  </Connect>
 </Response>`;
       
-      console.log("[Media Stream] ✅ Using Media Streams");
-      console.log("[Media Stream] Railway URL:", railwayUrl);
-      console.log("[Media Stream] Full Media Stream URL:", mediaStreamUrl);
-      console.log("[Media Stream] Returning TwiML:", twiml);
+      console.log("[Media Stream] ✅ Using Media Streams (Connect+Stream, bidirectional)");
+      console.log("[Media Stream] Railway URL:", mediaStreamUrl);
+      console.log("[Media Stream] conversationId (Parameter):", conversation.id);
     } else {
       // Fallback to regular Twilio flow if Railway is unavailable
       console.log("[Media Stream] Falling back to regular Twilio flow");
