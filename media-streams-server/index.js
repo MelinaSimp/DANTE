@@ -214,12 +214,9 @@ wss.on('connection', (ws, req) => {
     cleanupConnection(connectionId);
   });
 
-  // Send initial connection message
-  ws.send(JSON.stringify({
-    event: 'connected',
-    protocol: 'Call',
-    version: '1.0.0'
-  }));
+  // NOTE: Do NOT send a "connected" message to Twilio
+  // Twilio sends US a "connected" event - we only respond to their events
+  // Sending a "connected" message back causes "Protocol - Invalid message" errors
 });
 
 /**
@@ -454,6 +451,12 @@ async function streamAudioResponse(connection, text, voiceId) {
       
       setTimeout(() => {
         if (connection.ws.readyState === WebSocket.OPEN) {
+          // Validate streamSid before sending
+          if (!connection.streamSid) {
+            console.error(`[Media Stream] ❌ Cannot send chunk ${chunkIndex}: streamSid is missing!`);
+            return;
+          }
+          
           const base64Chunk = chunk.toString('base64');
           const mediaMessage = {
             event: 'media',
