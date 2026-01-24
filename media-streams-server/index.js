@@ -529,6 +529,10 @@ server.on('upgrade', (request, socket, head) => {
 
 // Start server - bind to 0.0.0.0 to accept connections from Railway's reverse proxy
 server.listen(PORT, '0.0.0.0', () => {
+  console.log(`[Media Stream] ==========================================`);
+  console.log(`[Media Stream] 🚀 Server Version: 44da9ec (Fixed protocol error)`);
+  console.log(`[Media Stream] ✅ FIXED: Removed invalid 'connected' message to Twilio`);
+  console.log(`[Media Stream] ==========================================`);
   console.log(`[Media Stream] WebSocket server listening on port ${PORT}`);
   console.log(`[Media Stream] Next.js API URL: ${NEXTJS_API_URL}`);
   console.log(`[Media Stream] Server bound to 0.0.0.0 (accepting external connections)`);
