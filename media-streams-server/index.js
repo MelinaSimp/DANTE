@@ -82,15 +82,14 @@ wss.on('connection', (ws, req) => {
   const to = url.searchParams.get('To') || '';
   const conversationId = url.searchParams.get('conversationId') || '';
 
-  sendLog('info', `✅ New WebSocket connection: ${connectionId}`, { callSid, from, to, conversationId, requestUrl: req.url });
+  console.log(`[Media Stream] ✅ New connection: ${connectionId}`, { callSid, from, to, conversationId });
+  console.log(`[Media Stream] Request URL: ${req.url}`);
+  console.log(`[Media Stream] Full URL with query: ${requestUrl}`);
+  console.log(`[Media Stream] Parsed conversationId: "${conversationId}"`);
   
   if (!conversationId) {
-    sendLog('warn', `⚠️ WARNING: conversationId is missing from URL parameters!`, { 
-      callSid, 
-      from, 
-      to, 
-      urlParams: Object.fromEntries(url.searchParams) 
-    });
+    console.warn(`[Media Stream] ⚠️ WARNING: conversationId is missing from URL parameters!`);
+    console.warn(`[Media Stream] URL search params:`, Object.fromEntries(url.searchParams));
   }
 
   const connection = {
@@ -113,15 +112,15 @@ wss.on('connection', (ws, req) => {
       const data = JSON.parse(message.toString());
       
       if (data.event === 'connected') {
-        sendLog('info', `WebSocket connected: ${connectionId}`, { connectionId });
+        console.log(`[Media Stream] Connected: ${connectionId}`);
       } else if (data.event === 'start') {
-        sendLog('info', `Stream started: ${connectionId}`, { connectionId, streamSid: data.start.streamSid, callSid: data.start.callSid });
+        console.log(`[Media Stream] Stream started: ${connectionId}`, data.start);
         connection.streamSid = data.start.streamSid;
         
         // Update callSid from start event (it's more reliable than URL params)
         if (data.start.callSid) {
           connection.callSid = data.start.callSid;
-          sendLog('info', `Got callSid from start event: "${connection.callSid}"`, { callSid: connection.callSid });
+          console.log(`[Media Stream] Got callSid from start event: "${connection.callSid}"`);
         }
         
         // Try to get conversationId from customParameters (Twilio <Parameter name="conversationId" value="..." />)
@@ -129,13 +128,13 @@ wss.on('connection', (ws, req) => {
           const cp = data.start.customParameters;
           connection.conversationId = (cp.conversationId || cp.ConversationId || '') + '';
           if (connection.conversationId) {
-            sendLog('info', `Got conversationId from customParameters: "${connection.conversationId}"`, { conversationId: connection.conversationId });
+            console.log(`[Media Stream] Got conversationId from customParameters: "${connection.conversationId}"`);
           }
         }
         
         // If conversationId is still missing, look it up by callSid
         if (!connection.conversationId && connection.callSid) {
-          sendLog('info', `Looking up conversation by callSid: "${connection.callSid}"`, { callSid: connection.callSid });
+          console.log(`[Media Stream] Looking up conversation by callSid: "${connection.callSid}"`);
           try {
             const lookupResponse = await fetch(`${NEXTJS_API_URL}/api/twilio/media-stream-lookup`, {
               method: 'POST',
@@ -147,16 +146,16 @@ wss.on('connection', (ws, req) => {
               const lookupData = await lookupResponse.json();
               if (lookupData.conversationId) {
                 connection.conversationId = lookupData.conversationId;
-                sendLog('info', `✅ Found conversationId: "${connection.conversationId}"`, { conversationId: connection.conversationId, callSid: connection.callSid });
+                console.log(`[Media Stream] ✅ Found conversationId: "${connection.conversationId}"`);
               } else {
-                sendLog('warn', `Lookup ok but no conversationId in body`, { callSid: connection.callSid });
+                console.warn(`[Media Stream] Lookup ok but no conversationId in body`);
               }
             } else {
               const errBody = await lookupResponse.text();
-              sendLog('error', `Lookup failed: ${lookupResponse.status}`, { callSid: connection.callSid, error: errBody });
+              console.warn(`[Media Stream] Lookup failed: ${lookupResponse.status} ${errBody}`);
             }
           } catch (error) {
-            sendLog('error', `Error looking up conversation: ${error.message}`, { callSid: connection.callSid, error: error.message });
+            console.error(`[Media Stream] Error looking up conversation: ${error.message}`);
           }
         }
         
@@ -175,7 +174,7 @@ wss.on('connection', (ws, req) => {
           await processAudioChunk(connection);
         }
       } else if (data.event === 'stop') {
-        sendLog('info', `Stream stopped: ${connectionId}`, { connectionId });
+        console.log(`[Media Stream] Stream stopped: ${connectionId}`);
         cleanupConnection(connectionId);
       }
     } catch (error) {
@@ -184,12 +183,12 @@ wss.on('connection', (ws, req) => {
   });
 
   ws.on('close', () => {
-    sendLog('info', `WebSocket connection closed: ${connectionId}`, { connectionId });
+    console.log(`[Media Stream] Connection closed: ${connectionId}`);
     cleanupConnection(connectionId);
   });
 
   ws.on('error', (error) => {
-    sendLog('error', `WebSocket error: ${error.message}`, { connectionId, error: error.message });
+    console.error(`[Media Stream] WebSocket error: ${error.message}`);
     cleanupConnection(connectionId);
   });
 
@@ -244,16 +243,17 @@ async function processAudioChunk(connection) {
  * Send initial greeting when stream starts
  */
 async function sendInitialGreeting(connection) {
+  const startTime = Date.now();
   try {
     if (!connection.conversationId) {
-      sendLog('warn', `No conversationId, skipping greeting`, { connectionId: connection.id });
+      console.warn(`[Media Stream] No conversationId, skipping greeting`);
       return;
     }
 
-    const startTime = Date.now();
-    sendLog('info', `Sending initial greeting for conversation: ${connection.conversationId}`, { conversationId: connection.conversationId });
+    console.log(`[Media Stream] Sending initial greeting for conversation: ${connection.conversationId}`);
 
     // Call Next.js API to get the greeting (empty input triggers greeting)
+    const apiStartTime = Date.now();
     const response = await fetch(`${NEXTJS_API_URL}/api/twilio/media-stream-execute`, {
       method: 'POST',
       headers: {
@@ -265,33 +265,28 @@ async function sendInitialGreeting(connection) {
       }),
     });
 
-    const responseTime = Date.now() - startTime;
+    const apiEndTime = Date.now();
+    console.log(`[Media Stream] ⏱️  Greeting API call took ${apiEndTime - apiStartTime}ms`);
+
     if (response.ok) {
       const result = await response.json();
       if (result.output && result.output.trim().length > 0) {
-        sendLog('info', `Greeting received (${result.output.length} chars) in ${responseTime}ms`, { 
-          conversationId: connection.conversationId, 
-          responseTime,
-          outputLength: result.output.length 
-        });
+        const ttsStartTime = Date.now();
         await streamAudioResponse(connection, result.output, result.voiceId);
+        const ttsEndTime = Date.now();
+        console.log(`[Media Stream] ⏱️  Greeting TTS took ${ttsEndTime - ttsStartTime}ms`);
+        
+        const totalTime = Date.now() - startTime;
+        console.log(`[Media Stream] ⏱️  Total greeting time: ${totalTime}ms`);
       } else {
-        sendLog('warn', `Greeting API ok but no output`, { conversationId: connection.conversationId, responseTime });
+        console.warn(`[Media Stream] Greeting API ok but no output`);
       }
     } else {
       const errBody = await response.text();
-      sendLog('error', `Failed to get greeting: ${response.status}`, { 
-        conversationId: connection.conversationId, 
-        status: response.status, 
-        error: errBody,
-        responseTime 
-      });
+      console.error(`[Media Stream] Failed to get greeting: ${response.status} ${errBody}`);
     }
   } catch (error) {
-    sendLog('error', `Error sending initial greeting: ${error.message}`, { 
-      conversationId: connection.conversationId, 
-      error: error.message 
-    });
+    console.error(`[Media Stream] Error sending initial greeting: ${error.message}`);
   }
 }
 
@@ -299,14 +294,12 @@ async function sendInitialGreeting(connection) {
  * Process user input through agent executor
  */
 async function processUserInput(connection, userInput) {
+  const startTime = Date.now();
   try {
-    const startTime = Date.now();
-    sendLog('info', `Processing user input: "${userInput}"`, { 
-      conversationId: connection.conversationId, 
-      userInput: userInput.substring(0, 100) // Truncate for logs
-    });
+    console.log(`[Media Stream] Processing user input: "${userInput}"`);
 
     // Call Next.js API to execute agent step
+    const apiStartTime = Date.now();
     const response = await fetch(`${NEXTJS_API_URL}/api/twilio/media-stream-execute`, {
       method: 'POST',
       headers: {
@@ -318,35 +311,28 @@ async function processUserInput(connection, userInput) {
       }),
     });
 
-    const responseTime = Date.now() - startTime;
+    const apiEndTime = Date.now();
+    console.log(`[Media Stream] ⏱️  API call took ${apiEndTime - apiStartTime}ms`);
+
     if (response.ok) {
       const result = await response.json();
       
       if (result.output && result.output.trim().length > 0) {
-        sendLog('info', `Agent response received (${result.output.length} chars) in ${responseTime}ms`, { 
-          conversationId: connection.conversationId, 
-          responseTime,
-          outputLength: result.output.length 
-        });
+        const ttsStartTime = Date.now();
         // Convert text to speech and stream back
         await streamAudioResponse(connection, result.output, result.voiceId);
-      } else {
-        sendLog('warn', `Agent response ok but no output`, { conversationId: connection.conversationId, responseTime });
+        const ttsEndTime = Date.now();
+        console.log(`[Media Stream] ⏱️  TTS generation took ${ttsEndTime - ttsStartTime}ms`);
+        
+        const totalTime = Date.now() - startTime;
+        console.log(`[Media Stream] ⏱️  Total processing time: ${totalTime}ms`);
       }
     } else {
-      const errBody = await response.text();
-      sendLog('error', `Agent execution failed: ${response.status}`, { 
-        conversationId: connection.conversationId, 
-        status: response.status, 
-        error: errBody,
-        responseTime 
-      });
+      const errorText = await response.text();
+      console.error(`[Media Stream] API error: ${response.status} ${errorText}`);
     }
   } catch (error) {
-    sendLog('error', `Error processing user input: ${error.message}`, { 
-      conversationId: connection.conversationId, 
-      error: error.message 
-    });
+    console.error(`[Media Stream] Error processing user input: ${error.message}`);
   }
 }
 
@@ -378,19 +364,18 @@ function pcm16kToMulaw8k(pcmBuffer) {
  */
 async function streamAudioResponse(connection, text, voiceId) {
   try {
-    const ttsStartTime = Date.now();
     const effectiveVoiceId = voiceId || DEFAULT_VOICE_ID;
+    console.log(`[Media Stream] 🎤 Starting TTS for text: "${text.substring(0, 50)}..." with voice: ${effectiveVoiceId}`);
+    
     if (!ELEVENLABS_API_KEY) {
-      sendLog('warn', `No ElevenLabs API key, skipping TTS`, { conversationId: connection.conversationId });
+      console.error('[Media Stream] ❌ CRITICAL: No ElevenLabs API key found! Check Railway environment variables.');
+      console.error('[Media Stream] ELEVENLABS_API_KEY is:', ELEVENLABS_API_KEY ? 'SET (but might be empty)' : 'NOT SET');
       return;
     }
-    
-    sendLog('info', `Starting TTS generation for ${text.length} chars`, { 
-      conversationId: connection.conversationId, 
-      voiceId: effectiveVoiceId,
-      textLength: text.length 
-    });
 
+    console.log(`[Media Stream] 📞 Calling ElevenLabs API for voice ${effectiveVoiceId}...`);
+    const ttsStartTime = Date.now();
+    
     const ttsResponse = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${effectiveVoiceId}`,
       {
@@ -409,27 +394,27 @@ async function streamAudioResponse(connection, text, voiceId) {
       }
     );
 
-    const ttsResponseTime = Date.now() - ttsStartTime;
+    const ttsApiTime = Date.now() - ttsStartTime;
+    console.log(`[Media Stream] ⏱️  ElevenLabs API call took ${ttsApiTime}ms, status: ${ttsResponse.status}`);
+
     if (!ttsResponse.ok) {
       const errorText = await ttsResponse.text();
-      sendLog('error', `ElevenLabs TTS error: ${ttsResponse.status}`, { 
-        conversationId: connection.conversationId, 
-        status: ttsResponse.status, 
+      console.error('[Media Stream] ❌ ElevenLabs TTS error:', {
+        status: ttsResponse.status,
+        statusText: ttsResponse.statusText,
         error: errorText,
-        responseTime: ttsResponseTime 
+        voiceId: effectiveVoiceId,
+        textLength: text.length,
       });
       return;
     }
 
+    console.log(`[Media Stream] ✅ ElevenLabs response OK, processing audio...`);
     const audioBuffer = Buffer.from(await ttsResponse.arrayBuffer());
-    const mulaw8k = pcm16kToMulaw8k(audioBuffer);
+    console.log(`[Media Stream] 📦 Audio buffer size: ${audioBuffer.length} bytes`);
     
-    sendLog('info', `TTS generated (${audioBuffer.length} bytes) in ${ttsResponseTime}ms, streaming to Twilio`, { 
-      conversationId: connection.conversationId, 
-      audioSize: audioBuffer.length,
-      mulawSize: mulaw8k.length,
-      responseTime: ttsResponseTime 
-    });
+    const mulaw8k = pcm16kToMulaw8k(audioBuffer);
+    console.log(`[Media Stream] 🔄 Converted to mulaw 8kHz: ${mulaw8k.length} bytes`);
 
     // Twilio expects mulaw 8kHz; 100ms = 800 bytes
     const chunkSize = 800;
@@ -444,19 +429,18 @@ async function streamAudioResponse(connection, text, voiceId) {
           media: { payload: base64Chunk },
         }));
         chunksSent++;
+      } else {
+        console.warn(`[Media Stream] ⚠️  WebSocket not open, cannot send chunk ${chunksSent}`);
+        break;
       }
     }
     
-    const totalTime = Date.now() - ttsStartTime;
-    sendLog('info', `Audio streamed to Twilio (${chunksSent} chunks) in ${totalTime}ms total`, { 
-      conversationId: connection.conversationId, 
-      chunksSent,
-      totalTime 
-    });
+    console.log(`[Media Stream] ✅ Successfully sent ${chunksSent} audio chunks to Twilio`);
   } catch (error) {
-    sendLog('error', `Error streaming audio: ${error.message}`, { 
-      conversationId: connection.conversationId, 
-      error: error.message 
+    console.error(`[Media Stream] ❌ Error streaming audio:`, {
+      error: error.message,
+      stack: error.stack,
+      voiceId: voiceId || DEFAULT_VOICE_ID,
     });
   }
 }
@@ -481,12 +465,8 @@ server.on('upgrade', (request, socket, head) => {
 
 // Start server - bind to 0.0.0.0 to accept connections from Railway's reverse proxy
 server.listen(PORT, '0.0.0.0', () => {
-  sendLog('info', `WebSocket server started`, { 
-    port: PORT, 
-    nextjsApiUrl: NEXTJS_API_URL,
-    elevenlabsConfigured: !!ELEVENLABS_API_KEY 
-  });
   console.log(`[Media Stream] WebSocket server listening on port ${PORT}`);
   console.log(`[Media Stream] Next.js API URL: ${NEXTJS_API_URL}`);
   console.log(`[Media Stream] Server bound to 0.0.0.0 (accepting external connections)`);
+  console.log(`[Media Stream] ✅ Server started successfully - ready for connections`);
 });
