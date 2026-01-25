@@ -252,8 +252,11 @@ You CAN generate PDFs - when users ask for a PDF, provide the content in a well-
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
+      // Use gpt-4o-mini (supports vision) or gpt-4o if images are present
+      const model = images && images.length > 0 ? "gpt-4o-mini" : "gpt-4o-mini"; // gpt-4o-mini supports vision
+      
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: model,
         messages,
         temperature: 0.3, // Reduced from 0.7 for faster, more deterministic responses
         max_tokens: 500, // Reduced from 1000 for faster generation
