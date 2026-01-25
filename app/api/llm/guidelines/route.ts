@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { agentId, chatId, name, template, isAgentTemplate, pdfUrl, pdfExtractedText } = await req.json();
+    const { agentId, chatId, name, template, isAgentTemplate, pdfUrl, pdfExtractedText, imageInstructions, pdfAnnotations } = await req.json();
 
     // Either template or pdfUrl must be provided
     if ((!template || typeof template !== "string" || template.trim() === "") && (!pdfUrl || typeof pdfUrl !== "string" || pdfUrl.trim() === "")) {
@@ -130,6 +130,8 @@ export async function POST(req: NextRequest) {
         template: template || null,
         pdf_url: pdfUrl || null,
         pdf_extracted_text: pdfExtractedText || null,
+        image_instructions: imageInstructions || null,
+        pdf_annotations: pdfAnnotations || null,
         is_agent_template: isAgentTemplate !== false,
       })
       .select()
@@ -161,7 +163,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id, name, template, isActive, pdfUrl, pdfExtractedText } = await req.json();
+    const { id, name, template, isActive, isAgentTemplate, pdfUrl, pdfExtractedText, imageInstructions, pdfAnnotations } = await req.json();
 
     if (!id) {
       return NextResponse.json({ error: "Guideline ID is required" }, { status: 400 });
@@ -178,12 +180,44 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Guideline not found" }, { status: 404 });
     }
 
+    // Validate: either template or pdfUrl must be provided (unless we're just updating name/isActive)
+    const hasTemplate = template !== undefined && template !== null && template.trim() !== "";
+    const hasPdfUrl = pdfUrl !== undefined && pdfUrl !== null && pdfUrl.trim() !== "";
+    const isOnlyMetadataUpdate = name !== undefined || isActive !== undefined || isAgentTemplate !== undefined;
+    
+    if (!isOnlyMetadataUpdate && !hasTemplate && !hasPdfUrl) {
+      // Check existing guideline to see if it has content
+      const { data: current } = await supabaseAdmin
+        .from("llm_guidelines")
+        .select("template, pdf_url")
+        .eq("id", id)
+        .single();
+      
+      const currentHasContent = (current?.template && current.template.trim() !== "") || (current?.pdf_url && current.pdf_url.trim() !== "");
+      
+      if (!currentHasContent) {
+        return NextResponse.json({ error: "Template content or PDF file is required" }, { status: 400 });
+      }
+    }
+
     const updateData: any = { updated_at: new Date().toISOString() };
     if (name !== undefined) updateData.name = name;
-    if (template !== undefined) updateData.template = template;
-    if (pdfUrl !== undefined) updateData.pdf_url = pdfUrl;
-    if (pdfExtractedText !== undefined) updateData.pdf_extracted_text = pdfExtractedText;
+    if (template !== undefined) {
+      // If template is empty string and we have PDF, set to null. Otherwise use the value.
+      updateData.template = (template === "" && pdfUrl) ? null : template;
+    }
+    if (pdfUrl !== undefined) {
+      updateData.pdf_url = pdfUrl || null;
+      // If PDF is removed, also clear extracted text
+      if (!pdfUrl || pdfUrl.trim() === "") {
+        updateData.pdf_extracted_text = null;
+      }
+    }
+    if (pdfExtractedText !== undefined) updateData.pdf_extracted_text = pdfExtractedText || null;
+    if (imageInstructions !== undefined) updateData.image_instructions = imageInstructions || null;
+    if (pdfAnnotations !== undefined) updateData.pdf_annotations = pdfAnnotations || null;
     if (isActive !== undefined) updateData.is_active = isActive;
+    if (isAgentTemplate !== undefined) updateData.is_agent_template = isAgentTemplate;
 
     const { data: guideline, error } = await supabaseAdmin
       .from("llm_guidelines")

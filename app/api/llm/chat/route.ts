@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
       try {
         let guidelinesQuery = supabaseAdmin
           .from("llm_guidelines")
-          .select("template, name, is_agent_template, pdf_url, pdf_extracted_text")
+          .select("template, name, is_agent_template, pdf_url, pdf_extracted_text, image_instructions, pdf_annotations")
           .eq("is_active", true)
           .order("is_agent_template", { ascending: false });
 
@@ -68,12 +68,45 @@ export async function POST(req: NextRequest) {
             // Combine all active guidelines, prioritizing agent-level templates
             const combinedTemplate = validGuidelines
               .map((g) => {
+                let content = "";
+                
                 // Use PDF extracted text if available, otherwise use template text
-                const content = g.pdf_extracted_text || g.template || "";
+                const mainContent = g.pdf_extracted_text || g.template || "";
+                if (mainContent) {
+                  content += mainContent;
+                }
+                
+                // Add PDF annotations if present
+                if (g.pdf_annotations && Array.isArray(g.pdf_annotations) && g.pdf_annotations.length > 0) {
+                  content += "\n\n--- PDF ANNOTATIONS ---\n";
+                  content += "The following annotations provide additional context about the PDF template:\n";
+                  g.pdf_annotations.forEach((ann: any) => {
+                    if (ann.annotation) {
+                      content += `\n[Page ${ann.page || 'N/A'}${ann.section ? ` - ${ann.section}` : ''}]: ${ann.annotation}`;
+                      if (ann.highlight) {
+                        content += `\n  Key Points: ${ann.highlight}`;
+                      }
+                    }
+                  });
+                }
+                
                 return `[${g.name}]\n${content}`;
               })
               .join("\n\n---\n\n");
-            guidelinesContent = `\n\nCUSTOM GUIDELINES & TEMPLATES:\nThe user has provided specific guidelines and templates that you MUST follow. These override default behavior when applicable:\n\n${combinedTemplate}\n\nWhen following these guidelines, pay attention to inline comments (marked with // or #) as they provide important context about what to do.`;
+            
+            // Collect image instructions from all guidelines
+            const imageInstructionsList = validGuidelines
+              .filter((g) => g.image_instructions && g.image_instructions.trim() !== "")
+              .map((g) => g.image_instructions)
+              .join("\n\n");
+            
+            guidelinesContent = `\n\nCUSTOM GUIDELINES & TEMPLATES:\nThe user has provided specific guidelines and templates that you MUST follow. These override default behavior when applicable:\n\n${combinedTemplate}`;
+            
+            if (imageInstructionsList) {
+              guidelinesContent += `\n\n--- IMAGE HANDLING INSTRUCTIONS ---\nThe following instructions apply when working with images:\n${imageInstructionsList}`;
+            }
+            
+            guidelinesContent += `\n\nWhen following these guidelines, pay attention to inline comments (marked with // or #) as they provide important context about what to do.`;
           }
         }
       } catch (error) {

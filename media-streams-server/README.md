@@ -35,16 +35,14 @@ npm start
 
 ## Environment Variables
 
-- `PORT` - Server port (default: 3001)
-- `NEXTJS_API_URL` - Your Next.js API URL (e.g., https://driftai.studio)
-- `ELEVENLABS_API_KEY` - Your ElevenLabs API key
+- `PORT` - Server port (default: 3001, Railway uses 8080 when not set)
+- `NEXTJS_API_URL` - **Required.** Your Next.js API base URL (e.g. `https://driftai.studio`). Used for `/api/twilio/media-stream-lookup` and `/api/twilio/media-stream-execute`.
+- `ELEVENLABS_API_KEY` - **Required.** ElevenLabs API key for TTS.
 
 ## Twilio Configuration
 
-1. Go to Twilio Console > Phone Numbers
-2. Select your phone number
-3. Enable "Media Streams"
-4. Set WebSocket URL: `wss://your-server.com/media-stream`
+1. **Voice webhook**: Phone Number → Voice → "A call comes in" → Webhook URL = `https://your-app.com/api/twilio/media-stream` (your Vercel/production URL).
+2. The Stream URL (`wss://your-railway-app.up.railway.app/media-stream`) is set in TwiML by the app; configure `RAILWAY_WEBSOCKET_URL` in Vercel.
 
 ## Testing
 
