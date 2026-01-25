@@ -106,6 +106,8 @@ wss.on('connection', (ws, req) => {
     audioBuffer: Buffer.alloc(0),
     isConnected: true,
     lastActivity: Date.now(),
+    lastProcessTime: 0, // Track when we last processed audio
+    processTimer: null, // Timer for periodic processing
   };
 
   activeConnections.set(connectionId, connection);
@@ -183,9 +185,17 @@ wss.on('connection', (ws, req) => {
         
         // Accumulate audio for speech-to-text processing
         connection.audioBuffer = Buffer.concat([connection.audioBuffer, audioChunk]);
+        connection.lastActivity = Date.now();
         
-        // Process audio chunks (every 2 seconds or when buffer is large enough)
-        if (connection.audioBuffer.length > 32000) { // ~2 seconds of audio at 8kHz
+        // Process audio chunks more frequently for better responsiveness
+        // 12000 bytes = ~1.5 seconds of mulaw 8kHz audio
+        // Also process if we haven't processed in 2 seconds (catches short utterances)
+        const timeSinceLastProcess = Date.now() - connection.lastProcessTime;
+        const shouldProcess = connection.audioBuffer.length > 12000 || (timeSinceLastProcess > 2000 && connection.audioBuffer.length > 4000);
+        
+        if (shouldProcess && connection.audioBuffer.length > 0) {
+          console.log(`[Media Stream] 📊 Processing audio: ${connection.audioBuffer.length} bytes, ${timeSinceLastProcess}ms since last process`);
+          connection.lastProcessTime = Date.now();
           await processAudioChunk(connection);
         }
       } else if (data.event === 'stop') {
@@ -226,10 +236,9 @@ async function processAudioChunk(connection) {
   if (connection.audioBuffer.length === 0) return;
 
   try {
-    // For now, we'll use Twilio's speech recognition via the regular API
-    // In production, you might want to use a real-time STT service
+    console.log(`[Media Stream] 🎤 Processing audio chunk: ${connection.audioBuffer.length} bytes`);
     
-    // Send audio to Next.js API for processing
+    // Send audio to Next.js API for speech-to-text processing
     const response = await fetch(`${NEXTJS_API_URL}/api/twilio/media-stream-process`, {
       method: 'POST',
       headers: {
@@ -244,17 +253,25 @@ async function processAudioChunk(connection) {
 
     if (response.ok) {
       const result = await response.json();
+      console.log(`[Media Stream] 📝 STT result: "${result.text || '(empty)'}"`);
       
       if (result.text && result.text.trim().length > 0) {
+        console.log(`[Media Stream] ✅ Got transcription: "${result.text}"`);
         // Process the transcribed text through agent executor
         await processUserInput(connection, result.text);
+      } else {
+        console.log(`[Media Stream] ⚠️  Empty transcription - user might not have spoken yet`);
       }
+    } else {
+      const errorText = await response.text();
+      console.error(`[Media Stream] ❌ STT API error: ${response.status} ${errorText}`);
     }
 
     // Clear buffer after processing
     connection.audioBuffer = Buffer.alloc(0);
   } catch (error) {
-    console.error(`[Media Stream] Error processing audio: ${error.message}`);
+    console.error(`[Media Stream] ❌ Error processing audio: ${error.message}`);
+    console.error(`[Media Stream] Error stack:`, error.stack);
   }
 }
 
@@ -602,6 +619,9 @@ function cleanupConnection(connectionId) {
   const connection = activeConnections.get(connectionId);
   if (connection) {
     connection.isConnected = false;
+    if (connection.processTimer) {
+      clearTimeout(connection.processTimer);
+    }
     activeConnections.delete(connectionId);
     console.log(`[Media Stream] Cleaned up connection: ${connectionId}`);
   }
