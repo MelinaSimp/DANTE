@@ -39,9 +39,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "File is required" }, { status: 400 });
     }
 
-    if (file.type !== "application/pdf") {
+    // Support both PDFs and images
+    const isPDF = file.type === "application/pdf";
+    const isImage = file.type.startsWith("image/");
+    
+    if (!isPDF && !isImage) {
       return NextResponse.json(
-        { error: "Only PDF files are supported" },
+        { error: "Only PDF and image files (PNG, JPG, JPEG, GIF, WebP) are supported" },
         { status: 400 }
       );
     }
@@ -76,66 +80,71 @@ export async function POST(req: NextRequest) {
       data: { publicUrl },
     } = supabaseAdmin.storage.from("agent-files").getPublicUrl(fileName);
 
-    // Extract text from PDF using OpenAI (simplified approach)
+    // Process file based on type
     let extractedText: string | undefined;
-    const apiKey = process.env.OPENAI_API_KEY;
+    let imageBase64: string | undefined;
+    
+    if (isImage) {
+      // For images, convert to base64 for OpenAI vision API
+      imageBase64 = buffer.toString('base64');
+      extractedText = `[Image file uploaded: ${file.name}. Image will be sent to vision model for analysis.]`;
+    } else if (isPDF) {
+      // Extract text from PDF using OpenAI (simplified approach)
+      const apiKey = process.env.OPENAI_API_KEY;
 
-    if (apiKey) {
-      try {
-        // Upload PDF to OpenAI
-        const pdfFile = new File([buffer], file.name, { type: "application/pdf" });
-        const openAIFormData = new FormData();
-        openAIFormData.append("file", pdfFile);
-        openAIFormData.append("purpose", "assistants");
+      if (apiKey) {
+        try {
+          // Upload PDF to OpenAI
+          const pdfFile = new File([buffer], file.name, { type: "application/pdf" });
+          const openAIFormData = new FormData();
+          openAIFormData.append("file", pdfFile);
+          openAIFormData.append("purpose", "assistants");
 
-        const uploadResponse = await fetch("https://api.openai.com/v1/files", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-          },
-          body: openAIFormData,
-        });
+          const uploadResponse = await fetch("https://api.openai.com/v1/files", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+            },
+            body: openAIFormData,
+          });
 
-        if (uploadResponse.ok) {
-          const uploadData = await uploadResponse.json();
-          const fileId = uploadData.id;
+          if (uploadResponse.ok) {
+            const uploadData = await uploadResponse.json();
+            const fileId = uploadData.id;
 
-          // Wait for file processing (up to 15 seconds)
-          let processed = false;
-          for (let i = 0; i < 15; i++) {
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-            const statusResponse = await fetch(
-              `https://api.openai.com/v1/files/${fileId}`,
-              {
-                headers: { Authorization: `Bearer ${apiKey}` },
+            // Wait for file processing (up to 15 seconds)
+            let processed = false;
+            for (let i = 0; i < 15; i++) {
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+              const statusResponse = await fetch(
+                `https://api.openai.com/v1/files/${fileId}`,
+                {
+                  headers: { Authorization: `Bearer ${apiKey}` },
+                }
+              );
+              const statusData = await statusResponse.json();
+              if (statusData.status === "processed") {
+                processed = true;
+                extractedText = `[PDF file uploaded: ${file.name}. File ID: ${fileId}. Content will be accessible via OpenAI file API.]`;
+                break;
+              } else if (statusData.status === "error") {
+                break;
               }
-            );
-            const statusData = await statusResponse.json();
-            if (statusData.status === "processed") {
-              processed = true;
-              // Store fileId for later use - we'll include it in the chat context
-              // For now, we'll use a simpler approach: include file reference in system message
-              extractedText = `[PDF file uploaded: ${file.name}. File ID: ${fileId}. Content will be accessible via OpenAI file API.]`;
-              break;
-            } else if (statusData.status === "error") {
-              break;
+            }
+
+            if (!processed) {
+              console.warn(`PDF ${file.name} processing timed out or failed`);
             }
           }
-
-          if (!processed) {
-            console.warn(`PDF ${file.name} processing timed out or failed`);
-          }
+        } catch (error: any) {
+          console.error("PDF extraction error:", error);
         }
-      } catch (error: any) {
-        console.error("PDF extraction error:", error);
-        // Continue without extracted text - LLM can still reference the file URL
       }
-    }
-    
-    // If OpenAI extraction didn't work, we'll use the file URL and let the LLM know
-    // The LLM can reference the file in its response, and users can download it
-    if (!extractedText) {
-      extractedText = `[PDF file available: ${file.name} at ${publicUrl}. Content extraction in progress or unavailable.]`;
+      
+      // If OpenAI extraction didn't work, we'll use the file URL
+      if (!extractedText) {
+        extractedText = `[PDF file available: ${file.name} at ${publicUrl}. Content extraction in progress or unavailable.]`;
+      }
     }
 
     return NextResponse.json({
@@ -145,6 +154,7 @@ export async function POST(req: NextRequest) {
       type: file.type,
       size: file.size,
       extractedText: extractedText,
+      imageBase64: imageBase64, // Include base64 for images
     });
   } catch (error: any) {
     console.error("LLM Upload API error:", error);

@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { message, history = [], agentId, chatId, files = [] } = await req.json();
+    const { message, history = [], agentId, chatId, files = [], images = [] } = await req.json();
 
     if (!message || typeof message !== "string" || message.trim().length === 0) {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
@@ -57,15 +57,24 @@ export async function POST(req: NextRequest) {
         const { data: guidelines } = await guidelinesQuery;
 
         if (guidelines && guidelines.length > 0) {
-          // Combine all active guidelines, prioritizing agent-level templates
-          const combinedTemplate = guidelines
-            .map((g) => {
-              // Use PDF extracted text if available, otherwise use template text
-              const content = g.pdf_extracted_text || g.template || "";
-              return `[${g.name}]\n${content}`;
-            })
-            .join("\n\n---\n\n");
-          guidelinesContent = `\n\nCUSTOM GUIDELINES & TEMPLATES:\nThe user has provided specific guidelines and templates that you MUST follow. These override default behavior when applicable:\n\n${combinedTemplate}\n\nWhen following these guidelines, pay attention to inline comments (marked with // or #) as they provide important context about what to do.`;
+          // Filter out guidelines with no content and combine all active guidelines
+          const validGuidelines = guidelines.filter((g) => {
+            const hasContent = (g.pdf_extracted_text && g.pdf_extracted_text.trim() !== "") || 
+                              (g.template && g.template.trim() !== "");
+            return hasContent;
+          });
+
+          if (validGuidelines.length > 0) {
+            // Combine all active guidelines, prioritizing agent-level templates
+            const combinedTemplate = validGuidelines
+              .map((g) => {
+                // Use PDF extracted text if available, otherwise use template text
+                const content = g.pdf_extracted_text || g.template || "";
+                return `[${g.name}]\n${content}`;
+              })
+              .join("\n\n---\n\n");
+            guidelinesContent = `\n\nCUSTOM GUIDELINES & TEMPLATES:\nThe user has provided specific guidelines and templates that you MUST follow. These override default behavior when applicable:\n\n${combinedTemplate}\n\nWhen following these guidelines, pay attention to inline comments (marked with // or #) as they provide important context about what to do.`;
+          }
         }
       } catch (error) {
         console.error("Error loading guidelines:", error);
@@ -176,14 +185,64 @@ You CAN generate PDFs - when users ask for a PDF, provide the content in a well-
 5. Provide a brief explanation of what the chart shows`;
     }
     
+    // Build user message with images and files
+    const userMessageContent: Array<{ type: "text" | "image_url"; text?: string; image_url?: { url: string } }> = [];
+    
+    // Add text content
+    if (userMessage.trim().length > 0) {
+      userMessageContent.push({ type: "text", text: userMessage });
+    }
+    
+    // Add images (base64 encoded)
+    if (images && images.length > 0) {
+      images.forEach((img: any) => {
+        if (img.imageBase64) {
+          // Determine MIME type from file extension or type
+          let mimeType = "image/png";
+          if (img.type) {
+            mimeType = img.type;
+          } else if (img.name) {
+            const ext = img.name.toLowerCase().split('.').pop();
+            const mimeTypes: Record<string, string> = {
+              'jpg': 'image/jpeg',
+              'jpeg': 'image/jpeg',
+              'png': 'image/png',
+              'gif': 'image/gif',
+              'webp': 'image/webp',
+            };
+            mimeType = mimeTypes[ext || ''] || 'image/png';
+          }
+          
+          userMessageContent.push({
+            type: "image_url",
+            image_url: {
+              url: `data:${mimeType};base64,${img.imageBase64}`
+            }
+          });
+        }
+      });
+    }
+    
+    // Add file references to text
     if (files && files.length > 0) {
       const fileNames = files.map((f: any) => f.name).join(", ");
-      userMessage += `\n\n[User has attached ${files.length} PDF file(s): ${fileNames}. Please reference the content from these files when answering.]`;
+      const fileText = `\n\n[User has attached ${files.length} PDF file(s): ${fileNames}. Please reference the content from these files when answering.]`;
+      
+      if (userMessageContent.length > 0 && userMessageContent[0].type === "text") {
+        userMessageContent[0].text += fileText;
+      } else {
+        userMessageContent.unshift({ type: "text", text: fileText });
+      }
+    }
+    
+    // If no text content, add a default message
+    if (userMessageContent.length === 0) {
+      userMessageContent.push({ type: "text", text: "Please analyze this image." });
     }
     
     messages.push({
       role: "user",
-      content: userMessage,
+      content: userMessageContent,
     });
 
     // Call OpenAI API

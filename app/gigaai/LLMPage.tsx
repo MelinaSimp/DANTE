@@ -36,6 +36,7 @@ interface UploadedFile {
   type: string;
   size: number;
   extractedText?: string;
+  imageBase64?: string; // Base64 encoded image for vision API
 }
 
 interface Chat {
@@ -247,11 +248,18 @@ export default function LLMPage({ agentId }: LLMPageProps) {
           message: userMessage.content,
           history: messages.slice(-10),
           agentId: agentId,
-          files: uploadedFiles.map((f) => ({
+          files: uploadedFiles.filter(f => f.type === "application/pdf").map((f) => ({
             id: f.id,
             name: f.name,
             url: f.url,
             extractedText: f.extractedText,
+          })),
+          images: uploadedFiles.filter(f => f.type.startsWith("image/")).map((f) => ({
+            id: f.id,
+            name: f.name,
+            url: f.url,
+            type: f.type,
+            imageBase64: f.imageBase64,
           })),
         }),
       });
@@ -351,8 +359,11 @@ export default function LLMPage({ agentId }: LLMPageProps) {
     const newFiles: UploadedFile[] = [];
 
     for (const file of Array.from(files)) {
-      if (file.type !== "application/pdf") {
-        alert(`Only PDF files are supported. ${file.name} is not a PDF.`);
+      const isPDF = file.type === "application/pdf";
+      const isImage = file.type.startsWith("image/");
+      
+      if (!isPDF && !isImage) {
+        alert(`Only PDF and image files (PNG, JPG, JPEG, GIF, WebP) are supported. ${file.name} is not a supported file type.`);
         continue;
       }
 
@@ -378,6 +389,7 @@ export default function LLMPage({ agentId }: LLMPageProps) {
           type: file.type,
           size: file.size,
           extractedText: uploadData.extractedText,
+          imageBase64: uploadData.imageBase64, // Include base64 for images
         });
       } catch (error: any) {
         console.error(`Failed to upload ${file.name}:`, error);
@@ -708,7 +720,7 @@ export default function LLMPage({ agentId }: LLMPageProps) {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".pdf,application/pdf"
+                  accept=".pdf,application/pdf,image/*,.png,.jpg,.jpeg,.gif,.webp"
                   multiple
                   onChange={handleFileSelect}
                   className="hidden"
