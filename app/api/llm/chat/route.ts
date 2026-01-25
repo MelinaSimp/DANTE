@@ -142,7 +142,10 @@ You CAN generate PDFs - when users ask for a PDF, provide the content in a well-
       systemContent += `\n\nThe user has uploaded ${files.length} PDF file(s). You can reference these files when answering questions. File details:\n${pdfInfo.join("\n")}\n\nWhen answering questions about the PDFs, be specific and reference the content. If asked to "spit out" or show the PDF content, provide a summary of the key information from the documents.`;
     }
     
-    const messages: Array<{ role: "user" | "assistant" | "system"; content: string }> = [
+    const messages: Array<{ 
+      role: "user" | "assistant" | "system"; 
+      content: string | Array<{ type: "text" | "image_url"; text?: string; image_url?: { url: string } }> 
+    }> = [
       {
         role: "system",
         content: systemContent,
