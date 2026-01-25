@@ -402,8 +402,9 @@ async function streamAudioResponse(connection, text, voiceId) {
     console.log(`[Media Stream] 📞 Calling ElevenLabs API for voice ${effectiveVoiceId}...`);
     const ttsStartTime = Date.now();
     
+    // Try to get PCM format - use explicit format parameter
     const ttsResponse = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${effectiveVoiceId}`,
+      `https://api.elevenlabs.io/v1/text-to-speech/${effectiveVoiceId}?output_format=pcm_16000`,
       {
         method: 'POST',
         headers: {
@@ -438,6 +439,82 @@ async function streamAudioResponse(connection, text, voiceId) {
 
     console.log(`[Media Stream] ✅ ElevenLabs response OK, processing audio...`);
     const audioBuffer = Buffer.from(await ttsResponse.arrayBuffer());
+    
+    // Check if we got MP3 instead of PCM (ElevenLabs sometimes returns MP3 even when requesting PCM)
+    if (contentType.includes('mpeg') || contentType.includes('mp3')) {
+      console.error(`[Media Stream] ❌ CRITICAL ERROR: ElevenLabs returned MP3 (${contentType}) instead of PCM!`);
+      console.error(`[Media Stream] ❌ This causes screeching noise. ElevenLabs API is not respecting output_format='pcm_16000'`);
+      console.error(`[Media Stream] ❌ Attempting workaround: Requesting raw PCM without format parameter...`);
+      
+      // Try again with a different approach - request raw PCM
+      const retryResponse = await fetch(
+        `https://api.elevenlabs.io/v1/text-to-speech/${effectiveVoiceId}`,
+        {
+          method: 'POST',
+          headers: {
+            'Accept': 'audio/pcm;rate=16000', // More explicit PCM request
+            'Content-Type': 'application/json',
+            'xi-api-key': ELEVENLABS_API_KEY,
+          },
+          body: JSON.stringify({
+            text: text.trim(),
+            model_id: 'eleven_turbo_v2_5',
+            voice_settings: { stability: 0.15, similarity_boost: 0.4 },
+            // Don't specify output_format - let Accept header handle it
+          }),
+        }
+      );
+      
+      const retryContentType = retryResponse.headers.get('content-type') || 'unknown';
+      console.log(`[Media Stream] Retry content-type: ${retryContentType}`);
+      
+      if (retryContentType.includes('mpeg') || retryContentType.includes('mp3')) {
+        console.error(`[Media Stream] ❌ Retry also returned MP3. ElevenLabs API issue.`);
+        console.error(`[Media Stream] ❌ Cannot proceed - MP3 cannot be converted to mulaw without decoding.`);
+        return;
+      }
+      
+      // Use retry response
+      const retryBuffer = Buffer.from(await retryResponse.arrayBuffer());
+      console.log(`[Media Stream] 📦 Retry audio buffer size: ${retryBuffer.length} bytes (PCM 16kHz from ElevenLabs)`);
+      const mulaw8k = pcm16kToMulaw8k(retryBuffer);
+      console.log(`[Media Stream] 🔄 Converted to mulaw 8kHz: ${mulaw8k.length} bytes`);
+      
+      // Continue with mulaw8k from retry
+      const chunkSize = 800;
+      const totalChunks = Math.ceil(mulaw8k.length / chunkSize);
+      let chunksSent = 0;
+      
+      console.log(`[Media Stream] 📤 Streaming ${totalChunks} audio chunks to Twilio at real-time rate (${(totalChunks * 0.1).toFixed(1)}s of audio)...`);
+      
+      for (let i = 0; i < mulaw8k.length; i += chunkSize) {
+        const chunk = mulaw8k.slice(i, i + chunkSize);
+        const chunkIndex = Math.floor(i / chunkSize);
+        
+        setTimeout(() => {
+          if (connection.ws.readyState === WebSocket.OPEN && connection.streamSid) {
+            const base64Chunk = chunk.toString('base64');
+            const mediaMessage = {
+              event: 'media',
+              streamSid: connection.streamSid,
+              media: { payload: base64Chunk },
+            };
+            try {
+              connection.ws.send(JSON.stringify(mediaMessage));
+              chunksSent++;
+              if (chunksSent === totalChunks) {
+                console.log(`[Media Stream] ✅ Successfully streamed all ${chunksSent} audio chunks`);
+              }
+            } catch (sendError) {
+              console.error(`[Media Stream] ❌ Error sending chunk ${chunkIndex}:`, sendError.message);
+            }
+          }
+        }, chunkIndex * 100);
+      }
+      return; // Exit early
+    }
+    
+    // Normal PCM path
     console.log(`[Media Stream] 📦 Audio buffer size: ${audioBuffer.length} bytes (PCM 16kHz from ElevenLabs)`);
     
     // Convert PCM 16kHz to mulaw 8kHz for Twilio
