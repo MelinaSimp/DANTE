@@ -246,15 +246,15 @@ You CAN generate PDFs - when users ask for a PDF, provide the content in a well-
     });
 
     // Call OpenAI API
+    // Use gpt-4o-mini (supports vision) for all requests
+    const model = "gpt-4o-mini"; // gpt-4o-mini supports vision
+    
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      // Use gpt-4o-mini (supports vision) or gpt-4o if images are present
-      const model = images && images.length > 0 ? "gpt-4o-mini" : "gpt-4o-mini"; // gpt-4o-mini supports vision
-      
       body: JSON.stringify({
         model: model,
         messages,
