@@ -302,14 +302,22 @@ async function processAudioChunk(connection) {
         const rmsValue = result.debug?.rms ? parseFloat(result.debug.rms) : 0;
         const transcription = result.text.trim();
         
-        // Filter out false positives: very short transcriptions with low RMS
-        // These are likely the agent's own voice or background noise being mis-transcribed
-        const isVeryShort = transcription.split(/\s+/).length <= 2; // 1-2 words
-        const isLowRMS = rmsValue < 100; // Low audio level
+        // Filter out false positives: very short transcriptions that are likely noise
+        // These are often the agent's own voice or background noise being mis-transcribed
+        const words = transcription.split(/\s+/);
+        const wordCount = words.length;
+        const isVeryShort = wordCount <= 2; // 1-2 words
         const isCommonFalsePositive = /^(you|for|\.|\.\s*\.|yes|no|ok|okay|uh|um|ah)$/i.test(transcription);
         
-        if (isVeryShort && isLowRMS && isCommonFalsePositive) {
-          console.log(`[Media Stream] ⚠️  Ignoring likely false positive: "${transcription}" (RMS: ${rmsValue.toFixed(2)}, too short/low)`);
+        // More aggressive filtering for single-word common false positives
+        // Single words like "for", "you" are almost always false positives, even with higher RMS
+        const isSingleWordFalsePositive = wordCount === 1 && isCommonFalsePositive && rmsValue < 500;
+        
+        // For 2-word combinations, require low RMS (more strict)
+        const isTwoWordFalsePositive = wordCount === 2 && isCommonFalsePositive && rmsValue < 100;
+        
+        if (isSingleWordFalsePositive || isTwoWordFalsePositive) {
+          console.log(`[Media Stream] ⚠️  Ignoring likely false positive: "${transcription}" (RMS: ${rmsValue.toFixed(2)}, ${wordCount} word(s), too short/common)`);
           // Treat as silence for silence detection
           connection.consecutiveSilences++;
           const timeSinceGreeting = Date.now() - connection.greetingStartTime;
