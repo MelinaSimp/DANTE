@@ -47,12 +47,15 @@ export async function POST(req: NextRequest) {
         sumSquares += pcm8kSamples[i] * pcm8kSamples[i];
       }
       const rms = Math.sqrt(sumSquares / pcm8kSamples.length);
-      const silenceThreshold = 100; // Threshold for detecting silence
+      const silenceThreshold = 50; // Lowered threshold - was 100, might have been too aggressive
       console.log(`[Media Stream Process] Audio RMS: ${rms.toFixed(2)} (threshold: ${silenceThreshold})`);
       
+      // Return RMS in response for debugging (even if we skip Whisper)
+      const debugInfo = { rms: rms.toFixed(2), threshold: silenceThreshold, audioLength: pcm8kSamples.length };
+      
       if (rms < silenceThreshold) {
-        console.log(`[Media Stream Process] ⚠️  Audio appears to be silence, skipping Whisper call`);
-        return NextResponse.json({ text: "", confidence: 0 });
+        console.log(`[Media Stream Process] ⚠️  Audio appears to be silence (RMS: ${rms.toFixed(2)} < ${silenceThreshold}), skipping Whisper call`);
+        return NextResponse.json({ text: "", confidence: 0, debug: debugInfo });
       }
       
       // Step 2: Upsample PCM 8kHz to PCM 16kHz using linear interpolation
@@ -137,6 +140,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
           text: transcribedText,
           confidence: 1.0, // Whisper doesn't provide confidence scores
+          debug: debugInfo, // Include debug info for troubleshooting
         });
       } else {
         const errorText = await whisperResponse.text();

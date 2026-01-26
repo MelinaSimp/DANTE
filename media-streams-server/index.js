@@ -274,12 +274,20 @@ async function processAudioChunk(connection) {
       const result = await response.json();
       console.log(`[Media Stream] 📝 STT result: "${result.text || '(empty)'}"`);
       
+      // Log debug info if available
+      if (result.debug) {
+        console.log(`[Media Stream] 🔍 Debug info:`, JSON.stringify(result.debug));
+      }
+      
       if (result.text && result.text.trim().length > 0) {
         console.log(`[Media Stream] ✅ Got transcription: "${result.text}"`);
         // Process the transcribed text through agent executor
         await processUserInput(connection, result.text);
       } else {
         console.log(`[Media Stream] ⚠️  Empty transcription - user might not have spoken yet or audio was silence`);
+        if (result.debug) {
+          console.log(`[Media Stream] 🔍 Audio RMS was ${result.debug.rms}, threshold is ${result.debug.threshold}`);
+        }
       }
     } else {
       const errorText = await response.text();
