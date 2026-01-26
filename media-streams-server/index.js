@@ -483,6 +483,12 @@ async function processUserInput(connection, userInput) {
       const result = await response.json();
       
         if (result.output && result.output.trim().length > 0) {
+          // Check if agent is already speaking - prevent overlapping TTS calls
+          if (connection.isSpeaking) {
+            console.log(`[Media Stream] ⚠️  Skipping TTS - agent is already speaking. Output: "${result.output.substring(0, 50)}..."`);
+            return;
+          }
+          
           connection.isSpeaking = true; // Agent is about to speak
           connection.consecutiveSilences = 0; // Reset silence counter when agent starts speaking
           const ttsStartTime = Date.now();
@@ -726,6 +732,11 @@ async function streamAudioResponse(connection, text, voiceId) {
           if (chunksSent === totalChunks) {
             console.log(`[Media Stream] ✅ Successfully streamed all ${chunksSent} audio chunks to Twilio`);
             console.log(`[Media Stream] 📊 Total audio duration: ~${(totalChunks * 0.1).toFixed(1)}s`);
+            
+            // Wait a small buffer (500ms) to ensure audio has finished playing before allowing new TTS
+            // This prevents overlapping audio from concurrent TTS calls
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
             connection.isSpeaking = false; // Agent finished speaking
             connection.lastAgentSpeechEndTime = Date.now(); // Track when agent finished
             connection.consecutiveSilences = 0; // Reset silence counter after agent speaks
@@ -766,6 +777,17 @@ async function streamAudioResponse(connection, text, voiceId) {
 async function endCallWithMessage(connection, message) {
   try {
     console.log(`[Media Stream] 🛑 Ending call with message: "${message}"`);
+    
+    // Check if agent is already speaking - if so, skip the message and just close
+    if (connection.isSpeaking) {
+      console.log(`[Media Stream] ⚠️  Agent is already speaking, skipping end message and closing connection`);
+      if (connection.ws && connection.ws.readyState === WebSocket.OPEN) {
+        connection.ws.close();
+        console.log(`[Media Stream] ✅ Closed WebSocket connection`);
+      }
+      cleanupConnection(connection.id);
+      return;
+    }
     
     // Send the message via TTS first
     connection.isSpeaking = true;
