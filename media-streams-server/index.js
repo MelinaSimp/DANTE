@@ -120,6 +120,7 @@ wss.on('connection', (ws, req) => {
     lastProcessTime: 0, // Track when we last processed audio
     processTimer: null, // Timer for periodic processing
     isSpeaking: false, // Track if agent is currently speaking
+    isEndingCall: false, // Track if we're in the process of ending the call
     greetingStartTime: 0, // Track when greeting started
     consecutiveSilences: 0, // Track consecutive empty transcriptions with low RMS
     lastUserSpeechTime: 0, // Track when user last spoke (non-empty transcription)
@@ -330,6 +331,11 @@ async function processAudioChunk(connection) {
                 : Date.now() - connection.greetingStartTime;
               
               if (timeSinceLastUserSpeech >= silenceTimeout) {
+                // Double-check: Make absolutely sure agent is not speaking and we're not already ending the call
+                if (connection.isSpeaking || connection.isEndingCall) {
+                  console.log(`[Media Stream] 🔇 Silence timeout reached but agent is speaking or call is ending - skipping end call`);
+                  return;
+                }
                 console.log(`[Media Stream] 🔇 No user speech detected for ${(timeSinceLastUserSpeech / 1000).toFixed(1)}s. Ending call.`);
                 await endCallWithMessage(connection, "You have not spoken. This call will end.");
                 return;
@@ -377,6 +383,11 @@ async function processAudioChunk(connection) {
             : Date.now() - connection.greetingStartTime;
           
           if (timeSinceLastUserSpeech >= silenceTimeout) {
+            // Double-check: Make absolutely sure agent is not speaking and we're not already ending the call
+            if (connection.isSpeaking || connection.isEndingCall) {
+              console.log(`[Media Stream] 🔇 Silence timeout reached but agent is speaking or call is ending - skipping end call`);
+              return;
+            }
             console.log(`[Media Stream] 🔇 No user speech detected for ${(timeSinceLastUserSpeech / 1000).toFixed(1)}s. Ending call.`);
             await endCallWithMessage(connection, "You have not spoken. This call will end.");
             return;
@@ -487,6 +498,12 @@ async function processUserInput(connection, userInput) {
           if (connection.isSpeaking) {
             console.log(`[Media Stream] ⚠️  Skipping TTS - agent is already speaking. Output: "${result.output.substring(0, 50)}..."`);
             return;
+          }
+          
+          // If we were in the process of ending the call, cancel it since agent is responding
+          if (connection.isEndingCall) {
+            console.log(`[Media Stream] ✅ Agent is responding - cancelling end call`);
+            connection.isEndingCall = false;
           }
           
           connection.isSpeaking = true; // Agent is about to speak
@@ -776,18 +793,23 @@ async function streamAudioResponse(connection, text, voiceId) {
  */
 async function endCallWithMessage(connection, message) {
   try {
-    console.log(`[Media Stream] 🛑 Ending call with message: "${message}"`);
-    
-    // Check if agent is already speaking - if so, skip the message and just close
-    if (connection.isSpeaking) {
-      console.log(`[Media Stream] ⚠️  Agent is already speaking, skipping end message and closing connection`);
-      if (connection.ws && connection.ws.readyState === WebSocket.OPEN) {
-        connection.ws.close();
-        console.log(`[Media Stream] ✅ Closed WebSocket connection`);
-      }
-      cleanupConnection(connection.id);
+    // Prevent multiple simultaneous calls to endCallWithMessage
+    if (connection.isEndingCall) {
+      console.log(`[Media Stream] ⚠️  Call is already being ended, skipping duplicate call`);
       return;
     }
+    
+    console.log(`[Media Stream] 🛑 Ending call with message: "${message}"`);
+    
+    // Check if agent is already speaking - if so, skip ending the call entirely
+    // Don't interrupt the agent's response
+    if (connection.isSpeaking) {
+      console.log(`[Media Stream] ⚠️  Agent is already speaking, skipping end call to avoid interrupting response`);
+      return;
+    }
+    
+    // Set flag to prevent multiple calls
+    connection.isEndingCall = true;
     
     // Send the message via TTS first
     connection.isSpeaking = true;
