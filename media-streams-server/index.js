@@ -303,28 +303,27 @@ async function processAudioChunk(connection) {
         const transcription = result.text.trim();
         
         // Filter out false positives: very short transcriptions that are likely noise
-        // These are often the agent's own voice or background noise being mis-transcribed
-        const words = transcription.split(/\s+/);
-        const wordCount = words.length;
-        const isVeryShort = wordCount <= 2; // 1-2 words
-        const isCommonFalsePositive = /^(you|for|\.|\.\s*\.|yes|no|ok|okay|uh|um|ah)$/i.test(transcription);
+        // These are likely the agent's own voice or background noise being mis-transcribed
+        const isVeryShort = transcription.split(/\s+/).length <= 2; // 1-2 words
+        const isCommonFalsePositive = /^(you|for|\.|\.\s*\.|yes|no|ok|okay|uh|um|ah|for\.)$/i.test(transcription);
         
-        // More aggressive filtering for single-word common false positives
-        // Single words like "for", "you" are almost always false positives, even with higher RMS
-        const isSingleWordFalsePositive = wordCount === 1 && isCommonFalsePositive && rmsValue < 500;
+        // For known false positive words, filter them if they're very short AND either:
+        // 1. Low RMS (< 100) - definitely noise, OR
+        // 2. Medium RMS (< 500) - could be agent's voice bleeding through
+        // This catches cases like "for." with RMS=358 which should be filtered
+        const shouldFilterFalsePositive = isVeryShort && isCommonFalsePositive && rmsValue < 500;
         
-        // For 2-word combinations, require low RMS (more strict)
-        const isTwoWordFalsePositive = wordCount === 2 && isCommonFalsePositive && rmsValue < 100;
-        
-        if (isSingleWordFalsePositive || isTwoWordFalsePositive) {
-          console.log(`[Media Stream] ⚠️  Ignoring likely false positive: "${transcription}" (RMS: ${rmsValue.toFixed(2)}, ${wordCount} word(s), too short/common)`);
-          // Treat as silence for silence detection
-          connection.consecutiveSilences++;
-          const timeSinceGreeting = Date.now() - connection.greetingStartTime;
-          if (timeSinceGreeting > 5000 && connection.consecutiveSilences >= 5) {
-            console.log(`[Media Stream] 🔇 Too many consecutive silences/false positives (${connection.consecutiveSilences}). Ending call.`);
-            await endCallWithMessage(connection, "You have not spoken. This call will end.");
-            return;
+        if (shouldFilterFalsePositive) {
+          console.log(`[Media Stream] ⚠️  Ignoring likely false positive: "${transcription}" (RMS: ${rmsValue.toFixed(2)}, too short/suspicious)`);
+          // Treat as silence for silence detection, but only if agent is not speaking
+          if (!connection.isSpeaking) {
+            connection.consecutiveSilences++;
+            const timeSinceGreeting = Date.now() - connection.greetingStartTime;
+            if (timeSinceGreeting > 5000 && connection.consecutiveSilences >= 5) {
+              console.log(`[Media Stream] 🔇 Too many consecutive silences/false positives (${connection.consecutiveSilences}). Ending call.`);
+              await endCallWithMessage(connection, "You have not spoken. This call will end.");
+              return;
+            }
           }
           return; // Don't process this transcription
         }
@@ -336,6 +335,12 @@ async function processAudioChunk(connection) {
         // Process the transcribed text through agent executor
         await processUserInput(connection, transcription);
       } else {
+        // Don't check for silence while agent is speaking (to avoid false positives)
+        if (connection.isSpeaking) {
+          console.log(`[Media Stream] 🔇 Skipping silence detection - agent is currently speaking`);
+          return;
+        }
+        
         // Check if this is actual silence (low RMS) or a transcription failure (high RMS)
         const rmsValue = result.debug?.rms ? parseFloat(result.debug.rms) : 0;
         const isActualSilence = rmsValue < 50; // Low RMS = actual silence
