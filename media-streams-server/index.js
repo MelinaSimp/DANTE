@@ -323,10 +323,14 @@ async function processAudioChunk(connection) {
             const gracePeriod = 5000; // 5 seconds grace period after agent finishes speaking
             
             if (timeSinceAgentFinished > gracePeriod) {
-              connection.consecutiveSilences++;
-              const timeSinceGreeting = Date.now() - connection.greetingStartTime;
-              if (timeSinceGreeting > 5000 && connection.consecutiveSilences >= 5) {
-                console.log(`[Media Stream] 🔇 Too many consecutive silences/false positives (${connection.consecutiveSilences}). Ending call.`);
+              // Check if 20 seconds have passed since last user speech (or greeting start if no speech yet)
+              const silenceTimeout = 20000; // 20 seconds
+              const timeSinceLastUserSpeech = connection.lastUserSpeechTime > 0 
+                ? Date.now() - connection.lastUserSpeechTime 
+                : Date.now() - connection.greetingStartTime;
+              
+              if (timeSinceLastUserSpeech >= silenceTimeout) {
+                console.log(`[Media Stream] 🔇 No user speech detected for ${(timeSinceLastUserSpeech / 1000).toFixed(1)}s. Ending call.`);
                 await endCallWithMessage(connection, "You have not spoken. This call will end.");
                 return;
               }
@@ -364,13 +368,16 @@ async function processAudioChunk(connection) {
         const isActualSilence = rmsValue < 50; // Low RMS = actual silence
         
         if (isActualSilence) {
-          connection.consecutiveSilences++;
-          console.log(`[Media Stream] ⚠️  Empty transcription - actual silence detected (RMS: ${rmsValue.toFixed(2)}, consecutive silences: ${connection.consecutiveSilences})`);
+          console.log(`[Media Stream] ⚠️  Empty transcription - actual silence detected (RMS: ${rmsValue.toFixed(2)})`);
           
-          // After greeting finishes, if we get 5+ consecutive silences (about 10 seconds of silence), end the call
-          const timeSinceGreeting = Date.now() - connection.greetingStartTime;
-          if (timeSinceGreeting > 5000 && connection.consecutiveSilences >= 5) {
-            console.log(`[Media Stream] 🔇 Too many consecutive silences (${connection.consecutiveSilences}). Ending call.`);
+          // Check if 20 seconds have passed since last user speech (or greeting start if no speech yet)
+          const silenceTimeout = 20000; // 20 seconds
+          const timeSinceLastUserSpeech = connection.lastUserSpeechTime > 0 
+            ? Date.now() - connection.lastUserSpeechTime 
+            : Date.now() - connection.greetingStartTime;
+          
+          if (timeSinceLastUserSpeech >= silenceTimeout) {
+            console.log(`[Media Stream] 🔇 No user speech detected for ${(timeSinceLastUserSpeech / 1000).toFixed(1)}s. Ending call.`);
             await endCallWithMessage(connection, "You have not spoken. This call will end.");
             return;
           }
