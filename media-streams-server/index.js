@@ -66,6 +66,17 @@ const wss = new WebSocket.Server({
   clientTracking: true,
 });
 
+// Handle WebSocket server errors
+wss.on('error', (error) => {
+  console.error(`[Media Stream] ❌ WebSocket server error:`, error.message);
+  console.error(`[Media Stream] Error stack:`, error.stack);
+});
+
+// Handle upgrade errors
+wss.on('headers', (headers, request) => {
+  console.log(`[Media Stream] 📋 WebSocket upgrade headers for: ${request.url}`);
+});
+
 wss.on('connection', (ws, req) => {
   const connectionId = uuidv4();
   
@@ -110,6 +121,8 @@ wss.on('connection', (ws, req) => {
     processTimer: null, // Timer for periodic processing
     isSpeaking: false, // Track if agent is currently speaking
     greetingStartTime: 0, // Track when greeting started
+    consecutiveSilences: 0, // Track consecutive empty transcriptions with low RMS
+    lastUserSpeechTime: 0, // Track when user last spoke (non-empty transcription)
   };
 
   activeConnections.set(connectionId, connection);
@@ -202,11 +215,11 @@ wss.on('connection', (ws, req) => {
           return;
         }
         
-        // Process audio chunks more frequently for better responsiveness
-        // 16000 bytes = ~2 seconds of mulaw 8kHz audio (better for Whisper)
-        // Also process if we haven't processed in 3 seconds (catches short utterances)
+        // Process audio chunks - Whisper works better with longer audio (3-4 seconds)
+        // 24000 bytes = ~3 seconds of mulaw 8kHz audio (better for Whisper accuracy)
+        // Also process if we haven't processed in 4 seconds (catches short utterances)
         const timeSinceLastProcess = Date.now() - connection.lastProcessTime;
-        const shouldProcess = connection.audioBuffer.length > 16000 || (timeSinceLastProcess > 3000 && connection.audioBuffer.length > 8000);
+        const shouldProcess = connection.audioBuffer.length > 24000 || (timeSinceLastProcess > 4000 && connection.audioBuffer.length > 16000);
         
         if (shouldProcess && connection.audioBuffer.length > 0) {
           console.log(`[Media Stream] 📊 Processing audio: ${connection.audioBuffer.length} bytes, ${timeSinceLastProcess}ms since last process`);
@@ -286,11 +299,56 @@ async function processAudioChunk(connection) {
       }
       
       if (result.text && result.text.trim().length > 0) {
-        console.log(`[Media Stream] ✅ Got transcription: "${result.text}"`);
+        const rmsValue = result.debug?.rms ? parseFloat(result.debug.rms) : 0;
+        const transcription = result.text.trim();
+        
+        // Filter out false positives: very short transcriptions with low RMS
+        // These are likely the agent's own voice or background noise being mis-transcribed
+        const isVeryShort = transcription.split(/\s+/).length <= 2; // 1-2 words
+        const isLowRMS = rmsValue < 100; // Low audio level
+        const isCommonFalsePositive = /^(you|for|\.|\.\s*\.|yes|no|ok|okay|uh|um|ah)$/i.test(transcription);
+        
+        if (isVeryShort && isLowRMS && isCommonFalsePositive) {
+          console.log(`[Media Stream] ⚠️  Ignoring likely false positive: "${transcription}" (RMS: ${rmsValue.toFixed(2)}, too short/low)`);
+          // Treat as silence for silence detection
+          connection.consecutiveSilences++;
+          const timeSinceGreeting = Date.now() - connection.greetingStartTime;
+          if (timeSinceGreeting > 5000 && connection.consecutiveSilences >= 5) {
+            console.log(`[Media Stream] 🔇 Too many consecutive silences/false positives (${connection.consecutiveSilences}). Ending call.`);
+            await endCallWithMessage(connection, "You have not spoken. This call will end.");
+            return;
+          }
+          return; // Don't process this transcription
+        }
+        
+        console.log(`[Media Stream] ✅ Got transcription: "${transcription}"`);
+        // Reset silence counter on successful transcription
+        connection.consecutiveSilences = 0;
+        connection.lastUserSpeechTime = Date.now();
         // Process the transcribed text through agent executor
-        await processUserInput(connection, result.text);
+        await processUserInput(connection, transcription);
       } else {
-        console.log(`[Media Stream] ⚠️  Empty transcription - user might not have spoken yet or audio was silence`);
+        // Check if this is actual silence (low RMS) or a transcription failure (high RMS)
+        const rmsValue = result.debug?.rms ? parseFloat(result.debug.rms) : 0;
+        const isActualSilence = rmsValue < 50; // Low RMS = actual silence
+        
+        if (isActualSilence) {
+          connection.consecutiveSilences++;
+          console.log(`[Media Stream] ⚠️  Empty transcription - actual silence detected (RMS: ${rmsValue.toFixed(2)}, consecutive silences: ${connection.consecutiveSilences})`);
+          
+          // After greeting finishes, if we get 5+ consecutive silences (about 10 seconds of silence), end the call
+          const timeSinceGreeting = Date.now() - connection.greetingStartTime;
+          if (timeSinceGreeting > 5000 && connection.consecutiveSilences >= 5) {
+            console.log(`[Media Stream] 🔇 Too many consecutive silences (${connection.consecutiveSilences}). Ending call.`);
+            await endCallWithMessage(connection, "You have not spoken. This call will end.");
+            return;
+          }
+        } else {
+          // High RMS but empty transcription = transcription failure, not silence
+          console.log(`[Media Stream] ⚠️  Empty transcription despite high RMS (${rmsValue.toFixed(2)}) - transcription may have failed`);
+          // Don't increment silence counter for transcription failures
+        }
+        
         if (result.debug) {
           console.log(`[Media Stream] 🔍 Audio RMS was ${result.debug.rms}, threshold is ${result.debug.threshold}`);
         }
@@ -638,12 +696,54 @@ async function streamAudioResponse(connection, text, voiceId) {
     }
     
     console.log(`[Media Stream] 📤 Queued ${totalChunks} audio chunks for real-time streaming (will complete in ~${(totalChunks * 0.1).toFixed(1)}s)`);
+    
+    // Safety timeout: Reset isSpeaking flag after expected completion time + buffer
+    // This ensures the flag is reset even if the chunk sending logic fails
+    const expectedCompletionTime = totalChunks * 100 + 1000; // chunks * 100ms + 1s buffer
+    setTimeout(() => {
+      if (connection.isSpeaking) {
+        console.warn(`[Media Stream] ⚠️  Safety timeout: Resetting isSpeaking flag after ${expectedCompletionTime}ms`);
+        connection.isSpeaking = false;
+      }
+    }, expectedCompletionTime);
   } catch (error) {
     console.error(`[Media Stream] ❌ Error streaming audio:`, {
       error: error.message,
       stack: error.stack,
       voiceId: voiceId || DEFAULT_VOICE_ID,
     });
+    // Ensure flag is reset on error
+    connection.isSpeaking = false;
+    console.log(`[Media Stream] 🔄 Reset isSpeaking flag due to error`);
+  }
+}
+
+/**
+ * End call with a message and close connection
+ */
+async function endCallWithMessage(connection, message) {
+  try {
+    console.log(`[Media Stream] 🛑 Ending call with message: "${message}"`);
+    
+    // Send the message via TTS first
+    connection.isSpeaking = true;
+    await streamAudioResponse(connection, message, null);
+    
+    // Wait a moment for the message to finish
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Close the WebSocket connection (this will end the Media Stream)
+    if (connection.ws && connection.ws.readyState === WebSocket.OPEN) {
+      connection.ws.close();
+      console.log(`[Media Stream] ✅ Closed WebSocket connection`);
+    }
+    
+    // Cleanup the connection
+    cleanupConnection(connection.id);
+  } catch (error) {
+    console.error(`[Media Stream] ❌ Error ending call:`, error.message);
+    // Still cleanup on error
+    cleanupConnection(connection.id);
   }
 }
 
@@ -662,11 +762,9 @@ function cleanupConnection(connectionId) {
   }
 }
 
-// Handle WebSocket upgrade requests (for debugging)
-server.on('upgrade', (request, socket, head) => {
-  console.log(`[Media Stream] Upgrade request received for: ${request.url}`);
-  console.log(`[Media Stream] Headers:`, JSON.stringify(request.headers, null, 2));
-});
+// Note: We don't need a custom upgrade handler - the WebSocket.Server handles upgrades automatically
+// Adding one would interfere with the WebSocket upgrade process
+// The 'connection' event on wss will fire when upgrades succeed
 
 // Start server - bind to 0.0.0.0 to accept connections from Railway's reverse proxy
 server.listen(PORT, '0.0.0.0', () => {
