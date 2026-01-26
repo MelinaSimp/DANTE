@@ -40,6 +40,21 @@ export async function POST(req: NextRequest) {
       
       console.log(`[Media Stream Process] Decoded to ${pcm8kSamples.length} PCM 8kHz samples`);
       
+      // Check if audio contains actual sound (not just silence)
+      // Calculate RMS (Root Mean Square) to detect if there's actual audio
+      let sumSquares = 0;
+      for (let i = 0; i < pcm8kSamples.length; i++) {
+        sumSquares += pcm8kSamples[i] * pcm8kSamples[i];
+      }
+      const rms = Math.sqrt(sumSquares / pcm8kSamples.length);
+      const silenceThreshold = 100; // Threshold for detecting silence
+      console.log(`[Media Stream Process] Audio RMS: ${rms.toFixed(2)} (threshold: ${silenceThreshold})`);
+      
+      if (rms < silenceThreshold) {
+        console.log(`[Media Stream Process] ⚠️  Audio appears to be silence, skipping Whisper call`);
+        return NextResponse.json({ text: "", confidence: 0 });
+      }
+      
       // Step 2: Upsample PCM 8kHz to PCM 16kHz using linear interpolation
       const pcm16kSamples: number[] = [];
       const pcm8kArray = Array.from(pcm8kSamples); // Convert Int16Array to regular array
@@ -100,6 +115,8 @@ export async function POST(req: NextRequest) {
       formData.append('language', 'en');
       formData.append('response_format', 'json');
 
+      console.log(`[Media Stream Process] 📤 Sending ${wavFile.length} bytes to Whisper API...`);
+      const whisperStartTime = Date.now();
       const whisperResponse = await fetch('https://api.openai.com/v1/audio/transcriptions', {
         method: 'POST',
         headers: {
@@ -108,12 +125,14 @@ export async function POST(req: NextRequest) {
         },
         body: formData as any,
       });
+      const whisperEndTime = Date.now();
+      console.log(`[Media Stream Process] ⏱️  Whisper API call took ${whisperEndTime - whisperStartTime}ms, status: ${whisperResponse.status}`);
 
       if (whisperResponse.ok) {
         const result = await whisperResponse.json();
         const transcribedText = result.text || '';
         
-        console.log(`[Media Stream Process] Transcribed: "${transcribedText}"`);
+        console.log(`[Media Stream Process] ✅ Whisper API success. Transcribed: "${transcribedText}"`);
         
         return NextResponse.json({
           text: transcribedText,
@@ -121,11 +140,12 @@ export async function POST(req: NextRequest) {
         });
       } else {
         const errorText = await whisperResponse.text();
-        console.error(`[Media Stream Process] Whisper API error: ${whisperResponse.status} ${errorText}`);
+        console.error(`[Media Stream Process] ❌ Whisper API error: ${whisperResponse.status} ${errorText}`);
         return NextResponse.json({ text: "", confidence: 0 });
       }
     } catch (sttError: any) {
-      console.error(`[Media Stream Process] STT processing error:`, sttError.message);
+      console.error(`[Media Stream Process] ❌ STT processing error:`, sttError.message);
+      console.error(`[Media Stream Process] Error stack:`, sttError.stack);
       return NextResponse.json({ text: "", confidence: 0 });
     }
   } catch (error: any) {

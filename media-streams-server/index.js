@@ -108,6 +108,8 @@ wss.on('connection', (ws, req) => {
     lastActivity: Date.now(),
     lastProcessTime: 0, // Track when we last processed audio
     processTimer: null, // Timer for periodic processing
+    isSpeaking: false, // Track if agent is currently speaking
+    greetingStartTime: 0, // Track when greeting started
   };
 
   activeConnections.set(connectionId, connection);
@@ -187,11 +189,24 @@ wss.on('connection', (ws, req) => {
         connection.audioBuffer = Buffer.concat([connection.audioBuffer, audioChunk]);
         connection.lastActivity = Date.now();
         
+        // Skip processing if agent is currently speaking (to avoid processing agent's own voice)
+        if (connection.isSpeaking) {
+          // Don't process audio while agent is speaking
+          return;
+        }
+        
+        // Wait at least 3 seconds after greeting starts before processing user audio
+        const timeSinceGreeting = connection.greetingStartTime > 0 ? Date.now() - connection.greetingStartTime : Infinity;
+        if (timeSinceGreeting < 3000) {
+          // Still too soon after greeting, skip processing
+          return;
+        }
+        
         // Process audio chunks more frequently for better responsiveness
-        // 12000 bytes = ~1.5 seconds of mulaw 8kHz audio
-        // Also process if we haven't processed in 2 seconds (catches short utterances)
+        // 16000 bytes = ~2 seconds of mulaw 8kHz audio (better for Whisper)
+        // Also process if we haven't processed in 3 seconds (catches short utterances)
         const timeSinceLastProcess = Date.now() - connection.lastProcessTime;
-        const shouldProcess = connection.audioBuffer.length > 12000 || (timeSinceLastProcess > 2000 && connection.audioBuffer.length > 4000);
+        const shouldProcess = connection.audioBuffer.length > 16000 || (timeSinceLastProcess > 3000 && connection.audioBuffer.length > 8000);
         
         if (shouldProcess && connection.audioBuffer.length > 0) {
           console.log(`[Media Stream] 📊 Processing audio: ${connection.audioBuffer.length} bytes, ${timeSinceLastProcess}ms since last process`);
@@ -236,6 +251,7 @@ async function processAudioChunk(connection) {
   if (connection.audioBuffer.length === 0) return;
 
   try {
+    const apiStartTime = Date.now();
     console.log(`[Media Stream] 🎤 Processing audio chunk: ${connection.audioBuffer.length} bytes`);
     
     // Send audio to Next.js API for speech-to-text processing
@@ -251,6 +267,9 @@ async function processAudioChunk(connection) {
       }),
     });
 
+    const apiEndTime = Date.now();
+    console.log(`[Media Stream] ⏱️  STT API call took ${apiEndTime - apiStartTime}ms`);
+    
     if (response.ok) {
       const result = await response.json();
       console.log(`[Media Stream] 📝 STT result: "${result.text || '(empty)'}"`);
@@ -260,7 +279,7 @@ async function processAudioChunk(connection) {
         // Process the transcribed text through agent executor
         await processUserInput(connection, result.text);
       } else {
-        console.log(`[Media Stream] ⚠️  Empty transcription - user might not have spoken yet`);
+        console.log(`[Media Stream] ⚠️  Empty transcription - user might not have spoken yet or audio was silence`);
       }
     } else {
       const errorText = await response.text();
@@ -286,6 +305,8 @@ async function sendInitialGreeting(connection) {
       return;
     }
 
+    connection.isSpeaking = true;
+    connection.greetingStartTime = Date.now();
     console.log(`[Media Stream] Sending initial greeting for conversation: ${connection.conversationId}`);
 
     // Call Next.js API to get the greeting (empty input triggers greeting)
@@ -353,16 +374,17 @@ async function processUserInput(connection, userInput) {
     if (response.ok) {
       const result = await response.json();
       
-      if (result.output && result.output.trim().length > 0) {
-        const ttsStartTime = Date.now();
-        // Convert text to speech and stream back
-        await streamAudioResponse(connection, result.output, result.voiceId);
-        const ttsEndTime = Date.now();
-        console.log(`[Media Stream] ⏱️  TTS generation took ${ttsEndTime - ttsStartTime}ms`);
-        
-        const totalTime = Date.now() - startTime;
-        console.log(`[Media Stream] ⏱️  Total processing time: ${totalTime}ms`);
-      }
+        if (result.output && result.output.trim().length > 0) {
+          connection.isSpeaking = true; // Agent is about to speak
+          const ttsStartTime = Date.now();
+          // Convert text to speech and stream back
+          await streamAudioResponse(connection, result.output, result.voiceId);
+          const ttsEndTime = Date.now();
+          console.log(`[Media Stream] ⏱️  TTS generation took ${ttsEndTime - ttsStartTime}ms`);
+          
+          const totalTime = Date.now() - startTime;
+          console.log(`[Media Stream] ⏱️  Total processing time: ${totalTime}ms`);
+        }
     } else {
       const errorText = await response.text();
       console.error(`[Media Stream] API error: ${response.status} ${errorText}`);
@@ -595,6 +617,8 @@ async function streamAudioResponse(connection, text, voiceId) {
           if (chunksSent === totalChunks) {
             console.log(`[Media Stream] ✅ Successfully streamed all ${chunksSent} audio chunks to Twilio`);
             console.log(`[Media Stream] 📊 Total audio duration: ~${(totalChunks * 0.1).toFixed(1)}s`);
+            connection.isSpeaking = false; // Agent finished speaking
+            console.log(`[Media Stream] 🎤 Agent finished speaking, ready for user input`);
           }
         } else {
           console.warn(`[Media Stream] ⚠️  WebSocket not open (state: ${connection.ws.readyState}), cannot send chunk ${chunkIndex}`);
