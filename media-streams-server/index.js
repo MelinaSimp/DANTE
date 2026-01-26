@@ -250,9 +250,13 @@ wss.on('connection', (ws, req) => {
 async function processAudioChunk(connection) {
   if (connection.audioBuffer.length === 0) return;
 
+  // Make a copy of the buffer and clear it immediately to prevent concurrent processing
+  const audioToProcess = Buffer.from(connection.audioBuffer);
+  connection.audioBuffer = Buffer.alloc(0);
+
   try {
     const apiStartTime = Date.now();
-    console.log(`[Media Stream] 🎤 Processing audio chunk: ${connection.audioBuffer.length} bytes`);
+    console.log(`[Media Stream] 🎤 Processing audio chunk: ${audioToProcess.length} bytes`);
     
     // Send audio to Next.js API for speech-to-text processing
     const response = await fetch(`${NEXTJS_API_URL}/api/twilio/media-stream-process`, {
@@ -263,7 +267,7 @@ async function processAudioChunk(connection) {
       body: JSON.stringify({
         callSid: connection.callSid,
         conversationId: connection.conversationId,
-        audioBase64: connection.audioBuffer.toString('base64'),
+        audioBase64: audioToProcess.toString('base64'),
       }),
     });
 
@@ -276,7 +280,9 @@ async function processAudioChunk(connection) {
       
       // Log debug info if available
       if (result.debug) {
-        console.log(`[Media Stream] 🔍 Debug info:`, JSON.stringify(result.debug));
+        console.log(`[Media Stream] 🔍 Debug info: RMS=${result.debug.rms}, threshold=${result.debug.threshold}, length=${result.debug.audioLength}`);
+      } else {
+        console.log(`[Media Stream] ⚠️  No debug info in response`);
       }
       
       if (result.text && result.text.trim().length > 0) {
@@ -293,9 +299,6 @@ async function processAudioChunk(connection) {
       const errorText = await response.text();
       console.error(`[Media Stream] ❌ STT API error: ${response.status} ${errorText}`);
     }
-
-    // Clear buffer after processing
-    connection.audioBuffer = Buffer.alloc(0);
   } catch (error) {
     console.error(`[Media Stream] ❌ Error processing audio: ${error.message}`);
     console.error(`[Media Stream] Error stack:`, error.stack);

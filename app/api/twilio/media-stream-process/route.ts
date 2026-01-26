@@ -47,16 +47,17 @@ export async function POST(req: NextRequest) {
         sumSquares += pcm8kSamples[i] * pcm8kSamples[i];
       }
       const rms = Math.sqrt(sumSquares / pcm8kSamples.length);
-      const silenceThreshold = 50; // Lowered threshold - was 100, might have been too aggressive
+      const silenceThreshold = 10; // Very low threshold - only filter out complete silence
       console.log(`[Media Stream Process] Audio RMS: ${rms.toFixed(2)} (threshold: ${silenceThreshold})`);
       
       // Return RMS in response for debugging (even if we skip Whisper)
       const debugInfo = { rms: rms.toFixed(2), threshold: silenceThreshold, audioLength: pcm8kSamples.length };
       
-      if (rms < silenceThreshold) {
-        console.log(`[Media Stream Process] ⚠️  Audio appears to be silence (RMS: ${rms.toFixed(2)} < ${silenceThreshold}), skipping Whisper call`);
-        return NextResponse.json({ text: "", confidence: 0, debug: debugInfo });
-      }
+      // Temporarily disable silence filtering to debug - let Whisper decide
+      // if (rms < silenceThreshold) {
+      //   console.log(`[Media Stream Process] ⚠️  Audio appears to be silence (RMS: ${rms.toFixed(2)} < ${silenceThreshold}), skipping Whisper call`);
+      //   return NextResponse.json({ text: "", confidence: 0, debug: debugInfo });
+      // }
       
       // Step 2: Upsample PCM 8kHz to PCM 16kHz using linear interpolation
       const pcm16kSamples: number[] = [];
@@ -145,12 +146,26 @@ export async function POST(req: NextRequest) {
       } else {
         const errorText = await whisperResponse.text();
         console.error(`[Media Stream Process] ❌ Whisper API error: ${whisperResponse.status} ${errorText}`);
-        return NextResponse.json({ text: "", confidence: 0 });
+        return NextResponse.json({ text: "", confidence: 0, debug: debugInfo });
       }
     } catch (sttError: any) {
       console.error(`[Media Stream Process] ❌ STT processing error:`, sttError.message);
       console.error(`[Media Stream Process] Error stack:`, sttError.stack);
-      return NextResponse.json({ text: "", confidence: 0 });
+      // Try to return debug info if we have it
+      let debugInfo = { error: sttError.message };
+      try {
+        const mulawSamples = new Uint8Array(Buffer.from(audioBase64, 'base64'));
+        const pcm8kSamples = mulaw.decode(mulawSamples);
+        let sumSquares = 0;
+        for (let i = 0; i < pcm8kSamples.length; i++) {
+          sumSquares += pcm8kSamples[i] * pcm8kSamples[i];
+        }
+        const rms = Math.sqrt(sumSquares / pcm8kSamples.length);
+        debugInfo = { rms: rms.toFixed(2), error: sttError.message, audioLength: pcm8kSamples.length };
+      } catch (e) {
+        // Ignore
+      }
+      return NextResponse.json({ text: "", confidence: 0, debug: debugInfo });
     }
   } catch (error: any) {
     console.error("[Media Stream Process] Error:", error);
