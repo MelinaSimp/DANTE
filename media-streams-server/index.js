@@ -123,6 +123,7 @@ wss.on('connection', (ws, req) => {
     greetingStartTime: 0, // Track when greeting started
     consecutiveSilences: 0, // Track consecutive empty transcriptions with low RMS
     lastUserSpeechTime: 0, // Track when user last spoke (non-empty transcription)
+    lastAgentSpeechEndTime: 0, // Track when agent last finished speaking (for grace period)
   };
 
   activeConnections.set(connectionId, connection);
@@ -316,13 +317,21 @@ async function processAudioChunk(connection) {
         if (shouldFilterFalsePositive) {
           console.log(`[Media Stream] ⚠️  Ignoring likely false positive: "${transcription}" (RMS: ${rmsValue.toFixed(2)}, too short/suspicious)`);
           // Treat as silence for silence detection, but only if agent is not speaking
+          // AND enough time has passed since agent finished speaking (grace period)
           if (!connection.isSpeaking) {
-            connection.consecutiveSilences++;
-            const timeSinceGreeting = Date.now() - connection.greetingStartTime;
-            if (timeSinceGreeting > 5000 && connection.consecutiveSilences >= 5) {
-              console.log(`[Media Stream] 🔇 Too many consecutive silences/false positives (${connection.consecutiveSilences}). Ending call.`);
-              await endCallWithMessage(connection, "You have not spoken. This call will end.");
-              return;
+            const timeSinceAgentFinished = Date.now() - connection.lastAgentSpeechEndTime;
+            const gracePeriod = 5000; // 5 seconds grace period after agent finishes speaking
+            
+            if (timeSinceAgentFinished > gracePeriod) {
+              connection.consecutiveSilences++;
+              const timeSinceGreeting = Date.now() - connection.greetingStartTime;
+              if (timeSinceGreeting > 5000 && connection.consecutiveSilences >= 5) {
+                console.log(`[Media Stream] 🔇 Too many consecutive silences/false positives (${connection.consecutiveSilences}). Ending call.`);
+                await endCallWithMessage(connection, "You have not spoken. This call will end.");
+                return;
+              }
+            } else {
+              console.log(`[Media Stream] 🔇 Skipping silence detection - within grace period (${(gracePeriod - timeSinceAgentFinished) / 1000}s remaining)`);
             }
           }
           return; // Don't process this transcription
@@ -338,6 +347,15 @@ async function processAudioChunk(connection) {
         // Don't check for silence while agent is speaking (to avoid false positives)
         if (connection.isSpeaking) {
           console.log(`[Media Stream] 🔇 Skipping silence detection - agent is currently speaking`);
+          return;
+        }
+        
+        // Check grace period: don't count silences immediately after agent finishes speaking
+        const timeSinceAgentFinished = Date.now() - connection.lastAgentSpeechEndTime;
+        const gracePeriod = 5000; // 5 seconds grace period after agent finishes speaking
+        
+        if (timeSinceAgentFinished < gracePeriod) {
+          console.log(`[Media Stream] 🔇 Skipping silence detection - within grace period (${((gracePeriod - timeSinceAgentFinished) / 1000).toFixed(1)}s remaining)`);
           return;
         }
         
@@ -389,6 +407,7 @@ async function sendInitialGreeting(connection) {
 
     connection.isSpeaking = true;
     connection.greetingStartTime = Date.now();
+    connection.consecutiveSilences = 0; // Reset silence counter when greeting starts
     console.log(`[Media Stream] Sending initial greeting for conversation: ${connection.conversationId}`);
 
     // Call Next.js API to get the greeting (empty input triggers greeting)
@@ -458,6 +477,7 @@ async function processUserInput(connection, userInput) {
       
         if (result.output && result.output.trim().length > 0) {
           connection.isSpeaking = true; // Agent is about to speak
+          connection.consecutiveSilences = 0; // Reset silence counter when agent starts speaking
           const ttsStartTime = Date.now();
           // Convert text to speech and stream back
           await streamAudioResponse(connection, result.output, result.voiceId);
@@ -700,7 +720,9 @@ async function streamAudioResponse(connection, text, voiceId) {
             console.log(`[Media Stream] ✅ Successfully streamed all ${chunksSent} audio chunks to Twilio`);
             console.log(`[Media Stream] 📊 Total audio duration: ~${(totalChunks * 0.1).toFixed(1)}s`);
             connection.isSpeaking = false; // Agent finished speaking
-            console.log(`[Media Stream] 🎤 Agent finished speaking, ready for user input`);
+            connection.lastAgentSpeechEndTime = Date.now(); // Track when agent finished
+            connection.consecutiveSilences = 0; // Reset silence counter after agent speaks
+            console.log(`[Media Stream] 🎤 Agent finished speaking, ready for user input (silence counter reset)`);
           }
         } else {
           console.warn(`[Media Stream] ⚠️  WebSocket not open (state: ${connection.ws.readyState}), cannot send chunk ${chunkIndex}`);
