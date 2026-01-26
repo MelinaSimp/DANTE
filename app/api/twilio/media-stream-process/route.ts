@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import FormData from "form-data";
-const alawmulaw = require("alawmulaw");
+import alawmulaw from "alawmulaw";
 const mulaw = alawmulaw.mulaw;
 
 export const dynamic = "force-dynamic";
