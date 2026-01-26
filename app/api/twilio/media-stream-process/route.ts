@@ -6,6 +6,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import FormData from "form-data";
+const alawmulaw = require("alawmulaw");
+const mulaw = alawmulaw.mulaw;
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -24,22 +26,50 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ text: "", confidence: 0 });
     }
 
-    // Convert base64 mulaw audio to a format Whisper can understand
-    // Whisper expects PCM 16kHz, but we have mulaw 8kHz
-    // We'll need to decode mulaw to PCM first
-    const audioBuffer = Buffer.from(audioBase64, 'base64');
-    
-    // For now, we'll send the raw audio to Whisper
-    // Note: Whisper API expects audio in specific formats
-    // We'll use a File-like object with the audio data
+    // Convert base64 mulaw audio to PCM 16kHz for Whisper
+    // 1. Decode mulaw 8kHz to PCM 8kHz
+    // 2. Upsample PCM 8kHz to PCM 16kHz
+    // 3. Create WAV file with PCM 16kHz
+    const mulawBuffer = Buffer.from(audioBase64, 'base64');
     
     try {
-      // Convert mulaw buffer to a WAV file format that Whisper can understand
-      // WAV header for mulaw 8kHz mono
-      const sampleRate = 8000;
+      console.log(`[Media Stream Process] Decoding ${mulawBuffer.length} bytes of mulaw audio...`);
+      
+      // Step 1: Decode mulaw to PCM 8kHz (16-bit samples)
+      const mulawSamples = Array.from(mulawBuffer);
+      const pcm8kSamples = mulaw.decode(mulawSamples); // Returns array of 16-bit PCM samples
+      
+      console.log(`[Media Stream Process] Decoded to ${pcm8kSamples.length} PCM 8kHz samples`);
+      
+      // Step 2: Upsample PCM 8kHz to PCM 16kHz using linear interpolation
+      const pcm16kSamples: number[] = [];
+      for (let i = 0; i < pcm8kSamples.length; i++) {
+        pcm16kSamples.push(pcm8kSamples[i]);
+        // Interpolate between samples for upsampling
+        if (i < pcm8kSamples.length - 1) {
+          const interpolated = Math.round((pcm8kSamples[i] + pcm8kSamples[i + 1]) / 2);
+          pcm16kSamples.push(interpolated);
+        } else {
+          // Duplicate last sample
+          pcm16kSamples.push(pcm8kSamples[i]);
+        }
+      }
+      
+      console.log(`[Media Stream Process] Upsampled to ${pcm16kSamples.length} PCM 16kHz samples`);
+      
+      // Step 3: Convert PCM samples to 16-bit LE buffer
+      const pcm16kBuffer = Buffer.alloc(pcm16kSamples.length * 2);
+      for (let i = 0; i < pcm16kSamples.length; i++) {
+        // Clamp to 16-bit range
+        const sample = Math.max(-32768, Math.min(32767, pcm16kSamples[i]));
+        pcm16kBuffer.writeInt16LE(sample, i * 2);
+      }
+      
+      // Step 4: Create WAV file header for PCM 16kHz 16-bit mono
+      const sampleRate = 16000;
       const numChannels = 1;
-      const bitsPerSample = 8;
-      const dataSize = audioBuffer.length;
+      const bitsPerSample = 16;
+      const dataSize = pcm16kBuffer.length;
       const fileSize = 36 + dataSize;
       
       const wavHeader = Buffer.alloc(44);
@@ -47,18 +77,18 @@ export async function POST(req: NextRequest) {
       wavHeader.writeUInt32LE(fileSize, 4);
       wavHeader.write('WAVE', 8);
       wavHeader.write('fmt ', 12);
-      wavHeader.writeUInt32LE(18, 16); // fmt chunk size
-      wavHeader.writeUInt16LE(7, 20); // audio format (7 = mulaw/G.711)
+      wavHeader.writeUInt32LE(16, 16); // fmt chunk size (16 for PCM)
+      wavHeader.writeUInt16LE(1, 20); // audio format (1 = PCM)
       wavHeader.writeUInt16LE(numChannels, 22);
       wavHeader.writeUInt32LE(sampleRate, 24);
       wavHeader.writeUInt32LE(sampleRate * numChannels * bitsPerSample / 8, 28); // byte rate
       wavHeader.writeUInt16LE(numChannels * bitsPerSample / 8, 32); // block align
       wavHeader.writeUInt16LE(bitsPerSample, 34);
-      wavHeader.writeUInt16LE(0, 36); // extra param size
-      wavHeader.write('data', 38);
+      wavHeader.write('data', 36);
       wavHeader.writeUInt32LE(dataSize, 40);
       
-      const wavFile = Buffer.concat([wavHeader, audioBuffer]);
+      const wavFile = Buffer.concat([wavHeader, pcm16kBuffer]);
+      console.log(`[Media Stream Process] Created WAV file: ${wavFile.length} bytes (PCM 16kHz 16-bit mono)`);
       
       // Create FormData for Whisper API (Node.js compatible)
       const formData = new FormData();
