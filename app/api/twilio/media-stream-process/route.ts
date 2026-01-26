@@ -6,8 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import FormData from "form-data";
-import alawmulaw from "alawmulaw";
-const mulaw = alawmulaw.mulaw;
+import { mulaw } from "alawmulaw";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -36,22 +35,23 @@ export async function POST(req: NextRequest) {
       console.log(`[Media Stream Process] Decoding ${mulawBuffer.length} bytes of mulaw audio...`);
       
       // Step 1: Decode mulaw to PCM 8kHz (16-bit samples)
-      const mulawSamples = Array.from(mulawBuffer);
-      const pcm8kSamples = mulaw.decode(mulawSamples); // Returns array of 16-bit PCM samples
+      const mulawSamples = new Uint8Array(mulawBuffer);
+      const pcm8kSamples = mulaw.decode(mulawSamples); // Returns Int16Array of 16-bit PCM samples
       
       console.log(`[Media Stream Process] Decoded to ${pcm8kSamples.length} PCM 8kHz samples`);
       
       // Step 2: Upsample PCM 8kHz to PCM 16kHz using linear interpolation
       const pcm16kSamples: number[] = [];
-      for (let i = 0; i < pcm8kSamples.length; i++) {
-        pcm16kSamples.push(pcm8kSamples[i]);
+      const pcm8kArray = Array.from(pcm8kSamples); // Convert Int16Array to regular array
+      for (let i = 0; i < pcm8kArray.length; i++) {
+        pcm16kSamples.push(pcm8kArray[i]);
         // Interpolate between samples for upsampling
-        if (i < pcm8kSamples.length - 1) {
-          const interpolated = Math.round((pcm8kSamples[i] + pcm8kSamples[i + 1]) / 2);
+        if (i < pcm8kArray.length - 1) {
+          const interpolated = Math.round((pcm8kArray[i] + pcm8kArray[i + 1]) / 2);
           pcm16kSamples.push(interpolated);
         } else {
           // Duplicate last sample
-          pcm16kSamples.push(pcm8kSamples[i]);
+          pcm16kSamples.push(pcm8kArray[i]);
         }
       }
       
