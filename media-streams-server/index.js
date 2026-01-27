@@ -132,6 +132,7 @@ wss.on('connection', (ws, req) => {
     pendingSTTCall: false, // Track if we have a pending STT API call
     recentTranscriptions: [], // Track recent transcriptions to prevent duplicates (last 5, with timestamps)
     isProcessingInput: false, // Track if we're currently processing user input (prevent concurrent processing)
+    currentTTSSessionId: 0, // Track current TTS session to prevent old chunks from being sent
   };
 
   activeConnections.set(connectionId, connection);
@@ -619,13 +620,16 @@ function stopCurrentTTS(connection) {
   // Clear any pending TTS chunks
   connection.currentTTSChunks = [];
   
+  // Increment session ID to invalidate all pending chunks from this TTS
+  connection.currentTTSSessionId++;
+  
   // Set flag to stop sending chunks (will be checked in streamAudioResponse)
   connection.stopTTS = true;
   
   // Reset speaking flag immediately so we can process new input
   connection.isSpeaking = false;
   
-  console.log(`[Media Stream] 🛑 Stopped current TTS - ready for user input`);
+  console.log(`[Media Stream] 🛑 Stopped current TTS (session ${connection.currentTTSSessionId - 1}) - ready for user input`);
 }
 
 /**
@@ -731,11 +735,17 @@ function pcm16kToMulaw8k(pcmBuffer) {
  */
 async function streamAudioResponse(connection, text, voiceId) {
   try {
+    // Increment TTS session ID for this new TTS - this invalidates all chunks from previous TTS
+    connection.currentTTSSessionId++;
+    const currentSessionId = connection.currentTTSSessionId;
+    
     // Reset stop flag when starting new TTS
     connection.stopTTS = false;
     
     const effectiveVoiceId = voiceId || DEFAULT_VOICE_ID;
     const textToSpeak = text.trim();
+    
+    console.log(`[Media Stream] 🎤 Starting TTS session ${currentSessionId}`);
     
     // Log the FULL text being converted to speech (not truncated)
     console.log(`[Media Stream] 🎤 Starting TTS for text (FULL): "${textToSpeak}"`);
@@ -840,6 +850,13 @@ async function streamAudioResponse(connection, text, voiceId) {
         const chunkIndex = Math.floor(i / chunkSize);
         
         setTimeout(() => {
+          // CRITICAL: Only send chunks if they belong to the current TTS session
+          // This prevents old chunks from previous TTS from being sent after a new TTS starts
+          if (connection.currentTTSSessionId !== currentSessionId) {
+            console.log(`[Media Stream] ⚠️  Skipping chunk ${chunkIndex} - belongs to old TTS session ${currentSessionId} (current: ${connection.currentTTSSessionId})`);
+            return;
+          }
+          
           // Check if TTS was interrupted - stop sending chunks
           if (connection.stopTTS) {
             console.log(`[Media Stream] 🛑 TTS interrupted - stopping chunk ${chunkIndex}`);
@@ -908,6 +925,13 @@ async function streamAudioResponse(connection, text, voiceId) {
       const chunkIndex = Math.floor(i / chunkSize);
       
       setTimeout(() => {
+        // CRITICAL: Only send chunks if they belong to the current TTS session
+        // This prevents old chunks from previous TTS from being sent after a new TTS starts
+        if (connection.currentTTSSessionId !== currentSessionId) {
+          console.log(`[Media Stream] ⚠️  Skipping chunk ${chunkIndex} - belongs to old TTS session ${currentSessionId} (current: ${connection.currentTTSSessionId})`);
+          return;
+        }
+        
         // Check if TTS was interrupted - stop sending chunks
         if (connection.stopTTS) {
           console.log(`[Media Stream] 🛑 TTS interrupted - stopping chunk ${chunkIndex}`);
@@ -1092,9 +1116,9 @@ function cleanupConnection(connectionId) {
 // Start server - bind to 0.0.0.0 to accept connections from Railway's reverse proxy
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`[Media Stream] ==========================================`);
-  console.log(`[Media Stream] 🚀 Server Version: clear-pending-on-user-speech`);
-  console.log(`[Media Stream] ✅ FIXED: Clear all pending input/TTS when user starts speaking`);
-  console.log(`[Media Stream] ✅ User speech now immediately clears pending state and starts fresh`);
+  console.log(`[Media Stream] 🚀 Server Version: fix-fragmented-audio`);
+  console.log(`[Media Stream] ✅ FIXED: Prevent fragmented audio by tracking TTS session IDs`);
+  console.log(`[Media Stream] ✅ Old TTS chunks are now skipped when new TTS starts`);
   console.log(`[Media Stream] ==========================================`);
   console.log(`[Media Stream] WebSocket server listening on port ${PORT}`);
   console.log(`[Media Stream] Next.js API URL: ${NEXTJS_API_URL}`);
