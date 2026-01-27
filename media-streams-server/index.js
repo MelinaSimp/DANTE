@@ -834,6 +834,12 @@ async function streamAudioResponse(connection, text, voiceId) {
         const chunkIndex = Math.floor(i / chunkSize);
         
         setTimeout(() => {
+          // CRITICAL: Check WebSocket state FIRST - silently skip if connection is closed
+          if (!connection.ws || connection.ws.readyState !== WebSocket.OPEN) {
+            // Connection closed - silently skip (don't log errors, this is expected when call ends)
+            return;
+          }
+          
           // CRITICAL: Only send chunks if they belong to the current TTS session
           // This prevents old chunks from previous TTS from being sent after a new TTS starts
           if (connection.currentTTSSessionId !== currentSessionId) {
@@ -847,7 +853,7 @@ async function streamAudioResponse(connection, text, voiceId) {
             return;
           }
           
-          if (connection.ws.readyState === WebSocket.OPEN && connection.streamSid) {
+          if (connection.streamSid) {
             const base64Chunk = chunk.toString('base64');
             const mediaMessage = {
               event: 'media',
@@ -909,6 +915,12 @@ async function streamAudioResponse(connection, text, voiceId) {
       const chunkIndex = Math.floor(i / chunkSize);
       
       setTimeout(() => {
+        // CRITICAL: Check WebSocket state FIRST - silently skip if connection is closed
+        if (!connection.ws || connection.ws.readyState !== WebSocket.OPEN) {
+          // Connection closed - silently skip (don't log errors, this is expected when call ends)
+          return;
+        }
+        
         // CRITICAL: Only send chunks if they belong to the current TTS session
         // This prevents old chunks from previous TTS from being sent after a new TTS starts
         if (connection.currentTTSSessionId !== currentSessionId) {
@@ -922,7 +934,7 @@ async function streamAudioResponse(connection, text, voiceId) {
           return;
         }
         
-        if (connection.ws.readyState === WebSocket.OPEN) {
+        if (connection.streamSid) {
           // Validate streamSid before sending
           if (!connection.streamSid) {
             console.error(`[Media Stream] ❌ Cannot send chunk ${chunkIndex}: streamSid is missing!`);
@@ -987,7 +999,8 @@ async function streamAudioResponse(connection, text, voiceId) {
             }
           }
         } else {
-          console.warn(`[Media Stream] ⚠️  WebSocket not open (state: ${connection.ws.readyState}), cannot send chunk ${chunkIndex}`);
+          // WebSocket not open - silently skip (this check is redundant but safe)
+          // We already checked at the top of the setTimeout callback
         }
       }, chunkIndex * 100); // 100ms delay = real-time playback rate
     }
@@ -1100,9 +1113,9 @@ function cleanupConnection(connectionId) {
 // Start server - bind to 0.0.0.0 to accept connections from Railway's reverse proxy
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`[Media Stream] ==========================================`);
-  console.log(`[Media Stream] 🚀 Server Version: fix-interruptability`);
-  console.log(`[Media Stream] ✅ FIXED: Process audio even when agent is speaking for interruptability`);
-  console.log(`[Media Stream] ✅ Use shorter buffer when agent speaking to detect interruptions quickly`);
+  console.log(`[Media Stream] 🚀 Server Version: fix-chunk-sending-after-close`);
+  console.log(`[Media Stream] ✅ FIXED: Silently skip chunks when WebSocket is closed`);
+  console.log(`[Media Stream] ✅ Check WebSocket state first to prevent error spam`);
   console.log(`[Media Stream] ==========================================`);
   console.log(`[Media Stream] WebSocket server listening on port ${PORT}`);
   console.log(`[Media Stream] Next.js API URL: ${NEXTJS_API_URL}`);
