@@ -271,6 +271,13 @@ wss.on('connection', (ws, req) => {
  */
 async function processAudioChunk(connection) {
   if (connection.audioBuffer.length === 0) return;
+  
+  // CRITICAL: Don't process audio if we're already ending the call
+  if (connection.isEndingCall) {
+    console.log(`[Media Stream] ⚠️  Call is ending, ignoring audio chunk (${connection.audioBuffer.length} bytes)`);
+    connection.audioBuffer = Buffer.alloc(0); // Clear buffer
+    return;
+  }
 
   // Make a copy of the buffer and clear it immediately to prevent concurrent processing
   const audioToProcess = Buffer.from(connection.audioBuffer);
@@ -392,6 +399,14 @@ async function processAudioChunk(connection) {
         
         // Set new debounce timer - process after 500ms of silence
         connection.inputDebounceTimer = setTimeout(async () => {
+          // CRITICAL: Don't process any input if we're already ending the call
+          if (connection.isEndingCall) {
+            console.log(`[Media Stream] ⚠️  Call is ending, clearing pending input (${connection.pendingUserInput.length} items)`);
+            connection.pendingUserInput = [];
+            connection.inputDebounceTimer = null;
+            return;
+          }
+          
           if (connection.pendingUserInput.length > 0) {
             // Combine all accumulated inputs
             const combinedInput = connection.pendingUserInput.join(' ');
@@ -599,6 +614,12 @@ function stopCurrentTTS(connection) {
 async function processUserInput(connection, userInput) {
   const startTime = Date.now();
   try {
+    // CRITICAL: Don't process any input if we're already ending the call
+    if (connection.isEndingCall) {
+      console.log(`[Media Stream] ⚠️  Call is ending, ignoring user input: "${userInput}"`);
+      return;
+    }
+    
     console.log(`[Media Stream] Processing user input: "${userInput}"`);
 
     // Call Next.js API to execute agent step
@@ -986,8 +1007,22 @@ async function endCallWithMessage(connection, message) {
       return;
     }
     
-    // Set flag to prevent multiple calls
+    // CRITICAL: Set flag IMMEDIATELY to prevent any further processing
+    // This must be set before any async operations to prevent race conditions
     connection.isEndingCall = true;
+    
+    // Clear any pending user input - we're ending the call, don't process it
+    if (connection.pendingUserInput.length > 0) {
+      console.log(`[Media Stream] 🛑 Clearing ${connection.pendingUserInput.length} pending user inputs - call is ending`);
+      connection.pendingUserInput = [];
+    }
+    
+    // Clear any pending debounce timer
+    if (connection.inputDebounceTimer) {
+      clearTimeout(connection.inputDebounceTimer);
+      connection.inputDebounceTimer = null;
+      console.log(`[Media Stream] 🛑 Cleared input debounce timer - call is ending`);
+    }
     
     // Send the message via TTS first
     connection.isSpeaking = true;
@@ -1037,8 +1072,9 @@ function cleanupConnection(connectionId) {
 // Start server - bind to 0.0.0.0 to accept connections from Railway's reverse proxy
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`[Media Stream] ==========================================`);
-  console.log(`[Media Stream] 🚀 Server Version: 44da9ec (Fixed protocol error)`);
-  console.log(`[Media Stream] ✅ FIXED: Removed invalid 'connected' message to Twilio`);
+  console.log(`[Media Stream] 🚀 Server Version: prevent-post-goodbye-processing`);
+  console.log(`[Media Stream] ✅ FIXED: Prevent processing user input after goodbye starts`);
+  console.log(`[Media Stream] ✅ Added isEndingCall checks in all processing paths`);
   console.log(`[Media Stream] ==========================================`);
   console.log(`[Media Stream] WebSocket server listening on port ${PORT}`);
   console.log(`[Media Stream] Next.js API URL: ${NEXTJS_API_URL}`);
