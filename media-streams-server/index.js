@@ -129,6 +129,7 @@ wss.on('connection', (ws, req) => {
     pendingUserInput: [], // Accumulate user inputs during debounce period
     inputDebounceTimer: null, // Timer for debouncing user input (500ms after last speech)
     currentTTSChunks: [], // Track current TTS chunks for interruption
+    pendingSTTCall: false, // Track if we have a pending STT API call
   };
 
   activeConnections.set(connectionId, connection);
@@ -277,6 +278,16 @@ async function processAudioChunk(connection) {
     const apiStartTime = Date.now();
     console.log(`[Media Stream] 🎤 Processing audio chunk: ${audioToProcess.length} bytes`);
     
+    // If audio buffer is substantial (indicating actual speech, not silence), update lastUserSpeechTime
+    // This prevents silence detection from triggering while STT is processing
+    if (audioToProcess.length > 10000) { // More than ~1.25 seconds of audio at 8kHz
+      connection.lastUserSpeechTime = Date.now();
+      console.log(`[Media Stream] 📝 Updating lastUserSpeechTime - substantial audio detected (${audioToProcess.length} bytes)`);
+    }
+    
+    // Mark that we have a pending STT call
+    connection.pendingSTTCall = true;
+    
     // Send audio to Next.js API for speech-to-text processing
     const response = await fetch(`${NEXTJS_API_URL}/api/twilio/media-stream-process`, {
       method: 'POST',
@@ -328,6 +339,12 @@ async function processAudioChunk(connection) {
             const gracePeriod = 5000; // 5 seconds grace period after agent finishes speaking
             
             if (timeSinceAgentFinished > gracePeriod) {
+              // Don't trigger silence detection if we have a pending STT call (user might be speaking)
+              if (connection.pendingSTTCall) {
+                console.log(`[Media Stream] 🔇 Skipping silence detection - STT call in progress`);
+                return;
+              }
+              
               // Check if 20 seconds have passed since last user speech (or greeting start if no speech yet)
               const silenceTimeout = 20000; // 20 seconds
               const timeSinceLastUserSpeech = connection.lastUserSpeechTime > 0 
@@ -405,6 +422,12 @@ async function processAudioChunk(connection) {
         if (isActualSilence) {
           console.log(`[Media Stream] ⚠️  Empty transcription - actual silence detected (RMS: ${rmsValue.toFixed(2)})`);
           
+          // Don't trigger silence detection if we have a pending STT call (user might be speaking)
+          if (connection.pendingSTTCall) {
+            console.log(`[Media Stream] 🔇 Skipping silence detection - STT call in progress`);
+            return;
+          }
+          
           // Check if 20 seconds have passed since last user speech (or greeting start if no speech yet)
           const silenceTimeout = 20000; // 20 seconds
           const timeSinceLastUserSpeech = connection.lastUserSpeechTime > 0 
@@ -435,9 +458,14 @@ async function processAudioChunk(connection) {
       const errorText = await response.text();
       console.error(`[Media Stream] ❌ STT API error: ${response.status} ${errorText}`);
     }
+    
+    // Reset pending STT call flag after processing (success or error)
+    connection.pendingSTTCall = false;
   } catch (error) {
     console.error(`[Media Stream] ❌ Error processing audio: ${error.message}`);
     console.error(`[Media Stream] Error stack:`, error.stack);
+    // Reset pending STT call flag on error
+    connection.pendingSTTCall = false;
   }
 }
 
