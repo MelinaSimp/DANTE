@@ -728,8 +728,18 @@ async function streamAudioResponse(connection, text, voiceId) {
                   console.log(`[Media Stream] 🛑 TTS interrupted after ${chunksSent}/${totalChunks} chunks`);
                   connection.stopTTS = false;
                   connection.isSpeaking = false;
+                  connection.lastAgentSpeechEndTime = Date.now();
+                  connection.consecutiveSilences = 0;
+                  console.log(`[Media Stream] 🎤 Agent interrupted, ready for user input`);
                 } else {
                   console.log(`[Media Stream] ✅ Successfully streamed all ${chunksSent} audio chunks`);
+                  // Wait buffer then reset speaking state
+                  setTimeout(() => {
+                    connection.isSpeaking = false;
+                    connection.lastAgentSpeechEndTime = Date.now();
+                    connection.consecutiveSilences = 0;
+                    console.log(`[Media Stream] 🎤 Agent finished speaking, ready for user input`);
+                  }, 500);
                 }
               }
             } catch (sendError) {
@@ -812,19 +822,24 @@ async function streamAudioResponse(connection, text, voiceId) {
             if (connection.stopTTS) {
               console.log(`[Media Stream] 🛑 TTS interrupted after ${chunksSent}/${totalChunks} chunks`);
               connection.stopTTS = false; // Reset flag
+              // Immediately reset speaking state for interruption
+              connection.isSpeaking = false;
+              connection.lastAgentSpeechEndTime = Date.now();
+              connection.consecutiveSilences = 0;
+              console.log(`[Media Stream] 🎤 Agent interrupted, ready for user input`);
             } else {
               console.log(`[Media Stream] ✅ Successfully streamed all ${chunksSent} audio chunks to Twilio`);
               console.log(`[Media Stream] 📊 Total audio duration: ~${(totalChunks * 0.1).toFixed(1)}s`);
               
               // Wait a small buffer (500ms) to ensure audio has finished playing before allowing new TTS
               // This prevents overlapping audio from concurrent TTS calls
-              await new Promise(resolve => setTimeout(resolve, 500));
+              setTimeout(() => {
+                connection.isSpeaking = false; // Agent finished speaking
+                connection.lastAgentSpeechEndTime = Date.now(); // Track when agent finished
+                connection.consecutiveSilences = 0; // Reset silence counter after agent speaks
+                console.log(`[Media Stream] 🎤 Agent finished speaking, ready for user input (silence counter reset)`);
+              }, 500);
             }
-            
-            connection.isSpeaking = false; // Agent finished speaking (or was interrupted)
-            connection.lastAgentSpeechEndTime = Date.now(); // Track when agent finished
-            connection.consecutiveSilences = 0; // Reset silence counter after agent speaks
-            console.log(`[Media Stream] 🎤 Agent finished speaking, ready for user input (silence counter reset)`);
           }
         } else {
           console.warn(`[Media Stream] ⚠️  WebSocket not open (state: ${connection.ws.readyState}), cannot send chunk ${chunkIndex}`);
