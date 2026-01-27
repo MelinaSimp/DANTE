@@ -121,10 +121,14 @@ wss.on('connection', (ws, req) => {
     processTimer: null, // Timer for periodic processing
     isSpeaking: false, // Track if agent is currently speaking
     isEndingCall: false, // Track if we're in the process of ending the call
+    stopTTS: false, // Flag to stop current TTS when user interrupts
     greetingStartTime: 0, // Track when greeting started
     consecutiveSilences: 0, // Track consecutive empty transcriptions with low RMS
     lastUserSpeechTime: 0, // Track when user last spoke (non-empty transcription)
     lastAgentSpeechEndTime: 0, // Track when agent last finished speaking (for grace period)
+    pendingUserInput: [], // Accumulate user inputs during debounce period
+    inputDebounceTimer: null, // Timer for debouncing user input (500ms after last speech)
+    currentTTSChunks: [], // Track current TTS chunks for interruption
   };
 
   activeConnections.set(connectionId, connection);
@@ -348,11 +352,36 @@ async function processAudioChunk(connection) {
         }
         
         console.log(`[Media Stream] ✅ Got transcription: "${transcription}"`);
+        
+        // If agent is speaking, interrupt them
+        if (connection.isSpeaking) {
+          console.log(`[Media Stream] 🛑 User interrupting agent - stopping current TTS`);
+          stopCurrentTTS(connection);
+        }
+        
         // Reset silence counter on successful transcription
         connection.consecutiveSilences = 0;
         connection.lastUserSpeechTime = Date.now();
-        // Process the transcribed text through agent executor
-        await processUserInput(connection, transcription);
+        
+        // Accumulate user input and debounce (wait 500ms after last speech)
+        connection.pendingUserInput.push(transcription);
+        
+        // Clear existing debounce timer
+        if (connection.inputDebounceTimer) {
+          clearTimeout(connection.inputDebounceTimer);
+        }
+        
+        // Set new debounce timer - process after 500ms of silence
+        connection.inputDebounceTimer = setTimeout(async () => {
+          if (connection.pendingUserInput.length > 0) {
+            // Combine all accumulated inputs
+            const combinedInput = connection.pendingUserInput.join(' ');
+            console.log(`[Media Stream] 📝 Processing accumulated input (${connection.pendingUserInput.length} parts): "${combinedInput}"`);
+            connection.pendingUserInput = []; // Clear accumulated inputs
+            connection.inputDebounceTimer = null;
+            await processUserInput(connection, combinedInput);
+          }
+        }, 500);
       } else {
         // Don't check for silence while agent is speaking (to avoid false positives)
         if (connection.isSpeaking) {
@@ -467,6 +496,22 @@ async function sendInitialGreeting(connection) {
 }
 
 /**
+ * Stop current TTS streaming when user interrupts
+ */
+function stopCurrentTTS(connection) {
+  // Clear any pending TTS chunks
+  connection.currentTTSChunks = [];
+  
+  // Set flag to stop sending chunks (will be checked in streamAudioResponse)
+  connection.stopTTS = true;
+  
+  // Reset speaking flag immediately so we can process new input
+  connection.isSpeaking = false;
+  
+  console.log(`[Media Stream] 🛑 Stopped current TTS - ready for user input`);
+}
+
+/**
  * Process user input through agent executor
  */
 async function processUserInput(connection, userInput) {
@@ -494,18 +539,14 @@ async function processUserInput(connection, userInput) {
       const result = await response.json();
       
         if (result.output && result.output.trim().length > 0) {
-          // Check if agent is already speaking - prevent overlapping TTS calls
-          if (connection.isSpeaking) {
-            console.log(`[Media Stream] ⚠️  Skipping TTS - agent is already speaking. Output: "${result.output.substring(0, 50)}..."`);
-            return;
-          }
-          
           // If we were in the process of ending the call, cancel it since agent is responding
           if (connection.isEndingCall) {
             console.log(`[Media Stream] ✅ Agent is responding - cancelling end call`);
             connection.isEndingCall = false;
           }
           
+          // If agent was speaking, it was already stopped by stopCurrentTTS in the transcription handler
+          // Now we can start the new TTS
           connection.isSpeaking = true; // Agent is about to speak
           connection.consecutiveSilences = 0; // Reset silence counter when agent starts speaking
           const ttsStartTime = Date.now();
@@ -561,6 +602,9 @@ function pcm16kToMulaw8k(pcmBuffer) {
  */
 async function streamAudioResponse(connection, text, voiceId) {
   try {
+    // Reset stop flag when starting new TTS
+    connection.stopTTS = false;
+    
     const effectiveVoiceId = voiceId || DEFAULT_VOICE_ID;
     console.log(`[Media Stream] 🎤 Starting TTS for text: "${text.substring(0, 50)}..." with voice: ${effectiveVoiceId}`);
     
@@ -663,6 +707,12 @@ async function streamAudioResponse(connection, text, voiceId) {
         const chunkIndex = Math.floor(i / chunkSize);
         
         setTimeout(() => {
+          // Check if TTS was interrupted - stop sending chunks
+          if (connection.stopTTS) {
+            console.log(`[Media Stream] 🛑 TTS interrupted - stopping chunk ${chunkIndex}`);
+            return;
+          }
+          
           if (connection.ws.readyState === WebSocket.OPEN && connection.streamSid) {
             const base64Chunk = chunk.toString('base64');
             const mediaMessage = {
@@ -673,8 +723,14 @@ async function streamAudioResponse(connection, text, voiceId) {
             try {
               connection.ws.send(JSON.stringify(mediaMessage));
               chunksSent++;
-              if (chunksSent === totalChunks) {
-                console.log(`[Media Stream] ✅ Successfully streamed all ${chunksSent} audio chunks`);
+              if (chunksSent === totalChunks || connection.stopTTS) {
+                if (connection.stopTTS) {
+                  console.log(`[Media Stream] 🛑 TTS interrupted after ${chunksSent}/${totalChunks} chunks`);
+                  connection.stopTTS = false;
+                  connection.isSpeaking = false;
+                } else {
+                  console.log(`[Media Stream] ✅ Successfully streamed all ${chunksSent} audio chunks`);
+                }
               }
             } catch (sendError) {
               console.error(`[Media Stream] ❌ Error sending chunk ${chunkIndex}:`, sendError.message);
@@ -707,6 +763,12 @@ async function streamAudioResponse(connection, text, voiceId) {
       const chunkIndex = Math.floor(i / chunkSize);
       
       setTimeout(() => {
+        // Check if TTS was interrupted - stop sending chunks
+        if (connection.stopTTS) {
+          console.log(`[Media Stream] 🛑 TTS interrupted - stopping chunk ${chunkIndex}`);
+          return;
+        }
+        
         if (connection.ws.readyState === WebSocket.OPEN) {
           // Validate streamSid before sending
           if (!connection.streamSid) {
@@ -745,16 +807,21 @@ async function streamAudioResponse(connection, text, voiceId) {
             console.log(`[Media Stream] 📤 Sent ${chunksSent}/${totalChunks} chunks (${(chunksSent * 0.1).toFixed(1)}s)`);
           }
           
-          // Log when all chunks are sent
-          if (chunksSent === totalChunks) {
-            console.log(`[Media Stream] ✅ Successfully streamed all ${chunksSent} audio chunks to Twilio`);
-            console.log(`[Media Stream] 📊 Total audio duration: ~${(totalChunks * 0.1).toFixed(1)}s`);
+          // Log when all chunks are sent (or if interrupted)
+          if (chunksSent === totalChunks || connection.stopTTS) {
+            if (connection.stopTTS) {
+              console.log(`[Media Stream] 🛑 TTS interrupted after ${chunksSent}/${totalChunks} chunks`);
+              connection.stopTTS = false; // Reset flag
+            } else {
+              console.log(`[Media Stream] ✅ Successfully streamed all ${chunksSent} audio chunks to Twilio`);
+              console.log(`[Media Stream] 📊 Total audio duration: ~${(totalChunks * 0.1).toFixed(1)}s`);
+              
+              // Wait a small buffer (500ms) to ensure audio has finished playing before allowing new TTS
+              // This prevents overlapping audio from concurrent TTS calls
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
             
-            // Wait a small buffer (500ms) to ensure audio has finished playing before allowing new TTS
-            // This prevents overlapping audio from concurrent TTS calls
-            await new Promise(resolve => setTimeout(resolve, 500));
-            
-            connection.isSpeaking = false; // Agent finished speaking
+            connection.isSpeaking = false; // Agent finished speaking (or was interrupted)
             connection.lastAgentSpeechEndTime = Date.now(); // Track when agent finished
             connection.consecutiveSilences = 0; // Reset silence counter after agent speaks
             console.log(`[Media Stream] 🎤 Agent finished speaking, ready for user input (silence counter reset)`);
@@ -842,6 +909,10 @@ function cleanupConnection(connectionId) {
     connection.isConnected = false;
     if (connection.processTimer) {
       clearTimeout(connection.processTimer);
+    }
+    if (connection.inputDebounceTimer) {
+      clearTimeout(connection.inputDebounceTimer);
+      connection.inputDebounceTimer = null;
     }
     activeConnections.delete(connectionId);
     console.log(`[Media Stream] Cleaned up connection: ${connectionId}`);
