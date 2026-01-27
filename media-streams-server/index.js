@@ -384,10 +384,22 @@ async function processAudioChunk(connection) {
         
         console.log(`[Media Stream] ✅ Got transcription: "${transcription}"`);
         
-        // If agent is speaking, interrupt them
+        // If agent is speaking, only interrupt if we're confident it's actual user speech
+        // This prevents false interruptions from agent's own voice or background noise
         if (connection.isSpeaking) {
-          console.log(`[Media Stream] 🛑 User interrupting agent - stopping current TTS`);
-          stopCurrentTTS(connection);
+          // Be more conservative: only interrupt if transcription is substantial (3+ words)
+          // AND has reasonable RMS (indicating actual speech, not echo/noise)
+          const wordCount = transcription.split(/\s+/).length;
+          const isSubstantial = wordCount >= 3;
+          const hasReasonableRMS = rmsValue > 300; // Higher threshold when agent is speaking
+          
+          if (isSubstantial && hasReasonableRMS) {
+            console.log(`[Media Stream] 🛑 User interrupting agent - stopping current TTS (${wordCount} words, RMS: ${rmsValue.toFixed(2)})`);
+            stopCurrentTTS(connection);
+          } else {
+            console.log(`[Media Stream] ⚠️  Ignoring transcription while agent speaking - likely agent's voice or noise (${wordCount} words, RMS: ${rmsValue.toFixed(2)})`);
+            return; // Don't process this transcription as user input
+          }
         }
         
         // Reset silence counter on successful transcription
@@ -1113,9 +1125,9 @@ function cleanupConnection(connectionId) {
 // Start server - bind to 0.0.0.0 to accept connections from Railway's reverse proxy
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`[Media Stream] ==========================================`);
-  console.log(`[Media Stream] 🚀 Server Version: fix-chunk-sending-after-close`);
-  console.log(`[Media Stream] ✅ FIXED: Silently skip chunks when WebSocket is closed`);
-  console.log(`[Media Stream] ✅ Check WebSocket state first to prevent error spam`);
+  console.log(`[Media Stream] 🚀 Server Version: fix-false-interruptions`);
+  console.log(`[Media Stream] ✅ FIXED: Only interrupt on substantial user speech (3+ words, RMS > 300)`);
+  console.log(`[Media Stream] ✅ Prevents false interruptions from agent's voice or noise`);
   console.log(`[Media Stream] ==========================================`);
   console.log(`[Media Stream] WebSocket server listening on port ${PORT}`);
   console.log(`[Media Stream] Next.js API URL: ${NEXTJS_API_URL}`);
