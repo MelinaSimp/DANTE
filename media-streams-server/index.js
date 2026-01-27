@@ -661,6 +661,9 @@ async function processUserInput(connection, userInput) {
     if (response.ok) {
       const result = await response.json();
       
+      // Log the FULL response from the API to debug "you are welcome" issue
+      console.log(`[Media Stream] 📋 API Response - output: "${result.output || '(empty)'}", voiceId: ${result.voiceId || 'default'}`);
+      
         if (result.output && result.output.trim().length > 0) {
           // If we were in the process of ending the call, cancel it since agent is responding
           if (connection.isEndingCall) {
@@ -1125,9 +1128,9 @@ function cleanupConnection(connectionId) {
 // Start server - bind to 0.0.0.0 to accept connections from Railway's reverse proxy
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`[Media Stream] ==========================================`);
-  console.log(`[Media Stream] 🚀 Server Version: fix-false-interruptions`);
-  console.log(`[Media Stream] ✅ FIXED: Only interrupt on substantial user speech (3+ words, RMS > 300)`);
-  console.log(`[Media Stream] ✅ Prevents false interruptions from agent's voice or noise`);
+  console.log(`[Media Stream] 🚀 Server Version: debug-you-are-welcome`);
+  console.log(`[Media Stream] ✅ Added logging to debug "you are welcome" issue`);
+  console.log(`[Media Stream] ✅ Reverted to working version (fix-false-interruptions)`);
   console.log(`[Media Stream] ==========================================`);
   console.log(`[Media Stream] WebSocket server listening on port ${PORT}`);
   console.log(`[Media Stream] Next.js API URL: ${NEXTJS_API_URL}`);
