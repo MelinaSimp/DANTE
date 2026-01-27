@@ -130,6 +130,8 @@ wss.on('connection', (ws, req) => {
     inputDebounceTimer: null, // Timer for debouncing user input (500ms after last speech)
     currentTTSChunks: [], // Track current TTS chunks for interruption
     pendingSTTCall: false, // Track if we have a pending STT API call
+    recentTranscriptions: [], // Track recent transcriptions to prevent duplicates (last 5, with timestamps)
+    isProcessingInput: false, // Track if we're currently processing user input (prevent concurrent processing)
   };
 
   activeConnections.set(connectionId, connection);
@@ -370,6 +372,32 @@ async function processAudioChunk(connection) {
         
         console.log(`[Media Stream] ✅ Got transcription: "${transcription}"`);
         
+        // Check for duplicate transcriptions (prevent processing the same speech multiple times)
+        const normalizedTranscription = transcription.trim().toLowerCase();
+        const now = Date.now();
+        const duplicateWindow = 3000; // 3 seconds
+        const isDuplicate = connection.recentTranscriptions.some(entry => {
+          const timeDiff = now - entry.timestamp;
+          if (timeDiff > duplicateWindow) return false; // Too old, ignore
+          const normalizedRecent = entry.text.trim().toLowerCase();
+          // Check if transcriptions are very similar (exact match or one is contained in the other)
+          return normalizedTranscription === normalizedRecent || 
+                 normalizedTranscription.includes(normalizedRecent) || 
+                 normalizedRecent.includes(normalizedTranscription);
+        });
+        
+        if (isDuplicate) {
+          console.log(`[Media Stream] ⚠️  Ignoring duplicate transcription: "${transcription}" (similar to recent transcription)`);
+          return; // Don't process this duplicate
+        }
+        
+        // Track this transcription to prevent future duplicates
+        connection.recentTranscriptions.push({ text: transcription, timestamp: now });
+        // Keep only last 5 transcriptions
+        if (connection.recentTranscriptions.length > 5) {
+          connection.recentTranscriptions.shift();
+        }
+        
         // If agent is speaking, interrupt them
         if (connection.isSpeaking) {
           console.log(`[Media Stream] 🛑 User interrupting agent - stopping current TTS`);
@@ -396,7 +424,45 @@ async function processAudioChunk(connection) {
             console.log(`[Media Stream] 📝 Processing accumulated input (${connection.pendingUserInput.length} parts): "${combinedInput}"`);
             connection.pendingUserInput = []; // Clear accumulated inputs
             connection.inputDebounceTimer = null;
-            await processUserInput(connection, combinedInput);
+            
+            // Check if this combined input was recently processed (prevent duplicate processing)
+            const normalizedCombined = combinedInput.trim().toLowerCase();
+            const now = Date.now();
+            const duplicateWindow = 3000; // 3 seconds
+            const isDuplicate = connection.recentTranscriptions.some(entry => {
+              const timeDiff = now - entry.timestamp;
+              if (timeDiff > duplicateWindow) return false; // Too old, ignore
+              const normalizedRecent = entry.text.trim().toLowerCase();
+              // Check if combined input is very similar to a recently processed input
+              return normalizedCombined === normalizedRecent || 
+                     normalizedCombined.includes(normalizedRecent) || 
+                     normalizedRecent.includes(normalizedCombined);
+            });
+            
+            if (isDuplicate) {
+              console.log(`[Media Stream] ⚠️  Ignoring duplicate combined input: "${combinedInput}" (similar to recently processed input)`);
+              return; // Don't process this duplicate
+            }
+            
+            // Check if we're already processing input (prevent concurrent processing)
+            if (connection.isProcessingInput) {
+              console.log(`[Media Stream] ⚠️  Already processing input, skipping duplicate processing`);
+              return; // Don't process concurrently
+            }
+            
+            // Track this combined input to prevent future duplicates
+            connection.recentTranscriptions.push({ text: combinedInput, timestamp: now });
+            // Keep only last 5 transcriptions
+            if (connection.recentTranscriptions.length > 5) {
+              connection.recentTranscriptions.shift();
+            }
+            
+            connection.isProcessingInput = true;
+            try {
+              await processUserInput(connection, combinedInput);
+            } finally {
+              connection.isProcessingInput = false;
+            }
           }
         }, 500);
       } else {
