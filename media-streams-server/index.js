@@ -212,12 +212,6 @@ wss.on('connection', (ws, req) => {
         connection.audioBuffer = Buffer.concat([connection.audioBuffer, audioChunk]);
         connection.lastActivity = Date.now();
         
-        // Skip processing if agent is currently speaking (to avoid processing agent's own voice)
-        if (connection.isSpeaking) {
-          // Don't process audio while agent is speaking
-          return;
-        }
-        
         // Wait at least 3 seconds after greeting starts before processing user audio
         const timeSinceGreeting = connection.greetingStartTime > 0 ? Date.now() - connection.greetingStartTime : Infinity;
         if (timeSinceGreeting < 3000) {
@@ -225,11 +219,21 @@ wss.on('connection', (ws, req) => {
           return;
         }
         
-        // Process audio chunks - Whisper works better with longer audio (3-4 seconds)
-        // 24000 bytes = ~3 seconds of mulaw 8kHz audio (better for Whisper accuracy)
-        // Also process if we haven't processed in 4 seconds (catches short utterances)
+        // CRITICAL: For interruptability, we need to process audio even when agent is speaking
+        // Use shorter buffer when agent is speaking to detect interruptions quickly
         const timeSinceLastProcess = Date.now() - connection.lastProcessTime;
-        const shouldProcess = connection.audioBuffer.length > 24000 || (timeSinceLastProcess > 4000 && connection.audioBuffer.length > 16000);
+        let shouldProcess;
+        
+        if (connection.isSpeaking) {
+          // Agent is speaking - use shorter buffer to detect user interruptions quickly
+          // Process every 1.5 seconds (12000 bytes) or if we haven't processed in 2 seconds
+          shouldProcess = connection.audioBuffer.length > 12000 || (timeSinceLastProcess > 2000 && connection.audioBuffer.length > 8000);
+        } else {
+          // Agent is not speaking - use normal buffer for better accuracy
+          // 24000 bytes = ~3 seconds of mulaw 8kHz audio (better for Whisper accuracy)
+          // Also process if we haven't processed in 4 seconds (catches short utterances)
+          shouldProcess = connection.audioBuffer.length > 24000 || (timeSinceLastProcess > 4000 && connection.audioBuffer.length > 16000);
+        }
         
         if (shouldProcess && connection.audioBuffer.length > 0) {
           console.log(`[Media Stream] 📊 Processing audio: ${connection.audioBuffer.length} bytes, ${timeSinceLastProcess}ms since last process`);
@@ -1096,9 +1100,9 @@ function cleanupConnection(connectionId) {
 // Start server - bind to 0.0.0.0 to accept connections from Railway's reverse proxy
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`[Media Stream] ==========================================`);
-  console.log(`[Media Stream] 🚀 Server Version: fix-fragmented-audio-only`);
-  console.log(`[Media Stream] ✅ FIXED: Prevent fragmented audio by tracking TTS session IDs`);
-  console.log(`[Media Stream] ✅ Reverted: clear-pending-on-user-speech (was causing premature goodbyes)`);
+  console.log(`[Media Stream] 🚀 Server Version: fix-interruptability`);
+  console.log(`[Media Stream] ✅ FIXED: Process audio even when agent is speaking for interruptability`);
+  console.log(`[Media Stream] ✅ Use shorter buffer when agent speaking to detect interruptions quickly`);
   console.log(`[Media Stream] ==========================================`);
   console.log(`[Media Stream] WebSocket server listening on port ${PORT}`);
   console.log(`[Media Stream] Next.js API URL: ${NEXTJS_API_URL}`);
