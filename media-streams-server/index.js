@@ -475,11 +475,25 @@ async function processAudioChunk(connection) {
             : Date.now() - connection.greetingStartTime;
           
           if (timeSinceLastUserSpeech >= silenceTimeout) {
-            // Double-check: Make absolutely sure agent is not speaking and we're not already ending the call
+            // Double-check: Make absolutely sure agent is not speaking, we're not already ending the call,
+            // and there's no pending user input or processing in progress
             if (connection.isSpeaking || connection.isEndingCall) {
               console.log(`[Media Stream] 🔇 Silence timeout reached but agent is speaking or call is ending - skipping end call`);
               return;
             }
+            
+            // Don't end call if there's pending user input waiting to be processed
+            if (connection.pendingUserInput.length > 0 || connection.inputDebounceTimer) {
+              console.log(`[Media Stream] 🔇 Silence timeout reached but user input is pending - skipping end call`);
+              return;
+            }
+            
+            // Don't end call if input is currently being processed
+            if (connection.isProcessingInput || connection.pendingSTTCall) {
+              console.log(`[Media Stream] 🔇 Silence timeout reached but input is being processed - skipping end call`);
+              return;
+            }
+            
             console.log(`[Media Stream] 🔇 No user speech detected for ${(timeSinceLastUserSpeech / 1000).toFixed(1)}s. Ending call.`);
             await endCallWithMessage(connection, "You have not spoken. This call will end.");
             return;
