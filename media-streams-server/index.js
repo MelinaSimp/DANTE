@@ -380,43 +380,23 @@ async function processAudioChunk(connection) {
         
         console.log(`[Media Stream] ✅ Got transcription: "${transcription}"`);
         
-        // CRITICAL: As soon as user starts speaking, clear ALL pending state
-        // This ensures we start fresh with the new user input
-        console.log(`[Media Stream] 🧹 User started speaking - clearing all pending state`);
-        
-        // Stop any ongoing TTS immediately
+        // If agent is speaking, interrupt them
         if (connection.isSpeaking) {
           console.log(`[Media Stream] 🛑 User interrupting agent - stopping current TTS`);
           stopCurrentTTS(connection);
-        }
-        
-        // Note: If input is currently being processed, we can't cancel it mid-way,
-        // but we've cleared pendingUserInput so it won't process any new input.
-        // The isProcessingInput flag will be reset when the current processing finishes.
-        if (connection.isProcessingInput) {
-          console.log(`[Media Stream] ⚠️  Input processing in progress - will complete current processing, but new input will start fresh`);
-        }
-        
-        // Clear all pending user input (old transcriptions that haven't been processed yet)
-        if (connection.pendingUserInput.length > 0) {
-          console.log(`[Media Stream] 🧹 Clearing ${connection.pendingUserInput.length} pending user inputs`);
-          connection.pendingUserInput = [];
-        }
-        
-        // Cancel any pending debounce timer
-        if (connection.inputDebounceTimer) {
-          console.log(`[Media Stream] 🧹 Cancelling pending debounce timer`);
-          clearTimeout(connection.inputDebounceTimer);
-          connection.inputDebounceTimer = null;
         }
         
         // Reset silence counter on successful transcription
         connection.consecutiveSilences = 0;
         connection.lastUserSpeechTime = Date.now();
         
-        // Start fresh: add only the new transcription
+        // Accumulate user input and debounce (wait 500ms after last speech)
         connection.pendingUserInput.push(transcription);
-        console.log(`[Media Stream] 📝 Starting fresh with new transcription: "${transcription}"`);
+        
+        // Clear existing debounce timer
+        if (connection.inputDebounceTimer) {
+          clearTimeout(connection.inputDebounceTimer);
+        }
         
         // Set new debounce timer - process after 500ms of silence
         connection.inputDebounceTimer = setTimeout(async () => {
@@ -1116,9 +1096,9 @@ function cleanupConnection(connectionId) {
 // Start server - bind to 0.0.0.0 to accept connections from Railway's reverse proxy
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`[Media Stream] ==========================================`);
-  console.log(`[Media Stream] 🚀 Server Version: fix-fragmented-audio`);
+  console.log(`[Media Stream] 🚀 Server Version: fix-fragmented-audio-only`);
   console.log(`[Media Stream] ✅ FIXED: Prevent fragmented audio by tracking TTS session IDs`);
-  console.log(`[Media Stream] ✅ Old TTS chunks are now skipped when new TTS starts`);
+  console.log(`[Media Stream] ✅ Reverted: clear-pending-on-user-speech (was causing premature goodbyes)`);
   console.log(`[Media Stream] ==========================================`);
   console.log(`[Media Stream] WebSocket server listening on port ${PORT}`);
   console.log(`[Media Stream] Next.js API URL: ${NEXTJS_API_URL}`);
