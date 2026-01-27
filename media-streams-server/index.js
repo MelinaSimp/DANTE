@@ -402,7 +402,7 @@ async function processAudioChunk(connection) {
             // Check if this combined input was recently processed (prevent duplicate processing)
             const normalizedCombined = combinedInput.trim().toLowerCase();
             const now = Date.now();
-            const duplicateWindow = 3000; // 3 seconds
+            const duplicateWindow = 10000; // 10 seconds (increased from 3 to catch more duplicates)
             const isDuplicate = connection.recentTranscriptions.some(entry => {
               const timeDiff = now - entry.timestamp;
               if (timeDiff > duplicateWindow) return false; // Too old, ignore
@@ -611,6 +611,12 @@ async function processUserInput(connection, userInput) {
           if (connection.isEndingCall) {
             console.log(`[Media Stream] ✅ Agent is responding - cancelling end call`);
             connection.isEndingCall = false;
+          }
+          
+          // Double-check: if agent is already speaking, don't start another TTS (prevent overlapping)
+          if (connection.isSpeaking) {
+            console.log(`[Media Stream] ⚠️  Agent is already speaking, skipping duplicate TTS for: "${result.output.substring(0, 50)}..."`);
+            return; // Don't start overlapping TTS
           }
           
           // If agent was speaking, it was already stopped by stopCurrentTTS in the transcription handler
