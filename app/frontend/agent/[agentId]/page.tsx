@@ -4,7 +4,7 @@
 import { useEffect } from "react";
 import { useParams, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Bot, Calendar, Inbox, Sparkles, BarChart3 } from "lucide-react";
+import { Bot, Calendar, FileText, Sparkles, BarChart3 } from "lucide-react";
 
 export default function AgentSelectionPage() {
   const params = useParams();
@@ -135,7 +135,7 @@ export default function AgentSelectionPage() {
         <div className="text-center max-w-2xl">
           <h1 className="text-3xl font-semibold text-gray-900 mb-4">Agent Selected</h1>
           <p className="text-gray-600 mb-6">
-            Use the sidebar to navigate to Calendar, Data Sources, Policies, LLM, or Insights.
+            Use the sidebar to navigate to Calendar, Client Details, LLM, or Insights.
           </p>
         </div>
       </div>

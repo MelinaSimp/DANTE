@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import Link from "next/link";
-import { Bot, Calendar, Inbox, Sparkles, ArrowRight, MessageSquare, Phone, Clock, BarChart3 } from "lucide-react";
+import { Bot, Calendar, FileText, Sparkles, ArrowRight, MessageSquare, Phone, Clock, BarChart3 } from "lucide-react";
 
 interface Agent {
   id: string;
@@ -155,10 +155,10 @@ export default function FrontendPage() {
       requiresAgent: true
     },
     { 
-      name: "Inbox", 
-      icon: Inbox, 
-      href: currentAgentId ? `/frontend/agent/${currentAgentId}/inbox` : "#",
-      active: pathname?.includes("/inbox"),
+      name: "Client Details", 
+      icon: FileText, 
+      href: currentAgentId ? "/client-details-overview" : "#",
+      active: pathname === "/client-details-overview",
       requiresAgent: true
     },
     { 

@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { Phone, CalendarCheck, UserRound, ClipboardList, ChevronRight } from "lucide-react";
+import { Phone, CalendarCheck, UserRound, ClipboardList, ChevronRight, FileText } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 interface QuickAction {
@@ -36,6 +36,12 @@ const quickActions: QuickAction[] = [
     title: "Review tasks",
     description: "Stay on top of follow-ups",
     icon: ClipboardList,
+  },
+  {
+    href: "/client-details-overview",
+    title: "Client Details and Overview",
+    description: "Prepare reports for household or client",
+    icon: FileText,
   },
 ];
 

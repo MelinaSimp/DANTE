@@ -16,6 +16,7 @@ const navLinks = [
   { href: "/agents", label: "Agents" },
   { href: "/calls", label: "Calls" },
   { href: "/contacts", label: "Contacts" },
+  { href: "/client-details-overview", label: "Client Details and Overview" },
   { href: "/appointments", label: "Appointments" },
   { href: "/schedule", label: "Schedule" },
   { href: "/settings", label: "Settings" },
