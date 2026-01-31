@@ -71,6 +71,7 @@ export default function ClientDetailsOverviewClient({
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const contacts = initialContacts;
 
