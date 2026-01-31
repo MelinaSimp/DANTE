@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase/client";
 import AddContactForm from "./AddContactForm";
@@ -8,6 +9,7 @@ import AnalyzeContactAI from "@/components/ai/AnalyzeContactAI";
 import AddTaskForm from "@/components/tasks/AddTaskForm";
 import TaskItem from "@/components/tasks/TaskItem";
 import AddNoteForm from "@/components/notes/AddNoteForm";
+import { FileText } from "lucide-react";
 
 interface Contact {
   id: string;
@@ -189,6 +191,13 @@ export default function ContactsClient({ initialContacts, workspaceId }: Contact
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  <Link
+                    href={`/client-details-overview?contactId=${contact.id}`}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-[#e5e7eb] bg-[#f3f4f6] px-4 py-1 text-xs font-medium text-[#151515] transition hover:border-[#3166bf] hover:bg-[#3166bf]/10 hover:text-[#3166bf]"
+                  >
+                    <FileText className="h-3.5 w-3.5" />
+                    View Document
+                  </Link>
                   <Button
                     variant="outline"
                     size="sm"

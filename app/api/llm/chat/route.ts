@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { message, history = [], agentId, chatId, files = [], images = [] } = await req.json();
+    const { message, history = [], agentId, chatId, contactId, files = [], images = [] } = await req.json();
 
     if (!message || typeof message !== "string" || message.trim().length === 0) {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
@@ -161,6 +161,37 @@ CRITICAL RULES:
 
 You CAN generate PDFs - when users ask for a PDF, provide the content in a well-formatted way that can be converted to PDF. Use clear headings, bullet points, and organized sections.${guidelinesContent}`;
     
+    // Add client document + annotations to system context when contactId is provided
+    if (contactId) {
+      try {
+        const { data: doc } = await supabaseAdmin
+          .from("documents")
+          .select("id, extracted_text")
+          .eq("contact_id", contactId)
+          .maybeSingle();
+
+        if (doc?.extracted_text) {
+          const { data: anns } = await supabaseAdmin
+            .from("document_annotations")
+            .select("page_number, type, content")
+            .eq("document_id", doc.id)
+            .order("page_number");
+
+          let annText = "";
+          if (anns && anns.length > 0) {
+            annText = "\n\n--- PDF ANNOTATIONS (use as template for summary) ---\n";
+            anns.forEach((a: { page_number: number; type: string; content: string | null }) => {
+              annText += `[Page ${a.page_number}] ${a.type}: ${a.content ?? "(no text)"}\n`;
+            });
+          }
+
+          guidelinesContent += `\n\nCLIENT DOCUMENT TEMPLATE:\nThe user has an annotated PDF for this client. Use it as a template when generating summaries. Prioritize sections and topics marked in the annotations.\n\n--- EXTRACTED PDF TEXT ---\n${doc.extracted_text.substring(0, 15000)}${annText}`;
+        }
+      } catch (err) {
+        console.warn("Failed to load client document:", err);
+      }
+    }
+
     // Add PDF content to system context if files are provided
     if (files && files.length > 0) {
       const pdfInfo: string[] = [];

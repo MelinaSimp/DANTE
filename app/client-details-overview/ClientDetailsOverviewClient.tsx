@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -9,10 +9,16 @@ import {
   ThumbsDown,
   Bookmark,
   Info,
-  Mail,
-  Share2,
   X,
+  LayoutDashboard,
+  PieChart,
+  TrendingUp,
+  FileText,
+  Upload,
+  Trash2,
 } from "lucide-react";
+import PdfViewerWithAnnotations, { type Annotation } from "@/components/documents/PdfViewerWithAnnotations";
+import DocumentSummaryChat from "@/components/documents/DocumentSummaryChat";
 
 // Mock data matching the Vise-style screenshots
 const MOCK_HOUSEHOLD = {
@@ -23,21 +29,13 @@ const MOCK_HOUSEHOLD = {
   totalValue: "$7.5M",
 };
 
-const MOCK_CLIENTS = [
-  {
-    id: "diane-cooper",
-    name: "Diane Cooper",
-    accounts: 1,
-    totalValue: "$1.3M",
-  },
-];
+type Contact = { id: string; name: string; phone?: string; email?: string };
 
 const SECTIONS = [
-  { id: "account-overview", label: "Account Overview" },
-  { id: "asset-allocation", label: "Asset Allocation" },
-  { id: "performance", label: "Performance" },
-  { id: "transition-progress", label: "Transition Progress" },
-  { id: "recent-activity", label: "Recent Activity" },
+  { id: "documents", label: "Documents", icon: FileText },
+  { id: "account-overview", label: "Account Overview", icon: LayoutDashboard },
+  { id: "asset-allocation", label: "Asset Allocation", icon: PieChart },
+  { id: "performance", label: "Performance", icon: TrendingUp },
 ];
 
 type View = "select" | "overview";
@@ -51,11 +49,69 @@ function formatTime() {
   return `Today ${(h % 12) || 12}:${m.toString().padStart(2, "0")} ${ampm}`;
 }
 
-export default function ClientDetailsOverviewClient() {
+interface ClientDetailsOverviewClientProps {
+  initialContacts?: Contact[];
+  initialContactId?: string | null;
+}
+
+export default function ClientDetailsOverviewClient({
+  initialContacts = [],
+  initialContactId = null,
+}: ClientDetailsOverviewClientProps) {
   const [view, setView] = useState<View>("select");
   const [selected, setSelected] = useState<SelectedEntity>(null);
   const [activeSection, setActiveSection] = useState(SECTIONS[0].id);
   const [timeFilter, setTimeFilter] = useState<"YTD" | "MTD" | "QTD" | "All Time">("YTD");
+  const [document, setDocument] = useState<{
+    id: string;
+    file_name: string;
+    url: string;
+    extracted_text?: string;
+  } | null>(null);
+  const [annotations, setAnnotations] = useState<Annotation[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const contacts = initialContacts;
+
+  useEffect(() => {
+    if (initialContactId && contacts.length > 0) {
+      const contact = contacts.find((c) => c.id === initialContactId);
+      if (contact) {
+        setSelected({ type: "client", id: contact.id, name: contact.name });
+        setView("overview");
+        setActiveSection("documents");
+      }
+    }
+  }, [initialContactId, contacts]);
+
+  const loadDocument = useCallback(async (contactId: string) => {
+    const res = await fetch(`/api/documents?contactId=${contactId}`);
+    const data = await res.json();
+    if (data.document) {
+      setDocument({
+        id: data.document.id,
+        file_name: data.document.file_name,
+        url: data.document.url,
+        extracted_text: data.document.extracted_text,
+      });
+      const annRes = await fetch(`/api/documents/annotations?documentId=${data.document.id}`);
+      const annData = await annRes.json();
+      setAnnotations(annData.annotations ?? []);
+    } else {
+      setDocument(null);
+      setAnnotations([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selected?.type === "client") {
+      loadDocument(selected.id);
+    } else {
+      setDocument(null);
+      setAnnotations([]);
+    }
+  }, [selected?.type, selected?.id ?? "", loadDocument]);
 
   const handleSelectHousehold = () => {
     setSelected({
@@ -66,7 +122,7 @@ export default function ClientDetailsOverviewClient() {
     setView("overview");
   };
 
-  const handleSelectClient = (client: (typeof MOCK_CLIENTS)[0]) => {
+  const handleSelectClient = (client: Contact) => {
     setSelected({
       type: "client",
       id: client.id,
@@ -80,64 +136,124 @@ export default function ClientDetailsOverviewClient() {
     setSelected(null);
   };
 
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selected || selected.type !== "client") return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("contactId", selected.id);
+      const res = await fetch("/api/documents/upload", {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) throw new Error("Upload failed");
+      await loadDocument(selected.id);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleDeleteDocument = async () => {
+    if (!document || !selected) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/documents/${document.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Delete failed");
+      setDocument(null);
+      setAnnotations([]);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // Pink/blue halo component (matches frontend)
+  const IconHalo = ({ children, className = "", shape = "circle" }: { children: React.ReactNode; className?: string; shape?: "circle" | "square" }) => (
+    <div className={`relative ${className}`}>
+      <div className={`absolute inset-0 bg-gradient-to-br from-purple-400 via-pink-500 to-blue-500 blur-sm opacity-50 ${shape === "square" ? "rounded-sm" : "rounded-full"}`} aria-hidden />
+      <div className="relative">{children}</div>
+    </div>
+  );
+
   // ——— Selection screen (household vs client bars) ———
   if (view === "select") {
     return (
       <div className="min-h-[calc(100vh-4rem)] bg-[#f5f5f7] text-[#151515]">
         <div className="mx-auto max-w-2xl px-6 py-12">
-          <p className="text-center text-sm text-[#151515]/60">{formatTime()}</p>
-          <h1 className="mt-2 text-center text-2xl font-bold text-[#151515]">
-            Prepare a report for the household or a client?
-          </h1>
+          <div className="relative">
+            <div className="absolute -inset-4 bg-gradient-to-br from-purple-400/20 via-pink-500/20 to-blue-500/20 rounded-3xl blur-2xl -z-10" aria-hidden />
+            <p className="text-center text-sm text-[#151515]/60">{formatTime()}</p>
+            <h1 className="mt-2 text-center text-2xl font-bold text-[#151515]">
+              Prepare a report for the household or a client?
+            </h1>
+          </div>
 
-          <div className="mt-10 space-y-4">
-            {/* Household bar */}
-            <button
-              type="button"
-              onClick={handleSelectHousehold}
-              className="flex w-full items-center justify-between rounded-2xl border border-[#e5e7eb] bg-[#ffffff] px-5 py-4 text-left shadow-sm transition hover:border-[#3166bf]/40 hover:bg-[#fafafa]"
-            >
-              <div className="flex items-center gap-4">
-                <span className="flex h-5 w-5 shrink-0 rounded border-2 border-[#d1d5db]" aria-hidden />
-                <span className="text-lg font-semibold text-[#151515]">{MOCK_HOUSEHOLD.name}</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="rounded-full bg-[#f3f4f6] px-3 py-1 text-sm text-[#6b7280]">
-                  {MOCK_HOUSEHOLD.clients} clients
-                </span>
-                <span className="rounded-full bg-[#eff6ff] px-3 py-1 text-sm text-[#2563eb]">
-                  {MOCK_HOUSEHOLD.accounts} accounts
-                </span>
-                <span className="rounded-full bg-[#ecfdf5] px-3 py-1 text-sm font-medium text-[#059669]">
-                  {MOCK_HOUSEHOLD.totalValue}
-                </span>
-              </div>
-            </button>
-
-            <p className="text-center text-sm text-[#6b7280]">Select a client</p>
-
-            {/* Client bar(s) */}
-            {MOCK_CLIENTS.map((client) => (
+          <div className="mt-10 space-y-4 relative">
+            {/* Household bar — square with halo */}
+            <div className="relative">
+              <div className="absolute -inset-1 bg-gradient-to-br from-purple-400/25 via-pink-500/25 to-blue-500/25 blur-md rounded-sm" aria-hidden />
               <button
-                key={client.id}
                 type="button"
-                onClick={() => handleSelectClient(client)}
-                className="flex w-full items-center justify-between rounded-2xl border border-[#e5e7eb] bg-[#ffffff] px-5 py-4 text-left shadow-sm transition hover:border-[#3166bf]/40 hover:bg-[#fafafa]"
+                onClick={handleSelectHousehold}
+                className="relative flex w-full items-center justify-between rounded-sm border border-[#e5e7eb] bg-[#ffffff] px-5 py-4 text-left shadow-sm transition hover:border-[#3166bf]/40 hover:bg-[#fafafa] group"
               >
                 <div className="flex items-center gap-4">
-                  <span className="flex h-5 w-5 shrink-0 rounded border-2 border-[#d1d5db]" aria-hidden />
-                  <span className="text-lg font-semibold text-[#151515]">{client.name}</span>
+                  <IconHalo shape="square" className="flex h-8 w-8 shrink-0 items-center justify-center">
+                    <span className="flex h-5 w-5 rounded-sm border-2 border-[#d1d5db] bg-white group-hover:border-[#a78bfa]/50" aria-hidden />
+                  </IconHalo>
+                  <span className="text-lg font-semibold text-[#151515]">{MOCK_HOUSEHOLD.name}</span>
                 </div>
                 <div className="flex items-center gap-3">
+                  <span className="rounded-full bg-[#f3f4f6] px-3 py-1 text-sm text-[#6b7280]">
+                    {MOCK_HOUSEHOLD.clients} clients
+                  </span>
                   <span className="rounded-full bg-[#eff6ff] px-3 py-1 text-sm text-[#2563eb]">
-                    {client.accounts} account
+                    {MOCK_HOUSEHOLD.accounts} accounts
                   </span>
                   <span className="rounded-full bg-[#ecfdf5] px-3 py-1 text-sm font-medium text-[#059669]">
-                    {client.totalValue}
+                    {MOCK_HOUSEHOLD.totalValue}
                   </span>
                 </div>
               </button>
-            ))}
+            </div>
+
+            <p className="text-center text-sm text-[#6b7280]">Select a client</p>
+
+            {/* Client bar(s) — square with halo */}
+            {contacts.length === 0 ? (
+              <p className="text-center text-sm text-[#6b7280] py-4">No contacts yet. Add contacts to prepare reports.</p>
+            ) : (
+            contacts.map((client) => (
+              <div key={client.id} className="relative">
+                <div className="absolute -inset-1 bg-gradient-to-br from-purple-400/25 via-pink-500/25 to-blue-500/25 blur-md rounded-sm" aria-hidden />
+                <button
+                  type="button"
+                  onClick={() => handleSelectClient(client)}
+                  className="relative flex w-full items-center justify-between rounded-sm border border-[#e5e7eb] bg-[#ffffff] px-5 py-4 text-left shadow-sm transition hover:border-[#3166bf]/40 hover:bg-[#fafafa] group"
+                >
+                <div className="flex items-center gap-4">
+                  <IconHalo shape="square" className="flex h-8 w-8 shrink-0 items-center justify-center">
+                    <span className="flex h-5 w-5 rounded-sm border-2 border-[#d1d5db] bg-white group-hover:border-[#a78bfa]/50" aria-hidden />
+                  </IconHalo>
+                  <span className="text-lg font-semibold text-[#151515]">{client.name}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  {client.phone && (
+                    <span className="rounded-full bg-[#eff6ff] px-3 py-1 text-sm text-[#2563eb]">
+                      {client.phone}
+                    </span>
+                  )}
+                </div>
+              </button>
+            </div>
+            ))
+            )}
           </div>
         </div>
       </div>
@@ -149,32 +265,45 @@ export default function ClientDetailsOverviewClient() {
 
   return (
     <div className="min-h-[calc(100vh-4rem)] flex bg-[#f5f5f7] text-[#151515]">
-      {/* Left sidebar */}
-      <aside className="w-64 shrink-0 border-r border-[#e5e7eb] bg-[#ffffff] p-4">
+      {/* Left sidebar — frontend-style glass + pink/blue halo on icons */}
+      <aside className="w-64 shrink-0 border-r border-gray-300/10 bg-gray-200/90 p-4 shadow-2xl backdrop-blur-sm">
         <button
           type="button"
           onClick={handleGoBack}
-          className="mb-6 flex items-center gap-2 text-sm font-medium text-[#151515] hover:text-[#3166bf]"
+          className="mb-6 flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-[#151515] transition hover:bg-white/30 hover:text-[#3166bf]"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <IconHalo className="flex h-9 w-9 shrink-0 items-center justify-center">
+            <span className="flex items-center justify-center rounded-full bg-white p-2">
+              <ArrowLeft className="h-4 w-4 text-gray-600" />
+            </span>
+          </IconHalo>
           Go Back
         </button>
         <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#6b7280]">Sections</p>
-        <nav className="space-y-0.5">
-          {SECTIONS.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => setActiveSection(s.id)}
-              className={`block w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${
-                activeSection === s.id
-                  ? "bg-[#eff6ff] text-[#2563eb]"
-                  : "text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#151515]"
-              }`}
-            >
-              {s.label}
-            </button>
-          ))}
+        <nav className="space-y-2">
+          {SECTIONS.map((s) => {
+            const Icon = s.icon;
+            const isActive = activeSection === s.id;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setActiveSection(s.id)}
+                className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium transition ${
+                  isActive
+                    ? "bg-blue-600/10 text-blue-600"
+                    : "text-gray-700 hover:bg-white/30"
+                }`}
+              >
+                <IconHalo className="flex h-9 w-9 shrink-0 items-center justify-center">
+                  <span className="flex items-center justify-center rounded-full bg-white p-2">
+                    <Icon className={`h-4 w-4 ${isActive ? "text-blue-600" : "text-gray-600"}`} />
+                  </span>
+                </IconHalo>
+                {s.label}
+              </button>
+            );
+          })}
         </nav>
       </aside>
 
@@ -253,22 +382,44 @@ export default function ClientDetailsOverviewClient() {
                   </div>
                 </div>
 
-                {/* Chart area placeholder (bars below) */}
-                <div className="rounded-xl border border-[#e5e7eb] bg-[#fafafa] p-6">
-                  <div className="mb-2 text-xs font-medium text-[#6b7280]">Account value over time</div>
-                  <div className="flex h-48 items-end gap-2">
-                    {[72, 68, 75, 70, 78, 82, 76, 85, 88, 84, 90, 100].map((h, i) => (
-                      <div
-                        key={i}
-                        className="flex-1 rounded-t bg-[#3166bf]/80 transition hover:bg-[#3166bf]"
-                        style={{ height: `${h}%` }}
-                        title={`${h}%`}
-                      />
-                    ))}
-                  </div>
-                  <div className="mt-2 flex justify-between text-xs text-[#6b7280]">
-                    <span>Jan</span>
-                    <span>Dec</span>
+                {/* Line graph — white bg, pink/blue halo */}
+                <div className="relative overflow-hidden rounded-xl border border-[#e5e7eb] bg-white p-6">
+                  <div className="absolute inset-0 bg-gradient-to-br from-purple-400/10 via-pink-500/10 to-blue-500/10 blur-2xl" aria-hidden />
+                  <div className="relative">
+                    <div className="mb-2 text-xs font-medium text-[#6b7280]">Account value over time</div>
+                    <div className="h-48 w-full">
+                      <svg viewBox="0 0 400 120" className="h-full w-full" preserveAspectRatio="none">
+                        <defs>
+                          <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stopColor="#c084fc" />
+                            <stop offset="50%" stopColor="#ec4899" />
+                            <stop offset="100%" stopColor="#3b82f6" />
+                          </linearGradient>
+                          <filter id="lineGlow">
+                            <feGaussianBlur stdDeviation="2" result="blur" />
+                            <feMerge>
+                              <feMergeNode in="blur" />
+                              <feMergeNode in="SourceGraphic" />
+                            </feMerge>
+                          </filter>
+                        </defs>
+                        <polyline
+                          fill="none"
+                          stroke="url(#lineGradient)"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          filter="url(#lineGlow)"
+                          points={[72, 68, 75, 70, 78, 82, 76, 85, 88, 84, 90, 100]
+                            .map((v, i) => `${(i / 11) * 380 + 10},${120 - v}`)
+                            .join(" ")}
+                        />
+                      </svg>
+                    </div>
+                    <div className="mt-2 flex justify-between text-xs text-[#6b7280]">
+                      <span>Jan</span>
+                      <span>Dec</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -284,8 +435,14 @@ export default function ClientDetailsOverviewClient() {
                 <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                   <div className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] p-4">
                     <p className="text-xs font-semibold uppercase text-[#6b7280]">Allocation</p>
-                    <div className="mt-3 flex h-32 w-32 items-center justify-center rounded-full border-4 border-[#e5e7eb] bg-[#fafafa]">
-                      <div className="h-24 w-24 rounded-full border-[8px] border-[#6366f1] border-t-[#22c55e] border-r-[#3b82f6]" />
+                    <div className="relative mt-3 h-32 w-32">
+                      <div
+                        className="absolute inset-0 rounded-full"
+                        style={{
+                          background: "conic-gradient(#c084fc 0deg 271deg, #ec4899 271deg 343deg, #3b82f6 343deg 360deg)",
+                        }}
+                      />
+                      <div className="absolute inset-[12%] rounded-full bg-[#fafafa]" />
                     </div>
                   </div>
                   <div className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] p-4">
@@ -311,7 +468,7 @@ export default function ClientDetailsOverviewClient() {
                       {["NVDA", "AAPL", "AMZN", "MSFT", "XOM", "META"].map((t) => (
                         <span
                           key={t}
-                          className="rounded-lg bg-[#eff6ff] px-2.5 py-1 text-sm font-medium text-[#2563eb]"
+                          className="rounded-lg border border-[#c084fc]/40 bg-gradient-to-r from-purple-400/15 via-pink-500/15 to-blue-500/15 px-2.5 py-1 text-sm font-semibold text-[#6366f1]"
                         >
                           {t}
                         </span>
@@ -330,11 +487,11 @@ export default function ClientDetailsOverviewClient() {
                       { name: "Health Care", target: 8.2, sp500: 12.1, diff: -3.9 },
                     ].map((row) => (
                       <div key={row.name} className="flex items-center gap-4">
-                        <span className="w-40 text-sm text-[#374151]">{row.name}</span>
+                        <span className="w-40 text-sm font-medium text-[#374151]">{row.name}</span>
                         <div className="flex-1">
                           <div className="flex gap-1">
                             <div
-                              className="h-5 rounded bg-[#3b82f6]"
+                              className="h-5 rounded bg-gradient-to-r from-[#c084fc] via-[#ec4899] to-[#3b82f6]"
                               style={{ width: `${Math.min(100, row.target * 3)}%` }}
                             />
                             <div
@@ -358,7 +515,103 @@ export default function ClientDetailsOverviewClient() {
               </div>
             )}
 
-            {activeSection !== "account-overview" && activeSection !== "asset-allocation" && (
+            {activeSection === "documents" && (
+              <div className="mt-8">
+                {selected?.type !== "client" ? (
+                  <div className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] p-8 text-center">
+                    <p className="text-[#6b7280]">Select a client to view and annotate documents.</p>
+                  </div>
+                ) : !document ? (
+                  <div className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] p-8">
+                    <p className="text-[#6b7280] mb-4">Upload a PDF for {selected.name}. One primary document per client.</p>
+                    <label className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 cursor-pointer disabled:opacity-50">
+                      <Upload className="h-4 w-4" />
+                      {uploading ? "Uploading…" : "Upload PDF"}
+                      <input
+                        type="file"
+                        accept="application/pdf"
+                        onChange={handleUpload}
+                        disabled={uploading}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-[#e5e7eb] bg-white overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2 border-b border-[#e5e7eb] bg-[#f9fafb]">
+                      <span className="text-sm font-medium text-[#374151]">{document.file_name}</span>
+                      <div className="flex items-center gap-2">
+                        <label className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-[#6b7280] hover:bg-[#e5e7eb] cursor-pointer">
+                          <Upload className="h-3 w-3" />
+                          Replace
+                          <input
+                            type="file"
+                            accept="application/pdf"
+                            onChange={handleUpload}
+                            disabled={uploading}
+                            className="hidden"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={handleDeleteDocument}
+                          disabled={deleting}
+                          className="flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                    {/* Split layout: PDF left, annotations + LLM chat right */}
+                    <div className="flex h-[600px]">
+                      <div className="flex-1 min-w-0 border-r border-[#e5e7eb]">
+                        <PdfViewerWithAnnotations
+                          documentId={document.id}
+                          fileUrl={document.url}
+                          fileName={document.file_name}
+                          annotations={annotations}
+                          onAnnotationsChange={setAnnotations}
+                        />
+                      </div>
+                      <div className="w-[380px] shrink-0 flex flex-col bg-[#f9fafb]">
+                        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                          <p className="text-xs font-semibold uppercase tracking-wider text-[#6b7280]">
+                            Annotations & comments
+                          </p>
+                          {annotations.length === 0 ? (
+                            <p className="text-sm text-[#6b7280]">
+                              Draw a box or highlight on the PDF, then add a comment. The LLM will use these when generating summaries.
+                            </p>
+                          ) : (
+                            annotations
+                              .sort((a, b) => (a.page_number - b.page_number) || ((a.created_at || "").localeCompare(b.created_at || "")))
+                              .map((ann) => (
+                                <div
+                                  key={ann.id}
+                                  className="flex justify-end"
+                                >
+                                  <div className="max-w-[90%] rounded-xl px-3 py-2 text-sm bg-blue-600 text-white">
+                                    <span className="text-xs opacity-90">Page {ann.page_number}</span>
+                                    <div className="mt-0.5 whitespace-pre-wrap">
+                                      {ann.content || (ann.type === "highlight" ? "(highlighted)" : ann.type)}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))
+                          )}
+                        </div>
+                        {selected?.type === "client" && document && (
+                          <DocumentSummaryChat contactId={selected.id} clientName={selected.name} />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeSection !== "account-overview" && activeSection !== "asset-allocation" && activeSection !== "documents" && (
               <div className="mt-8 rounded-xl border border-[#e5e7eb] bg-[#f9fafb] p-8 text-center">
                 <p className="text-[#6b7280]">
                   {SECTIONS.find((s) => s.id === activeSection)?.label} content will appear here.
@@ -366,8 +619,8 @@ export default function ClientDetailsOverviewClient() {
               </div>
             )}
 
-            {/* Footer actions */}
-            <div className="mt-8 flex items-center justify-between border-t border-[#e5e7eb] pt-4">
+            {/* Footer actions — Copy/Share removed */}
+            <div className="mt-8 flex items-center border-t border-[#e5e7eb] pt-4">
               <div className="flex items-center gap-2">
                 <button type="button" className="rounded p-2 text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#151515]">
                   <ThumbsUp className="h-4 w-4" />
@@ -380,22 +633,6 @@ export default function ClientDetailsOverviewClient() {
                 </button>
                 <button type="button" className="rounded p-2 text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#151515]">
                   <Info className="h-4 w-4" />
-                </button>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  className="flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-[#f9fafb] px-4 py-2 text-sm font-medium text-[#151515] hover:bg-[#f3f4f6]"
-                >
-                  <Mail className="h-4 w-4" />
-                  Copy into Email
-                </button>
-                <button
-                  type="button"
-                  className="flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-[#f9fafb] px-4 py-2 text-sm font-medium text-[#151515] hover:bg-[#f3f4f6]"
-                >
-                  <Share2 className="h-4 w-4" />
-                  Share
                 </button>
               </div>
             </div>

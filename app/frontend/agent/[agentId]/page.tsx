@@ -56,10 +56,10 @@ export default function AgentSelectionPage() {
       requiresAgent: true
     },
     { 
-      name: "Inbox", 
-      icon: Inbox, 
-      href: `/frontend/agent/${agentId}/inbox`,
-      active: pathname?.includes("/inbox"),
+      name: "Client Details", 
+      icon: FileText, 
+      href: "/client-details-overview",
+      active: pathname === "/client-details-overview",
       requiresAgent: true
     },
     { 
