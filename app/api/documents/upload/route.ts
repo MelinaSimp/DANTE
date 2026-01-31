@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { PDFParse } from "pdf-parse";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -65,16 +64,9 @@ export async function POST(req: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Extract text from PDF
-    let extractedText = "";
-    try {
-      const parser = new PDFParse({ data: new Uint8Array(buffer) });
-      const textResult = await parser.getText();
-      extractedText = textResult?.text ?? "";
-      await parser.destroy();
-    } catch (err) {
-      console.warn("PDF text extraction failed:", err);
-    }
+    // Text extraction skipped in serverless (pdf-parse requires canvas/DOMMatrix).
+    // PDF displays and annotations work; LLM uses annotations. Add extraction later if needed.
+    const extractedText = "";
 
     const timestamp = Date.now();
     const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
