@@ -89,8 +89,9 @@ export async function POST(req: NextRequest) {
 
     if (uploadError) {
       console.error("Document upload error:", uploadError);
+      const msg = uploadError.message || "Failed to upload document";
       return NextResponse.json(
-        { error: "Failed to upload document" },
+        { error: msg.includes("Bucket") ? "Storage bucket 'client-documents' not found. Run the Supabase storage migration." : msg },
         { status: 500 }
       );
     }
@@ -126,8 +127,9 @@ export async function POST(req: NextRequest) {
 
     if (docError) {
       console.error("Document insert error:", docError);
+      const msg = docError.message || "Failed to save document record";
       return NextResponse.json(
-        { error: "Failed to save document record" },
+        { error: msg.includes("relation") ? "Documents table not found. Run the Supabase documents migration." : msg },
         { status: 500 }
       );
     }

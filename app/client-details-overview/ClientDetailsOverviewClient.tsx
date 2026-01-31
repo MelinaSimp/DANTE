@@ -105,6 +105,7 @@ export default function ClientDetailsOverviewClient({
   }, []);
 
   useEffect(() => {
+    setUploadError(null);
     if (selected?.type === "client") {
       loadDocument(selected.id);
     } else {
@@ -140,6 +141,7 @@ export default function ClientDetailsOverviewClient({
     const file = e.target.files?.[0];
     if (!file || !selected || selected.type !== "client") return;
     setUploading(true);
+    setUploadError(null);
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -148,9 +150,15 @@ export default function ClientDetailsOverviewClient({
         method: "POST",
         body: formData,
       });
-      if (!res.ok) throw new Error("Upload failed");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Upload failed");
+      }
       await loadDocument(selected.id);
+      setUploadError(null);
     } catch (err) {
+      const msg = err instanceof Error ? err.message : "Upload failed";
+      setUploadError(msg);
       console.error(err);
     } finally {
       setUploading(false);
@@ -524,6 +532,18 @@ export default function ClientDetailsOverviewClient({
                 ) : !document ? (
                   <div className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] p-8">
                     <p className="text-[#6b7280] mb-4">Upload a PDF for {selected.name}. One primary document per client.</p>
+                    {uploadError && (
+                      <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                        {uploadError}
+                        <button
+                          type="button"
+                          onClick={() => setUploadError(null)}
+                          className="ml-2 text-red-500 hover:text-red-700"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    )}
                     <label className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 cursor-pointer disabled:opacity-50">
                       <Upload className="h-4 w-4" />
                       {uploading ? "Uploading…" : "Upload PDF"}
