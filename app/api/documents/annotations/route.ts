@@ -84,7 +84,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { data, error } = await supabase
+    // Verify user has access to the document (via workspace)
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("workspace_id")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const { data: doc } = await supabaseAdmin
+      .from("documents")
+      .select("id, workspace_id")
+      .eq("id", documentId)
+      .maybeSingle();
+
+    if (!doc || !profile?.workspace_id || doc.workspace_id !== profile.workspace_id) {
+      return NextResponse.json({ error: "Document not found or access denied" }, { status: 404 });
+    }
+
+    const { data, error } = await supabaseAdmin
       .from("document_annotations")
       .insert({
         document_id: documentId,

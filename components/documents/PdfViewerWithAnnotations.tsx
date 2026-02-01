@@ -64,6 +64,8 @@ export default function PdfViewerWithAnnotations({
     width: number;
     height: number;
   } | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const pageRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
   const onDocumentLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
@@ -142,7 +144,8 @@ export default function PdfViewerWithAnnotations({
     type: AnnotationType,
     bounding_box: { x: number; y: number; width: number; height: number },
     content: string | null
-  ) => {
+  ): Promise<boolean> => {
+    setSaveError(null);
     try {
       const res = await fetch("/api/documents/annotations", {
         method: "POST",
@@ -155,20 +158,30 @@ export default function PdfViewerWithAnnotations({
           bounding_box,
         }),
       });
-      if (!res.ok) throw new Error("Failed to add annotation");
-      const created = await res.json();
-      onAnnotationsChange([...annotations, created]);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to save annotation");
+      }
+      onAnnotationsChange([...annotations, data]);
+      return true;
     } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to save";
+      setSaveError(msg);
       console.error(err);
+      return false;
     }
   };
 
-  const handleContentSubmit = () => {
-    if (!pendingBox || !activeTool) return;
-    addAnnotation(activeTool, pendingBox, pendingContent || null);
-    setPendingContent("");
-    setPendingBox(null);
-    setShowContentModal(false);
+  const handleContentSubmit = async () => {
+    if (!pendingBox || !activeTool || saving) return;
+    setSaving(true);
+    const ok = await addAnnotation(activeTool, pendingBox, pendingContent || null);
+    setSaving(false);
+    if (ok) {
+      setPendingContent("");
+      setPendingBox(null);
+      setShowContentModal(false);
+    }
   };
 
   const deleteAnnotation = async (id: string) => {
@@ -383,6 +396,11 @@ export default function PdfViewerWithAnnotations({
             <p className="text-sm font-medium text-[#374151] mb-2">
               {activeTool === "highlight" ? "Add comment (optional)" : activeTool === "comment" ? "Add comment" : "Add tag"}
             </p>
+            {saveError && (
+              <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">
+                {saveError}
+              </div>
+            )}
             <input
               type="text"
               value={pendingContent}
@@ -406,17 +424,20 @@ export default function PdfViewerWithAnnotations({
                   setShowContentModal(false);
                   setPendingBox(null);
                   setPendingContent("");
+                  setSaveError(null);
                 }}
                 className="rounded-lg px-3 py-2 text-sm text-[#6b7280] hover:bg-[#f3f4f6]"
+                disabled={saving}
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleContentSubmit}
-                className="rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700"
+                disabled={saving}
+                className="rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
               >
-                Add
+                {saving ? "Saving…" : "Add"}
               </button>
             </div>
           </div>
