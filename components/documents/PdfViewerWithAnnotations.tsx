@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
@@ -11,6 +11,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Trash2,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
 } from "lucide-react";
 
 // Configure PDF.js worker
@@ -47,7 +50,9 @@ export default function PdfViewerWithAnnotations({
 }: PdfViewerWithAnnotationsProps) {
   const [numPages, setNumPages] = useState<number>(0);
   const [pageNumber, setPageNumber] = useState(1);
-  const [scale, setScale] = useState(1.2);
+  const [pageWidth, setPageWidth] = useState(600);
+  const [fitToWidth, setFitToWidth] = useState(true);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [activeTool, setActiveTool] = useState<AnnotationType | null>(null);
   const [drawing, setDrawing] = useState(false);
   const [drawStart, setDrawStart] = useState<{ x: number; y: number } | null>(null);
@@ -66,6 +71,32 @@ export default function PdfViewerWithAnnotations({
     setPageNumber(1);
   }, []);
 
+  // Fit to container width when fitToWidth is true
+  useEffect(() => {
+    if (!fitToWidth || !containerRef.current) return;
+    const updateWidth = () => {
+      if (containerRef.current) {
+        const w = containerRef.current.clientWidth - 32; // padding
+        setPageWidth(Math.max(200, Math.min(w, 1200)));
+      }
+    };
+    updateWidth();
+    const ro = new ResizeObserver(updateWidth);
+    ro.observe(containerRef.current);
+    return () => ro.disconnect();
+  }, [fitToWidth, pageNumber, numPages]);
+
+  const handleZoomIn = () => {
+    setFitToWidth(false);
+    setPageWidth((w) => Math.min(w * 1.25, 1600));
+  };
+  const handleZoomOut = () => {
+    setFitToWidth(false);
+    setPageWidth((w) => Math.max(w * 0.8, 200));
+  };
+  const handleFitToPage = () => {
+    setFitToWidth(true);
+  };
 
   const pageAnnotations = annotations.filter((a) => a.page_number === pageNumber);
 
@@ -102,12 +133,9 @@ export default function PdfViewerWithAnnotations({
     setDrawStart(null);
     setPendingBox(null);
 
-    if (activeTool === "comment" || activeTool === "tag") {
-      setPendingBox(box);
-      setShowContentModal(true);
-    } else {
-      addAnnotation(activeTool, box, null);
-    }
+    // All tools (highlight, comment, tag) can add a comment
+    setPendingBox(box);
+    setShowContentModal(true);
   };
 
   const addAnnotation = async (
@@ -158,7 +186,7 @@ export default function PdfViewerWithAnnotations({
   return (
     <div className="flex flex-col h-full bg-[#f5f5f7] rounded-xl overflow-hidden">
       {/* Toolbar */}
-      <div className="flex items-center justify-between gap-4 px-4 py-2 bg-white border-b border-[#e5e7eb]">
+      <div className="flex items-center justify-between gap-4 px-4 py-2 bg-white border-b border-[#e5e7eb] flex-wrap">
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -178,6 +206,32 @@ export default function PdfViewerWithAnnotations({
             className="rounded p-2 text-[#6b7280] hover:bg-[#f3f4f6] disabled:opacity-40"
           >
             <ChevronRight className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={handleZoomOut}
+            className="rounded p-2 text-[#6b7280] hover:bg-[#f3f4f6]"
+            title="Zoom out"
+          >
+            <ZoomOut className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={handleFitToPage}
+            className={`rounded px-2 py-1 text-xs font-medium ${fitToWidth ? "bg-blue-100 text-blue-800" : "text-[#6b7280] hover:bg-[#f3f4f6]"}`}
+            title="Fit to page"
+          >
+            <Maximize2 className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={handleZoomIn}
+            className="rounded p-2 text-[#6b7280] hover:bg-[#f3f4f6]"
+            title="Zoom in"
+          >
+            <ZoomIn className="h-4 w-4" />
           </button>
         </div>
         {!readOnly && (
@@ -223,7 +277,7 @@ export default function PdfViewerWithAnnotations({
       </div>
 
       {/* PDF + annotations */}
-      <div className="flex-1 overflow-auto p-4 flex justify-center">
+      <div ref={containerRef} className="flex-1 overflow-auto p-4 flex justify-center min-h-0">
         <div className="relative inline-block">
           <Document
             file={fileUrl}
@@ -251,8 +305,7 @@ export default function PdfViewerWithAnnotations({
             >
               <Page
                 pageNumber={pageNumber}
-                scale={scale}
-                width={600}
+                width={pageWidth}
                 renderTextLayer={true}
                 renderAnnotationLayer={false}
               />
@@ -328,13 +381,13 @@ export default function PdfViewerWithAnnotations({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-xl shadow-xl p-4 w-80">
             <p className="text-sm font-medium text-[#374151] mb-2">
-              {activeTool === "comment" ? "Add comment" : "Add tag"}
+              {activeTool === "highlight" ? "Add comment (optional)" : activeTool === "comment" ? "Add comment" : "Add tag"}
             </p>
             <input
               type="text"
               value={pendingContent}
               onChange={(e) => setPendingContent(e.target.value)}
-              placeholder={activeTool === "comment" ? "Your comment…" : "Tag name…"}
+              placeholder={activeTool === "highlight" ? "Your comment…" : activeTool === "comment" ? "Your comment…" : "Tag name…"}
               className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2 text-sm"
               autoFocus
               onKeyDown={(e) => {
