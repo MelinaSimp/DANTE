@@ -10,6 +10,7 @@ import {
   Bookmark,
   Info,
   X,
+  Check,
   LayoutDashboard,
   PieChart,
   TrendingUp,
@@ -613,7 +614,10 @@ export default function ClientDetailsOverviewClient({
                                   className="flex justify-end"
                                 >
                                   <div className="max-w-[90%] rounded-xl px-3 py-2 text-sm bg-blue-600 text-white">
-                                    <span className="text-xs opacity-90">Page {ann.page_number}</span>
+                                    <div className="flex items-center gap-2 text-xs opacity-90">
+                                      <Check className="h-3.5 w-3.5 shrink-0" />
+                                      <span>Saved · Page {ann.page_number}</span>
+                                    </div>
                                     <div className="mt-0.5 whitespace-pre-wrap">
                                       {ann.content || (ann.type === "highlight" ? "(highlighted)" : ann.type)}
                                     </div>
