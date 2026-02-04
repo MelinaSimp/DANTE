@@ -116,6 +116,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Add client document + annotations to system context when contactId is provided
+    let clientDocumentContext = "";
     if (contactId) {
       try {
         const { data: doc } = await supabaseAdmin
@@ -144,14 +145,13 @@ export async function POST(req: NextRequest) {
           const hasAnnotations = anns && anns.length > 0;
 
           if (hasExtractedText || hasAnnotations) {
-            let docContext = "\n\nCLIENT DOCUMENT TEMPLATE:\nThe user has an annotated PDF for this client. Use it as a template when generating summaries.";
+            clientDocumentContext = "\n\n--- CLIENT DOCUMENT (you have this context; do NOT ask for more) ---\nThe user has an annotated PDF for this client. You MUST use the content below to generate summaries. Do NOT say you need more content or the document—you already have it.\n\nCLIENT DOCUMENT TEMPLATE:\n";
             if (hasExtractedText) {
-              docContext += `\n\n--- EXTRACTED PDF TEXT ---\n${doc.extracted_text.substring(0, 15000)}`;
+              clientDocumentContext += `\n--- EXTRACTED PDF TEXT ---\n${doc.extracted_text.substring(0, 15000)}`;
             }
             if (hasAnnotations) {
-              docContext += annText;
+              clientDocumentContext += annText;
             }
-            guidelinesContent += docContext;
           }
         }
       } catch (err) {
@@ -204,6 +204,11 @@ CRITICAL RULES:
    Always structure your analysis using these sections when dealing with data or documents.
 
 You CAN generate PDFs - when users ask for a PDF, provide the content in a well-formatted way that can be converted to PDF. Use clear headings, bullet points, and organized sections.${guidelinesContent}`;
+
+    // Ensure client document context is in the system message (in case it was added after guidelines)
+    if (clientDocumentContext) {
+      systemContent += clientDocumentContext;
+    }
 
     // Add PDF content to system context if files are provided
     if (files && files.length > 0) {
