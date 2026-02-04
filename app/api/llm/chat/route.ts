@@ -145,7 +145,7 @@ export async function POST(req: NextRequest) {
           const hasAnnotations = anns && anns.length > 0;
 
           if (hasExtractedText || hasAnnotations) {
-            clientDocumentContext = "\n\n--- CLIENT DOCUMENT (you have this context; do NOT ask for more) ---\nThe user has an annotated PDF for this client. You MUST use the content below to generate summaries. Do NOT say you need more content or the document—you already have it.\n\nCLIENT DOCUMENT TEMPLATE:\n";
+            clientDocumentContext = "\n\n--- CLIENT DOCUMENT (you have this context; do NOT ask for more) ---\nThe user has an annotated PDF for this client. You MUST use the content below to generate summaries. Do NOT say you need more content or the document—you already have it.\n\nONE-PAGE SUMMARY RULES when the user asks for a summary:\n- Write CONCRETE content only. Use the exact text, numbers, and labels from the annotations above.\n- NEVER use placeholders like [Include key metrics here], [Highlight...], [Provide...], or [Identify...]. Every bullet and section must contain real content from the annotations.\n- If annotations mention specific numbers, metrics, or phrases, copy them into the summary. Format as a clean one-page summary suitable for PDF: clear headings, short bullets, real data.\n\nCLIENT DOCUMENT TEMPLATE:\n";
             if (hasExtractedText) {
               clientDocumentContext += `\n--- EXTRACTED PDF TEXT ---\n${doc.extracted_text.substring(0, 15000)}`;
             }
@@ -333,7 +333,9 @@ You CAN generate PDFs - when users ask for a PDF, provide the content in a well-
     // Call OpenAI API
     // Use gpt-4o-mini (supports vision) for all requests
     const model = "gpt-4o-mini"; // gpt-4o-mini supports vision
-    
+    // Allow longer output for one-page summaries (client document context)
+    const maxTokens = clientDocumentContext ? 2200 : 500;
+
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -344,7 +346,7 @@ You CAN generate PDFs - when users ask for a PDF, provide the content in a well-
         model: model,
         messages,
         temperature: 0.3, // Reduced from 0.7 for faster, more deterministic responses
-        max_tokens: 500, // Reduced from 1000 for faster generation
+        max_tokens: maxTokens,
         stream: false, // Set to true for streaming if needed
       }),
     });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Loader2, Sparkles } from "lucide-react";
+import { Send, Loader2, FileDown } from "lucide-react";
 import ChartRenderer from "@/components/charts/ChartRenderer";
 
 interface DocumentSummaryChatProps {
@@ -91,6 +91,43 @@ export default function DocumentSummaryChat({ contactId, clientName }: DocumentS
     }
   };
 
+  const downloadLastSummaryAsPDF = () => {
+    const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
+    if (!lastAssistant?.content) return;
+    const { jsPDF } = require("jspdf");
+    const doc = new jsPDF({ format: "a4", unit: "mm" });
+    const pageW = doc.internal.pageSize.getWidth();
+    const margin = 18;
+    const maxW = pageW - margin * 2;
+    let y = 20;
+
+    // Strip markdown to plain text (keep line breaks and structure)
+    const raw = lastAssistant.content
+      .replace(/^#+\s*/gm, "\n")
+      .replace(/\*\*(.+?)\*\*/g, "$1")
+      .replace(/\*(.+?)\*/g, "$1")
+      .replace(/^-\s+/gm, "• ")
+      .replace(/^---$/gm, "")
+      .trim();
+    const lines = doc.splitTextToSize(raw, maxW);
+
+    for (const line of lines) {
+      if (y > 275) {
+        doc.addPage();
+        y = 20;
+      }
+      doc.setFontSize(10);
+      doc.setTextColor(0, 0, 0);
+      doc.text(line, margin, y);
+      y += 6;
+    }
+
+    const filename = `one-page-summary-${clientName.replace(/\s+/g, "-")}.pdf`;
+    doc.save(filename);
+  };
+
+  const canDownloadPdf = messages.some((m) => m.role === "assistant");
+
   return (
     <div className="mt-4 p-4 border-t border-[#e5e7eb] bg-[#f9fafb] rounded-b-xl">
       <p className="text-xs font-medium text-[#6b7280] mb-3">
@@ -127,6 +164,18 @@ export default function DocumentSummaryChat({ contactId, clientName }: DocumentS
         )}
         <div ref={endRef} />
       </div>
+      {canDownloadPdf && (
+        <div className="mb-3 flex justify-end">
+          <button
+            type="button"
+            onClick={downloadLastSummaryAsPDF}
+            className="inline-flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb]"
+          >
+            <FileDown className="h-4 w-4" />
+            Download as PDF
+          </button>
+        </div>
+      )}
       <form onSubmit={handleSubmit} className="flex gap-2">
         <input
           type="text"
