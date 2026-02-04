@@ -170,7 +170,7 @@ You CAN generate PDFs - when users ask for a PDF, provide the content in a well-
           .eq("contact_id", contactId)
           .maybeSingle();
 
-        if (doc?.extracted_text) {
+        if (doc) {
           const { data: anns } = await supabaseAdmin
             .from("document_annotations")
             .select("page_number, type, content")
@@ -180,12 +180,25 @@ You CAN generate PDFs - when users ask for a PDF, provide the content in a well-
           let annText = "";
           if (anns && anns.length > 0) {
             annText = "\n\n--- PDF ANNOTATIONS (use as template for summary) ---\n";
+            annText += "The user has annotated this PDF. Use these annotations as the primary context when generating summaries. Prioritize sections and topics marked in the annotations.\n\n";
             anns.forEach((a: { page_number: number; type: string; content: string | null }) => {
               annText += `[Page ${a.page_number}] ${a.type}: ${a.content ?? "(no text)"}\n`;
             });
           }
 
-          guidelinesContent += `\n\nCLIENT DOCUMENT TEMPLATE:\nThe user has an annotated PDF for this client. Use it as a template when generating summaries. Prioritize sections and topics marked in the annotations.\n\n--- EXTRACTED PDF TEXT ---\n${doc.extracted_text.substring(0, 15000)}${annText}`;
+          const hasExtractedText = doc.extracted_text && doc.extracted_text.trim().length > 0;
+          const hasAnnotations = anns && anns.length > 0;
+
+          if (hasExtractedText || hasAnnotations) {
+            let docContext = "\n\nCLIENT DOCUMENT TEMPLATE:\nThe user has an annotated PDF for this client. Use it as a template when generating summaries.";
+            if (hasExtractedText) {
+              docContext += `\n\n--- EXTRACTED PDF TEXT ---\n${doc.extracted_text.substring(0, 15000)}`;
+            }
+            if (hasAnnotations) {
+              docContext += annText;
+            }
+            guidelinesContent += docContext;
+          }
         }
       } catch (err) {
         console.warn("Failed to load client document:", err);
