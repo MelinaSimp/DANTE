@@ -208,6 +208,10 @@ You CAN generate PDFs - when users ask for a PDF, provide the content in a well-
     // Ensure client document context is in the system message (in case it was added after guidelines)
     if (clientDocumentContext) {
       systemContent += clientDocumentContext;
+      // When the user sends images of annotated pages, instruct the model to extract real content from them
+      if (images && images.length > 0) {
+        systemContent += "\n\nThe user has attached images of the annotated PDF pages. Your task is to EXTRACT the actual content from these images: charts, data tables, numbers, and key metrics. Do not just list annotation labels or repeat what the annotations say. Look at each image and pull out the real figures, table rows, chart labels, and metrics visible on the pages. Include that extracted content in the one-page summary.";
+      }
     }
 
     // Add PDF content to system context if files are provided

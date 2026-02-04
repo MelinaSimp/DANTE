@@ -627,7 +627,12 @@ export default function ClientDetailsOverviewClient({
                           )}
                         </div>
                         {selected?.type === "client" && document && (
-                          <DocumentSummaryChat contactId={selected.id} clientName={selected.name} />
+                          <DocumentSummaryChat
+                            contactId={selected.id}
+                            clientName={selected.name}
+                            documentUrl={document.url}
+                            annotatedPageNumbers={[...new Set(annotations.map((a) => a.page_number))]}
+                          />
                         )}
                       </div>
                     </div>

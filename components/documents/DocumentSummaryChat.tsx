@@ -7,6 +7,10 @@ import ChartRenderer from "@/components/charts/ChartRenderer";
 interface DocumentSummaryChatProps {
   contactId: string;
   clientName: string;
+  /** When provided, these PDF pages are rendered as images and sent to the LLM so it can extract charts and tables. */
+  documentUrl?: string | null;
+  /** Page numbers that have annotations (only these pages are sent as images). */
+  annotatedPageNumbers?: number[];
 }
 
 interface Message {
@@ -21,7 +25,12 @@ interface Message {
   };
 }
 
-export default function DocumentSummaryChat({ contactId, clientName }: DocumentSummaryChatProps) {
+export default function DocumentSummaryChat({
+  contactId,
+  clientName,
+  documentUrl,
+  annotatedPageNumbers = [],
+}: DocumentSummaryChatProps) {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
@@ -30,6 +39,30 @@ export default function DocumentSummaryChat({ contactId, clientName }: DocumentS
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  /** Render PDF pages to JPEG base64 for the LLM to extract charts/tables. */
+  async function renderPdfPagesToImages(
+    url: string,
+    pageNumbers: number[]
+  ): Promise<{ imageBase64: string; type: string; name: string }[]> {
+    const pdfjs = (await import("react-pdf")).pdfjs;
+    const pdf = await pdfjs.getDocument(url).promise;
+    const out: { imageBase64: string; type: string; name: string }[] = [];
+    for (const pageNum of pageNumbers) {
+      const page = await pdf.getPage(pageNum);
+      const viewport = page.getViewport({ scale: 2 });
+      const canvas = document.createElement("canvas");
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) continue;
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+      const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, "");
+      out.push({ imageBase64: base64, type: "image/jpeg", name: `page-${pageNum}.jpg` });
+    }
+    return out;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,6 +74,15 @@ export default function DocumentSummaryChat({ contactId, clientName }: DocumentS
     setLoading(true);
 
     try {
+      let images: { imageBase64: string; type: string; name: string }[] = [];
+      if (documentUrl && annotatedPageNumbers.length > 0) {
+        try {
+          images = await renderPdfPagesToImages(documentUrl, annotatedPageNumbers);
+        } catch (err) {
+          console.warn("Could not render PDF pages for summary:", err);
+        }
+      }
+
       const res = await fetch("/api/llm/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -48,6 +90,7 @@ export default function DocumentSummaryChat({ contactId, clientName }: DocumentS
           message: text,
           history: messages.slice(-6),
           contactId,
+          ...(images.length > 0 && { images }),
         }),
       });
 
