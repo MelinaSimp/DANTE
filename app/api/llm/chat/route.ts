@@ -115,7 +115,51 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Build conversation history
+    // Add client document + annotations to system context when contactId is provided
+    if (contactId) {
+      try {
+        const { data: doc } = await supabaseAdmin
+          .from("documents")
+          .select("id, extracted_text")
+          .eq("contact_id", contactId)
+          .maybeSingle();
+
+        if (doc) {
+          const { data: anns } = await supabaseAdmin
+            .from("document_annotations")
+            .select("page_number, type, content")
+            .eq("document_id", doc.id)
+            .order("page_number");
+
+          let annText = "";
+          if (anns && anns.length > 0) {
+            annText = "\n\n--- PDF ANNOTATIONS (use as template for summary) ---\n";
+            annText += "The user has annotated this PDF. Use these annotations as the primary context when generating summaries. Prioritize sections and topics marked in the annotations.\n\n";
+            anns.forEach((a: { page_number: number; type: string; content: string | null }) => {
+              annText += `[Page ${a.page_number}] ${a.type}: ${a.content ?? "(no text)"}\n`;
+            });
+          }
+
+          const hasExtractedText = doc.extracted_text && doc.extracted_text.trim().length > 0;
+          const hasAnnotations = anns && anns.length > 0;
+
+          if (hasExtractedText || hasAnnotations) {
+            let docContext = "\n\nCLIENT DOCUMENT TEMPLATE:\nThe user has an annotated PDF for this client. Use it as a template when generating summaries.";
+            if (hasExtractedText) {
+              docContext += `\n\n--- EXTRACTED PDF TEXT ---\n${doc.extracted_text.substring(0, 15000)}`;
+            }
+            if (hasAnnotations) {
+              docContext += annText;
+            }
+            guidelinesContent += docContext;
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to load client document:", err);
+      }
+    }
+
+    // Build system message after guidelines and client document are finalized
     let systemContent = `You are Drift, a helpful AI assistant. Be friendly, concise, and helpful. Answer questions clearly and provide useful information.
 
 CRITICAL RULES:
@@ -160,50 +204,6 @@ CRITICAL RULES:
    Always structure your analysis using these sections when dealing with data or documents.
 
 You CAN generate PDFs - when users ask for a PDF, provide the content in a well-formatted way that can be converted to PDF. Use clear headings, bullet points, and organized sections.${guidelinesContent}`;
-    
-    // Add client document + annotations to system context when contactId is provided
-    if (contactId) {
-      try {
-        const { data: doc } = await supabaseAdmin
-          .from("documents")
-          .select("id, extracted_text")
-          .eq("contact_id", contactId)
-          .maybeSingle();
-
-        if (doc) {
-          const { data: anns } = await supabaseAdmin
-            .from("document_annotations")
-            .select("page_number, type, content")
-            .eq("document_id", doc.id)
-            .order("page_number");
-
-          let annText = "";
-          if (anns && anns.length > 0) {
-            annText = "\n\n--- PDF ANNOTATIONS (use as template for summary) ---\n";
-            annText += "The user has annotated this PDF. Use these annotations as the primary context when generating summaries. Prioritize sections and topics marked in the annotations.\n\n";
-            anns.forEach((a: { page_number: number; type: string; content: string | null }) => {
-              annText += `[Page ${a.page_number}] ${a.type}: ${a.content ?? "(no text)"}\n`;
-            });
-          }
-
-          const hasExtractedText = doc.extracted_text && doc.extracted_text.trim().length > 0;
-          const hasAnnotations = anns && anns.length > 0;
-
-          if (hasExtractedText || hasAnnotations) {
-            let docContext = "\n\nCLIENT DOCUMENT TEMPLATE:\nThe user has an annotated PDF for this client. Use it as a template when generating summaries.";
-            if (hasExtractedText) {
-              docContext += `\n\n--- EXTRACTED PDF TEXT ---\n${doc.extracted_text.substring(0, 15000)}`;
-            }
-            if (hasAnnotations) {
-              docContext += annText;
-            }
-            guidelinesContent += docContext;
-          }
-        }
-      } catch (err) {
-        console.warn("Failed to load client document:", err);
-      }
-    }
 
     // Add PDF content to system context if files are provided
     if (files && files.length > 0) {
