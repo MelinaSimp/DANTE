@@ -35,10 +35,32 @@ export default function DocumentSummaryChat({
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const lastChartRef = useRef<HTMLDivElement | null>(null);
+  const lastSummaryPageImagesRef = useRef<{ imageBase64: string; name: string }[]>([]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  /** Extract text from PDF pages using pdf.js getTextContent. */
+  async function extractTextFromPdfPages(
+    url: string,
+    pageNumbers: number[]
+  ): Promise<string> {
+    const pdfjs = (await import("react-pdf")).pdfjs;
+    const pdf = await pdfjs.getDocument(url).promise;
+    const parts: string[] = [];
+    for (const pageNum of pageNumbers) {
+      const page = await pdf.getPage(pageNum);
+      const content = await page.getTextContent();
+      const pageText = content.items
+        .map((item: any) => ("str" in item ? item.str : ""))
+        .join(" ");
+      parts.push(`[Page ${pageNum}]\n${pageText}`);
+    }
+    return parts.join("\n\n");
+  }
 
   /** Render PDF pages to JPEG base64 for the LLM to extract charts/tables. */
   async function renderPdfPagesToImages(
@@ -75,9 +97,11 @@ export default function DocumentSummaryChat({
 
     try {
       let images: { imageBase64: string; type: string; name: string }[] = [];
+      let extractedTextFromPages = "";
       if (documentUrl && annotatedPageNumbers.length > 0) {
         try {
           images = await renderPdfPagesToImages(documentUrl, annotatedPageNumbers);
+          extractedTextFromPages = await extractTextFromPdfPages(documentUrl, annotatedPageNumbers);
         } catch (err) {
           console.warn("Could not render PDF pages for summary:", err);
         }
@@ -91,6 +115,7 @@ export default function DocumentSummaryChat({
           history: messages.slice(-6),
           contactId,
           ...(images.length > 0 && { images }),
+          ...(extractedTextFromPages && { extractedTextFromPages }),
         }),
       });
 
@@ -113,6 +138,13 @@ export default function DocumentSummaryChat({
 
       const cleanContent = content.replace(/<!--CHART_DATA-->[\s\S]*?<!--\/CHART_DATA-->/g, "").trim();
 
+      if (images.length > 0) {
+        lastSummaryPageImagesRef.current = images.map((img) => ({
+          imageBase64: img.imageBase64,
+          name: img.name,
+        }));
+      }
+
       setMessages((prev) => [
         ...prev,
         {
@@ -134,7 +166,7 @@ export default function DocumentSummaryChat({
     }
   };
 
-  const downloadLastSummaryAsPDF = () => {
+  const downloadLastSummaryAsPDF = async () => {
     const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant");
     if (!lastAssistant?.content) return;
     const { jsPDF } = require("jspdf");
@@ -144,7 +176,7 @@ export default function DocumentSummaryChat({
     const maxW = pageW - margin * 2;
     let y = 20;
 
-    // Strip markdown to plain text (keep line breaks and structure)
+    // Strip markdown to plain text
     const raw = lastAssistant.content
       .replace(/^#+\s*/gm, "\n")
       .replace(/\*\*(.+?)\*\*/g, "$1")
@@ -165,6 +197,55 @@ export default function DocumentSummaryChat({
       y += 6;
     }
 
+    // Add chart image if present (capture from DOM)
+    const chartEl = lastChartRef.current;
+    if (chartEl) {
+      try {
+        const html2canvas = (await import("html2canvas")).default;
+        const canvas = await html2canvas(chartEl, { scale: 2, useCORS: true, logging: false });
+        const imgW = pageW - margin * 2;
+        const imgH = Math.min(60, (canvas.height / canvas.width) * imgW);
+        if (y + imgH > 275) {
+          doc.addPage();
+          y = 20;
+        }
+        doc.addImage(canvas.toDataURL("image/jpeg", 0.9), "JPEG", margin, y, imgW, imgH);
+        y += imgH + 6;
+      } catch (_) {}
+    }
+
+    // Add source page images (from last summary request)
+    const pageImages = lastSummaryPageImagesRef.current;
+    if (pageImages.length > 0) {
+      if (y > 200) {
+        doc.addPage();
+        y = 20;
+      }
+      doc.setFontSize(11);
+      doc.setTextColor(0, 0, 0);
+      doc.text("Source pages", margin, y);
+      y += 8;
+      for (const img of pageImages) {
+        try {
+          const imgW = pageW - margin * 2;
+          const imgH = Math.min(80, imgW * 0.6);
+          if (y + imgH > 275) {
+            doc.addPage();
+            y = 20;
+          }
+          doc.addImage(
+            `data:image/jpeg;base64,${img.imageBase64}`,
+            "JPEG",
+            margin,
+            y,
+            imgW,
+            imgH
+          );
+          y += imgH + 4;
+        } catch (_) {}
+      }
+    }
+
     const filename = `one-page-summary-${clientName.replace(/\s+/g, "-")}.pdf`;
     doc.save(filename);
   };
@@ -176,7 +257,7 @@ export default function DocumentSummaryChat({
       <p className="text-xs font-medium text-[#6b7280] mb-3">
         Ask the AI to generate a one-page summary with charts. The annotated PDF for {clientName} is used as a template.
       </p>
-      <div className="space-y-3 max-h-64 overflow-y-auto mb-3">
+      <div ref={messagesContainerRef} className="space-y-3 max-h-64 overflow-y-auto mb-3">
         {messages.map((m, i) => (
           <div
             key={i}
@@ -191,8 +272,17 @@ export default function DocumentSummaryChat({
             >
               <div className="whitespace-pre-wrap">{m.content}</div>
               {m.chartData && (
-                <div className="mt-3 h-48">
-                  <ChartRenderer data={m.chartData} />
+                <div
+                  ref={
+                    i === messages.length - 1 && m.role === "assistant"
+                      ? (el) => {
+                          lastChartRef.current = el;
+                        }
+                      : undefined
+                  }
+                  className="mt-3 h-48"
+                >
+                  <ChartRenderer chartData={m.chartData} />
                 </div>
               )}
             </div>

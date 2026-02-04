@@ -73,6 +73,8 @@ export default function ClientDetailsOverviewClient({
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [summaryTemplateDocumentId, setSummaryTemplateDocumentId] = useState<string | null>(null);
+  const [templatePageNumbers, setTemplatePageNumbers] = useState<number[]>([]);
 
   const contacts = initialContacts;
 
@@ -115,6 +117,35 @@ export default function ClientDetailsOverviewClient({
       setAnnotations([]);
     }
   }, [selected?.type, selected?.id ?? "", loadDocument]);
+
+  // Load workspace summary template setting
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const res = await fetch("/api/workspace/settings");
+      const data = await res.json().catch(() => ({}));
+      if (cancelled || data.error) return;
+      setSummaryTemplateDocumentId(data.summary_template_document_id ?? null);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // When template is set and different from current document, load that template's page numbers
+  useEffect(() => {
+    if (!summaryTemplateDocumentId || !document || summaryTemplateDocumentId === document.id) {
+      setTemplatePageNumbers([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const res = await fetch(`/api/documents/annotations?documentId=${summaryTemplateDocumentId}`);
+      const data = await res.json().catch(() => ({}));
+      if (cancelled) return;
+      const anns = data.annotations ?? [];
+      setTemplatePageNumbers([...new Set(anns.map((a: { page_number: number }) => a.page_number))].sort((a, b) => a - b));
+    })();
+    return () => { cancelled = true; };
+  }, [summaryTemplateDocumentId, document?.id]);
 
   const handleSelectHousehold = () => {
     setSelected({
@@ -627,12 +658,60 @@ export default function ClientDetailsOverviewClient({
                           )}
                         </div>
                         {selected?.type === "client" && document && (
-                          <DocumentSummaryChat
-                            contactId={selected.id}
-                            clientName={selected.name}
-                            documentUrl={document.url}
-                            annotatedPageNumbers={[...new Set(annotations.map((a) => a.page_number))]}
-                          />
+                          <>
+                            <div className="px-4 py-2 border-t border-[#e5e7eb] flex flex-wrap items-center gap-2 text-xs text-[#6b7280]">
+                              <span className="font-medium">Summary template:</span>
+                              {summaryTemplateDocumentId === document.id ? (
+                                <span>This document’s annotations</span>
+                              ) : summaryTemplateDocumentId && templatePageNumbers.length > 0 ? (
+                                <span>Workspace template ({templatePageNumbers.length} pages)</span>
+                              ) : (
+                                <span>This document’s annotations</span>
+                              )}
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  const res = await fetch("/api/workspace/settings", {
+                                    method: "PATCH",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ summary_template_document_id: document.id }),
+                                  });
+                                  const data = await res.json().catch(() => ({}));
+                                  if (!data.error) setSummaryTemplateDocumentId(data.summary_template_document_id);
+                                }}
+                                className="text-blue-600 hover:underline"
+                              >
+                                Use this doc as template
+                              </button>
+                              {summaryTemplateDocumentId && (
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    const res = await fetch("/api/workspace/settings", {
+                                      method: "PATCH",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ summary_template_document_id: null }),
+                                    });
+                                    const data = await res.json().catch(() => ({}));
+                                    if (!data.error) setSummaryTemplateDocumentId(null);
+                                  }}
+                                  className="text-[#6b7280] hover:underline"
+                                >
+                                  Clear template
+                                </button>
+                              )}
+                            </div>
+                            <DocumentSummaryChat
+                              contactId={selected.id}
+                              clientName={selected.name}
+                              documentUrl={document.url}
+                              annotatedPageNumbers={
+                                summaryTemplateDocumentId && summaryTemplateDocumentId !== document.id && templatePageNumbers.length > 0
+                                  ? templatePageNumbers
+                                  : [...new Set(annotations.map((a) => a.page_number))].sort((a, b) => a - b)
+                              }
+                            />
+                          </>
                         )}
                       </div>
                     </div>

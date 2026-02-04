@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { message, history = [], agentId, chatId, contactId, files = [], images = [] } = await req.json();
+    const { message, history = [], agentId, chatId, contactId, files = [], images = [], extractedTextFromPages } = await req.json();
 
     if (!message || typeof message !== "string" || message.trim().length === 0) {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
@@ -144,10 +144,13 @@ export async function POST(req: NextRequest) {
           const hasExtractedText = doc.extracted_text && doc.extracted_text.trim().length > 0;
           const hasAnnotations = anns && anns.length > 0;
 
-          if (hasExtractedText || hasAnnotations) {
-            clientDocumentContext = "\n\n--- CLIENT DOCUMENT (you have this context; do NOT ask for more) ---\nThe user has an annotated PDF for this client. You MUST use the content below to generate summaries. Do NOT say you need more content or the document—you already have it.\n\nONE-PAGE SUMMARY RULES when the user asks for a summary:\n- Write CONCRETE content only. Use the exact text, numbers, and labels from the annotations above.\n- NEVER use placeholders like [Include key metrics here], [Highlight...], [Provide...], or [Identify...]. Every bullet and section must contain real content from the annotations.\n- If annotations mention specific numbers, metrics, or phrases, copy them into the summary. Format as a clean one-page summary suitable for PDF: clear headings, short bullets, real data.\n\nCLIENT DOCUMENT TEMPLATE:\n";
+          if (hasExtractedText || hasAnnotations || (extractedTextFromPages && String(extractedTextFromPages).trim().length > 0)) {
+            clientDocumentContext = "\n\n--- CLIENT DOCUMENT (you have this context; do NOT ask for more) ---\nThe user has an annotated PDF for this client. You MUST use the content below to generate summaries. Do NOT say you need more content or the document—you already have it.\n\nONE-PAGE SUMMARY RULES when the user asks for a summary:\n- Write CONCRETE content only. Use the exact text, numbers, and labels from the annotations and extracted text below.\n- NEVER use placeholders like [Include key metrics here], [Highlight...], [Provide...], or [Identify...]. Every bullet and section must contain real content.\n- For key charts and data, output a <!--CHART_DATA--> block so charts render in the UI and in the PDF. Use the format: <!--CHART_DATA-->{\"chart\":{\"type\":\"line|bar|pie|area\",\"data\":[...],\"xKey\":\"x\",\"yKey\":\"y\",\"title\":\"...\"}}<!--/CHART_DATA-->.\n- Format as a clean one-page summary suitable for PDF: clear headings, short bullets, real data.\n\nCLIENT DOCUMENT TEMPLATE:\n";
             if (hasExtractedText) {
               clientDocumentContext += `\n--- EXTRACTED PDF TEXT ---\n${doc.extracted_text.substring(0, 15000)}`;
+            }
+            if (extractedTextFromPages && String(extractedTextFromPages).trim().length > 0) {
+              clientDocumentContext += `\n--- EXTRACTED TEXT FROM ANNOTATED PAGES ---\n${String(extractedTextFromPages).trim().substring(0, 15000)}`;
             }
             if (hasAnnotations) {
               clientDocumentContext += annText;
