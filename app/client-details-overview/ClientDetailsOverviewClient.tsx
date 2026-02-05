@@ -643,6 +643,7 @@ export default function ClientDetailsOverviewClient({
                       <Upload className="h-4 w-4" />
                       {uploading ? "Uploading…" : "Upload PDF"}
                       <input
+                        key="upload-no-doc"
                         type="file"
                         accept="application/pdf"
                         onChange={handleUpload}
@@ -660,6 +661,7 @@ export default function ClientDetailsOverviewClient({
                           <Upload className="h-3 w-3" />
                           Replace
                           <input
+                            key={`replace-${document.id}`}
                             type="file"
                             accept="application/pdf"
                             onChange={handleUpload}
