@@ -58,18 +58,15 @@ export async function POST(req: NextRequest) {
     const conversation = conversationResult.data;
     const agent = agentResult.data;
 
-    if (!conversation) {
-      return NextResponse.json(
-        { error: "Conversation not found" },
-        { status: 404 }
-      );
-    }
-
-    if (!agent) {
-      return NextResponse.json(
-        { error: "Agent not found" },
-        { status: 404 }
-      );
+    // Return 200 with canned message so the call doesn't drop when Supabase/env not configured
+    if (!conversation || !agent) {
+      console.warn("[Media Stream Execute] Conversation or agent not found; returning canned reply so call does not drop.");
+      return NextResponse.json({
+        success: true,
+        output: "Hello! Thanks for calling. We're currently setting up our system. Please leave your name and a message and we'll call you back shortly.",
+        voiceId: "21m00Tcm4TlvDq8ikWAM",
+        shouldContinue: true,
+      });
     }
 
     // Load data sources (knowledge base)
@@ -184,7 +181,13 @@ Be friendly, concise, and natural. For voice conversations, keep responses short
     // Call OpenAI with function calling
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
-      throw new Error("OPENAI_API_KEY not configured");
+      console.warn("[Media Stream Execute] OPENAI_API_KEY not set; returning canned reply so call does not drop.");
+      return NextResponse.json({
+        success: true,
+        output: "Hello! Thanks for calling. We're currently setting up our AI. Please leave your name and a quick message and we'll get back to you shortly.",
+        voiceId: agent?.elevenlabs_voice_id || "21m00Tcm4TlvDq8ikWAM",
+        shouldContinue: true,
+      });
     }
 
     const openaiStartTime = Date.now();

@@ -24,8 +24,8 @@ const alawmulaw = require('alawmulaw');
 const PORT = process.env.PORT || 3001;
 const NEXTJS_API_URL = process.env.NEXTJS_API_URL || 'https://driftai.studio';
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
-// How long to wait after last user speech before sending to LLM (ms). [Checkpoint: 500ms - was "responding too fast" before fix]
-const INPUT_DEBOUNCE_MS = parseInt(process.env.INPUT_DEBOUNCE_MS || '500', 10);
+// How long to wait after last user speech before sending to LLM (ms). Higher = less cutting off user.
+const INPUT_DEBOUNCE_MS = parseInt(process.env.INPUT_DEBOUNCE_MS || '1500', 10);
 
 // Store active connections
 const activeConnections = new Map();
@@ -563,14 +563,21 @@ async function processAudioChunk(connection) {
 async function sendInitialGreeting(connection) {
   const startTime = Date.now();
   try {
-    if (!connection.conversationId) {
-      console.warn(`[Media Stream] No conversationId, skipping greeting`);
-      return;
-    }
-
     connection.isSpeaking = true;
     connection.greetingStartTime = Date.now();
     connection.consecutiveSilences = 0; // Reset silence counter when greeting starts
+
+    // No conversationId (lookup failed or not in params) -> play fallback so call doesn't drop with silence
+    if (!connection.conversationId) {
+      console.warn(`[Media Stream] No conversationId - playing fallback greeting so call does not cut`);
+      await streamAudioResponse(
+        connection,
+        "Thanks for calling. We're setting up our system. Please hold or try again in a moment.",
+        '21m00Tcm4TlvDq8ikWAM'
+      );
+      return;
+    }
+
     console.log(`[Media Stream] Sending initial greeting for conversation: ${connection.conversationId}`);
 
     // Call Next.js API to get the greeting (empty input triggers greeting)
@@ -605,9 +612,27 @@ async function sendInitialGreeting(connection) {
     } else {
       const errBody = await response.text();
       console.error(`[Media Stream] Failed to get greeting: ${response.status} ${errBody}`);
+      // Play fallback so call doesn't drop with silence
+      await streamAudioResponse(
+        connection,
+        "Thanks for calling. We're setting up our system. Please hold or try again in a moment.",
+        '21m00Tcm4TlvDq8ikWAM'
+      );
     }
   } catch (error) {
     console.error(`[Media Stream] Error sending initial greeting: ${error.message}`);
+    // Play fallback so call doesn't drop with silence
+    try {
+      await streamAudioResponse(
+        connection,
+        "Thanks for calling. We're setting up our system. Please hold or try again in a moment.",
+        '21m00Tcm4TlvDq8ikWAM'
+      );
+    } catch (fallbackErr) {
+      console.error(`[Media Stream] Fallback greeting failed: ${fallbackErr.message}`);
+    }
+  } finally {
+    connection.isSpeaking = false;
   }
 }
 
