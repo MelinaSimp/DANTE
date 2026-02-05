@@ -360,6 +360,11 @@ async function processAudioChunk(connection) {
                 console.log(`[Media Stream] 🔇 Skipping silence detection - STT call in progress`);
                 return;
               }
+              // Don't end call due to silence before greeting has started (greetingStartTime=0 would make timeSinceLastUserSpeech huge and end call immediately)
+              if (connection.greetingStartTime === 0) {
+                console.log(`[Media Stream] 🔇 Skipping silence detection - greeting not started yet`);
+                return;
+              }
               
               // Check if 20 seconds have passed since last user speech (or greeting start if no speech yet)
               const silenceTimeout = 20000; // 20 seconds
@@ -499,6 +504,11 @@ async function processAudioChunk(connection) {
           // Don't trigger silence detection if we have a pending STT call (user might be speaking)
           if (connection.pendingSTTCall) {
             console.log(`[Media Stream] 🔇 Skipping silence detection - STT call in progress`);
+            return;
+          }
+          // Don't end call due to silence before greeting has started (greetingStartTime=0 would make timeSinceLastUserSpeech huge and end call immediately)
+          if (connection.greetingStartTime === 0) {
+            console.log(`[Media Stream] 🔇 Skipping silence detection - greeting not started yet`);
             return;
           }
           
