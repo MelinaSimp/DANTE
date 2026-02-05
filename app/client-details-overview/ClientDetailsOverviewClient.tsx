@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -18,7 +19,17 @@ import {
   Upload,
   Trash2,
 } from "lucide-react";
-import PdfViewerWithAnnotations, { type Annotation } from "@/components/documents/PdfViewerWithAnnotations";
+import type { Annotation } from "@/components/documents/PdfViewerWithAnnotations";
+
+const PdfViewerWithAnnotations = dynamic(
+  () => import("@/components/documents/PdfViewerWithAnnotations").then((m) => m.default),
+  { ssr: false }
+);
+
+const DocumentSummaryChat = dynamic(
+  () => import("@/components/documents/DocumentSummaryChat").then((m) => m.default),
+  { ssr: false }
+);
 
 // Mock data matching the Vise-style screenshots
 const MOCK_HOUSEHOLD = {
@@ -72,8 +83,29 @@ export default function ClientDetailsOverviewClient({
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  /** Page numbers for one-page summary: from workspace template doc when set, else from this document's annotations. */
+  const [summaryPageNumbers, setSummaryPageNumbers] = useState<number[]>([]);
+  /** Template section labels (from template doc annotations): what to look for on each page (e.g. "Performance chart", "Allocation table"). */
+  const [templateSectionLabels, setTemplateSectionLabels] = useState<{ page_number: number; label: string }[]>([]);
+  /** Per-client: when true, use workspace summary template (if set); when false, use only this document's annotations. */
+  const [useSummaryTemplate, setUseSummaryTemplate] = useState(true);
+  /** True when workspace has a summary template set and we loaded its labels (so user can toggle off to use only this doc). */
+  const [hasWorkspaceTemplate, setHasWorkspaceTemplate] = useState(false);
 
   const contacts = initialContacts;
+
+  /** Effective pages/labels for summary: either from workspace template or from this document's annotations only. */
+  const effectiveSummaryPageNumbers = useMemo(() => {
+    if (!document || selected?.type !== "client") return [];
+    if (useSummaryTemplate) return summaryPageNumbers;
+    return [...new Set(annotations.map((a) => a.page_number))].sort((a, b) => a - b);
+  }, [document, selected?.type, useSummaryTemplate, summaryPageNumbers, annotations]);
+
+  const effectiveTemplateSectionLabels = useMemo(() => {
+    if (!document || selected?.type !== "client") return [];
+    if (useSummaryTemplate) return templateSectionLabels;
+    return annotations.map((a) => ({ page_number: a.page_number, label: a.content || `Page ${a.page_number}` }));
+  }, [document, selected?.type, useSummaryTemplate, templateSectionLabels, annotations]);
 
   useEffect(() => {
     if (initialContactId && contacts.length > 0) {
@@ -112,8 +144,70 @@ export default function ClientDetailsOverviewClient({
     } else {
       setDocument(null);
       setAnnotations([]);
+      setSummaryPageNumbers([]);
+      setTemplateSectionLabels([]);
     }
   }, [selected?.type, selected?.id ?? "", loadDocument]);
+
+  // One-page summary: use workspace template page numbers + annotation labels when set, else current doc's annotations
+  useEffect(() => {
+    if (!document || selected?.type !== "client") {
+      setSummaryPageNumbers([]);
+      setTemplateSectionLabels([]);
+      setHasWorkspaceTemplate(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const wsRes = await fetch("/api/workspace/settings");
+        if (!wsRes.ok || cancelled) return;
+        const ws = await wsRes.json();
+        const templateId = ws.summary_template_document_id;
+        if (templateId && templateId !== document.id) {
+          const annRes = await fetch(`/api/documents/annotations?documentId=${templateId}`);
+          if (!annRes.ok || cancelled) {
+            const fromCurrent = [...new Set(annotations.map((a) => a.page_number))].sort((a, b) => a - b);
+            setSummaryPageNumbers(fromCurrent);
+            setTemplateSectionLabels(annotations.map((a) => ({ page_number: a.page_number, label: a.content || `Page ${a.page_number}` })));
+            setHasWorkspaceTemplate(false);
+            return;
+          }
+          const annData = await annRes.json();
+          const templateAnns = annData.annotations ?? [];
+          const pages = [...new Set(templateAnns.map((a: { page_number: number }) => a.page_number))].sort((a, b) => a - b);
+          const labels = templateAnns.map((a: { page_number: number; content?: string | null }) => ({
+            page_number: a.page_number,
+            label: (a.content && a.content.trim()) ? a.content.trim() : `Page ${a.page_number}`,
+          }));
+          if (!cancelled) {
+            setSummaryPageNumbers(pages);
+            setTemplateSectionLabels(labels);
+            setHasWorkspaceTemplate(true);
+          }
+        } else {
+          const fromCurrent = [...new Set(annotations.map((a) => a.page_number))].sort((a, b) => a - b);
+          const labels = annotations.map((a) => ({ page_number: a.page_number, label: a.content || `Page ${a.page_number}` }));
+          if (!cancelled) {
+            setSummaryPageNumbers(fromCurrent);
+            setTemplateSectionLabels(labels);
+            setHasWorkspaceTemplate(false);
+          }
+        }
+      } catch {
+        const fromCurrent = [...new Set(annotations.map((a) => a.page_number))].sort((a, b) => a - b);
+        const labels = annotations.map((a) => ({ page_number: a.page_number, label: a.content || `Page ${a.page_number}` }));
+        if (!cancelled) {
+          setSummaryPageNumbers(fromCurrent);
+          setTemplateSectionLabels(labels);
+          setHasWorkspaceTemplate(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [document?.id, selected?.type, annotations, document?.url]);
 
   const handleSelectHousehold = () => {
     setSelected({
@@ -584,7 +678,7 @@ export default function ClientDetailsOverviewClient({
                         </button>
                       </div>
                     </div>
-                    {/* Split layout: PDF left, annotations + LLM chat right */}
+                    {/* Split layout: PDF left, annotations right */}
                     <div className="flex h-[600px]">
                       <div className="flex-1 min-w-0 border-r border-[#e5e7eb]">
                         <PdfViewerWithAnnotations
@@ -627,6 +721,29 @@ export default function ClientDetailsOverviewClient({
                         </div>
                       </div>
                     </div>
+                    {/* One-page summary: AI chat with PDF pages + download; template labels tell LLM what graphs/tables to look for */}
+                    {selected?.type === "client" && (
+                      <div className="mt-6 space-y-3">
+                        {hasWorkspaceTemplate && (
+                          <label className="flex items-center gap-2 text-sm text-[#374151]">
+                            <input
+                              type="checkbox"
+                              checked={useSummaryTemplate}
+                              onChange={(e) => setUseSummaryTemplate(e.target.checked)}
+                              className="h-4 w-4 rounded border-[#d1d5db] text-blue-600 focus:ring-blue-500"
+                            />
+                            Use workspace summary template
+                          </label>
+                        )}
+                        <DocumentSummaryChat
+                          contactId={selected.id}
+                          clientName={selected.name}
+                          documentUrl={document.url}
+                          annotatedPageNumbers={effectiveSummaryPageNumbers}
+                          templateSectionLabels={effectiveTemplateSectionLabels}
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

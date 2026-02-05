@@ -11,6 +11,8 @@ interface DocumentSummaryChatProps {
   documentUrl?: string | null;
   /** Page numbers that have annotations (only these pages are sent as images). */
   annotatedPageNumbers?: number[];
+  /** From the summary template doc: for each page, what to look for (e.g. "Performance chart", "Asset allocation table"). */
+  templateSectionLabels?: { page_number: number; label: string }[];
 }
 
 interface Message {
@@ -30,6 +32,7 @@ export default function DocumentSummaryChat({
   clientName,
   documentUrl,
   annotatedPageNumbers = [],
+  templateSectionLabels = [],
 }: DocumentSummaryChatProps) {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -107,6 +110,14 @@ export default function DocumentSummaryChat({
         }
       }
 
+      const summaryTemplateGuide =
+        templateSectionLabels.length > 0
+          ? templateSectionLabels
+              .sort((a, b) => a.page_number - b.page_number)
+              .map((s) => `Page ${s.page_number}: ${s.label}`)
+              .join("\n")
+          : undefined;
+
       const res = await fetch("/api/llm/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -116,6 +127,7 @@ export default function DocumentSummaryChat({
           contactId,
           ...(images.length > 0 && { images }),
           ...(extractedTextFromPages && { extractedTextFromPages }),
+          ...(summaryTemplateGuide && { summaryTemplateGuide }),
         }),
       });
 
@@ -255,7 +267,9 @@ export default function DocumentSummaryChat({
   return (
     <div className="mt-4 p-4 border-t border-[#e5e7eb] bg-[#f9fafb] rounded-b-xl">
       <p className="text-xs font-medium text-[#6b7280] mb-3">
-        Ask the AI to generate a one-page summary with charts. The annotated PDF for {clientName} is used as a template.
+        {templateSectionLabels.length > 0
+          ? `The template defines what to include (e.g. graphs, tables). Ask for a one-page summary for ${clientName}; the AI will find the matching sections in their document.`
+          : `Ask the AI to generate a one-page summary with charts. The annotated PDF for ${clientName} is used.`}
       </p>
       <div ref={messagesContainerRef} className="space-y-3 max-h-64 overflow-y-auto mb-3">
         {messages.map((m, i) => (

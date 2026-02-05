@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { message, history = [], agentId, chatId, files = [], images = [] } = await req.json();
+    const { message, history = [], agentId, chatId, files = [], images = [], summaryTemplateGuide, extractedTextFromPages } = await req.json();
 
     if (!message || typeof message !== "string" || message.trim().length === 0) {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
@@ -161,6 +161,17 @@ CRITICAL RULES:
 
 You CAN generate PDFs - when users ask for a PDF, provide the content in a well-formatted way that can be converted to PDF. Use clear headings, bullet points, and organized sections.${guidelinesContent}`;
 
+    if (summaryTemplateGuide && typeof summaryTemplateGuide === "string" && summaryTemplateGuide.trim()) {
+      systemContent += `\n\n--- ONE-PAGE SUMMARY TEMPLATE ---
+A dedicated template defines which graphs and data tables to include. Use it to know what to look for in the customer's document.
+For each section below, find the corresponding graph or table in the provided PDF pages (images and/or extracted text) and include it in your response. Describe or summarize the data; if the user asked for charts, emit <!--CHART_DATA--> JSON where appropriate.
+
+Template sections (page → what to look for):
+${summaryTemplateGuide.trim()}
+
+Match each section to the customer's document content and provide what the customer is looking for.`;
+    }
+
     // Add PDF content to system context if files are provided
     if (files && files.length > 0) {
       const pdfInfo: string[] = [];
@@ -224,9 +235,16 @@ You CAN generate PDFs - when users ask for a PDF, provide the content in a well-
     // Build user message with images and files
     const userMessageContent: Array<{ type: "text" | "image_url"; text?: string; image_url?: { url: string } }> = [];
     
-    // Add text content
+    // Prepend extracted PDF page text when provided (e.g. one-page summary from annotated pages)
+    let textBlock = "";
+    if (extractedTextFromPages && typeof extractedTextFromPages === "string" && extractedTextFromPages.trim()) {
+      textBlock += `[Extracted text from the customer's PDF pages:\n${extractedTextFromPages.trim()}\n]\n\n`;
+    }
     if (userMessage.trim().length > 0) {
-      userMessageContent.push({ type: "text", text: userMessage });
+      textBlock += userMessage;
+    }
+    if (textBlock.trim().length > 0) {
+      userMessageContent.push({ type: "text", text: textBlock.trim() });
     }
     
     // Add images (base64 encoded)

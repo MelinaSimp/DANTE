@@ -46,6 +46,21 @@ export default async function SettingsPage() {
           </div>
         </a>
 
+        <a
+          href="/settings/summary-template"
+          className="group rounded-3xl border border-white/10 bg-black/40 p-6 shadow-[0_20px_70px_rgba(8,8,16,0.6)] transition hover:border-[#3351ff]/40 hover:bg-black/30"
+        >
+          <p className="text-xs uppercase tracking-[0.35em] text-white/50">Documents</p>
+          <h2 className="mt-3 text-2xl font-semibold text-white">Summary template</h2>
+          <p className="mt-3 text-sm text-white/60">
+            Choose which document&apos;s annotations define the structure for one-page PDF summaries.
+          </p>
+          <div className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-[#6f89ff]">
+            Pick template
+            <span aria-hidden className="text-lg leading-none">→</span>
+          </div>
+        </a>
+
         <div className="rounded-3xl border border-white/5 bg-white/5 p-6 text-white/60 shadow-[0_20px_70px_rgba(8,8,16,0.5)]">
           <p className="text-xs uppercase tracking-[0.35em] text-white/40">Account</p>
           <h2 className="mt-3 text-2xl font-semibold text-white/80">Account Preferences</h2>
