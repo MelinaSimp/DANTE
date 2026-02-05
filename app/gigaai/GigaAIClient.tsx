@@ -62,6 +62,7 @@ interface Agent {
   description?: string;
   phoneNumber?: string;
   elevenlabsVoiceId?: string | null;
+  llm_instructions?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -104,7 +105,7 @@ function GigaAIClient({ initialError, initialSuccess, initialMessage }: GigaAICl
   const [editingScenarioId, setEditingScenarioId] = useState<string | null>(null);
   const [editingScenarioName, setEditingScenarioName] = useState("");
   const [activeTab, setActiveTab] = useState<"canvas" | "test">("canvas");
-  const [activePage, setActivePage] = useState<"scenarios" | "schedule" | "policies" | "data-sources" | "personalization" | "evaluation" | "advanced" | "inbox">("scenarios");
+  const [activePage, setActivePage] = useState<"instructions" | "schedule" | "policies" | "data-sources" | "personalization" | "evaluation" | "advanced" | "inbox">("instructions");
   const [searchQuery, setSearchQuery] = useState("");
   const [agentsExpanded, setAgentsExpanded] = useState(true);
   const [scenariosExpanded, setScenariosExpanded] = useState(true);
@@ -118,6 +119,8 @@ function GigaAIClient({ initialError, initialSuccess, initialMessage }: GigaAICl
   const [showValidationPanel, setShowValidationPanel] = useState(false);
   const [showFlowTester, setShowFlowTester] = useState(false);
   const [hasTwilioCredentials, setHasTwilioCredentials] = useState(false);
+  const [llmInstructionsDraft, setLlmInstructionsDraft] = useState("");
+  const [llmInstructionsSaving, setLlmInstructionsSaving] = useState(false);
   const [confirmationModal, setConfirmationModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -246,6 +249,7 @@ function GigaAIClient({ initialError, initialSuccess, initialMessage }: GigaAICl
             description: a.description,
             phoneNumber: a.phone_number,
             elevenlabsVoiceId: a.elevenlabs_voice_id,
+            llm_instructions: a.llm_instructions ?? null,
             created_at: a.created_at,
             updated_at: a.updated_at,
           })));
@@ -277,7 +281,7 @@ function GigaAIClient({ initialError, initialSuccess, initialMessage }: GigaAICl
               setScenarios(loadedScenarios);
               
               // Auto-select first scenario if none selected and we're on scenarios page
-              if (activePage === "scenarios" && loadedScenarios.length > 0 && !selectedScenario) {
+              if (activePage === "instructions" && loadedScenarios.length > 0 && !selectedScenario) {
                 const firstScenario = loadedScenarios[0];
                 setSelectedScenario(firstScenario);
               }
@@ -301,6 +305,11 @@ function GigaAIClient({ initialError, initialSuccess, initialMessage }: GigaAICl
     }
     loadAgentData();
   }, [selectedAgent, activePage, selectedScenario]);
+
+  // Sync instructions draft when selected agent changes
+  useEffect(() => {
+    setLlmInstructionsDraft(selectedAgent?.llm_instructions ?? "");
+  }, [selectedAgent?.id, selectedAgent?.llm_instructions]);
 
   // Load scenario steps when scenario is selected
   useEffect(() => {
@@ -436,6 +445,7 @@ function GigaAIClient({ initialError, initialSuccess, initialMessage }: GigaAICl
           description: data.description,
           phoneNumber: data.phone_number,
           elevenlabsVoiceId: data.elevenlabs_voice_id,
+          llm_instructions: data.llm_instructions ?? null,
           created_at: data.created_at,
           updated_at: data.updated_at,
         };
@@ -443,12 +453,45 @@ function GigaAIClient({ initialError, initialSuccess, initialMessage }: GigaAICl
         setAgents((prev) =>
           prev.map((agent) => (agent.id === selectedAgent.id ? updatedAgent : agent))
         );
+        setLlmInstructionsDraft(updatedAgent.llm_instructions ?? "");
         setShowEditAgentModal(false);
       } else {
         console.error("Failed to save agent");
       }
     } catch (error) {
       console.error("Failed to save agent:", error);
+    }
+  };
+
+  const handleSaveLlmInstructions = async () => {
+    if (!selectedAgent) return;
+    setLlmInstructionsSaving(true);
+    try {
+      const response = await fetch(`/api/agents/${selectedAgent.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ llm_instructions: llmInstructionsDraft.trim() || null }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const updatedAgent: Agent = {
+          ...selectedAgent,
+          llm_instructions: data.llm_instructions ?? null,
+          updated_at: data.updated_at,
+        };
+        setSelectedAgent(updatedAgent);
+        setAgents((prev) =>
+          prev.map((a) => (a.id === selectedAgent.id ? updatedAgent : a))
+        );
+        toast.success("Instructions saved", "Rules and instructions have been saved.");
+      } else {
+        toast.error("Save failed", "Could not save instructions.");
+      }
+    } catch (error) {
+      console.error("Failed to save instructions:", error);
+      toast.error("Save failed", "Could not save instructions.");
+    } finally {
+      setLlmInstructionsSaving(false);
     }
   };
 
@@ -474,7 +517,7 @@ function GigaAIClient({ initialError, initialSuccess, initialMessage }: GigaAICl
         setScenarios([...scenarios, newScenario]);
         setSelectedScenario(newScenario);
         setShowCreateScenarioModal(false);
-        setActivePage("scenarios");
+        setActivePage("instructions");
       } else {
         console.error("Failed to create scenario");
       }
@@ -907,7 +950,8 @@ function GigaAIClient({ initialError, initialSuccess, initialMessage }: GigaAICl
                     <button
                       onClick={() => {
                         setSelectedAgent(agent);
-                        setActivePage("scenarios");
+                        setActivePage("instructions");
+                        setLlmInstructionsDraft(agent.llm_instructions ?? "");
                       }}
                       className={`w-full text-left px-3 py-2 rounded-2xl text-sm transition flex items-center justify-between ${
                         selectedAgent?.id === agent.id
@@ -980,15 +1024,9 @@ function GigaAIClient({ initialError, initialSuccess, initialMessage }: GigaAICl
             <nav className="p-4 space-y-1 border-t border-white/10">
               <NavItem
                 icon={FileText}
-                label="Scenarios"
-                active={activePage === "scenarios"}
-                onClick={() => {
-                  setActivePage("scenarios");
-                  // Auto-select first scenario if available
-                  if (selectedAgent && scenarios.length > 0 && !selectedScenario) {
-                    setSelectedScenario(scenarios[0]);
-                  }
-                }}
+                label="Instructions"
+                active={activePage === "instructions"}
+                onClick={() => setActivePage("instructions")}
               />
               <NavItem
                 icon={Calendar}
@@ -1061,138 +1099,6 @@ function GigaAIClient({ initialError, initialSuccess, initialMessage }: GigaAICl
                 }}
               />
             </nav>
-          )}
-
-          {/* Scenarios Section - Only show when agent is selected */}
-          {selectedAgent && (
-            <div className="p-4 border-t border-white/10">
-              <div className="mt-4">
-              <div className="flex items-center justify-between mb-1">
-                  <button
-                      onClick={() => setScenariosExpanded(!scenariosExpanded)}
-                      className={`w-full flex items-center justify-between px-3 py-2 rounded-2xl ${sidebarTextSecondary} hover:bg-black transition text-xs`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Folder className={`h-4 w-4 ${sidebarIconSecondary}`} />
-                      Scenarios
-                    </div>
-                    {scenariosExpanded ? (
-                      <ChevronUp className={`h-3 w-3 ${sidebarIconSecondary}`} />
-                    ) : (
-                      <ChevronDown className={`h-3 w-3 ${sidebarIconSecondary}`} />
-                    )}
-                  </button>
-              </div>
-              {scenariosExpanded && (
-                <div className="ml-4 mt-1 space-y-1">
-                  {/* Scenarios List */}
-                  {scenarios
-                    .filter((scenario) =>
-                      !searchQuery ||
-                      scenario.name.toLowerCase().includes(searchQuery.toLowerCase())
-                    )
-                    .map((scenario) => (
-                      <div key={scenario.id} className="relative">
-                        {editingScenarioId === scenario.id ? (
-                          <div className={`flex items-center gap-2 p-2 rounded-2xl bg-black border ${sidebarBorder}`}>
-                            <input
-                              type="text"
-                              value={editingScenarioName}
-                              onChange={(e) => setEditingScenarioName(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  handleSaveScenarioEdit();
-                                } else if (e.key === "Escape") {
-                                  setEditingScenarioId(null);
-                                  setEditingScenarioName("");
-                                }
-                              }}
-                              className={`flex-1 px-2 py-1 rounded-2xl bg-black border border-white/10 text-xs ${sidebarTextColor} focus:border-[#f97316] focus:outline-none`}
-                              autoFocus
-                            />
-                            <button
-                              onClick={handleSaveScenarioEdit}
-                              className={`p-1 ${themeClasses.bgHover} rounded-full`}
-                            >
-                              <CheckCircle className="h-4 w-4 text-green-400" />
-                            </button>
-                            <button
-                              onClick={() => {
-                                setEditingScenarioId(null);
-                                setEditingScenarioName("");
-                              }}
-                              className={`p-1 ${themeClasses.bgHover} rounded-full`}
-                            >
-                              <X className={`h-4 w-4 ${themeClasses.textTertiary}`} />
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => {
-                              setSelectedScenario(scenario);
-                              setActivePage("scenarios");
-                            }}
-                            className={`w-full text-left px-3 py-2 rounded-2xl text-sm transition flex items-center justify-between group ${
-                              selectedScenario?.id === scenario.id
-                                ? "bg-[#383939] text-white border border-white/20"
-                                : `${sidebarTextTertiary} hover:bg-[#383939]`
-                            }`}
-                          >
-                            <span className="flex items-center gap-2 flex-1 min-w-0">
-                              <FileText className={`h-3 w-3 flex-shrink-0 ${themeClasses.icon}`} />
-                              <span className="truncate">{scenario.name}</span>
-                            </span>
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setShowScenarioMenu(showScenarioMenu === scenario.id ? null : scenario.id);
-                                }}
-                                    className={`p-1 hover:bg-black rounded-full`}
-                                  >
-                                    <MoreVertical className={`h-3 w-3 ${sidebarIconSecondary}`} />
-                              </button>
-                            </div>
-                            {showScenarioMenu === scenario.id && (
-                              <div className={`absolute right-0 top-full mt-1 z-10 bg-black border ${sidebarBorder} rounded-2xl shadow-lg min-w-[120px]`}>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleEditScenario(scenario);
-                                  }}
-                                  className={`w-full text-left px-3 py-2 text-sm ${sidebarTextSecondary} hover:bg-[#2a2a2a] flex items-center gap-2`}
-                                >
-                                  <Edit className="h-3 w-3" />
-                                  Edit
-                                </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDeleteScenario(scenario.id);
-                                    }}
-                                    className={`w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/20 flex items-center gap-2`}
-                                  >
-                                    <Trash2 className="h-3 w-3" />
-                                    Delete
-                                  </button>
-                                </div>
-                              )}
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  {/* Add Scenario Button */}
-                      <button
-                        onClick={() => setShowCreateScenarioModal(true)}
-                        className={`w-full text-left px-3 py-2 rounded-2xl text-xs ${sidebarTextTertiary} hover:bg-black flex items-center gap-2 border border-dashed ${sidebarBorder}`}
-                      >
-                        <Plus className={`h-3 w-3 ${sidebarIconSecondary}`} />
-                        Add scenario
-                      </button>
-                </div>
-              )}
-              </div>
-            </div>
           )}
 
           {/* Supporting Docs Section - Only show when agent is selected */}
@@ -1393,66 +1299,40 @@ function GigaAIClient({ initialError, initialSuccess, initialMessage }: GigaAICl
 
         {/* Content Area */}
         <div className={`flex-1 overflow-y-auto relative ${colors.text}`} style={{ background: '#000000', backgroundImage: 'url(/backgrounds/dunes.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}>
-            {activePage === "scenarios" ? (
-                // Scenarios page - full page, no gradient background
-                selectedAgent && selectedScenario ? (
-                  activeTab === "canvas" ? (
-                    <AgentCanvas
-                      agentId={selectedAgent.id}
-                      scenarioId={selectedScenario.id}
-                      scenarioName={selectedScenario.name}
-                      isDeployed={selectedAgent?.status?.toLowerCase() === "deployed"}
-                      onTestFlow={() => setShowFlowTester(true)}
-                    />
-                  ) : activeTab === "test" ? (
-                    selectedAgent.modality === "chat" ? (
-                      <ChatInterface agentId={selectedAgent.id} />
-                    ) : (
-                      <TestResults agentId={selectedAgent.id} />
-                    )
-                  ) : null
-                ) : selectedAgent ? (
-                  <div className="flex items-center justify-center h-full bg-black" style={{ background: '#000000' }}>
-                    <div className="text-center max-w-md">
-                      {scenarios.length === 0 ? (
-                        <EmptyState
-                          icon={Layers}
-                          title="No scenarios yet"
-                          description="Create a scenario to start building your agent flow"
-                          action={{ label: "Create Scenario", onClick: () => setShowCreateScenarioModal(true) }}
-                        />
-                      ) : (
-                        <EmptyState
-                          icon={Layers}
-                          title="No scenario selected"
-                          description="Select a scenario or create a new one"
-                          action={{ label: "Create Scenario", onClick: () => setShowCreateScenarioModal(true) }}
-                        />
-                      )}
-                      {scenarios.length > 0 && (
-                        <div className="space-y-3 max-w-md mx-auto">
-                          {scenarios.map((scenario) => (
-                            <button
-                              key={scenario.id}
-                              onClick={() => setSelectedScenario(scenario)}
-                              className={`w-full px-6 py-3 rounded-2xl border border-white/10 bg-black text-white hover:bg-black/80 transition text-left text-xs`}
-                            >
-                              {scenario.name}
-                            </button>
-                          ))}
-                          <Tooltip content="Create a new scenario">
-                            <button
-                              onClick={() => setShowCreateScenarioModal(true)}
-                              className={`w-full px-6 py-3 rounded-3xl bg-[#f97316] hover:bg-[#ea580c] text-white font-medium transition`}
-                            >
-                              + Create new scenario
-                            </button>
-                          </Tooltip>
-                        </div>
-                      )}
+            {activePage === "instructions" ? (
+                // Instructions page - rules and instructions for the LLM
+                selectedAgent ? (
+                  <div className="h-full flex flex-col p-6 max-w-4xl mx-auto">
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-lg font-semibold text-white">Rules & instructions</h2>
+                      <button
+                        onClick={handleSaveLlmInstructions}
+                        disabled={llmInstructionsSaving}
+                        className="px-4 py-2 rounded-2xl bg-[#f97316] hover:bg-[#ea580c] disabled:opacity-50 text-white font-medium text-sm transition"
+                      >
+                        {llmInstructionsSaving ? "Saving…" : "Save"}
+                      </button>
                     </div>
+                    <p className="text-white/60 text-sm mb-3">
+                      Provide rules and instructions for the LLM. When set, the agent will use these instead of scenario steps.
+                    </p>
+                    <textarea
+                      value={llmInstructionsDraft}
+                      onChange={(e) => setLlmInstructionsDraft(e.target.value)}
+                      placeholder="e.g. You are a friendly support agent. Always greet the customer by name. Keep responses brief and helpful. If the customer asks about pricing, refer them to the pricing page."
+                      className="flex-1 min-h-[320px] w-full px-4 py-3 rounded-2xl bg-black/60 border border-white/10 text-white placeholder-white/40 text-sm focus:border-[#f97316] focus:outline-none resize-y"
+                      spellCheck={false}
+                    />
                   </div>
-                ) : null
+                ) : (
+                  <div className="flex items-center justify-center h-full bg-black" style={{ background: '#000000' }}>
+                    <EmptyState
+                      icon={FileText}
+                      title="Select an agent"
+                      description="Choose an agent from the sidebar to edit its rules and instructions"
+                    />
+                  </div>
+                )
               ) : (
                 // All other pages
                 <div className={`h-full ${colors.bg} ${colors.text}`}>
@@ -1555,7 +1435,7 @@ function GigaAIClient({ initialError, initialSuccess, initialMessage }: GigaAICl
                 const scenario = scenarios.find((s) => s.id === parts[1]);
                 if (scenario) {
                   setSelectedScenario(scenario);
-                  setActivePage("scenarios");
+                  setActivePage("instructions");
                 }
               }
             }

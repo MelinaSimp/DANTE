@@ -7,28 +7,45 @@ import { generateSpeechTwiml } from "@/lib/elevenlabs/twiml";
 export const dynamic = "force-dynamic";
 export const maxDuration = 10; // 10 seconds max for Twilio webhooks
 
+/** Get call params from either GET (query) or POST (form). Twilio may use either. */
+async function getIncomingCallParams(req: NextRequest): Promise<{ callSid: string; from: string; to: string; callStatus: string }> {
+  if (req.method === "GET") {
+    const p = req.nextUrl.searchParams;
+    return {
+      callSid: p.get("CallSid") || "",
+      from: p.get("From") || "",
+      to: p.get("To") || "",
+      callStatus: p.get("CallStatus") || "",
+    };
+  }
+  const formData = await req.formData();
+  return {
+    callSid: formData.get("CallSid")?.toString() || "",
+    from: formData.get("From")?.toString() || "",
+    to: formData.get("To")?.toString() || "",
+    callStatus: formData.get("CallStatus")?.toString() || "",
+  };
+}
+
 /**
  * Twilio Incoming Call Webhook (Optimized)
- * POST /api/twilio/incoming
- * 
- * This endpoint receives incoming call webhooks from Twilio.
- * Configure this URL in your Twilio phone number settings:
- * Voice & Fax > A CALL COMES IN > Webhook: https://driftai.studio/api/twilio/incoming
- * 
- * This is the primary voice call handler with latency optimizations.
+ * GET or POST /api/twilio/incoming
+ *
+ * Configure in Twilio: Voice & Fax > A CALL COMES IN > Webhook:
+ * https://your-domain.com/api/twilio/incoming
+ * (Set "HTTP GET" or "HTTP POST" – both are supported.)
  */
-export async function POST(req: NextRequest) {
-  // Declare variables outside try block so they're accessible in catch
+async function handleIncoming(req: NextRequest): Promise<NextResponse> {
   let callSid = "";
   let from = "";
   let to = "";
-  
+
   try {
-    const formData = await req.formData();
-    callSid = formData.get("CallSid")?.toString() || "";
-    from = formData.get("From")?.toString() || "";
-    to = formData.get("To")?.toString() || "";
-    const callStatus = formData.get("CallStatus")?.toString() || "";
+    const params = await getIncomingCallParams(req);
+    callSid = params.callSid;
+    from = params.from;
+    to = params.to;
+    const callStatus = params.callStatus;
 
     console.log("[Twilio] Incoming call:", { callSid, from, to, callStatus });
 
@@ -461,4 +478,12 @@ export async function POST(req: NextRequest) {
       },
     });
   }
+}
+
+export async function POST(req: NextRequest) {
+  return handleIncoming(req);
+}
+
+export async function GET(req: NextRequest) {
+  return handleIncoming(req);
 }

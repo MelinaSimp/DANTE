@@ -32,8 +32,24 @@ const callInfoCache = new Map<string, { callId: string; phoneNumber: string; cus
  */
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    
+    const contentType = req.headers.get("content-type") || "";
+    let body: Record<string, unknown>;
+    if (contentType.includes("application/json")) {
+      body = await req.json();
+    } else {
+      // Twilio and others may send form-urlencoded to the wrong URL; avoid crashing
+      const text = await req.text();
+      try {
+        body = JSON.parse(text);
+      } catch {
+        console.warn("[Vapi] Webhook received non-JSON body (content-type:", contentType, "). Ignoring. If this is Twilio, set Call status changes to https://your-domain.com/api/twilio/status");
+        return new NextResponse(JSON.stringify({ received: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+    }
+
     // CRITICAL: Log EVERY incoming message to see what Vapi is actually sending
     console.log("[Vapi] 🔍 WEBHOOK CALLED - Full incoming payload:");
     console.log("[Vapi] Body type:", body.type);
@@ -118,7 +134,7 @@ export async function POST(req: NextRequest) {
 
       let { data: agent } = await supabaseAdmin
         .from("agents")
-        .select("id, workspace_id, name, elevenlabs_voice_id")
+        .select("id, workspace_id, name, elevenlabs_voice_id, llm_instructions")
         .in("phone_number", uniqueFormats)
         .in("modality", ["voice", "multi-modal"])
         .eq("status", "deployed")
@@ -133,64 +149,53 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Create conversation
-      const { data: scenarios } = await supabaseAdmin
-        .from("scenarios")
-        .select("id")
-        .eq("agent_id", agent.id)
-        .order("created_at", { ascending: true })
-        .limit(1);
-
-      const scenarioId = scenarios && scenarios.length > 0 ? scenarios[0].id : null;
-
-      console.log("[Vapi] request-start: Scenarios check:", {
-        agentId: agent.id,
-        scenarioCount: scenarios?.length || 0,
-        scenarioId: scenarioId,
-        scenarioName: scenarios?.[0]?.name || null,
-      });
-
+      // When agent has llm_instructions, use default greeting and no scenario
+      const useLlmInstructions = !!(agent as { llm_instructions?: string | null }).llm_instructions?.trim();
+      let scenarioId: string | null = null;
       let currentStepId: string | null = null;
-      if (scenarioId) {
-        const { data: allSteps } = await supabaseAdmin
-          .from("steps")
-          .select("id, type, sort_order, ai_message, name")
-          .eq("scenario_id", scenarioId)
-          .order("sort_order", { ascending: true });
 
-        console.log("[Vapi] request-start: Steps found:", {
+      if (!useLlmInstructions) {
+        const { data: scenarios } = await supabaseAdmin
+          .from("scenarios")
+          .select("id")
+          .eq("agent_id", agent.id)
+          .order("created_at", { ascending: true })
+          .limit(1);
+
+        scenarioId = scenarios && scenarios.length > 0 ? scenarios[0].id : null;
+
+        console.log("[Vapi] request-start: Scenarios check:", {
+          agentId: agent.id,
+          scenarioCount: scenarios?.length || 0,
           scenarioId: scenarioId,
-          stepCount: allSteps?.length || 0,
-          steps: allSteps?.map(s => ({ id: s.id, type: s.type, name: s.name, sort_order: s.sort_order, hasMessage: !!s.ai_message })) || [],
         });
 
-        if (allSteps && allSteps.length > 0) {
-          const sayStep = allSteps.find(s => s.type === "say");
-          if (sayStep) {
-            currentStepId = sayStep.id;
-            const greetingIndex = allSteps.findIndex(s => s.id === sayStep.id);
-            if (greetingIndex >= 0 && greetingIndex < allSteps.length - 1) {
-              currentStepId = allSteps[greetingIndex + 1].id;
+        if (scenarioId) {
+          const { data: allSteps } = await supabaseAdmin
+            .from("steps")
+            .select("id, type, sort_order, ai_message, name")
+            .eq("scenario_id", scenarioId)
+            .order("sort_order", { ascending: true });
+
+          if (allSteps && allSteps.length > 0) {
+            const sayStep = allSteps.find((s: { type: string }) => s.type === "say");
+            if (sayStep) {
+              const greetingIndex = allSteps.findIndex((s: { id: string }) => s.id === sayStep.id);
+              if (greetingIndex >= 0 && greetingIndex < allSteps.length - 1) {
+                currentStepId = allSteps[greetingIndex + 1].id;
+              } else {
+                currentStepId = sayStep.id;
+              }
+            } else {
+              currentStepId = allSteps[0].id;
             }
-          } else {
-            currentStepId = allSteps[0].id;
           }
-          console.log("[Vapi] request-start: Selected current step:", {
-            currentStepId: currentStepId,
-            stepType: allSteps.find(s => s.id === currentStepId)?.type,
-            stepName: allSteps.find(s => s.id === currentStepId)?.name,
-          });
-        } else {
-          console.warn("[Vapi] request-start: No steps found for scenario:", scenarioId);
         }
-      } else {
-        console.warn("[Vapi] request-start: No scenario found for agent:", agent.id);
       }
 
-      // Get greeting message FIRST (before any DB operations)
-      // This ensures we respond quickly (< 2 seconds)
+      // Get greeting: default when using llm_instructions, else from Say step
       let greeting = "Hello! How can I help you today?";
-      if (scenarioId) {
+      if (!useLlmInstructions && scenarioId) {
         const { data: firstSayStep } = await supabaseAdmin
           .from("steps")
           .select("ai_message, name, type")
@@ -200,24 +205,9 @@ export async function POST(req: NextRequest) {
           .limit(1)
           .maybeSingle();
 
-        console.log("[Vapi] request-start: First Say step check:", {
-          scenarioId: scenarioId,
-          foundSayStep: !!firstSayStep,
-          stepName: firstSayStep?.name || null,
-          stepType: firstSayStep?.type || null,
-          hasMessage: !!firstSayStep?.ai_message,
-          messageLength: firstSayStep?.ai_message?.length || 0,
-          messagePreview: firstSayStep?.ai_message?.substring(0, 50) || null,
-        });
-
         if (firstSayStep?.ai_message && firstSayStep.ai_message.trim().length > 0) {
           greeting = firstSayStep.ai_message.trim();
-          console.log("[Vapi] request-start: Using greeting from Say step:", greeting.substring(0, 100));
-        } else {
-          console.warn("[Vapi] request-start: First Say step has no ai_message, using default greeting");
         }
-      } else {
-        console.warn("[Vapi] request-start: No scenario found, using default greeting");
       }
 
       // CRITICAL: Return DIRECT response to request-start IMMEDIATELY
@@ -506,7 +496,7 @@ export async function POST(req: NextRequest) {
     // ONLY voice or multi-modal agents (not chat-only)
     let { data: agent } = await supabaseAdmin
       .from("agents")
-      .select("id, workspace_id, name, status, phone_number, elevenlabs_voice_id, is_specialist, parent_agent_id, modality")
+      .select("id, workspace_id, name, status, phone_number, elevenlabs_voice_id, is_specialist, parent_agent_id, modality, llm_instructions")
       .in("phone_number", uniqueFormats)
       .in("modality", ["voice", "multi-modal"])
       .eq("status", "deployed")
@@ -536,7 +526,7 @@ export async function POST(req: NextRequest) {
           if (normalizedCandidate === normalizedPhone || normalizedCandidate === phoneNumber) {
             const { data: fullAgent } = await supabaseAdmin
               .from("agents")
-              .select("id, workspace_id, name, status, phone_number, elevenlabs_voice_id, is_specialist, parent_agent_id, modality")
+              .select("id, workspace_id, name, status, phone_number, elevenlabs_voice_id, is_specialist, parent_agent_id, modality, llm_instructions")
               .eq("id", candidate.id)
               .single();
             if (fullAgent) {
@@ -556,7 +546,7 @@ export async function POST(req: NextRequest) {
             if (normalizedCandidate === normalizedPhone || normalizedCandidate === phoneNumber) {
               const { data: fullAgent } = await supabaseAdmin
                 .from("agents")
-                .select("id, workspace_id, name, status, phone_number, elevenlabs_voice_id, is_specialist, parent_agent_id, modality")
+                .select("id, workspace_id, name, status, phone_number, elevenlabs_voice_id, is_specialist, parent_agent_id, modality, llm_instructions")
                 .eq("id", candidate.id)
                 .single();
               if (fullAgent) {
@@ -584,63 +574,34 @@ export async function POST(req: NextRequest) {
     // Handle system message (call start)
     if (message?.role === "system") {
       console.log("[Vapi] Call started, creating conversation...");
-      
-      // Get first scenario
-      const { data: scenarios } = await supabaseAdmin
-        .from("scenarios")
-        .select("id, name")
-        .eq("agent_id", agent.id)
-        .order("created_at", { ascending: true })
-        .limit(1);
-
-      const scenarioId = scenarios && scenarios.length > 0 ? scenarios[0].id : null;
-      
-      console.log("[Vapi] Scenarios found for agent:", {
-        agentId: agent.id,
-        agentName: agent.name,
-        scenarioCount: scenarios?.length || 0,
-        scenarioId: scenarioId,
-        scenarioName: scenarios?.[0]?.name || null,
-      });
-      
-      // Get first step
+      const useLlmSys = !!(agent as { llm_instructions?: string | null }).llm_instructions?.trim();
+      let scenarioId: string | null = null;
       let currentStepId: string | null = null;
-      if (scenarioId) {
-        const { data: allSteps } = await supabaseAdmin
-          .from("steps")
-          .select("id, type, sort_order, name")
-          .eq("scenario_id", scenarioId)
-          .order("sort_order", { ascending: true });
-        
-        console.log("[Vapi] Steps found for scenario:", {
-          scenarioId: scenarioId,
-          stepCount: allSteps?.length || 0,
-          steps: allSteps?.map(s => ({ id: s.id, type: s.type, name: s.name, sort_order: s.sort_order })) || [],
-        });
-        
-        if (allSteps && allSteps.length > 0) {
-          // Find first Say step for greeting, or use first step
-          const sayStep = allSteps.find(s => s.type === "say");
-          if (sayStep) {
-            currentStepId = sayStep.id;
-            // Set next step (after greeting)
-            const greetingIndex = allSteps.findIndex(s => s.id === sayStep.id);
-            if (greetingIndex >= 0 && greetingIndex < allSteps.length - 1) {
-              currentStepId = allSteps[greetingIndex + 1].id;
+
+      if (!useLlmSys) {
+        const { data: scenarios } = await supabaseAdmin
+          .from("scenarios")
+          .select("id, name")
+          .eq("agent_id", agent.id)
+          .order("created_at", { ascending: true })
+          .limit(1);
+        scenarioId = scenarios && scenarios.length > 0 ? scenarios[0].id : null;
+        if (scenarioId) {
+          const { data: allSteps } = await supabaseAdmin
+            .from("steps")
+            .select("id, type, sort_order, name")
+            .eq("scenario_id", scenarioId)
+            .order("sort_order", { ascending: true });
+          if (allSteps && allSteps.length > 0) {
+            const sayStep = allSteps.find((s: { type: string }) => s.type === "say");
+            if (sayStep) {
+              const greetingIndex = allSteps.findIndex((s: { id: string }) => s.id === sayStep.id);
+              currentStepId = greetingIndex >= 0 && greetingIndex < allSteps.length - 1 ? allSteps[greetingIndex + 1].id : sayStep.id;
+            } else {
+              currentStepId = allSteps[0].id;
             }
-          } else {
-            currentStepId = allSteps[0].id;
           }
-          console.log("[Vapi] Selected current step:", {
-            currentStepId: currentStepId,
-            stepType: allSteps.find(s => s.id === currentStepId)?.type,
-            stepName: allSteps.find(s => s.id === currentStepId)?.name,
-          });
-        } else {
-          console.warn("[Vapi] No steps found for scenario:", scenarioId);
         }
-      } else {
-        console.warn("[Vapi] No scenario found for agent:", agent.id);
       }
 
       // Create conversation
@@ -812,7 +773,72 @@ export async function POST(req: NextRequest) {
         .update({ transcript })
         .eq("id", conversation.id);
 
-      // Create execution context
+      // When agent has llm_instructions, call LLM directly instead of scenario executor
+      const agentInstructions = (agent as { llm_instructions?: string | null }).llm_instructions?.trim();
+      if (agentInstructions) {
+        const apiKey = process.env.OPENAI_API_KEY;
+        if (!apiKey) {
+          console.error("[Vapi] OPENAI_API_KEY not set, cannot use llm_instructions");
+          return NextResponse.json(
+            formatVapiResponse({
+              response: "I'm sorry, the assistant is not configured. Please try again later.",
+              endCall: false,
+              voiceId: agent.elevenlabs_voice_id,
+            })
+          );
+        }
+        const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
+          { role: "system", content: agentInstructions },
+          ...transcript.map((m: { role: string; content: string }) => ({ role: m.role as "user" | "assistant", content: m.content })),
+        ];
+        const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "gpt-4o-mini",
+            messages,
+            temperature: 0.3,
+            max_tokens: 300,
+          }),
+        });
+        if (!openaiRes.ok) {
+          const errText = await openaiRes.text();
+          console.error("[Vapi] OpenAI API error:", openaiRes.status, errText);
+          return NextResponse.json(
+            formatVapiResponse({
+              response: "I'm sorry, I had trouble responding. Please try again.",
+              endCall: false,
+              voiceId: agent.elevenlabs_voice_id,
+            })
+          );
+        }
+        const openaiData = await openaiRes.json();
+        const assistantContent = openaiData.choices?.[0]?.message?.content?.trim() || "I'm here to help! How can I assist you?";
+        const updatedTranscript = [
+          ...transcript,
+          { role: "assistant", content: assistantContent, timestamp: new Date().toISOString() },
+        ];
+        await supabaseAdmin
+          .from("conversations")
+          .update({
+            transcript: updatedTranscript,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", conversation.id);
+
+        return NextResponse.json(
+          formatVapiResponse({
+            response: assistantContent,
+            endCall: false,
+            voiceId: agent.elevenlabs_voice_id,
+          })
+        );
+      }
+
+      // Create execution context (scenario-based flow)
       const context: ConversationContext = {
         conversationId: conversation.id,
         agentId: conversation.agent_id,
@@ -919,69 +945,49 @@ export async function POST(req: NextRequest) {
       
       if (!existingConversation) {
         // NO conversation exists = This is the FIRST message in the call!
-        // Vapi might be asking for the greeting without sending request-start
         console.log("[Vapi] ⚠️  NO CONVERSATION EXISTS - This might be the first greeting request!");
-        console.log("[Vapi] Treating assistant message as first greeting request");
-        
-        // Load scenario and Say step (same logic as request-start)
-        const { data: scenarios } = await supabaseAdmin
-          .from("scenarios")
-          .select("id, name")
-          .eq("agent_id", agent.id)
-          .order("created_at", { ascending: true })
-          .limit(1);
+        const useLlmInstructionsFirst = !!(agent as { llm_instructions?: string | null }).llm_instructions?.trim();
+        let scenarioIdFirst: string | null = null;
+        let currentStepIdFirst: string | null = null;
 
-        const scenarioId = scenarios && scenarios.length > 0 ? scenarios[0].id : null;
-        console.log("[Vapi] First message - Scenarios check:", {
-          agentId: agent.id,
-          scenarioCount: scenarios?.length || 0,
-          scenarioId: scenarioId,
-          scenarioName: scenarios?.[0]?.name || null,
-        });
-
-        let currentStepId: string | null = null;
-        if (scenarioId) {
-          const { data: allSteps } = await supabaseAdmin
-            .from("steps")
-            .select("id, type, sort_order, ai_message, name")
-            .eq("scenario_id", scenarioId)
-            .order("sort_order", { ascending: true });
-
-          console.log("[Vapi] First message - Steps found:", {
-            scenarioId: scenarioId,
-            stepCount: allSteps?.length || 0,
-            steps: allSteps?.map(s => ({ id: s.id, type: s.type, name: s.name, sort_order: s.sort_order, hasMessage: !!s.ai_message })) || [],
-          });
-
-          if (allSteps && allSteps.length > 0) {
-            const sayStep = allSteps.find(s => s.type === "say");
-            if (sayStep) {
-              currentStepId = sayStep.id;
-              const greetingIndex = allSteps.findIndex(s => s.id === sayStep.id);
-              if (greetingIndex >= 0 && greetingIndex < allSteps.length - 1) {
-                currentStepId = allSteps[greetingIndex + 1].id;
+        if (!useLlmInstructionsFirst) {
+          const { data: scenarios } = await supabaseAdmin
+            .from("scenarios")
+            .select("id, name")
+            .eq("agent_id", agent.id)
+            .order("created_at", { ascending: true })
+            .limit(1);
+          scenarioIdFirst = scenarios && scenarios.length > 0 ? scenarios[0].id : null;
+          if (scenarioIdFirst) {
+            const { data: allSteps } = await supabaseAdmin
+              .from("steps")
+              .select("id, type, sort_order, ai_message, name")
+              .eq("scenario_id", scenarioIdFirst)
+              .order("sort_order", { ascending: true });
+            if (allSteps && allSteps.length > 0) {
+              const sayStep = allSteps.find((s: { type: string }) => s.type === "say");
+              if (sayStep) {
+                const greetingIndex = allSteps.findIndex((s: { id: string }) => s.id === sayStep.id);
+                currentStepIdFirst = greetingIndex >= 0 && greetingIndex < allSteps.length - 1 ? allSteps[greetingIndex + 1].id : sayStep.id;
+              } else {
+                currentStepIdFirst = allSteps[0].id;
               }
-            } else {
-              currentStepId = allSteps[0].id;
             }
           }
         }
 
-        // Get greeting from first Say step
         let greeting = "Hello! How can I help you today?";
-        if (scenarioId) {
+        if (!useLlmInstructionsFirst && scenarioIdFirst) {
           const { data: firstSayStep } = await supabaseAdmin
             .from("steps")
             .select("ai_message, name, type")
-            .eq("scenario_id", scenarioId)
+            .eq("scenario_id", scenarioIdFirst)
             .eq("type", "say")
             .order("sort_order", { ascending: true })
             .limit(1)
             .maybeSingle();
-
           if (firstSayStep?.ai_message && firstSayStep.ai_message.trim().length > 0) {
             greeting = firstSayStep.ai_message.trim();
-            console.log("[Vapi] First message - Using greeting from Say step:", greeting.substring(0, 100));
           }
         }
 
@@ -994,8 +1000,8 @@ export async function POST(req: NextRequest) {
             workspace_id: agent.workspace_id,
             modality: "voice",
             status: "active",
-            current_scenario_id: scenarioId,
-            current_step_id: currentStepId,
+            current_scenario_id: scenarioIdFirst,
+            current_step_id: currentStepIdFirst,
             metadata: {
               phoneNumber: phoneNumber,
               customerNumber: customerNumber,
@@ -1079,7 +1085,31 @@ export async function POST(req: NextRequest) {
           .update({ transcript })
           .eq("id", conversation.id);
 
-        // Create execution context
+        // When agent has llm_instructions, call LLM directly
+        const agentInstructions2 = (agent as { llm_instructions?: string | null }).llm_instructions?.trim();
+        if (agentInstructions2) {
+          const apiKey2 = process.env.OPENAI_API_KEY;
+          if (apiKey2) {
+            const messages2: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
+              { role: "system", content: agentInstructions2 },
+              ...transcript.map((m: { role: string; content: string }) => ({ role: m.role as "user" | "assistant", content: m.content })),
+            ];
+            const openaiRes2 = await fetch("https://api.openai.com/v1/chat/completions", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${apiKey2}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ model: "gpt-4o-mini", messages: messages2, temperature: 0.3, max_tokens: 300 }),
+            });
+            if (openaiRes2.ok) {
+              const openaiData2 = await openaiRes2.json();
+              const assistantContent2 = openaiData2.choices?.[0]?.message?.content?.trim() || "I'm here to help! How can I assist you?";
+              const updatedTranscript2 = [...transcript, { role: "assistant", content: assistantContent2, timestamp: new Date().toISOString() }];
+              await supabaseAdmin.from("conversations").update({ transcript: updatedTranscript2, updated_at: new Date().toISOString() }).eq("id", conversation.id);
+              return NextResponse.json(formatVapiResponse({ response: assistantContent2, endCall: false, voiceId: agent.elevenlabs_voice_id }));
+            }
+          }
+        }
+
+        // Create execution context (scenario-based flow)
         const context: ConversationContext = {
           conversationId: conversation.id,
           agentId: conversation.agent_id,
@@ -1254,7 +1284,7 @@ export async function POST(req: NextRequest) {
               // Find agent
               const { data: agent } = await supabaseAdmin
                 .from("agents")
-                .select("id, workspace_id, name, elevenlabs_voice_id, phone_number")
+                .select("id, workspace_id, name, elevenlabs_voice_id, phone_number, llm_instructions")
                 .in("phone_number", uniqueFormats)
                 .in("modality", ["voice", "multi-modal"])
                 .eq("status", "deployed")
@@ -1269,77 +1299,48 @@ export async function POST(req: NextRequest) {
               });
               
               if (agent) {
-                console.log("[Vapi] ✅ Found agent - Loading scenario and greeting...");
-                
-                // Load scenario and Say step (same logic as request-start)
-                const { data: scenarios } = await supabaseAdmin
-                  .from("scenarios")
-                  .select("id, name")
-                  .eq("agent_id", agent.id)
-                  .order("created_at", { ascending: true })
-                  .limit(1);
-
-                const scenarioId = scenarios && scenarios.length > 0 ? scenarios[0].id : null;
-                console.log("[Vapi] 🔍 Scenario lookup result:", {
-                  scenarioCount: scenarios?.length || 0,
-                  scenarioId: scenarioId,
-                  scenarioName: scenarios?.[0]?.name || null,
-                });
-
+                const useLlmInstr = !!(agent as { llm_instructions?: string | null }).llm_instructions?.trim();
+                let scenarioIdLate: string | null = null;
+                let currentStepIdLate: string | null = null;
                 let greeting = "Hello! How can I help you today?";
-                let currentStepId: string | null = null;
 
-                if (scenarioId) {
-                  const { data: firstSayStep } = await supabaseAdmin
-                    .from("steps")
-                    .select("ai_message, name, type")
-                    .eq("scenario_id", scenarioId)
-                    .eq("type", "say")
-                    .order("sort_order", { ascending: true })
-                    .limit(1)
-                    .maybeSingle();
-
-                  console.log("[Vapi] 🔍 Say step lookup result:", {
-                    foundSayStep: !!firstSayStep,
-                    stepName: firstSayStep?.name || null,
-                    stepType: firstSayStep?.type || null,
-                    hasMessage: !!firstSayStep?.ai_message,
-                    messageLength: firstSayStep?.ai_message?.length || 0,
-                    messagePreview: firstSayStep?.ai_message?.substring(0, 100) || null,
-                  });
-
-                  if (firstSayStep?.ai_message && firstSayStep.ai_message.trim().length > 0) {
-                    greeting = firstSayStep.ai_message.trim();
-                    console.log("[Vapi] ✅ Using greeting from Say step:", greeting.substring(0, 100));
-                    
-                    // Get current step ID
+                if (!useLlmInstr) {
+                  const { data: scenarios } = await supabaseAdmin
+                    .from("scenarios")
+                    .select("id, name")
+                    .eq("agent_id", agent.id)
+                    .order("created_at", { ascending: true })
+                    .limit(1);
+                  scenarioIdLate = scenarios && scenarios.length > 0 ? scenarios[0].id : null;
+                  if (scenarioIdLate) {
+                    const { data: firstSayStep } = await supabaseAdmin
+                      .from("steps")
+                      .select("ai_message, name, type")
+                      .eq("scenario_id", scenarioIdLate)
+                      .eq("type", "say")
+                      .order("sort_order", { ascending: true })
+                      .limit(1)
+                      .maybeSingle();
+                    if (firstSayStep?.ai_message && firstSayStep.ai_message.trim().length > 0) {
+                      greeting = firstSayStep.ai_message.trim();
+                    }
                     const { data: allSteps } = await supabaseAdmin
                       .from("steps")
                       .select("id, type, sort_order")
-                      .eq("scenario_id", scenarioId)
+                      .eq("scenario_id", scenarioIdLate)
                       .order("sort_order", { ascending: true });
-
                     if (allSteps && allSteps.length > 0) {
-                      const sayStep = allSteps.find(s => s.type === "say");
+                      const sayStep = allSteps.find((s: { type: string }) => s.type === "say");
                       if (sayStep) {
-                        const greetingIndex = allSteps.findIndex(s => s.id === sayStep.id);
-                        if (greetingIndex >= 0 && greetingIndex < allSteps.length - 1) {
-                          currentStepId = allSteps[greetingIndex + 1].id;
-                        } else {
-                          currentStepId = sayStep.id;
-                        }
+                        const greetingIndex = allSteps.findIndex((s: { id: string }) => s.id === sayStep.id);
+                        currentStepIdLate = greetingIndex >= 0 && greetingIndex < allSteps.length - 1 ? allSteps[greetingIndex + 1].id : sayStep.id;
                       } else {
-                        currentStepId = allSteps[0].id;
+                        currentStepIdLate = allSteps[0].id;
                       }
                     }
-                  } else {
-                    console.warn("[Vapi] ⚠️  Scenario has no Say step with message, using default greeting");
                   }
-                } else {
-                  console.warn("[Vapi] ⚠️  Agent has no scenarios, using default greeting");
                 }
 
-                // Create conversation in background (don't wait)
                 supabaseAdmin
                   .from("conversations")
                   .insert({
@@ -1348,8 +1349,8 @@ export async function POST(req: NextRequest) {
                     workspace_id: agent.workspace_id,
                     modality: "voice",
                     status: "active",
-                    current_scenario_id: scenarioId,
-                    current_step_id: currentStepId,
+                    current_scenario_id: scenarioIdLate,
+                    current_step_id: currentStepIdLate,
                     metadata: {
                       phoneNumber: phoneNumber,
                       customerNumber: customerNumber,
@@ -1451,6 +1452,31 @@ export async function POST(req: NextRequest) {
             timestamp: new Date().toISOString(),
           });
 
+          await supabaseAdmin.from("conversations").update({ transcript }).eq("id", conversation.id);
+
+          const agentInstructions3 = (agent as { llm_instructions?: string | null }).llm_instructions?.trim();
+          if (agentInstructions3) {
+            const apiKey3 = process.env.OPENAI_API_KEY;
+            if (apiKey3) {
+              const messages3: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
+                { role: "system", content: agentInstructions3 },
+                ...transcript.map((m: { role: string; content: string }) => ({ role: m.role as "user" | "assistant", content: m.content })),
+              ];
+              const openaiRes3 = await fetch("https://api.openai.com/v1/chat/completions", {
+                method: "POST",
+                headers: { Authorization: `Bearer ${apiKey3}`, "Content-Type": "application/json" },
+                body: JSON.stringify({ model: "gpt-4o-mini", messages: messages3, temperature: 0.3, max_tokens: 300 }),
+              });
+              if (openaiRes3.ok) {
+                const openaiData3 = await openaiRes3.json();
+                const assistantContent3 = openaiData3.choices?.[0]?.message?.content?.trim() || "I'm here to help! How can I assist you?";
+                const updatedTranscript3 = [...transcript, { role: "assistant", content: assistantContent3, timestamp: new Date().toISOString() }];
+                await supabaseAdmin.from("conversations").update({ transcript: updatedTranscript3, updated_at: new Date().toISOString() }).eq("id", conversation.id);
+                return NextResponse.json(formatVapiResponse({ response: assistantContent3, endCall: false, voiceId: agent.elevenlabs_voice_id }));
+              }
+            }
+          }
+
           const context: ConversationContext = {
             conversationId: conversation.id,
             agentId: conversation.agent_id,
@@ -1464,17 +1490,12 @@ export async function POST(req: NextRequest) {
           const executor = new AgentExecutor(context);
           const result = await executor.executeNextStep(userInput);
           
-          // Update conversation
           await supabaseAdmin
             .from("conversations")
             .update({
               transcript: [
                 ...transcript,
-                {
-                  role: "assistant",
-                  content: result.output || "",
-                  timestamp: new Date().toISOString(),
-                },
+                { role: "assistant", content: result.output || "", timestamp: new Date().toISOString() },
               ],
               current_step_id: result.nextStepId,
               updated_at: new Date().toISOString(),

@@ -85,6 +85,7 @@ export async function PUT(
   if (body.is_specialist !== undefined) updates.is_specialist = body.is_specialist;
   if (body.parent_agent_id !== undefined) updates.parent_agent_id = body.parent_agent_id;
   if (body.routing_keywords !== undefined) updates.routing_keywords = body.routing_keywords;
+  if (body.llm_instructions !== undefined) updates.llm_instructions = body.llm_instructions;
 
   const { data, error } = await supabaseAdmin
     .from("agents")

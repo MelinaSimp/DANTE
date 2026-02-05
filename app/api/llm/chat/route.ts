@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { message, history = [], agentId, chatId, contactId, files = [], images = [], extractedTextFromPages } = await req.json();
+    const { message, history = [], agentId, chatId, files = [], images = [] } = await req.json();
 
     if (!message || typeof message !== "string" || message.trim().length === 0) {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
@@ -115,54 +115,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Add client document + annotations to system context when contactId is provided
-    let clientDocumentContext = "";
-    if (contactId) {
-      try {
-        const { data: doc } = await supabaseAdmin
-          .from("documents")
-          .select("id, extracted_text")
-          .eq("contact_id", contactId)
-          .maybeSingle();
-
-        if (doc) {
-          const { data: anns } = await supabaseAdmin
-            .from("document_annotations")
-            .select("page_number, type, content")
-            .eq("document_id", doc.id)
-            .order("page_number");
-
-          let annText = "";
-          if (anns && anns.length > 0) {
-            annText = "\n\n--- PDF ANNOTATIONS (use as template for summary) ---\n";
-            annText += "The user has annotated this PDF. Use these annotations as the primary context when generating summaries. Prioritize sections and topics marked in the annotations.\n\n";
-            anns.forEach((a: { page_number: number; type: string; content: string | null }) => {
-              annText += `[Page ${a.page_number}] ${a.type}: ${a.content ?? "(no text)"}\n`;
-            });
-          }
-
-          const hasExtractedText = doc.extracted_text && doc.extracted_text.trim().length > 0;
-          const hasAnnotations = anns && anns.length > 0;
-
-          if (hasExtractedText || hasAnnotations || (extractedTextFromPages && String(extractedTextFromPages).trim().length > 0)) {
-            clientDocumentContext = "\n\n--- CLIENT DOCUMENT (you have this context; do NOT ask for more) ---\nThe user has an annotated PDF for this client. You MUST use the content below to generate summaries. Do NOT say you need more content or the document—you already have it.\n\nONE-PAGE SUMMARY RULES when the user asks for a summary:\n- Write CONCRETE content only. Use the exact text, numbers, and labels from the annotations and extracted text below.\n- NEVER use placeholders like [Include key metrics here], [Highlight...], [Provide...], or [Identify...]. Every bullet and section must contain real content.\n- For key charts and data, output a <!--CHART_DATA--> block so charts render in the UI and in the PDF. Use the format: <!--CHART_DATA-->{\"chart\":{\"type\":\"line|bar|pie|area\",\"data\":[...],\"xKey\":\"x\",\"yKey\":\"y\",\"title\":\"...\"}}<!--/CHART_DATA-->.\n- Format as a clean one-page summary suitable for PDF: clear headings, short bullets, real data.\n\nCLIENT DOCUMENT TEMPLATE:\n";
-            if (hasExtractedText) {
-              clientDocumentContext += `\n--- EXTRACTED PDF TEXT ---\n${doc.extracted_text.substring(0, 15000)}`;
-            }
-            if (extractedTextFromPages && String(extractedTextFromPages).trim().length > 0) {
-              clientDocumentContext += `\n--- EXTRACTED TEXT FROM ANNOTATED PAGES ---\n${String(extractedTextFromPages).trim().substring(0, 15000)}`;
-            }
-            if (hasAnnotations) {
-              clientDocumentContext += annText;
-            }
-          }
-        }
-      } catch (err) {
-        console.warn("Failed to load client document:", err);
-      }
-    }
-
-    // Build system message after guidelines and client document are finalized
+    // Build system message after guidelines are finalized
     let systemContent = `You are Drift, a helpful AI assistant. Be friendly, concise, and helpful. Answer questions clearly and provide useful information.
 
 CRITICAL RULES:
@@ -207,15 +160,6 @@ CRITICAL RULES:
    Always structure your analysis using these sections when dealing with data or documents.
 
 You CAN generate PDFs - when users ask for a PDF, provide the content in a well-formatted way that can be converted to PDF. Use clear headings, bullet points, and organized sections.${guidelinesContent}`;
-
-    // Ensure client document context is in the system message (in case it was added after guidelines)
-    if (clientDocumentContext) {
-      systemContent += clientDocumentContext;
-      // When the user sends images of annotated pages, instruct the model to extract real content from them
-      if (images && images.length > 0) {
-        systemContent += "\n\nThe user has attached images of the annotated PDF pages. Your task is to EXTRACT the actual content from these images: charts, data tables, numbers, and key metrics. Do not just list annotation labels or repeat what the annotations say. Look at each image and pull out the real figures, table rows, chart labels, and metrics visible on the pages. Include that extracted content in the one-page summary.";
-      }
-    }
 
     // Add PDF content to system context if files are provided
     if (files && files.length > 0) {
@@ -340,8 +284,6 @@ You CAN generate PDFs - when users ask for a PDF, provide the content in a well-
     // Call OpenAI API
     // Use gpt-4o-mini (supports vision) for all requests
     const model = "gpt-4o-mini"; // gpt-4o-mini supports vision
-    // Allow longer output for one-page summaries (client document context)
-    const maxTokens = clientDocumentContext ? 2200 : 500;
 
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -353,7 +295,7 @@ You CAN generate PDFs - when users ask for a PDF, provide the content in a well-
         model: model,
         messages,
         temperature: 0.3, // Reduced from 0.7 for faster, more deterministic responses
-        max_tokens: maxTokens,
+        max_tokens: 500,
         stream: false, // Set to true for streaming if needed
       }),
     });
