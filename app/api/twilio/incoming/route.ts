@@ -366,6 +366,12 @@ async function handleIncoming(req: NextRequest): Promise<NextResponse> {
       console.log("[Twilio] ❌ No greeting step found, no greeting configured - will skip Say tag");
     }
 
+    // Always have a greeting so the call never drops (e.g. instructions-only agents with no scenarios)
+    if (!greeting || greeting.trim().length === 0) {
+      greeting = "Hello! How can I help you today?";
+      console.log("[Twilio] Using default greeting (no scenario/step message)");
+    }
+
     // The response endpoint is called automatically by Twilio's <Gather> action
     if (!conversation || !conversation.id) {
       console.error("[Twilio] Conversation ID is missing:", conversation);

@@ -222,15 +222,18 @@ async function handleMediaStream(req: NextRequest) {
     // Validate URL doesn't have trailing slashes or spaces
     railwayUrl = railwayUrl.trim().replace(/\/+$/, "");
     
-    // Optional diagnostic: set env var FORCE_REGULAR_TWILIO=true to disable Media Streams
-    // (helps confirm the regular Twilio flow works while debugging Media Streams)
+    // Use Media Streams (Railway WebSocket) only when explicitly enabled.
+    // Default to regular Twilio (Say + Gather) so calls work without Railway and don't drop.
+    const useMediaStreams = process.env.USE_MEDIA_STREAMS === "true";
     const forceRegularTwilio = process.env.FORCE_REGULAR_TWILIO === "true";
+    const actuallyUseMediaStreams = useMediaStreams && !forceRegularTwilio;
     
-    // Check Railway health before using (non-blocking)
-    let useMediaStreams = !forceRegularTwilio;
-    
-    if (forceRegularTwilio) {
-      console.log("[Media Stream] FORCE_REGULAR_TWILIO env var is set - skipping Media Streams");
+    if (!actuallyUseMediaStreams) {
+      if (!useMediaStreams) {
+        console.log("[Media Stream] USE_MEDIA_STREAMS not set - using regular Twilio (Say + Gather)");
+      } else {
+        console.log("[Media Stream] FORCE_REGULAR_TWILIO is set - using regular Twilio");
+      }
     } else {
       try {
         const healthUrl = railwayUrl.replace("wss://", "https://").replace("ws://", "http://") + "/health";
@@ -268,7 +271,7 @@ async function handleMediaStream(req: NextRequest) {
     
     let twiml: string;
     
-    if (useMediaStreams) {
+    if (actuallyUseMediaStreams) {
       // Use <Connect><Stream> for BIDIRECTIONAL audio. <Start><Stream> is receive-only.
       // Twilio: "The url does not support query string parameters." Use <Parameter> instead.
       const mediaStreamUrl = `${railwayUrl}/media-stream`;
@@ -297,6 +300,7 @@ async function handleMediaStream(req: NextRequest) {
   <Pause length="1"/>
   <Gather input="speech" method="POST" speechTimeout="auto" language="en-US" action="${responseUrl.replace(/&/g, "&amp;")}">
   </Gather>
+  <Redirect>${responseUrl.replace(/&/g, "&amp;")}</Redirect>
 </Response>`;
       
       console.log("[Media Stream] Using fallback TwiML with response URL:", responseUrl);
