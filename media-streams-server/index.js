@@ -589,23 +589,29 @@ async function sendInitialGreeting(connection) {
 
     if (response.ok) {
       const result = await response.json();
-      if (result.output && result.output.trim().length > 0) {
-        const ttsStartTime = Date.now();
-        await streamAudioResponse(connection, result.output, result.voiceId);
-        const ttsEndTime = Date.now();
-        console.log(`[Media Stream] ⏱️  Greeting TTS took ${ttsEndTime - ttsStartTime}ms`);
-        
-        const totalTime = Date.now() - startTime;
-        console.log(`[Media Stream] ⏱️  Total greeting time: ${totalTime}ms`);
-      } else {
-        console.warn(`[Media Stream] Greeting API ok but no output`);
-      }
+      const greetingText = (result.output && result.output.trim().length > 0)
+        ? result.output.trim()
+        : 'Hello! How can I help you today?';
+      const ttsStartTime = Date.now();
+      await streamAudioResponse(connection, greetingText, result.voiceId);
+      const ttsEndTime = Date.now();
+      console.log(`[Media Stream] ⏱️  Greeting TTS took ${ttsEndTime - ttsStartTime}ms`);
+      const totalTime = Date.now() - startTime;
+      console.log(`[Media Stream] ⏱️  Total greeting time: ${totalTime}ms`);
     } else {
       const errBody = await response.text();
       console.error(`[Media Stream] Failed to get greeting: ${response.status} ${errBody}`);
+      await streamAudioResponse(connection, 'Hello! How can I help you today?', null);
     }
   } catch (error) {
     console.error(`[Media Stream] Error sending initial greeting: ${error.message}`);
+    try {
+      await streamAudioResponse(connection, 'Hello! How can I help you today?', null);
+    } catch (fallbackErr) {
+      console.error(`[Media Stream] Fallback greeting TTS failed: ${fallbackErr.message}`);
+    }
+  } finally {
+    connection.isSpeaking = false;
   }
 }
 
