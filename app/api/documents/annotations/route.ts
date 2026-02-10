@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -100,8 +101,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Document not found or access denied" }, { status: 404 });
     }
 
-    // Use user's Supabase client so RLS allows the same user to read annotations after reload
-    const { data, error } = await supabase
+    // Insert with admin after verifying access; RLS SELECT allows user to read (document in workspace)
+    const { data, error } = await supabaseAdmin
       .from("document_annotations")
       .insert({
         document_id: documentId,
