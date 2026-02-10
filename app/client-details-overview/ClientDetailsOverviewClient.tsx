@@ -19,6 +19,7 @@ import {
   Trash2,
 } from "lucide-react";
 import PdfViewerWithAnnotations, { type Annotation } from "@/components/documents/PdfViewerWithAnnotations";
+import DocumentSummaryChat from "@/components/documents/DocumentSummaryChat";
 
 // Mock data matching the Vise-style screenshots
 const MOCK_HOUSEHOLD = {
@@ -624,6 +625,17 @@ export default function ClientDetailsOverviewClient({
                                 </div>
                               ))
                           )}
+                        </div>
+                        <div className="border-t border-[#e5e7eb] p-4 bg-white">
+                          <p className="text-xs font-semibold uppercase tracking-wider text-[#6b7280] mb-3">
+                            Generate
+                          </p>
+                          <DocumentSummaryChat
+                            contactId={selected.id}
+                            clientName={selected.name}
+                            documentUrl={document.url}
+                            annotatedPageNumbers={[...new Set(annotations.map((a) => a.page_number))].sort((a, b) => a - b)}
+                          />
                         </div>
                       </div>
                     </div>
