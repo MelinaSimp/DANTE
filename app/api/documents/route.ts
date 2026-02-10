@@ -44,15 +44,23 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ document: null });
     }
 
-    // Get signed URL for private bucket
-    const { data: signedUrl } = await supabaseAdmin.storage
+    // Get signed URL for private bucket (24h so PDF viewer doesn't expire mid-session)
+    const { data: signedUrl, error: urlError } = await supabaseAdmin.storage
       .from("client-documents")
-      .createSignedUrl(doc.file_path, 3600); // 1 hour
+      .createSignedUrl(doc.file_path, 86400); // 24 hours
+
+    if (urlError || !signedUrl?.signedUrl) {
+      console.error("Document signed URL error:", urlError);
+      return NextResponse.json({
+        document: null,
+        error: "PDF could not be loaded. The file may be missing from storage.",
+      });
+    }
 
     return NextResponse.json({
       document: {
         ...doc,
-        url: signedUrl?.signedUrl ?? null,
+        url: signedUrl.signedUrl,
       },
     });
   } catch (error: any) {

@@ -594,6 +594,11 @@ export default function ClientDetailsOverviewClient({
                           fileName={document.file_name}
                           annotations={annotations}
                           onAnnotationsChange={setAnnotations}
+                          onLoadError={
+                            selected?.type === "client"
+                              ? () => loadDocument(selected.id)
+                              : undefined
+                          }
                         />
                       </div>
                       <div className="w-[380px] shrink-0 flex flex-col bg-[#f9fafb]">

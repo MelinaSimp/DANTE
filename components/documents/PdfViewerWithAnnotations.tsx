@@ -38,6 +38,8 @@ interface PdfViewerWithAnnotationsProps {
   annotations: Annotation[];
   onAnnotationsChange: (annotations: Annotation[]) => void;
   readOnly?: boolean;
+  /** Called when the PDF fails to load (e.g. expired URL). Parent can refetch and pass a new fileUrl. */
+  onLoadError?: () => void;
 }
 
 export default function PdfViewerWithAnnotations({
@@ -47,6 +49,7 @@ export default function PdfViewerWithAnnotations({
   annotations,
   onAnnotationsChange,
   readOnly = false,
+  onLoadError,
 }: PdfViewerWithAnnotationsProps) {
   const [numPages, setNumPages] = useState<number>(0);
   const [pageNumber, setPageNumber] = useState(1);
@@ -295,6 +298,7 @@ export default function PdfViewerWithAnnotations({
           <Document
             file={fileUrl}
             onLoadSuccess={onDocumentLoadSuccess}
+            onLoadError={onLoadError}
             loading={
               <div className="flex items-center justify-center w-[600px] h-[800px] bg-white rounded-lg">
                 <p className="text-[#6b7280]">Loading PDF…</p>
