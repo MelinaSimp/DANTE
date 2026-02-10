@@ -17,6 +17,7 @@ import {
   FileText,
   Upload,
   Trash2,
+  FileStack,
 } from "lucide-react";
 import PdfViewerWithAnnotations, { type Annotation } from "@/components/documents/PdfViewerWithAnnotations";
 import DocumentSummaryChat from "@/components/documents/DocumentSummaryChat";
@@ -41,6 +42,14 @@ const SECTIONS = [
 
 type View = "select" | "overview";
 type SelectedEntity = { type: "household"; id: string; name: string } | { type: "client"; id: string; name: string } | null;
+
+type ClientTemplate = {
+  id: string;
+  name: string;
+  document_id: string;
+  annotated_page_numbers: number[];
+  created_at: string;
+};
 
 function formatTime() {
   const now = new Date();
@@ -73,6 +82,18 @@ export default function ClientDetailsOverviewClient({
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  // "Save as template?" flow
+  const [templateAskDismissed, setTemplateAskDismissed] = useState(false);
+  const [showTemplateNameInput, setShowTemplateNameInput] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [savedTemplateName, setSavedTemplateName] = useState<string | null>(null);
+  // Templates list + "Use this template" flow
+  const [templates, setTemplates] = useState<ClientTemplate[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<ClientTemplate | null>(null);
+  const [useTemplateMode, setUseTemplateMode] = useState(false);
+  const [documentToAnalyzeUrl, setDocumentToAnalyzeUrl] = useState<string | null>(null);
+  const [uploadingToAnalyze, setUploadingToAnalyze] = useState(false);
 
   const contacts = initialContacts;
 
@@ -106,15 +127,34 @@ export default function ClientDetailsOverviewClient({
     }
   }, []);
 
+  const loadTemplates = useCallback(async (contactId: string) => {
+    const res = await fetch(`/api/client-templates?contactId=${contactId}`);
+    const data = await res.json().catch(() => ({}));
+    setTemplates(data.templates ?? []);
+  }, []);
+
   useEffect(() => {
     setUploadError(null);
     if (selected?.type === "client") {
       loadDocument(selected.id);
+      loadTemplates(selected.id);
     } else {
       setDocument(null);
       setAnnotations([]);
+      setTemplates([]);
     }
-  }, [selected?.type, selected?.id ?? "", loadDocument]);
+    setSelectedTemplate(null);
+    setUseTemplateMode(false);
+    setDocumentToAnalyzeUrl(null);
+  }, [selected?.type, selected?.id ?? "", loadDocument, loadTemplates]);
+
+  // Reset template prompt when document changes so we can ask again for the new doc
+  useEffect(() => {
+    setTemplateAskDismissed(false);
+    setShowTemplateNameInput(false);
+    setTemplateName("");
+    setSavedTemplateName(null);
+  }, [document?.id]);
 
   const handleSelectHousehold = () => {
     setSelected({
@@ -165,6 +205,34 @@ export default function ClientDetailsOverviewClient({
     } finally {
       setUploading(false);
       e.target.value = "";
+    }
+  };
+
+  const handleSaveAsTemplate = async () => {
+    if (!document || !selected || selected.type !== "client" || !templateName.trim()) return;
+    setSavingTemplate(true);
+    try {
+      const annotatedPageNumbers = [...new Set(annotations.map((a) => a.page_number))].sort((a, b) => a - b);
+      const res = await fetch("/api/client-templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contactId: selected.id,
+          documentId: document.id,
+          name: templateName.trim(),
+          annotatedPageNumbers,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to save template");
+      setSavedTemplateName(templateName.trim());
+      setShowTemplateNameInput(false);
+      setTemplateName("");
+      if (selected?.type === "client") loadTemplates(selected.id);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Failed to save template");
+    } finally {
+      setSavingTemplate(false);
     }
   };
 
@@ -558,6 +626,76 @@ export default function ClientDetailsOverviewClient({
                       />
                     </label>
                   </div>
+                ) : useTemplateMode && selectedTemplate ? (
+                  <div className="rounded-xl border border-[#e5e7eb] bg-white overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2 border-b border-[#e5e7eb] bg-[#f9fafb]">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => { setUseTemplateMode(false); setDocumentToAnalyzeUrl(null); }}
+                          className="rounded p-1 text-[#6b7280] hover:bg-[#e5e7eb] hover:text-[#374151]"
+                          aria-label="Back"
+                        >
+                          <ArrowLeft className="h-4 w-4" />
+                        </button>
+                        <span className="text-sm font-medium text-[#374151]">
+                          Using template: {selectedTemplate.name}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="p-4 space-y-4 min-h-[500px] flex flex-col">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-[#6b7280] mb-2">
+                          Document to analyze
+                        </p>
+                        <p className="text-sm text-[#6b7280] mb-2">
+                          Upload a PDF to analyze using this template. This is separate from the client&apos;s main document.
+                        </p>
+                        {documentToAnalyzeUrl ? (
+                          <p className="text-sm text-green-700 mb-2">Document ready for generation.</p>
+                        ) : null}
+                        <label className="inline-flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb] cursor-pointer disabled:opacity-50">
+                          <Upload className="h-4 w-4" />
+                          {uploadingToAnalyze ? "Uploading…" : "Upload PDF to analyze"}
+                          <input
+                            type="file"
+                            accept="application/pdf"
+                            className="hidden"
+                            disabled={uploadingToAnalyze}
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file || !selected || selected.type !== "client") return;
+                              setUploadingToAnalyze(true);
+                              try {
+                                const formData = new FormData();
+                                formData.append("file", file);
+                                formData.append("contactId", selected.id);
+                                const res = await fetch("/api/documents/upload-analyze", { method: "POST", body: formData });
+                                const data = await res.json().catch(() => ({}));
+                                if (!res.ok) throw new Error(data.error || "Upload failed");
+                                setDocumentToAnalyzeUrl(data.url);
+                              } catch (err) {
+                                setUploadError(err instanceof Error ? err.message : "Upload failed");
+                              } finally {
+                                setUploadingToAnalyze(false);
+                                e.target.value = "";
+                              }
+                            }}
+                          />
+                        </label>
+                      </div>
+                      <div className="flex-1 min-h-0 flex flex-col border-t border-[#e5e7eb] pt-4">
+                        <DocumentSummaryChat
+                          contactId={selected.id}
+                          clientName={selected.name}
+                          documentUrl={documentToAnalyzeUrl ?? undefined}
+                          annotatedPageNumbers={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]}
+                          templateId={selectedTemplate.id}
+                          templateName={selectedTemplate.name}
+                        />
+                      </div>
+                    </div>
+                  </div>
                 ) : (
                   <div className="rounded-xl border border-[#e5e7eb] bg-white overflow-hidden">
                     <div className="flex items-center justify-between px-4 py-2 border-b border-[#e5e7eb] bg-[#f9fafb]">
@@ -603,6 +741,43 @@ export default function ClientDetailsOverviewClient({
                       </div>
                       <div className="w-[380px] shrink-0 flex flex-col bg-[#f9fafb]">
                         <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                          {templates.length > 0 && (
+                            <div className="space-y-2">
+                              <p className="text-xs font-semibold uppercase tracking-wider text-[#6b7280]">
+                                Templates
+                              </p>
+                              <div className="space-y-1">
+                                {templates.map((t) => (
+                                  <div
+                                    key={t.id}
+                                    className={`rounded-lg border p-2 text-sm cursor-pointer transition ${
+                                      selectedTemplate?.id === t.id
+                                        ? "border-blue-500 bg-blue-50"
+                                        : "border-[#e5e7eb] bg-white hover:bg-[#f9fafb]"
+                                    }`}
+                                    onClick={() => setSelectedTemplate(selectedTemplate?.id === t.id ? null : t)}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <FileStack className="h-4 w-4 shrink-0 text-[#6b7280]" />
+                                      <span className="font-medium text-[#374151]">{t.name}</span>
+                                    </div>
+                                    {selectedTemplate?.id === t.id && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setUseTemplateMode(true);
+                                        }}
+                                        className="mt-2 w-full rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                                      >
+                                        Use this template
+                                      </button>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                           <p className="text-xs font-semibold uppercase tracking-wider text-[#6b7280]">
                             Annotations & comments
                           </p>
@@ -632,6 +807,63 @@ export default function ClientDetailsOverviewClient({
                           )}
                         </div>
                         <div className="border-t border-[#e5e7eb] p-4 bg-white">
+                          {annotations.length > 0 && !templateAskDismissed && !savedTemplateName && (
+                            <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                              <p className="text-sm text-[#1e40af] mb-3">
+                                Do you want to save this annotated document as a template? You can use it later to generate summaries from other documents with the same structure.
+                              </p>
+                              {!showTemplateNameInput ? (
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowTemplateNameInput(true)}
+                                    className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                                  >
+                                    Save as template
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setTemplateAskDismissed(true)}
+                                    className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb]"
+                                  >
+                                    Not now
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex flex-col gap-2">
+                                  <input
+                                    type="text"
+                                    value={templateName}
+                                    onChange={(e) => setTemplateName(e.target.value)}
+                                    placeholder="Template name"
+                                    className="rounded-lg border border-[#e5e7eb] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    disabled={savingTemplate}
+                                  />
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={handleSaveAsTemplate}
+                                      disabled={savingTemplate || !templateName.trim()}
+                                      className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                                    >
+                                      {savingTemplate ? "Saving…" : "Confirm"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => { setShowTemplateNameInput(false); setTemplateName(""); }}
+                                      disabled={savingTemplate}
+                                      className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb] disabled:opacity-50"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {savedTemplateName && (
+                            <p className="text-sm text-green-700 mb-3">Saved as template &quot;{savedTemplateName}&quot;</p>
+                          )}
                           <p className="text-xs font-semibold uppercase tracking-wider text-[#6b7280] mb-3">
                             Generate
                           </p>

@@ -22,7 +22,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { message, history = [], agentId, chatId, files = [], images = [] } = await req.json();
+    const {
+      message,
+      history = [],
+      agentId,
+      chatId,
+      files = [],
+      images = [],
+      contactId,
+      extractedTextFromPages,
+      templateId,
+      templateName,
+    } = await req.json();
 
     if (!message || typeof message !== "string" || message.trim().length === 0) {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
@@ -160,6 +171,14 @@ CRITICAL RULES:
    Always structure your analysis using these sections when dealing with data or documents.
 
 You CAN generate PDFs - when users ask for a PDF, provide the content in a well-formatted way that can be converted to PDF. Use clear headings, bullet points, and organized sections.${guidelinesContent}`;
+
+    // When using a saved template, tell the model to follow that template's structure
+    if (templateName && (templateId || templateName)) {
+      systemContent += `\n\nTEMPLATE MODE: The user is generating content using the saved template "${templateName}". The document they provided (images or text below) is the "document to analyze"—use it as the source data. Structure your output to match the template's purpose (e.g. one-page summary, sections, charts). If a section from the template cannot be clearly found in the document, say so instead of inventing content.`;
+    }
+    if (extractedTextFromPages && typeof extractedTextFromPages === "string" && extractedTextFromPages.trim()) {
+      systemContent += `\n\nEXTRACTED TEXT FROM THE DOCUMENT TO ANALYZE:\n${extractedTextFromPages.substring(0, 15000)}`;
+    }
 
     // Add PDF content to system context if files are provided
     if (files && files.length > 0) {

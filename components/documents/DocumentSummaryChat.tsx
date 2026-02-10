@@ -11,6 +11,9 @@ interface DocumentSummaryChatProps {
   documentUrl?: string | null;
   /** Page numbers that have annotations (only these pages are sent as images). */
   annotatedPageNumbers?: number[];
+  /** When in "use template" flow: template id and name for the LLM to use structure/sections. */
+  templateId?: string;
+  templateName?: string;
 }
 
 interface Message {
@@ -30,6 +33,8 @@ export default function DocumentSummaryChat({
   clientName,
   documentUrl,
   annotatedPageNumbers = [],
+  templateId,
+  templateName,
 }: DocumentSummaryChatProps) {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -116,6 +121,8 @@ export default function DocumentSummaryChat({
           contactId,
           ...(images.length > 0 && { images }),
           ...(extractedTextFromPages && { extractedTextFromPages }),
+          ...(templateId && { templateId }),
+          ...(templateName && { templateName }),
         }),
       });
 
@@ -255,9 +262,11 @@ export default function DocumentSummaryChat({
   return (
     <div className="mt-4 p-4 border-t border-[#e5e7eb] bg-[#f9fafb] rounded-b-xl">
       <p className="text-xs font-medium text-[#6b7280] mb-3">
-        Ask the AI to generate a one-page summary with charts. The annotated PDF for {clientName} is used as a template.
+        {templateName
+          ? `Using template "${templateName}". Upload a document to analyze above, then ask the AI to generate (e.g. one-page summary with charts).`
+          : "Ask the AI to generate a one-page summary with charts. You can save this document as a template above to reuse its structure for other documents."}
       </p>
-      <div ref={messagesContainerRef} className="space-y-3 max-h-64 overflow-y-auto mb-3">
+      <div ref={messagesContainerRef} className="space-y-3 min-h-[200px] max-h-[420px] overflow-y-auto mb-3">
         {messages.map((m, i) => (
           <div
             key={i}
