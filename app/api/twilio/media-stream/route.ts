@@ -222,18 +222,12 @@ async function handleMediaStream(req: NextRequest) {
     // Validate URL doesn't have trailing slashes or spaces
     railwayUrl = railwayUrl.trim().replace(/\/+$/, "");
     
-    // Use Media Streams (Railway WebSocket) only when explicitly enabled.
-    // Default to regular Twilio (Say + Gather) so calls work without Railway and don't drop.
-    const useMediaStreams = process.env.USE_MEDIA_STREAMS === "true";
+    // Checkpoint: Use Media Streams by default when Railway URL is set; opt-out with FORCE_REGULAR_TWILIO=true.
     const forceRegularTwilio = process.env.FORCE_REGULAR_TWILIO === "true";
-    const actuallyUseMediaStreams = useMediaStreams && !forceRegularTwilio;
+    const useMediaStreams = !forceRegularTwilio;
     
-    if (!actuallyUseMediaStreams) {
-      if (!useMediaStreams) {
-        console.log("[Media Stream] USE_MEDIA_STREAMS not set - using regular Twilio (Say + Gather)");
-      } else {
-        console.log("[Media Stream] FORCE_REGULAR_TWILIO is set - using regular Twilio");
-      }
+    if (forceRegularTwilio) {
+      console.log("[Media Stream] FORCE_REGULAR_TWILIO env var is set - skipping Media Streams");
     } else {
       try {
         const healthUrl = railwayUrl.replace("wss://", "https://").replace("ws://", "http://") + "/health";
@@ -271,7 +265,7 @@ async function handleMediaStream(req: NextRequest) {
     
     let twiml: string;
     
-    if (actuallyUseMediaStreams) {
+    if (useMediaStreams) {
       // Use <Connect><Stream> for BIDIRECTIONAL audio. <Start><Stream> is receive-only.
       // Twilio: "The url does not support query string parameters." Use <Parameter> instead.
       const mediaStreamUrl = `${railwayUrl}/media-stream`;

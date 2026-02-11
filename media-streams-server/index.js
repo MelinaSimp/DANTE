@@ -24,6 +24,8 @@ const alawmulaw = require('alawmulaw');
 const PORT = process.env.PORT || 3001;
 const NEXTJS_API_URL = process.env.NEXTJS_API_URL || 'https://driftai.studio';
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
+// Checkpoint: 500ms debounce (configurable via INPUT_DEBOUNCE_MS)
+const INPUT_DEBOUNCE_MS = parseInt(process.env.INPUT_DEBOUNCE_MS || '500', 10);
 
 // Store active connections
 const activeConnections = new Map();
@@ -406,7 +408,7 @@ async function processAudioChunk(connection) {
         connection.consecutiveSilences = 0;
         connection.lastUserSpeechTime = Date.now();
         
-        // Accumulate user input and debounce (wait 500ms after last speech)
+        // Accumulate user input and debounce (wait INPUT_DEBOUNCE_MS after last speech before sending to LLM)
         connection.pendingUserInput.push(transcription);
         
         // Clear existing debounce timer
@@ -414,7 +416,7 @@ async function processAudioChunk(connection) {
           clearTimeout(connection.inputDebounceTimer);
         }
         
-        // Set new debounce timer - process after 500ms of silence
+        // Set new debounce timer - process after INPUT_DEBOUNCE_MS of silence
         connection.inputDebounceTimer = setTimeout(async () => {
           // CRITICAL: Don't process any input if we're already ending the call
           if (connection.isEndingCall) {
@@ -470,7 +472,7 @@ async function processAudioChunk(connection) {
               connection.isProcessingInput = false;
             }
           }
-        }, 500);
+        }, INPUT_DEBOUNCE_MS);
       } else {
         // Don't check for silence while agent is speaking (to avoid false positives)
         if (connection.isSpeaking) {
