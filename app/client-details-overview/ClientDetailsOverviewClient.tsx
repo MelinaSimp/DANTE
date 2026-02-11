@@ -15,7 +15,9 @@ import {
   Upload,
   Trash2,
   FileStack,
+  UserPlus,
 } from "lucide-react";
+import { formatPhoneToE164 } from "@/lib/validation";
 import PdfViewerWithAnnotations, { type Annotation } from "@/components/documents/PdfViewerWithAnnotations";
 import DocumentSummaryChat from "@/components/documents/DocumentSummaryChat";
 
@@ -87,8 +89,20 @@ export default function ClientDetailsOverviewClient({
   const [useTemplateMode, setUseTemplateMode] = useState(false);
   const [documentToAnalyzeUrl, setDocumentToAnalyzeUrl] = useState<string | null>(null);
   const [uploadingToAnalyze, setUploadingToAnalyze] = useState(false);
+  // Client list (synced from server, append on add)
+  const [contacts, setContacts] = useState<Contact[]>(initialContacts);
+  // Add client modal
+  const [showAddClient, setShowAddClient] = useState(false);
+  const [addClientFirstName, setAddClientFirstName] = useState("");
+  const [addClientLastName, setAddClientLastName] = useState("");
+  const [addClientPhone, setAddClientPhone] = useState("");
+  const [addClientEmail, setAddClientEmail] = useState("");
+  const [addClientLoading, setAddClientLoading] = useState(false);
+  const [addClientError, setAddClientError] = useState<string | null>(null);
 
-  const contacts = initialContacts;
+  useEffect(() => {
+    setContacts(initialContacts);
+  }, [initialContacts]);
 
   useEffect(() => {
     if (initialContactId && contacts.length > 0) {
@@ -170,6 +184,47 @@ export default function ClientDetailsOverviewClient({
   const handleGoBack = () => {
     setView("select");
     setSelected(null);
+  };
+
+  const handleAddClientSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAddClientError(null);
+    const firstName = addClientFirstName.trim();
+    const lastName = addClientLastName.trim();
+    const phoneRaw = addClientPhone.trim();
+    const email = addClientEmail.trim();
+    if (!firstName || !lastName || !phoneRaw || !email) {
+      setAddClientError("First name, last name, phone number, and email are required.");
+      return;
+    }
+    const phone = phoneRaw.startsWith("+") ? phoneRaw : formatPhoneToE164(phoneRaw);
+    setAddClientLoading(true);
+    try {
+      const res = await fetch("/api/contacts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: `${firstName} ${lastName}`.trim(),
+          phone,
+          email,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setAddClientError(data.error || data.details?.join?.(" ") || "Failed to add client");
+        return;
+      }
+      setContacts((prev) => [...prev, { id: data.id, name: data.name, phone: data.phone, email: data.email }]);
+      setShowAddClient(false);
+      setAddClientFirstName("");
+      setAddClientLastName("");
+      setAddClientPhone("");
+      setAddClientEmail("");
+    } catch (err) {
+      setAddClientError(err instanceof Error ? err.message : "Failed to add client");
+    } finally {
+      setAddClientLoading(false);
+    }
   };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -263,6 +318,9 @@ export default function ClientDetailsOverviewClient({
             <h1 className="mt-2 text-center text-2xl font-bold text-[#151515]">
               Prepare a report for the household or a client?
             </h1>
+            <p className="mt-2 text-center text-sm text-[#6b7280] max-w-lg mx-auto">
+              The household is a group (e.g. family) with multiple clients and accounts; select it for a report for the whole group. Below are individual clients; select one for a report for that person only.
+            </p>
           </div>
 
           <div className="mt-10 space-y-4 relative">
@@ -294,38 +352,119 @@ export default function ClientDetailsOverviewClient({
               </button>
             </div>
 
-            <p className="text-center text-sm text-[#6b7280]">Select a client</p>
+            <div className="flex items-center justify-between gap-4">
+              <p className="text-sm text-[#6b7280]">Select a client</p>
+              <button
+                type="button"
+                onClick={() => { setShowAddClient(true); setAddClientError(null); }}
+                className="flex items-center gap-2 rounded-full border border-[#e5e7eb] bg-[#ffffff] px-4 py-2 text-sm font-medium text-[#151515] shadow-sm transition hover:border-[#3166bf]/40 hover:bg-[#fafafa]"
+              >
+                <UserPlus className="h-4 w-4" />
+                Add client
+              </button>
+            </div>
 
-            {/* Client bar(s) — square with halo */}
+            {/* Client cards — rounder, no halo */}
             {contacts.length === 0 ? (
-              <p className="text-center text-sm text-[#6b7280] py-4">No contacts yet. Add contacts to prepare reports.</p>
+              <p className="text-center text-sm text-[#6b7280] py-4">No contacts yet. Click &quot;Add client&quot; to add one.</p>
             ) : (
-            contacts.map((client) => (
-              <div key={client.id} className="relative">
-                <div className="absolute -inset-1 bg-gradient-to-br from-purple-400/25 via-pink-500/25 to-blue-500/25 blur-md rounded-sm" aria-hidden />
+              contacts.map((client) => (
                 <button
+                  key={client.id}
                   type="button"
                   onClick={() => handleSelectClient(client)}
-                  className="relative flex w-full items-center justify-between rounded-sm border border-[#e5e7eb] bg-[#ffffff] px-5 py-4 text-left shadow-sm transition hover:border-[#3166bf]/40 hover:bg-[#fafafa] group"
+                  className="flex w-full items-center justify-between rounded-2xl border border-[#e5e7eb] bg-[#ffffff] px-5 py-4 text-left shadow-sm transition hover:border-[#3166bf]/40 hover:bg-[#fafafa]"
                 >
-                <div className="flex items-center gap-4">
-                  <IconHalo shape="square" className="flex h-8 w-8 shrink-0 items-center justify-center">
-                    <span className="flex h-5 w-5 rounded-sm border-2 border-[#d1d5db] bg-white group-hover:border-[#a78bfa]/50" aria-hidden />
-                  </IconHalo>
                   <span className="text-lg font-semibold text-[#151515]">{client.name}</span>
-                </div>
-                <div className="flex items-center gap-3">
                   {client.phone && (
                     <span className="rounded-full bg-[#eff6ff] px-3 py-1 text-sm text-[#2563eb]">
                       {client.phone}
                     </span>
                   )}
-                </div>
-              </button>
-            </div>
-            ))
+                </button>
+              ))
             )}
           </div>
+
+          {/* Add client modal */}
+          {showAddClient && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => !addClientLoading && setShowAddClient(false)}>
+              <div className="bg-[#ffffff] rounded-2xl shadow-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-semibold text-[#151515]">Add client</h2>
+                  <button type="button" onClick={() => !addClientLoading && setShowAddClient(false)} className="p-1 rounded-lg hover:bg-[#f3f4f6]">
+                    <X className="h-5 w-5 text-[#6b7280]" />
+                  </button>
+                </div>
+                <p className="text-sm text-[#6b7280] mb-4">All fields are required. Phone can include country code (e.g. +1 216 509 9657).</p>
+                <form onSubmit={handleAddClientSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-[#374151] mb-1">First name</label>
+                    <input
+                      type="text"
+                      value={addClientFirstName}
+                      onChange={(e) => setAddClientFirstName(e.target.value)}
+                      className="w-full rounded-xl border border-[#e5e7eb] bg-[#ffffff] px-4 py-2.5 text-[#151515] placeholder:text-[#9ca3af] focus:border-[#3166bf] focus:outline-none focus:ring-1 focus:ring-[#3166bf]"
+                      placeholder="Jane"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#374151] mb-1">Last name</label>
+                    <input
+                      type="text"
+                      value={addClientLastName}
+                      onChange={(e) => setAddClientLastName(e.target.value)}
+                      className="w-full rounded-xl border border-[#e5e7eb] bg-[#ffffff] px-4 py-2.5 text-[#151515] placeholder:text-[#9ca3af] focus:border-[#3166bf] focus:outline-none focus:ring-1 focus:ring-[#3166bf]"
+                      placeholder="Doe"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#374151] mb-1">Phone number</label>
+                    <input
+                      type="tel"
+                      value={addClientPhone}
+                      onChange={(e) => setAddClientPhone(e.target.value)}
+                      className="w-full rounded-xl border border-[#e5e7eb] bg-[#ffffff] px-4 py-2.5 text-[#151515] placeholder:text-[#9ca3af] focus:border-[#3166bf] focus:outline-none focus:ring-1 focus:ring-[#3166bf]"
+                      placeholder="+1 216 509 9657"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#374151] mb-1">Email</label>
+                    <input
+                      type="email"
+                      value={addClientEmail}
+                      onChange={(e) => setAddClientEmail(e.target.value)}
+                      className="w-full rounded-xl border border-[#e5e7eb] bg-[#ffffff] px-4 py-2.5 text-[#151515] placeholder:text-[#9ca3af] focus:border-[#3166bf] focus:outline-none focus:ring-1 focus:ring-[#3166bf]"
+                      placeholder="jane@example.com"
+                      required
+                    />
+                  </div>
+                  {addClientError && (
+                    <p className="text-sm text-red-600">{addClientError}</p>
+                  )}
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => !addClientLoading && setShowAddClient(false)}
+                      className="flex-1 rounded-xl border border-[#e5e7eb] bg-[#f9fafb] px-4 py-2.5 text-sm font-medium text-[#374151] hover:bg-[#f3f4f6]"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={addClientLoading}
+                      className="flex-1 rounded-xl bg-[#3166bf] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#2563eb] disabled:opacity-60"
+                    >
+                      {addClientLoading ? "Adding…" : "Add client"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
