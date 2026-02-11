@@ -135,6 +135,7 @@ wss.on('connection', (ws, req) => {
     recentTranscriptions: [], // Track recent transcriptions to prevent duplicates (last 5, with timestamps)
     isProcessingInput: false, // Track if we're currently processing user input (prevent concurrent processing)
     currentTTSSessionId: 0, // Track current TTS session to prevent old chunks from being sent
+    pendingResponse: null, // Queued API response to play after current TTS (e.g. "You're welcome" during greeting)
   };
 
   activeConnections.set(connectionId, connection);
@@ -611,10 +612,13 @@ async function sendInitialGreeting(connection) {
       await streamAudioResponse(connection, 'Hello! How can I help you today?', null);
     } catch (fallbackErr) {
       console.error(`[Media Stream] Fallback greeting TTS failed: ${fallbackErr.message}`);
+      connection.isSpeaking = false; // Only clear if fallback also failed
     }
-  } finally {
-    connection.isSpeaking = false;
   }
+  // Do NOT set isSpeaking = false here. streamAudioResponse returns as soon as chunks are
+  // queued; the greeting keeps streaming for ~9s. Clearing isSpeaking here let the next user
+  // input ("Thank you") start a new TTS that skipped the rest of the greeting. Let the
+  // last-chunk callback in streamAudioResponse clear isSpeaking when greeting actually finishes.
 }
 
 /**
@@ -679,10 +683,11 @@ async function processUserInput(connection, userInput) {
             connection.isEndingCall = false;
           }
           
-          // Double-check: if agent is already speaking, don't start another TTS (prevent overlapping)
+          // If agent is already speaking (e.g. greeting still streaming), queue this response to play after
           if (connection.isSpeaking) {
-            console.log(`[Media Stream] ⚠️  Agent is already speaking, skipping duplicate TTS for: "${result.output.substring(0, 50)}..."`);
-            return; // Don't start overlapping TTS
+            console.log(`[Media Stream] ⏳ Agent is speaking (e.g. greeting); queueing response to play after: "${result.output.substring(0, 50)}..."`);
+            connection.pendingResponse = { output: result.output.trim(), voiceId: result.voiceId };
+            return;
           }
           
           // If agent was speaking, it was already stopped by stopCurrentTTS in the transcription handler
@@ -904,6 +909,16 @@ async function streamAudioResponse(connection, text, voiceId) {
                     connection.lastAgentSpeechEndTime = Date.now();
                     connection.consecutiveSilences = 0;
                     console.log(`[Media Stream] 🎤 Agent finished speaking, ready for user input`);
+                    if (connection.pendingResponse) {
+                      const pending = connection.pendingResponse;
+                      connection.pendingResponse = null;
+                      console.log(`[Media Stream] ▶️  Playing queued response: "${pending.output.substring(0, 50)}..."`);
+                      connection.isSpeaking = true;
+                      streamAudioResponse(connection, pending.output, pending.voiceId).catch(err => {
+                        console.error(`[Media Stream] Queued TTS failed: ${err.message}`);
+                        connection.isSpeaking = false;
+                      });
+                    }
                   }, 500);
                 }
               }
@@ -1018,6 +1033,17 @@ async function streamAudioResponse(connection, text, voiceId) {
                 connection.lastAgentSpeechEndTime = Date.now(); // Track when agent finished
                 connection.consecutiveSilences = 0; // Reset silence counter after agent speaks
                 console.log(`[Media Stream] 🎤 Agent finished speaking, ready for user input (silence counter reset)`);
+                // If user said something while we were speaking (e.g. "Thank you" during greeting), play queued response now
+                if (connection.pendingResponse) {
+                  const pending = connection.pendingResponse;
+                  connection.pendingResponse = null;
+                  console.log(`[Media Stream] ▶️  Playing queued response: "${pending.output.substring(0, 50)}..."`);
+                  connection.isSpeaking = true;
+                  streamAudioResponse(connection, pending.output, pending.voiceId).catch(err => {
+                    console.error(`[Media Stream] Queued TTS failed: ${err.message}`);
+                    connection.isSpeaking = false;
+                  });
+                }
               }, 500);
             }
           }
@@ -1037,6 +1063,17 @@ async function streamAudioResponse(connection, text, voiceId) {
       if (connection.isSpeaking) {
         console.warn(`[Media Stream] ⚠️  Safety timeout: Resetting isSpeaking flag after ${expectedCompletionTime}ms`);
         connection.isSpeaking = false;
+        connection.lastAgentSpeechEndTime = Date.now();
+        if (connection.pendingResponse) {
+          const pending = connection.pendingResponse;
+          connection.pendingResponse = null;
+          console.log(`[Media Stream] ▶️  Playing queued response after safety timeout: "${pending.output.substring(0, 50)}..."`);
+          connection.isSpeaking = true;
+          streamAudioResponse(connection, pending.output, pending.voiceId).catch(err => {
+            console.error(`[Media Stream] Queued TTS failed: ${err.message}`);
+            connection.isSpeaking = false;
+          });
+        }
       }
     }, expectedCompletionTime);
   } catch (error) {
