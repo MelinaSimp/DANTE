@@ -12,9 +12,6 @@ import {
   X,
   Check,
   LayoutDashboard,
-  PieChart,
-  TrendingUp,
-  FileText,
   Upload,
   Trash2,
   FileStack,
@@ -34,10 +31,7 @@ const MOCK_HOUSEHOLD = {
 type Contact = { id: string; name: string; phone?: string; email?: string };
 
 const SECTIONS = [
-  { id: "documents", label: "Documents", icon: FileText },
   { id: "account-overview", label: "Account Overview", icon: LayoutDashboard },
-  { id: "asset-allocation", label: "Asset Allocation", icon: PieChart },
-  { id: "performance", label: "Performance", icon: TrendingUp },
 ];
 
 type View = "select" | "overview";
@@ -71,7 +65,6 @@ export default function ClientDetailsOverviewClient({
   const [view, setView] = useState<View>("select");
   const [selected, setSelected] = useState<SelectedEntity>(null);
   const [activeSection, setActiveSection] = useState(SECTIONS[0].id);
-  const [timeFilter, setTimeFilter] = useState<"YTD" | "MTD" | "QTD" | "All Time">("YTD");
   const [document, setDocument] = useState<{
     id: string;
     file_name: string;
@@ -103,7 +96,7 @@ export default function ClientDetailsOverviewClient({
       if (contact) {
         setSelected({ type: "client", id: contact.id, name: contact.name });
         setView("overview");
-        setActiveSection("documents");
+        setActiveSection("account-overview");
       }
     }
   }, [initialContactId, contacts]);
@@ -423,7 +416,48 @@ export default function ClientDetailsOverviewClient({
             </p>
 
             {activeSection === "account-overview" && (
-              <div className="mt-8 space-y-6">
+              <div className="mt-8 space-y-8">
+                {/* Templates at top */}
+                <div className="rounded-xl border border-[#e5e7eb] bg-white p-4">
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-[#6b7280] mb-3">Templates</h3>
+                  {selected?.type !== "client" ? (
+                    <p className="text-sm text-[#6b7280]">Select a client to view and use templates.</p>
+                  ) : templates.length > 0 ? (
+                    <div className="space-y-2">
+                      {templates.map((t) => (
+                        <div
+                          key={t.id}
+                          className={`rounded-lg border p-2 text-sm cursor-pointer transition ${
+                            selectedTemplate?.id === t.id
+                              ? "border-blue-500 bg-blue-50"
+                              : "border-[#e5e7eb] bg-[#f9fafb] hover:bg-[#f3f4f6]"
+                          }`}
+                          onClick={() => setSelectedTemplate(selectedTemplate?.id === t.id ? null : t)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <FileStack className="h-4 w-4 shrink-0 text-[#6b7280]" />
+                            <span className="font-medium text-[#374151]">{t.name}</span>
+                          </div>
+                          {selectedTemplate?.id === t.id && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setUseTemplateMode(true);
+                              }}
+                              className="mt-2 w-full rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                            >
+                              Use this template
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-[#6b7280]">No templates yet. Upload a document below, add annotations, then save as a template.</p>
+                  )}
+                </div>
+
                 <h3 className="text-xl font-bold text-[#151515]">Account Overview</h3>
                 <p className="text-[#374151] leading-relaxed">
                   {displayName}&apos;s portfolio remains strong at $1.25M, reflecting steady growth. She has added $25,000 in
@@ -432,168 +466,258 @@ export default function ClientDetailsOverviewClient({
                   personal expenses have been minimal and well within her financial plan.
                 </p>
 
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div />
-                  <div className="flex rounded-lg border border-[#e5e7eb] bg-[#f9fafb] p-0.5">
-                    {(["YTD", "MTD", "QTD", "All Time"] as const).map((f) => (
-                      <button
-                        key={f}
-                        type="button"
-                        onClick={() => setTimeFilter(f)}
-                        className={`rounded-md px-4 py-2 text-sm font-medium transition ${
-                          timeFilter === f
-                            ? "bg-[#ffffff] text-[#151515] shadow-sm"
-                            : "text-[#6b7280] hover:text-[#151515]"
-                        }`}
-                      >
-                        {f}
-                      </button>
-                    ))}
+                {/* Document upload / viewer + annotations + generate */}
+                <div className="mt-8">
+                {selected?.type !== "client" ? (
+                  <div className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] p-8 text-center">
+                    <p className="text-[#6b7280]">Select a client to view and annotate documents.</p>
                   </div>
-                </div>
-
-                <div className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] p-5">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-[#6b7280]">Account value</p>
-                  <div className="mt-1 flex items-baseline gap-3">
-                    <span className="text-3xl font-bold text-[#1e40af]">$1,253,455</span>
-                    <span className="text-sm font-medium text-[#059669]">▼3.2% vs. last month</span>
-                  </div>
-                </div>
-
-                {/* Line graph — white bg, pink/blue halo */}
-                <div className="relative overflow-hidden rounded-xl border border-[#e5e7eb] bg-white p-6">
-                  <div className="absolute inset-0 bg-gradient-to-br from-purple-400/10 via-pink-500/10 to-blue-500/10 blur-2xl" aria-hidden />
-                  <div className="relative">
-                    <div className="mb-2 text-xs font-medium text-[#6b7280]">Account value over time</div>
-                    <div className="h-48 w-full">
-                      <svg viewBox="0 0 400 120" className="h-full w-full" preserveAspectRatio="none">
-                        <defs>
-                          <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                            <stop offset="0%" stopColor="#c084fc" />
-                            <stop offset="50%" stopColor="#ec4899" />
-                            <stop offset="100%" stopColor="#3b82f6" />
-                          </linearGradient>
-                          <filter id="lineGlow">
-                            <feGaussianBlur stdDeviation="2" result="blur" />
-                            <feMerge>
-                              <feMergeNode in="blur" />
-                              <feMergeNode in="SourceGraphic" />
-                            </feMerge>
-                          </filter>
-                        </defs>
-                        <polyline
-                          fill="none"
-                          stroke="url(#lineGradient)"
-                          strokeWidth="2.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          filter="url(#lineGlow)"
-                          points={[72, 68, 75, 70, 78, 82, 76, 85, 88, 84, 90, 100]
-                            .map((v, i) => `${(i / 11) * 380 + 10},${120 - v}`)
-                            .join(" ")}
-                        />
-                      </svg>
-                    </div>
-                    <div className="mt-2 flex justify-between text-xs text-[#6b7280]">
-                      <span>Jan</span>
-                      <span>Dec</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeSection === "asset-allocation" && (
-              <div className="mt-8 space-y-6">
-                <h3 className="text-xl font-bold text-[#151515]">Asset Allocation</h3>
-                <p className="text-[#374151] leading-relaxed">
-                  {displayName} is being transitioned into the 75/20/5 portfolio from a 75/25, with a focus on growth,
-                  income, capital appreciation, and tax loss harvesting.
-                </p>
-                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                  <div className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] p-4">
-                    <p className="text-xs font-semibold uppercase text-[#6b7280]">Allocation</p>
-                    <div className="relative mt-3 h-32 w-32">
-                      <div
-                        className="absolute inset-0 rounded-full"
-                        style={{
-                          background: "conic-gradient(#c084fc 0deg 271deg, #ec4899 271deg 343deg, #3b82f6 343deg 360deg)",
-                        }}
+                ) : !document ? (
+                  <div className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] p-8">
+                    <p className="text-[#6b7280] mb-4">Upload a PDF for {selected.name}. One primary document per client.</p>
+                    {uploadError && (
+                      <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                        {uploadError}
+                        <button
+                          type="button"
+                          onClick={() => setUploadError(null)}
+                          className="ml-2 text-red-500 hover:text-red-700"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    )}
+                    <label className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 cursor-pointer disabled:opacity-50">
+                      <Upload className="h-4 w-4" />
+                      {uploading ? "Uploading…" : "Upload PDF"}
+                      <input
+                        type="file"
+                        accept="application/pdf"
+                        onChange={handleUpload}
+                        disabled={uploading}
+                        className="hidden"
                       />
-                      <div className="absolute inset-[12%] rounded-full bg-[#fafafa]" />
-                    </div>
+                    </label>
                   </div>
-                  <div className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] p-4">
-                    <p className="text-xs font-semibold uppercase text-[#6b7280]">By class</p>
-                    <ul className="mt-2 space-y-2 text-sm">
-                      <li className="flex justify-between">
-                        <span>Equity</span>
-                        <span className="font-semibold text-[#151515]">75.2%</span>
-                      </li>
-                      <li className="flex justify-between">
-                        <span>Fixed Income</span>
-                        <span className="font-semibold text-[#151515]">20.0%</span>
-                      </li>
-                      <li className="flex justify-between">
-                        <span>Alternatives</span>
-                        <span className="font-semibold text-[#151515]">4.8%</span>
-                      </li>
-                    </ul>
-                  </div>
-                  <div className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] p-4">
-                    <p className="text-xs font-semibold uppercase text-[#6b7280]">Top holdings</p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {["NVDA", "AAPL", "AMZN", "MSFT", "XOM", "META"].map((t) => (
-                        <span
-                          key={t}
-                          className="rounded-lg border border-[#c084fc]/40 bg-gradient-to-r from-purple-400/15 via-pink-500/15 to-blue-500/15 px-2.5 py-1 text-sm font-semibold text-[#6366f1]"
+                ) : useTemplateMode && selectedTemplate ? (
+                  <div className="rounded-xl border border-[#e5e7eb] bg-white overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2 border-b border-[#e5e7eb] bg-[#f9fafb]">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => { setUseTemplateMode(false); setDocumentToAnalyzeUrl(null); }}
+                          className="rounded p-1 text-[#6b7280] hover:bg-[#e5e7eb] hover:text-[#374151]"
+                          aria-label="Back"
                         >
-                          {t}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                <div className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] p-4">
-                  <p className="text-xs font-semibold uppercase text-[#6b7280]">Sectors — Target vs. S&P 500</p>
-                  <div className="mt-3 space-y-3">
-                    {[
-                      { name: "Technology", target: 12.6, sp500: 28.6, diff: -10.7 },
-                      { name: "Financial Services", target: 18.2, sp500: 13.1, diff: 5.1 },
-                      { name: "Cons. Discretionary", target: 10.1, sp500: 9.2, diff: 0.9 },
-                      { name: "Industrials", target: 9.4, sp500: 8.8, diff: 0.6 },
-                      { name: "Health Care", target: 8.2, sp500: 12.1, diff: -3.9 },
-                    ].map((row) => (
-                      <div key={row.name} className="flex items-center gap-4">
-                        <span className="w-40 text-sm font-medium text-[#374151]">{row.name}</span>
-                        <div className="flex-1">
-                          <div className="flex gap-1">
-                            <div
-                              className="h-5 rounded bg-gradient-to-r from-[#c084fc] via-[#ec4899] to-[#3b82f6]"
-                              style={{ width: `${Math.min(100, row.target * 3)}%` }}
-                            />
-                            <div
-                              className="h-5 rounded bg-[#d1d5db]"
-                              style={{ width: `${Math.min(100, row.sp500 * 3)}%` }}
-                            />
-                          </div>
-                        </div>
-                        <span
-                          className={`w-12 text-right text-sm font-medium ${
-                            row.diff >= 0 ? "text-[#059669]" : "text-[#dc2626]"
-                          }`}
-                        >
-                          {row.diff >= 0 ? "+" : ""}
-                          {row.diff}
+                          <ArrowLeft className="h-4 w-4" />
+                        </button>
+                        <span className="text-sm font-medium text-[#374151]">
+                          Using template: {selectedTemplate.name}
                         </span>
                       </div>
-                    ))}
+                    </div>
+                    <div className="p-4 space-y-4 min-h-[500px] flex flex-col">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-[#6b7280] mb-2">
+                          Document to analyze
+                        </p>
+                        <p className="text-sm text-[#6b7280] mb-2">
+                          Upload a PDF to analyze using this template. This is separate from the client&apos;s main document.
+                        </p>
+                        {documentToAnalyzeUrl ? (
+                          <p className="text-sm text-green-700 mb-2">Document ready for generation.</p>
+                        ) : null}
+                        <label className="inline-flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb] cursor-pointer disabled:opacity-50">
+                          <Upload className="h-4 w-4" />
+                          {uploadingToAnalyze ? "Uploading…" : "Upload PDF to analyze"}
+                          <input
+                            type="file"
+                            accept="application/pdf"
+                            className="hidden"
+                            disabled={uploadingToAnalyze}
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file || !selected || selected.type !== "client") return;
+                              setUploadingToAnalyze(true);
+                              try {
+                                const formData = new FormData();
+                                formData.append("file", file);
+                                formData.append("contactId", selected.id);
+                                const res = await fetch("/api/documents/upload-analyze", { method: "POST", body: formData });
+                                const data = await res.json().catch(() => ({}));
+                                if (!res.ok) throw new Error(data.error || "Upload failed");
+                                setDocumentToAnalyzeUrl(data.url);
+                              } catch (err) {
+                                setUploadError(err instanceof Error ? err.message : "Upload failed");
+                              } finally {
+                                setUploadingToAnalyze(false);
+                                e.target.value = "";
+                              }
+                            }}
+                          />
+                        </label>
+                      </div>
+                      <div className="flex-1 min-h-0 flex flex-col border-t border-[#e5e7eb] pt-4">
+                        <DocumentSummaryChat
+                          contactId={selected.id}
+                          clientName={selected.name}
+                          documentUrl={documentToAnalyzeUrl ?? undefined}
+                          annotatedPageNumbers={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]}
+                          templateId={selectedTemplate.id}
+                          templateName={selectedTemplate.name}
+                        />
+                      </div>
+                    </div>
                   </div>
+                ) : (
+                  <div className="rounded-xl border border-[#e5e7eb] bg-white overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2 border-b border-[#e5e7eb] bg-[#f9fafb]">
+                      <span className="text-sm font-medium text-[#374151]">{document.file_name}</span>
+                      <div className="flex items-center gap-2">
+                        <label className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-[#6b7280] hover:bg-[#e5e7eb] cursor-pointer">
+                          <Upload className="h-3 w-3" />
+                          Replace
+                          <input
+                            type="file"
+                            accept="application/pdf"
+                            onChange={handleUpload}
+                            disabled={uploading}
+                            className="hidden"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={handleDeleteDocument}
+                          disabled={deleting}
+                          className="flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex h-[600px]">
+                      <div className="flex-1 min-w-0 border-r border-[#e5e7eb]">
+                        <PdfViewerWithAnnotations
+                          documentId={document.id}
+                          fileUrl={document.url}
+                          fileName={document.file_name}
+                          annotations={annotations}
+                          onAnnotationsChange={setAnnotations}
+                          onLoadError={
+                            selected?.type === "client"
+                              ? () => loadDocument(selected.id)
+                              : undefined
+                          }
+                        />
+                      </div>
+                      <div className="w-[380px] shrink-0 flex flex-col bg-[#f9fafb]">
+                        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                          <p className="text-xs font-semibold uppercase tracking-wider text-[#6b7280]">
+                            Annotations & comments
+                          </p>
+                          {annotations.length === 0 ? (
+                            <p className="text-sm text-[#6b7280]">
+                              Draw a box or highlight on the PDF, then add a comment to mark tables or sections.
+                            </p>
+                          ) : (
+                            annotations
+                              .sort((a, b) => (a.page_number - b.page_number) || ((a.created_at || "").localeCompare(b.created_at || "")))
+                              .map((ann) => (
+                                <div
+                                  key={ann.id}
+                                  className="flex justify-end"
+                                >
+                                  <div className="max-w-[90%] rounded-xl px-3 py-2 text-sm bg-blue-600 text-white">
+                                    <div className="flex items-center gap-2 text-xs opacity-90">
+                                      <Check className="h-3.5 w-3.5 shrink-0" />
+                                      <span>Saved · Page {ann.page_number}</span>
+                                    </div>
+                                    <div className="mt-0.5 whitespace-pre-wrap">
+                                      {ann.content || (ann.type === "highlight" ? "(highlighted)" : ann.type)}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))
+                          )}
+                        </div>
+                        <div className="border-t border-[#e5e7eb] p-4 bg-white">
+                          {annotations.length > 0 && !templateAskDismissed && !savedTemplateName && (
+                            <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                              <p className="text-sm text-[#1e40af] mb-3">
+                                Do you want to save this annotated document as a template? You can use it later to generate summaries from other documents with the same structure.
+                              </p>
+                              {!showTemplateNameInput ? (
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowTemplateNameInput(true)}
+                                    className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                                  >
+                                    Save as template
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setTemplateAskDismissed(true)}
+                                    className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb]"
+                                  >
+                                    Not now
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="flex flex-col gap-2">
+                                  <input
+                                    type="text"
+                                    value={templateName}
+                                    onChange={(e) => setTemplateName(e.target.value)}
+                                    placeholder="Template name"
+                                    className="rounded-lg border border-[#e5e7eb] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    disabled={savingTemplate}
+                                  />
+                                  <div className="flex gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={handleSaveAsTemplate}
+                                      disabled={savingTemplate || !templateName.trim()}
+                                      className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                                    >
+                                      {savingTemplate ? "Saving…" : "Confirm"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => { setShowTemplateNameInput(false); setTemplateName(""); }}
+                                      disabled={savingTemplate}
+                                      className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb] disabled:opacity-50"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {savedTemplateName && (
+                            <p className="text-sm text-green-700 mb-3">Saved as template &quot;{savedTemplateName}&quot;</p>
+                          )}
+                          <p className="text-xs font-semibold uppercase tracking-wider text-[#6b7280] mb-3">
+                            Generate
+                          </p>
+                          <DocumentSummaryChat
+                            contactId={selected.id}
+                            clientName={selected.name}
+                            documentUrl={document.url}
+                            annotatedPageNumbers={[...new Set(annotations.map((a) => a.page_number))].sort((a, b) => a - b)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 </div>
               </div>
             )}
 
-            {activeSection === "documents" && (
+            {false && (
               <div className="mt-8">
                 {selected?.type !== "client" ? (
                   <div className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] p-8 text-center">
@@ -878,14 +1002,6 @@ export default function ClientDetailsOverviewClient({
                     </div>
                   </div>
                 )}
-              </div>
-            )}
-
-            {activeSection !== "account-overview" && activeSection !== "asset-allocation" && activeSection !== "documents" && (
-              <div className="mt-8 rounded-xl border border-[#e5e7eb] bg-[#f9fafb] p-8 text-center">
-                <p className="text-[#6b7280]">
-                  {SECTIONS.find((s) => s.id === activeSection)?.label} content will appear here.
-                </p>
               </div>
             )}
 
