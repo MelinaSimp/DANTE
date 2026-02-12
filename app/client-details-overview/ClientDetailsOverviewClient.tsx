@@ -402,6 +402,7 @@ export default function ClientDetailsOverviewClient({
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         const msg = data.error || `Failed to update (${res.status})`;
+        console.error("[Template] Update failed:", res.status, data);
         throw new Error(msg);
       }
       setTemplates((prev) =>
@@ -410,14 +411,15 @@ export default function ClientDetailsOverviewClient({
       if (selectedTemplate?.id === t.id) {
         setSelectedTemplate({ ...selectedTemplate, annotated_page_numbers: pageNumbers });
       }
+      setEditingTemplateAnnotations(null);
+      setTemplateDocForEdit(null);
+      setTemplateAnnotationsForEdit([]);
+      if (selected?.type === "client") await loadTemplates(selected.id);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to update template.";
+      console.error("[Template] Done failed:", err);
       alert(msg);
     }
-    setEditingTemplateAnnotations(null);
-    setTemplateDocForEdit(null);
-    setTemplateAnnotationsForEdit([]);
-    if (selected?.type === "client") loadTemplates(selected.id);
   };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
