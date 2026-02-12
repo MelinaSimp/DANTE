@@ -14,6 +14,8 @@ interface DocumentSummaryChatProps {
   /** When in "use template" flow: template id and name for the LLM to use structure/sections. */
   templateId?: string;
   templateName?: string;
+  /** Template's source document id – used to load template annotations (table vs paragraph) for the LLM. */
+  templateDocumentId?: string;
 }
 
 interface Message {
@@ -35,6 +37,7 @@ export default function DocumentSummaryChat({
   annotatedPageNumbers = [],
   templateId,
   templateName,
+  templateDocumentId,
 }: DocumentSummaryChatProps) {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -123,6 +126,7 @@ export default function DocumentSummaryChat({
           ...(extractedTextFromPages && { extractedTextFromPages }),
           ...(templateId && { templateId }),
           ...(templateName && { templateName }),
+          ...(templateDocumentId && { templateDocumentId }),
         }),
       });
 

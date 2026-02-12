@@ -16,19 +16,11 @@ import {
   Trash2,
   FileStack,
   UserPlus,
+  Pencil,
 } from "lucide-react";
 import { formatPhoneToE164 } from "@/lib/validation";
 import PdfViewerWithAnnotations, { type Annotation } from "@/components/documents/PdfViewerWithAnnotations";
 import DocumentSummaryChat from "@/components/documents/DocumentSummaryChat";
-
-// Mock data matching the Vise-style screenshots
-const MOCK_HOUSEHOLD = {
-  id: "cooper-household",
-  name: "Cooper Household",
-  clients: 4,
-  accounts: 5,
-  totalValue: "$7.5M",
-};
 
 type Contact = { id: string; name: string; phone?: string; email?: string };
 
@@ -37,7 +29,7 @@ const SECTIONS = [
 ];
 
 type View = "select" | "overview";
-type SelectedEntity = { type: "household"; id: string; name: string } | { type: "client"; id: string; name: string } | null;
+type SelectedEntity = { type: "client"; id: string; name: string } | null;
 
 type ClientTemplate = {
   id: string;
@@ -88,7 +80,9 @@ export default function ClientDetailsOverviewClient({
   const [selectedTemplate, setSelectedTemplate] = useState<ClientTemplate | null>(null);
   const [useTemplateMode, setUseTemplateMode] = useState(false);
   const [documentToAnalyzeUrl, setDocumentToAnalyzeUrl] = useState<string | null>(null);
+  const [documentToAnalyzeFileName, setDocumentToAnalyzeFileName] = useState<string | null>(null);
   const [uploadingToAnalyze, setUploadingToAnalyze] = useState(false);
+  const [showAnalyzePdfPreview, setShowAnalyzePdfPreview] = useState(false);
   // Client list (synced from server, append on add)
   const [contacts, setContacts] = useState<Contact[]>(initialContacts);
   // Add client modal
@@ -99,6 +93,21 @@ export default function ClientDetailsOverviewClient({
   const [addClientEmail, setAddClientEmail] = useState("");
   const [addClientLoading, setAddClientLoading] = useState(false);
   const [addClientError, setAddClientError] = useState<string | null>(null);
+  // Edit client modal
+  const [editingContact, setEditingContact] = useState<Contact | null>(null);
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editLastName, setEditLastName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  // Delete client
+  const [deletingContactId, setDeletingContactId] = useState<string | null>(null);
+  // Edit template modal
+  const [editingTemplate, setEditingTemplate] = useState<ClientTemplate | null>(null);
+  const [editTemplateName, setEditTemplateName] = useState("");
+  const [editTemplateLoading, setEditTemplateLoading] = useState(false);
+  const [editTemplateError, setEditTemplateError] = useState<string | null>(null);
 
   useEffect(() => {
     setContacts(initialContacts);
@@ -163,15 +172,6 @@ export default function ClientDetailsOverviewClient({
     setSavedTemplateName(null);
   }, [document?.id]);
 
-  const handleSelectHousehold = () => {
-    setSelected({
-      type: "household",
-      id: MOCK_HOUSEHOLD.id,
-      name: MOCK_HOUSEHOLD.name,
-    });
-    setView("overview");
-  };
-
   const handleSelectClient = (client: Contact) => {
     setSelected({
       type: "client",
@@ -224,6 +224,132 @@ export default function ClientDetailsOverviewClient({
       setAddClientError(err instanceof Error ? err.message : "Failed to add client");
     } finally {
       setAddClientLoading(false);
+    }
+  };
+
+  const openEditModal = (client: Contact) => {
+    const parts = (client.name || "").trim().split(/\s+/);
+    setEditingContact(client);
+    setEditFirstName(parts[0] ?? "");
+    setEditLastName(parts.slice(1).join(" ") ?? "");
+    setEditPhone(client.phone ?? "");
+    setEditEmail(client.email ?? "");
+    setEditError(null);
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingContact) return;
+    setEditError(null);
+    const firstName = editFirstName.trim();
+    const lastName = editLastName.trim();
+    const phoneRaw = editPhone.trim();
+    const email = editEmail.trim();
+    if (!firstName || !lastName || !phoneRaw || !email) {
+      setEditError("First name, last name, phone number, and email are required.");
+      return;
+    }
+    const phone = phoneRaw.startsWith("+") ? phoneRaw : formatPhoneToE164(phoneRaw);
+    setEditLoading(true);
+    try {
+      const res = await fetch(`/api/contacts/${editingContact.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: `${firstName} ${lastName}`.trim(),
+          phone,
+          email,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setEditError(data.error || "Failed to update client");
+        return;
+      }
+      setContacts((prev) =>
+        prev.map((c) =>
+          c.id === editingContact.id
+            ? { id: c.id, name: data.name, phone: data.phone, email: data.email }
+            : c
+        )
+      );
+      setEditingContact(null);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : "Failed to update client");
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleDeleteClient = async (client: Contact) => {
+    if (!confirm(`Delete ${client.name}? This cannot be undone.`)) return;
+    setDeletingContactId(client.id);
+    try {
+      const res = await fetch(`/api/contacts/${client.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete");
+      setContacts((prev) => prev.filter((c) => c.id !== client.id));
+      if (selected?.id === client.id) {
+        setSelected(null);
+        setView("select");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete client.");
+    } finally {
+      setDeletingContactId(null);
+    }
+  };
+
+  const openEditTemplateModal = (t: ClientTemplate) => {
+    setEditingTemplate(t);
+    setEditTemplateName(t.name);
+    setEditTemplateError(null);
+  };
+
+  const handleEditTemplateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTemplate || selected?.type !== "client") return;
+    setEditTemplateError(null);
+    const name = editTemplateName.trim();
+    if (!name) {
+      setEditTemplateError("Template name is required.");
+      return;
+    }
+    setEditTemplateLoading(true);
+    try {
+      const res = await fetch(`/api/client-templates/${editingTemplate.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to update template");
+      setTemplates((prev) =>
+        prev.map((p) => (p.id === editingTemplate.id ? { ...p, name } : p))
+      );
+      if (selectedTemplate?.id === editingTemplate.id) {
+        setSelectedTemplate({ ...selectedTemplate, name });
+      }
+      setEditingTemplate(null);
+    } catch (err) {
+      setEditTemplateError(err instanceof Error ? err.message : "Failed to update template");
+    } finally {
+      setEditTemplateLoading(false);
+    }
+  };
+
+  const handleDeleteTemplate = async (t: ClientTemplate) => {
+    if (!confirm(`Delete template "${t.name}"? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/client-templates/${t.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete");
+      setTemplates((prev) => prev.filter((p) => p.id !== t.id));
+      if (selectedTemplate?.id === t.id) {
+        setSelectedTemplate(null);
+        setUseTemplateMode(false);
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to delete template.");
     }
   };
 
@@ -316,42 +442,11 @@ export default function ClientDetailsOverviewClient({
             <div className="absolute -inset-4 bg-gradient-to-br from-purple-400/20 via-pink-500/20 to-blue-500/20 rounded-3xl blur-2xl -z-10" aria-hidden />
             <p className="text-center text-sm text-[#151515]/60">{formatTime()}</p>
             <h1 className="mt-2 text-center text-2xl font-bold text-[#151515]">
-              Prepare a report for the household or a client?
+              Prepare a report for a client?
             </h1>
-            <p className="mt-2 text-center text-sm text-[#6b7280] max-w-lg mx-auto">
-              The household is a group (e.g. family) with multiple clients and accounts; select it for a report for the whole group. Below are individual clients; select one for a report for that person only.
-            </p>
           </div>
 
           <div className="mt-10 space-y-4 relative">
-            {/* Household bar — square with halo */}
-            <div className="relative">
-              <div className="absolute -inset-1 bg-gradient-to-br from-purple-400/25 via-pink-500/25 to-blue-500/25 blur-md rounded-sm" aria-hidden />
-              <button
-                type="button"
-                onClick={handleSelectHousehold}
-                className="relative flex w-full items-center justify-between rounded-sm border border-[#e5e7eb] bg-[#ffffff] px-5 py-4 text-left shadow-sm transition hover:border-[#3166bf]/40 hover:bg-[#fafafa] group"
-              >
-                <div className="flex items-center gap-4">
-                  <IconHalo shape="square" className="flex h-8 w-8 shrink-0 items-center justify-center">
-                    <span className="flex h-5 w-5 rounded-sm border-2 border-[#d1d5db] bg-white group-hover:border-[#a78bfa]/50" aria-hidden />
-                  </IconHalo>
-                  <span className="text-lg font-semibold text-[#151515]">{MOCK_HOUSEHOLD.name}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="rounded-full bg-[#f3f4f6] px-3 py-1 text-sm text-[#6b7280]">
-                    {MOCK_HOUSEHOLD.clients} clients
-                  </span>
-                  <span className="rounded-full bg-[#eff6ff] px-3 py-1 text-sm text-[#2563eb]">
-                    {MOCK_HOUSEHOLD.accounts} accounts
-                  </span>
-                  <span className="rounded-full bg-[#ecfdf5] px-3 py-1 text-sm font-medium text-[#059669]">
-                    {MOCK_HOUSEHOLD.totalValue}
-                  </span>
-                </div>
-              </button>
-            </div>
-
             <div className="flex items-center justify-between gap-4">
               <p className="text-sm text-[#6b7280]">Select a client</p>
               <button
@@ -364,24 +459,47 @@ export default function ClientDetailsOverviewClient({
               </button>
             </div>
 
-            {/* Client cards — rounder, no halo */}
+            {/* Client cards — rounder, no halo; click to select, Edit/Delete on right */}
             {contacts.length === 0 ? (
               <p className="text-center text-sm text-[#6b7280] py-4">No contacts yet. Click &quot;Add client&quot; to add one.</p>
             ) : (
               contacts.map((client) => (
-                <button
+                <div
                   key={client.id}
-                  type="button"
-                  onClick={() => handleSelectClient(client)}
-                  className="flex w-full items-center justify-between rounded-2xl border border-[#e5e7eb] bg-[#ffffff] px-5 py-4 text-left shadow-sm transition hover:border-[#3166bf]/40 hover:bg-[#fafafa]"
+                  className="flex w-full items-center justify-between gap-2 rounded-2xl border border-[#e5e7eb] bg-[#ffffff] px-5 py-4 shadow-sm transition hover:border-[#3166bf]/40 hover:bg-[#fafafa]"
                 >
-                  <span className="text-lg font-semibold text-[#151515]">{client.name}</span>
-                  {client.phone && (
-                    <span className="rounded-full bg-[#eff6ff] px-3 py-1 text-sm text-[#2563eb]">
-                      {client.phone}
-                    </span>
-                  )}
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectClient(client)}
+                    className="flex flex-1 min-w-0 items-center justify-between gap-3 text-left"
+                  >
+                    <span className="text-lg font-semibold text-[#151515] truncate">{client.name}</span>
+                    {client.phone && (
+                      <span className="rounded-full bg-[#eff6ff] px-3 py-1 text-sm text-[#2563eb] shrink-0">
+                        {client.phone}
+                      </span>
+                    )}
+                  </button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); openEditModal(client); }}
+                      className="p-2 rounded-lg text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#151515]"
+                      title="Edit client"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); handleDeleteClient(client); }}
+                      disabled={deletingContactId === client.id}
+                      className="p-2 rounded-lg text-[#6b7280] hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                      title="Delete client"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
               ))
             )}
           </div>
@@ -459,6 +577,82 @@ export default function ClientDetailsOverviewClient({
                       className="flex-1 rounded-xl bg-[#3166bf] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#2563eb] disabled:opacity-60"
                     >
                       {addClientLoading ? "Adding…" : "Add client"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Edit client modal */}
+          {editingContact && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => !editLoading && setEditingContact(null)}>
+              <div className="bg-[#ffffff] rounded-2xl shadow-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-semibold text-[#151515]">Edit client</h2>
+                  <button type="button" onClick={() => !editLoading && setEditingContact(null)} className="p-1 rounded-lg hover:bg-[#f3f4f6]">
+                    <X className="h-5 w-5 text-[#6b7280]" />
+                  </button>
+                </div>
+                <p className="text-sm text-[#6b7280] mb-4">Update client details. All fields are required.</p>
+                <form onSubmit={handleEditSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-[#374151] mb-1">First name</label>
+                    <input
+                      type="text"
+                      value={editFirstName}
+                      onChange={(e) => setEditFirstName(e.target.value)}
+                      className="w-full rounded-xl border border-[#e5e7eb] bg-[#ffffff] px-4 py-2.5 text-[#151515] focus:border-[#3166bf] focus:outline-none focus:ring-1 focus:ring-[#3166bf]"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#374151] mb-1">Last name</label>
+                    <input
+                      type="text"
+                      value={editLastName}
+                      onChange={(e) => setEditLastName(e.target.value)}
+                      className="w-full rounded-xl border border-[#e5e7eb] bg-[#ffffff] px-4 py-2.5 text-[#151515] focus:border-[#3166bf] focus:outline-none focus:ring-1 focus:ring-[#3166bf]"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#374151] mb-1">Phone number</label>
+                    <input
+                      type="tel"
+                      value={editPhone}
+                      onChange={(e) => setEditPhone(e.target.value)}
+                      className="w-full rounded-xl border border-[#e5e7eb] bg-[#ffffff] px-4 py-2.5 text-[#151515] focus:border-[#3166bf] focus:outline-none focus:ring-1 focus:ring-[#3166bf]"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[#374151] mb-1">Email</label>
+                    <input
+                      type="email"
+                      value={editEmail}
+                      onChange={(e) => setEditEmail(e.target.value)}
+                      className="w-full rounded-xl border border-[#e5e7eb] bg-[#ffffff] px-4 py-2.5 text-[#151515] focus:border-[#3166bf] focus:outline-none focus:ring-1 focus:ring-[#3166bf]"
+                      required
+                    />
+                  </div>
+                  {editError && (
+                    <p className="text-sm text-red-600">{editError}</p>
+                  )}
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => !editLoading && setEditingContact(null)}
+                      className="flex-1 rounded-xl border border-[#e5e7eb] bg-[#f9fafb] px-4 py-2.5 text-sm font-medium text-[#374151] hover:bg-[#f3f4f6]"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={editLoading}
+                      className="flex-1 rounded-xl bg-[#3166bf] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#2563eb] disabled:opacity-60"
+                    >
+                      {editLoading ? "Saving…" : "Save changes"}
                     </button>
                   </div>
                 </form>
@@ -573,9 +767,29 @@ export default function ClientDetailsOverviewClient({
                           }`}
                           onClick={() => setSelectedTemplate(selectedTemplate?.id === t.id ? null : t)}
                         >
-                          <div className="flex items-center gap-2">
-                            <FileStack className="h-4 w-4 shrink-0 text-[#6b7280]" />
-                            <span className="font-medium text-[#374151]">{t.name}</span>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <FileStack className="h-4 w-4 shrink-0 text-[#6b7280]" />
+                              <span className="font-medium text-[#374151] truncate">{t.name}</span>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                type="button"
+                                onClick={() => openEditTemplateModal(t)}
+                                className="rounded p-1 text-[#6b7280] hover:bg-[#e5e7eb] hover:text-[#374151]"
+                                title="Edit template"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteTemplate(t)}
+                                className="rounded p-1 text-[#6b7280] hover:bg-red-50 hover:text-red-600"
+                                title="Delete template"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
                           </div>
                           {selectedTemplate?.id === t.id && (
                             <button
@@ -644,7 +858,7 @@ export default function ClientDetailsOverviewClient({
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => { setUseTemplateMode(false); setDocumentToAnalyzeUrl(null); }}
+                          onClick={() => { setUseTemplateMode(false); setDocumentToAnalyzeUrl(null); setDocumentToAnalyzeFileName(null); setShowAnalyzePdfPreview(false); }}
                           className="rounded p-1 text-[#6b7280] hover:bg-[#e5e7eb] hover:text-[#374151]"
                           aria-label="Back"
                         >
@@ -664,7 +878,39 @@ export default function ClientDetailsOverviewClient({
                           Upload a PDF to analyze using this template. This is separate from the client&apos;s main document.
                         </p>
                         {documentToAnalyzeUrl ? (
-                          <p className="text-sm text-green-700 mb-2">Document ready for generation.</p>
+                          <>
+                            <p className="text-sm text-green-700 mb-2">Document ready for generation.</p>
+                            {documentToAnalyzeFileName && (
+                              <p className="text-sm text-[#374151] mb-2 truncate" title={documentToAnalyzeFileName}>{documentToAnalyzeFileName}</p>
+                            )}
+                            <div className="flex flex-wrap items-center gap-2 mb-2">
+                              <a
+                                href={documentToAnalyzeUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb]"
+                              >
+                                <FileStack className="h-4 w-4" />
+                                View PDF (new tab)
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => setShowAnalyzePdfPreview((v) => !v)}
+                                className="inline-flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb]"
+                              >
+                                {showAnalyzePdfPreview ? "Hide preview" : "Preview in app"}
+                              </button>
+                            </div>
+                            {showAnalyzePdfPreview && (
+                              <div className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] overflow-hidden mb-2" style={{ height: "420px" }}>
+                                <iframe
+                                  src={documentToAnalyzeUrl}
+                                  title={documentToAnalyzeFileName || "Document to analyze"}
+                                  className="w-full h-full"
+                                />
+                              </div>
+                            )}
+                          </>
                         ) : null}
                         <label className="inline-flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb] cursor-pointer disabled:opacity-50">
                           <Upload className="h-4 w-4" />
@@ -686,6 +932,7 @@ export default function ClientDetailsOverviewClient({
                                 const data = await res.json().catch(() => ({}));
                                 if (!res.ok) throw new Error(data.error || "Upload failed");
                                 setDocumentToAnalyzeUrl(data.url);
+                                setDocumentToAnalyzeFileName(data.file_name ?? null);
                               } catch (err) {
                                 setUploadError(err instanceof Error ? err.message : "Upload failed");
                               } finally {
@@ -701,9 +948,10 @@ export default function ClientDetailsOverviewClient({
                           contactId={selected.id}
                           clientName={selected.name}
                           documentUrl={documentToAnalyzeUrl ?? undefined}
-                          annotatedPageNumbers={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]}
+                          annotatedPageNumbers={selectedTemplate.annotated_page_numbers?.length ? selectedTemplate.annotated_page_numbers : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]}
                           templateId={selectedTemplate.id}
                           templateName={selectedTemplate.name}
+                          templateDocumentId={selectedTemplate.document_id}
                         />
                       </div>
                     </div>
@@ -895,7 +1143,7 @@ export default function ClientDetailsOverviewClient({
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => { setUseTemplateMode(false); setDocumentToAnalyzeUrl(null); }}
+                          onClick={() => { setUseTemplateMode(false); setDocumentToAnalyzeUrl(null); setDocumentToAnalyzeFileName(null); setShowAnalyzePdfPreview(false); }}
                           className="rounded p-1 text-[#6b7280] hover:bg-[#e5e7eb] hover:text-[#374151]"
                           aria-label="Back"
                         >
@@ -915,7 +1163,39 @@ export default function ClientDetailsOverviewClient({
                           Upload a PDF to analyze using this template. This is separate from the client&apos;s main document.
                         </p>
                         {documentToAnalyzeUrl ? (
-                          <p className="text-sm text-green-700 mb-2">Document ready for generation.</p>
+                          <>
+                            <p className="text-sm text-green-700 mb-2">Document ready for generation.</p>
+                            {documentToAnalyzeFileName && (
+                              <p className="text-sm text-[#374151] mb-2 truncate" title={documentToAnalyzeFileName}>{documentToAnalyzeFileName}</p>
+                            )}
+                            <div className="flex flex-wrap items-center gap-2 mb-2">
+                              <a
+                                href={documentToAnalyzeUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb]"
+                              >
+                                <FileStack className="h-4 w-4" />
+                                View PDF (new tab)
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => setShowAnalyzePdfPreview((v) => !v)}
+                                className="inline-flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb]"
+                              >
+                                {showAnalyzePdfPreview ? "Hide preview" : "Preview in app"}
+                              </button>
+                            </div>
+                            {showAnalyzePdfPreview && (
+                              <div className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] overflow-hidden mb-2" style={{ height: "420px" }}>
+                                <iframe
+                                  src={documentToAnalyzeUrl}
+                                  title={documentToAnalyzeFileName || "Document to analyze"}
+                                  className="w-full h-full"
+                                />
+                              </div>
+                            )}
+                          </>
                         ) : null}
                         <label className="inline-flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb] cursor-pointer disabled:opacity-50">
                           <Upload className="h-4 w-4" />
@@ -937,6 +1217,7 @@ export default function ClientDetailsOverviewClient({
                                 const data = await res.json().catch(() => ({}));
                                 if (!res.ok) throw new Error(data.error || "Upload failed");
                                 setDocumentToAnalyzeUrl(data.url);
+                                setDocumentToAnalyzeFileName(data.file_name ?? null);
                               } catch (err) {
                                 setUploadError(err instanceof Error ? err.message : "Upload failed");
                               } finally {
@@ -952,9 +1233,10 @@ export default function ClientDetailsOverviewClient({
                           contactId={selected.id}
                           clientName={selected.name}
                           documentUrl={documentToAnalyzeUrl ?? undefined}
-                          annotatedPageNumbers={[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]}
+                          annotatedPageNumbers={selectedTemplate.annotated_page_numbers?.length ? selectedTemplate.annotated_page_numbers : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]}
                           templateId={selectedTemplate.id}
                           templateName={selectedTemplate.name}
+                          templateDocumentId={selectedTemplate.document_id}
                         />
                       </div>
                     </div>
@@ -1020,9 +1302,29 @@ export default function ClientDetailsOverviewClient({
                                     }`}
                                     onClick={() => setSelectedTemplate(selectedTemplate?.id === t.id ? null : t)}
                                   >
-                                    <div className="flex items-center gap-2">
-                                      <FileStack className="h-4 w-4 shrink-0 text-[#6b7280]" />
-                                      <span className="font-medium text-[#374151]">{t.name}</span>
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        <FileStack className="h-4 w-4 shrink-0 text-[#6b7280]" />
+                                        <span className="font-medium text-[#374151] truncate">{t.name}</span>
+                                      </div>
+                                      <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                        <button
+                                          type="button"
+                                          onClick={() => openEditTemplateModal(t)}
+                                          className="rounded p-1 text-[#6b7280] hover:bg-[#e5e7eb] hover:text-[#374151]"
+                                          title="Edit template"
+                                        >
+                                          <Pencil className="h-4 w-4" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteTemplate(t)}
+                                          className="rounded p-1 text-[#6b7280] hover:bg-red-50 hover:text-red-600"
+                                          title="Delete template"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </button>
+                                      </div>
                                     </div>
                                     {selectedTemplate?.id === t.id && (
                                       <button
@@ -1164,6 +1466,52 @@ export default function ClientDetailsOverviewClient({
           </div>
         </div>
       </div>
+
+      {/* Edit template modal */}
+      {editingTemplate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => !editTemplateLoading && setEditingTemplate(null)}>
+          <div className="bg-[#ffffff] rounded-2xl shadow-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-[#151515]">Edit template</h2>
+              <button type="button" onClick={() => !editTemplateLoading && setEditingTemplate(null)} className="p-1 rounded-lg hover:bg-[#f3f4f6]">
+                <X className="h-5 w-5 text-[#6b7280]" />
+              </button>
+            </div>
+            <p className="text-sm text-[#6b7280] mb-4">Change the template name.</p>
+            <form onSubmit={handleEditTemplateSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-[#374151] mb-1">Template name</label>
+                <input
+                  type="text"
+                  value={editTemplateName}
+                  onChange={(e) => setEditTemplateName(e.target.value)}
+                  className="w-full rounded-xl border border-[#e5e7eb] bg-[#ffffff] px-4 py-2.5 text-[#151515] focus:border-[#3166bf] focus:outline-none focus:ring-1 focus:ring-[#3166bf]"
+                  required
+                />
+              </div>
+              {editTemplateError && (
+                <p className="text-sm text-red-600">{editTemplateError}</p>
+              )}
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => !editTemplateLoading && setEditingTemplate(null)}
+                  className="flex-1 rounded-xl border border-[#e5e7eb] bg-[#f9fafb] px-4 py-2.5 text-sm font-medium text-[#374151] hover:bg-[#f3f4f6]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editTemplateLoading}
+                  className="flex-1 rounded-xl bg-[#3166bf] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#2563eb] disabled:opacity-60"
+                >
+                  {editTemplateLoading ? "Saving…" : "Save changes"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -77,9 +77,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!["highlight", "comment", "tag"].includes(type)) {
+    if (!["highlight", "comment", "tag", "table"].includes(type)) {
       return NextResponse.json(
-        { error: "type must be highlight, comment, or tag" },
+        { error: "type must be highlight, comment, tag, or table" },
         { status: 400 }
       );
     }

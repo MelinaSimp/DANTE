@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
       extractedTextFromPages,
       templateId,
       templateName,
+      templateDocumentId,
     } = await req.json();
 
     if (!message || typeof message !== "string" || message.trim().length === 0) {
@@ -172,9 +173,48 @@ CRITICAL RULES:
 
 You CAN generate PDFs - when users ask for a PDF, provide the content in a well-formatted way that can be converted to PDF. Use clear headings, bullet points, and organized sections.${guidelinesContent}`;
 
-    // When using a saved template, tell the model to follow that template's structure
+    // When using a saved template, load template annotations and tell the model how to handle tables vs paragraphs
     if (templateName && (templateId || templateName)) {
-      systemContent += `\n\nTEMPLATE MODE: The user is generating content using the saved template "${templateName}". The document they provided (images or text below) is the "document to analyze"—use it as the source data. Structure your output to match the template's purpose (e.g. one-page summary, sections, charts). If a section from the template cannot be clearly found in the document, say so instead of inventing content.`;
+      systemContent += `\n\nTEMPLATE MODE: The user is generating content using the saved template "${templateName}".`;
+      systemContent += `\n\nThe document to analyze is supplied in this request: look for "EXTRACTED TEXT FROM THE DOCUMENT TO ANALYZE" below, and/or images. If that content is present, the document has already been provided—do NOT ask the user to "provide the document" or "send the document"; proceed to analyze and summarize the supplied text/images. If no extracted text or images appear below, then tell the user: "The document could not be loaded. Please try re-uploading the PDF."`;
+      systemContent += `\nUse the supplied document as the source data. Structure your output to match the template's purpose (e.g. one-page summary, sections, charts). If a section from the template cannot be clearly found in the document, say so instead of inventing content.`;
+
+      // Load template document's annotations so we can instruct: box/table = find table + extract (and chart if asked); highlight = paragraph
+      if (templateDocumentId && typeof templateDocumentId === "string") {
+        try {
+          const { data: templateAnnotations } = await supabase
+            .from("document_annotations")
+            .select("page_number, type, content")
+            .eq("document_id", templateDocumentId)
+            .order("page_number");
+
+          if (templateAnnotations && templateAnnotations.length > 0) {
+            const tableRegions: string[] = [];
+            const paragraphRegions: string[] = [];
+            for (const ann of templateAnnotations) {
+              const page = ann.page_number;
+              const comment = (ann.content || "").trim() || "(no comment)";
+              if (ann.type === "table") {
+                tableRegions.push(`Page ${page}: ${comment}`);
+              } else if (ann.type === "highlight") {
+                paragraphRegions.push(`Page ${page}: ${comment}`);
+              }
+            }
+            if (tableRegions.length > 0 || paragraphRegions.length > 0) {
+              systemContent += `\n\nTEMPLATE ANNOTATIONS – use these to find matching content in the document to analyze:`;
+              if (tableRegions.length > 0) {
+                systemContent += `\n\nDATA TABLES (template marked these as tables; find the same/similar table in the document):\n${tableRegions.map((r) => `- ${r}`).join("\n")}`;
+                systemContent += `\nFor each table: locate the corresponding data table in the document, extract its content (as markdown or structured text). If the annotation asks for a graph or chart (e.g. "convert to pie chart", "show as bar chart"), generate the chart and output it in a <!--CHART_DATA--> block with format: <!--CHART_DATA-->{"chart":{"type":"line|bar|pie|area","data":[...],"xKey":"x","yKey":"y","title":"..."}}<!--/CHART_DATA-->`;
+              }
+              if (paragraphRegions.length > 0) {
+                systemContent += `\n\nPARAGRAPHS (template marked these as highlights; find the same/similar paragraph or text in the document):\n${paragraphRegions.map((r) => `- ${r}`).join("\n")}`;
+              }
+            }
+          }
+        } catch (e) {
+          console.warn("Could not load template annotations:", e);
+        }
+      }
     }
     if (extractedTextFromPages && typeof extractedTextFromPages === "string" && extractedTextFromPages.trim()) {
       systemContent += `\n\nEXTRACTED TEXT FROM THE DOCUMENT TO ANALYZE:\n${extractedTextFromPages.substring(0, 15000)}`;

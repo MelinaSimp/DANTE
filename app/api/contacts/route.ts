@@ -56,16 +56,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "A contact with this phone number already exists" }, { status: 400 });
     }
 
-    // Create contact
+    // Create contact (only insert columns that exist in schema: no notes if DB lacks the column)
+    const insertPayload: Record<string, unknown> = {
+      workspace_id: profile.workspace_id,
+      name: sanitizedData.name,
+      email: sanitizedData.email || null,
+      phone: sanitizedData.phone,
+    };
     const { data: contact, error } = await supabase
       .from("contacts")
-      .insert({
-        workspace_id: profile.workspace_id,
-        name: sanitizedData.name,
-        email: sanitizedData.email || null,
-        phone: sanitizedData.phone,
-        notes: sanitizedData.notes || null,
-      })
+      .insert(insertPayload)
       .select()
       .single();
 

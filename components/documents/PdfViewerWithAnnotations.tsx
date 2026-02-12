@@ -8,6 +8,7 @@ import {
   Highlighter,
   MessageSquare,
   Tag,
+  Table2,
   ChevronLeft,
   ChevronRight,
   Trash2,
@@ -19,7 +20,7 @@ import {
 // Configure PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
-export type AnnotationType = "highlight" | "comment" | "tag";
+export type AnnotationType = "highlight" | "comment" | "tag" | "table";
 
 export interface Annotation {
   id: string;
@@ -288,6 +289,19 @@ export default function PdfViewerWithAnnotations({
               <Tag className="h-4 w-4" />
               Tag
             </button>
+            <button
+              type="button"
+              onClick={() => setActiveTool(activeTool === "table" ? null : "table")}
+              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                activeTool === "table"
+                  ? "bg-emerald-100 text-emerald-800"
+                  : "text-[#6b7280] hover:bg-[#f3f4f6]"
+              }`}
+              title="Data table (box) – LLM will find and extract this table in other PDFs; add a comment to request a chart"
+            >
+              <Table2 className="h-4 w-4" />
+              Table
+            </button>
           </div>
         )}
       </div>
@@ -364,6 +378,13 @@ export default function PdfViewerWithAnnotations({
                           </span>
                         </div>
                       )}
+                      {ann.type === "table" && (
+                        <div className="w-full h-full min-w-[24px] min-h-[24px] bg-emerald-200/70 rounded flex items-center justify-center border border-emerald-400/50">
+                          <span className="text-xs text-emerald-900 truncate px-1">
+                            {ann.content || "table"}
+                          </span>
+                        </div>
+                      )}
                       {!readOnly && (
                         <button
                           type="button"
@@ -398,7 +419,13 @@ export default function PdfViewerWithAnnotations({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-xl shadow-xl p-4 w-80">
             <p className="text-sm font-medium text-[#374151] mb-2">
-              {activeTool === "highlight" ? "Add comment (optional)" : activeTool === "comment" ? "Add comment" : "Add tag"}
+              {activeTool === "highlight"
+                ? "Add comment (optional)"
+                : activeTool === "comment"
+                  ? "Add comment"
+                  : activeTool === "table"
+                    ? "Describe table (e.g. &quot;Account summary&quot; or &quot;Convert to pie chart&quot;)"
+                    : "Add tag"}
             </p>
             {saveError && (
               <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">
@@ -409,7 +436,7 @@ export default function PdfViewerWithAnnotations({
               type="text"
               value={pendingContent}
               onChange={(e) => setPendingContent(e.target.value)}
-              placeholder={activeTool === "highlight" ? "Your comment…" : activeTool === "comment" ? "Your comment…" : "Tag name…"}
+              placeholder={activeTool === "highlight" ? "Your comment…" : activeTool === "comment" ? "Your comment…" : activeTool === "table" ? "e.g. Holdings table, or convert to bar chart" : "Tag name…"}
               className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2 text-sm"
               autoFocus
               onKeyDown={(e) => {

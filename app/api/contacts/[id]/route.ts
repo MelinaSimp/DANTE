@@ -65,16 +65,16 @@ export async function PUT(
       }
     }
 
-    // Update contact
+    // Update contact (omit notes if column not present in schema)
+    const updatePayload: Record<string, unknown> = {
+      name: name.trim(),
+      email: email?.trim() || null,
+      phone: phone.trim(),
+      updated_at: new Date().toISOString(),
+    };
     const { data: contact, error } = await supabase
       .from("contacts")
-      .update({
-        name: name.trim(),
-        email: email?.trim() || null,
-        phone: phone.trim(),
-        notes: notes?.trim() || null,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq("id", contactId)
       .eq("workspace_id", profile.workspace_id)
       .select()
