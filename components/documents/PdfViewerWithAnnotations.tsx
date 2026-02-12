@@ -71,6 +71,7 @@ export default function PdfViewerWithAnnotations({
     height: number;
   } | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const [saving, setSaving] = useState(false);
   const pageRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
@@ -78,6 +79,23 @@ export default function PdfViewerWithAnnotations({
     setNumPages(numPages);
     setPageNumber(1);
   }, []);
+
+  // Refetch annotations only on mount (documentId change) - parent loads when entering edit.
+  // Avoid refetch on annotationRefetchKey to prevent overwriting freshly saved annotations.
+  useEffect(() => {
+    if (!documentId) return;
+    let cancelled = false;
+    fetch(`/api/documents/annotations?documentId=${documentId}`, { credentials: "include" })
+      .then((res) => res.json().catch(() => ({})))
+      .then((data) => {
+        if (!cancelled && Array.isArray(data.annotations)) {
+          onAnnotationsChange(data.annotations);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [documentId]); // eslint-disable-line react-hooks/exhaustive-deps -- onAnnotationsChange is stable from parent
 
   // Fit to container width when fitToWidth is true
   useEffect(() => {
@@ -152,21 +170,30 @@ export default function PdfViewerWithAnnotations({
     content: string | null
   ): Promise<boolean> => {
     setSaveError(null);
+    setSaveSuccess(false);
     try {
+      // Map "table" to "tag" for DB storage (DB constraint only allows highlight/comment/tag).
+      // Prefix content with [TABLE] so the LLM can identify it as a data table annotation.
+      const dbType = type === "table" ? "tag" : type;
+      const dbContent = type === "table" ? `[TABLE] ${content || ""}`.trim() : content;
+
       const res = await fetch("/api/documents/annotations", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           documentId,
           page_number: pageNumber,
-          type,
-          content,
+          type: dbType,
+          content: dbContent,
           bounding_box,
         }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || "Failed to save annotation");
+        const errMsg = data?.error || `Failed to save (${res.status})`;
+        console.error("[Annotation] Save failed", res.status, data);
+        throw new Error(errMsg);
       }
       onAnnotationsChange((prev) => [...prev, data]);
       return true;
@@ -184,9 +211,11 @@ export default function PdfViewerWithAnnotations({
     const ok = await addAnnotation(activeTool, pendingBox, pendingContent || null);
     setSaving(false);
     if (ok) {
+      setSaveSuccess(true);
       setPendingContent("");
       setPendingBox(null);
       setShowContentModal(false);
+      setTimeout(() => setSaveSuccess(false), 2500);
     }
   };
 
@@ -218,6 +247,9 @@ export default function PdfViewerWithAnnotations({
           <span className="text-sm font-medium text-[#374151]">
             Page {pageNumber} of {numPages || "—"}
           </span>
+          {saveSuccess && (
+            <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">Saved</span>
+          )}
           <button
             type="button"
             onClick={() => setPageNumber((p) => Math.min(numPages || 1, p + 1))}
@@ -373,17 +405,17 @@ export default function PdfViewerWithAnnotations({
                           </span>
                         </div>
                       )}
-                      {ann.type === "tag" && (
+                      {ann.type === "tag" && !(ann.content || "").startsWith("[TABLE]") && (
                         <div className="w-full h-full min-w-[24px] min-h-[24px] bg-purple-200/70 rounded flex items-center justify-center">
                           <span className="text-xs text-purple-900 truncate px-1">
                             {ann.content || "tag"}
                           </span>
                         </div>
                       )}
-                      {ann.type === "table" && (
+                      {(ann.type === "table" || (ann.type === "tag" && (ann.content || "").startsWith("[TABLE]"))) && (
                         <div className="w-full h-full min-w-[24px] min-h-[24px] bg-emerald-200/70 rounded flex items-center justify-center border border-emerald-400/50">
                           <span className="text-xs text-emerald-900 truncate px-1">
-                            {ann.content || "table"}
+                            {(ann.content || "table").replace(/^\[TABLE\]\s*/, "")}
                           </span>
                         </div>
                       )}

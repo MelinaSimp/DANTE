@@ -130,7 +130,7 @@ export default function ClientDetailsOverviewClient({
   }, [initialContactId, contacts]);
 
   const loadDocument = useCallback(async (contactId: string) => {
-    const res = await fetch(`/api/documents?contactId=${contactId}`);
+    const res = await fetch(`/api/documents?contactId=${contactId}`, { credentials: "include" });
     const data = await res.json();
     if (data.document) {
       setDocument({
@@ -139,7 +139,9 @@ export default function ClientDetailsOverviewClient({
         url: data.document.url,
         extracted_text: data.document.extracted_text,
       });
-      const annRes = await fetch(`/api/documents/annotations?documentId=${data.document.id}`);
+      const annRes = await fetch(`/api/documents/annotations?documentId=${data.document.id}`, {
+        credentials: "include",
+      });
       const annData = await annRes.json();
       setAnnotations(annData.annotations ?? []);
     } else {
@@ -372,13 +374,15 @@ export default function ClientDetailsOverviewClient({
       return;
     }
     try {
-      const docRes = await fetch(`/api/documents/${t.document_id}`);
+      const docRes = await fetch(`/api/documents/${t.document_id}`, { credentials: "include" });
       const docData = await docRes.json().catch(() => ({}));
       if (!docRes.ok || !docData.url) {
         alert("Could not load the template's document. It may have been replaced or deleted.");
         return;
       }
-      const annRes = await fetch(`/api/documents/annotations?documentId=${t.document_id}`);
+      const annRes = await fetch(`/api/documents/annotations?documentId=${t.document_id}`, {
+        credentials: "include",
+      });
       const annData = await annRes.json().catch(() => ({}));
       setTemplateDocForEdit({ id: docData.id, file_name: docData.file_name || "Template PDF", url: docData.url });
       setTemplateAnnotationsForEdit(annData.annotations ?? []);
@@ -1061,9 +1065,27 @@ export default function ClientDetailsOverviewClient({
                           templateAnnotationsForEdit
                             .sort((a, b) => (a.page_number - b.page_number) || ((a.created_at || "").localeCompare(b.created_at || "")))
                             .map((ann) => (
-                              <div key={ann.id} className="mb-2">
+                              <div key={ann.id} className="mb-2 group relative">
                                 <div className="rounded-xl px-3 py-2 text-sm bg-blue-600 text-white">
-                                  <div className="text-xs opacity-90">Page {ann.page_number}</div>
+                                  <div className="flex items-center justify-between text-xs opacity-90">
+                                    <span>Page {ann.page_number}</span>
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        try {
+                                          const res = await fetch(`/api/documents/annotations/${ann.id}`, { method: "DELETE", credentials: "include" });
+                                          if (!res.ok) throw new Error("Failed to delete");
+                                          setTemplateAnnotationsForEdit((prev) => prev.filter((a) => a.id !== ann.id));
+                                        } catch (err) {
+                                          console.error("Delete annotation error:", err);
+                                        }
+                                      }}
+                                      className="opacity-0 group-hover:opacity-100 transition-opacity rounded-full p-0.5 hover:bg-white/20"
+                                      title="Delete annotation"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </button>
+                                  </div>
                                   <div className="mt-0.5 whitespace-pre-wrap">{ann.content || ann.type}</div>
                                 </div>
                               </div>
@@ -1143,12 +1165,28 @@ export default function ClientDetailsOverviewClient({
                               .map((ann) => (
                                 <div
                                   key={ann.id}
-                                  className="flex justify-end"
+                                  className="flex justify-end group"
                                 >
                                   <div className="max-w-[90%] rounded-xl px-3 py-2 text-sm bg-blue-600 text-white">
                                     <div className="flex items-center gap-2 text-xs opacity-90">
                                       <Check className="h-3.5 w-3.5 shrink-0" />
-                                      <span>Saved · Page {ann.page_number}</span>
+                                      <span className="flex-1">Saved · Page {ann.page_number}</span>
+                                      <button
+                                        type="button"
+                                        onClick={async () => {
+                                          try {
+                                            const res = await fetch(`/api/documents/annotations/${ann.id}`, { method: "DELETE", credentials: "include" });
+                                            if (!res.ok) throw new Error("Failed to delete");
+                                            setAnnotations((prev) => prev.filter((a) => a.id !== ann.id));
+                                          } catch (err) {
+                                            console.error("Delete annotation error:", err);
+                                          }
+                                        }}
+                                        className="opacity-0 group-hover:opacity-100 transition-opacity rounded-full p-0.5 hover:bg-white/20"
+                                        title="Delete annotation"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </button>
                                     </div>
                                     <div className="mt-0.5 whitespace-pre-wrap">
                                       {ann.content || (ann.type === "highlight" ? "(highlighted)" : ann.type)}
@@ -1486,12 +1524,28 @@ export default function ClientDetailsOverviewClient({
                               .map((ann) => (
                                 <div
                                   key={ann.id}
-                                  className="flex justify-end"
+                                  className="flex justify-end group"
                                 >
                                   <div className="max-w-[90%] rounded-xl px-3 py-2 text-sm bg-blue-600 text-white">
                                     <div className="flex items-center gap-2 text-xs opacity-90">
                                       <Check className="h-3.5 w-3.5 shrink-0" />
-                                      <span>Saved · Page {ann.page_number}</span>
+                                      <span className="flex-1">Saved · Page {ann.page_number}</span>
+                                      <button
+                                        type="button"
+                                        onClick={async () => {
+                                          try {
+                                            const res = await fetch(`/api/documents/annotations/${ann.id}`, { method: "DELETE", credentials: "include" });
+                                            if (!res.ok) throw new Error("Failed to delete");
+                                            setAnnotations((prev) => prev.filter((a) => a.id !== ann.id));
+                                          } catch (err) {
+                                            console.error("Delete annotation error:", err);
+                                          }
+                                        }}
+                                        className="opacity-0 group-hover:opacity-100 transition-opacity rounded-full p-0.5 hover:bg-white/20"
+                                        title="Delete annotation"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </button>
                                     </div>
                                     <div className="mt-0.5 whitespace-pre-wrap">
                                       {ann.content || (ann.type === "highlight" ? "(highlighted)" : ann.type)}

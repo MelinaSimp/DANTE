@@ -1,13 +1,22 @@
-// app/frontend/agent/[agentId]/llm/page.tsx - Frontend LLM Page with White-on-White Theme
+// app/frontend/agent/[agentId]/llm/page.tsx - Meeting Planner Page
 "use client";
 
 import { useState, useEffect, useRef, FormEvent } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { Send, Loader2, FileText, X, Download, Plus, Search, Trash2, Menu, MessageSquare, ArrowLeft, Save, Upload } from "lucide-react";
+import { Send, Loader2, FileText, X, Download, Plus, Search, Trash2, Menu, MessageSquare, ArrowLeft, Save, Upload, CalendarPlus, Bell, Clock, CheckCircle2, AlertCircle, ChevronDown, CalendarClock } from "lucide-react";
 import { Skeleton, ChatListSkeleton, MessageSkeleton } from "@/components/ui/skeleton";
 import { Tooltip } from "@/components/ui/tooltip";
 import { EmptyState } from "@/components/ui/empty-state";
 import ConfirmationModal from "@/components/frontend/ConfirmationModal";
+
+interface NextStep {
+  title: string;
+  description: string;
+  suggested_date: string;
+  suggested_time: string;
+  duration_minutes: number;
+  priority: "high" | "medium" | "low";
+}
 
 interface Message {
   role: "user" | "assistant";
@@ -15,6 +24,7 @@ interface Message {
   timestamp: string;
   files?: UploadedFile[];
   showPDFButton?: boolean;
+  nextSteps?: NextStep[];
 }
 
 interface UploadedFile {
@@ -56,9 +66,17 @@ export default function FrontendLLMPage() {
   const [savingGuideline, setSavingGuideline] = useState(false);
   const [uploadingPDF, setUploadingPDF] = useState(false);
   const [templateMode, setTemplateMode] = useState<"pdf" | "text">("text");
+  const [meetingPdfUploading, setMeetingPdfUploading] = useState(false);
+  const [meetingPdfFile, setMeetingPdfFile] = useState<UploadedFile | null>(null);
+  const [calendarForm, setCalendarForm] = useState<{ stepIndex: number; msgIndex: number; name: string; phone: string; email: string } | null>(null);
+  const [addingToCalendar, setAddingToCalendar] = useState(false);
+  const [reminderPopover, setReminderPopover] = useState<{ stepIndex: number; msgIndex: number } | null>(null);
+  const [calendarSuccess, setCalendarSuccess] = useState<string | null>(null);
+  const [reminderSuccess, setReminderSuccess] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const meetingPdfInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     // Override global dark theme styles for Apple-style light theme
@@ -388,11 +406,14 @@ export default function FrontendLLMPage() {
       }
 
       const data = await response.json();
+      const rawContent = data.message || data.content || data.response || "I'm sorry, I couldn't generate a response.";
+      const nextSteps = parseNextSteps(rawContent);
       const assistantMessage: Message = {
         role: "assistant",
-        content: data.message || data.content || data.response || "I'm sorry, I couldn't generate a response.",
+        content: rawContent,
         timestamp: new Date().toISOString(),
         showPDFButton: input.toLowerCase().includes("pdf") || input.toLowerCase().includes("download"),
+        nextSteps: nextSteps.length > 0 ? nextSteps : undefined,
       };
 
       const updatedMessages = [...messages, userMessage, assistantMessage];
@@ -457,6 +478,228 @@ export default function FrontendLLMPage() {
     });
 
     doc.save(`chat-${currentChatId || "new"}.pdf`);
+  };
+
+  // Parse next steps from assistant message content
+  const parseNextSteps = (content: string): NextStep[] => {
+    const steps: NextStep[] = [];
+    const regex = /<!--NEXT_STEPS-->([\s\S]*?)<!--\/NEXT_STEPS-->/g;
+    let match;
+    while ((match = regex.exec(content)) !== null) {
+      try {
+        const parsed = JSON.parse(match[1].trim());
+        if (parsed.steps && Array.isArray(parsed.steps)) {
+          steps.push(...parsed.steps);
+        }
+      } catch (e) {
+        console.error("Failed to parse next steps:", e);
+      }
+    }
+    return steps;
+  };
+
+  // Strip next steps blocks from content for display
+  const stripNextStepsBlocks = (content: string): string => {
+    return content.replace(/<!--NEXT_STEPS-->[\s\S]*?<!--\/NEXT_STEPS-->/g, "").trim();
+  };
+
+  // Upload meeting PDF and send it to the chat
+  const handleMeetingPdfUpload = async (file: File) => {
+    setMeetingPdfUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("/api/llm/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const uploaded: UploadedFile = {
+          id: data.id || crypto.randomUUID(),
+          name: file.name,
+          url: data.url,
+          type: file.type,
+          size: file.size,
+          extractedText: data.extractedText,
+        };
+        setMeetingPdfFile(uploaded);
+        setUploadedFiles([uploaded]);
+
+        // Auto-create chat and send analysis request
+        let chatId = currentChatId;
+        if (!chatId) {
+          const chatResp = await fetch("/api/llm/chats", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title: `Meeting: ${file.name.replace(/\.pdf$/i, "")}` }),
+          });
+          if (chatResp.ok) {
+            const chatData = await chatResp.json();
+            chatId = chatData.chat.id;
+            setCurrentChatId(chatId);
+            setChats((prev) => [chatData.chat, ...prev]);
+          }
+        }
+
+        const autoMessage = `I've uploaded a meeting discussion PDF: "${file.name}". Please analyze this meeting and extract all actionable next steps, follow-ups, and key decisions. Suggest specific dates and times for each action item.`;
+        const userMsg: Message = {
+          role: "user",
+          content: autoMessage,
+          timestamp: new Date().toISOString(),
+          files: [uploaded],
+        };
+        setMessages((prev) => [...prev, userMsg]);
+        setLoading(true);
+        setUploadedFiles([]);
+
+        const aiResp = await fetch("/api/llm/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: autoMessage,
+            history: [],
+            agentId,
+            chatId,
+            files: [{ id: uploaded.id, name: uploaded.name, url: uploaded.url, extractedText: uploaded.extractedText }],
+          }),
+        });
+
+        if (aiResp.ok) {
+          const aiData = await aiResp.json();
+          const rawContent = aiData.message || aiData.content || aiData.response || "";
+          const nextSteps = parseNextSteps(rawContent);
+          const assistantMsg: Message = {
+            role: "assistant",
+            content: rawContent,
+            timestamp: new Date().toISOString(),
+            nextSteps: nextSteps.length > 0 ? nextSteps : undefined,
+          };
+          const updated = [userMsg, assistantMsg];
+          setMessages(updated);
+          if (chatId) {
+            await fetch(`/api/llm/chats/${chatId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ messages: updated }),
+            });
+          }
+        }
+        setLoading(false);
+      } else {
+        const err = await response.json();
+        alert(`Failed to upload meeting PDF: ${err.error || "Unknown error"}`);
+      }
+    } catch (error) {
+      console.error("Meeting PDF upload failed:", error);
+      alert("Failed to upload meeting PDF. Please try again.");
+    } finally {
+      setMeetingPdfUploading(false);
+    }
+  };
+
+  // Add next step to calendar
+  const handleAddToCalendar = async (step: NextStep, msgIndex: number, stepIndex: number) => {
+    if (!calendarForm) return;
+    setAddingToCalendar(true);
+    try {
+      const scheduledAt = new Date(`${step.suggested_date}T${step.suggested_time}:00`).toISOString();
+      const response = await fetch("/api/appointments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          name: calendarForm.name,
+          phoneNumber: calendarForm.phone,
+          email: calendarForm.email || undefined,
+          description: `${step.title}: ${step.description}`,
+          scheduledAt,
+          durationMinutes: step.duration_minutes,
+          reminderTiming: [],
+          reminderChannels: { sms: false, email: false },
+        }),
+      });
+
+      if (response.ok) {
+        setCalendarSuccess(`${stepIndex}-${msgIndex}`);
+        setCalendarForm(null);
+        setTimeout(() => setCalendarSuccess(null), 3000);
+      } else {
+        const err = await response.json();
+        alert(`Failed to add to calendar: ${err.error || "Unknown error"}`);
+      }
+    } catch (error) {
+      console.error("Add to calendar failed:", error);
+      alert("Failed to add to calendar. Please try again.");
+    } finally {
+      setAddingToCalendar(false);
+    }
+  };
+
+  // Set email reminder for a next step
+  const handleSetReminder = async (step: NextStep, timing: string) => {
+    try {
+      const stepDate = new Date(`${step.suggested_date}T${step.suggested_time}:00`);
+      let reminderDate: Date;
+      switch (timing) {
+        case "1day":
+          reminderDate = new Date(stepDate.getTime() - 24 * 60 * 60 * 1000);
+          break;
+        case "5hours":
+          reminderDate = new Date(stepDate.getTime() - 5 * 60 * 60 * 1000);
+          break;
+        case "1hour":
+          reminderDate = new Date(stepDate.getTime() - 60 * 60 * 1000);
+          break;
+        case "30min":
+          reminderDate = new Date(stepDate.getTime() - 30 * 60 * 1000);
+          break;
+        default:
+          reminderDate = new Date(stepDate.getTime() - 60 * 60 * 1000);
+      }
+
+      const response = await fetch("/api/scheduled-emails/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          subject: `Reminder: ${step.title}`,
+          htmlContent: `
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #1a1a1a;">Upcoming: ${step.title}</h2>
+              <p style="color: #555;">${step.description}</p>
+              <div style="background: #f5f5f7; padding: 16px; border-radius: 12px; margin: 16px 0;">
+                <p style="margin: 0; color: #333;"><strong>When:</strong> ${new Date(stepDate).toLocaleString()}</p>
+                <p style="margin: 8px 0 0; color: #333;"><strong>Duration:</strong> ${step.duration_minutes} minutes</p>
+                <p style="margin: 8px 0 0; color: #333;"><strong>Priority:</strong> ${step.priority}</p>
+              </div>
+              <p style="color: #888; font-size: 12px;">— Drift Meeting Planner</p>
+            </div>
+          `,
+          scheduledAt: reminderDate.toISOString(),
+        }),
+      });
+
+      if (response.ok) {
+        setReminderSuccess(`${reminderPopover?.stepIndex}-${reminderPopover?.msgIndex}`);
+        setReminderPopover(null);
+        setTimeout(() => setReminderSuccess(null), 3000);
+      } else {
+        const err = await response.json();
+        alert(`Failed to set reminder: ${err.error || "Unknown error"}`);
+      }
+    } catch (error) {
+      console.error("Set reminder failed:", error);
+      alert("Failed to set reminder. Please try again.");
+    }
+  };
+
+  const priorityColors: Record<string, string> = {
+    high: "bg-red-50 text-red-700 border-red-200",
+    medium: "bg-amber-50 text-amber-700 border-amber-200",
+    low: "bg-green-50 text-green-700 border-green-200",
   };
 
   const filteredChats = chats.filter((chat) =>
@@ -882,7 +1125,8 @@ Example:
                   <button
                     onClick={saveGuideline}
                     disabled={savingGuideline || (!currentGuideline?.template?.trim() && !currentGuideline?.pdfUrl) || uploadingPDF}
-                    className="relative w-full px-5 py-3 rounded-2xl bg-gray-900 text-white font-semibold text-sm shadow-lg hover:bg-gray-800 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-gray-900 flex items-center justify-center gap-2"
+                    className="relative z-10 w-full px-5 py-3 rounded-2xl text-white font-semibold text-sm shadow-lg hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    style={{ backgroundColor: "#000" }}
                   >
                     {savingGuideline ? (
                       <>
@@ -907,19 +1151,68 @@ Example:
       <div className="flex-1 flex flex-col bg-white">
         {!currentChatId && messages.length === 0 ? (
           <div className="flex-1 flex items-center justify-center bg-gradient-to-b from-gray-50/30 to-white">
-            <div className="text-center max-w-md px-6">
-              <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center mx-auto mb-6 shadow-lg">
-                <MessageSquare className="h-10 w-10 text-white" />
+            <div className="text-center max-w-lg px-6">
+              <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center mx-auto mb-6 shadow-lg">
+                <CalendarClock className="h-10 w-10 text-white" />
               </div>
-              <h2 className="text-3xl font-semibold text-gray-900 mb-2">Start a conversation</h2>
-              <p className="text-gray-600 mb-8 text-sm">Ask me anything or upload a file to get started</p>
+              <h2 className="text-3xl font-semibold text-gray-900 mb-2">Meeting Planner</h2>
+              <p className="text-gray-600 mb-8 text-sm">Upload a meeting discussion PDF or start a conversation to extract action items, schedule follow-ups, and set reminders.</p>
+
+              {/* Meeting PDF Upload Zone */}
+              <div
+                className="border-2 border-dashed border-gray-300 rounded-2xl p-8 mb-6 hover:border-blue-400 hover:bg-blue-50/30 transition-all cursor-pointer group"
+                onClick={() => meetingPdfInputRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add("border-blue-400", "bg-blue-50/30"); }}
+                onDragLeave={(e) => { e.currentTarget.classList.remove("border-blue-400", "bg-blue-50/30"); }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.currentTarget.classList.remove("border-blue-400", "bg-blue-50/30");
+                  const file = e.dataTransfer.files[0];
+                  if (file && file.type === "application/pdf") handleMeetingPdfUpload(file);
+                }}
+              >
+                <input
+                  ref={meetingPdfInputRef}
+                  type="file"
+                  accept=".pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleMeetingPdfUpload(file);
+                    e.target.value = "";
+                  }}
+                />
+                {meetingPdfUploading ? (
+                  <div className="flex flex-col items-center gap-3">
+                    <Loader2 className="h-10 w-10 text-blue-500 animate-spin" />
+                    <p className="text-sm font-medium text-gray-600">Analyzing meeting discussion...</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="p-4 bg-gray-100 rounded-2xl group-hover:bg-blue-100 transition-colors">
+                      <Upload className="h-8 w-8 text-gray-500 group-hover:text-blue-600 transition-colors" />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-gray-700">Upload Meeting Discussion PDF</p>
+                      <p className="text-xs text-gray-400">Drag & drop or click to browse. AI will extract next steps automatically.</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-3 mb-6">
+                <div className="flex-1 h-px bg-gray-200" />
+                <span className="text-xs text-gray-400 font-medium">or</span>
+                <div className="flex-1 h-px bg-gray-200" />
+              </div>
+
               <div className="relative group">
-                <div className="absolute -inset-0.5 bg-gradient-to-br from-purple-400 via-pink-500 to-blue-500 rounded-2xl blur opacity-60 group-hover:opacity-75 transition-opacity"></div>
+                <div className="absolute -inset-0.5 bg-gradient-to-br from-blue-400 via-indigo-500 to-purple-500 rounded-2xl blur opacity-60 group-hover:opacity-75 transition-opacity"></div>
                 <button
                   onClick={createNewChat}
                   className="relative px-6 py-3 rounded-2xl bg-gray-900 text-white font-semibold text-sm hover:bg-gray-800 active:scale-95 transition-all shadow-lg"
                 >
-                  New Chat
+                  Start a Conversation
                 </button>
               </div>
             </div>
@@ -942,14 +1235,14 @@ Example:
                       </div>
                     )}
                     <div
-                      className={`max-w-[75%] rounded-2xl px-4 py-3 shadow-sm ${
+                      className={`max-w-[80%] rounded-2xl px-4 py-3 shadow-sm ${
                         message.role === "user"
                           ? "bg-gradient-to-br from-gray-900 to-gray-800 text-white"
                           : "bg-white border border-gray-200 text-gray-900 shadow-md"
                       }`}
                     >
                       <p className={`text-sm leading-relaxed whitespace-pre-wrap ${message.role === "user" ? "text-white" : "text-gray-900"}`}>
-                        {message.content}
+                        {message.role === "assistant" ? stripNextStepsBlocks(message.content) : message.content}
                       </p>
                       {message.files && message.files.length > 0 && (
                         <div className={`mt-3 space-y-1.5 pt-2 border-t ${message.role === "user" ? "border-white/20" : "border-gray-200/50"}`}>
@@ -969,6 +1262,135 @@ Example:
                           <Download className="h-3.5 w-3.5" />
                           Download as PDF
                         </button>
+                      )}
+
+                      {/* Next Steps Cards */}
+                      {message.nextSteps && message.nextSteps.length > 0 && (
+                        <div className="mt-4 space-y-3 pt-3 border-t border-gray-100">
+                          <div className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                            <CalendarClock className="h-3.5 w-3.5" />
+                            Action Items ({message.nextSteps.length})
+                          </div>
+                          {message.nextSteps.map((step, si) => (
+                            <div key={si} className="rounded-xl border border-gray-200 bg-gray-50/50 p-3 space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="text-sm font-semibold text-gray-900">{step.title}</h4>
+                                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${priorityColors[step.priority] || priorityColors.medium}`}>
+                                      {step.priority}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-gray-600 mt-1">{step.description}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3 text-[11px] text-gray-500">
+                                <span className="flex items-center gap-1">
+                                  <CalendarPlus className="h-3 w-3" />
+                                  {step.suggested_date} at {step.suggested_time}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Clock className="h-3 w-3" />
+                                  {step.duration_minutes}min
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 pt-1">
+                                {calendarSuccess === `${si}-${index}` ? (
+                                  <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                                    <CheckCircle2 className="h-3.5 w-3.5" /> Added to calendar
+                                  </span>
+                                ) : calendarForm?.stepIndex === si && calendarForm?.msgIndex === index ? (
+                                  <div className="flex-1 space-y-2 p-2 bg-white rounded-lg border border-gray-200">
+                                    <div className="grid grid-cols-3 gap-1.5">
+                                      <input
+                                        type="text"
+                                        placeholder="Client name *"
+                                        value={calendarForm.name}
+                                        onChange={(e) => setCalendarForm(prev => prev ? { ...prev, name: e.target.value } : null)}
+                                        className="col-span-1 px-2 py-1 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                      />
+                                      <input
+                                        type="tel"
+                                        placeholder="Phone * (+1...)"
+                                        value={calendarForm.phone}
+                                        onChange={(e) => setCalendarForm(prev => prev ? { ...prev, phone: e.target.value } : null)}
+                                        className="col-span-1 px-2 py-1 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                      />
+                                      <input
+                                        type="email"
+                                        placeholder="Email"
+                                        value={calendarForm.email}
+                                        onChange={(e) => setCalendarForm(prev => prev ? { ...prev, email: e.target.value } : null)}
+                                        className="col-span-1 px-2 py-1 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                      />
+                                    </div>
+                                    <div className="flex gap-1.5">
+                                      <button
+                                        onClick={() => handleAddToCalendar(step, index, si)}
+                                        disabled={addingToCalendar || !calendarForm.name || !calendarForm.phone}
+                                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                                      >
+                                        {addingToCalendar ? <Loader2 className="h-3 w-3 animate-spin" /> : <CalendarPlus className="h-3 w-3" />}
+                                        Confirm
+                                      </button>
+                                      <button
+                                        onClick={() => setCalendarForm(null)}
+                                        className="px-2.5 py-1 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 transition-colors"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => setCalendarForm({ stepIndex: si, msgIndex: index, name: "", phone: "", email: "" })}
+                                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors"
+                                  >
+                                    <CalendarPlus className="h-3 w-3" />
+                                    Add to Calendar
+                                  </button>
+                                )}
+
+                                {reminderSuccess === `${si}-${index}` ? (
+                                  <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                                    <CheckCircle2 className="h-3.5 w-3.5" /> Reminder set
+                                  </span>
+                                ) : reminderPopover?.stepIndex === si && reminderPopover?.msgIndex === index ? (
+                                  <div className="flex items-center gap-1 p-1 bg-white rounded-lg border border-gray-200 shadow-sm">
+                                    {[
+                                      { key: "1day", label: "1 day before" },
+                                      { key: "5hours", label: "5 hrs" },
+                                      { key: "1hour", label: "1 hr" },
+                                      { key: "30min", label: "30 min" },
+                                    ].map((opt) => (
+                                      <button
+                                        key={opt.key}
+                                        onClick={() => handleSetReminder(step, opt.key)}
+                                        className="px-2 py-1 text-[10px] font-medium rounded-md hover:bg-amber-50 hover:text-amber-700 text-gray-600 transition-colors whitespace-nowrap"
+                                      >
+                                        {opt.label}
+                                      </button>
+                                    ))}
+                                    <button
+                                      onClick={() => setReminderPopover(null)}
+                                      className="p-0.5 text-gray-400 hover:text-gray-600"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => setReminderPopover({ stepIndex: si, msgIndex: index })}
+                                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg border border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors"
+                                  >
+                                    <Bell className="h-3 w-3" />
+                                    Set Reminder
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </div>
                     {message.role === "user" && (
@@ -994,6 +1416,20 @@ Example:
 
             {/* Input Area - Polished */}
             <div className="border-t border-gray-200 bg-white/95 backdrop-blur-sm p-4 shadow-lg">
+              {/* Uploaded files chips */}
+              {uploadedFiles.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {uploadedFiles.map((file) => (
+                    <div key={file.id} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-700">
+                      <FileText className="h-3 w-3" />
+                      <span className="font-medium max-w-[150px] truncate">{file.name}</span>
+                      <button onClick={() => setUploadedFiles((prev) => prev.filter((f) => f.id !== file.id))} className="p-0.5 hover:bg-blue-100 rounded">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
               <form onSubmit={sendMessage} className="flex items-end gap-3">
                 <div className="flex-1 rounded-2xl border border-gray-300 bg-white p-3 flex items-end gap-2 shadow-sm hover:border-gray-400 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
                   <textarea
@@ -1006,7 +1442,7 @@ Example:
                         sendMessage(e);
                       }
                     }}
-                    placeholder="Type your message..."
+                    placeholder="Ask about the meeting, request next steps, or follow up..."
                     rows={1}
                     className="flex-1 resize-none border-none outline-none text-gray-900 placeholder:text-gray-400 text-sm bg-transparent font-medium"
                     style={{ maxHeight: "200px" }}
@@ -1020,8 +1456,28 @@ Example:
                       const files = Array.from(e.target.files || []);
                       if (files.length === 0) return;
                       setUploading(true);
-                      // Handle file upload here
+                      try {
+                        for (const file of files) {
+                          const formData = new FormData();
+                          formData.append("file", file);
+                          const resp = await fetch("/api/llm/upload", { method: "POST", body: formData });
+                          if (resp.ok) {
+                            const data = await resp.json();
+                            setUploadedFiles((prev) => [...prev, {
+                              id: data.id || crypto.randomUUID(),
+                              name: file.name,
+                              url: data.url,
+                              type: file.type,
+                              size: file.size,
+                              extractedText: data.extractedText,
+                            }]);
+                          }
+                        }
+                      } catch (err) {
+                        console.error("File upload failed:", err);
+                      }
                       setUploading(false);
+                      e.target.value = "";
                     }}
                   />
                   <button
@@ -1037,7 +1493,8 @@ Example:
                   <button
                     type="submit"
                     disabled={loading || !input.trim()}
-                    className="relative p-3.5 rounded-2xl bg-gray-900 text-white hover:bg-gray-800 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg flex items-center justify-center"
+                    className="relative z-10 p-3.5 rounded-2xl text-white hover:opacity-90 active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed transition-all shadow-lg flex items-center justify-center"
+                    style={{ backgroundColor: "#000" }}
                   >
                     {loading ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
