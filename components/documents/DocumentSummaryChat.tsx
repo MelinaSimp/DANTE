@@ -54,8 +54,12 @@ export default function DocumentSummaryChat({
   /** Resolve PDF URL: use proxy for Supabase storage URLs to avoid CORS. */
   function getPdfLoadUrl(url: string): string {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-    if (supabaseUrl && url.startsWith(supabaseUrl.replace(/\/$/, "") + "/storage/")) {
-      return `/api/documents/proxy-pdf?url=${encodeURIComponent(url)}`;
+    const isSupabaseStorage =
+      (supabaseUrl && url.startsWith(supabaseUrl.replace(/\/$/, "") + "/storage/")) ||
+      url.includes("/storage/v1/object/");
+    if (isSupabaseStorage && typeof window !== "undefined") {
+      const base = window.location.origin;
+      return `${base}/api/documents/proxy-pdf?url=${encodeURIComponent(url)}`;
     }
     return url;
   }
@@ -117,13 +121,18 @@ export default function DocumentSummaryChat({
     try {
       let images: { imageBase64: string; type: string; name: string }[] = [];
       let extractedTextFromPages = "";
+      let extractionError: string | null = null;
       if (documentUrl && annotatedPageNumbers.length > 0) {
         try {
           images = await renderPdfPagesToImages(documentUrl, annotatedPageNumbers);
           extractedTextFromPages = await extractTextFromPdfPages(documentUrl, annotatedPageNumbers);
         } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
           console.warn("Could not render PDF pages for summary:", err);
+          extractionError = msg;
         }
+      } else if (documentUrl && annotatedPageNumbers.length === 0) {
+        extractionError = "No pages configured for extraction (template has no annotated pages).";
       }
 
       const res = await fetch("/api/llm/chat", {
@@ -140,6 +149,18 @@ export default function DocumentSummaryChat({
           ...(templateDocumentId && { templateDocumentId }),
         }),
       });
+
+      // If extraction failed and we have no content, show the real error instead of calling the LLM
+      if (extractionError && !extractedTextFromPages && images.length === 0 && templateName) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: `Could not load the PDF for analysis: ${extractionError}\n\nPlease try re-uploading the document, or check the browser console (F12) for more details.`,
+          },
+        ]);
+        return;
+      }
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
