@@ -66,10 +66,9 @@ export default function DocumentSummaryChat({
 
   /** Ensure pdf.js worker is configured. react-pdf sets default 'pdf.worker.mjs' (invalid bare specifier) - must override. */
   function ensurePdfWorker(pdfjs: typeof import("react-pdf").pdfjs) {
-    const validUrl =
-      typeof window !== "undefined"
-        ? `${window.location.origin}/pdf.worker.min.mjs`
-        : "/pdf.worker.min.mjs";
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : "");
+    const validUrl = baseUrl ? `${baseUrl.replace(/\/$/, "")}/pdf.worker.min.mjs` : "/pdf.worker.min.mjs";
     if (!pdfjs.GlobalWorkerOptions.workerSrc || !pdfjs.GlobalWorkerOptions.workerSrc.startsWith("http")) {
       pdfjs.GlobalWorkerOptions.workerSrc = validUrl;
     }

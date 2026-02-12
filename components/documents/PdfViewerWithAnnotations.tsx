@@ -18,11 +18,9 @@ import {
 } from "lucide-react";
 
 // Override react-pdf's invalid default 'pdf.worker.mjs' (bare specifier fails) - use our public copy
-const workerUrl =
-  typeof window !== "undefined"
-    ? `${window.location.origin}/pdf.worker.min.mjs`
-    : "/pdf.worker.min.mjs";
-pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+const baseUrl =
+  process.env.NEXT_PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : "");
+pdfjs.GlobalWorkerOptions.workerSrc = baseUrl ? `${baseUrl.replace(/\/$/, "")}/pdf.worker.min.mjs` : "/pdf.worker.min.mjs";
 
 export type AnnotationType = "highlight" | "comment" | "tag" | "table";
 
