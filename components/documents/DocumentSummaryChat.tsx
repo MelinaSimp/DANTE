@@ -64,13 +64,14 @@ export default function DocumentSummaryChat({
     return url;
   }
 
-  /** Ensure pdf.js worker is configured (required when PdfViewerWithAnnotations isn't mounted). */
+  /** Ensure pdf.js worker is configured. react-pdf sets default 'pdf.worker.mjs' (invalid bare specifier) - must override. */
   function ensurePdfWorker(pdfjs: typeof import("react-pdf").pdfjs) {
-    if (!pdfjs.GlobalWorkerOptions.workerSrc) {
-      pdfjs.GlobalWorkerOptions.workerSrc =
-        typeof window !== "undefined"
-          ? `${window.location.origin}/pdf.worker.min.mjs`
-          : "/pdf.worker.min.mjs";
+    const validUrl =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/pdf.worker.min.mjs`
+        : "/pdf.worker.min.mjs";
+    if (!pdfjs.GlobalWorkerOptions.workerSrc || !pdfjs.GlobalWorkerOptions.workerSrc.startsWith("http")) {
+      pdfjs.GlobalWorkerOptions.workerSrc = validUrl;
     }
   }
 

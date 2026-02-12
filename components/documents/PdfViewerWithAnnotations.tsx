@@ -17,8 +17,12 @@ import {
   Maximize2,
 } from "lucide-react";
 
-// Configure PDF.js worker (serve from our domain to avoid CDN/CSP resolution issues)
-pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+// Override react-pdf's invalid default 'pdf.worker.mjs' (bare specifier fails) - use our public copy
+const workerUrl =
+  typeof window !== "undefined"
+    ? `${window.location.origin}/pdf.worker.min.mjs`
+    : "/pdf.worker.min.mjs";
+pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
 export type AnnotationType = "highlight" | "comment" | "tag" | "table";
 
