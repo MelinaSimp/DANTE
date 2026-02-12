@@ -180,7 +180,7 @@ export async function POST(req: NextRequest) {
     // Continue to next step
     if (nextStepId) {
       return new NextResponse(
-        generateRedirectTwiML(`${baseUrl}/api/twilio/continue?conversationId=${conversationId}&stepId=${nextStepId}`),
+        generateRedirectTwiML(`${baseUrl}/api/twilio/response?conversationId=${conversationId}&stepId=${nextStepId}`),
         { status: 200, headers: { "Content-Type": "text/xml; charset=utf-8" } }
       );
     } else {

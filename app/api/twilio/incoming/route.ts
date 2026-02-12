@@ -5,6 +5,7 @@ import { normalizePhone } from "@/lib/phone";
 import { generateSpeechTwiml } from "@/lib/elevenlabs/twiml";
 
 export const dynamic = "force-dynamic";
+const DEBUG = process.env.DEBUG_VOICE === "true";
 export const maxDuration = 10; // 10 seconds max for Twilio webhooks
 
 /** Get call params from either GET (query) or POST (form). Twilio may use either. */
@@ -35,19 +36,35 @@ async function getIncomingCallParams(req: NextRequest): Promise<{ callSid: strin
  * https://your-domain.com/api/twilio/incoming
  * (Set "HTTP GET" or "HTTP POST" – both are supported.)
  */
+function validateEnvVars(): string | null {
+  const missing: string[] = [];
+  if (!process.env.OPENAI_API_KEY) missing.push("OPENAI_API_KEY");
+  if (!process.env.ELEVENLABS_API_KEY) missing.push("ELEVENLABS_API_KEY");
+  if (missing.length > 0) return `Missing env vars: ${missing.join(", ")}`;
+  return null;
+}
+
 async function handleIncoming(req: NextRequest): Promise<NextResponse> {
   let callSid = "";
   let from = "";
   let to = "";
 
   try {
+    // Validate required environment variables
+    const envError = validateEnvVars();
+    if (envError) {
+      console.error(`[Twilio Incoming] ${envError}`);
+      const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Say>We are experiencing technical difficulties. Please try again later.</Say><Hangup/></Response>`;
+      return new NextResponse(twiml, { status: 200, headers: { "Content-Type": "text/xml; charset=utf-8" } });
+    }
+
     const params = await getIncomingCallParams(req);
     callSid = params.callSid;
     from = params.from;
     to = params.to;
     const callStatus = params.callStatus;
 
-    console.log("[Twilio] Incoming call:", { callSid, from, to, callStatus });
+    if (DEBUG) console.log("[Twilio] Incoming call:", { callSid, from, to, callStatus });
 
     if (!to || !callSid) {
       const errorTwiml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -90,9 +107,9 @@ async function handleIncoming(req: NextRequest): Promise<NextResponse> {
     // Remove duplicates
     const uniqueFormats = [...new Set(possibleFormats)];
 
-    console.log("[Twilio] Looking for agent with phone number formats:", uniqueFormats);
-    console.log("[Twilio] Original 'to' from Twilio:", to);
-    console.log("[Twilio] Normalized 'to':", normalizedTo);
+    if (DEBUG) console.log("[Twilio] Looking for agent with phone number formats:", uniqueFormats);
+    if (DEBUG) console.log("[Twilio] Original 'to' from Twilio:", to);
+    if (DEBUG) console.log("[Twilio] Normalized 'to':", normalizedTo);
 
     // Try to find agent with any of these formats
     // ONLY voice or multi-modal agents (not chat-only)
@@ -125,7 +142,7 @@ async function handleIncoming(req: NextRequest): Promise<NextResponse> {
         .order("parent_agent_id", { ascending: true, nullsFirst: true }) // agents without parent first
         .order("modality", { ascending: true }); // Prefer "voice" over "multi-modal"
 
-      console.log("[Twilio] All deployed agents:", allDeployedAgents);
+      if (DEBUG) console.log("[Twilio] All deployed agents:", allDeployedAgents);
 
       // Try to find a match by normalizing stored numbers
       // Prioritize main receptionist (non-specialist) over specialists
@@ -144,7 +161,7 @@ async function handleIncoming(req: NextRequest): Promise<NextResponse> {
               .single();
             if (fullAgent) {
               agent = fullAgent;
-              console.log("[Twilio] Found main receptionist agent by normalizing stored number:", fullAgent);
+              if (DEBUG) console.log("[Twilio] Found main receptionist agent by normalizing stored number:", fullAgent);
               break;
             }
           }
@@ -165,7 +182,7 @@ async function handleIncoming(req: NextRequest): Promise<NextResponse> {
                 .single();
               if (fullAgent) {
                 agent = fullAgent;
-                console.log("[Twilio] Found specialist agent by normalizing stored number (fallback):", fullAgent);
+                if (DEBUG) console.log("[Twilio] Found specialist agent by normalizing stored number (fallback):", fullAgent);
                 break;
               }
             }
@@ -180,8 +197,8 @@ async function handleIncoming(req: NextRequest): Promise<NextResponse> {
       const { data: allAgents } = await supabaseAdmin
         .from("agents")
         .select("id, name, phone_number, status, modality");
-      console.log("[Twilio] All agents in database:", allAgents);
-      console.log("[Twilio] Note: Voice calls only work with 'voice' or 'multi-modal' agents. Chat-only agents are ignored.");
+      if (DEBUG) console.log("[Twilio] All agents in database:", allAgents);
+      if (DEBUG) console.log("[Twilio] Note: Voice calls only work with 'voice' or 'multi-modal' agents. Chat-only agents are ignored.");
       
       const errorTwiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -202,7 +219,7 @@ async function handleIncoming(req: NextRequest): Promise<NextResponse> {
     if (process.env.VERCEL_URL) {
       const vercelUrl = process.env.VERCEL_URL;
       baseUrl = vercelUrl.startsWith("http") ? vercelUrl : `https://${vercelUrl}`;
-      console.log("[Twilio Incoming] Using VERCEL_URL (current deployment):", baseUrl);
+      if (DEBUG) console.log("[Twilio Incoming] Using VERCEL_URL (current deployment):", baseUrl);
     }
     
     // SECOND: Construct from request headers (also current deployment)
@@ -211,7 +228,7 @@ async function handleIncoming(req: NextRequest): Promise<NextResponse> {
       const host = req.headers.get("host") || req.headers.get("x-forwarded-host") || req.nextUrl.host;
       if (host) {
         baseUrl = `${protocol}://${host}`;
-        console.log("[Twilio Incoming] Using request host (current deployment):", baseUrl);
+        if (DEBUG) console.log("[Twilio Incoming] Using request host (current deployment):", baseUrl);
       }
     }
     
@@ -219,20 +236,20 @@ async function handleIncoming(req: NextRequest): Promise<NextResponse> {
     if (!baseUrl) {
       baseUrl = process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || "https://driftai.studio";
       if (baseUrl === "https://driftai.studio") {
-        console.log("[Twilio Incoming] Using custom domain: driftai.studio");
+        if (DEBUG) console.log("[Twilio Incoming] Using custom domain: driftai.studio");
       } else {
-        console.log("[Twilio Incoming] Using environment variable:", baseUrl);
+        if (DEBUG) console.log("[Twilio Incoming] Using environment variable:", baseUrl);
       }
     }
     
     // Remove trailing slashes and any whitespace/newlines
     baseUrl = baseUrl.replace(/\/+$/, "").trim().replace(/\s+/g, "");
     
-    console.log("[Twilio Incoming] Final base URL:", baseUrl);
+    if (DEBUG) console.log("[Twilio Incoming] Final base URL:", baseUrl);
     
-    console.log("[Twilio] Using base URL:", baseUrl);
-    console.log("[Twilio] Base URL length:", baseUrl.length);
-    console.log("[Twilio] Base URL JSON:", JSON.stringify(baseUrl));
+    if (DEBUG) console.log("[Twilio] Using base URL:", baseUrl);
+    if (DEBUG) console.log("[Twilio] Base URL length:", baseUrl.length);
+    if (DEBUG) console.log("[Twilio] Base URL JSON:", JSON.stringify(baseUrl));
 
     // Create conversation
     const { data: scenarios } = await supabaseAdmin
@@ -243,9 +260,9 @@ async function handleIncoming(req: NextRequest): Promise<NextResponse> {
       .limit(1);
 
     const scenarioId = scenarios && scenarios.length > 0 ? scenarios[0].id : null;
-    console.log("[Twilio] Agent ID:", agent.id);
-    console.log("[Twilio] Found scenarios:", scenarios);
-    console.log("[Twilio] Scenario ID:", scenarioId);
+    if (DEBUG) console.log("[Twilio] Agent ID:", agent.id);
+    if (DEBUG) console.log("[Twilio] Found scenarios:", scenarios);
+    if (DEBUG) console.log("[Twilio] Scenario ID:", scenarioId);
 
     let currentStepId: string | null = null;
     let greetingStep: { id: string; type: string; ai_message?: string; name?: string; sort_order?: number } | null = null;
@@ -258,11 +275,11 @@ async function handleIncoming(req: NextRequest): Promise<NextResponse> {
         .eq("scenario_id", scenarioId)
         .order("sort_order", { ascending: true });
       
-      console.log("[Twilio] All steps in scenario:", JSON.stringify(allSteps, null, 2));
+      if (DEBUG) console.log("[Twilio] All steps in scenario:", JSON.stringify(allSteps, null, 2));
       
       // Get the first "say" step for the greeting
       const saySteps = allSteps?.filter(s => s.type === "say") || [];
-      console.log("[Twilio] Say steps found:", JSON.stringify(saySteps, null, 2));
+      if (DEBUG) console.log("[Twilio] Say steps found:", JSON.stringify(saySteps, null, 2));
       
       if (saySteps.length > 0) {
         greetingStep = saySteps[0];
@@ -271,12 +288,12 @@ async function handleIncoming(req: NextRequest): Promise<NextResponse> {
         if (greetingIndex >= 0 && allSteps && greetingIndex < allSteps.length - 1) {
           // Set current_step_id to the next step (Gather step)
           currentStepId = allSteps[greetingIndex + 1].id;
-          console.log("[Twilio] Selected greeting step:", JSON.stringify(greetingStep, null, 2));
-          console.log("[Twilio] Setting current_step_id to next step:", currentStepId);
+          if (DEBUG) console.log("[Twilio] Selected greeting step:", JSON.stringify(greetingStep, null, 2));
+          if (DEBUG) console.log("[Twilio] Setting current_step_id to next step:", currentStepId);
         } else {
           // If no next step, use greeting step ID (fallback)
           currentStepId = saySteps[0].id;
-          console.log("[Twilio] Selected greeting step (no next step found):", JSON.stringify(greetingStep, null, 2));
+          if (DEBUG) console.log("[Twilio] Selected greeting step (no next step found):", JSON.stringify(greetingStep, null, 2));
         }
       } else if (allSteps && allSteps.length > 0) {
         // Fallback to first step of any type
@@ -287,9 +304,9 @@ async function handleIncoming(req: NextRequest): Promise<NextResponse> {
         } else {
           currentStepId = allSteps[0].id;
         }
-        console.log("[Twilio] No say steps, using first step:", JSON.stringify(greetingStep, null, 2));
+        if (DEBUG) console.log("[Twilio] No say steps, using first step:", JSON.stringify(greetingStep, null, 2));
       } else {
-        console.log("[Twilio] No steps found in scenario");
+        if (DEBUG) console.log("[Twilio] No steps found in scenario");
       }
     }
 
@@ -330,17 +347,17 @@ async function handleIncoming(req: NextRequest): Promise<NextResponse> {
     let greeting = "";
     
     if (greetingStep) {
-      console.log("[Twilio] Greeting step data:", JSON.stringify(greetingStep, null, 2));
-      console.log("[Twilio] Step ai_message value:", greetingStep.ai_message);
-      console.log("[Twilio] Step name value:", greetingStep.name);
-      console.log("[Twilio] Step type:", greetingStep.type);
+      if (DEBUG) console.log("[Twilio] Greeting step data:", JSON.stringify(greetingStep, null, 2));
+      if (DEBUG) console.log("[Twilio] Step ai_message value:", greetingStep.ai_message);
+      if (DEBUG) console.log("[Twilio] Step name value:", greetingStep.name);
+      if (DEBUG) console.log("[Twilio] Step type:", greetingStep.type);
       
       // Try ai_message first (this is the field that stores the actual message)
       const stepMessage = greetingStep.ai_message?.trim() || null;
       
       if (stepMessage && stepMessage.length > 0) {
         greeting = stepMessage;
-        console.log("[Twilio] ✅ Using greeting from step ai_message:", greeting.substring(0, 100) + "...");
+        if (DEBUG) console.log("[Twilio] ✅ Using greeting from step ai_message:", greeting.substring(0, 100) + "...");
       } else {
         // Fallback to name if ai_message is empty
         // Check if name looks like an actual message (not just "Step 1" or "Welcome! How can I help you today?")
@@ -352,24 +369,24 @@ async function handleIncoming(req: NextRequest): Promise<NextResponse> {
           
           if (!isDefaultMessage || nameMessage.length > 15) {
             greeting = nameMessage;
-            console.log("[Twilio] ⚠️ Using greeting from step name (ai_message was empty):", greeting.substring(0, 100) + "...");
+            if (DEBUG) console.log("[Twilio] ⚠️ Using greeting from step name (ai_message was empty):", greeting.substring(0, 100) + "...");
           } else {
-            console.log("[Twilio] ❌ Step name looks like placeholder. ai_message:", greetingStep.ai_message, "name:", greetingStep.name);
-            console.log("[Twilio] No greeting configured - will skip Say tag");
+            if (DEBUG) console.log("[Twilio] ❌ Step name looks like placeholder. ai_message:", greetingStep.ai_message, "name:", greetingStep.name);
+            if (DEBUG) console.log("[Twilio] No greeting configured - will skip Say tag");
           }
         } else {
-          console.log("[Twilio] ❌ Step has no usable message. ai_message:", greetingStep.ai_message, "name:", greetingStep.name);
-          console.log("[Twilio] No greeting configured - will skip Say tag");
+          if (DEBUG) console.log("[Twilio] ❌ Step has no usable message. ai_message:", greetingStep.ai_message, "name:", greetingStep.name);
+          if (DEBUG) console.log("[Twilio] No greeting configured - will skip Say tag");
         }
       }
     } else {
-      console.log("[Twilio] ❌ No greeting step found, no greeting configured - will skip Say tag");
+      if (DEBUG) console.log("[Twilio] ❌ No greeting step found, no greeting configured - will skip Say tag");
     }
 
     // Always have a greeting so the call never drops (e.g. instructions-only agents with no scenarios)
     if (!greeting || greeting.trim().length === 0) {
       greeting = "Hello! How can I help you today?";
-      console.log("[Twilio] Using default greeting (no scenario/step message)");
+      if (DEBUG) console.log("[Twilio] Using default greeting (no scenario/step message)");
     }
 
     // The response endpoint is called automatically by Twilio's <Gather> action
@@ -390,16 +407,16 @@ async function handleIncoming(req: NextRequest): Promise<NextResponse> {
     const cleanBaseUrl = baseUrl.trim().replace(/\/+$/, "").replace(/\s+/g, "");
     const responseUrl = `${cleanBaseUrl}/api/twilio/response?callSid=${encodeURIComponent(callSid)}&conversationId=${encodeURIComponent(conversation.id)}`;
     
-    console.log("[Twilio] Constructed response URL:", responseUrl);
-    console.log("[Twilio] Response URL JSON:", JSON.stringify(responseUrl));
-    console.log("[Twilio] Base URL:", baseUrl);
-    console.log("[Twilio] Call SID:", callSid);
-    console.log("[Twilio] Conversation ID:", conversation.id);
+    if (DEBUG) console.log("[Twilio] Constructed response URL:", responseUrl);
+    if (DEBUG) console.log("[Twilio] Response URL JSON:", JSON.stringify(responseUrl));
+    if (DEBUG) console.log("[Twilio] Base URL:", baseUrl);
+    if (DEBUG) console.log("[Twilio] Call SID:", callSid);
+    if (DEBUG) console.log("[Twilio] Conversation ID:", conversation.id);
     
     // Validate URL before using
     try {
       const testUrl = new URL(responseUrl);
-      console.log("[Twilio] URL validation passed:", testUrl.href);
+      if (DEBUG) console.log("[Twilio] URL validation passed:", testUrl.href);
     } catch (error) {
       console.error("[Twilio] Invalid response URL constructed:", responseUrl);
       console.error("[Twilio] URL validation error:", error);
@@ -417,26 +434,26 @@ async function handleIncoming(req: NextRequest): Promise<NextResponse> {
     // Clean the URL one more time before escaping (remove any whitespace/newlines)
     const cleanResponseUrl = responseUrl.trim().replace(/\s+/g, "").replace(/\n/g, "").replace(/\r/g, "");
     const escapedResponseUrl = xmlEscapeAttr(cleanResponseUrl);
-    console.log("[Twilio] Clean response URL:", cleanResponseUrl);
-    console.log("[Twilio] Escaped response URL:", escapedResponseUrl);
-    console.log("[Twilio] Escaped URL JSON:", JSON.stringify(escapedResponseUrl));
+    if (DEBUG) console.log("[Twilio] Clean response URL:", cleanResponseUrl);
+    if (DEBUG) console.log("[Twilio] Escaped response URL:", escapedResponseUrl);
+    if (DEBUG) console.log("[Twilio] Escaped URL JSON:", JSON.stringify(escapedResponseUrl));
 
     // Only include speech if there's a greeting configured
     const hasGreeting = greeting && greeting.trim().length > 0;
     
-    console.log("[Twilio Incoming] Generating greeting speech...");
-    console.log("[Twilio Incoming] Has greeting:", hasGreeting);
-    console.log("[Twilio Incoming] Greeting text:", greeting?.substring(0, 100));
-    console.log("[Twilio Incoming] Agent voice ID:", agent.elevenlabs_voice_id);
-    console.log("[Twilio Incoming] Base URL:", baseUrl);
+    if (DEBUG) console.log("[Twilio Incoming] Generating greeting speech...");
+    if (DEBUG) console.log("[Twilio Incoming] Has greeting:", hasGreeting);
+    if (DEBUG) console.log("[Twilio Incoming] Greeting text:", greeting?.substring(0, 100));
+    if (DEBUG) console.log("[Twilio Incoming] Agent voice ID:", agent.elevenlabs_voice_id);
+    if (DEBUG) console.log("[Twilio Incoming] Base URL:", baseUrl);
     
     // Generate speech TwiML (Say or Play based on agent voice configuration)
     const speechTwiml = hasGreeting
       ? await generateSpeechTwiml(greeting, agent.elevenlabs_voice_id, baseUrl)
       : "";
     
-    console.log("[Twilio Incoming] Generated speech TwiML:", speechTwiml);
-    console.log("[Twilio Incoming] Speech TwiML length:", speechTwiml.length);
+    if (DEBUG) console.log("[Twilio Incoming] Generated speech TwiML:", speechTwiml);
+    if (DEBUG) console.log("[Twilio Incoming] Speech TwiML length:", speechTwiml.length);
 
     // Generate TwiML response
     let twiml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -448,7 +465,7 @@ async function handleIncoming(req: NextRequest): Promise<NextResponse> {
   <Pause length="1"/>`;
     }
     
-    console.log("[Twilio Incoming] Final TwiML:", twiml);
+    if (DEBUG) console.log("[Twilio Incoming] Final TwiML:", twiml);
     
     twiml += `
   <Gather input="speech" action="${escapedResponseUrl}" method="POST" speechTimeout="auto" language="en-US">

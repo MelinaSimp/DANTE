@@ -78,7 +78,7 @@ async function executeSayStep(
   return {
     twiml: generateTwiML([
       { type: "say", message },
-      ...(nextStepId ? [{ type: "redirect", url: `${context.baseUrl}/api/twilio/continue?conversationId=${context.conversationId}&stepId=${nextStepId}` }] : []),
+      ...(nextStepId ? [{ type: "redirect", url: `${context.baseUrl}/api/twilio/response?conversationId=${context.conversationId}&stepId=${nextStepId}` }] : []),
     ]),
     nextStepId,
   };
@@ -133,7 +133,7 @@ async function executeQAStep(
     return {
       twiml: generateTwiML([
         { type: "say", message: fallback },
-        ...(nextStepId ? [{ type: "redirect", url: `${context.baseUrl}/api/twilio/continue?conversationId=${context.conversationId}&stepId=${nextStepId}` }] : []),
+        ...(nextStepId ? [{ type: "redirect", url: `${context.baseUrl}/api/twilio/response?conversationId=${context.conversationId}&stepId=${nextStepId}` }] : []),
       ]),
       nextStepId,
     };
@@ -167,7 +167,7 @@ async function executeQAStep(
       return {
         twiml: generateTwiML([
           { type: "say", message: qaData.answer },
-          ...(nextStepId ? [{ type: "redirect", url: `${context.baseUrl}/api/twilio/continue?conversationId=${context.conversationId}&stepId=${nextStepId}` }] : []),
+          ...(nextStepId ? [{ type: "redirect", url: `${context.baseUrl}/api/twilio/response?conversationId=${context.conversationId}&stepId=${nextStepId}` }] : []),
         ]),
         nextStepId,
       };
@@ -179,7 +179,7 @@ async function executeQAStep(
       return {
         twiml: generateTwiML([
           { type: "say", message: fallback },
-          ...(nextStepId ? [{ type: "redirect", url: `${context.baseUrl}/api/twilio/continue?conversationId=${context.conversationId}&stepId=${nextStepId}` }] : []),
+          ...(nextStepId ? [{ type: "redirect", url: `${context.baseUrl}/api/twilio/response?conversationId=${context.conversationId}&stepId=${nextStepId}` }] : []),
         ]),
         nextStepId,
       };
@@ -192,7 +192,7 @@ async function executeQAStep(
     return {
       twiml: generateTwiML([
         { type: "say", message: fallback },
-        ...(nextStepId ? [{ type: "redirect", url: `${context.baseUrl}/api/twilio/continue?conversationId=${context.conversationId}&stepId=${nextStepId}` }] : []),
+        ...(nextStepId ? [{ type: "redirect", url: `${context.baseUrl}/api/twilio/response?conversationId=${context.conversationId}&stepId=${nextStepId}` }] : []),
       ]),
       nextStepId,
     };
@@ -213,7 +213,7 @@ async function executeCodeStep(
   return {
     twiml: generateTwiML([
       { type: "say", message: "Processing..." },
-      ...(nextStepId ? [{ type: "redirect", url: `${context.baseUrl}/api/twilio/continue?conversationId=${context.conversationId}&stepId=${nextStepId}` }] : []),
+      ...(nextStepId ? [{ type: "redirect", url: `${context.baseUrl}/api/twilio/response?conversationId=${context.conversationId}&stepId=${nextStepId}` }] : []),
     ]),
     nextStepId,
   };
@@ -257,7 +257,7 @@ async function executeConditionStep(
   return {
     twiml: generateTwiML([
       ...(nextStepId || nextScenarioId
-        ? [{ type: "redirect", url: `${context.baseUrl}/api/twilio/continue?conversationId=${context.conversationId}${nextStepId ? `&stepId=${nextStepId}` : ""}${nextScenarioId ? `&scenarioId=${nextScenarioId}` : ""}` }]
+        ? [{ type: "redirect", url: `${context.baseUrl}/api/twilio/response?conversationId=${context.conversationId}${nextStepId ? `&stepId=${nextStepId}` : ""}${nextScenarioId ? `&scenarioId=${nextScenarioId}` : ""}` }]
         : [{ type: "say", message: "Thank you for calling. Goodbye." }, { type: "hangup" }]),
     ]),
     nextStepId,
@@ -278,7 +278,7 @@ async function executeApiCallStep(
   return {
     twiml: generateTwiML([
       { type: "say", message: "Processing your request..." },
-      ...(nextStepId ? [{ type: "redirect", url: `${context.baseUrl}/api/twilio/continue?conversationId=${context.conversationId}&stepId=${nextStepId}` }] : []),
+      ...(nextStepId ? [{ type: "redirect", url: `${context.baseUrl}/api/twilio/response?conversationId=${context.conversationId}&stepId=${nextStepId}` }] : []),
     ]),
     nextStepId,
   };

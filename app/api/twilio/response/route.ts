@@ -7,6 +7,8 @@ import { generateSpeechTwiml } from "@/lib/elevenlabs/twiml";
 export const dynamic = "force-dynamic";
 export const maxDuration = 10; // 10 seconds max for Twilio webhooks
 
+const DEBUG = process.env.DEBUG_VOICE === "true";
+
 /**
  * Twilio Response Handler (Optimized)
  * POST /api/twilio/response
@@ -18,6 +20,16 @@ export const maxDuration = 10; // 10 seconds max for Twilio webhooks
  */
 export async function POST(req: NextRequest) {
   try {
+    // Validate required environment variables
+    const missing: string[] = [];
+    if (!process.env.OPENAI_API_KEY) missing.push("OPENAI_API_KEY");
+    if (!process.env.ELEVENLABS_API_KEY) missing.push("ELEVENLABS_API_KEY");
+    if (missing.length > 0) {
+      console.error(`[Twilio Response] Missing env vars: ${missing.join(", ")}`);
+      const twiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Say>We are experiencing technical difficulties. Please try again later.</Say><Hangup/></Response>`;
+      return new NextResponse(twiml, { status: 200, headers: { "Content-Type": "text/xml; charset=utf-8" } });
+    }
+
     const formData = await req.formData();
     const callSid = (req.nextUrl.searchParams.get("callSid") || formData.get("CallSid") || "").toString();
     const conversationId = req.nextUrl.searchParams.get("conversationId") || "";
@@ -25,10 +37,7 @@ export async function POST(req: NextRequest) {
     const from = formData.get("From")?.toString() || "";
     const to = formData.get("To")?.toString() || "";
 
-    console.log("[Twilio] Response:", { callSid, conversationId, speechResult, from, to });
-    console.log("[Twilio] All form data keys:", Array.from(formData.keys()));
-    console.log("[Twilio] SpeechResult value:", formData.get("SpeechResult"));
-    console.log("[Twilio] SpeechConfidence:", formData.get("SpeechConfidence"));
+    if (DEBUG) console.log("[Twilio] Response:", { callSid, conversationId, speechResult: speechResult?.substring(0, 50), from, to });
 
     if (!conversationId) {
       const errorTwiml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -50,7 +59,7 @@ export async function POST(req: NextRequest) {
         if (process.env.VERCEL_URL) {
           const vercelUrl = process.env.VERCEL_URL;
           baseUrl = vercelUrl.startsWith("http") ? vercelUrl : `https://${vercelUrl}`;
-          console.log("[Twilio Response] Using VERCEL_URL (current deployment):", baseUrl);
+          if (DEBUG) console.log("[Twilio Response] Using VERCEL_URL (current deployment):", baseUrl);
         }
         
         // SECOND: Construct from request headers (also current deployment)
@@ -59,7 +68,7 @@ export async function POST(req: NextRequest) {
           const host = req.headers.get("host") || req.headers.get("x-forwarded-host") || req.nextUrl.host;
           if (host) {
             baseUrl = `${protocol}://${host}`;
-            console.log("[Twilio Response] Using request host (current deployment):", baseUrl);
+            if (DEBUG) console.log("[Twilio Response] Using request host (current deployment):", baseUrl);
           }
         }
         
@@ -74,7 +83,7 @@ export async function POST(req: NextRequest) {
         // Remove trailing slashes and any whitespace/newlines
         baseUrl = baseUrl.replace(/\/+$/, "").trim().replace(/\s+/g, "");
         
-        console.log("[Twilio Response] Final base URL:", baseUrl);
+        if (DEBUG) console.log("[Twilio Response] Final base URL:", baseUrl);
 
     // OPTIMIZATION: Load conversation first, then load agent in parallel with other operations
     const { data: conversation } = await supabaseAdmin
@@ -110,16 +119,10 @@ export async function POST(req: NextRequest) {
     // When Gather times out, Twilio redirects to action URL with empty SpeechResult
     // We'll track consecutive empty responses in conversation state
     if (!speechResult) {
-      // Load conversation to check state
-      const { data: conversation } = await supabaseAdmin
-        .from("conversations")
-        .select("transcript, conversation_state")
-        .eq("id", conversationId)
-        .single();
-
-      const transcript = conversation?.transcript || [];
+      // Use already-loaded conversation data (no duplicate query needed)
+      const currentTranscript = conversation?.transcript || [];
       const conversationState = conversation?.conversation_state || {};
-      const hasAssistantMessages = transcript.some((msg: any) => msg.role === "assistant");
+      const hasAssistantMessages = currentTranscript.some((msg: any) => msg.role === "assistant");
 
       // Track consecutive empty responses
       const emptyResponseCount = (conversationState.emptyResponseCount || 0) + 1;
@@ -128,24 +131,10 @@ export async function POST(req: NextRequest) {
       if (hasAssistantMessages && emptyResponseCount >= 2) {
         const timeoutMessage = "It seems as if you no longer have any more questions, I will cut the call now.";
         
-        // Load agent voice if not already loaded
-        let voiceId = agentVoiceId;
-        if (!voiceId && conversation?.agent_id) {
-          const { data: agent } = await supabaseAdmin
-            .from("agents")
-            .select("elevenlabs_voice_id")
-            .eq("id", conversation.agent_id)
-            .single();
-          voiceId = agent?.elevenlabs_voice_id || null;
-        }
+        if (DEBUG) console.log("[Twilio Response] Timeout:", { agentVoiceId, baseUrl });
         
-        console.log("[Twilio Response] Generating timeout speech...");
-        console.log("[Twilio Response] Timeout message:", timeoutMessage);
-        console.log("[Twilio Response] Voice ID:", voiceId);
-        console.log("[Twilio Response] Base URL:", baseUrl);
-        
-        const speechTwiml = await generateSpeechTwiml(timeoutMessage, voiceId, baseUrl);
-        console.log("[Twilio Response] Timeout speech TwiML:", speechTwiml);
+        const speechTwiml = await generateSpeechTwiml(timeoutMessage, agentVoiceId, baseUrl);
+        if (DEBUG) console.log("[Twilio Response] Timeout speech TwiML:", speechTwiml);
         
         const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -153,7 +142,7 @@ export async function POST(req: NextRequest) {
   <Hangup/>
 </Response>`;
         
-        console.log("[Twilio Response] Timeout final TwiML:", twiml);
+        if (DEBUG) console.log("[Twilio Response] Timeout final TwiML:", twiml);
         
         // Update conversation status
         await supabaseAdmin
@@ -211,7 +200,7 @@ export async function POST(req: NextRequest) {
             currentStepId: currentStep.id,
             gatheredData: conversation.gathered_data || {},
             conversationState: conversation.conversation_state || {},
-            transcript,
+            transcript: conversation.transcript || [],
           };
           
           const sayExecutor = new AgentExecutor(sayContext);
@@ -270,13 +259,13 @@ export async function POST(req: NextRequest) {
       const cleanBaseUrl = baseUrl.trim().replace(/\/+$/, "").replace(/\s+/g, "");
       const actionUrl = `${cleanBaseUrl}/api/twilio/response?callSid=${encodeURIComponent(callSid)}&conversationId=${encodeURIComponent(conversationId)}`;
       
-      console.log("[Twilio Response] Constructed action URL:", actionUrl);
-      console.log("[Twilio Response] Action URL JSON:", JSON.stringify(actionUrl));
+      if (DEBUG) console.log("[Twilio Response] Constructed action URL:", actionUrl);
+      if (DEBUG) console.log("[Twilio Response] Action URL JSON:", JSON.stringify(actionUrl));
       
       // Validate URL before using
       try {
         const testUrl = new URL(actionUrl);
-        console.log("[Twilio Response] URL validation passed:", testUrl.href);
+        if (DEBUG) console.log("[Twilio Response] URL validation passed:", testUrl.href);
       } catch (error) {
         console.error("[Twilio Response] Invalid action URL constructed:", actionUrl);
         console.error("[Twilio Response] URL validation error:", error);
@@ -294,8 +283,8 @@ export async function POST(req: NextRequest) {
       // Clean the URL one more time before escaping (remove any whitespace/newlines)
       const cleanActionUrl = actionUrl.trim().replace(/\s+/g, "").replace(/\n/g, "").replace(/\r/g, "");
       const escapedAction = xmlEscapeAttr(cleanActionUrl);
-      console.log("[Twilio Response] Clean action URL:", cleanActionUrl);
-      console.log("[Twilio Response] Escaped action URL:", escapedAction);
+      if (DEBUG) console.log("[Twilio Response] Clean action URL:", cleanActionUrl);
+      if (DEBUG) console.log("[Twilio Response] Escaped action URL:", escapedAction);
       // Add partial result callback for interruptability
       const partialCallbackUrl = `${baseUrl}/api/twilio/partial?conversationId=${conversationId}`;
       const escapedPartialCallback = xmlEscapeAttr(partialCallbackUrl);
@@ -431,13 +420,13 @@ export async function POST(req: NextRequest) {
 
     if (!result.success) {
       const errorMessage = "I'm sorry, I encountered an error. Please try again.";
-      console.log("[Twilio Response] Generating error speech...");
-      console.log("[Twilio Response] Error message:", errorMessage);
-      console.log("[Twilio Response] Agent voice ID:", agentVoiceId);
-      console.log("[Twilio Response] Base URL:", baseUrl);
+      if (DEBUG) console.log("[Twilio Response] Generating error speech...");
+      if (DEBUG) console.log("[Twilio Response] Error message:", errorMessage);
+      if (DEBUG) console.log("[Twilio Response] Agent voice ID:", agentVoiceId);
+      if (DEBUG) console.log("[Twilio Response] Base URL:", baseUrl);
       
       const speechTwiml = await generateSpeechTwiml(errorMessage, agentVoiceId, baseUrl);
-      console.log("[Twilio Response] Error speech TwiML:", speechTwiml);
+      if (DEBUG) console.log("[Twilio Response] Error speech TwiML:", speechTwiml);
       
       const errorTwiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
@@ -445,7 +434,7 @@ export async function POST(req: NextRequest) {
   <Hangup/>
 </Response>`;
       
-      console.log("[Twilio Response] Error final TwiML:", errorTwiml);
+      if (DEBUG) console.log("[Twilio Response] Error final TwiML:", errorTwiml);
       return new NextResponse(errorTwiml, {
         status: 200,
         headers: { "Content-Type": "text/xml; charset=utf-8" },
@@ -504,29 +493,27 @@ export async function POST(req: NextRequest) {
     // OPTIMIZATION: Run database update and TTS generation in parallel
     const hasOutput = result.output && result.output.trim().length > 0;
     
-    console.log("[Twilio Response] Starting parallel operations (DB update + TTS)...");
+    if (DEBUG) console.log("[Twilio Response] Starting parallel operations (DB update + TTS)...");
     const parallelStartTime = Date.now();
     
     const [_, speechTwiml] = await Promise.all([
       // Database update (fire and forget - don't block on it)
-      supabaseAdmin
-        .from("conversations")
-        .update(updates)
-        .eq("id", conversationId)
-        .then(() => {
-          console.log(`[Twilio Response] Database update completed in ${Date.now() - parallelStartTime}ms`);
-        })
-        .catch(err => {
+      (async () => {
+        try {
+          await supabaseAdmin.from("conversations").update(updates).eq("id", conversationId);
+          if (DEBUG) console.log(`[Twilio Response] DB update done in ${Date.now() - parallelStartTime}ms`);
+        } catch (err: any) {
           console.error("[Twilio Response] Database update error (non-blocking):", err);
-        }),
+        }
+      })(),
       // TTS generation (this is what we're waiting for)
       hasOutput
-        ? generateSpeechTwiml(result.output, agentVoiceId, baseUrl)
+        ? generateSpeechTwiml(result.output!, agentVoiceId, baseUrl)
         : Promise.resolve("")
     ]);
     
     const parallelTime = Date.now() - parallelStartTime;
-    console.log(`[Twilio Response] Parallel operations (DB + TTS) completed in ${parallelTime}ms`);
+    if (DEBUG) console.log(`[Twilio Response] Parallel operations (DB + TTS) completed in ${parallelTime}ms`);
 
     // Validate URL before using
     if (!conversationId) {
@@ -544,7 +531,7 @@ export async function POST(req: NextRequest) {
     
     try {
       const testUrl = new URL(responseUrl);
-      console.log("[Twilio Response] URL validation passed:", testUrl.href);
+      if (DEBUG) console.log("[Twilio Response] URL validation passed:", testUrl.href);
     } catch (error) {
       console.error("[Twilio Response] Invalid response URL constructed:", responseUrl);
       console.error("[Twilio Response] URL validation error:", error);
@@ -559,16 +546,16 @@ export async function POST(req: NextRequest) {
       });
     }
     
-    console.log("[Twilio Response] Clean response URL:", cleanResponseUrl);
-    console.log("[Twilio Response] Escaped response URL:", escapedResponseUrl);
-    console.log("[Twilio Response] Partial callback URL:", partialCallbackUrl);
+    if (DEBUG) console.log("[Twilio Response] Clean response URL:", cleanResponseUrl);
+    if (DEBUG) console.log("[Twilio Response] Escaped response URL:", escapedResponseUrl);
+    if (DEBUG) console.log("[Twilio Response] Partial callback URL:", partialCallbackUrl);
 
     if (!result.shouldContinue) {
       // End conversation - only say something if there's configured output
-      console.log("[Twilio Response] Ending conversation...");
-      console.log("[Twilio Response] Has output:", hasOutput);
-      console.log("[Twilio Response] Output text:", result.output?.substring(0, 100));
-      console.log("[Twilio Response] Speech TwiML:", speechTwiml);
+      if (DEBUG) console.log("[Twilio Response] Ending conversation...");
+      if (DEBUG) console.log("[Twilio Response] Has output:", hasOutput);
+      if (DEBUG) console.log("[Twilio Response] Output text:", result.output?.substring(0, 100));
+      if (DEBUG) console.log("[Twilio Response] Speech TwiML:", speechTwiml);
       
       let twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>`;
@@ -582,7 +569,7 @@ export async function POST(req: NextRequest) {
   <Hangup/>
 </Response>`;
       
-      console.log("[Twilio Response] End conversation final TwiML:", twiml);
+      if (DEBUG) console.log("[Twilio Response] End conversation final TwiML:", twiml);
       
       return new NextResponse(twiml, {
         status: 200,
@@ -591,10 +578,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Continue conversation
-    console.log("[Twilio Response] Generated speech TwiML:", speechTwiml);
-    console.log("[Twilio Response] Speech TwiML length:", speechTwiml.length);
-    console.log("[Twilio Response] Generated speech TwiML:", speechTwiml);
-    console.log("[Twilio Response] Speech TwiML length:", speechTwiml.length);
+    if (DEBUG) console.log("[Twilio Response] Generated speech TwiML:", speechTwiml);
+    if (DEBUG) console.log("[Twilio Response] Speech TwiML length:", speechTwiml.length);
+    if (DEBUG) console.log("[Twilio Response] Generated speech TwiML:", speechTwiml);
+    if (DEBUG) console.log("[Twilio Response] Speech TwiML length:", speechTwiml.length);
     
     let twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>`;
@@ -611,7 +598,7 @@ export async function POST(req: NextRequest) {
   <Redirect>${escapedResponseUrl}</Redirect>
 </Response>`;
     
-    console.log("[Twilio Response] Final TwiML:", twiml);
+    if (DEBUG) console.log("[Twilio Response] Final TwiML:", twiml);
 
     return new NextResponse(twiml, {
       status: 200,

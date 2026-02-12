@@ -8,6 +8,8 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
+const DEBUG = process.env.DEBUG_VOICE === "true";
+
 // Version identifier to verify deployed code
 export const EXECUTOR_VERSION = "3.0-no-insert-catch";
 
@@ -143,7 +145,7 @@ export class AgentExecutor {
       }
 
       // Execute step based on type
-      console.log(`[AgentExecutor] 🔍 Executing step:`, {
+      if (DEBUG) console.log(`[AgentExecutor] 🔍 Executing step:`, {
         stepId: step.id,
         stepName: step.name || '(unnamed)',
         stepType: step.type,
@@ -157,15 +159,15 @@ export class AgentExecutor {
       let result: StepResult;
       switch (step.type) {
         case "say":
-          console.log(`[AgentExecutor] 📢 Executing SAY step - Will use AI generation with data sources if user input provided`);
+          if (DEBUG) console.log(`[AgentExecutor] 📢 Executing SAY step - Will use AI generation with data sources if user input provided`);
           result = await this.executeSayStep(step, userInput);
           break;
         case "gather":
-          console.log(`[AgentExecutor] 📝 Executing GATHER step - Extracts information, doesn't use data sources for answering`);
+          if (DEBUG) console.log(`[AgentExecutor] 📝 Executing GATHER step - Extracts information, doesn't use data sources for answering`);
           result = await this.executeGatherStep(step, userInput);
           break;
         case "qa":
-          console.log(`[AgentExecutor] ❓ Executing Q/A step - Uses data sources for answering questions`);
+          if (DEBUG) console.log(`[AgentExecutor] ❓ Executing Q/A step - Uses data sources for answering questions`);
           result = await this.executeQAStep(step, userInput);
           break;
         // REMOVED: case "if" - If steps are removed, use branches on Gather/Q/A instead
@@ -324,15 +326,15 @@ export class AgentExecutor {
     // The static ai_message is only used when there's NO user input (e.g., greeting)
     if (userInput && userInput.trim().length > 0) {
       // User provided input - always use AI generation with agent context (includes data sources)
-      console.log(`[Say] User input detected: "${userInput.substring(0, 100)}" - Using AI generation with data sources`);
+      if (DEBUG) console.log(`[Say] User input detected: "${userInput.substring(0, 100)}" - Using AI generation with data sources`);
       output = await this.generateAIResponse(step, userInput);
     } else if (step.ai_message && step.ai_message.trim().length > 0) {
       // No user input yet - use the configured static message (e.g., greeting)
-      console.log(`[Say] No user input - Using static message from step: "${step.ai_message.substring(0, 100)}"`);
+      if (DEBUG) console.log(`[Say] No user input - Using static message from step: "${step.ai_message.substring(0, 100)}"`);
       output = this.substituteVariables(step.ai_message.trim(), this.context.gatheredData);
     } else {
       // No user input and no message configured - generate AI response anyway
-      console.log(`[Say] No user input and no static message - Using AI generation`);
+      if (DEBUG) console.log(`[Say] No user input and no static message - Using AI generation`);
       output = await this.generateAIResponse(step, userInput || "");
     }
 
@@ -389,7 +391,7 @@ export class AgentExecutor {
     );
     
     if (looksLikeQuestion) {
-      console.log(`[Gather] User input looks like a question: "${userInput.substring(0, 100)}" - Using AI generation with data sources to answer`);
+      if (DEBUG) console.log(`[Gather] User input looks like a question: "${userInput.substring(0, 100)}" - Using AI generation with data sources to answer`);
       // Treat this as a Say step - use AI generation with data sources
       const output = await this.generateAIResponse(step, userInput);
       
@@ -519,12 +521,12 @@ export class AgentExecutor {
         }
         
         dataSources = data || [];
-        console.log(`[Q/A] Found ${dataSources.length} selected data sources for step ${step.id}:`, 
+        if (DEBUG) console.log(`[Q/A] Found ${dataSources.length} selected data sources for step ${step.id}:`, 
           dataSources.map((ds: any) => ({ id: ds.id, name: ds.name, type: ds.type, hasContent: !!ds.content }))
         );
       } else {
         // No specific data sources selected - fall back to ALL agent data sources
-        console.log("Q/A step has no selected data sources - loading ALL agent data sources");
+        if (DEBUG) console.log("Q/A step has no selected data sources - loading ALL agent data sources");
         const { data, error: dsError } = await this.supabase
           .from("agent_data_sources")
           .select("id, name, type, content, file_url, file_type, integration_type, integration_config, last_synced_at")
@@ -535,7 +537,7 @@ export class AgentExecutor {
           // Continue without data sources - will use AI-only
         } else {
           dataSources = data || [];
-          console.log(`[Q/A] Loaded ${dataSources.length} total agent data sources (no specific selection):`, 
+          if (DEBUG) console.log(`[Q/A] Loaded ${dataSources.length} total agent data sources (no specific selection):`, 
             dataSources.map((ds: any) => ({ id: ds.id, name: ds.name, type: ds.type, hasContent: !!ds.content }))
           );
         }
@@ -631,7 +633,7 @@ export class AgentExecutor {
       // Filter out nulls
       const validContents = dataSourceContents.filter(Boolean);
       
-      console.log(`[Q/A] Extracted content from ${validContents.length} of ${allDataSources.length} data sources`);
+      if (DEBUG) console.log(`[Q/A] Extracted content from ${validContents.length} of ${allDataSources.length} data sources`);
       if (validContents.length === 0) {
         console.warn(`[Q/A] No valid content found. Data sources:`, 
           allDataSources.map((ds: any) => ({ 
@@ -666,7 +668,7 @@ export class AgentExecutor {
       const cachedResponse = await this.getCachedResponse(cacheKey, this.context.agentId);
       
       if (cachedResponse) {
-        console.log(`[Q/A] Cache HIT for question: "${question.substring(0, 50)}..."`);
+        if (DEBUG) console.log(`[Q/A] Cache HIT for question: "${question.substring(0, 50)}..."`);
         const gatherStepId = await gatherStepIdPromise;
         return {
           success: true,
@@ -675,7 +677,7 @@ export class AgentExecutor {
           shouldContinue: gatherStepId !== null,
         };
       }
-      console.log(`[Q/A] Cache MISS for question: "${question.substring(0, 50)}..."`);
+      if (DEBUG) console.log(`[Q/A] Cache MISS for question: "${question.substring(0, 50)}..."`);
 
       // Use OpenAI to generate answer and check if question is answerable
       const apiKey = process.env.OPENAI_API_KEY;
@@ -799,7 +801,7 @@ Answer:`;
                     if (sentenceMatch) {
                       firstSentence = sentenceMatch[0].trim();
                       hasFirstSentence = true;
-                      console.log(`[Q/A] First sentence ready (${firstSentence.length} chars) after ${Date.now() - startTime}ms`);
+                      if (DEBUG) console.log(`[Q/A] First sentence ready (${firstSentence.length} chars) after ${Date.now() - startTime}ms`);
                     }
                   }
                 }
@@ -813,7 +815,7 @@ Answer:`;
 
       answer = answer.trim() || "I'm sorry, I couldn't find an answer to that question. Is there anything else I can help with?";
       const apiTime = Date.now() - startTime;
-      console.log(`[Q/A] OpenAI streaming completed in ${apiTime}ms, total length: ${answer.length} chars`);
+      if (DEBUG) console.log(`[Q/A] OpenAI streaming completed in ${apiTime}ms, total length: ${answer.length} chars`);
       
       // Ensure answer ends with a question (AI should include it, but add fallback if needed)
       if (!answer.match(/[?！？]$/)) {
@@ -966,7 +968,7 @@ Answer:`;
       if (!appointmentInfo.success) {
         return {
           success: false,
-          output: appointmentInfo.error || "I couldn't extract the appointment details. Could you please provide the date, time, and service type?",
+          output: appointmentInfo.error || "I'd be happy to schedule that for you. Could you tell me your preferred date, time, and what the appointment is for?",
           shouldContinue: true, // Continue to gather more info
         };
       }
@@ -1043,6 +1045,7 @@ Answer:`;
       console.error("Schedule step error:", error);
       return {
         success: false,
+        output: "I'm sorry, I ran into a problem scheduling your appointment. Could you please try again or suggest a different time?",
         error: error.message || "Failed to schedule appointment",
         shouldContinue: true, // Continue to allow retry
       };
@@ -1056,17 +1059,14 @@ Answer:`;
     try {
       const gatheredData = this.context.gatheredData || {};
       
-      // Get date from gathered data or use today's date
+      // Get date from gathered data, user input, or use today's date
       let checkDate: string;
-      if (gatheredData.appointment_date || gatheredData.desired_date) {
-        const dateValue = gatheredData.appointment_date || gatheredData.desired_date;
-        // If it's already a date string, use it; otherwise try to parse it
-        try {
-          const date = new Date(dateValue);
-          checkDate = date.toISOString().split("T")[0];
-        } catch {
-          checkDate = new Date().toISOString().split("T")[0];
-        }
+      const dateValue = gatheredData.appointment_date || gatheredData.desired_date || userInput;
+      
+      if (dateValue) {
+        // Try AI extraction for natural language dates like "next Monday", "tomorrow"
+        const parsedDate = await this.parseDateFromInput(dateValue);
+        checkDate = parsedDate || new Date().toISOString().split("T")[0];
       } else {
         checkDate = new Date().toISOString().split("T")[0];
       }
@@ -1149,6 +1149,7 @@ Answer:`;
       console.error("Check Schedule step error:", error);
       return {
         success: false,
+        output: "I'm sorry, I couldn't check the schedule right now. Would you like to suggest a date and time and I'll do my best to book it for you?",
         error: error.message || "Failed to check schedule",
         shouldContinue: true,
       };
@@ -1281,6 +1282,44 @@ If critical information is missing (especially scheduledAt or serviceType), set 
   }
 
   /**
+   * Parse a natural language date input into YYYY-MM-DD format
+   */
+  private async parseDateFromInput(input: string): Promise<string | null> {
+    // Try direct parse first
+    const direct = new Date(input);
+    if (!isNaN(direct.getTime()) && input.match(/\d{4}-\d{2}-\d{2}/)) {
+      return input.split("T")[0];
+    }
+
+    // Use AI for natural language (e.g., "next Monday", "tomorrow")
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) return null;
+
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content: `Today is ${today}. Convert the user's date reference to YYYY-MM-DD format. Return ONLY the date string, nothing else. If no date can be parsed, return "${today}".` },
+            { role: "user", content: input },
+          ],
+          temperature: 0,
+          max_tokens: 20,
+        }),
+      });
+      if (!response.ok) return null;
+      const data = await response.json();
+      const dateStr = data.choices?.[0]?.message?.content?.trim();
+      if (dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+    } catch { /* fall through */ }
+
+    return null;
+  }
+
+  /**
    * Generate AI response using OpenAI
    */
   private async generateAIResponse(step: any, userInput: string): Promise<string> {
@@ -1296,16 +1335,16 @@ If critical information is missing (especially scheduledAt or serviceType), set 
     
     const cachedResponse = await this.getCachedResponse(cacheKey, this.context.agentId);
     if (cachedResponse) {
-      console.log(`[Say] Cache HIT for step ${step.id}`);
+      if (DEBUG) console.log(`[Say] Cache HIT for step ${step.id}`);
       return cachedResponse;
     }
-    console.log(`[Say] Cache MISS for step ${step.id}`);
+    if (DEBUG) console.log(`[Say] Cache MISS for step ${step.id}`);
 
     // Load agent context (policies, data sources, personalization)
-    console.log(`[Say] generateAIResponse - Loading agent context for agent: ${this.context.agentId}`);
+    if (DEBUG) console.log(`[Say] generateAIResponse - Loading agent context for agent: ${this.context.agentId}`);
     const agentContext = await this.loadAgentContext();
     
-    console.log(`[Say] ✅ Agent context loaded:`, {
+    if (DEBUG) console.log(`[Say] ✅ Agent context loaded:`, {
       agentId: this.context.agentId,
       dataSourcesCount: agentContext.dataSources?.length || 0,
       policiesCount: agentContext.policies?.length || 0,
@@ -1326,9 +1365,9 @@ If critical information is missing (especially scheduledAt or serviceType), set 
     }
 
     // Build prompt
-    console.log(`[Say] Building system prompt with agent context...`);
+    if (DEBUG) console.log(`[Say] Building system prompt with agent context...`);
     const systemPrompt = this.buildSystemPrompt(agentContext);
-    console.log(`[Say] ✅ System prompt built:`, {
+    if (DEBUG) console.log(`[Say] ✅ System prompt built:`, {
       promptLength: systemPrompt.length,
       includesKnowledgeBase: systemPrompt.includes('Knowledge Base'),
       includesDataSources: systemPrompt.includes('[Data Source]') || systemPrompt.includes('[File]'),
@@ -1339,11 +1378,11 @@ If critical information is missing (especially scheduledAt or serviceType), set 
     });
     
     const userPrompt = this.buildUserPrompt(step, userInput, agentContext);
-    console.log(`[Say] User prompt: "${userPrompt.substring(0, 200)}"`);
+    if (DEBUG) console.log(`[Say] User prompt: "${userPrompt.substring(0, 200)}"`);
     
     // Log the FULL prompt being sent to OpenAI (truncated for logs)
     const fullPrompt = `SYSTEM: ${systemPrompt.substring(0, 500)}...\nUSER: ${userPrompt.substring(0, 200)}`;
-    console.log(`[Say] 📤 Full prompt being sent to OpenAI (truncated):`, fullPrompt);
+    if (DEBUG) console.log(`[Say] 📤 Full prompt being sent to OpenAI (truncated):`, fullPrompt);
 
     // OPTIMIZATION: Reduce tokens and temperature for faster responses
     // Also reduce transcript history to minimize context size
@@ -1376,7 +1415,7 @@ If critical information is missing (especially scheduledAt or serviceType), set 
     const data = await response.json();
     const aiResponse = data.choices[0]?.message?.content || "I'm sorry, I couldn't generate a response.";
     
-    console.log(`[Say] ✅ AI response generated:`, {
+    if (DEBUG) console.log(`[Say] ✅ AI response generated:`, {
       responseLength: aiResponse.length,
       responsePreview: aiResponse.substring(0, 300),
       tokensUsed: data.usage?.total_tokens || 'unknown',
@@ -1501,11 +1540,11 @@ Answer:`;
    */
   private async loadStep(stepId: string | null): Promise<any> {
     if (!stepId) {
-      console.log("[AgentExecutor] loadStep called with null stepId - will use AI fallback");
+      if (DEBUG) console.log("[AgentExecutor] loadStep called with null stepId - will use AI fallback");
       return null;
     }
 
-    console.log("[AgentExecutor] Loading step:", {
+    if (DEBUG) console.log("[AgentExecutor] Loading step:", {
       stepId: stepId,
       scenarioId: this.context.scenarioId,
       agentId: this.context.agentId,
@@ -1534,7 +1573,7 @@ Answer:`;
       return null;
     }
 
-    console.log("[AgentExecutor] Step loaded successfully:", {
+    if (DEBUG) console.log("[AgentExecutor] Step loaded successfully:", {
       stepId: data.id,
       stepName: data.name,
       stepType: data.type,
@@ -1687,7 +1726,7 @@ Answer:`;
    * Load agent context (policies, data sources, personalization)
    */
   private async loadAgentContext(): Promise<any> {
-    console.log(`[AgentExecutor] Loading agent context for agent: ${this.context.agentId}`);
+    if (DEBUG) console.log(`[AgentExecutor] Loading agent context for agent: ${this.context.agentId}`);
     
     const [policies, dataSources, personalization] = await Promise.all([
       this.supabase.from("agent_policies").select("*").eq("agent_id", this.context.agentId),
@@ -1695,7 +1734,7 @@ Answer:`;
       this.supabase.from("agent_personalization").select("*").eq("agent_id", this.context.agentId).maybeSingle(),
     ]);
 
-    console.log("[AgentExecutor] ✅ Context loaded:", {
+    if (DEBUG) console.log("[AgentExecutor] ✅ Context loaded:", {
       agentId: this.context.agentId,
       policiesCount: policies.data?.length || 0,
       policiesError: policies.error?.message || null,
@@ -1714,7 +1753,7 @@ Answer:`;
       console.warn(`[AgentExecutor] This means the AI won't have access to your knowledge base.`);
       console.warn(`[AgentExecutor] Check that data sources are properly configured for this agent.`);
     } else {
-      console.log(`[AgentExecutor] ✅ Found ${dataSources.data.length} data source(s):`, 
+      if (DEBUG) console.log(`[AgentExecutor] ✅ Found ${dataSources.data.length} data source(s):`, 
         dataSources.data.map((ds: any) => ({
           id: ds.id,
           name: ds.name,
@@ -1793,7 +1832,7 @@ Answer:`;
         }
       });
       parts.push(""); // Add spacing
-      console.log(`[AgentExecutor] Added ${agentContext.dataSources.length} data sources to system prompt for agent ${this.context.agentId}`);
+      if (DEBUG) console.log(`[AgentExecutor] Added ${agentContext.dataSources.length} data sources to system prompt for agent ${this.context.agentId}`);
     } else {
       console.warn("[AgentExecutor] No data sources found for agent:", this.context.agentId);
       console.warn("[AgentExecutor] Agent will not have company/service information available");
