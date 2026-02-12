@@ -17,8 +17,8 @@ import {
   Maximize2,
 } from "lucide-react";
 
-// Configure PDF.js worker
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+// Configure PDF.js worker (serve from our domain to avoid CDN/CSP resolution issues)
+pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
 export type AnnotationType = "highlight" | "comment" | "tag" | "table";
 

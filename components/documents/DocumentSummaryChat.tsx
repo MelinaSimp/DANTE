@@ -67,7 +67,10 @@ export default function DocumentSummaryChat({
   /** Ensure pdf.js worker is configured (required when PdfViewerWithAnnotations isn't mounted). */
   function ensurePdfWorker(pdfjs: typeof import("react-pdf").pdfjs) {
     if (!pdfjs.GlobalWorkerOptions.workerSrc) {
-      pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+      pdfjs.GlobalWorkerOptions.workerSrc =
+        typeof window !== "undefined"
+          ? `${window.location.origin}/pdf.worker.min.mjs`
+          : "/pdf.worker.min.mjs";
     }
   }
 
