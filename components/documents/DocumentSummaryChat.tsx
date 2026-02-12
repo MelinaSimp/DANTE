@@ -51,13 +51,23 @@ export default function DocumentSummaryChat({
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  /** Resolve PDF URL: use proxy for Supabase storage URLs to avoid CORS. */
+  function getPdfLoadUrl(url: string): string {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+    if (supabaseUrl && url.startsWith(supabaseUrl.replace(/\/$/, "") + "/storage/")) {
+      return `/api/documents/proxy-pdf?url=${encodeURIComponent(url)}`;
+    }
+    return url;
+  }
+
   /** Extract text from PDF pages using pdf.js getTextContent. */
   async function extractTextFromPdfPages(
     url: string,
     pageNumbers: number[]
   ): Promise<string> {
     const pdfjs = (await import("react-pdf")).pdfjs;
-    const pdf = await pdfjs.getDocument(url).promise;
+    const loadUrl = getPdfLoadUrl(url);
+    const pdf = await pdfjs.getDocument(loadUrl).promise;
     const parts: string[] = [];
     for (const pageNum of pageNumbers) {
       const page = await pdf.getPage(pageNum);
@@ -76,7 +86,8 @@ export default function DocumentSummaryChat({
     pageNumbers: number[]
   ): Promise<{ imageBase64: string; type: string; name: string }[]> {
     const pdfjs = (await import("react-pdf")).pdfjs;
-    const pdf = await pdfjs.getDocument(url).promise;
+    const loadUrl = getPdfLoadUrl(url);
+    const pdf = await pdfjs.getDocument(loadUrl).promise;
     const out: { imageBase64: string; type: string; name: string }[] = [];
     for (const pageNum of pageNumbers) {
       const page = await pdf.getPage(pageNum);
