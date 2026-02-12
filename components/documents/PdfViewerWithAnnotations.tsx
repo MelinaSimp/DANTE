@@ -37,7 +37,7 @@ interface PdfViewerWithAnnotationsProps {
   fileUrl: string;
   fileName: string;
   annotations: Annotation[];
-  onAnnotationsChange: (annotations: Annotation[]) => void;
+  onAnnotationsChange: (annotations: Annotation[] | ((prev: Annotation[]) => Annotation[])) => void;
   readOnly?: boolean;
   /** Called when the PDF fails to load (e.g. expired URL). Parent can refetch and pass a new fileUrl. */
   onLoadError?: () => void;
@@ -166,7 +166,7 @@ export default function PdfViewerWithAnnotations({
       if (!res.ok) {
         throw new Error(data.error || "Failed to save annotation");
       }
-      onAnnotationsChange([...annotations, data]);
+      onAnnotationsChange((prev) => [...prev, data]);
       return true;
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to save";
@@ -194,7 +194,7 @@ export default function PdfViewerWithAnnotations({
         method: "DELETE",
       });
       if (!res.ok) throw new Error("Failed to delete");
-      onAnnotationsChange(annotations.filter((a) => a.id !== id));
+      onAnnotationsChange((prev) => prev.filter((a) => a.id !== id));
     } catch (err) {
       console.error(err);
     }

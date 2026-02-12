@@ -365,6 +365,7 @@ export default function ClientDetailsOverviewClient({
     setEditingTemplate(null);
     setUseTemplateMode(false);
     if (t.document_id === document?.id) {
+      if (selected?.type === "client") await loadDocument(selected.id);
       setEditingTemplateAnnotations(t);
       setTemplateDocForEdit(null);
       setTemplateAnnotationsForEdit([]);
@@ -1031,14 +1032,37 @@ export default function ClientDetailsOverviewClient({
                         Done
                       </button>
                     </div>
-                    <div className="h-[600px] p-4">
-                      <PdfViewerWithAnnotations
-                        documentId={templateDocForEdit.id}
-                        fileUrl={templateDocForEdit.url}
-                        fileName={templateDocForEdit.file_name}
-                        annotations={templateAnnotationsForEdit}
-                        onAnnotationsChange={setTemplateAnnotationsForEdit}
-                      />
+                    <div className="flex h-[600px]">
+                      <div className="flex-1 min-w-0 border-r border-[#e5e7eb]">
+                        <PdfViewerWithAnnotations
+                          documentId={templateDocForEdit.id}
+                          fileUrl={templateDocForEdit.url}
+                          fileName={templateDocForEdit.file_name}
+                          annotations={templateAnnotationsForEdit}
+                          onAnnotationsChange={setTemplateAnnotationsForEdit}
+                        />
+                      </div>
+                      <div className="w-[280px] shrink-0 flex flex-col bg-[#f9fafb] p-4 overflow-y-auto">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-[#6b7280] mb-2">
+                          Annotations & comments
+                        </p>
+                        {templateAnnotationsForEdit.length === 0 ? (
+                          <p className="text-sm text-[#6b7280]">
+                            Draw a box or highlight on the PDF, then add a comment.
+                          </p>
+                        ) : (
+                          templateAnnotationsForEdit
+                            .sort((a, b) => (a.page_number - b.page_number) || ((a.created_at || "").localeCompare(b.created_at || "")))
+                            .map((ann) => (
+                              <div key={ann.id} className="mb-2">
+                                <div className="rounded-xl px-3 py-2 text-sm bg-blue-600 text-white">
+                                  <div className="text-xs opacity-90">Page {ann.page_number}</div>
+                                  <div className="mt-0.5 whitespace-pre-wrap">{ann.content || ann.type}</div>
+                                </div>
+                              </div>
+                            ))
+                        )}
+                      </div>
                     </div>
                   </div>
                 ) : (
