@@ -59,14 +59,29 @@ export async function PUT(
       );
     }
 
-    // Use admin client with explicit workspace filter to avoid RLS PGRST116 when update policy is missing
+    // Verify template exists and user's workspace matches
+    const { data: existing } = await supabaseAdmin
+      .from("client_templates")
+      .select("id, workspace_id")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (!existing) {
+      return NextResponse.json({ error: "Template not found" }, { status: 404 });
+    }
+    if (existing.workspace_id !== profile.workspace_id) {
+      return NextResponse.json(
+        { error: "You don't have access to update this template" },
+        { status: 403 }
+      );
+    }
+
     const { data: template, error } = await supabaseAdmin
       .from("client_templates")
       .update(updates)
       .eq("id", id)
-      .eq("workspace_id", profile.workspace_id)
       .select("id, name, document_id, annotated_page_numbers, created_at")
-      .maybeSingle();
+      .single();
 
     if (error) {
       console.error("Client template update error:", error);
@@ -74,10 +89,6 @@ export async function PUT(
         { error: error.message },
         { status: 500 }
       );
-    }
-
-    if (!template) {
-      return NextResponse.json({ error: "Template not found" }, { status: 404 });
     }
 
     return NextResponse.json({ template });

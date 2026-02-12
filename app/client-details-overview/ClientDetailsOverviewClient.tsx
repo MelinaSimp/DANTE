@@ -399,20 +399,21 @@ export default function ClientDetailsOverviewClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ annotatedPageNumbers: pageNumbers }),
       });
-      if (!res.ok) throw new Error("Failed to update");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Failed to update template");
       setTemplates((prev) =>
         prev.map((p) => (p.id === t.id ? { ...p, annotated_page_numbers: pageNumbers } : p))
       );
       if (selectedTemplate?.id === t.id) {
         setSelectedTemplate({ ...selectedTemplate, annotated_page_numbers: pageNumbers });
       }
+      setEditingTemplateAnnotations(null);
+      setTemplateDocForEdit(null);
+      setTemplateAnnotationsForEdit([]);
+      if (selected?.type === "client") loadTemplates(selected.id);
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to update template.");
     }
-    setEditingTemplateAnnotations(null);
-    setTemplateDocForEdit(null);
-    setTemplateAnnotationsForEdit([]);
-    if (selected?.type === "client") loadTemplates(selected.id);
   };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
