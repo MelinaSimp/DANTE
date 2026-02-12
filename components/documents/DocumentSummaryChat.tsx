@@ -64,12 +64,20 @@ export default function DocumentSummaryChat({
     return url;
   }
 
+  /** Ensure pdf.js worker is configured (required when PdfViewerWithAnnotations isn't mounted). */
+  function ensurePdfWorker(pdfjs: typeof import("react-pdf").pdfjs) {
+    if (!pdfjs.GlobalWorkerOptions.workerSrc) {
+      pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+    }
+  }
+
   /** Extract text from PDF pages using pdf.js getTextContent. */
   async function extractTextFromPdfPages(
     url: string,
     pageNumbers: number[]
   ): Promise<string> {
-    const pdfjs = (await import("react-pdf")).pdfjs;
+    const { pdfjs } = await import("react-pdf");
+    ensurePdfWorker(pdfjs);
     const loadUrl = getPdfLoadUrl(url);
     const pdf = await pdfjs.getDocument(loadUrl).promise;
     const parts: string[] = [];
@@ -89,7 +97,8 @@ export default function DocumentSummaryChat({
     url: string,
     pageNumbers: number[]
   ): Promise<{ imageBase64: string; type: string; name: string }[]> {
-    const pdfjs = (await import("react-pdf")).pdfjs;
+    const { pdfjs } = await import("react-pdf");
+    ensurePdfWorker(pdfjs);
     const loadUrl = getPdfLoadUrl(url);
     const pdf = await pdfjs.getDocument(loadUrl).promise;
     const out: { imageBase64: string; type: string; name: string }[] = [];
