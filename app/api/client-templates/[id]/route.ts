@@ -23,16 +23,6 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("workspace_id")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (!profile?.workspace_id) {
-      return NextResponse.json({ error: "No workspace found" }, { status: 400 });
-    }
-
     const { id } = await params;
     if (!id) {
       return NextResponse.json({ error: "Template ID required" }, { status: 400 });
@@ -59,29 +49,24 @@ export async function PUT(
       );
     }
 
-    // Verify template exists and user's workspace matches
-    const { data: existing } = await supabaseAdmin
+    // Verify user can access this template (RLS SELECT allows read if in workspace)
+    const { data: existing } = await supabase
       .from("client_templates")
-      .select("id, workspace_id")
+      .select("id")
       .eq("id", id)
       .maybeSingle();
 
     if (!existing) {
-      return NextResponse.json({ error: "Template not found" }, { status: 404 });
-    }
-    if (existing.workspace_id !== profile.workspace_id) {
-      return NextResponse.json(
-        { error: "You don't have access to update this template" },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: "Template not found or access denied" }, { status: 404 });
     }
 
+    // Use admin to update (bypass RLS - we already verified access above)
     const { data: template, error } = await supabaseAdmin
       .from("client_templates")
       .update(updates)
       .eq("id", id)
       .select("id, name, document_id, annotated_page_numbers, created_at")
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error("Client template update error:", error);
@@ -89,6 +74,10 @@ export async function PUT(
         { error: error.message },
         { status: 500 }
       );
+    }
+
+    if (!template) {
+      return NextResponse.json({ error: "Template not found" }, { status: 404 });
     }
 
     return NextResponse.json({ template });
@@ -119,26 +108,26 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("workspace_id")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (!profile?.workspace_id) {
-      return NextResponse.json({ error: "No workspace found" }, { status: 400 });
-    }
-
     const { id } = await params;
     if (!id) {
       return NextResponse.json({ error: "Template ID required" }, { status: 400 });
     }
 
+    // Verify user can access this template (RLS SELECT allows read if in workspace)
+    const { data: existing } = await supabase
+      .from("client_templates")
+      .select("id")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (!existing) {
+      return NextResponse.json({ error: "Template not found or access denied" }, { status: 404 });
+    }
+
     const { error } = await supabaseAdmin
       .from("client_templates")
       .delete()
-      .eq("id", id)
-      .eq("workspace_id", profile.workspace_id);
+      .eq("id", id);
 
     if (error) {
       console.error("Client template delete error:", error);
