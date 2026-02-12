@@ -108,6 +108,11 @@ export default function ClientDetailsOverviewClient({
   const [editTemplateName, setEditTemplateName] = useState("");
   const [editTemplateLoading, setEditTemplateLoading] = useState(false);
   const [editTemplateError, setEditTemplateError] = useState<string | null>(null);
+  // Edit template annotations mode (show banner + Done)
+  const [editingTemplateAnnotations, setEditingTemplateAnnotations] = useState<ClientTemplate | null>(null);
+  // When template's document differs from current: fetch and show in overlay
+  const [templateDocForEdit, setTemplateDocForEdit] = useState<{ id: string; file_name: string; url: string } | null>(null);
+  const [templateAnnotationsForEdit, setTemplateAnnotationsForEdit] = useState<Annotation[]>([]);
 
   useEffect(() => {
     setContacts(initialContacts);
@@ -162,6 +167,9 @@ export default function ClientDetailsOverviewClient({
     setSelectedTemplate(null);
     setUseTemplateMode(false);
     setDocumentToAnalyzeUrl(null);
+    setEditingTemplateAnnotations(null);
+    setTemplateDocForEdit(null);
+    setTemplateAnnotationsForEdit([]);
   }, [selected?.type, selected?.id ?? "", loadDocument, loadTemplates]);
 
   // Reset template prompt when document changes so we can ask again for the new doc
@@ -351,6 +359,59 @@ export default function ClientDetailsOverviewClient({
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to delete template.");
     }
+  };
+
+  const openEditTemplateAnnotations = async (t: ClientTemplate) => {
+    setEditingTemplate(null);
+    setUseTemplateMode(false);
+    if (t.document_id === document?.id) {
+      setEditingTemplateAnnotations(t);
+      setTemplateDocForEdit(null);
+      setTemplateAnnotationsForEdit([]);
+      return;
+    }
+    try {
+      const docRes = await fetch(`/api/documents/${t.document_id}`);
+      const docData = await docRes.json().catch(() => ({}));
+      if (!docRes.ok || !docData.url) {
+        alert("Could not load the template's document. It may have been replaced or deleted.");
+        return;
+      }
+      const annRes = await fetch(`/api/documents/annotations?documentId=${t.document_id}`);
+      const annData = await annRes.json().catch(() => ({}));
+      setTemplateDocForEdit({ id: docData.id, file_name: docData.file_name || "Template PDF", url: docData.url });
+      setTemplateAnnotationsForEdit(annData.annotations ?? []);
+      setEditingTemplateAnnotations(t);
+    } catch (err) {
+      alert("Failed to load template document.");
+    }
+  };
+
+  const handleDoneEditingTemplateAnnotations = async () => {
+    const t = editingTemplateAnnotations;
+    if (!t) return;
+    const anns = templateDocForEdit ? templateAnnotationsForEdit : annotations;
+    const pageNumbers = [...new Set(anns.map((a) => a.page_number))].sort((a, b) => a - b);
+    try {
+      const res = await fetch(`/api/client-templates/${t.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ annotatedPageNumbers: pageNumbers }),
+      });
+      if (!res.ok) throw new Error("Failed to update");
+      setTemplates((prev) =>
+        prev.map((p) => (p.id === t.id ? { ...p, annotated_page_numbers: pageNumbers } : p))
+      );
+      if (selectedTemplate?.id === t.id) {
+        setSelectedTemplate({ ...selectedTemplate, annotated_page_numbers: pageNumbers });
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to update template.");
+    }
+    setEditingTemplateAnnotations(null);
+    setTemplateDocForEdit(null);
+    setTemplateAnnotationsForEdit([]);
+    if (selected?.type === "client") loadTemplates(selected.id);
   };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -956,8 +1017,46 @@ export default function ClientDetailsOverviewClient({
                       </div>
                     </div>
                   </div>
+                ) : editingTemplateAnnotations && templateDocForEdit ? (
+                  <div className="rounded-xl border border-[#e5e7eb] bg-white overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2 border-b border-[#e5e7eb] bg-blue-50">
+                      <span className="text-sm font-medium text-[#1e40af]">
+                        Editing annotations for template: {editingTemplateAnnotations.name}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleDoneEditingTemplateAnnotations}
+                        className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                      >
+                        Done
+                      </button>
+                    </div>
+                    <div className="h-[600px] p-4">
+                      <PdfViewerWithAnnotations
+                        documentId={templateDocForEdit.id}
+                        fileUrl={templateDocForEdit.url}
+                        fileName={templateDocForEdit.file_name}
+                        annotations={templateAnnotationsForEdit}
+                        onAnnotationsChange={setTemplateAnnotationsForEdit}
+                      />
+                    </div>
+                  </div>
                 ) : (
                   <div className="rounded-xl border border-[#e5e7eb] bg-white overflow-hidden">
+                    {editingTemplateAnnotations && editingTemplateAnnotations.document_id === document.id && (
+                      <div className="flex items-center justify-between px-4 py-2 border-b border-blue-200 bg-blue-50">
+                        <span className="text-sm font-medium text-[#1e40af]">
+                          Editing annotations for template: {editingTemplateAnnotations.name}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleDoneEditingTemplateAnnotations}
+                          className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                        >
+                          Done
+                        </button>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between px-4 py-2 border-b border-[#e5e7eb] bg-[#f9fafb]">
                       <span className="text-sm font-medium text-[#374151]">{document.file_name}</span>
                       <div className="flex items-center gap-2">
@@ -1477,7 +1576,7 @@ export default function ClientDetailsOverviewClient({
                 <X className="h-5 w-5 text-[#6b7280]" />
               </button>
             </div>
-            <p className="text-sm text-[#6b7280] mb-4">Change the template name.</p>
+            <p className="text-sm text-[#6b7280] mb-4">Change the template name or edit its annotations.</p>
             <form onSubmit={handleEditTemplateSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-[#374151] mb-1">Template name</label>
@@ -1488,6 +1587,16 @@ export default function ClientDetailsOverviewClient({
                   className="w-full rounded-xl border border-[#e5e7eb] bg-[#ffffff] px-4 py-2.5 text-[#151515] focus:border-[#3166bf] focus:outline-none focus:ring-1 focus:ring-[#3166bf]"
                   required
                 />
+              </div>
+              <div className="pt-2 border-t border-[#e5e7eb]">
+                <p className="text-xs text-[#6b7280] mb-2">Annotations (highlights, tables, comments) define what the template extracts from documents.</p>
+                <button
+                  type="button"
+                  onClick={() => editingTemplate && openEditTemplateAnnotations(editingTemplate)}
+                  className="w-full rounded-xl border border-[#3166bf] bg-white px-4 py-2.5 text-sm font-medium text-[#3166bf] hover:bg-blue-50"
+                >
+                  Edit annotations in PDF
+                </button>
               </div>
               {editTemplateError && (
                 <p className="text-sm text-red-600">{editTemplateError}</p>
