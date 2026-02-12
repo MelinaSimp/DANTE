@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,16 @@ export async function PUT(
 
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("workspace_id")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (!profile?.workspace_id) {
+      return NextResponse.json({ error: "No workspace found" }, { status: 400 });
     }
 
     const { id } = await params;
@@ -48,12 +59,14 @@ export async function PUT(
       );
     }
 
-    const { data: template, error } = await supabase
+    // Use admin client with explicit workspace filter to avoid RLS PGRST116 when update policy is missing
+    const { data: template, error } = await supabaseAdmin
       .from("client_templates")
       .update(updates)
       .eq("id", id)
+      .eq("workspace_id", profile.workspace_id)
       .select("id, name, document_id, annotated_page_numbers, created_at")
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error("Client template update error:", error);
@@ -95,15 +108,26 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("workspace_id")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (!profile?.workspace_id) {
+      return NextResponse.json({ error: "No workspace found" }, { status: 400 });
+    }
+
     const { id } = await params;
     if (!id) {
       return NextResponse.json({ error: "Template ID required" }, { status: 400 });
     }
 
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from("client_templates")
       .delete()
-      .eq("id", id);
+      .eq("id", id)
+      .eq("workspace_id", profile.workspace_id);
 
     if (error) {
       console.error("Client template delete error:", error);
