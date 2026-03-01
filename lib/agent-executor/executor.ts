@@ -64,68 +64,9 @@ export class AgentExecutor {
       // Load current step
       const step = await this.loadStep(this.context.currentStepId);
       if (!step) {
-        // If no step configured, use AI to generate a response
+        // If no step configured, use AI with full context (instructions, data sources, function calling)
         if (!this.context.currentStepId) {
-          // Get agent info for context
-          const { data: agent } = await this.supabase
-            .from("agents")
-            .select("name, description")
-            .eq("id", this.context.agentId)
-            .single();
-
-          const agentName = agent?.name || "AI Assistant";
-          const agentDesc = agent?.description || "";
-
-          // Use OpenAI to generate a response
-          const apiKey = process.env.OPENAI_API_KEY;
-          if (apiKey) {
-            try {
-              const response = await fetch("https://api.openai.com/v1/chat/completions", {
-                method: "POST",
-                headers: {
-                  Authorization: `Bearer ${apiKey}`,
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  model: "gpt-4o-mini",
-                  messages: [
-                    {
-                      role: "system",
-                      content: `You are ${agentName}. ${agentDesc || "You are a helpful AI assistant."} Be friendly and concise.`,
-                    },
-                    ...this.context.transcript.slice(-3).map((msg: any) => ({
-                      role: msg.role,
-                      content: msg.content.substring(0, 200), // Limit each message to 200 chars
-                    })),
-                    { role: "user", content: userInput },
-                  ],
-                  temperature: 0.2, // Lower temperature = faster responses
-                  max_tokens: 80, // Further reduced for faster generation
-                }),
-              });
-
-              if (response.ok) {
-                const data = await response.json();
-                const aiResponse = data.choices[0]?.message?.content || "Hello! How can I help you today?";
-                return {
-                  success: true,
-                  output: aiResponse,
-                  nextStepId: null,
-                  shouldContinue: false,
-                };
-              }
-            } catch (error) {
-              console.error("AI generation error:", error);
-            }
-          }
-
-          // Fallback if AI generation fails
-          return {
-            success: true,
-            output: "Hello! I'm your AI assistant. How can I help you today?",
-            nextStepId: null,
-            shouldContinue: false,
-          };
+          return await this.executeInstructionsMode(userInput);
         }
         return {
           success: false,
@@ -1151,6 +1092,288 @@ Answer:`;
         success: false,
         output: "I'm sorry, I couldn't check the schedule right now. Would you like to suggest a date and time and I'll do my best to book it for you?",
         error: error.message || "Failed to check schedule",
+        shouldContinue: true,
+      };
+    }
+  }
+
+  /**
+   * Execute "instructions mode" — no scenario steps, just llm_instructions + data sources + function calling.
+   * This powers agents like "Sparda" that use Rules & Instructions instead of a step-by-step canvas.
+   */
+  private async executeInstructionsMode(userInput: string): Promise<StepResult> {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      return {
+        success: true,
+        output: "I'm sorry, I'm not properly configured right now. Please try again later.",
+        shouldContinue: false,
+      };
+    }
+
+    try {
+      // 1. Load agent info including llm_instructions
+      const { data: agent } = await this.supabase
+        .from("agents")
+        .select("id, name, description, llm_instructions")
+        .eq("id", this.context.agentId)
+        .single();
+
+      const agentName = agent?.name || "AI Assistant";
+      const agentInstructions = (agent as any)?.llm_instructions?.trim() || "";
+
+      // 2. Load full agent context (data sources, policies, personalization)
+      const agentContext = await this.loadAgentContext();
+
+      // 3. Build knowledge base from data sources
+      let knowledgeBase = "";
+      if (agentContext.dataSources && agentContext.dataSources.length > 0) {
+        knowledgeBase = agentContext.dataSources
+          .slice(0, 10)
+          .map((ds: any) => {
+            if (ds.content) {
+              const truncated = ds.content.length > 1500 ? ds.content.substring(0, 1500) + "..." : ds.content;
+              return `[${ds.name || "Data Source"}]\n${truncated}`;
+            }
+            return null;
+          })
+          .filter(Boolean)
+          .join("\n\n");
+      }
+
+      // 4. Build system prompt: prefer llm_instructions, fall back to description
+      let systemPrompt = "";
+      if (agentInstructions) {
+        systemPrompt = agentInstructions;
+      } else {
+        systemPrompt = `You are ${agentName}. ${agent?.description || "You are a helpful AI assistant."}`;
+      }
+
+      // Append knowledge base
+      if (knowledgeBase) {
+        systemPrompt += `\n\nKNOWLEDGE BASE (use this to answer questions):\n${knowledgeBase}\n\nIMPORTANT: Use ONLY information from the Knowledge Base above when answering factual questions. If the Knowledge Base doesn't have the answer, say "I don't have that information in my knowledge base."`;
+      }
+
+      // Append scheduling capability notice
+      systemPrompt += `\n\nSCHEDULING CAPABILITIES:
+You can schedule appointments and check availability. When a caller wants to schedule a meeting or appointment:
+1. Ask for their name if you don't have it.
+2. Ask what date and time they'd prefer.
+3. Use the check_availability function to see open slots.
+4. Use the schedule_appointment function to book the appointment.
+Keep responses short and natural for voice (1-3 sentences).`;
+
+      // 5. Define function calling tools
+      const functions = [
+        {
+          name: "schedule_appointment",
+          description: "Schedule an appointment for the caller",
+          parameters: {
+            type: "object",
+            properties: {
+              contactName: { type: "string", description: "The caller's name" },
+              scheduledAt: { type: "string", description: "Date and time in ISO 8601 format (YYYY-MM-DDTHH:MM:SS)" },
+              serviceType: { type: "string", description: "Type of service or appointment (e.g., 'Consultation', 'Meeting')" },
+              durationMinutes: { type: "number", description: "Duration in minutes (default: 60)" },
+              notes: { type: "string", description: "Additional notes about the appointment" },
+            },
+            required: ["scheduledAt", "serviceType"],
+          },
+        },
+        {
+          name: "check_availability",
+          description: "Check available appointment time slots for a specific date",
+          parameters: {
+            type: "object",
+            properties: {
+              date: { type: "string", description: "Date in YYYY-MM-DD format" },
+              durationMinutes: { type: "number", description: "Duration in minutes (default: 60)" },
+            },
+            required: ["date"],
+          },
+        },
+      ];
+
+      // 6. Prepare messages
+      const messages: any[] = [
+        { role: "system", content: systemPrompt },
+        ...this.context.transcript.slice(-6).map((msg: any) => ({
+          role: msg.role,
+          content: msg.content.substring(0, 500),
+        })),
+        { role: "user", content: userInput || "Hello" },
+      ];
+
+      // 7. Call OpenAI with function calling
+      if (DEBUG) console.log(`[InstructionsMode] Calling OpenAI with ${messages.length} messages, system prompt length: ${systemPrompt.length}`);
+
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages,
+          functions,
+          function_call: "auto",
+          temperature: 0.3,
+          max_tokens: 200,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        console.error("[InstructionsMode] OpenAI error:", error);
+        return {
+          success: true,
+          output: "I'm sorry, I'm having trouble right now. How can I help you?",
+          shouldContinue: true,
+        };
+      }
+
+      const data = await response.json();
+      const assistantMessage = data.choices[0]?.message;
+
+      // 8. Handle function calls (scheduling)
+      if (assistantMessage?.function_call) {
+        const functionName = assistantMessage.function_call.name;
+        const functionArgs = JSON.parse(assistantMessage.function_call.arguments || "{}");
+        if (DEBUG) console.log(`[InstructionsMode] Function call: ${functionName}`, functionArgs);
+
+        let functionCallResult = "";
+        const baseUrl = process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || "https://driftai.studio";
+
+        if (functionName === "schedule_appointment") {
+          // Get caller phone from conversation
+          const { data: conversation } = await this.supabase
+            .from("conversations")
+            .select("from_number")
+            .eq("id", this.context.conversationId)
+            .single();
+
+          const contactPhone = conversation?.from_number || "";
+
+          // Parse natural language date if needed
+          let scheduledAt = functionArgs.scheduledAt;
+          if (scheduledAt && !scheduledAt.includes("T")) {
+            const parsed = await this.parseDateFromInput(scheduledAt);
+            if (parsed) scheduledAt = `${parsed}T09:00:00`;
+          }
+
+          const scheduleResponse = await fetch(`${baseUrl}/api/agents/${this.context.agentId}/schedule`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contactName: functionArgs.contactName || "Caller",
+              contactPhone,
+              scheduledAt,
+              serviceType: functionArgs.serviceType || "Meeting",
+              durationMinutes: functionArgs.durationMinutes || 60,
+              notes: functionArgs.notes || "",
+              fromNumber: contactPhone,
+            }),
+          });
+
+          if (scheduleResponse.ok) {
+            const scheduleData = await scheduleResponse.json();
+            const apt = scheduleData.appointment;
+            const fmtDate = new Date(apt.scheduled_at).toLocaleString("en-US", {
+              weekday: "long", month: "long", day: "numeric",
+              hour: "numeric", minute: "2-digit", hour12: true,
+            });
+            functionCallResult = `Appointment scheduled successfully for ${fmtDate}. Service: ${apt.service_type}.`;
+          } else {
+            const errorData = await scheduleResponse.json().catch(() => ({}));
+            functionCallResult = errorData.error || "Failed to schedule appointment. The time slot may be unavailable.";
+          }
+        } else if (functionName === "check_availability") {
+          let checkDate = functionArgs.date;
+          if (checkDate && !/^\d{4}-\d{2}-\d{2}$/.test(checkDate)) {
+            const parsed = await this.parseDateFromInput(checkDate);
+            if (parsed) checkDate = parsed;
+          }
+
+          const duration = functionArgs.durationMinutes || 60;
+          const checkResponse = await fetch(
+            `${baseUrl}/api/agents/${this.context.agentId}/schedule?date=${checkDate}&duration=${duration}`,
+            { method: "GET", headers: { "Content-Type": "application/json" } }
+          );
+
+          if (checkResponse.ok) {
+            const checkData = await checkResponse.json();
+            const slots = checkData.availableSlots || [];
+            if (slots.length > 0) {
+              const formattedSlots = slots.slice(0, 5).map((slot: string) =>
+                new Date(slot).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+              );
+              functionCallResult = `Available times on ${new Date(checkDate).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}: ${formattedSlots.join(", ")}${slots.length > 5 ? ` and ${slots.length - 5} more` : ""}.`;
+            } else {
+              functionCallResult = `No available slots on ${new Date(checkDate).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}. Suggest a different date.`;
+            }
+          } else {
+            functionCallResult = "I couldn't check availability right now. Please try again.";
+          }
+        }
+
+        // Call OpenAI again with the function result to produce a natural response
+        if (functionCallResult) {
+          messages.push(assistantMessage);
+          messages.push({ role: "function", name: functionName, content: functionCallResult });
+
+          const secondResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "gpt-4o-mini",
+              messages,
+              temperature: 0.3,
+              max_tokens: 150,
+            }),
+          });
+
+          if (secondResponse.ok) {
+            const secondData = await secondResponse.json();
+            const finalOutput = secondData.choices[0]?.message?.content || functionCallResult;
+            return {
+              success: true,
+              output: finalOutput,
+              shouldContinue: true,
+            };
+          }
+
+          // If second call fails, just use the raw function result
+          return {
+            success: true,
+            output: functionCallResult,
+            shouldContinue: true,
+          };
+        }
+
+        return {
+          success: true,
+          output: assistantMessage.content || "I've processed your request. Is there anything else I can help with?",
+          shouldContinue: true,
+        };
+      }
+
+      // 9. No function call — regular text response
+      const aiResponse = assistantMessage?.content || "Hello! How can I help you today?";
+      return {
+        success: true,
+        output: aiResponse,
+        nextStepId: null,
+        shouldContinue: true,
+      };
+    } catch (error: any) {
+      console.error("[InstructionsMode] Error:", error);
+      return {
+        success: true,
+        output: "I'm sorry, I ran into a problem. How can I help you?",
         shouldContinue: true,
       };
     }

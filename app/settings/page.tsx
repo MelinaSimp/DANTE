@@ -1,7 +1,7 @@
-// app/settings/page.tsx
 import { createServerSupabase } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import DeployButton from "@/components/DeployButton";
+import BillingCard from "./BillingCard";
 
 export default async function SettingsPage() {
   const supabase = await createServerSupabase();
@@ -46,17 +46,7 @@ export default async function SettingsPage() {
           </div>
         </a>
 
-        <div className="rounded-3xl border border-white/5 bg-white/5 p-6 text-white/60 shadow-[0_20px_70px_rgba(8,8,16,0.5)]">
-          <p className="text-xs uppercase tracking-[0.35em] text-white/40">Account</p>
-          <h2 className="mt-3 text-2xl font-semibold text-white/80">Account Preferences</h2>
-          <p className="mt-3 text-sm text-white/55">
-            Manage billing, team access, and security. This area is coming soon—ask the team if you
-            need changes right away.
-          </p>
-          <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/50">
-            Coming soon
-          </div>
-        </div>
+        <BillingCard />
       </div>
     </div>
   );

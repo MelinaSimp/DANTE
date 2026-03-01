@@ -1,14 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
   ChevronDown,
-  ThumbsUp,
-  ThumbsDown,
-  Bookmark,
-  Info,
   X,
   Check,
   LayoutDashboard,
@@ -17,16 +14,25 @@ import {
   FileStack,
   UserPlus,
   Pencil,
+  Bot,
+  Calendar,
+  FileText,
+  CalendarClock,
+  Phone,
+  Mail,
+  Download,
+  Share2,
+  Archive,
+  Inbox,
 } from "lucide-react";
 import { formatPhoneToE164 } from "@/lib/validation";
 import PdfViewerWithAnnotations, { type Annotation } from "@/components/documents/PdfViewerWithAnnotations";
 import DocumentSummaryChat from "@/components/documents/DocumentSummaryChat";
+import ConfirmationModal from "@/components/frontend/ConfirmationModal";
+import { useFeatures } from "@/hooks/useFeatures";
+import type { FeatureId } from "@/lib/features";
 
 type Contact = { id: string; name: string; phone?: string; email?: string };
-
-const SECTIONS = [
-  { id: "account-overview", label: "Account Overview", icon: LayoutDashboard },
-];
 
 type View = "select" | "overview";
 type SelectedEntity = { type: "client"; id: string; name: string } | null;
@@ -56,9 +62,31 @@ export default function ClientDetailsOverviewClient({
   initialContacts = [],
   initialContactId = null,
 }: ClientDetailsOverviewClientProps) {
+  const router = useRouter();
+  const [agentId, setAgentId] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/agents", { credentials: "include" })
+      .then((r) => r.json())
+      .then((agents) => { if (agents?.length > 0) setAgentId(agents[0].id); })
+      .catch(() => {});
+  }, []);
+
+  const { features } = useFeatures();
+
+  const sidebarNavItems = [
+    { name: "Agents", icon: Bot, href: "/frontend", active: false },
+    { name: "Calendar", icon: Calendar, href: agentId ? `/frontend/agent/${agentId}/schedule` : "#", active: false, featureId: "calendar" as FeatureId },
+    { name: "Client Details", icon: FileText, href: "/client-details-overview", active: true, featureId: "client_details" as FeatureId },
+    { name: "Meeting Planner", icon: CalendarClock, href: agentId ? `/frontend/agent/${agentId}/llm` : "#", active: false, featureId: "meeting_planner" as FeatureId },
+    { name: "Sales", icon: Phone, href: agentId ? `/frontend/agent/${agentId}/sales` : "#", active: false, featureId: "sales" as FeatureId },
+    { name: "Emailing", icon: Mail, href: agentId ? `/frontend/agent/${agentId}/emailing` : "#", active: false, featureId: "emailing" as FeatureId },
+  ];
+
   const [view, setView] = useState<View>("select");
   const [selected, setSelected] = useState<SelectedEntity>(null);
-  const [activeSection, setActiveSection] = useState(SECTIONS[0].id);
+  const [activeSection, setActiveSection] = useState("account-overview");
+  const [actionsOpen, setActionsOpen] = useState(false);
   const [document, setDocument] = useState<{
     id: string;
     file_name: string;
@@ -103,6 +131,14 @@ export default function ClientDetailsOverviewClient({
   const [editError, setEditError] = useState<string | null>(null);
   // Delete client
   const [deletingContactId, setDeletingContactId] = useState<string | null>(null);
+  // Confirmation modal
+  const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null);
+  // Toast notifications
+  const [toastMsg, setToastMsg] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const showToast = (type: "success" | "error", message: string) => {
+    setToastMsg({ type, message });
+    setTimeout(() => setToastMsg(null), type === "error" ? 5000 : 3000);
+  };
   // Edit template modal
   const [editingTemplate, setEditingTemplate] = useState<ClientTemplate | null>(null);
   const [editTemplateName, setEditTemplateName] = useState("");
@@ -291,23 +327,28 @@ export default function ClientDetailsOverviewClient({
     }
   };
 
-  const handleDeleteClient = async (client: Contact) => {
-    if (!confirm(`Delete ${client.name}? This cannot be undone.`)) return;
-    setDeletingContactId(client.id);
-    try {
-      const res = await fetch(`/api/contacts/${client.id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete");
-      setContacts((prev) => prev.filter((c) => c.id !== client.id));
-      if (selected?.id === client.id) {
-        setSelected(null);
-        setView("select");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Failed to delete client.");
-    } finally {
-      setDeletingContactId(null);
-    }
+  const handleDeleteClient = (client: Contact) => {
+    setConfirmModal({
+      title: "Delete Client",
+      message: `Delete ${client.name}? This cannot be undone.`,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        setDeletingContactId(client.id);
+        try {
+          const res = await fetch(`/api/contacts/${client.id}`, { method: "DELETE" });
+          if (!res.ok) throw new Error("Failed to delete");
+          setContacts((prev) => prev.filter((c) => c.id !== client.id));
+          if (selected?.id === client.id) {
+            setSelected(null);
+            setView("select");
+          }
+        } catch (err) {
+          showToast("error", "Failed to delete client.");
+        } finally {
+          setDeletingContactId(null);
+        }
+      },
+    });
   };
 
   const openEditTemplateModal = (t: ClientTemplate) => {
@@ -348,19 +389,25 @@ export default function ClientDetailsOverviewClient({
     }
   };
 
-  const handleDeleteTemplate = async (t: ClientTemplate) => {
-    if (!confirm(`Delete template "${t.name}"? This cannot be undone.`)) return;
-    try {
-      const res = await fetch(`/api/client-templates/${t.id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete");
-      setTemplates((prev) => prev.filter((p) => p.id !== t.id));
-      if (selectedTemplate?.id === t.id) {
-        setSelectedTemplate(null);
-        setUseTemplateMode(false);
-      }
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to delete template.");
-    }
+  const handleDeleteTemplate = (t: ClientTemplate) => {
+    setConfirmModal({
+      title: "Delete Template",
+      message: `Delete template "${t.name}"? This cannot be undone.`,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          const res = await fetch(`/api/client-templates/${t.id}`, { method: "DELETE" });
+          if (!res.ok) throw new Error("Failed to delete");
+          setTemplates((prev) => prev.filter((p) => p.id !== t.id));
+          if (selectedTemplate?.id === t.id) {
+            setSelectedTemplate(null);
+            setUseTemplateMode(false);
+          }
+        } catch (err) {
+          showToast("error", err instanceof Error ? err.message : "Failed to delete template.");
+        }
+      },
+    });
   };
 
   const openEditTemplateAnnotations = async (t: ClientTemplate) => {
@@ -377,7 +424,7 @@ export default function ClientDetailsOverviewClient({
       const docRes = await fetch(`/api/documents/${t.document_id}`, { credentials: "include" });
       const docData = await docRes.json().catch(() => ({}));
       if (!docRes.ok || !docData.url) {
-        alert("Could not load the template's document. It may have been replaced or deleted.");
+        showToast("error", "Could not load the template's document. It may have been replaced or deleted.");
         return;
       }
       const annRes = await fetch(`/api/documents/annotations?documentId=${t.document_id}`, {
@@ -388,7 +435,7 @@ export default function ClientDetailsOverviewClient({
       setTemplateAnnotationsForEdit(annData.annotations ?? []);
       setEditingTemplateAnnotations(t);
     } catch (err) {
-      alert("Failed to load template document.");
+      showToast("error", "Failed to load template document.");
     }
   };
 
@@ -422,7 +469,7 @@ export default function ClientDetailsOverviewClient({
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to update template.";
       console.error("[Template] Done failed:", err);
-      alert(msg);
+      showToast("error", msg);
     }
   };
 
@@ -511,6 +558,16 @@ export default function ClientDetailsOverviewClient({
     return (
       <div className="min-h-[calc(100vh-4rem)] bg-[#f5f5f7] text-[#151515]">
         <div className="mx-auto max-w-2xl px-6 py-12">
+          {/* Back button */}
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="mb-6 flex items-center gap-2 text-sm font-medium text-[#6b7280] hover:text-[#151515] transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </button>
+
           <div className="relative">
             <div className="absolute -inset-4 bg-gradient-to-br from-purple-400/20 via-pink-500/20 to-blue-500/20 rounded-3xl blur-2xl -z-10" aria-hidden />
             <p className="text-center text-sm text-[#151515]/60">{formatTime()}</p>
@@ -557,7 +614,7 @@ export default function ClientDetailsOverviewClient({
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); openEditModal(client); }}
-                      className="p-2 rounded-lg text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#151515]"
+                      className="p-2 rounded-xl text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#151515]"
                       title="Edit client"
                     >
                       <Pencil className="h-4 w-4" />
@@ -566,7 +623,7 @@ export default function ClientDetailsOverviewClient({
                       type="button"
                       onClick={(e) => { e.stopPropagation(); handleDeleteClient(client); }}
                       disabled={deletingContactId === client.id}
-                      className="p-2 rounded-lg text-[#6b7280] hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                      className="p-2 rounded-xl text-[#6b7280] hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
                       title="Delete client"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -583,7 +640,7 @@ export default function ClientDetailsOverviewClient({
               <div className="bg-[#ffffff] rounded-2xl shadow-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-xl font-semibold text-[#151515]">Add client</h2>
-                  <button type="button" onClick={() => !addClientLoading && setShowAddClient(false)} className="p-1 rounded-lg hover:bg-[#f3f4f6]">
+                  <button type="button" onClick={() => !addClientLoading && setShowAddClient(false)} className="p-1 rounded-xl hover:bg-[#f3f4f6]">
                     <X className="h-5 w-5 text-[#6b7280]" />
                   </button>
                 </div>
@@ -663,7 +720,7 @@ export default function ClientDetailsOverviewClient({
               <div className="bg-[#ffffff] rounded-2xl shadow-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-xl font-semibold text-[#151515]">Edit client</h2>
-                  <button type="button" onClick={() => !editLoading && setEditingContact(null)} className="p-1 rounded-lg hover:bg-[#f3f4f6]">
+                  <button type="button" onClick={() => !editLoading && setEditingContact(null)} className="p-1 rounded-xl hover:bg-[#f3f4f6]">
                     <X className="h-5 w-5 text-[#6b7280]" />
                   </button>
                 </div>
@@ -732,6 +789,30 @@ export default function ClientDetailsOverviewClient({
               </div>
             </div>
           )}
+
+          {/* Confirmation Modal (for select view) */}
+          {confirmModal && (
+            <ConfirmationModal
+              isOpen={!!confirmModal}
+              onCancel={() => setConfirmModal(null)}
+              onConfirm={confirmModal.onConfirm}
+              title={confirmModal.title}
+              message={confirmModal.message}
+              variant="danger"
+            />
+          )}
+
+          {/* Toast (for select view) */}
+          {toastMsg && (
+            <div className={`fixed top-4 right-4 z-[100] max-w-sm w-full rounded-2xl shadow-lg border p-4 flex items-start gap-3 ${
+              toastMsg.type === "error" ? "bg-red-500/95 border-red-400 text-white" : "bg-green-500/95 border-green-400 text-white"
+            }`}>
+              <span className="text-sm font-medium flex-1">{toastMsg.message}</span>
+              <button onClick={() => setToastMsg(null)} className="flex-shrink-0 hover:bg-white/20 rounded p-1">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -742,47 +823,32 @@ export default function ClientDetailsOverviewClient({
 
   return (
     <div className="min-h-[calc(100vh-4rem)] flex bg-[#f5f5f7] text-[#151515]">
-      {/* Left sidebar — frontend-style glass + pink/blue halo on icons */}
-      <aside className="w-64 shrink-0 border-r border-gray-300/10 bg-gray-200/90 p-4 shadow-2xl backdrop-blur-sm">
-        <button
-          type="button"
-          onClick={handleGoBack}
-          className="mb-6 flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-[#151515] transition hover:bg-white/30 hover:text-[#3166bf]"
-        >
-          <IconHalo className="flex h-9 w-9 shrink-0 items-center justify-center">
-            <span className="flex items-center justify-center rounded-full bg-white p-2">
-              <ArrowLeft className="h-4 w-4 text-gray-600" />
-            </span>
-          </IconHalo>
-          Go Back
-        </button>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#6b7280]">Sections</p>
-        <nav className="space-y-2">
-          {SECTIONS.map((s) => {
-            const Icon = s.icon;
-            const isActive = activeSection === s.id;
+      {/* Left Sidebar */}
+      <div className="hidden md:flex flex-col w-48 border-r border-gray-200 bg-white shrink-0">
+        <div className="p-4 border-b border-gray-200 flex items-center gap-2">
+          <Link href="/frontend" className="flex items-center gap-2">
+            <img src="/brand/logo-circle.png" alt="Drift" className="w-7 h-7 rounded-full object-cover" />
+            <span className="text-sm font-semibold text-gray-900">Drift</span>
+          </Link>
+        </div>
+        <nav className="flex-1 p-3 space-y-1">
+          {sidebarNavItems.filter((item) => !item.featureId || features.includes(item.featureId)).map((item) => {
+            const Icon = item.icon;
             return (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => setActiveSection(s.id)}
-                className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-medium transition ${
-                  isActive
-                    ? "bg-blue-600/10 text-blue-600"
-                    : "text-gray-700 hover:bg-white/30"
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+                  item.active ? "bg-gray-100 text-black" : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
                 }`}
               >
-                <IconHalo className="flex h-9 w-9 shrink-0 items-center justify-center">
-                  <span className="flex items-center justify-center rounded-full bg-white p-2">
-                    <Icon className={`h-4 w-4 ${isActive ? "text-blue-600" : "text-gray-600"}`} />
-                  </span>
-                </IconHalo>
-                {s.label}
-              </button>
+                <Icon className="w-4 h-4" />
+                <span>{item.name}</span>
+              </Link>
             );
           })}
         </nav>
-      </aside>
+      </div>
 
       {/* Main content */}
       <div className="flex-1 overflow-auto">
@@ -793,15 +859,49 @@ export default function ClientDetailsOverviewClient({
           </div>
           <div className="flex items-center gap-2">
             <span className="text-sm text-[#6b7280]">{formatTime()}</span>
-            <button
-              type="button"
-              className="flex items-center gap-1.5 rounded-lg border border-[#e5e7eb] bg-[#f9fafb] px-3 py-2 text-sm font-medium text-[#151515] hover:bg-[#f3f4f6]"
-            >
-              Actions <ChevronDown className="h-4 w-4" />
-            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setActionsOpen(!actionsOpen)}
+                className="flex items-center gap-1.5 rounded-xl border border-[#e5e7eb] bg-[#f9fafb] px-3 py-2 text-sm font-medium text-[#151515] hover:bg-[#f3f4f6]"
+              >
+                Actions <ChevronDown className={`h-4 w-4 transition-transform ${actionsOpen ? "rotate-180" : ""}`} />
+              </button>
+              {actionsOpen && (
+                <div className="absolute right-0 top-full mt-1 w-48 rounded-xl border border-[#e5e7eb] bg-white shadow-lg z-20 py-1" onMouseLeave={() => setActionsOpen(false)}>
+                  <button
+                    onClick={() => {
+                      if (selected?.type === "client") {
+                        const data = { name: selected.name, documents: documents.map(d => ({ name: d.name, url: d.url })) };
+                        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+                        const url = URL.createObjectURL(blob);
+                        const a = Object.assign(document.createElement?.("a") || {}, { href: url, download: `${selected.name}-export.json` }) as HTMLAnchorElement;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }
+                      setActionsOpen(false);
+                    }}
+                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-[#374151] hover:bg-[#f3f4f6]"
+                  >
+                    <Download className="h-4 w-4" /> Export Data
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (selected?.type === "client" && typeof navigator !== "undefined") {
+                        navigator.clipboard.writeText(`${window.location.origin}/client-details-overview?client=${selected.id}`);
+                      }
+                      setActionsOpen(false);
+                    }}
+                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-[#374151] hover:bg-[#f3f4f6]"
+                  >
+                    <Share2 className="h-4 w-4" /> Copy Link
+                  </button>
+                </div>
+              )}
+            </div>
             <Link
               href="/client-details-overview"
-              className="rounded-lg p-2 text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#151515]"
+              className="rounded-xl p-2 text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#151515]"
               aria-label="Close"
             >
               <X className="h-5 w-5" />
@@ -818,7 +918,9 @@ export default function ClientDetailsOverviewClient({
               Here&apos;s an overview on {displayName}.
             </h2>
             <p className="mt-3 text-[#374151]">
-              {displayName}&apos;s portfolio is performing well with a return
+              {documents.length > 0
+                ? `${displayName} has ${documents.length} document${documents.length !== 1 ? "s" : ""} on file and ${templates.length} template${templates.length !== 1 ? "s" : ""} available.`
+                : `No documents uploaded yet for ${displayName}. Upload documents to get started.`}
             </p>
 
             {activeSection === "account-overview" && (
@@ -833,9 +935,9 @@ export default function ClientDetailsOverviewClient({
                       {templates.map((t) => (
                         <div
                           key={t.id}
-                          className={`rounded-lg border p-2 text-sm cursor-pointer transition ${
+                          className={`rounded-xl border p-2 text-sm cursor-pointer transition ${
                             selectedTemplate?.id === t.id
-                              ? "border-blue-500 bg-blue-50"
+                              ? "border-black bg-gray-50"
                               : "border-[#e5e7eb] bg-[#f9fafb] hover:bg-[#f3f4f6]"
                           }`}
                           onClick={() => setSelectedTemplate(selectedTemplate?.id === t.id ? null : t)}
@@ -871,7 +973,7 @@ export default function ClientDetailsOverviewClient({
                                 e.stopPropagation();
                                 setUseTemplateMode(true);
                               }}
-                              className="mt-2 w-full rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                              className="mt-2 w-full rounded-xl bg-black px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800"
                             >
                               Use this template
                             </button>
@@ -884,14 +986,6 @@ export default function ClientDetailsOverviewClient({
                   )}
                 </div>
 
-                <h3 className="text-xl font-bold text-[#151515]">Account Overview</h3>
-                <p className="text-[#374151] leading-relaxed">
-                  {displayName}&apos;s portfolio remains strong at $1.25M, reflecting steady growth. She has added $25,000 in
-                  contributions to the account in January and has a big distribution coming up of $10,000 for vacation
-                  expenses in Q1. This recent contribution bolstered her brokerage account, while withdrawals for
-                  personal expenses have been minimal and well within her financial plan.
-                </p>
-
                 {/* Document upload / viewer + annotations + generate */}
                 <div className="mt-8">
                 {selected?.type !== "client" ? (
@@ -902,7 +996,7 @@ export default function ClientDetailsOverviewClient({
                   <div className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] p-8">
                     <p className="text-[#6b7280] mb-4">Upload a PDF for {selected.name}. One primary document per client.</p>
                     {uploadError && (
-                      <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                      <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                         {uploadError}
                         <button
                           type="button"
@@ -913,7 +1007,7 @@ export default function ClientDetailsOverviewClient({
                         </button>
                       </div>
                     )}
-                    <label className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 cursor-pointer disabled:opacity-50">
+                    <label className="inline-flex items-center gap-2 rounded-xl bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 cursor-pointer disabled:opacity-50">
                       <Upload className="h-4 w-4" />
                       {uploading ? "Uploading…" : "Upload PDF"}
                       <input
@@ -961,7 +1055,7 @@ export default function ClientDetailsOverviewClient({
                                 href={documentToAnalyzeUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb]"
+                                className="inline-flex items-center gap-2 rounded-xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb]"
                               >
                                 <FileStack className="h-4 w-4" />
                                 View PDF (new tab)
@@ -969,7 +1063,7 @@ export default function ClientDetailsOverviewClient({
                               <button
                                 type="button"
                                 onClick={() => setShowAnalyzePdfPreview((v) => !v)}
-                                className="inline-flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb]"
+                                className="inline-flex items-center gap-2 rounded-xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb]"
                               >
                                 {showAnalyzePdfPreview ? "Hide preview" : "Preview in app"}
                               </button>
@@ -985,7 +1079,7 @@ export default function ClientDetailsOverviewClient({
                             )}
                           </>
                         ) : null}
-                        <label className="inline-flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb] cursor-pointer disabled:opacity-50">
+                        <label className="inline-flex items-center gap-2 rounded-xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb] cursor-pointer disabled:opacity-50">
                           <Upload className="h-4 w-4" />
                           {uploadingToAnalyze ? "Uploading…" : "Upload PDF to analyze"}
                           <input
@@ -1021,7 +1115,7 @@ export default function ClientDetailsOverviewClient({
                           contactId={selected.id}
                           clientName={selected.name}
                           documentUrl={documentToAnalyzeUrl ?? undefined}
-                          annotatedPageNumbers={selectedTemplate.annotated_page_numbers?.length ? selectedTemplate.annotated_page_numbers : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]}
+                          annotatedPageNumbers={selectedTemplate.annotated_page_numbers?.length ? selectedTemplate.annotated_page_numbers : []}
                           templateId={selectedTemplate.id}
                           templateName={selectedTemplate.name}
                           templateDocumentId={selectedTemplate.document_id}
@@ -1031,14 +1125,14 @@ export default function ClientDetailsOverviewClient({
                   </div>
                 ) : editingTemplateAnnotations && templateDocForEdit ? (
                   <div className="rounded-xl border border-[#e5e7eb] bg-white overflow-hidden">
-                    <div className="flex items-center justify-between px-4 py-2 border-b border-[#e5e7eb] bg-blue-50">
-                      <span className="text-sm font-medium text-[#1e40af]">
+                    <div className="flex items-center justify-between px-4 py-2 border-b border-[#e5e7eb] bg-gray-50">
+                      <span className="text-sm font-medium text-black">
                         Editing annotations for template: {editingTemplateAnnotations.name}
                       </span>
                       <button
                         type="button"
                         onClick={handleDoneEditingTemplateAnnotations}
-                        className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                        className="rounded-xl bg-black px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800"
                       >
                         Done
                       </button>
@@ -1066,7 +1160,7 @@ export default function ClientDetailsOverviewClient({
                             .sort((a, b) => (a.page_number - b.page_number) || ((a.created_at || "").localeCompare(b.created_at || "")))
                             .map((ann) => (
                               <div key={ann.id} className="mb-2 group relative">
-                                <div className="rounded-xl px-3 py-2 text-sm bg-blue-600 text-white">
+                                <div className="rounded-xl px-3 py-2 text-sm bg-black text-white">
                                   <div className="flex items-center justify-between text-xs opacity-90">
                                     <span>Page {ann.page_number}</span>
                                     <button
@@ -1097,14 +1191,14 @@ export default function ClientDetailsOverviewClient({
                 ) : (
                   <div className="rounded-xl border border-[#e5e7eb] bg-white overflow-hidden">
                     {editingTemplateAnnotations && editingTemplateAnnotations.document_id === document.id && (
-                      <div className="flex items-center justify-between px-4 py-2 border-b border-blue-200 bg-blue-50">
-                        <span className="text-sm font-medium text-[#1e40af]">
+                      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 bg-gray-50">
+                        <span className="text-sm font-medium text-black">
                           Editing annotations for template: {editingTemplateAnnotations.name}
                         </span>
                         <button
                           type="button"
                           onClick={handleDoneEditingTemplateAnnotations}
-                          className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
+                          className="rounded-xl bg-black px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800"
                         >
                           Done
                         </button>
@@ -1167,7 +1261,7 @@ export default function ClientDetailsOverviewClient({
                                   key={ann.id}
                                   className="flex justify-end group"
                                 >
-                                  <div className="max-w-[90%] rounded-xl px-3 py-2 text-sm bg-blue-600 text-white">
+                                  <div className="max-w-[90%] rounded-xl px-3 py-2 text-sm bg-black text-white">
                                     <div className="flex items-center gap-2 text-xs opacity-90">
                                       <Check className="h-3.5 w-3.5 shrink-0" />
                                       <span className="flex-1">Saved · Page {ann.page_number}</span>
@@ -1198,8 +1292,8 @@ export default function ClientDetailsOverviewClient({
                         </div>
                         <div className="border-t border-[#e5e7eb] p-4 bg-white">
                           {annotations.length > 0 && !templateAskDismissed && !savedTemplateName && (
-                            <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3">
-                              <p className="text-sm text-[#1e40af] mb-3">
+                            <div className="mb-4 rounded-xl border border-gray-300 bg-gray-50 p-3">
+                              <p className="text-sm text-black mb-3">
                                 Do you want to save this annotated document as a template? You can use it later to generate summaries from other documents with the same structure.
                               </p>
                               {!showTemplateNameInput ? (
@@ -1207,14 +1301,14 @@ export default function ClientDetailsOverviewClient({
                                   <button
                                     type="button"
                                     onClick={() => setShowTemplateNameInput(true)}
-                                    className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                                    className="rounded-xl bg-black px-3 py-2 text-sm font-medium text-white hover:bg-gray-800"
                                   >
                                     Save as template
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => setTemplateAskDismissed(true)}
-                                    className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb]"
+                                    className="rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb]"
                                   >
                                     Not now
                                   </button>
@@ -1226,7 +1320,7 @@ export default function ClientDetailsOverviewClient({
                                     value={templateName}
                                     onChange={(e) => setTemplateName(e.target.value)}
                                     placeholder="Template name"
-                                    className="rounded-lg border border-[#e5e7eb] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    className="rounded-xl border border-[#e5e7eb] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                                     disabled={savingTemplate}
                                   />
                                   <div className="flex gap-2">
@@ -1234,7 +1328,7 @@ export default function ClientDetailsOverviewClient({
                                       type="button"
                                       onClick={handleSaveAsTemplate}
                                       disabled={savingTemplate || !templateName.trim()}
-                                      className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                                      className="rounded-xl bg-black px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
                                     >
                                       {savingTemplate ? "Saving…" : "Confirm"}
                                     </button>
@@ -1242,7 +1336,7 @@ export default function ClientDetailsOverviewClient({
                                       type="button"
                                       onClick={() => { setShowTemplateNameInput(false); setTemplateName(""); }}
                                       disabled={savingTemplate}
-                                      className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb] disabled:opacity-50"
+                                      className="rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb] disabled:opacity-50"
                                     >
                                       Cancel
                                     </button>
@@ -1272,381 +1366,7 @@ export default function ClientDetailsOverviewClient({
               </div>
             )}
 
-            {false && (
-              <div className="mt-8">
-                {selected?.type !== "client" ? (
-                  <div className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] p-8 text-center">
-                    <p className="text-[#6b7280]">Select a client to view and annotate documents.</p>
-                  </div>
-                ) : !document ? (
-                  <div className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] p-8">
-                    <p className="text-[#6b7280] mb-4">Upload a PDF for {selected.name}. One primary document per client.</p>
-                    {uploadError && (
-                      <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                        {uploadError}
-                        <button
-                          type="button"
-                          onClick={() => setUploadError(null)}
-                          className="ml-2 text-red-500 hover:text-red-700"
-                        >
-                          ×
-                        </button>
-                      </div>
-                    )}
-                    <label className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 cursor-pointer disabled:opacity-50">
-                      <Upload className="h-4 w-4" />
-                      {uploading ? "Uploading…" : "Upload PDF"}
-                      <input
-                        type="file"
-                        accept="application/pdf"
-                        onChange={handleUpload}
-                        disabled={uploading}
-                        className="hidden"
-                      />
-                    </label>
-                  </div>
-                ) : useTemplateMode && selectedTemplate ? (
-                  <div className="rounded-xl border border-[#e5e7eb] bg-white overflow-hidden">
-                    <div className="flex items-center justify-between px-4 py-2 border-b border-[#e5e7eb] bg-[#f9fafb]">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => { setUseTemplateMode(false); setDocumentToAnalyzeUrl(null); setDocumentToAnalyzeFileName(null); setShowAnalyzePdfPreview(false); }}
-                          className="rounded p-1 text-[#6b7280] hover:bg-[#e5e7eb] hover:text-[#374151]"
-                          aria-label="Back"
-                        >
-                          <ArrowLeft className="h-4 w-4" />
-                        </button>
-                        <span className="text-sm font-medium text-[#374151]">
-                          Using template: {selectedTemplate.name}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="p-4 space-y-4 min-h-[500px] flex flex-col">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wider text-[#6b7280] mb-2">
-                          Document to analyze
-                        </p>
-                        <p className="text-sm text-[#6b7280] mb-2">
-                          Upload a PDF to analyze using this template. This is separate from the client&apos;s main document.
-                        </p>
-                        {documentToAnalyzeUrl ? (
-                          <>
-                            <p className="text-sm text-green-700 mb-2">Document ready for generation.</p>
-                            {documentToAnalyzeFileName && (
-                              <p className="text-sm text-[#374151] mb-2 truncate" title={documentToAnalyzeFileName}>{documentToAnalyzeFileName}</p>
-                            )}
-                            <div className="flex flex-wrap items-center gap-2 mb-2">
-                              <a
-                                href={documentToAnalyzeUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb]"
-                              >
-                                <FileStack className="h-4 w-4" />
-                                View PDF (new tab)
-                              </a>
-                              <button
-                                type="button"
-                                onClick={() => setShowAnalyzePdfPreview((v) => !v)}
-                                className="inline-flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb]"
-                              >
-                                {showAnalyzePdfPreview ? "Hide preview" : "Preview in app"}
-                              </button>
-                            </div>
-                            {showAnalyzePdfPreview && (
-                              <div className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] overflow-hidden mb-2" style={{ height: "420px" }}>
-                                <iframe
-                                  src={documentToAnalyzeUrl}
-                                  title={documentToAnalyzeFileName || "Document to analyze"}
-                                  className="w-full h-full"
-                                />
-                              </div>
-                            )}
-                          </>
-                        ) : null}
-                        <label className="inline-flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb] cursor-pointer disabled:opacity-50">
-                          <Upload className="h-4 w-4" />
-                          {uploadingToAnalyze ? "Uploading…" : "Upload PDF to analyze"}
-                          <input
-                            type="file"
-                            accept="application/pdf"
-                            className="hidden"
-                            disabled={uploadingToAnalyze}
-                            onChange={async (e) => {
-                              const file = e.target.files?.[0];
-                              if (!file || !selected || selected.type !== "client") return;
-                              setUploadingToAnalyze(true);
-                              try {
-                                const formData = new FormData();
-                                formData.append("file", file);
-                                formData.append("contactId", selected.id);
-                                const res = await fetch("/api/documents/upload-analyze", { method: "POST", body: formData });
-                                const data = await res.json().catch(() => ({}));
-                                if (!res.ok) throw new Error(data.error || "Upload failed");
-                                setDocumentToAnalyzeUrl(data.url);
-                                setDocumentToAnalyzeFileName(data.file_name ?? null);
-                              } catch (err) {
-                                setUploadError(err instanceof Error ? err.message : "Upload failed");
-                              } finally {
-                                setUploadingToAnalyze(false);
-                                e.target.value = "";
-                              }
-                            }}
-                          />
-                        </label>
-                      </div>
-                      <div className="flex-1 min-h-0 flex flex-col border-t border-[#e5e7eb] pt-4">
-                        <DocumentSummaryChat
-                          contactId={selected.id}
-                          clientName={selected.name}
-                          documentUrl={documentToAnalyzeUrl ?? undefined}
-                          annotatedPageNumbers={selectedTemplate.annotated_page_numbers?.length ? selectedTemplate.annotated_page_numbers : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]}
-                          templateId={selectedTemplate.id}
-                          templateName={selectedTemplate.name}
-                          templateDocumentId={selectedTemplate.document_id}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="rounded-xl border border-[#e5e7eb] bg-white overflow-hidden">
-                    <div className="flex items-center justify-between px-4 py-2 border-b border-[#e5e7eb] bg-[#f9fafb]">
-                      <span className="text-sm font-medium text-[#374151]">{document.file_name}</span>
-                      <div className="flex items-center gap-2">
-                        <label className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-[#6b7280] hover:bg-[#e5e7eb] cursor-pointer">
-                          <Upload className="h-3 w-3" />
-                          Replace
-                          <input
-                            type="file"
-                            accept="application/pdf"
-                            onChange={handleUpload}
-                            disabled={uploading}
-                            className="hidden"
-                          />
-                        </label>
-                        <button
-                          type="button"
-                          onClick={handleDeleteDocument}
-                          disabled={deleting}
-                          className="flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                    {/* Split layout: PDF left, annotations + LLM chat right */}
-                    <div className="flex h-[600px]">
-                      <div className="flex-1 min-w-0 border-r border-[#e5e7eb]">
-                        <PdfViewerWithAnnotations
-                          documentId={document.id}
-                          fileUrl={document.url}
-                          fileName={document.file_name}
-                          annotations={annotations}
-                          onAnnotationsChange={setAnnotations}
-                          onLoadError={
-                            selected?.type === "client"
-                              ? () => loadDocument(selected.id)
-                              : undefined
-                          }
-                        />
-                      </div>
-                      <div className="w-[380px] shrink-0 flex flex-col bg-[#f9fafb]">
-                        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                          {templates.length > 0 && (
-                            <div className="space-y-2">
-                              <p className="text-xs font-semibold uppercase tracking-wider text-[#6b7280]">
-                                Templates
-                              </p>
-                              <div className="space-y-1">
-                                {templates.map((t) => (
-                                  <div
-                                    key={t.id}
-                                    className={`rounded-lg border p-2 text-sm cursor-pointer transition ${
-                                      selectedTemplate?.id === t.id
-                                        ? "border-blue-500 bg-blue-50"
-                                        : "border-[#e5e7eb] bg-white hover:bg-[#f9fafb]"
-                                    }`}
-                                    onClick={() => setSelectedTemplate(selectedTemplate?.id === t.id ? null : t)}
-                                  >
-                                    <div className="flex items-center justify-between gap-2">
-                                      <div className="flex items-center gap-2 min-w-0">
-                                        <FileStack className="h-4 w-4 shrink-0 text-[#6b7280]" />
-                                        <span className="font-medium text-[#374151] truncate">{t.name}</span>
-                                      </div>
-                                      <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                                        <button
-                                          type="button"
-                                          onClick={() => openEditTemplateModal(t)}
-                                          className="rounded p-1 text-[#6b7280] hover:bg-[#e5e7eb] hover:text-[#374151]"
-                                          title="Edit template"
-                                        >
-                                          <Pencil className="h-4 w-4" />
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => handleDeleteTemplate(t)}
-                                          className="rounded p-1 text-[#6b7280] hover:bg-red-50 hover:text-red-600"
-                                          title="Delete template"
-                                        >
-                                          <Trash2 className="h-4 w-4" />
-                                        </button>
-                                      </div>
-                                    </div>
-                                    {selectedTemplate?.id === t.id && (
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setUseTemplateMode(true);
-                                        }}
-                                        className="mt-2 w-full rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
-                                      >
-                                        Use this template
-                                      </button>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          <p className="text-xs font-semibold uppercase tracking-wider text-[#6b7280]">
-                            Annotations & comments
-                          </p>
-                          {annotations.length === 0 ? (
-                            <p className="text-sm text-[#6b7280]">
-                              Draw a box or highlight on the PDF, then add a comment to mark tables or sections.
-                            </p>
-                          ) : (
-                            annotations
-                              .sort((a, b) => (a.page_number - b.page_number) || ((a.created_at || "").localeCompare(b.created_at || "")))
-                              .map((ann) => (
-                                <div
-                                  key={ann.id}
-                                  className="flex justify-end group"
-                                >
-                                  <div className="max-w-[90%] rounded-xl px-3 py-2 text-sm bg-blue-600 text-white">
-                                    <div className="flex items-center gap-2 text-xs opacity-90">
-                                      <Check className="h-3.5 w-3.5 shrink-0" />
-                                      <span className="flex-1">Saved · Page {ann.page_number}</span>
-                                      <button
-                                        type="button"
-                                        onClick={async () => {
-                                          try {
-                                            const res = await fetch(`/api/documents/annotations/${ann.id}`, { method: "DELETE", credentials: "include" });
-                                            if (!res.ok) throw new Error("Failed to delete");
-                                            setAnnotations((prev) => prev.filter((a) => a.id !== ann.id));
-                                          } catch (err) {
-                                            console.error("Delete annotation error:", err);
-                                          }
-                                        }}
-                                        className="opacity-0 group-hover:opacity-100 transition-opacity rounded-full p-0.5 hover:bg-white/20"
-                                        title="Delete annotation"
-                                      >
-                                        <Trash2 className="h-3 w-3" />
-                                      </button>
-                                    </div>
-                                    <div className="mt-0.5 whitespace-pre-wrap">
-                                      {ann.content || (ann.type === "highlight" ? "(highlighted)" : ann.type)}
-                                    </div>
-                                  </div>
-                                </div>
-                              ))
-                          )}
-                        </div>
-                        <div className="border-t border-[#e5e7eb] p-4 bg-white">
-                          {annotations.length > 0 && !templateAskDismissed && !savedTemplateName && (
-                            <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3">
-                              <p className="text-sm text-[#1e40af] mb-3">
-                                Do you want to save this annotated document as a template? You can use it later to generate summaries from other documents with the same structure.
-                              </p>
-                              {!showTemplateNameInput ? (
-                                <div className="flex gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => setShowTemplateNameInput(true)}
-                                    className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
-                                  >
-                                    Save as template
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => setTemplateAskDismissed(true)}
-                                    className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb]"
-                                  >
-                                    Not now
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="flex flex-col gap-2">
-                                  <input
-                                    type="text"
-                                    value={templateName}
-                                    onChange={(e) => setTemplateName(e.target.value)}
-                                    placeholder="Template name"
-                                    className="rounded-lg border border-[#e5e7eb] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    disabled={savingTemplate}
-                                  />
-                                  <div className="flex gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={handleSaveAsTemplate}
-                                      disabled={savingTemplate || !templateName.trim()}
-                                      className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                                    >
-                                      {savingTemplate ? "Saving…" : "Confirm"}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => { setShowTemplateNameInput(false); setTemplateName(""); }}
-                                      disabled={savingTemplate}
-                                      className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb] disabled:opacity-50"
-                                    >
-                                      Cancel
-                                    </button>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          {savedTemplateName && (
-                            <p className="text-sm text-green-700 mb-3">Saved as template &quot;{savedTemplateName}&quot;</p>
-                          )}
-                          <p className="text-xs font-semibold uppercase tracking-wider text-[#6b7280] mb-3">
-                            Generate
-                          </p>
-                          <DocumentSummaryChat
-                            contactId={selected.id}
-                            clientName={selected.name}
-                            documentUrl={document.url}
-                            annotatedPageNumbers={[...new Set(annotations.map((a) => a.page_number))].sort((a, b) => a - b)}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Footer actions — Copy/Share removed */}
-            <div className="mt-8 flex items-center border-t border-[#e5e7eb] pt-4">
-              <div className="flex items-center gap-2">
-                <button type="button" className="rounded p-2 text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#151515]">
-                  <ThumbsUp className="h-4 w-4" />
-                </button>
-                <button type="button" className="rounded p-2 text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#151515]">
-                  <ThumbsDown className="h-4 w-4" />
-                </button>
-                <button type="button" className="rounded p-2 text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#151515]">
-                  <Bookmark className="h-4 w-4" />
-                </button>
-                <button type="button" className="rounded p-2 text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#151515]">
-                  <Info className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
+            
           </div>
         </div>
       </div>
@@ -1657,7 +1377,7 @@ export default function ClientDetailsOverviewClient({
           <div className="bg-[#ffffff] rounded-2xl shadow-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold text-[#151515]">Edit template</h2>
-              <button type="button" onClick={() => !editTemplateLoading && setEditingTemplate(null)} className="p-1 rounded-lg hover:bg-[#f3f4f6]">
+              <button type="button" onClick={() => !editTemplateLoading && setEditingTemplate(null)} className="p-1 rounded-xl hover:bg-[#f3f4f6]">
                 <X className="h-5 w-5 text-[#6b7280]" />
               </button>
             </div>
@@ -1678,7 +1398,7 @@ export default function ClientDetailsOverviewClient({
                 <button
                   type="button"
                   onClick={() => editingTemplate && openEditTemplateAnnotations(editingTemplate)}
-                  className="w-full rounded-xl border border-[#3166bf] bg-white px-4 py-2.5 text-sm font-medium text-[#3166bf] hover:bg-blue-50"
+                  className="w-full rounded-xl border border-black bg-white px-4 py-2.5 text-sm font-medium text-black hover:bg-gray-50"
                 >
                   Edit annotations in PDF
                 </button>
@@ -1704,6 +1424,30 @@ export default function ClientDetailsOverviewClient({
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {confirmModal && (
+        <ConfirmationModal
+          isOpen={!!confirmModal}
+          onCancel={() => setConfirmModal(null)}
+          onConfirm={confirmModal.onConfirm}
+          title={confirmModal.title}
+          message={confirmModal.message}
+          variant="danger"
+        />
+      )}
+
+      {/* Toast Notification */}
+      {toastMsg && (
+        <div className={`fixed top-4 right-4 z-[100] max-w-sm w-full rounded-2xl shadow-lg border p-4 flex items-start gap-3 ${
+          toastMsg.type === "error" ? "bg-red-500/95 border-red-400 text-white" : "bg-green-500/95 border-green-400 text-white"
+        }`}>
+          <span className="text-sm font-medium flex-1">{toastMsg.message}</span>
+          <button onClick={() => setToastMsg(null)} className="flex-shrink-0 hover:bg-white/20 rounded p-1">
+            <X className="h-4 w-4" />
+          </button>
         </div>
       )}
     </div>

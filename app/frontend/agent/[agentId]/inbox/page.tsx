@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { useParams, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import Link from "next/link";
-import { Bot, Calendar as CalIcon, Database as DbIcon, Shield, CalendarClock, BarChart3, Inbox, FileText, Search, Filter, MessageSquare, Phone, CheckCircle, XCircle, AlertCircle, HelpCircle, Trash2 } from "lucide-react";
+import { Bot, Calendar, Database as DbIcon, Shield, CalendarClock, BarChart3, Inbox, FileText, Search, Filter, MessageSquare, Phone, CheckCircle, XCircle, AlertCircle, HelpCircle, Trash2 } from "lucide-react";
 
 interface Conversation {
   id: string;
@@ -248,7 +248,7 @@ export default function InboxPage() {
     },
     { 
       name: "Calendar", 
-      icon: CalIcon, 
+      icon: Calendar, 
       href: `/frontend/agent/${agentId}/schedule`,
       active: pathname?.includes("/schedule"),
       requiresAgent: true
@@ -265,13 +265,6 @@ export default function InboxPage() {
       icon: CalendarClock, 
       href: `/frontend/agent/${agentId}/llm`,
       active: pathname?.includes("/llm"),
-      requiresAgent: true
-    },
-    { 
-      name: "Insights", 
-      icon: BarChart3, 
-      href: `/frontend/agent/${agentId}/insights`,
-      active: pathname?.includes("/insights"),
       requiresAgent: true
     },
   ];

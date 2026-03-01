@@ -1,5 +1,5 @@
 {
-  "name": "GigaAI",
+  "name": "DriftCRM",
   "version": 2,
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
@@ -9,18 +9,14 @@
   "crons": [
     {
       "path": "/api/scheduled-sms/process",
-      "schedule": "0 0 * * *"
+      "schedule": "*/15 * * * *"
     },
     {
       "path": "/api/scheduled-emails/process",
-      "schedule": "0 0 * * *"
+      "schedule": "*/15 * * * *"
     }
   ]
 }
-
-
-
-
 
 
 

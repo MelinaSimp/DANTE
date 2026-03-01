@@ -1,9 +1,9 @@
-// app/schedule/ScheduleClient.tsx
+// app/schedule/ScheduleClient.tsx — Google Calendar–inspired schedule
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import dayjs from "dayjs";
-import { Plus, X, Calendar, Clock, User, Phone, FileText, Mail } from "lucide-react";
+import { Plus, X, Calendar, Clock, User, Phone, FileText, Mail, Pencil, Check, Loader2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from "lucide-react";
 
 interface Appointment {
   id: string;
@@ -28,11 +28,53 @@ interface ScheduleClientProps {
 
 type LocalAppointment = Appointment & { localTime: dayjs.Dayjs };
 
+const HOURS = Array.from({ length: 24 }, (_, i) => i); // 12am – 11pm (full day)
+const HOUR_HEIGHT = 60; // px per hour
+
+const CLIENT_COLORS = [
+  { bg: "bg-blue-100", border: "border-blue-400", text: "text-blue-900", dot: "bg-blue-500", check: "text-blue-500 border-blue-500 bg-blue-50" },
+  { bg: "bg-green-100", border: "border-green-400", text: "text-green-900", dot: "bg-green-500", check: "text-green-500 border-green-500 bg-green-50" },
+  { bg: "bg-purple-100", border: "border-purple-400", text: "text-purple-900", dot: "bg-purple-500", check: "text-purple-500 border-purple-500 bg-purple-50" },
+  { bg: "bg-amber-100", border: "border-amber-400", text: "text-amber-900", dot: "bg-amber-500", check: "text-amber-500 border-amber-500 bg-amber-50" },
+  { bg: "bg-rose-100", border: "border-rose-400", text: "text-rose-900", dot: "bg-rose-500", check: "text-rose-500 border-rose-500 bg-rose-50" },
+  { bg: "bg-cyan-100", border: "border-cyan-400", text: "text-cyan-900", dot: "bg-cyan-500", check: "text-cyan-500 border-cyan-500 bg-cyan-50" },
+  { bg: "bg-indigo-100", border: "border-indigo-400", text: "text-indigo-900", dot: "bg-indigo-500", check: "text-indigo-500 border-indigo-500 bg-indigo-50" },
+  { bg: "bg-teal-100", border: "border-teal-400", text: "text-teal-900", dot: "bg-teal-500", check: "text-teal-500 border-teal-500 bg-teal-50" },
+];
+
+const SLOT_TYPE_COLORS = [
+  { bg: "bg-green-50", border: "border-green-400", text: "text-green-700", dot: "bg-green-500" },
+  { bg: "bg-blue-50", border: "border-blue-400", text: "text-blue-700", dot: "bg-blue-500" },
+  { bg: "bg-purple-50", border: "border-purple-400", text: "text-purple-700", dot: "bg-purple-500" },
+  { bg: "bg-amber-50", border: "border-amber-400", text: "text-amber-700", dot: "bg-amber-500" },
+  { bg: "bg-rose-50", border: "border-rose-400", text: "text-rose-700", dot: "bg-rose-500" },
+  { bg: "bg-cyan-50", border: "border-cyan-400", text: "text-cyan-700", dot: "bg-cyan-500" },
+  { bg: "bg-indigo-50", border: "border-indigo-400", text: "text-indigo-700", dot: "bg-indigo-500" },
+  { bg: "bg-teal-50", border: "border-teal-400", text: "text-teal-700", dot: "bg-teal-500" },
+  { bg: "bg-orange-50", border: "border-orange-400", text: "text-orange-700", dot: "bg-orange-500" },
+  { bg: "bg-lime-50", border: "border-lime-400", text: "text-lime-700", dot: "bg-lime-500" },
+];
+
+function getSlotTypeColor(slotType: string, allTypes: string[]) {
+  const idx = allTypes.indexOf(slotType);
+  return SLOT_TYPE_COLORS[(idx >= 0 ? idx : 0) % SLOT_TYPE_COLORS.length];
+}
+
+function getClientColorIndex(clientId: string, clients: { id: string }[]): number {
+  const idx = clients.findIndex((c) => c.id === clientId);
+  return (idx >= 0 ? idx : 0) % CLIENT_COLORS.length;
+}
+
+function eventColorClass(clientId: string, clients: { id: string }[]): string {
+  const c = CLIENT_COLORS[getClientColorIndex(clientId, clients)];
+  return `${c.bg} ${c.border} ${c.text}`;
+}
+
 export default function ScheduleClient({ initialAppointments, workspaceId, theme = "dark" }: ScheduleClientProps) {
   const [appointments, setAppointments] = useState<Appointment[]>(initialAppointments);
-  const [view, setView] = useState<"calendar" | "list">("calendar");
-  const [selectedDate, setSelectedDate] = useState(dayjs());
-  const [showDayView, setShowDayView] = useState(false);
+  const [viewMode, setViewMode] = useState<"week" | "month">("week");
+  const [weekStart, setWeekStart] = useState(dayjs().startOf("week"));
+  const [monthDate, setMonthDate] = useState(dayjs());
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [creating, setCreating] = useState(false);
@@ -40,30 +82,100 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
   const [appointmentReminderChannels, setAppointmentReminderChannels] = useState<{ sms: boolean; email: boolean }>({ sms: true, email: false });
   const [loadingReminders, setLoadingReminders] = useState(false);
   const [savingReminders, setSavingReminders] = useState(false);
-  
-  // Theme helpers
-  const isWhite = theme === "white";
-  const containerBg = isWhite ? "bg-white" : "";
-  const containerText = isWhite ? "text-black" : "text-white";
-  const cardBg = isWhite ? "bg-white" : "bg-black/40 backdrop-blur-sm";
-  const cardBorder = isWhite ? "border-2 border-black" : "border border-white/10";
-  const inputBg = isWhite ? "bg-white border-2 border-black" : "bg-white/5 border border-white/10";
-  const inputText = isWhite ? "text-black placeholder-gray-400" : "text-white placeholder-white/40";
-  const buttonPrimary = isWhite ? "bg-black text-white hover:bg-gray-800" : "bg-[#f97316] text-white hover:bg-[#ea580c]";
-  const buttonSecondary = isWhite ? "border-2 border-black text-black hover:bg-gray-50" : "border border-white/10 text-white/70 hover:bg-white/10";
-  const selectedBg = isWhite ? "bg-black text-white" : "bg-white text-gray-900";
-  const hoverBg = isWhite ? "hover:bg-gray-50" : "hover:bg-white/10";
-  const divider = isWhite ? "border-black" : "border-white/10";
-  const divider2 = isWhite ? "border-2 border-black" : "border border-white/10";
-  const textPrimary = isWhite ? "text-black" : "text-white";
-  const textSecondary = isWhite ? "text-gray-600" : "text-white/70";
-  const textTertiary = isWhite ? "text-gray-500" : "text-white/50";
-  const modalBg = isWhite ? "bg-white border-2 border-black" : "bg-[#242423] border border-white/10";
-  const modalOverlay = isWhite ? "bg-black/50" : "bg-black/60";
-  const statusConfirmed = isWhite ? "bg-green-50 text-green-700 border border-black" : "bg-green-400/20 text-green-200";
-  const statusPending = isWhite ? "bg-yellow-50 text-yellow-700 border border-black" : "bg-yellow-400/20 text-yellow-200";
-  const statusDefault = isWhite ? "bg-gray-50 text-gray-700 border border-black" : "bg-white/10 text-white/60";
-  
+  const [editingAppointment, setEditingAppointment] = useState(false);
+  const [editFields, setEditFields] = useState({ service_type: "", notes: "", scheduled_at: "", duration_minutes: 30 });
+  const [savingAppointment, setSavingAppointment] = useState(false);
+
+  // Slot type management
+  const DEFAULT_SLOT_TYPES = ["General", "Appointments", "Estate Planning", "Tax Consultation", "Portfolio Review"];
+  const [slotTypes, setSlotTypes] = useState<string[]>(DEFAULT_SLOT_TYPES);
+  const [showTypeManager, setShowTypeManager] = useState(false);
+  const [newTypeName, setNewTypeName] = useState("");
+
+  // Availability slots
+  interface AvailabilitySlot { id: string; slot_date: string; start_time: string; end_time: string; notes?: string; slot_type?: string; }
+  const [availabilitySlots, setAvailabilitySlots] = useState<AvailabilitySlot[]>([]);
+  const [showSlotModal, setShowSlotModal] = useState(false);
+  const [slotDate, setSlotDate] = useState(dayjs().format("YYYY-MM-DD"));
+  const [slotStartTime, setSlotStartTime] = useState("09:00");
+  const [slotEndTime, setSlotEndTime] = useState("12:00");
+  const [slotType, setSlotType] = useState("General");
+  const [creatingSlot, setCreatingSlot] = useState(false);
+
+  // Load slot types from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("drift-slot-types");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) setSlotTypes(parsed);
+      }
+    } catch {}
+  }, []);
+
+  const persistSlotTypes = (types: string[]) => {
+    setSlotTypes(types);
+    localStorage.setItem("drift-slot-types", JSON.stringify(types));
+  };
+
+  const addSlotType = () => {
+    const trimmed = newTypeName.trim();
+    if (!trimmed || slotTypes.includes(trimmed)) return;
+    persistSlotTypes([...slotTypes, trimmed]);
+    setNewTypeName("");
+  };
+
+  const removeSlotType = (type: string) => {
+    if (type === "General") return;
+    persistSlotTypes(slotTypes.filter((t) => t !== type));
+  };
+
+  // Fetch availability slots
+  useEffect(() => {
+    fetch("/api/availability-slots", { credentials: "include" })
+      .then((r) => r.ok ? r.json() : [])
+      .then((data) => setAvailabilitySlots(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, []);
+
+  const createAvailabilitySlot = async () => {
+    if (!slotDate || !slotStartTime || !slotEndTime) return;
+    setCreatingSlot(true);
+    try {
+      const res = await fetch("/api/availability-slots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ slot_date: slotDate, start_time: slotStartTime, end_time: slotEndTime, slot_type: slotType }),
+      });
+      if (res.ok) {
+        const slot = await res.json();
+        setAvailabilitySlots((prev) => [...prev, slot]);
+        setShowSlotModal(false);
+        setSlotDate(dayjs().format("YYYY-MM-DD"));
+        setSlotStartTime("09:00");
+        setSlotEndTime("12:00");
+        setSlotType("General");
+      }
+    } catch (err) {
+      console.error("Failed to create slot:", err);
+    } finally {
+      setCreatingSlot(false);
+    }
+  };
+
+  const deleteAvailabilitySlot = async (slotId: string) => {
+    try {
+      await fetch(`/api/availability-slots?id=${slotId}`, { method: "DELETE", credentials: "include" });
+      setAvailabilitySlots((prev) => prev.filter((s) => s.id !== slotId));
+    } catch (err) {
+      console.error("Failed to delete slot:", err);
+    }
+  };
+
+  const getSlotsForDay = (day: dayjs.Dayjs) =>
+    availabilitySlots.filter((s) => s.slot_date === day.format("YYYY-MM-DD"));
+
   // Form state
   const [formName, setFormName] = useState("");
   const [formPhone, setFormPhone] = useState("");
@@ -75,100 +187,170 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
   const [formReminderTiming, setFormReminderTiming] = useState<string[]>([]);
   const [formReminderChannels, setFormReminderChannels] = useState<{ sms: boolean; email: boolean }>({ sms: true, email: false });
 
+  // Client filter state
+  const [hiddenClients, setHiddenClients] = useState<Set<string>>(new Set());
+  const [clientsExpanded, setClientsExpanded] = useState(true);
+  const [allContacts, setAllContacts] = useState<{ id: string; name: string; phone?: string; email?: string }[]>([]);
+  const [showAddClient, setShowAddClient] = useState(false);
+  const [newClientName, setNewClientName] = useState("");
+  const [newClientPhone, setNewClientPhone] = useState("");
+  const [addingClient, setAddingClient] = useState(false);
+
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [gcalConnected, setGcalConnected] = useState<boolean | null>(null);
+  const [gcalConnecting, setGcalConnecting] = useState(false);
+
+  // Fetch all contacts for the client list
+  useEffect(() => {
+    fetch("/api/contacts", { credentials: "include" })
+      .then((r) => r.ok ? r.json() : [])
+      .then((data) => setAllContacts(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/integrations/google/status", { credentials: "include" })
+      .then((r) => r.ok ? r.json() : { connected: false })
+      .then((data) => setGcalConnected(data.connected ?? false))
+      .catch(() => setGcalConnected(false));
+  }, []);
+
+  const handleAddClient = async () => {
+    if (!newClientName.trim() || !newClientPhone.trim()) return;
+    setAddingClient(true);
+    try {
+      const res = await fetch("/api/contacts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ name: newClientName.trim(), phone: newClientPhone.trim() }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAllContacts((prev) => [...prev, { id: data.id, name: data.name, phone: data.phone, email: data.email }]);
+        setNewClientName("");
+        setNewClientPhone("");
+        setShowAddClient(false);
+      }
+    } catch (err) {
+      console.error("Failed to add client:", err);
+    } finally {
+      setAddingClient(false);
+    }
+  };
+
+  // Scroll to 8am on mount
+  useEffect(() => {
+    if (gridRef.current) {
+      gridRef.current.scrollTop = HOUR_HEIGHT * 8; // scroll to 8am
+    }
+  }, [viewMode]);
+
+  // Normalize appointments
+  const allNormalized: LocalAppointment[] = appointments.map((a) => {
+    let parsed = dayjs(a.scheduled_at);
+    if (!parsed.isValid()) parsed = dayjs(`${a.scheduled_at}Z`);
+    if (!parsed.isValid()) parsed = dayjs(Number(a.scheduled_at));
+    return { ...a, localTime: parsed };
+  });
+
+  // Unique clients for the filter sidebar
+  const uniqueClients = Array.from(
+    new Map(allNormalized.map((a) => [a.contacts.id, a.contacts])).values()
+  );
+
+  const toggleClient = (clientId: string) => {
+    setHiddenClients((prev) => {
+      const next = new Set(prev);
+      if (next.has(clientId)) next.delete(clientId);
+      else next.add(clientId);
+      return next;
+    });
+  };
+
+  // Filtered appointments (exclude hidden clients)
+  const normalizedAppointments = allNormalized.filter((a) => !hiddenClients.has(a.contacts.id));
+
   // Fetch reminders when appointment is selected
   useEffect(() => {
     if (selectedAppointment) {
       setLoadingReminders(true);
       fetch(`/api/appointments/${selectedAppointment.id}/reminders`)
-        .then((res) => res.json())
-        .then((data) => {
-          setAppointmentReminderTiming(data.reminderTiming || []);
-        })
-        .catch((err) => {
-          console.error("Failed to fetch reminders:", err);
-          setAppointmentReminderTiming([]);
-        })
-        .finally(() => {
-          setLoadingReminders(false);
-        });
+        .then((r) => r.json())
+        .then((data) => setAppointmentReminderTiming(data.reminderTiming || []))
+        .catch(() => setAppointmentReminderTiming([]))
+        .finally(() => setLoadingReminders(false));
     } else {
       setAppointmentReminderTiming([]);
     }
   }, [selectedAppointment]);
 
-  // Save reminder timings
+  const startEditingAppointment = () => {
+    if (!selectedAppointment) return;
+    setEditFields({
+      service_type: selectedAppointment.service_type || "",
+      notes: selectedAppointment.notes || "",
+      scheduled_at: dayjs(selectedAppointment.scheduled_at).format("YYYY-MM-DDTHH:mm"),
+      duration_minutes: selectedAppointment.duration_minutes || 30,
+    });
+    setEditingAppointment(true);
+  };
+
+  const handleSaveAppointment = async () => {
+    if (!selectedAppointment) return;
+    setSavingAppointment(true);
+    try {
+      const response = await fetch(`/api/appointments/${selectedAppointment.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          service_type: editFields.service_type,
+          notes: editFields.notes,
+          scheduled_at: new Date(editFields.scheduled_at).toISOString(),
+          duration_minutes: editFields.duration_minutes,
+        }),
+      });
+      if (response.ok) {
+        const updated = await response.json();
+        const updatedAppointment = { ...selectedAppointment, service_type: updated.service_type, notes: updated.notes, scheduled_at: updated.scheduled_at, duration_minutes: updated.duration_minutes };
+        setSelectedAppointment(updatedAppointment);
+        setAppointments((prev) => prev.map((a) => (a.id === selectedAppointment.id ? updatedAppointment : a)));
+        setEditingAppointment(false);
+      }
+    } catch (err) {
+      console.error("Failed to save appointment:", err);
+    } finally {
+      setSavingAppointment(false);
+    }
+  };
+
   const handleSaveReminders = async () => {
     if (!selectedAppointment) return;
-    
     setSavingReminders(true);
     try {
       const response = await fetch(`/api/appointments/${selectedAppointment.id}/reminders`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          reminderTiming: appointmentReminderTiming,
-          reminderChannels: appointmentReminderChannels,
-        }),
+        body: JSON.stringify({ reminderTiming: appointmentReminderTiming, reminderChannels: appointmentReminderChannels }),
       });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to update reminders");
-      }
-
-      alert("Reminder timings updated successfully!");
+      if (!response.ok) throw new Error("Failed to update reminders");
+      alert("Reminder timings updated!");
     } catch (error: any) {
-      console.error("Failed to save reminders:", error);
       alert(error.message || "Failed to update reminders");
     } finally {
       setSavingReminders(false);
     }
   };
 
-  // Group appointments by date
-  const normalizedAppointments: LocalAppointment[] = appointments.map((appointment) => {
-    let parsed = dayjs(appointment.scheduled_at);
-    if (!parsed.isValid()) {
-      parsed = dayjs(`${appointment.scheduled_at}Z`);
-    }
-    if (!parsed.isValid()) {
-      parsed = dayjs(Number(appointment.scheduled_at));
-    }
-    return {
-      ...appointment,
-      localTime: parsed,
-    };
-  });
-
-  const appointmentsByDate = normalizedAppointments.reduce((acc, appointment) => {
-    const date = appointment.localTime.startOf("day").format("YYYY-MM-DD");
-    if (!acc[date]) {
-      acc[date] = [];
-    }
-    acc[date].push(appointment);
-    return acc;
-  }, {} as Record<string, Array<Appointment & { localTime: dayjs.Dayjs }>>);
-
-  const normalizedSelectedDate = selectedDate.startOf("day");
-  const selectedKey = normalizedSelectedDate.format("YYYY-MM-DD");
-  const rawDayAppointments = appointmentsByDate[selectedKey] || [];
-  const todayAppointments = rawDayAppointments
-    .slice()
-    .sort((a, b) => a.localTime.valueOf() - b.localTime.valueOf());
-  const dailyAppointments = todayAppointments;
-
-  // Handle create appointment
   const handleCreateAppointment = async () => {
     if (!formName.trim() || !formPhone.trim() || !formDescription.trim()) {
       alert("Please fill in all required fields");
       return;
     }
-
     setCreating(true);
     try {
-      // Combine date and time
       const scheduledAt = dayjs(`${formDate} ${formTime}`).toISOString();
-
       const response = await fetch("/api/appointments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -183,766 +365,703 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
           reminderChannels: formReminderChannels,
         }),
       });
-
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "Failed to create appointment");
       }
-
-      const data = await response.json();
-      
-      // Show SMS status
-      if (data.smsError) {
-        alert(`Appointment created successfully, but SMS reminder failed: ${data.smsError}`);
-      } else if (data.smsSent) {
-        console.log("SMS reminder sent successfully");
-      }
-      
-      // Reset form
-      setFormName("");
-      setFormPhone("");
-      setFormEmail("");
-      setFormDescription("");
-      setFormDate(dayjs().format("YYYY-MM-DD"));
-      setFormTime(dayjs().add(1, "hour").format("HH:mm"));
-      setFormDuration("60");
+      setFormName(""); setFormPhone(""); setFormEmail(""); setFormDescription("");
+      setFormDate(dayjs().format("YYYY-MM-DD")); setFormTime(dayjs().add(1, "hour").format("HH:mm"));
+      setFormDuration("60"); setFormReminderTiming([]); setFormReminderChannels({ sms: true, email: false });
       setShowCreateModal(false);
-      
-      // Reload page to show new appointment
       window.location.reload();
     } catch (error: any) {
-      console.error("Failed to create appointment:", error);
       alert(error.message || "Failed to create appointment");
     } finally {
       setCreating(false);
     }
   };
 
+  // Navigation
+  const goToday = () => { setWeekStart(dayjs().startOf("week")); setMonthDate(dayjs()); };
+  const goPrev = () => viewMode === "week" ? setWeekStart(weekStart.subtract(1, "week")) : setMonthDate(monthDate.subtract(1, "month"));
+  const goNext = () => viewMode === "week" ? setWeekStart(weekStart.add(1, "week")) : setMonthDate(monthDate.add(1, "month"));
+
+  // Week days
+  const weekDays = Array.from({ length: 7 }, (_, i) => weekStart.add(i, "day"));
+  const today = dayjs().startOf("day");
+
+  // Header label
+  const headerLabel = viewMode === "week"
+    ? weekStart.month() === weekStart.add(6, "day").month()
+      ? weekStart.format("MMMM YYYY")
+      : `${weekStart.format("MMM")} – ${weekStart.add(6, "day").format("MMM YYYY")}`
+    : monthDate.format("MMMM YYYY");
+
+  // Get appointments for a specific day
+  const getAppointmentsForDay = (day: dayjs.Dayjs) =>
+    normalizedAppointments.filter((a) => a.localTime.startOf("day").isSame(day.startOf("day")));
+
+  // Mini calendar
+  const miniCalStart = monthDate.startOf("month").startOf("week");
+  const miniCalDays = Array.from({ length: 42 }, (_, i) => miniCalStart.add(i, "day"));
+
+  // Month view
+  const monthStart = monthDate.startOf("month").startOf("week");
+  const monthWeeks = Array.from({ length: 6 }, (_, w) =>
+    Array.from({ length: 7 }, (_, d) => monthStart.add(w * 7 + d, "day"))
+  );
+
   return (
-    <div className={`h-full flex flex-col space-y-6 ${containerText} p-6 overflow-y-auto relative ${containerBg}`}>
-      {/* Floating Create Button - Always visible */}
-      {isWhite ? (
-        <div className="fixed bottom-8 right-8 z-50">
-          <div className="relative inline-block">
-            <div className="absolute -inset-1 bg-gradient-to-br from-purple-400 via-pink-500 to-blue-500 rounded-full blur-sm opacity-50"></div>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="relative px-6 py-3 rounded-full bg-black text-white hover:bg-gray-800 text-sm font-semibold transition flex items-center gap-2 shadow-xl hover:scale-105"
-            >
-              <Plus className="h-6 w-6" />
-              Create Appointment
+    <div className="flex flex-col h-full bg-white text-gray-900 rounded-2xl overflow-hidden border border-gray-200">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white">
+        <div className="flex items-center gap-3">
+          <button onClick={goToday} className="px-3 py-1.5 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+            Today
+          </button>
+          <button onClick={goPrev} className="p-1.5 rounded-full hover:bg-gray-100 transition">
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button onClick={goNext} className="p-1.5 rounded-full hover:bg-gray-100 transition">
+            <ChevronRight className="h-4 w-4" />
+          </button>
+          <h2 className="text-lg font-semibold text-gray-900 ml-1">{headerLabel}</h2>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-lg border border-gray-300 overflow-hidden">
+            <button onClick={() => setViewMode("week")} className={`px-3 py-1.5 text-xs font-medium transition ${viewMode === "week" ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
+              Week
+            </button>
+            <button onClick={() => setViewMode("month")} className={`px-3 py-1.5 text-xs font-medium transition ${viewMode === "month" ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
+              Month
             </button>
           </div>
-        </div>
-      ) : (
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className={`fixed bottom-8 right-8 z-50 px-6 py-3 rounded-full ${buttonPrimary} text-sm font-semibold transition flex items-center gap-2 shadow-xl hover:scale-105`}
-        >
-          <Plus className="h-6 w-6" />
-          Create Appointment
-        </button>
-      )}
-
-      <div className="max-w-4xl mx-auto w-full">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <h2 className={`text-xl font-semibold ${textPrimary}`}>Schedule</h2>
-        </div>
-
-        <div className={`rounded-2xl ${cardBorder} ${cardBg} p-6 shadow-lg`}>
-      {/* View Toggle */}
-      <div className="flex items-center gap-4">
-        <div className={`flex rounded-2xl ${cardBorder} ${isWhite ? "bg-white" : "bg-white/5"} p-1`}>
-          <button
-            onClick={() => {
-              setView("calendar");
-              setShowDayView(false);
-            }}
-            className={`px-3 py-1 rounded-2xl text-sm font-medium transition-colors ${
-              view === "calendar"
-                ? `${selectedBg} shadow-md`
-                : `${textPrimary} ${hoverBg}`
-            }`}
-          >
-            Calendar
+          <button onClick={() => setShowSlotModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-green-300 text-green-700 bg-green-50 text-sm font-medium hover:bg-green-100 transition shadow-sm">
+            <Plus className="h-4 w-4" />
+            Open Slot
           </button>
-          <button
-            onClick={() => {
-              setView("list");
-              setShowDayView(false);
-            }}
-            className={`px-3 py-1 rounded-2xl text-sm font-medium transition-colors ${
-              view === "list"
-                ? `${selectedBg} shadow-md`
-                : `${textPrimary} ${hoverBg}`
-            }`}
-          >
-            List
+          <button onClick={() => setShowCreateModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black text-white text-sm font-medium hover:bg-gray-800 transition shadow-sm">
+            <Plus className="h-4 w-4" />
+            Create
           </button>
         </div>
-        
-        {showDayView && (
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowDayView(false)}
-              className={`px-3 py-1 text-sm rounded-2xl ${buttonSecondary}`}
-            >
-              ← Back to Calendar
-            </button>
-            <span className={`text-sm ${textSecondary}`}>
-              {selectedDate.format("dddd, MMMM D, YYYY")}
-            </span>
-          </div>
-        )}
       </div>
 
-      {showDayView ? (
-        /* Google Calendar-style Day View */
-        <div className={`rounded-2xl ${cardBorder} ${cardBg} shadow-lg`}>
-          <div className={`p-6 ${isWhite ? "border-b-2" : "border-b"} ${divider}`}>
-            <div className="flex items-center justify-between">
-              <h2 className={`text-xl font-semibold ${textPrimary}`}>
-                {selectedDate.format("dddd, MMMM D, YYYY")}
-              </h2>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setSelectedDate(selectedDate.subtract(1, "day"))}
-                  className={`p-2 rounded-2xl ${buttonSecondary}`}
-                >
-                  ←
-                </button>
-                <button
-                  onClick={() => setSelectedDate(dayjs())}
-                  className={`px-3 py-1 text-sm rounded-2xl ${buttonPrimary}`}
-                >
-                  Today
-                </button>
-                <button
-                  onClick={() => setSelectedDate(selectedDate.add(1, "day"))}
-                  className={`p-2 rounded-2xl ${buttonSecondary}`}
-                >
-                  →
-                </button>
+      {/* Content */}
+      <div className="flex flex-1 min-h-0">
+        {/* Mini Calendar Sidebar (week view only) */}
+        {viewMode === "week" && (
+          <div className="w-52 border-r border-gray-200 p-3 shrink-0 hidden lg:block">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-semibold text-gray-700">{monthDate.format("MMMM YYYY")}</span>
+              <div className="flex gap-0.5">
+                <button onClick={() => setMonthDate(monthDate.subtract(1, "month"))} className="p-0.5 rounded hover:bg-gray-100"><ChevronLeft className="h-3 w-3" /></button>
+                <button onClick={() => setMonthDate(monthDate.add(1, "month"))} className="p-0.5 rounded hover:bg-gray-100"><ChevronRight className="h-3 w-3" /></button>
               </div>
             </div>
-          </div>
-
-          <div className="relative">
-            {/* Time labels */}
-            <div className={`absolute left-0 top-0 w-16 h-full ${isWhite ? "border-r-2" : "border-r"} ${divider}`}>
-              {Array.from({ length: 24 }, (_, hour) => (
-                <div key={hour} className={`h-12 ${isWhite ? "border-b border-gray-200" : "border-b border-white/5"} flex items-start justify-end pr-2`}>
-                  <span className={`mt-1 text-xs ${textSecondary}`}>
-                    {hour === 0 ? "12 AM" : hour < 12 ? `${hour} AM` : hour === 12 ? "12 PM" : `${hour - 12} PM`}
-                  </span>
-                </div>
+            <div className="grid grid-cols-7 gap-0 text-center">
+              {["S","M","T","W","T","F","S"].map((d, i) => (
+                <div key={i} className="text-[10px] font-medium text-gray-400 py-1">{d}</div>
               ))}
+              {miniCalDays.map((day, i) => {
+                const isToday = day.isSame(today, "day");
+                const isCurrentMonth = day.month() === monthDate.month();
+                const hasAppt = getAppointmentsForDay(day).length > 0;
+                return (
+                  <button
+                    key={i}
+                    onClick={() => { setWeekStart(day.startOf("week")); }}
+                    className={`text-[11px] py-1 rounded-full transition ${
+                      isToday ? "bg-black text-white font-bold" :
+                      !isCurrentMonth ? "text-gray-300" :
+                      "text-gray-700 hover:bg-gray-100"
+                    }`}
+                  >
+                    {day.date()}
+                    {hasAppt && !isToday && <span className="block w-1 h-1 bg-blue-500 rounded-full mx-auto -mt-0.5" />}
+                  </button>
+                );
+              })}
             </div>
 
-            {/* Time slots */}
-            <div className="ml-16 relative">
-              {Array.from({ length: 24 }, (_, hour) => {
-                const hourAppointments = dailyAppointments.filter(
-                  (appt) => appt.localTime.hour() === hour
-                );
+            {/* My Clients — filter like Google Calendar */}
+            <div className="mt-5 pt-4 border-t border-gray-200">
+              <div className="flex items-center justify-between mb-2">
+                <button
+                  onClick={() => setClientsExpanded(!clientsExpanded)}
+                  className="flex items-center gap-1 text-xs font-semibold text-gray-700 hover:text-gray-900"
+                >
+                  <span>My Clients</span>
+                  {clientsExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                </button>
+                <button
+                  onClick={() => setShowAddClient(!showAddClient)}
+                  className="p-0.5 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700"
+                  title="Add client"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              </div>
 
-                return (
-                  <div key={hour} className={`relative h-12 ${isWhite ? "border-b border-gray-200" : "border-b border-white/5"}`}>
-                    {hourAppointments.map((appointment) => {
-                      const minutes = appointment.localTime.minute();
-                      const topOffset = (minutes / 60) * 48; // 48px = height of hour slot
-                      const duration = appointment.duration_minutes || 60;
-                      const height = Math.max(36, (duration / 60) * 48);
-                      
+              {/* Add client form */}
+              {showAddClient && (
+                <div className="mb-2 p-2 rounded-lg border border-gray-200 bg-gray-50 space-y-1.5">
+                  <input
+                    type="text"
+                    value={newClientName}
+                    onChange={(e) => setNewClientName(e.target.value)}
+                    placeholder="Name"
+                    className="w-full rounded-lg border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-gray-400"
+                  />
+                  <input
+                    type="tel"
+                    value={newClientPhone}
+                    onChange={(e) => setNewClientPhone(e.target.value)}
+                    placeholder="Phone (+1...)"
+                    className="w-full rounded-lg border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-gray-400"
+                  />
+                  <div className="flex gap-1">
+                    <button
+                      onClick={handleAddClient}
+                      disabled={addingClient || !newClientName.trim() || !newClientPhone.trim()}
+                      className="flex-1 py-1 rounded-lg bg-black text-white text-[10px] font-medium hover:bg-gray-800 disabled:opacity-50 transition"
+                    >
+                      {addingClient ? "Adding..." : "Add"}
+                    </button>
+                    <button
+                      onClick={() => { setShowAddClient(false); setNewClientName(""); setNewClientPhone(""); }}
+                      className="px-2 py-1 rounded-lg border border-gray-300 text-[10px] text-gray-600 hover:bg-gray-100 transition"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {clientsExpanded && (
+                <div className="space-y-1">
+                  {/* Merge contacts from appointments + allContacts */}
+                  {(() => {
+                    const merged = new Map<string, { id: string; name: string }>();
+                    uniqueClients.forEach((c) => merged.set(c.id, c));
+                    allContacts.forEach((c) => { if (!merged.has(c.id)) merged.set(c.id, c); });
+                    const clientList = Array.from(merged.values());
+                    return clientList.map((client) => {
+                      const colorIdx = getClientColorIndex(client.id, clientList);
+                      const color = CLIENT_COLORS[colorIdx];
+                      const isVisible = !hiddenClients.has(client.id);
+                      const apptCount = allNormalized.filter((a) => a.contacts.id === client.id).length;
                       return (
-                        <div
-                          key={appointment.id}
-                          onClick={() => setSelectedAppointment(appointment)}
-                          className={`absolute left-0 right-0 rounded-2xl ${isWhite ? "border-2 border-black bg-white" : "border border-[#f97316]/40 bg-[#f97316]/20"} p-2 shadow-md transition hover:shadow-lg cursor-pointer`}
-                          style={{ top: `${topOffset}px`, height: `${height}px` }}
+                        <button
+                          key={client.id}
+                          onClick={() => toggleClient(client.id)}
+                          className="flex items-center gap-2 w-full px-1 py-1 rounded-lg hover:bg-gray-50 transition text-left group"
                         >
-                          <div className="flex items-center justify-between h-full">
-                            <div className="flex-1 min-w-0">
-                              <div className={`text-sm font-medium ${isWhite ? "text-black" : "text-white"} truncate`}>
-                                {appointment.contacts.name}
-                              </div>
-                              <div className={`text-xs ${isWhite ? "text-gray-600" : "text-white/70"} truncate`}>
-                                {appointment.service_type}
-                              </div>
-                            </div>
-                            <div className="ml-2 flex-shrink-0">
-                              <span className={`px-2 py-1 text-xs rounded-full ${
-                                appointment.status === "confirmed" 
-                                  ? statusConfirmed
-                                  : appointment.status === "pending"
-                                  ? statusPending
-                                  : statusDefault
-                              }`}>
-                                {appointment.status}
-                              </span>
-                            </div>
+                          <div className={`w-4 h-4 rounded flex items-center justify-center border-2 transition ${
+                            isVisible ? color.check : "border-gray-300 bg-white"
+                          }`}>
+                            {isVisible && <Check className="h-3 w-3" />}
                           </div>
-                        </div>
+                          <span className={`text-xs font-medium truncate flex-1 ${isVisible ? "text-gray-800" : "text-gray-400"}`}>
+                            {client.name}
+                          </span>
+                          {apptCount > 0 && (
+                            <span className="text-[10px] text-gray-400">{apptCount}</span>
+                          )}
+                        </button>
                       );
-                    })}
+                    });
+                  })()}
+                </div>
+              )}
+            </div>
+
+            {/* Google Calendar */}
+            <div className="mt-5 pt-4 border-t border-gray-200">
+              <span className="text-xs font-semibold text-gray-700 block mb-2">Integrations</span>
+              {gcalConnected === null ? (
+                <div className="text-xs text-gray-400">Checking...</div>
+              ) : gcalConnected ? (
+                <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-green-50 border border-green-200">
+                  <div className="w-2 h-2 rounded-full bg-green-500" />
+                  <span className="text-xs font-medium text-green-700">Google Calendar connected</span>
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    setGcalConnecting(true);
+                    window.location.href = "/api/integrations/google/oauth";
+                  }}
+                  disabled={gcalConnecting}
+                  className="flex items-center gap-2 w-full px-2 py-2 rounded-lg border border-gray-300 text-xs font-medium text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
+                >
+                  <Calendar className="h-3.5 w-3.5" />
+                  {gcalConnecting ? "Connecting..." : "Connect Google Calendar"}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Week View */}
+        {viewMode === "week" ? (
+          <div className="flex-1 flex flex-col min-h-0">
+            {/* Day headers */}
+            <div className="grid grid-cols-[56px_repeat(7,1fr)] border-b border-gray-200 bg-white sticky top-0 z-10">
+              <div className="border-r border-gray-100" />
+              {weekDays.map((day, i) => {
+                const isToday = day.isSame(today, "day");
+                return (
+                  <div key={i} className={`text-center py-2 border-r border-gray-100 ${i === 6 ? "border-r-0" : ""}`}>
+                    <div className={`text-[11px] font-medium uppercase ${isToday ? "text-blue-600" : "text-gray-500"}`}>
+                      {day.format("ddd")}
+                    </div>
+                    <div className={`text-xl font-medium mt-0.5 ${
+                      isToday ? "bg-blue-600 text-white w-9 h-9 rounded-full flex items-center justify-center mx-auto" : "text-gray-900"
+                    }`}>
+                      {day.date()}
+                    </div>
                   </div>
                 );
               })}
             </div>
-          </div>
-        </div>
-      ) : view === "calendar" ? (
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 flex-1 min-h-0">
-          {/* Calendar */}
-          <div className="lg:col-span-2 flex flex-col min-h-0">
-            <div className={`rounded-2xl ${cardBorder} ${cardBg} p-6 shadow-lg flex-1 flex flex-col min-h-0`}>
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className={`text-lg font-semibold ${textPrimary}`}>
-                  {selectedDate.format("MMMM YYYY")}
-                </h2>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setSelectedDate(selectedDate.subtract(1, "month"))}
-                    className={`rounded-2xl ${buttonSecondary} p-2`}
-                  >
-                    ←
-                  </button>
-                  <button
-                    onClick={() => setSelectedDate(dayjs())}
-                    className={`rounded-2xl ${buttonPrimary} px-3 py-1 text-sm`}
-                  >
-                    Today
-                  </button>
-                  <button
-                    onClick={() => setSelectedDate(selectedDate.add(1, "month"))}
-                    className={`rounded-2xl ${buttonSecondary} p-2`}
-                  >
-                    →
-                  </button>
+
+            {/* Time grid */}
+            <div ref={gridRef} className="flex-1 overflow-y-auto">
+              <div className="grid grid-cols-[56px_repeat(7,1fr)] relative" style={{ minHeight: HOURS.length * HOUR_HEIGHT }}>
+                {/* Hour labels */}
+                <div className="border-r border-gray-100">
+                  {HOURS.map((hour) => (
+                    <div key={hour} className="relative" style={{ height: HOUR_HEIGHT }}>
+                      <span className="absolute -top-2 right-2 text-[10px] text-gray-400 font-medium">
+                        {hour === 0 ? "12 AM" : hour < 12 ? `${hour} AM` : hour === 12 ? "12 PM" : `${hour - 12} PM`}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              </div>
 
-              {/* Month Calendar Grid */}
-              <div className="mb-3 grid grid-cols-7 gap-2">
-                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-                  <div key={day} className={`p-2 text-center text-sm font-semibold ${isWhite ? "text-black" : "text-white/60"}`}>
-                    {day}
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-7 gap-2 flex-1 auto-rows-fr">
-                {Array.from({ length: selectedDate.daysInMonth() }, (_, i) => {
-                  const day = i + 1;
-                  const date = selectedDate.date(day);
-                  const dateStr = date.format("YYYY-MM-DD");
-                  const dayAppointments = appointmentsByDate[dateStr] || [];
-                  const isToday = date.isSame(dayjs(), "day");
-                  const isSelected = date.isSame(selectedDate, "day");
-
+                {/* Day columns */}
+                {weekDays.map((day, dayIdx) => {
+                  const dayAppts = getAppointmentsForDay(day);
+                  const daySlots = getSlotsForDay(day);
                   return (
-                    <button
-                      key={day}
-                      onClick={() => {
-                        setSelectedDate(date);
-                        setShowDayView(true);
-                      }}
-                      className={`rounded-2xl p-4 text-sm transition min-h-[80px] flex flex-col items-center justify-start ${isWhite ? "border-2" : "border"} ${divider} ${
-                        isToday && !isSelected ? (isWhite ? "bg-black text-white" : "bg-[#f97316]/25 text-[#fb923c]") : ""
-                      } ${isSelected ? (isWhite ? "bg-black text-white" : "border-2 border-[#f97316] bg-[#f97316]/30 text-white") : `${hoverBg} ${isWhite ? "bg-white" : "border-white/5"}`}`}
-                      >
-                        <div className={`text-center font-medium text-base mb-1 ${
-                          isToday && !isSelected ? (isWhite ? "text-white font-bold" : "text-[#fb923c]") : 
-                          isSelected ? (isWhite ? "text-white" : "text-white") : 
-                          (isWhite ? "text-black" : "text-white")
-                        }`}>{day}</div>
-                        {dayAppointments.length > 0 && (
-                          <div className={`mt-auto text-xs font-semibold ${isSelected ? (isWhite ? "text-white" : "text-white") : (isWhite ? "text-black" : "text-[#fb923c]")}`}>
-                          {dayAppointments.length} appt{dayAppointments.length > 1 ? "s" : ""}
-                        </div>
-                      )}
-                    </button>
+                    <div key={dayIdx} className={`relative border-r border-gray-100 ${dayIdx === 6 ? "border-r-0" : ""}`}>
+                      {/* Hour lines */}
+                      {HOURS.map((hour) => (
+                        <div key={hour} className="border-b border-gray-100" style={{ height: HOUR_HEIGHT }} />
+                      ))}
+
+                      {/* Availability slots (color-coded by type) */}
+                      {daySlots.map((slot) => {
+                        const [sh, sm] = slot.start_time.split(":").map(Number);
+                        const [eh, em] = slot.end_time.split(":").map(Number);
+                        const startHour = sh + sm / 60;
+                        const endHour = eh + em / 60;
+                        const topOffset = (startHour - HOURS[0]) * HOUR_HEIGHT;
+                        const height = (endHour - startHour) * HOUR_HEIGHT;
+                        if (topOffset < 0 || height <= 0) return null;
+                        const typeColor = getSlotTypeColor(slot.slot_type || "General", slotTypes);
+                        return (
+                          <div
+                            key={slot.id}
+                            className={`absolute left-0 right-0 ${typeColor.bg} border-l-[3px] ${typeColor.border} opacity-70 group/slot`}
+                            style={{ top: topOffset, height }}
+                          >
+                            <div className="flex items-center justify-between px-1.5 py-0.5">
+                              <span className={`text-[10px] ${typeColor.text} font-medium truncate`}>{slot.slot_type || "Open"}</span>
+                              <button
+                                onClick={() => deleteAvailabilitySlot(slot.id)}
+                                className={`opacity-0 group-hover/slot:opacity-100 p-0.5 rounded hover:bg-white/50 ${typeColor.text} transition shrink-0`}
+                              >
+                                <X className="h-2.5 w-2.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Events */}
+                      {dayAppts.map((appt, apptIdx) => {
+                        const startHour = appt.localTime.hour() + appt.localTime.minute() / 60;
+                        const duration = (appt.duration_minutes || 30) / 60;
+                        const topOffset = (startHour - HOURS[0]) * HOUR_HEIGHT;
+                        const height = Math.max(duration * HOUR_HEIGHT, 24);
+
+                        if (topOffset < 0 || topOffset > HOURS.length * HOUR_HEIGHT) return null;
+
+                        return (
+                          <button
+                            key={appt.id}
+                            onClick={() => setSelectedAppointment(appt)}
+                            className={`absolute left-0.5 right-0.5 rounded-lg border-l-[3px] px-1.5 py-0.5 text-left overflow-hidden cursor-pointer hover:opacity-90 transition-opacity ${eventColorClass(appt.contacts.id, uniqueClients)}`}
+                            style={{ top: topOffset, height }}
+                          >
+                            <div className="text-[11px] font-semibold truncate">{appt.service_type}</div>
+                            {height > 30 && <div className="text-[10px] opacity-70 truncate">{appt.contacts.name}</div>}
+                            {height > 44 && <div className="text-[10px] opacity-60">{appt.localTime.format("h:mm A")}</div>}
+                          </button>
+                        );
+                      })}
+
+                      {/* Current time indicator */}
+                      {day.isSame(today, "day") && (() => {
+                        const now = dayjs();
+                        const nowHour = now.hour() + now.minute() / 60;
+                        const top = (nowHour - HOURS[0]) * HOUR_HEIGHT;
+                        if (top < 0 || top > HOURS.length * HOUR_HEIGHT) return null;
+                        return (
+                          <div className="absolute left-0 right-0 z-10 pointer-events-none" style={{ top }}>
+                            <div className="flex items-center">
+                              <div className="w-2.5 h-2.5 rounded-full bg-red-500 -ml-1" />
+                              <div className="flex-1 h-[2px] bg-red-500" />
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
                   );
                 })}
               </div>
             </div>
           </div>
-
-          {/* Selected Date Details */}
-          <div className="lg:col-span-1">
-            <div className={`rounded-2xl ${cardBorder} ${cardBg} p-6 shadow-lg`}>
-              <h3 className={`mb-4 text-lg font-semibold ${textPrimary}`}>
-                {selectedDate.format("dddd, MMMM D")}
-              </h3>
-              
-              {todayAppointments.length === 0 ? (
-                <p className={`text-sm ${textTertiary}`}>No appointments scheduled</p>
-              ) : (
-                <div className="space-y-3">
-                  {todayAppointments.map((appointment) => (
-                      <div 
-                        key={appointment.id} 
-                        onClick={() => setSelectedAppointment(appointment)}
-                        className={`rounded-2xl ${cardBorder} ${isWhite ? "bg-white" : "bg-white/5"} p-3 cursor-pointer ${hoverBg} transition`}
+        ) : (
+          /* Month View */
+          <div className="flex-1 flex flex-col min-h-0 p-4">
+            <div className="grid grid-cols-7 gap-0 mb-1">
+              {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d) => (
+                <div key={d} className="text-center text-xs font-semibold text-gray-500 py-2">{d}</div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 flex-1 border border-gray-200 rounded-xl overflow-hidden">
+              {monthWeeks.flat().map((day, i) => {
+                const isToday = day.isSame(today, "day");
+                const isCurrentMonth = day.month() === monthDate.month();
+                const dayAppts = getAppointmentsForDay(day);
+                return (
+                  <div key={i} className={`border-b border-r border-gray-100 p-1 min-h-[80px] ${!isCurrentMonth ? "bg-gray-50" : "bg-white"}`}>
+                    <div className={`text-xs font-medium mb-1 text-center ${
+                      isToday ? "bg-black text-white w-6 h-6 rounded-full flex items-center justify-center mx-auto" :
+                      !isCurrentMonth ? "text-gray-300" : "text-gray-700"
+                    }`}>
+                      {day.date()}
+                    </div>
+                    {dayAppts.slice(0, 2).map((appt, ai) => (
+                      <button
+                        key={appt.id}
+                        onClick={() => setSelectedAppointment(appt)}
+                        className={`w-full text-left text-[10px] px-1 py-0.5 rounded truncate mb-0.5 ${eventColorClass(appt.contacts.id, uniqueClients)} hover:opacity-80`}
                       >
-                        <div className="mb-1 flex items-center justify-between">
-                          <span className={`text-sm font-medium ${textPrimary}`}>
-                            {appointment.localTime.format("h:mm A")}
-                          </span>
-                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            appointment.status === "confirmed" 
-                              ? statusConfirmed
-                              : appointment.status === "pending"
-                              ? statusPending
-                              : statusDefault
-                          }`}>
-                            {appointment.status}
-                          </span>
-                        </div>
-                        <div className={`text-sm ${textSecondary}`}>
-                          <div className={`font-medium ${textPrimary}`}>{appointment.contacts.name}</div>
-                          <div>{appointment.contacts.phone}</div>
-                          <div className={textTertiary}>{appointment.service_type}</div>
-                        </div>
-                      </div>
-                  ))}
-                </div>
-              )}
+                        {appt.localTime.format("h:mma")} {appt.service_type}
+                      </button>
+                    ))}
+                    {dayAppts.length > 2 && (
+                      <div className="text-[10px] text-gray-400 text-center">+{dayAppts.length - 2} more</div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
-        </div>
-      ) : (
-        /* List View */
-        <div className={`rounded-2xl ${cardBorder} ${cardBg} shadow-lg`}>
-          <div className={`${isWhite ? "border-b-2" : "border-b"} ${divider} p-6`}>
-            <h2 className={`text-lg font-semibold ${textPrimary}`}>All Appointments</h2>
-          </div>
-          
-          <div className={`${isWhite ? "divide-y-2 divide-black" : "divide-y divide-white/10"}`}>
-            {appointments.length === 0 ? (
-              <div className={`p-6 text-center ${textTertiary}`}>
-                No appointments scheduled
-              </div>
-            ) : (
-              normalizedAppointments.map((appointment) => (
-                <div 
-                  key={appointment.id} 
-                  onClick={() => setSelectedAppointment(appointment)}
-                  className={`p-6 transition ${hoverBg} cursor-pointer`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-4">
-                        <div className={`text-sm font-medium ${textPrimary}`}>
-                          {appointment.localTime.format("MMM D, YYYY h:mm A")}
-                        </div>
-                        <span className={`px-2 py-1 text-xs rounded-full ${
-                          appointment.status === "confirmed" 
-                            ? statusConfirmed
-                            : appointment.status === "pending"
-                            ? statusPending
-                            : statusDefault
-                        }`}>
-                          {appointment.status}
-                        </span>
-                      </div>
-                      <div className="mt-2">
-                        <div className={`font-medium ${textPrimary}`}>{appointment.contacts.name}</div>
-                        <div className={`text-sm ${textSecondary}`}>{appointment.contacts.phone}</div>
-                        <div className={`text-sm ${textTertiary}`}>{appointment.service_type}</div>
-                        {appointment.notes && (
-                          <div className={`mt-1 text-sm ${textTertiary}`}>{appointment.notes}</div>
-                        )}
-                      </div>
-                    </div>
-                    <div className={`text-sm ${textTertiary}`}>
-                      {appointment.duration_minutes} min
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-        </div>
+        )}
       </div>
 
-      {/* Create Appointment Modal */}
+      {/* ─── Create Appointment Modal ─── */}
       {showCreateModal && (
-        <div className={`fixed inset-0 ${modalOverlay} backdrop-blur-sm z-50 flex items-center justify-center p-4`}>
-          <div className={`${modalBg} rounded-3xl ${isWhite ? "border-2" : "border"} ${isWhite ? "border-black" : "border-white/10"} p-6 max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl`}>
-            <div className="flex items-center justify-between mb-6">
-              <h3 className={`text-xl font-semibold ${textPrimary}`}>Create Appointment</h3>
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className={`p-2 rounded-full ${buttonSecondary}`}
-              >
-                <X className={`h-5 w-5 ${textPrimary}`} />
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-lg font-semibold text-gray-900">New Appointment</h3>
+              <button onClick={() => setShowCreateModal(false)} className="p-1.5 rounded-full hover:bg-gray-100 transition">
+                <X className="h-5 w-5 text-gray-500" />
               </button>
             </div>
-
             <div className="space-y-4">
-              {/* Name */}
               <div>
-                <label className={`block text-sm font-medium ${textPrimary} mb-2 flex items-center gap-2`}>
-                  <User className="h-4 w-4" />
-                  Name *
-                </label>
-                <input
-                  type="text"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  placeholder="John Doe"
-                  className={`w-full px-4 py-2 rounded-2xl ${inputBg} ${inputText} focus:outline-none focus:ring-2 ${isWhite ? "focus:ring-black/20" : "focus:ring-blue-500"}`}
-                />
+                <label className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
+                <input type="text" value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="Client name" className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
-
-              {/* Phone */}
-              <div>
-                <label className={`block text-sm font-medium ${textPrimary} mb-2 flex items-center gap-2`}>
-                  <Phone className="h-4 w-4" />
-                  Phone Number *
-                </label>
-                <input
-                  type="tel"
-                  value={formPhone}
-                  onChange={(e) => setFormPhone(e.target.value)}
-                  placeholder="+1234567890"
-                  className={`w-full px-4 py-2 rounded-2xl ${inputBg} ${inputText} focus:outline-none focus:ring-2 ${isWhite ? "focus:ring-black/20" : "focus:ring-blue-500"}`}
-                />
-              </div>
-
-              {/* Email */}
-              <div>
-                <label className={`block text-sm font-medium ${textPrimary} mb-2 flex items-center gap-2`}>
-                  <Mail className="h-4 w-4" />
-                  Email
-                </label>
-                <input
-                  type="email"
-                  value={formEmail}
-                  onChange={(e) => setFormEmail(e.target.value)}
-                  placeholder="john@example.com"
-                  className={`w-full px-4 py-2 rounded-2xl ${inputBg} ${inputText} focus:outline-none focus:ring-2 ${isWhite ? "focus:ring-black/20" : "focus:ring-blue-500"}`}
-                />
-              </div>
-
-              {/* Description */}
-              <div>
-                <label className={`block text-sm font-medium ${textPrimary} mb-2 flex items-center gap-2`}>
-                  <FileText className="h-4 w-4" />
-                  Description *
-                </label>
-                <textarea
-                  value={formDescription}
-                  onChange={(e) => setFormDescription(e.target.value)}
-                  placeholder="What is the meeting about?"
-                  rows={3}
-                  className={`w-full px-4 py-2 rounded-2xl ${inputBg} ${inputText} focus:outline-none focus:ring-2 ${isWhite ? "focus:ring-black/20" : "focus:ring-blue-500"} resize-none`}
-                />
-              </div>
-
-              {/* Date and Time */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className={`block text-sm font-medium ${textPrimary} mb-2 flex items-center gap-2`}>
-                    <Calendar className="h-4 w-4" />
-                    Date *
-                  </label>
-                  <input
-                    type="date"
-                    value={formDate}
-                    onChange={(e) => setFormDate(e.target.value)}
-                    min={dayjs().format("YYYY-MM-DD")}
-                    className={`w-full px-4 py-2 rounded-2xl ${inputBg} ${inputText} focus:outline-none focus:ring-2 ${isWhite ? "focus:ring-black/20" : "focus:ring-blue-500"}`}
-                  />
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Phone *</label>
+                  <input type="tel" value={formPhone} onChange={(e) => setFormPhone(e.target.value)} placeholder="+1..." className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
                 </div>
                 <div>
-                  <label className={`block text-sm font-medium ${textPrimary} mb-2 flex items-center gap-2`}>
-                    <Clock className="h-4 w-4" />
-                    Time *
-                  </label>
-                  <input
-                    type="time"
-                    value={formTime}
-                    onChange={(e) => setFormTime(e.target.value)}
-                    className={`w-full px-4 py-2 rounded-2xl ${inputBg} ${inputText} focus:outline-none focus:ring-2 ${isWhite ? "focus:ring-black/20" : "focus:ring-blue-500"}`}
-                  />
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+                  <input type="email" value={formEmail} onChange={(e) => setFormEmail(e.target.value)} placeholder="email@..." className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
                 </div>
               </div>
-
-              {/* Duration */}
               <div>
-                <label className={`block text-sm font-medium ${textPrimary} mb-2`}>
-                  Duration (minutes)
-                </label>
-                <input
-                  type="number"
-                  value={formDuration}
-                  onChange={(e) => setFormDuration(e.target.value)}
-                  min="15"
-                  step="15"
-                  placeholder="60"
-                  className={`w-full px-4 py-2 rounded-2xl ${inputBg} ${inputText} focus:outline-none focus:ring-2 ${isWhite ? "focus:ring-black/20" : "focus:ring-blue-500"}`}
-                />
+                <label className="block text-xs font-medium text-gray-600 mb-1">Description *</label>
+                <input type="text" value={formDescription} onChange={(e) => setFormDescription(e.target.value)} placeholder="Meeting type or topic" className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
               </div>
-
-              {/* Reminder Channels */}
-              <div>
-                <label className={`block text-sm font-medium ${textPrimary} mb-2`}>
-                  Reminder Channels
-                </label>
-                <div className="space-y-2 mb-4">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formReminderChannels.sms}
-                      onChange={(e) => setFormReminderChannels({ ...formReminderChannels, sms: e.target.checked })}
-                      className={`rounded ${isWhite ? "border-2 border-black" : "border border-white/20 bg-white/5"} ${isWhite ? "text-black" : "text-blue-500"} focus:ring-2 ${isWhite ? "focus:ring-black/20" : "focus:ring-blue-500"}`}
-                    />
-                    <span className={`text-sm ${textPrimary}`}>SMS</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formReminderChannels.email}
-                      onChange={(e) => setFormReminderChannels({ ...formReminderChannels, email: e.target.checked })}
-                      className={`rounded ${isWhite ? "border-2 border-black" : "border border-white/20 bg-white/5"} ${isWhite ? "text-black" : "text-blue-500"} focus:ring-2 ${isWhite ? "focus:ring-black/20" : "focus:ring-blue-500"}`}
-                    />
-                    <span className={`text-sm ${textPrimary}`}>Email</span>
-                  </label>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Date</label>
+                  <input type="date" value={formDate} onChange={(e) => setFormDate(e.target.value)} className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Time</label>
+                  <input type="time" value={formTime} onChange={(e) => setFormTime(e.target.value)} className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Duration</label>
+                  <select value={formDuration} onChange={(e) => setFormDuration(e.target.value)} className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
+                    <option value="15">15 min</option>
+                    <option value="30">30 min</option>
+                    <option value="45">45 min</option>
+                    <option value="60">1 hr</option>
+                    <option value="90">1.5 hr</option>
+                    <option value="120">2 hr</option>
+                  </select>
                 </div>
               </div>
-
-              {/* Reminder Timing */}
+              {/* Reminder */}
               <div>
-                <label className={`block text-sm font-medium ${textPrimary} mb-2`}>
-                  Send Reminders
-                </label>
-                <div className="space-y-2">
-                  {[
-                    { value: "immediate", label: "Immediately" },
-                    { value: "1_day", label: "1 Day Before" },
-                    { value: "5_hours", label: "5 Hours Before" },
-                    { value: "1_hour", label: "1 Hour Before" },
-                  ].map((option) => (
-                    <label key={option.value} className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formReminderTiming.includes(option.value)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setFormReminderTiming([...formReminderTiming, option.value]);
-                          } else {
-                            setFormReminderTiming(formReminderTiming.filter(t => t !== option.value));
-                          }
-                        }}
-                        className={`rounded ${isWhite ? "border-2 border-black" : "border border-white/20 bg-white/5"} ${isWhite ? "text-black" : "text-blue-500"} focus:ring-2 ${isWhite ? "focus:ring-black/20" : "focus:ring-blue-500"}`}
-                      />
-                      <span className={`text-sm ${textPrimary}`}>{option.label}</span>
-                    </label>
+                <label className="block text-xs font-medium text-gray-600 mb-2">Reminders</label>
+                <div className="flex flex-wrap gap-2">
+                  {[{ label: "Immediately", value: "immediate" }, { label: "1 Day Before", value: "1day" }, { label: "5 Hours Before", value: "5hours" }, { label: "1 Hour Before", value: "1hour" }].map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setFormReminderTiming((prev) => prev.includes(opt.value) ? prev.filter((v) => v !== opt.value) : [...prev, opt.value])}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition ${formReminderTiming.includes(opt.value) ? "bg-black text-white border-black" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
+                    >
+                      {opt.label}
+                    </button>
                   ))}
                 </div>
-                <p className={`text-xs ${textTertiary} mt-2`}>
-                  Select when to send reminders. If none selected, an immediate reminder will be sent.
-                </p>
+                <div className="mt-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={formReminderChannels.email} onChange={(e) => setFormReminderChannels({ ...formReminderChannels, email: e.target.checked })} className="rounded border-gray-300" />
+                    <span className="text-xs text-gray-600">Email reminder</span>
+                  </label>
+                </div>
               </div>
-
-              {/* Actions */}
-              <div className="flex gap-3 pt-4">
-                <button
-                  onClick={() => setShowCreateModal(false)}
-                  disabled={creating}
-                  className={`flex-1 px-4 py-2 rounded-2xl ${buttonSecondary} transition disabled:opacity-50`}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCreateAppointment}
-                  disabled={creating || !formName.trim() || !formPhone.trim() || !formDescription.trim()}
-                  className={`flex-1 px-4 py-2 rounded-2xl ${buttonPrimary} transition disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  {creating ? "Creating..." : "Create & Send Reminders"}
-                </button>
-              </div>
+              <button onClick={handleCreateAppointment} disabled={creating} className="w-full py-2.5 rounded-xl bg-black text-white text-sm font-semibold hover:bg-gray-800 disabled:opacity-50 transition">
+                {creating ? "Creating..." : "Create Appointment"}
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Appointment Details Modal */}
-      {selectedAppointment && (
-        <div className={`fixed inset-0 ${modalOverlay} backdrop-blur-sm z-50 flex items-center justify-center p-4`}>
-          <div className={`${modalBg} rounded-3xl ${isWhite ? "border-2" : "border"} ${isWhite ? "border-black" : "border-white/10"} p-6 max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl`}>
-            <div className="flex items-center justify-between mb-6">
-              <h3 className={`text-xl font-semibold ${textPrimary}`}>Appointment Details</h3>
-              <button
-                onClick={() => setSelectedAppointment(null)}
-                className={`p-2 rounded-full ${buttonSecondary}`}
-              >
-                <X className={`h-5 w-5 ${textPrimary}`} />
+      {/* ─── Add Open Slot Modal ─── */}
+      {showSlotModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 max-w-sm w-full shadow-2xl">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-lg font-semibold text-gray-900">Add Open Slot</h3>
+              <button onClick={() => setShowSlotModal(false)} className="p-1.5 rounded-full hover:bg-gray-100 transition">
+                <X className="h-5 w-5 text-gray-500" />
               </button>
+            </div>
+            <div className="space-y-4">
+              {/* Slot Type Selector */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-medium text-gray-600">Slot Type</label>
+                  <button onClick={() => setShowTypeManager(!showTypeManager)} className="text-[10px] text-gray-400 hover:text-gray-600 transition">
+                    {showTypeManager ? "Done" : "Manage Types"}
+                  </button>
+                </div>
+                {showTypeManager ? (
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 space-y-2">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={newTypeName}
+                        onChange={(e) => setNewTypeName(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && addSlotType()}
+                        placeholder="New type name..."
+                        className="flex-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-black/10"
+                      />
+                      <button onClick={addSlotType} disabled={!newTypeName.trim()} className="px-2.5 py-1.5 rounded-lg bg-black text-white text-xs font-medium hover:bg-gray-800 disabled:opacity-40 transition">
+                        <Plus className="h-3 w-3" />
+                      </button>
+                    </div>
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                      {slotTypes.map((type) => {
+                        const tc = getSlotTypeColor(type, slotTypes);
+                        return (
+                          <div key={type} className="flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-white transition">
+                            <div className="flex items-center gap-2">
+                              <div className={`w-2.5 h-2.5 rounded-full ${tc.dot}`} />
+                              <span className="text-xs text-gray-700">{type}</span>
+                            </div>
+                            {type !== "General" && (
+                              <button onClick={() => removeSlotType(type)} className="p-0.5 rounded hover:bg-gray-200 text-gray-400 hover:text-red-500 transition">
+                                <X className="h-3 w-3" />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {slotTypes.map((type) => {
+                      const tc = getSlotTypeColor(type, slotTypes);
+                      const selected = slotType === type;
+                      return (
+                        <button
+                          key={type}
+                          onClick={() => setSlotType(type)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                            selected
+                              ? `${tc.bg} ${tc.border} ${tc.text} ring-1 ring-offset-1 ring-gray-300`
+                              : "bg-white border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700"
+                          }`}
+                        >
+                          <div className={`w-2 h-2 rounded-full ${tc.dot}`} />
+                          {type}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Date</label>
+                <input type="date" value={slotDate} onChange={(e) => setSlotDate(e.target.value)} className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/10" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Start Time</label>
+                  <input type="time" value={slotStartTime} onChange={(e) => setSlotStartTime(e.target.value)} className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/10" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">End Time</label>
+                  <input type="time" value={slotEndTime} onChange={(e) => setSlotEndTime(e.target.value)} className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/10" />
+                </div>
+              </div>
+              <button onClick={createAvailabilitySlot} disabled={creatingSlot} className="w-full py-2.5 rounded-xl bg-black text-white text-sm font-semibold hover:bg-gray-800 disabled:opacity-50 transition">
+                {creatingSlot ? "Creating..." : "Add Open Slot"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Appointment Details Modal ─── */}
+      {selectedAppointment && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-lg font-semibold text-gray-900">Appointment Details</h3>
+              <div className="flex items-center gap-1">
+                {!editingAppointment ? (
+                  <button onClick={startEditingAppointment} className="p-1.5 rounded-full hover:bg-gray-100 transition" title="Edit">
+                    <Pencil className="h-4 w-4 text-gray-500" />
+                  </button>
+                ) : (
+                  <button onClick={handleSaveAppointment} disabled={savingAppointment} className="p-1.5 rounded-full hover:bg-green-50 transition text-green-600" title="Save">
+                    {savingAppointment ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                  </button>
+                )}
+                <button onClick={() => { setSelectedAppointment(null); setEditingAppointment(false); }} className="p-1.5 rounded-full hover:bg-gray-100 transition">
+                  <X className="h-5 w-5 text-gray-500" />
+                </button>
+              </div>
             </div>
 
             <div className="space-y-4">
               {/* Contact Info */}
-              <div className="space-y-3">
-                <div>
-                  <label className={`block text-xs font-medium ${textSecondary} mb-1`}>Name</label>
-                  <div className={`flex items-center gap-2 ${textPrimary}`}>
-                    <User className={`h-4 w-4 ${textSecondary}`} />
-                    <span>{selectedAppointment.contacts.name}</span>
-                  </div>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm">
+                  <User className="h-4 w-4 text-gray-400" />
+                  <span className="font-medium">{selectedAppointment.contacts.name}</span>
                 </div>
-                <div>
-                  <label className={`block text-xs font-medium ${textSecondary} mb-1`}>Phone</label>
-                  <div className={`flex items-center gap-2 ${textPrimary}`}>
-                    <Phone className={`h-4 w-4 ${textSecondary}`} />
-                    <span>{selectedAppointment.contacts.phone}</span>
-                  </div>
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <Phone className="h-4 w-4 text-gray-400" />
+                  <span>{selectedAppointment.contacts.phone}</span>
                 </div>
                 {selectedAppointment.contacts.email && (
-                  <div>
-                    <label className={`block text-xs font-medium ${textSecondary} mb-1`}>Email</label>
-                    <div className={`flex items-center gap-2 ${textPrimary}`}>
-                      <Mail className={`h-4 w-4 ${textSecondary}`} />
-                      <span>{selectedAppointment.contacts.email}</span>
-                    </div>
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Mail className="h-4 w-4 text-gray-400" />
+                    <span>{selectedAppointment.contacts.email}</span>
                   </div>
                 )}
               </div>
 
-              {/* Appointment Info */}
-              <div className={`${isWhite ? "border-t-2" : "border-t"} ${divider} pt-4 space-y-3`}>
+              <div className="border-t border-gray-200 pt-4 space-y-3">
+                {/* Date & Time */}
                 <div>
-                  <label className={`block text-xs font-medium ${textSecondary} mb-1`}>Date & Time</label>
-                  <div className={`flex items-center gap-2 ${textPrimary}`}>
-                    <Calendar className={`h-4 w-4 ${textSecondary}`} />
-                    <span>{dayjs(selectedAppointment.scheduled_at).format("dddd, MMMM D, YYYY")}</span>
-                  </div>
-                  <div className={`flex items-center gap-2 ${textSecondary} ml-6`}>
-                    <Clock className={`h-4 w-4 ${textSecondary}`} />
-                    <span>{dayjs(selectedAppointment.scheduled_at).format("h:mm A")}</span>
-                  </div>
-                </div>
-                <div>
-                  <label className={`block text-xs font-medium ${textSecondary} mb-1`}>Duration</label>
-                  <div className={textPrimary}>{selectedAppointment.duration_minutes} minutes</div>
-                </div>
-                <div>
-                  <label className={`block text-xs font-medium ${textSecondary} mb-1`}>Service Type</label>
-                  <div className={`flex items-center gap-2 ${textPrimary}`}>
-                    <FileText className={`h-4 w-4 ${textSecondary}`} />
-                    <span>{selectedAppointment.service_type}</span>
-                  </div>
-                </div>
-                <div>
-                  <label className={`block text-xs font-medium ${textSecondary} mb-1`}>Status</label>
-                  <span className={`px-2 py-1 text-xs rounded-full ${
-                    selectedAppointment.status === "confirmed" 
-                      ? statusConfirmed
-                      : selectedAppointment.status === "pending"
-                      ? statusPending
-                      : statusDefault
-                  }`}>
-                    {selectedAppointment.status}
-                  </span>
-                </div>
-                {selectedAppointment.notes && (
-                  <div>
-                    <label className={`block text-xs font-medium ${textSecondary} mb-1`}>Notes</label>
-                    <div className={`${textSecondary} text-sm`}>{selectedAppointment.notes}</div>
-                  </div>
-                )}
-              </div>
-
-              {/* Reminder Channels */}
-              <div className={`${isWhite ? "border-t-2" : "border-t"} ${divider} pt-4 space-y-3`}>
-                <div>
-                  <label className={`block text-sm font-medium ${textPrimary} mb-2`}>
-                    Reminder Channels
-                  </label>
-                  <div className="space-y-2 mb-4">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={appointmentReminderChannels.sms}
-                        onChange={(e) => setAppointmentReminderChannels({ ...appointmentReminderChannels, sms: e.target.checked })}
-                        className={`rounded ${isWhite ? "border-2 border-black" : "border border-white/20 bg-white/5"} ${isWhite ? "text-black" : "text-blue-500"} focus:ring-2 ${isWhite ? "focus:ring-black/20" : "focus:ring-blue-500"}`}
-                      />
-                      <span className={`text-sm ${textPrimary}`}>SMS</span>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={appointmentReminderChannels.email}
-                        onChange={(e) => setAppointmentReminderChannels({ ...appointmentReminderChannels, email: e.target.checked })}
-                        disabled={!selectedAppointment.contacts.email}
-                        className={`rounded ${isWhite ? "border-2 border-black" : "border border-white/20 bg-white/5"} ${isWhite ? "text-black" : "text-blue-500"} focus:ring-2 ${isWhite ? "focus:ring-black/20" : "focus:ring-blue-500"} disabled:opacity-50`}
-                      />
-                      <span className={`text-sm ${textPrimary} ${!selectedAppointment.contacts.email ? "opacity-50" : ""}`}>
-                        Email {!selectedAppointment.contacts.email && "(No email provided)"}
-                      </span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              {/* Reminder Timings */}
-              <div className={`${isWhite ? "border-t-2" : "border-t"} ${divider} pt-4 space-y-3`}>
-                <div>
-                  <label className={`block text-sm font-medium ${textPrimary} mb-2`}>
-                    Reminder Timings
-                  </label>
-                  {loadingReminders ? (
-                    <div className={`text-sm ${textTertiary}`}>Loading reminders...</div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Date & Time</label>
+                  {editingAppointment ? (
+                    <input type="datetime-local" value={editFields.scheduled_at} onChange={(e) => setEditFields({ ...editFields, scheduled_at: e.target.value })} className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
                   ) : (
-                    <div className="space-y-2">
-                      {[
-                        { value: "immediate", label: "Immediately" },
-                        { value: "1_day", label: "1 Day Before" },
-                        { value: "5_hours", label: "5 Hours Before" },
-                        { value: "1_hour", label: "1 Hour Before" },
-                      ].map((option) => (
-                        <label key={option.value} className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={appointmentReminderTiming.includes(option.value)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setAppointmentReminderTiming([...appointmentReminderTiming, option.value]);
-                              } else {
-                                setAppointmentReminderTiming(appointmentReminderTiming.filter(t => t !== option.value));
-                              }
-                            }}
-                            className={`rounded ${isWhite ? "border-2 border-black" : "border border-white/20 bg-white/5"} ${isWhite ? "text-black" : "text-blue-500"} focus:ring-2 ${isWhite ? "focus:ring-black/20" : "focus:ring-blue-500"}`}
-                          />
-                          <span className={`text-sm ${textPrimary}`}>{option.label}</span>
-                        </label>
-                      ))}
+                    <div className="text-sm">
+                      <div className="flex items-center gap-2"><Calendar className="h-4 w-4 text-gray-400" />{dayjs(selectedAppointment.scheduled_at).format("dddd, MMMM D, YYYY")}</div>
+                      <div className="flex items-center gap-2 text-gray-500 ml-6"><Clock className="h-4 w-4 text-gray-400" />{dayjs(selectedAppointment.scheduled_at).format("h:mm A")}</div>
                     </div>
                   )}
-                  <p className={`text-xs ${textTertiary} mt-2`}>
-                    Select when to send reminders. Changes will update scheduled reminders.
-                  </p>
+                </div>
+                {/* Duration */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Duration</label>
+                  {editingAppointment ? (
+                    <select value={editFields.duration_minutes} onChange={(e) => setEditFields({ ...editFields, duration_minutes: Number(e.target.value) })} className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
+                      <option value={15}>15 min</option><option value={30}>30 min</option><option value={45}>45 min</option><option value={60}>1 hr</option><option value={90}>1.5 hr</option><option value={120}>2 hr</option>
+                    </select>
+                  ) : (
+                    <div className="text-sm text-gray-700">{selectedAppointment.duration_minutes} minutes</div>
+                  )}
+                </div>
+                {/* Service Type */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Service</label>
+                  {editingAppointment ? (
+                    <input type="text" value={editFields.service_type} onChange={(e) => setEditFields({ ...editFields, service_type: e.target.value })} className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+                  ) : (
+                    <div className="text-sm text-gray-700">{selectedAppointment.service_type}</div>
+                  )}
+                </div>
+                {/* Status */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
+                  <span className={`inline-block px-2 py-0.5 text-xs rounded-full font-medium ${
+                    selectedAppointment.status === "confirmed" ? "bg-green-50 text-green-700" :
+                    selectedAppointment.status === "pending" ? "bg-yellow-50 text-yellow-700" :
+                    "bg-gray-100 text-gray-700"
+                  }`}>{selectedAppointment.status}</span>
+                </div>
+                {/* Notes */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Notes</label>
+                  {editingAppointment ? (
+                    <textarea value={editFields.notes} onChange={(e) => setEditFields({ ...editFields, notes: e.target.value })} rows={3} className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 resize-none" placeholder="Add notes..." />
+                  ) : selectedAppointment.notes ? (
+                    <div className="text-sm text-gray-600">{selectedAppointment.notes}</div>
+                  ) : (
+                    <div className="text-sm text-gray-400 italic">No notes</div>
+                  )}
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className={`pt-4 ${isWhite ? "border-t-2" : "border-t"} ${divider} flex gap-3`}>
-                <button
-                  onClick={() => setSelectedAppointment(null)}
-                  className={`flex-1 px-4 py-2 rounded-2xl ${buttonSecondary} transition`}
-                >
-                  Close
-                </button>
-                <button
-                  onClick={handleSaveReminders}
-                  disabled={savingReminders || loadingReminders}
-                  className={`flex-1 px-4 py-2 rounded-2xl ${buttonPrimary} transition disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
+              {/* Reminders */}
+              <div className="border-t border-gray-200 pt-4">
+                <label className="block text-xs font-medium text-gray-500 mb-2">Email Reminder</label>
+                <label className="flex items-center gap-2 cursor-pointer mb-3">
+                  <input type="checkbox" checked={appointmentReminderChannels.email} onChange={(e) => setAppointmentReminderChannels({ ...appointmentReminderChannels, email: e.target.checked })} disabled={!selectedAppointment.contacts.email} className="rounded border-gray-300 disabled:opacity-50" />
+                  <span className={`text-xs ${!selectedAppointment.contacts.email ? "text-gray-400" : "text-gray-600"}`}>
+                    Email {!selectedAppointment.contacts.email && "(no email provided)"}
+                  </span>
+                </label>
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  {[{ label: "Immediately", value: "immediate" }, { label: "1 Day Before", value: "1day" }, { label: "5 Hours Before", value: "5hours" }, { label: "1 Hour Before", value: "1hour" }].map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setAppointmentReminderTiming((prev) => prev.includes(opt.value) ? prev.filter((v) => v !== opt.value) : [...prev, opt.value])}
+                      className={`px-2 py-1 rounded-lg text-[11px] font-medium border transition ${appointmentReminderTiming.includes(opt.value) ? "bg-black text-white border-black" : "bg-white text-gray-500 border-gray-300 hover:bg-gray-50"}`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                <button onClick={handleSaveReminders} disabled={savingReminders || loadingReminders} className="w-full py-2 rounded-xl bg-black text-white text-xs font-semibold hover:bg-gray-800 disabled:opacity-50 transition">
                   {savingReminders ? "Saving..." : "Save Reminders"}
                 </button>
               </div>

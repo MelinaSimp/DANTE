@@ -154,6 +154,9 @@ CRITICAL RULES:
    - For time series: Use "line" or "area"
    - The format MUST be exactly (single line JSON, no line breaks inside):
      <!--CHART_DATA-->{"chart":{"type":"pie","data":[{"x":"Label","y":100}],"xKey":"x","yKey":"y","title":"Title"}}<!--/CHART_DATA-->
+   - You can optionally specify custom colors using hex codes: "colors":["#3b82f6","#10b981","#f59e0b"]
+   - Example with colors: <!--CHART_DATA-->{"chart":{"type":"pie","data":[{"x":"Stocks","y":60},{"x":"Bonds","y":40}],"xKey":"x","yKey":"y","title":"Allocation","colors":["#ef4444","#3b82f6"]}}<!--/CHART_DATA-->
+   - If the user asks to change chart colors, regenerate the chart with the requested colors in the "colors" array.
    - Generate charts automatically even if the user doesn't explicitly ask.
 
 3. GUIDELINES & TEMPLATES: When analyzing data or documents, ALWAYS follow these key points in order:
@@ -283,6 +286,7 @@ You are acting as an intelligent Meeting Planner for a financial consultant. You
 2. Extract ALL actionable next steps, follow-ups, and decisions
 3. Reference the client's existing documents and guidelines (if loaded above) to support your recommendations
 4. For each next step, suggest a specific date/time and duration
+5. For each next step, identify WHO is responsible — extract the person's name from the meeting discussion. Use "assignee" for the person who needs to act on it.
 
 CRITICAL: When you identify next steps, you MUST output them in BOTH:
 a) Natural language summary (for the chat)
@@ -290,15 +294,17 @@ b) A structured <!--NEXT_STEPS--> JSON block so the UI can render interactive ca
 
 The <!--NEXT_STEPS--> format (must be valid JSON on multiple lines, wrapped in comment tags):
 <!--NEXT_STEPS-->
-{"steps":[{"title":"Short action title","description":"Detailed description of what needs to be done","suggested_date":"YYYY-MM-DD","suggested_time":"HH:MM","duration_minutes":30,"priority":"high"}]}
+{"steps":[{"title":"Short action title","description":"Detailed description of what needs to be done","suggested_date":"YYYY-MM-DD","suggested_time":"HH:MM","duration_minutes":30,"priority":"high","assignee":"Person Name"}]}
 <!--/NEXT_STEPS-->
+
+IMPORTANT: The "assignee" field should be the name of the person responsible for this action item, extracted from the meeting discussion. If it's for a client mentioned by name, use their full name. If it's for the consultant, use "Consultant". If unclear, use "Unassigned".
 
 Priority levels: "high", "medium", "low"
 Dates should be realistic future dates from today (${new Date().toISOString().split("T")[0]}).
 Times should be during business hours (9:00-17:00).
 
 After presenting next steps, ask the consultant:
-"Would you like me to add any of these to your calendar? I can also set up email reminders — when would you like to be reminded?"
+"Would you like me to send to-do summaries to the clients mentioned? I can also add these to your calendar or set up email reminders."
 
 Be specific about WHO needs to do WHAT and by WHEN. Reference client data and guidelines when relevant to support your suggestions.`;
     }

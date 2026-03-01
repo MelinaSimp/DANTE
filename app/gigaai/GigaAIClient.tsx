@@ -63,6 +63,7 @@ interface Agent {
   phoneNumber?: string;
   elevenlabsVoiceId?: string | null;
   llm_instructions?: string | null;
+  voice_provider?: string;
   created_at: string;
   updated_at: string;
 }
@@ -250,6 +251,7 @@ function GigaAIClient({ initialError, initialSuccess, initialMessage }: GigaAICl
             phoneNumber: a.phone_number,
             elevenlabsVoiceId: a.elevenlabs_voice_id,
             llm_instructions: a.llm_instructions ?? null,
+            voice_provider: a.voice_provider,
             created_at: a.created_at,
             updated_at: a.updated_at,
           })));
@@ -407,6 +409,7 @@ function GigaAIClient({ initialError, initialSuccess, initialMessage }: GigaAICl
           status: data.status,
           description: data.description,
           phoneNumber: data.phone_number,
+          voice_provider: data.voice_provider,
           created_at: data.created_at,
           updated_at: data.updated_at,
         };
@@ -446,6 +449,7 @@ function GigaAIClient({ initialError, initialSuccess, initialMessage }: GigaAICl
           phoneNumber: data.phone_number,
           elevenlabsVoiceId: data.elevenlabs_voice_id,
           llm_instructions: data.llm_instructions ?? null,
+          voice_provider: data.voice_provider,
           created_at: data.created_at,
           updated_at: data.updated_at,
         };
@@ -752,7 +756,7 @@ function GigaAIClient({ initialError, initialSuccess, initialMessage }: GigaAICl
               "Agent Deployed",
               `"${selectedAgent.name}" is now live and ready to handle ${selectedAgent.modality} conversations!${
                 selectedAgent.modality === "voice" && selectedAgent.phoneNumber
-                  ? ` Calls to ${selectedAgent.phoneNumber} will be handled by this agent.`
+                  ? ` Calls to ${selectedAgent.phoneNumber} will be handled by this agent${selectedAgent.voice_provider === "vapi" ? " (via VAPI)" : ""}.`
                   : ""
               }`
             );

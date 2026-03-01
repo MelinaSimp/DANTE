@@ -11,13 +11,20 @@ export default function SelectPage() {
   const [showBackendPassword, setShowBackendPassword] = useState(false);
   const [backendPassword, setBackendPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
+  const [isSuperadmin, setIsSuperadmin] = useState(false);
 
   useEffect(() => {
-    // Check if user is authenticated
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) {
         router.push("/auth");
+        return;
       }
+      fetch("/api/me", { credentials: "include" })
+        .then((r) => r.ok ? r.json() : null)
+        .then((data) => {
+          if (data?.is_superadmin) setIsSuperadmin(true);
+        })
+        .catch(() => {});
     });
   }, [router]);
 
@@ -104,7 +111,7 @@ export default function SelectPage() {
         </div>
 
         {/* Selection Cards - Apple style */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className={`grid grid-cols-1 ${isSuperadmin ? "md:grid-cols-3" : "md:grid-cols-2"} gap-6`}>
           {/* Frontend Card */}
           <button
             onClick={() => router.push("/frontend")}
@@ -213,6 +220,32 @@ export default function SelectPage() {
             </div>
           )}
           </div>
+
+          {/* Admin Card - Only for superadmins */}
+          {isSuperadmin && (
+            <button
+              onClick={() => router.push("/admin")}
+              className="group relative bg-white rounded-2xl shadow-lg p-10 hover:shadow-xl transition-all duration-300 border border-gray-100"
+              style={{ background: '#ffffff' }}
+            >
+              <div className="flex flex-col items-center text-center">
+                <div className="relative mb-6">
+                  <div className="absolute inset-0 bg-gradient-to-br from-yellow-400 via-orange-500 to-red-500 rounded-full blur-xl opacity-40 group-hover:opacity-60 animate-pulse"></div>
+                  <div className="relative bg-gray-900 rounded-full p-4 shadow-md flex items-center justify-center">
+                    <svg className="w-16 h-16 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                    </svg>
+                  </div>
+                </div>
+                <h2 className="text-2xl font-semibold text-gray-900 mb-3" style={{ color: '#111827' }}>
+                  Admin
+                </h2>
+                <p className="text-gray-600 text-sm leading-relaxed" style={{ color: '#4b5563' }}>
+                  Manage workspaces, features, and billing
+                </p>
+              </div>
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -2,14 +2,31 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, usePathname } from "next/navigation";
+import Link from "next/link";
+import { Bot, Calendar, FileText, CalendarClock, Phone, Mail, Inbox } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import ScheduleClient from "@/app/schedule/ScheduleClient";
+import { useFeatures } from "@/hooks/useFeatures";
+import type { FeatureId } from "@/lib/features";
 
 export default function SchedulePage() {
   const router = useRouter();
   const params = useParams();
-  const agentId = params.agentId as string;
+  const pathname = usePathname();
+  const agentId = (params?.agentId as string) || "";
+
+  const { features } = useFeatures();
+
+  const sidebarItems = [
+    { name: "Agents", icon: Bot, href: "/frontend", active: pathname === "/frontend" || (pathname?.startsWith("/frontend/agent") && !pathname.includes("/schedule") && !pathname.includes("/llm") && !pathname.includes("/inbox") && !pathname.includes("/sales") && !pathname.includes("/emailing")) },
+    { name: "Calendar", icon: Calendar, href: `/frontend/agent/${agentId}/schedule`, active: pathname?.includes("/schedule"), featureId: "calendar" as FeatureId },
+    { name: "Client Details", icon: FileText, href: "/client-details-overview", active: pathname === "/client-details-overview", featureId: "client_details" as FeatureId },
+    { name: "Meeting Planner", icon: CalendarClock, href: `/frontend/agent/${agentId}/llm`, active: pathname?.includes("/llm"), featureId: "meeting_planner" as FeatureId },
+    { name: "Sales", icon: Phone, href: `/frontend/agent/${agentId}/sales`, active: pathname?.includes("/sales"), featureId: "sales" as FeatureId },
+    { name: "Emailing", icon: Mail, href: `/frontend/agent/${agentId}/emailing`, active: pathname?.includes("/emailing"), featureId: "emailing" as FeatureId },
+    { name: "Inbox", icon: Inbox, href: `/frontend/agent/${agentId}/inbox`, active: pathname?.includes("/inbox"), featureId: "inbox" as FeatureId },
+  ];
   const [appointments, setAppointments] = useState<any[]>([]);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -105,25 +122,47 @@ export default function SchedulePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7]" style={{ background: '#f5f5f7' }}>
-      <div className="max-w-7xl mx-auto px-8 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <button
-            onClick={() => router.push(`/frontend/agent/${agentId}`)}
-            className="text-gray-600 hover:text-gray-900 mb-6 transition-colors text-sm font-medium flex items-center gap-2"
-          >
-            ← Back
-          </button>
-          <h1 className="text-3xl font-semibold text-gray-900 mb-2">Schedule</h1>
+    <div className="min-h-screen bg-[#f5f5f7] flex" style={{ background: '#f5f5f7' }}>
+      {/* Left Sidebar */}
+      <div className="hidden md:flex flex-col w-48 border-r border-gray-200 bg-white shrink-0">
+        <div className="p-4 border-b border-gray-200 flex items-center gap-2">
+          <Link href="/frontend" className="flex items-center gap-2">
+            <img src="/brand/logo-circle.png" alt="Drift" className="w-7 h-7 rounded-full object-cover" />
+            <span className="text-sm font-semibold text-gray-900">Drift</span>
+          </Link>
         </div>
+        <nav className="flex-1 p-3 space-y-1">
+          {sidebarItems.filter((item) => !item.featureId || features.includes(item.featureId)).map((item) => {
+            const Icon = item.icon;
+            const isActive = item.active;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+                  isActive ? "bg-gray-100 text-black" : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span>{item.name}</span>
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
 
-        {/* Schedule Client */}
-        <ScheduleClient 
-          initialAppointments={appointments} 
-          workspaceId={workspaceId}
-          theme="white"
-        />
+      {/* Main Content */}
+      <div className="flex-1 px-8 py-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="mb-8">
+            <h1 className="text-3xl font-semibold text-gray-900 mb-2">Schedule</h1>
+          </div>
+          <ScheduleClient 
+            initialAppointments={appointments} 
+            workspaceId={workspaceId}
+            theme="white"
+          />
+        </div>
       </div>
     </div>
   );

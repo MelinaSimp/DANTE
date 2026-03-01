@@ -290,7 +290,7 @@ export default function PdfViewerWithAnnotations({
             <button
               type="button"
               onClick={() => setActiveTool(activeTool === "highlight" ? null : "highlight")}
-              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+              className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition ${
                 activeTool === "highlight"
                   ? "bg-amber-100 text-amber-800"
                   : "text-[#6b7280] hover:bg-[#f3f4f6]"
@@ -302,7 +302,7 @@ export default function PdfViewerWithAnnotations({
             <button
               type="button"
               onClick={() => setActiveTool(activeTool === "comment" ? null : "comment")}
-              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+              className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition ${
                 activeTool === "comment"
                   ? "bg-blue-100 text-blue-800"
                   : "text-[#6b7280] hover:bg-[#f3f4f6]"
@@ -314,7 +314,7 @@ export default function PdfViewerWithAnnotations({
             <button
               type="button"
               onClick={() => setActiveTool(activeTool === "tag" ? null : "tag")}
-              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+              className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition ${
                 activeTool === "tag"
                   ? "bg-purple-100 text-purple-800"
                   : "text-[#6b7280] hover:bg-[#f3f4f6]"
@@ -326,7 +326,7 @@ export default function PdfViewerWithAnnotations({
             <button
               type="button"
               onClick={() => setActiveTool(activeTool === "table" ? null : "table")}
-              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+              className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition ${
                 activeTool === "table"
                   ? "bg-emerald-100 text-emerald-800"
                   : "text-[#6b7280] hover:bg-[#f3f4f6]"
@@ -348,13 +348,24 @@ export default function PdfViewerWithAnnotations({
             onLoadSuccess={onDocumentLoadSuccess}
             onLoadError={onLoadError}
             loading={
-              <div className="flex items-center justify-center w-[600px] h-[800px] bg-white rounded-lg">
-                <p className="text-[#6b7280]">Loading PDF…</p>
+              <div className="flex flex-col items-center justify-center w-full max-w-[600px] min-h-[400px] bg-white rounded-xl gap-3">
+                <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+                <p className="text-sm text-[#6b7280]">Loading PDF…</p>
               </div>
             }
             error={
-              <div className="flex items-center justify-center w-[600px] h-[400px] bg-red-50 rounded-lg">
-                <p className="text-red-600">Failed to load PDF</p>
+              <div className="flex flex-col items-center justify-center w-full max-w-[600px] min-h-[300px] bg-red-50 rounded-xl gap-3 p-6">
+                <p className="text-sm font-medium text-red-600">Failed to load PDF</p>
+                <p className="text-xs text-red-500 text-center">The file may be corrupted or the URL may have expired.</p>
+                {onLoadError && (
+                  <button
+                    type="button"
+                    onClick={onLoadError}
+                    className="mt-2 px-4 py-2 text-sm font-medium rounded-xl bg-red-600 text-white hover:bg-red-700 transition"
+                  >
+                    Retry
+                  </button>
+                )}
               </div>
             }
           >
@@ -462,7 +473,7 @@ export default function PdfViewerWithAnnotations({
                     : "Add tag"}
             </p>
             {saveError && (
-              <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">
+              <div className="mb-3 rounded-xl border border-red-200 bg-red-50 p-2 text-xs text-red-700">
                 {saveError}
               </div>
             )}
@@ -471,7 +482,7 @@ export default function PdfViewerWithAnnotations({
               value={pendingContent}
               onChange={(e) => setPendingContent(e.target.value)}
               placeholder={activeTool === "highlight" ? "Your comment…" : activeTool === "comment" ? "Your comment…" : activeTool === "table" ? "e.g. Holdings table, or convert to bar chart" : "Tag name…"}
-              className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2 text-sm"
+              className="w-full rounded-xl border border-[#e5e7eb] px-3 py-2 text-sm"
               autoFocus
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleContentSubmit();
@@ -491,7 +502,7 @@ export default function PdfViewerWithAnnotations({
                   setPendingContent("");
                   setSaveError(null);
                 }}
-                className="rounded-lg px-3 py-2 text-sm text-[#6b7280] hover:bg-[#f3f4f6]"
+                className="rounded-xl px-3 py-2 text-sm text-[#6b7280] hover:bg-[#f3f4f6]"
                 disabled={saving}
               >
                 Cancel
@@ -500,7 +511,7 @@ export default function PdfViewerWithAnnotations({
                 type="button"
                 onClick={handleContentSubmit}
                 disabled={saving}
-                className="rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+                className="rounded-xl bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
               >
                 {saving ? "Saving…" : "Add"}
               </button>

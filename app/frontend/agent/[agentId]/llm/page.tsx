@@ -3,11 +3,32 @@
 
 import { useState, useEffect, useRef, FormEvent } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { Send, Loader2, FileText, X, Download, Plus, Search, Trash2, Menu, MessageSquare, ArrowLeft, Save, Upload, CalendarPlus, Bell, Clock, CheckCircle2, AlertCircle, ChevronDown, CalendarClock } from "lucide-react";
-import { Skeleton, ChatListSkeleton, MessageSkeleton } from "@/components/ui/skeleton";
+import { Send, Loader2, FileText, X, Download, Plus, Search, Trash2, Menu, MessageSquare, ArrowLeft, Save, Upload, CalendarPlus, Bell, Clock, CheckCircle2, CalendarClock, Bot, Calendar, BarChart3, Mail, Phone, Inbox } from "lucide-react";
+import Link from "next/link";
+import { ChatListSkeleton, MessageSkeleton } from "@/components/ui/skeleton";
 import { Tooltip } from "@/components/ui/tooltip";
 import { EmptyState } from "@/components/ui/empty-state";
 import ConfirmationModal from "@/components/frontend/ConfirmationModal";
+import { useFeatures } from "@/hooks/useFeatures";
+import type { FeatureId } from "@/lib/features";
+
+// Max file size: 20MB
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
+const ALLOWED_FILE_TYPES = ["application/pdf", "text/plain", "text/csv", "image/png", "image/jpeg"];
+
+// Email reminder template
+function buildReminderHtml(step: { title: string; description: string; duration_minutes: number; priority: string }, stepDate: Date) {
+  return `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto;">
+    <h2 style="color: #1a1a1a;">Upcoming: ${step.title}</h2>
+    <p style="color: #555;">${step.description}</p>
+    <div style="background: #f5f5f7; padding: 16px; border-radius: 12px; margin: 16px 0;">
+      <p style="margin: 0; color: #333;"><strong>When:</strong> ${stepDate.toLocaleString()}</p>
+      <p style="margin: 8px 0 0; color: #333;"><strong>Duration:</strong> ${step.duration_minutes} minutes</p>
+      <p style="margin: 8px 0 0; color: #333;"><strong>Priority:</strong> ${step.priority}</p>
+    </div>
+    <p style="color: #888; font-size: 12px;">— Drift Meeting Planner</p>
+  </div>`;
+}
 
 interface NextStep {
   title: string;
@@ -16,6 +37,7 @@ interface NextStep {
   suggested_time: string;
   duration_minutes: number;
   priority: "high" | "medium" | "low";
+  assignee?: string;
 }
 
 interface Message {
@@ -47,7 +69,7 @@ interface Chat {
 export default function FrontendLLMPage() {
   const router = useRouter();
   const params = useParams();
-  const agentId = params.agentId as string;
+  const agentId = (params?.agentId as string) || "";
   const [chats, setChats] = useState<Chat[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -60,6 +82,8 @@ export default function FrontendLLMPage() {
   const [loadingChats, setLoadingChats] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ chatId: string; title: string } | null>(null);
+  const [editingChatId, setEditingChatId] = useState<string | null>(null);
+  const [editingChatTitle, setEditingChatTitle] = useState("");
   const [sidebarTab, setSidebarTab] = useState<"chats" | "guidelines">("chats");
   const [guidelines, setGuidelines] = useState<any[]>([]);
   const [currentGuideline, setCurrentGuideline] = useState<{ id?: string; name: string; template?: string; pdfUrl?: string | null; pdfExtractedText?: string | null; imageInstructions?: string | null; pdfAnnotations?: any[] | null; isAgentTemplate: boolean } | null>(null);
@@ -73,10 +97,34 @@ export default function FrontendLLMPage() {
   const [reminderPopover, setReminderPopover] = useState<{ stepIndex: number; msgIndex: number } | null>(null);
   const [calendarSuccess, setCalendarSuccess] = useState<string | null>(null);
   const [reminderSuccess, setReminderSuccess] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [sendTodosPopover, setSendTodosPopover] = useState<{ msgIndex: number } | null>(null);
+  const [matchedContacts, setMatchedContacts] = useState<{ name: string; email: string; steps: NextStep[] }[]>([]);
+  const [loadingMatches, setLoadingMatches] = useState(false);
+  const [sendingTodos, setSendingTodos] = useState<Set<string>>(new Set());
+  const [sentTodos, setSentTodos] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const meetingPdfInputRef = useRef<HTMLInputElement>(null);
+  const { features } = useFeatures();
+
+  const showToast = (type: "success" | "error", message: string) => {
+    setToast({ type, message });
+    setTimeout(() => setToast(null), type === "error" ? 5000 : 3000);
+  };
+
+  // Sidebar navigation items
+  const pathname = typeof window !== "undefined" ? window.location.pathname : "";
+  const sidebarNavItems = [
+    { name: "Agents", icon: Bot, href: "/frontend", active: pathname === "/frontend" || (pathname?.startsWith("/frontend/agent") && !pathname.includes("/schedule") && !pathname.includes("/llm") && !pathname.includes("/inbox") && !pathname.includes("/sales") && !pathname.includes("/emailing")) },
+    { name: "Calendar", icon: Calendar, href: `/frontend/agent/${agentId}/schedule`, active: pathname?.includes("/schedule"), featureId: "calendar" as FeatureId },
+    { name: "Client Details", icon: FileText, href: "/client-details-overview", active: pathname === "/client-details-overview", featureId: "client_details" as FeatureId },
+    { name: "Meeting Planner", icon: CalendarClock, href: `/frontend/agent/${agentId}/llm`, active: pathname?.includes("/llm"), featureId: "meeting_planner" as FeatureId },
+    { name: "Sales", icon: Phone, href: `/frontend/agent/${agentId}/sales`, active: pathname?.includes("/sales"), featureId: "sales" as FeatureId },
+    { name: "Emailing", icon: Mail, href: `/frontend/agent/${agentId}/emailing`, active: pathname?.includes("/emailing"), featureId: "emailing" as FeatureId },
+    { name: "Inbox", icon: Inbox, href: `/frontend/agent/${agentId}/inbox`, active: pathname?.includes("/inbox"), featureId: "inbox" as FeatureId },
+  ];
 
   useEffect(() => {
     // Override global dark theme styles for Apple-style light theme
@@ -191,12 +239,10 @@ export default function FrontendLLMPage() {
         }));
       } else {
         const error = await response.json();
-        console.error("PDF upload failed:", error);
-        alert(`Failed to upload PDF: ${error.error || "Unknown error"}`);
+        showToast("error", `Failed to upload PDF: ${error.error || "Unknown error"}`);
       }
     } catch (error) {
-      console.error("Failed to upload PDF:", error);
-      alert("Failed to upload PDF. Please try again.");
+      showToast("error", "Failed to upload PDF. Please try again.");
     } finally {
       setUploadingPDF(false);
     }
@@ -256,13 +302,13 @@ export default function FrontendLLMPage() {
           });
         }
         // Show success feedback (optional - could add toast notification)
+        showToast("success", "Guidelines saved successfully");
       } else {
         const errorData = await response.json().catch(() => ({ error: "Failed to save guideline" }));
-        alert(`Failed to save guideline: ${errorData.error || "Unknown error"}`);
+        showToast("error", `Failed to save guideline: ${errorData.error || "Unknown error"}`);
       }
     } catch (error: any) {
-      console.error("Failed to save guideline:", error);
-      alert(`Failed to save guideline: ${error.message || "Network error"}`);
+      showToast("error", `Failed to save guideline: ${error.message || "Network error"}`);
     } finally {
       setSavingGuideline(false);
     }
@@ -322,6 +368,32 @@ export default function FrontendLLMPage() {
       }
     } catch (error) {
       console.error("Failed to create chat:", error);
+    }
+  };
+
+  const startEditingChat = (chatId: string, title: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingChatId(chatId);
+    setEditingChatTitle(title);
+  };
+
+  const saveEditingChat = async () => {
+    if (!editingChatId || !editingChatTitle.trim()) {
+      setEditingChatId(null);
+      return;
+    }
+    try {
+      await fetch(`/api/llm/chats/${editingChatId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ title: editingChatTitle.trim() }),
+      });
+      setChats((prev) => prev.map((c) => c.id === editingChatId ? { ...c, title: editingChatTitle.trim() } : c));
+    } catch (err) {
+      console.error("Failed to rename chat:", err);
+    } finally {
+      setEditingChatId(null);
     }
   };
 
@@ -590,11 +662,10 @@ export default function FrontendLLMPage() {
         setLoading(false);
       } else {
         const err = await response.json();
-        alert(`Failed to upload meeting PDF: ${err.error || "Unknown error"}`);
+        showToast("error", `Failed to upload meeting PDF: ${err.error || "Unknown error"}`);
       }
     } catch (error) {
-      console.error("Meeting PDF upload failed:", error);
-      alert("Failed to upload meeting PDF. Please try again.");
+      showToast("error", "Failed to upload meeting PDF. Please try again.");
     } finally {
       setMeetingPdfUploading(false);
     }
@@ -628,11 +699,10 @@ export default function FrontendLLMPage() {
         setTimeout(() => setCalendarSuccess(null), 3000);
       } else {
         const err = await response.json();
-        alert(`Failed to add to calendar: ${err.error || "Unknown error"}`);
+        showToast("error", `Failed to add to calendar: ${err.error || "Unknown error"}`);
       }
     } catch (error) {
-      console.error("Add to calendar failed:", error);
-      alert("Failed to add to calendar. Please try again.");
+      showToast("error", "Failed to add to calendar. Please try again.");
     } finally {
       setAddingToCalendar(false);
     }
@@ -666,18 +736,7 @@ export default function FrontendLLMPage() {
         credentials: "include",
         body: JSON.stringify({
           subject: `Reminder: ${step.title}`,
-          htmlContent: `
-            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2 style="color: #1a1a1a;">Upcoming: ${step.title}</h2>
-              <p style="color: #555;">${step.description}</p>
-              <div style="background: #f5f5f7; padding: 16px; border-radius: 12px; margin: 16px 0;">
-                <p style="margin: 0; color: #333;"><strong>When:</strong> ${new Date(stepDate).toLocaleString()}</p>
-                <p style="margin: 8px 0 0; color: #333;"><strong>Duration:</strong> ${step.duration_minutes} minutes</p>
-                <p style="margin: 8px 0 0; color: #333;"><strong>Priority:</strong> ${step.priority}</p>
-              </div>
-              <p style="color: #888; font-size: 12px;">— Drift Meeting Planner</p>
-            </div>
-          `,
+          htmlContent: buildReminderHtml(step, stepDate),
           scheduledAt: reminderDate.toISOString(),
         }),
       });
@@ -688,11 +747,103 @@ export default function FrontendLLMPage() {
         setTimeout(() => setReminderSuccess(null), 3000);
       } else {
         const err = await response.json();
-        alert(`Failed to set reminder: ${err.error || "Unknown error"}`);
+        showToast("error", `Failed to set reminder: ${err.error || "Unknown error"}`);
       }
     } catch (error) {
-      console.error("Set reminder failed:", error);
-      alert("Failed to set reminder. Please try again.");
+      showToast("error", "Failed to set reminder. Please try again.");
+    }
+  };
+
+  // Match assignee names from next steps to contacts in the database
+  const handleSendTodos = async (msgIndex: number, steps: NextStep[]) => {
+    setSendTodosPopover({ msgIndex });
+    setLoadingMatches(true);
+    setMatchedContacts([]);
+
+    try {
+      // Get all assignee names from the steps
+      const assignees = [...new Set(steps.map((s) => s.assignee).filter((a) => a && a !== "Consultant" && a !== "Unassigned"))] as string[];
+
+      if (assignees.length === 0) {
+        showToast("error", "No client names found in the action items.");
+        setSendTodosPopover(null);
+        setLoadingMatches(false);
+        return;
+      }
+
+      // Fetch all contacts
+      const res = await fetch("/api/contacts", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch contacts");
+      const contacts: { id: string; name: string; email?: string; phone?: string }[] = await res.json();
+
+      // Fuzzy match assignees to contacts
+      const matches: { name: string; email: string; steps: NextStep[] }[] = [];
+      for (const assignee of assignees) {
+        const lower = assignee.toLowerCase();
+        const contact = contacts.find((c) =>
+          c.name.toLowerCase() === lower ||
+          c.name.toLowerCase().includes(lower) ||
+          lower.includes(c.name.toLowerCase())
+        );
+        if (contact?.email) {
+          const contactSteps = steps.filter((s) => s.assignee?.toLowerCase() === lower);
+          matches.push({ name: contact.name, email: contact.email, steps: contactSteps });
+        }
+      }
+
+      setMatchedContacts(matches);
+      if (matches.length === 0) {
+        showToast("error", "No matching clients with email addresses found.");
+        setSendTodosPopover(null);
+      }
+    } catch (err) {
+      showToast("error", "Failed to match contacts.");
+      setSendTodosPopover(null);
+    } finally {
+      setLoadingMatches(false);
+    }
+  };
+
+  const handleConfirmSendTodos = async (contactName: string, email: string, steps: NextStep[]) => {
+    setSendingTodos((prev) => new Set(prev).add(email));
+    try {
+      const todoListHtml = steps
+        .map((s) => `<li style="margin-bottom: 12px;">
+          <strong>${s.title}</strong> <span style="color: ${s.priority === "high" ? "#dc2626" : s.priority === "medium" ? "#d97706" : "#16a34a"};">[${s.priority}]</span>
+          <br/><span style="color: #555;">${s.description}</span>
+          <br/><span style="color: #888; font-size: 12px;">Due: ${s.suggested_date} at ${s.suggested_time} · ${s.duration_minutes} min</span>
+        </li>`)
+        .join("");
+
+      const res = await fetch("/api/scheduled-emails/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          to_email: email,
+          subject: `Your Action Items from Meeting`,
+          htmlContent: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #1a1a1a;">Your Meeting Action Items</h2>
+            <p style="color: #555;">Hi ${contactName},</p>
+            <p style="color: #555;">Here are your action items from the recent meeting:</p>
+            <ol style="color: #333; line-height: 1.8;">${todoListHtml}</ol>
+            <p style="color: #555;">Please reach out if you have any questions.</p>
+            <p style="color: #888; font-size: 12px; margin-top: 24px;">— Drift Meeting Planner</p>
+          </div>`,
+          scheduledAt: new Date().toISOString(),
+        }),
+      });
+
+      if (res.ok) {
+        setSentTodos((prev) => new Set(prev).add(email));
+        showToast("success", `To-dos sent to ${contactName} (${email})`);
+      } else {
+        showToast("error", `Failed to send to ${contactName}`);
+      }
+    } catch {
+      showToast("error", `Failed to send to ${contactName}`);
+    } finally {
+      setSendingTodos((prev) => { const next = new Set(prev); next.delete(email); return next; });
     }
   };
 
@@ -708,6 +859,50 @@ export default function FrontendLLMPage() {
 
   return (
     <div className="flex h-screen bg-[#f5f5f7]" style={{ background: '#f5f5f7' }}>
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`fixed top-4 right-4 z-[100] max-w-sm w-full animate-in slide-in-from-right pointer-events-auto rounded-2xl shadow-lg border p-4 flex items-start gap-3 ${
+          toast.type === "error" ? "bg-red-500/95 border-red-400 text-white" : "bg-green-500/95 border-green-400 text-white"
+        }`}>
+          {toast.type === "error" ? (
+            <X className="h-5 w-5 flex-shrink-0 mt-0.5" />
+          ) : (
+            <CheckCircle2 className="h-5 w-5 flex-shrink-0 mt-0.5" />
+          )}
+          <span className="text-sm font-medium flex-1">{toast.message}</span>
+          <button onClick={() => setToast(null)} className="flex-shrink-0 hover:bg-white/20 rounded p-1">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Main Navigation Sidebar */}
+      <div className="hidden md:flex flex-col w-48 border-r border-gray-200 bg-white shrink-0">
+        <div className="p-4 border-b border-gray-200 flex items-center gap-2">
+          <Link href="/frontend" className="flex items-center gap-2">
+            <img src="/brand/logo-circle.png" alt="Drift" className="w-7 h-7 rounded-full object-cover" />
+            <span className="text-sm font-semibold text-gray-900">Drift</span>
+          </Link>
+        </div>
+        <nav className="flex-1 p-3 space-y-1">
+          {sidebarNavItems.filter((item) => !item.featureId || features.includes(item.featureId)).map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+                  item.active ? "bg-gray-100 text-black" : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span>{item.name}</span>
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
+
       {/* Mobile Sidebar Toggle */}
       <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -725,7 +920,7 @@ export default function FrontendLLMPage() {
         />
       )}
 
-      {/* Sidebar - Apple Glass Style */}
+      {/* Chat Sidebar - Apple Glass Style */}
       <div
         className={`${
           sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
@@ -737,12 +932,12 @@ export default function FrontendLLMPage() {
             onClick={() => setSidebarTab("chats")}
             className={`flex-1 px-4 py-3 text-sm font-semibold transition-all duration-200 relative ${
               sidebarTab === "chats"
-                ? "text-blue-600"
+                ? "text-black"
                 : "text-gray-600 hover:text-gray-900"
             }`}
           >
             {sidebarTab === "chats" && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-t-full"></span>
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-black rounded-t-full"></span>
             )}
             Chats
           </button>
@@ -750,12 +945,12 @@ export default function FrontendLLMPage() {
             onClick={() => setSidebarTab("guidelines")}
             className={`flex-1 px-4 py-3 text-sm font-semibold transition-all duration-200 relative ${
               sidebarTab === "guidelines"
-                ? "text-blue-600"
+                ? "text-black"
                 : "text-gray-600 hover:text-gray-900"
             }`}
           >
             {sidebarTab === "guidelines" && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-t-full"></span>
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-black rounded-t-full"></span>
             )}
             Guidelines
           </button>
@@ -795,7 +990,7 @@ export default function FrontendLLMPage() {
                   placeholder="Search chats..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-white border border-gray-300 text-gray-900 text-sm placeholder:text-gray-400 shadow-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-white border border-gray-300 text-gray-900 text-sm placeholder:text-gray-400 shadow-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-gray-400 transition-all"
                 />
               </div>
             </div>
@@ -810,6 +1005,7 @@ export default function FrontendLLMPage() {
               title={searchQuery ? "No chats found" : "No chats yet"}
               description={searchQuery ? "Try a different search term" : "Start a conversation to see your chat history here"}
               action={!searchQuery ? { label: "New Chat", onClick: createNewChat } : undefined}
+              theme="light"
             />
           ) : (
             <div className="space-y-1.5">
@@ -826,9 +1022,28 @@ export default function FrontendLLMPage() {
                       : "text-gray-700 hover:bg-gray-100/80 active:scale-[0.98]"
                   }`}
                 >
-                  <span className={`flex-1 truncate text-sm font-medium ${currentChatId === chat.id ? "text-white" : "text-gray-900"}`}>
-                    {chat.title}
-                  </span>
+                  {editingChatId === chat.id ? (
+                    <input
+                      type="text"
+                      value={editingChatTitle}
+                      onChange={(e) => setEditingChatTitle(e.target.value)}
+                      onBlur={saveEditingChat}
+                      onKeyDown={(e) => { if (e.key === "Enter") saveEditingChat(); if (e.key === "Escape") setEditingChatId(null); }}
+                      onClick={(e) => e.stopPropagation()}
+                      autoFocus
+                      className={`flex-1 text-sm font-medium bg-transparent border-b outline-none ${
+                        currentChatId === chat.id ? "text-white border-white/40" : "text-gray-900 border-gray-400"
+                      }`}
+                    />
+                  ) : (
+                    <span
+                      onDoubleClick={(e) => startEditingChat(chat.id, chat.title, e)}
+                      className={`flex-1 truncate text-sm font-medium ${currentChatId === chat.id ? "text-white" : "text-gray-900"}`}
+                      title="Double-click to rename"
+                    >
+                      {chat.title}
+                    </span>
+                  )}
                   <Tooltip content="Delete chat">
                     <button
                       onClick={(e) => deleteChat(chat.id, e)}
@@ -869,7 +1084,7 @@ export default function FrontendLLMPage() {
                     }
                   }
                 }}
-                className="w-full px-4 py-2.5 rounded-2xl border border-gray-300 bg-white text-gray-900 text-sm font-medium shadow-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
+                className="w-full px-4 py-2.5 rounded-2xl border border-gray-300 bg-white text-gray-900 text-sm font-medium shadow-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-gray-400 transition-all cursor-pointer"
               >
                 <option value="new">+ New Guidelines</option>
                 {guidelines.map((g) => (
@@ -891,7 +1106,7 @@ export default function FrontendLLMPage() {
                   type="text"
                   value={currentGuideline?.name || ""}
                   onChange={(e) => setCurrentGuideline(prev => prev ? { ...prev, name: e.target.value } : null)}
-                  className="w-full px-4 py-2.5 rounded-2xl border border-gray-300 bg-white text-gray-900 text-sm font-medium shadow-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-gray-400"
+                  className="w-full px-4 py-2.5 rounded-2xl border border-gray-300 bg-white text-gray-900 text-sm font-medium shadow-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-gray-400 transition-all placeholder:text-gray-400"
                   placeholder="Enter a descriptive name..."
                 />
               </div>
@@ -939,8 +1154,8 @@ export default function FrontendLLMPage() {
                 {templateMode === "pdf" ? (
                   currentGuideline?.pdfUrl ? (
                     <div className="w-full min-h-[240px] px-6 py-8 rounded-2xl border-2 border-gray-200 bg-gradient-to-br from-gray-50 to-white shadow-inner flex flex-col items-center justify-center gap-4">
-                      <div className="p-4 bg-blue-50 rounded-2xl">
-                        <FileText className="h-10 w-10 text-blue-600" />
+                      <div className="p-4 bg-gray-100 rounded-2xl">
+                        <FileText className="h-10 w-10 text-black" />
                       </div>
                       <div className="text-center space-y-1">
                         <p className="text-sm font-semibold text-gray-900">PDF Template Uploaded</p>
@@ -948,7 +1163,7 @@ export default function FrontendLLMPage() {
                           href={currentGuideline.pdfUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-xs text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors"
+                          className="text-xs text-black hover:text-gray-700 hover:underline font-medium transition-colors"
                         >
                           {currentGuideline.pdfUrl.split("/").pop() || "View PDF"}
                         </a>
@@ -1005,7 +1220,7 @@ export default function FrontendLLMPage() {
                   <textarea
                     value={currentGuideline?.template || ""}
                     onChange={(e) => setCurrentGuideline(prev => prev ? { ...prev, template: e.target.value, pdfUrl: null, pdfExtractedText: null } : null)}
-                    className="w-full h-full min-h-[320px] px-4 py-3 rounded-2xl border border-gray-300 bg-white text-gray-900 text-sm leading-relaxed shadow-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-mono resize-none placeholder:text-gray-400"
+                    className="w-full h-full min-h-[320px] px-4 py-3 rounded-2xl border border-gray-300 bg-white text-gray-900 text-sm leading-relaxed shadow-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-gray-400 transition-all resize-none placeholder:text-gray-400"
                     placeholder={`Enter guidelines that the AI must follow in every chat:
 
 Example:
@@ -1026,7 +1241,7 @@ Example:
                 <textarea
                   value={currentGuideline?.imageInstructions || ""}
                   onChange={(e) => setCurrentGuideline(prev => prev ? { ...prev, imageInstructions: e.target.value } : null)}
-                  className="w-full min-h-[120px] px-4 py-3 rounded-2xl border border-gray-300 bg-white text-gray-900 text-sm leading-relaxed shadow-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all resize-none placeholder:text-gray-400"
+                  className="w-full min-h-[120px] px-4 py-3 rounded-2xl border border-gray-300 bg-white text-gray-900 text-sm leading-relaxed shadow-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:border-gray-400 transition-all resize-none placeholder:text-gray-400"
                   placeholder="Instructions for the AI about image handling:
 - Where to keep/store images (e.g., 'Store images in the /images folder')
 - How to write when images are involved (e.g., 'Always describe images in detail before referencing them')
@@ -1118,15 +1333,13 @@ Example:
                 </div>
               )}
 
-              {/* Save Button with Gradient Halo */}
+              {/* Save Button */}
               <div className="pt-2">
-                <div className="relative group">
-                  <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-400 via-pink-500 to-blue-500 rounded-2xl blur opacity-60 group-hover:opacity-75 transition-opacity"></div>
+                <div className="relative">
                   <button
                     onClick={saveGuideline}
                     disabled={savingGuideline || (!currentGuideline?.template?.trim() && !currentGuideline?.pdfUrl) || uploadingPDF}
-                    className="relative z-10 w-full px-5 py-3 rounded-2xl text-white font-semibold text-sm shadow-lg hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    style={{ backgroundColor: "#000" }}
+                    className="w-full px-5 py-3 rounded-2xl bg-black text-white font-semibold text-sm shadow-md hover:bg-gray-800 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     {savingGuideline ? (
                       <>
@@ -1160,13 +1373,13 @@ Example:
 
               {/* Meeting PDF Upload Zone */}
               <div
-                className="border-2 border-dashed border-gray-300 rounded-2xl p-8 mb-6 hover:border-blue-400 hover:bg-blue-50/30 transition-all cursor-pointer group"
+                className="border-2 border-dashed border-gray-300 rounded-2xl p-8 mb-6 hover:border-gray-500 hover:bg-gray-50/30 transition-all cursor-pointer group"
                 onClick={() => meetingPdfInputRef.current?.click()}
-                onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add("border-blue-400", "bg-blue-50/30"); }}
-                onDragLeave={(e) => { e.currentTarget.classList.remove("border-blue-400", "bg-blue-50/30"); }}
+                onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add("border-gray-500", "bg-gray-50/30"); }}
+                onDragLeave={(e) => { e.currentTarget.classList.remove("border-gray-500", "bg-gray-50/30"); }}
                 onDrop={(e) => {
                   e.preventDefault();
-                  e.currentTarget.classList.remove("border-blue-400", "bg-blue-50/30");
+                  e.currentTarget.classList.remove("border-gray-500", "bg-gray-50/30");
                   const file = e.dataTransfer.files[0];
                   if (file && file.type === "application/pdf") handleMeetingPdfUpload(file);
                 }}
@@ -1184,13 +1397,13 @@ Example:
                 />
                 {meetingPdfUploading ? (
                   <div className="flex flex-col items-center gap-3">
-                    <Loader2 className="h-10 w-10 text-blue-500 animate-spin" />
+                    <Loader2 className="h-10 w-10 text-black animate-spin" />
                     <p className="text-sm font-medium text-gray-600">Analyzing meeting discussion...</p>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center gap-3">
-                    <div className="p-4 bg-gray-100 rounded-2xl group-hover:bg-blue-100 transition-colors">
-                      <Upload className="h-8 w-8 text-gray-500 group-hover:text-blue-600 transition-colors" />
+                    <div className="p-4 bg-gray-100 rounded-2xl group-hover:bg-gray-200 transition-colors">
+                      <Upload className="h-8 w-8 text-gray-500 group-hover:text-black transition-colors" />
                     </div>
                     <div className="space-y-1">
                       <p className="text-sm font-semibold text-gray-700">Upload Meeting Discussion PDF</p>
@@ -1271,20 +1484,85 @@ Example:
                             <CalendarClock className="h-3.5 w-3.5" />
                             Action Items ({message.nextSteps.length})
                           </div>
+                          {/* Send To-Dos to Clients Button */}
+                          {message.nextSteps.some((s) => s.assignee && s.assignee !== "Consultant" && s.assignee !== "Unassigned") && (
+                            <div className="relative">
+                              <button
+                                onClick={() => handleSendTodos(index, message.nextSteps!)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-black text-white hover:bg-gray-800 transition-colors"
+                              >
+                                <Mail className="h-3 w-3" />
+                                Send To-Dos to Clients
+                              </button>
+
+                              {/* Matched contacts popover */}
+                              {sendTodosPopover?.msgIndex === index && (
+                                <div className="absolute top-full left-0 mt-2 z-50 bg-white rounded-xl shadow-xl border border-gray-200 p-4 w-80">
+                                  <div className="flex items-center justify-between mb-3">
+                                    <h4 className="text-sm font-semibold text-gray-900">Send To-Dos</h4>
+                                    <button onClick={() => setSendTodosPopover(null)} className="p-0.5 hover:bg-gray-100 rounded">
+                                      <X className="h-3.5 w-3.5 text-gray-400" />
+                                    </button>
+                                  </div>
+                                  {loadingMatches ? (
+                                    <div className="flex items-center gap-2 py-3 text-xs text-gray-500">
+                                      <Loader2 className="h-3 w-3 animate-spin" /> Matching clients...
+                                    </div>
+                                  ) : matchedContacts.length === 0 ? (
+                                    <p className="text-xs text-gray-500 py-2">No matching clients with email addresses found.</p>
+                                  ) : (
+                                    <div className="space-y-3">
+                                      {matchedContacts.map((mc) => (
+                                        <div key={mc.email} className="p-2.5 rounded-lg border border-gray-200 bg-gray-50">
+                                          <div className="flex items-center justify-between mb-1.5">
+                                            <div>
+                                              <div className="text-xs font-semibold text-gray-900">{mc.name}</div>
+                                              <div className="text-[10px] text-gray-500">{mc.email}</div>
+                                            </div>
+                                            {sentTodos.has(mc.email) ? (
+                                              <span className="flex items-center gap-1 text-[10px] text-green-600 font-medium">
+                                                <CheckCircle2 className="h-3 w-3" /> Sent
+                                              </span>
+                                            ) : (
+                                              <button
+                                                onClick={() => handleConfirmSendTodos(mc.name, mc.email, mc.steps)}
+                                                disabled={sendingTodos.has(mc.email)}
+                                                className="flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded-lg bg-black text-white hover:bg-gray-800 disabled:opacity-50 transition"
+                                              >
+                                                {sendingTodos.has(mc.email) ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Mail className="h-2.5 w-2.5" />}
+                                                Send
+                                              </button>
+                                            )}
+                                          </div>
+                                          <div className="text-[10px] text-gray-500">
+                                            {mc.steps.length} action item{mc.steps.length !== 1 ? "s" : ""}: {mc.steps.map((s) => s.title).join(", ")}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
                           {message.nextSteps.map((step, si) => (
                             <div key={si} className="rounded-xl border border-gray-200 bg-gray-50/50 p-3 space-y-2">
                               <div className="flex items-start justify-between gap-2">
                                 <div className="flex-1">
                                   <div className="flex items-center gap-2">
                                     <h4 className="text-sm font-semibold text-gray-900">{step.title}</h4>
-                                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${priorityColors[step.priority] || priorityColors.medium}`}>
+                                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${priorityColors[step.priority] || priorityColors.medium}`}>
                                       {step.priority}
                                     </span>
                                   </div>
                                   <p className="text-xs text-gray-600 mt-1">{step.description}</p>
+                                  {step.assignee && step.assignee !== "Unassigned" && (
+                                    <span className="text-[10px] text-gray-400 mt-0.5 block">Assigned to: {step.assignee}</span>
+                                  )}
                                 </div>
                               </div>
-                              <div className="flex items-center gap-3 text-[11px] text-gray-500">
+                              <div className="flex items-center gap-3 text-xs text-gray-500">
                                 <span className="flex items-center gap-1">
                                   <CalendarPlus className="h-3 w-3" />
                                   {step.suggested_date} at {step.suggested_time}
@@ -1307,28 +1585,28 @@ Example:
                                         placeholder="Client name *"
                                         value={calendarForm.name}
                                         onChange={(e) => setCalendarForm(prev => prev ? { ...prev, name: e.target.value } : null)}
-                                        className="col-span-1 px-2 py-1 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        className="col-span-1 px-2 py-1 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-gray-400"
                                       />
                                       <input
                                         type="tel"
                                         placeholder="Phone * (+1...)"
                                         value={calendarForm.phone}
                                         onChange={(e) => setCalendarForm(prev => prev ? { ...prev, phone: e.target.value } : null)}
-                                        className="col-span-1 px-2 py-1 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        className="col-span-1 px-2 py-1 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-gray-400"
                                       />
                                       <input
                                         type="email"
                                         placeholder="Email"
                                         value={calendarForm.email}
                                         onChange={(e) => setCalendarForm(prev => prev ? { ...prev, email: e.target.value } : null)}
-                                        className="col-span-1 px-2 py-1 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        className="col-span-1 px-2 py-1 text-xs rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-gray-400"
                                       />
                                     </div>
                                     <div className="flex gap-1.5">
                                       <button
                                         onClick={() => handleAddToCalendar(step, index, si)}
                                         disabled={addingToCalendar || !calendarForm.name || !calendarForm.phone}
-                                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-black text-white hover:bg-gray-800 disabled:opacity-50 transition-colors"
                                       >
                                         {addingToCalendar ? <Loader2 className="h-3 w-3 animate-spin" /> : <CalendarPlus className="h-3 w-3" />}
                                         Confirm
@@ -1344,7 +1622,7 @@ Example:
                                 ) : (
                                   <button
                                     onClick={() => setCalendarForm({ stepIndex: si, msgIndex: index, name: "", phone: "", email: "" })}
-                                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors"
+                                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg border border-gray-300 text-black bg-gray-50 hover:bg-gray-100 transition-colors"
                                   >
                                     <CalendarPlus className="h-3 w-3" />
                                     Add to Calendar
@@ -1366,7 +1644,7 @@ Example:
                                       <button
                                         key={opt.key}
                                         onClick={() => handleSetReminder(step, opt.key)}
-                                        className="px-2 py-1 text-[10px] font-medium rounded-md hover:bg-amber-50 hover:text-amber-700 text-gray-600 transition-colors whitespace-nowrap"
+                                        className="px-2 py-1 text-[10px] font-medium rounded-md hover:bg-gray-100 hover:text-black text-gray-600 transition-colors whitespace-nowrap"
                                       >
                                         {opt.label}
                                       </button>
@@ -1381,7 +1659,7 @@ Example:
                                 ) : (
                                   <button
                                     onClick={() => setReminderPopover({ stepIndex: si, msgIndex: index })}
-                                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg border border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors"
+                                    className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg border border-gray-300 text-black bg-gray-50 hover:bg-gray-100 transition-colors"
                                   >
                                     <Bell className="h-3 w-3" />
                                     Set Reminder
@@ -1420,10 +1698,10 @@ Example:
               {uploadedFiles.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-3">
                   {uploadedFiles.map((file) => (
-                    <div key={file.id} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-700">
+                    <div key={file.id} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-100 border border-gray-300 text-xs text-black">
                       <FileText className="h-3 w-3" />
                       <span className="font-medium max-w-[150px] truncate">{file.name}</span>
-                      <button onClick={() => setUploadedFiles((prev) => prev.filter((f) => f.id !== file.id))} className="p-0.5 hover:bg-blue-100 rounded">
+                      <button onClick={() => setUploadedFiles((prev) => prev.filter((f) => f.id !== file.id))} className="p-0.5 hover:bg-gray-200 rounded">
                         <X className="h-3 w-3" />
                       </button>
                     </div>
@@ -1431,11 +1709,17 @@ Example:
                 </div>
               )}
               <form onSubmit={sendMessage} className="flex items-end gap-3">
-                <div className="flex-1 rounded-2xl border border-gray-300 bg-white p-3 flex items-end gap-2 shadow-sm hover:border-gray-400 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
+                <div className="flex-1 rounded-2xl border border-gray-300 bg-white p-3 flex items-end gap-2 shadow-sm hover:border-gray-400 focus-within:border-gray-500 focus-within:ring-2 focus-within:ring-gray-300 transition-all">
                   <textarea
                     ref={inputRef}
                     value={input}
-                    onChange={(e) => setInput(e.target.value)}
+                    onChange={(e) => {
+                      setInput(e.target.value);
+                      // Auto-resize
+                      const el = e.target;
+                      el.style.height = "auto";
+                      el.style.height = Math.min(el.scrollHeight, 200) + "px";
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !e.shiftKey) {
                         e.preventDefault();
@@ -1445,7 +1729,7 @@ Example:
                     placeholder="Ask about the meeting, request next steps, or follow up..."
                     rows={1}
                     className="flex-1 resize-none border-none outline-none text-gray-900 placeholder:text-gray-400 text-sm bg-transparent font-medium"
-                    style={{ maxHeight: "200px" }}
+                    style={{ maxHeight: "200px", overflow: "hidden" }}
                   />
                   <input
                     ref={fileInputRef}
@@ -1455,6 +1739,14 @@ Example:
                     onChange={async (e) => {
                       const files = Array.from(e.target.files || []);
                       if (files.length === 0) return;
+                      // Validate files
+                      for (const file of files) {
+                        if (file.size > MAX_FILE_SIZE) {
+                          showToast("error", `"${file.name}" is too large. Max size is 20MB.`);
+                          e.target.value = "";
+                          return;
+                        }
+                      }
                       setUploading(true);
                       try {
                         for (const file of files) {
@@ -1471,30 +1763,33 @@ Example:
                               size: file.size,
                               extractedText: data.extractedText,
                             }]);
+                          } else {
+                            showToast("error", `Failed to upload "${file.name}"`);
                           }
                         }
                       } catch (err) {
-                        console.error("File upload failed:", err);
+                        showToast("error", "File upload failed. Please try again.");
+                      } finally {
+                        setUploading(false);
+                        e.target.value = "";
                       }
-                      setUploading(false);
-                      e.target.value = "";
                     }}
                   />
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     className="p-2 hover:bg-gray-100 rounded-xl transition-colors text-gray-600 hover:text-gray-900"
+                    aria-label="Attach file"
                   >
                     <FileText className="h-4 w-4" />
                   </button>
                 </div>
-                <div className="relative group">
-                  <div className="absolute -inset-0.5 bg-gradient-to-br from-purple-400 via-pink-500 to-blue-500 rounded-2xl blur opacity-60 group-hover:opacity-75 transition-opacity"></div>
+                <div className="relative">
                   <button
                     type="submit"
                     disabled={loading || !input.trim()}
-                    className="relative z-10 p-3.5 rounded-2xl text-white hover:opacity-90 active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed transition-all shadow-lg flex items-center justify-center"
-                    style={{ backgroundColor: "#000" }}
+                    className="p-3.5 rounded-2xl bg-black text-white hover:bg-gray-800 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md flex items-center justify-center"
+                    aria-label="Send message"
                   >
                     {loading ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
@@ -1513,10 +1808,11 @@ Example:
       {showDeleteConfirm && (
         <ConfirmationModal
           isOpen={!!showDeleteConfirm}
-          onClose={() => setShowDeleteConfirm(null)}
+          onCancel={() => setShowDeleteConfirm(null)}
           onConfirm={confirmDeleteChat}
           title="Delete Chat"
           message={`Are you sure you want to delete "${showDeleteConfirm.title}"? This action cannot be undone.`}
+          variant="danger"
         />
       )}
     </div>

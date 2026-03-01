@@ -1,15 +1,13 @@
-// app/admin/page.tsx
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import Link from "next/link";
 import { hasSuperadminAccess } from "@/lib/superadmin";
-import { Users, Building2, Phone, MessageSquare, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { Users, Building2, Phone, MessageSquare, Shield, UserPlus, BarChart3, ArrowRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
-  // Gate: only superadmins can access
   const supabase = await createServerSupabase();
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) redirect("/auth");
@@ -21,236 +19,143 @@ export default async function AdminPage() {
     .maybeSingle();
 
   const isAdmin = hasSuperadminAccess(auth.user.email, me?.is_superadmin);
-  if (!isAdmin) {
-    // Redirect to /home instead of / to avoid redirect loop with root page
-    redirect("/home");
-  }
+  if (!isAdmin) redirect("/home");
 
-  // Get all workspaces with stats (using admin client to bypass RLS)
   const { data: workspaces } = await supabaseAdmin
     .from("workspaces")
-    .select(`
-      id,
-      name,
-      created_at,
-      owner_id
-    `)
+    .select("id, name, created_at, owner_id, enabled_features, plan_status")
     .order("created_at", { ascending: false });
 
-  // Get all profiles with workspace info (email comes from auth.users)
   const { data: profiles } = await supabaseAdmin
     .from("profiles")
     .select("id, workspace_id, full_name");
-  
-  // Get user emails from auth.users
-  const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers();
-  const emailMap = new Map<string, string>();
-  authUsers?.users.forEach(u => {
-    if (u.email) emailMap.set(u.id, u.email);
-  });
 
-  // Get all agents per workspace
   const { data: agents } = await supabaseAdmin
     .from("agents")
-    .select("id, workspace_id, status, phone_number, modality");
+    .select("id, workspace_id, status, phone_number");
 
-  // Get all conversations per workspace (for activity)
   const { data: conversations } = await supabaseAdmin
     .from("conversations")
     .select("id, workspace_id, created_at")
-    .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()); // Last 7 days
-
-  // Calculate stats per workspace
-  const workspaceStats = new Map<string, {
-    users: number;
-    agents: number;
-    deployedAgents: number;
-    phoneNumbers: number;
-    recentActivity: number;
-    health: 'healthy' | 'warning' | 'error';
-  }>();
-
-  workspaces?.forEach(ws => {
-    const wsProfiles = profiles?.filter(p => p.workspace_id === ws.id) || [];
-    const wsAgents = agents?.filter(a => a.workspace_id === ws.id) || [];
-    const wsConversations = conversations?.filter(c => c.workspace_id === ws.id) || [];
-    
-    const deployedAgents = wsAgents.filter(a => a.status === 'deployed').length;
-    const phoneNumbers = new Set(wsAgents.filter(a => a.phone_number).map(a => a.phone_number)).size;
-    
-    // Determine health status
-    let health: 'healthy' | 'warning' | 'error' = 'healthy';
-    if (wsAgents.length === 0) health = 'warning';
-    if (wsAgents.length > 0 && deployedAgents === 0) health = 'warning';
-    if (wsProfiles.length === 0) health = 'error';
-
-    workspaceStats.set(ws.id, {
-      users: wsProfiles.length,
-      agents: wsAgents.length,
-      deployedAgents,
-      phoneNumbers,
-      recentActivity: wsConversations.length,
-      health,
-    });
-  });
+    .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
 
   const totalUsers = profiles?.length || 0;
   const totalAgents = agents?.length || 0;
-  const totalDeployed = agents?.filter(a => a.status === 'deployed').length || 0;
+  const totalDeployed = agents?.filter(a => a.status === "deployed").length || 0;
   const totalPhoneNumbers = new Set(agents?.filter(a => a.phone_number).map(a => a.phone_number)).size;
+  const activeWorkspaces = workspaces?.filter(w => w.plan_status === "active").length || 0;
+  const recentConversations = conversations?.length || 0;
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8 text-white">
-      <div className="mb-8">
-        <h1 className="mb-2 text-3xl font-semibold text-white">Admin Dashboard</h1>
-        <p className="text-white/60">
-          Signed in as <strong className="text-white">{me?.full_name || auth.user.email}</strong> ·
-          <span className="ml-1 font-medium text-orange-500">Superadmin</span>
+    <div className="px-8 py-8 max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="mb-10">
+        <h1 className="text-3xl font-bold text-white mb-1">Dashboard</h1>
+        <p className="text-white/40 text-sm">
+          Welcome back, <span className="text-orange-500 font-medium">{me?.full_name || auth.user.email}</span>
         </p>
       </div>
 
-      {/* Quick Stats */}
-      <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-4">
-        <div className="rounded-2xl border border-white/10 bg-black/40 p-6 shadow-lg">
-          <div className="mb-2 flex items-center gap-2 text-sm text-white/60">
-            <Building2 className="h-4 w-4" />
-            <span>Workspaces</span>
-          </div>
-          <div className="text-3xl font-bold text-orange-500">{workspaces?.length || 0}</div>
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-black/40 p-6 shadow-lg">
-          <div className="mb-2 flex items-center gap-2 text-sm text-white/60">
-            <Users className="h-4 w-4" />
-            <span>Total Users</span>
-          </div>
-          <div className="text-3xl font-bold text-orange-500">{totalUsers}</div>
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-black/40 p-6 shadow-lg">
-          <div className="mb-2 flex items-center gap-2 text-sm text-white/60">
-            <Phone className="h-4 w-4" />
-            <span>Deployed Agents</span>
-          </div>
-          <div className="text-3xl font-bold text-orange-500">{totalDeployed}</div>
-          <div className="mt-1 text-xs text-white/50">of {totalAgents} total</div>
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-black/40 p-6 shadow-lg">
-          <div className="mb-2 flex items-center gap-2 text-sm text-white/60">
-            <MessageSquare className="h-4 w-4" />
-            <span>Phone Numbers</span>
-          </div>
-          <div className="text-3xl font-bold text-orange-500">{totalPhoneNumbers}</div>
-        </div>
+      {/* Stats Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+        {[
+          { label: "Workspaces", value: workspaces?.length || 0, sub: `${activeWorkspaces} active`, icon: Building2 },
+          { label: "Users", value: totalUsers, sub: "total accounts", icon: Users },
+          { label: "Deployed Agents", value: totalDeployed, sub: `of ${totalAgents} total`, icon: Phone },
+          { label: "Activity (7d)", value: recentConversations, sub: "conversations", icon: MessageSquare },
+        ].map((stat) => {
+          const Icon = stat.icon;
+          return (
+            <div key={stat.label} className="rounded-2xl border border-orange-500/20 bg-black p-5">
+              <div className="flex items-center gap-2 text-white/40 text-xs font-medium uppercase tracking-wider mb-3">
+                <Icon className="h-3.5 w-3.5 text-orange-500/60" />
+                {stat.label}
+              </div>
+              <div className="text-3xl font-bold text-orange-500">{stat.value}</div>
+              <div className="text-[11px] text-white/30 mt-1">{stat.sub}</div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Quick Actions */}
-      <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-3">
-        <Link
-          href="/admin/analytics"
-          className="rounded-2xl border border-white/10 bg-black/40 p-6 transition-all duration-200 hover:-translate-y-1 hover:border-orange-500/40 hover:bg-black/30 hover:shadow-xl"
-        >
-          <h3 className="mb-2 text-xl font-semibold text-white">Analytics & Reports</h3>
-          <p className="text-white/70">View platform-wide analytics and reporting</p>
-        </Link>
-        <Link
-          href="/admin/invites"
-          className="rounded-2xl border border-white/10 bg-black/40 p-6 transition-all duration-200 hover:-translate-y-1 hover:border-orange-500/40 hover:bg-black/30 hover:shadow-xl"
-        >
-          <h3 className="mb-2 text-xl font-semibold text-white">Manage Invites</h3>
-          <p className="text-white/70">Create and manage workspace invitations</p>
-        </Link>
-        <div className="rounded-2xl border border-white/10 bg-black/40 p-6">
-          <h3 className="mb-2 text-xl font-semibold text-white">Account Management</h3>
-          <p className="text-white/70">Create and manage client accounts (Coming soon)</p>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
+        {[
+          { name: "Feature Management", desc: "Configure features per workspace", href: "/admin/features", icon: Shield },
+          { name: "Manage Invites", desc: "Create workspace invitations", href: "/admin/invites", icon: UserPlus },
+          { name: "Analytics & Reports", desc: "View expenses and platform data", href: "/admin/analytics", icon: BarChart3 },
+        ].map((action) => {
+          const Icon = action.icon;
+          return (
+            <Link
+              key={action.href}
+              href={action.href}
+              className="group rounded-2xl border border-orange-500/20 bg-black p-6 transition-all duration-200 hover:border-orange-500/50 hover:bg-orange-500/5"
+            >
+              <div className="flex items-start justify-between mb-3">
+                <div className="w-10 h-10 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center">
+                  <Icon className="h-5 w-5 text-orange-500" />
+                </div>
+                <ArrowRight className="h-4 w-4 text-white/20 group-hover:text-orange-500 transition-colors" />
+              </div>
+              <h3 className="text-white font-semibold mb-1">{action.name}</h3>
+              <p className="text-white/40 text-sm">{action.desc}</p>
+            </Link>
+          );
+        })}
       </div>
 
-      {/* Workspaces Table */}
-      <section className="rounded-2xl border border-white/10 bg-black/40 p-6 shadow-lg">
-        <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-white">All Workspaces</h2>
-          <div className="text-sm text-white/60">
-            {workspaces?.length || 0} workspace{workspaces?.length !== 1 ? 's' : ''}
-          </div>
+      {/* Recent Workspaces */}
+      <div className="rounded-2xl border border-orange-500/20 bg-black overflow-hidden">
+        <div className="px-6 py-5 border-b border-orange-500/10 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-white">Recent Workspaces</h2>
+          <Link href="/admin/workspaces" className="text-xs text-orange-500 hover:text-orange-400 transition font-medium">
+            View All →
+          </Link>
         </div>
         {!workspaces || workspaces.length === 0 ? (
-          <div className="py-12 text-center">
-            <p className="text-white/60">No workspaces yet.</p>
-            <p className="mt-2 text-sm text-white/50">Workspaces will appear here as users sign up.</p>
+          <div className="py-16 text-center">
+            <Building2 className="h-8 w-8 text-white/10 mx-auto mb-3" />
+            <p className="text-white/40 text-sm">No workspaces yet</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-white/80">
-              <thead className="border-b border-white/10 text-white/60">
-                <tr className="text-left">
-                  <th className="py-4 pr-4 font-medium">Status</th>
-                  <th className="py-4 pr-4 font-medium">Workspace Name</th>
-                  <th className="py-4 pr-4 font-medium">Users</th>
-                  <th className="py-4 pr-4 font-medium">Agents</th>
-                  <th className="py-4 pr-4 font-medium">Deployed</th>
-                  <th className="py-4 pr-4 font-medium">Phone #s</th>
-                  <th className="py-4 pr-4 font-medium">Activity (7d)</th>
-                  <th className="py-4 pr-4 font-medium">Created</th>
-                  <th className="py-4 font-medium">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/10">
-                {workspaces.map((workspace) => {
-                  const stats = workspaceStats.get(workspace.id) || {
-                    users: 0,
-                    agents: 0,
-                    deployedAgents: 0,
-                    phoneNumbers: 0,
-                    recentActivity: 0,
-                    health: 'warning' as const,
-                  };
-                  const owner = profiles?.find(p => p.id === workspace.owner_id);
-                  const ownerEmail = owner ? emailMap.get(owner.id) : null;
-                  
-                  return (
-                    <tr key={workspace.id} className="transition-colors hover:bg-white/5">
-                      <td className="py-4 pr-4">
-                        {stats.health === 'healthy' ? (
-                          <CheckCircle2 className="h-5 w-5 text-green-500" />
-                        ) : stats.health === 'warning' ? (
-                          <AlertCircle className="h-5 w-5 text-yellow-500" />
-                        ) : (
-                          <XCircle className="h-5 w-5 text-red-500" />
-                        )}
-                      </td>
-                      <td className="py-4 pr-4">
-                        <div className="font-medium text-white">{workspace.name}</div>
-                        {owner && (
-                          <div className="text-xs text-white/50">{owner.full_name || ownerEmail || 'Unknown'}</div>
-                        )}
-                      </td>
-                      <td className="py-4 pr-4 text-white/70">{stats.users}</td>
-                      <td className="py-4 pr-4 text-white/70">{stats.agents}</td>
-                      <td className="py-4 pr-4">
-                        <span className={stats.deployedAgents > 0 ? "text-green-400" : "text-white/50"}>
-                          {stats.deployedAgents}
-                        </span>
-                      </td>
-                      <td className="py-4 pr-4 text-white/70">{stats.phoneNumbers}</td>
-                      <td className="py-4 pr-4 text-white/70">{stats.recentActivity}</td>
-                      <td className="py-4 pr-4 text-white/60">
-                        {new Date(workspace.created_at).toLocaleDateString()}
-                      </td>
-                      <td className="py-4">
-                        <Link
-                          href={`/gigaai?workspace=${workspace.id}`}
-                          className="text-xs text-orange-500 hover:text-orange-400 transition"
-                        >
-                          View →
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="divide-y divide-orange-500/10">
+            {workspaces.slice(0, 5).map((ws) => {
+              const owner = profiles?.find(p => p.id === ws.owner_id);
+              const wsAgents = agents?.filter(a => a.workspace_id === ws.id) || [];
+              const wsUsers = profiles?.filter(p => p.workspace_id === ws.id) || [];
+              const featureCount = (ws.enabled_features || []).length;
+              const statusColor = ws.plan_status === "active"
+                ? "text-green-400 bg-green-400/10 border-green-400/30"
+                : ws.plan_status === "trial"
+                ? "text-blue-400 bg-blue-400/10 border-blue-400/30"
+                : ws.plan_status === "past_due"
+                ? "text-yellow-400 bg-yellow-400/10 border-yellow-400/30"
+                : "text-red-400 bg-red-400/10 border-red-400/30";
+
+              return (
+                <div key={ws.id} className="px-6 py-4 flex items-center justify-between hover:bg-white/[0.02] transition">
+                  <div className="flex items-center gap-4">
+                    <div className="w-9 h-9 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center">
+                      <Building2 className="h-4 w-4 text-orange-500/70" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-white">{ws.name}</div>
+                      <div className="text-[11px] text-white/30">{owner?.full_name || "Unknown"} · {wsUsers.length} user{wsUsers.length !== 1 ? "s" : ""} · {wsAgents.length} agent{wsAgents.length !== 1 ? "s" : ""} · {featureCount} features</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className={`px-2 py-0.5 rounded-md text-[10px] font-medium border ${statusColor}`}>
+                      {ws.plan_status || "active"}
+                    </span>
+                    <span className="text-[11px] text-white/20">{new Date(ws.created_at).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
-      </section>
-    </main>
+      </div>
+    </div>
   );
 }

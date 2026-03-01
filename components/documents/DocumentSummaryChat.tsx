@@ -24,6 +24,7 @@ interface ChartDataItem {
   xKey: string;
   yKey: string;
   title?: string;
+  colors?: string[];
 }
 
 interface Message {
@@ -88,7 +89,7 @@ export default function DocumentSummaryChat({
     const loadUrl = getPdfLoadUrl(url);
     const pdf = await pdfjs.getDocument(loadUrl).promise;
     const totalPages = pdf.numPages;
-    console.log("[extractTextFromPdfPages] Total pages in PDF:", totalPages, "requested pages:", pageNumbers);
+    // Debug logging removed for production
 
     const parts: string[] = [];
     for (const pageNum of pageNumbers) {
@@ -171,14 +172,7 @@ export default function DocumentSummaryChat({
         extractionError = "No pages configured for extraction (template has no annotated pages).";
       }
 
-      console.log("[DocumentSummaryChat] Sending to LLM:", {
-        hasImages: images.length,
-        textLength: extractedTextFromPages.length,
-        textPreview: extractedTextFromPages.substring(0, 200),
-        templateName,
-        templateDocumentId,
-        annotatedPageNumbers,
-      });
+      // Sending to LLM with images and extracted text
 
       const res = await fetch("/api/llm/chat", {
         method: "POST",
@@ -214,7 +208,7 @@ export default function DocumentSummaryChat({
 
       const data = await res.json();
       const content = data.message || data.content || "";
-      console.log("[DocumentSummaryChat] Raw LLM response length:", content.length, "contains CHART_DATA:", content.includes("CHART_DATA"), "first 500 chars:", content.substring(0, 500));
+      // Response received from LLM
 
       // Extract ALL chart data blocks
       const charts: ChartDataItem[] = [];
@@ -450,7 +444,7 @@ export default function DocumentSummaryChat({
     const chartsToRender = (lastAssistant.charts || (lastAssistant.chartData ? [lastAssistant.chartData] : [])).filter(
       (c) => c && c.data && c.data.length > 0
     );
-    const CHART_COLORS: [number, number, number][] = [
+    const DEFAULT_CHART_COLORS: [number, number, number][] = [
       [59, 130, 246],   // blue
       [16, 185, 129],   // green
       [245, 158, 11],   // amber
@@ -461,8 +455,21 @@ export default function DocumentSummaryChat({
       [249, 115, 22],   // orange
     ];
 
+    function hexToRgb(hex: string): [number, number, number] {
+      const h = hex.replace("#", "");
+      return [parseInt(h.substring(0, 2), 16), parseInt(h.substring(2, 4), 16), parseInt(h.substring(4, 6), 16)];
+    }
+
+    function getChartColors(chart: ChartDataItem): [number, number, number][] {
+      if (chart.colors && chart.colors.length > 0) {
+        return chart.colors.map(hexToRgb);
+      }
+      return DEFAULT_CHART_COLORS;
+    }
+
     /** Draw a single chart at the given (xOff, yOff) with the given available width. Returns the height used. */
     const drawChart = (chart: ChartDataItem, xOff: number, availW: number, yOff: number): number => {
+      const CHART_COLORS = getChartColors(chart);
       const items = chart.data as { x?: string; y?: number; [k: string]: unknown }[];
       const xKey = chart.xKey || "x";
       const yKey = chart.yKey || "y";
@@ -690,7 +697,7 @@ export default function DocumentSummaryChat({
           <button
             type="button"
             onClick={downloadLastSummaryAsPDF}
-            className="inline-flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb]"
+            className="inline-flex items-center gap-2 rounded-xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb]"
           >
             <FileDown className="h-4 w-4" />
             Download as PDF
@@ -703,13 +710,13 @@ export default function DocumentSummaryChat({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="e.g. Generate a one-page summary with charts"
-          className="flex-1 rounded-lg border border-[#e5e7eb] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 rounded-xl border border-[#e5e7eb] px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           disabled={loading}
         />
         <button
           type="submit"
           disabled={loading || !input.trim()}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           Send

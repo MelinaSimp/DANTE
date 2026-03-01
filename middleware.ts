@@ -50,7 +50,7 @@ export async function middleware(req: NextRequest) {
   );
 
   // Protected routes that require authentication
-  const protectedRoutes = ["/app", "/admin", "/frontend", "/home", "/select", "/superadmin"];
+  const protectedRoutes = ["/app", "/admin", "/frontend", "/home", "/select", "/superadmin", "/schedule", "/client-details-overview", "/gigaai"];
   const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
 
   // Check authentication for protected routes

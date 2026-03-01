@@ -1,11 +1,13 @@
 // app/frontend/page.tsx - Frontend Agent Carousel with Apple Glass Sidebar
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
+import { useFeatures } from "@/hooks/useFeatures";
+import type { FeatureId } from "@/lib/features";
 import Link from "next/link";
-import { Bot, Calendar, FileText, CalendarClock, ArrowRight, MessageSquare, Phone, Clock, BarChart3 } from "lucide-react";
+import { Bot, Calendar, FileText, CalendarClock, ArrowRight, MessageSquare, Phone, Clock, BarChart3, Palette, Mail, Inbox } from "lucide-react";
 
 interface Agent {
   id: string;
@@ -15,20 +17,25 @@ interface Agent {
   status: string;
 }
 
-// Generate random gradient colors if not set
+// Gradient presets for agent icons
+const GRADIENT_PRESETS: string[][] = [
+  ["#FF6B6B", "#4ECDC4", "#45B7D1"],
+  ["#A8E6CF", "#FFD93D", "#FF6B9D"],
+  ["#C471ED", "#F64F59", "#FBD786"],
+  ["#30E8BF", "#FF8235", "#FF6E7F"],
+  ["#667EEA", "#764BA2", "#F093FB"],
+  ["#F093FB", "#F5576C", "#4FACFE"],
+  ["#43E97B", "#38F9D7", "#667EEA"],
+  ["#FA709A", "#FEE140", "#30CFC0"],
+  ["#4158D0", "#C850C0", "#FFCC70"],
+  ["#0093E9", "#80D0C7", "#A9E4D7"],
+  ["#8EC5FC", "#E0C3FC", "#F5D5EE"],
+  ["#D9AFD9", "#97D9E1", "#B8E9C2"],
+];
+
 function generateGradientColor(seed: string): string {
-  const colors = [
-    ["#FF6B6B", "#4ECDC4", "#45B7D1"],
-    ["#A8E6CF", "#FFD93D", "#FF6B9D"],
-    ["#C471ED", "#F64F59", "#FBD786"],
-    ["#30E8BF", "#FF8235", "#FF6E7F"],
-    ["#667EEA", "#764BA2", "#F093FB"],
-    ["#F093FB", "#F5576C", "#4FACFE"],
-    ["#43E97B", "#38F9D7", "#667EEA"],
-    ["#FA709A", "#FEE140", "#30CFC0"],
-  ];
-  const index = seed.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
-  return JSON.stringify(colors[index]);
+  const index = seed.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0) % GRADIENT_PRESETS.length;
+  return JSON.stringify(GRADIENT_PRESETS[index]);
 }
 
 export default function FrontendPage() {
@@ -37,6 +44,48 @@ export default function FrontendPage() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [colorPickerAgentId, setColorPickerAgentId] = useState<string | null>(null);
+  const [savingColor, setSavingColor] = useState(false);
+  const { features, loading: featuresLoading } = useFeatures();
+  const colorPickerRef = useRef<HTMLDivElement>(null);
+
+  // Close color picker when clicking outside
+  useEffect(() => {
+    if (!colorPickerAgentId) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node)) {
+        setColorPickerAgentId(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [colorPickerAgentId]);
+
+  const handleChangeGradient = async (agentId: string, gradient: string[]) => {
+    setSavingColor(true);
+    try {
+      const gradientJson = JSON.stringify(gradient);
+      const res = await fetch(`/api/agents/${agentId}/gradient`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ gradient_color: gradientJson }),
+      });
+      if (res.ok) {
+        setAgents((prev) =>
+          prev.map((a) => (a.id === agentId ? { ...a, gradient_color: gradientJson } : a))
+        );
+      } else {
+        const data = await res.json().catch(() => ({}));
+        console.error("Failed to update gradient:", data);
+      }
+    } catch (err) {
+      console.error("Failed to update gradient:", err);
+    } finally {
+      setSavingColor(false);
+      setColorPickerAgentId(null);
+    }
+  };
 
   useEffect(() => {
     // Override global dark theme styles for Apple-style light theme
@@ -152,28 +201,48 @@ export default function FrontendPage() {
       icon: Calendar, 
       href: currentAgentId ? `/frontend/agent/${currentAgentId}/schedule` : "#",
       active: pathname?.includes("/schedule"),
-      requiresAgent: true
+      requiresAgent: true,
+      featureId: "calendar" as FeatureId
     },
     { 
       name: "Client Details", 
       icon: FileText, 
       href: currentAgentId ? "/client-details-overview" : "#",
       active: pathname === "/client-details-overview",
-      requiresAgent: true
+      requiresAgent: true,
+      featureId: "client_details" as FeatureId
     },
     { 
       name: "Meeting Planner", 
       icon: CalendarClock, 
       href: currentAgentId ? `/frontend/agent/${currentAgentId}/llm` : "#",
       active: pathname?.includes("/llm"),
-      requiresAgent: true
+      requiresAgent: true,
+      featureId: "meeting_planner" as FeatureId
     },
     { 
-      name: "Insights", 
-      icon: BarChart3, 
-      href: currentAgentId ? `/frontend/agent/${currentAgentId}/insights` : "#",
-      active: pathname?.includes("/insights"),
-      requiresAgent: true
+      name: "Sales", 
+      icon: Phone, 
+      href: currentAgentId ? `/frontend/agent/${currentAgentId}/sales` : "#",
+      active: pathname?.includes("/sales"),
+      requiresAgent: true,
+      featureId: "sales" as FeatureId
+    },
+    { 
+      name: "Emailing", 
+      icon: Mail, 
+      href: currentAgentId ? `/frontend/agent/${currentAgentId}/emailing` : "#",
+      active: pathname?.includes("/emailing"),
+      requiresAgent: true,
+      featureId: "emailing" as FeatureId
+    },
+    { 
+      name: "Inbox", 
+      icon: Inbox, 
+      href: currentAgentId ? `/frontend/agent/${currentAgentId}/inbox` : "#",
+      active: pathname?.includes("/inbox"),
+      requiresAgent: true,
+      featureId: "inbox" as FeatureId
     },
   ];
 
@@ -187,77 +256,51 @@ export default function FrontendPage() {
 
   return (
     <div className="min-h-screen bg-[#f5f5f7] flex" style={{ background: '#f5f5f7' }}>
-      {/* Left Sidebar - Apple Glass Style (matching backend blocks exactly) */}
-      <div className="fixed left-0 top-0 h-full w-72 z-50">
-        <div 
-          className="h-full border-r border-gray-300/10 bg-gray-200/90 backdrop-blur-sm shadow-2xl"
-        >
-          {/* Sidebar Header */}
-          <div className="p-6 border-b border-gray-200/20">
-            <Link href="/frontend" className="inline-flex items-center gap-2">
-              <img 
-                src="/brand/logo-circle.png" 
-                alt="Drift Logo"
-                className="w-6 h-6 rounded-full object-cover"
-              />
-              <span className="text-lg font-medium text-gray-900">Drift</span>
-            </Link>
-          </div>
+      {/* Left Sidebar */}
+      <div className="hidden md:flex flex-col w-48 border-r border-gray-200 bg-white shrink-0">
+        <div className="p-4 border-b border-gray-200 flex items-center gap-2">
+          <Link href="/frontend" className="flex items-center gap-2">
+            <img src="/brand/logo-circle.png" alt="Drift" className="w-7 h-7 rounded-full object-cover" />
+            <span className="text-sm font-semibold text-gray-900">Drift</span>
+          </Link>
+        </div>
+        <nav className="flex-1 p-3 space-y-1">
+          {sidebarItems.filter((item) => !item.featureId || features.includes(item.featureId)).map((item) => {
+            const Icon = item.icon;
+            const isActive = item.active;
+            const isDisabled = item.requiresAgent && !currentAgentId;
 
-          {/* Navigation Items */}
-          <nav className="p-4 space-y-2">
-            {sidebarItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = item.active;
-              const isDisabled = item.requiresAgent && !currentAgentId;
-              
-              const linkContent = (
-                <div className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
-                  isActive
-                    ? "bg-blue-600/10 text-blue-600"
-                    : isDisabled
-                    ? "text-gray-400 cursor-not-allowed opacity-50"
-                    : "text-gray-700 hover:bg-white/30"
-                }`}>
-                  {/* Icon with purplish gradient halo */}
-                  <div className="relative">
-                    <div className="absolute inset-0 bg-gradient-to-br from-purple-400 via-pink-500 to-blue-500 rounded-full blur-sm opacity-50"></div>
-                    <div className="relative bg-white rounded-full p-2">
-                      <Icon className={`w-4 h-4 ${isActive ? "text-blue-600" : isDisabled ? "text-gray-400" : "text-gray-600"}`} />
-                    </div>
-                  </div>
-                  <span className={`text-sm font-medium ${isActive ? "text-blue-600" : isDisabled ? "text-gray-400" : "text-gray-700"}`}>
-                    {item.name}
-                  </span>
+            if (isDisabled) {
+              return (
+                <div
+                  key={item.href}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium text-gray-400 cursor-not-allowed opacity-50"
+                  title="Select an agent first"
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{item.name}</span>
                 </div>
               );
+            }
 
-              if (isDisabled) {
-                return (
-                  <div
-                    key={item.href}
-                    title="Select an agent first"
-                  >
-                    {linkContent}
-                  </div>
-                );
-              }
-
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                >
-                  {linkContent}
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+                  isActive ? "bg-gray-100 text-black" : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span>{item.name}</span>
+              </Link>
+            );
+          })}
+        </nav>
       </div>
 
-      {/* Main Content Area - Dashboard Style */}
-      <div className="flex-1 ml-72 flex flex-col h-screen overflow-hidden">
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col h-screen overflow-hidden">
         {/* Top Navigation Bar */}
         <div className="bg-white border-b border-gray-200 px-8 py-4">
           <div className="flex items-center justify-between">
@@ -270,17 +313,6 @@ export default function FrontendPage() {
               </button>
               <h1 className="text-xl font-semibold text-gray-900">Agents</h1>
             </div>
-            <nav className="flex gap-6">
-              <button className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
-                Overview
-              </button>
-              <button className="text-sm font-medium text-blue-600 border-b-2 border-blue-600 pb-1">
-                Agents
-              </button>
-              <button className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
-                Analytics
-              </button>
-            </nav>
           </div>
         </div>
 
@@ -296,7 +328,7 @@ export default function FrontendPage() {
                   <div className="absolute inset-0 bg-gradient-to-br from-purple-400 via-pink-500 to-blue-500 rounded-xl blur-sm opacity-50"></div>
                   <button
                     onClick={() => router.push("/select")}
-                    className="relative px-6 py-3 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors font-medium"
+                    className="relative px-6 py-3 rounded-xl bg-black text-white hover:bg-gray-800 transition-colors font-medium"
                   >
                     Go Back
                   </button>
@@ -305,25 +337,6 @@ export default function FrontendPage() {
             </div>
           ) : (
             <div className="max-w-7xl mx-auto">
-              {/* Stats Overview - Polished */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-200 hover:shadow-lg transition-all">
-                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Total Agents</div>
-                  <div className="text-4xl font-bold text-gray-900">{agents.length}</div>
-                </div>
-                <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-200 hover:shadow-lg transition-all">
-                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Active Agents</div>
-                  <div className="text-4xl font-bold text-green-600">
-                    {agents.filter(a => a.status === 'deployed').length}
-                  </div>
-                </div>
-                <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-200 hover:shadow-lg transition-all">
-                  <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Draft Agents</div>
-                  <div className="text-4xl font-bold text-gray-600">
-                    {agents.filter(a => a.status === 'draft').length}
-                  </div>
-                </div>
-              </div>
 
               {/* Conditional Layout: Hero Card for 1 agent, Grid for 2+ */}
               {agents.length === 1 ? (
@@ -333,21 +346,71 @@ export default function FrontendPage() {
                     {agents.map((agent) => {
                       const agentGradient = JSON.parse(agent.gradient_color || generateGradientColor(agent.id)) as string[];
                       return (
-                        <button
+                        <div
                           key={agent.id}
-                          onClick={() => router.push(`/frontend/agent/${agent.id}`)}
-                          className="w-full bg-white rounded-3xl shadow-xl p-8 border border-gray-200 hover:shadow-2xl hover:scale-[1.02] transition-all text-left group"
+                          onClick={() => { if (!colorPickerAgentId) router.push(`/frontend/agent/${agent.id}`); }}
+                          className={`w-full bg-white rounded-3xl shadow-xl p-8 border border-gray-200 transition-all text-left group cursor-pointer ${colorPickerAgentId === agent.id ? '' : 'hover:shadow-2xl hover:scale-[1.02]'}`}
+                          style={colorPickerAgentId === agent.id ? { position: 'relative' as const, zIndex: 9998 } : undefined}
                         >
                           {/* Hero Agent Card */}
                           <div className="flex flex-col items-center text-center mb-6">
-                            {/* Large Avatar */}
-                            <div
-                              className="w-24 h-24 rounded-3xl flex items-center justify-center text-white font-bold text-3xl mb-4 shadow-lg"
-                              style={{
-                                background: `linear-gradient(135deg, ${agentGradient[0]} 0%, ${agentGradient[1]} 50%, ${agentGradient[2] || agentGradient[1]} 100%)`,
-                              }}
-                            >
-                              {agent.name.charAt(0).toUpperCase()}
+                            {/* Large Avatar with Color Picker */}
+                            <div className="relative mb-4">
+                              <div
+                                className="w-24 h-24 rounded-3xl flex items-center justify-center text-white font-bold text-3xl shadow-lg"
+                                style={{
+                                  background: `linear-gradient(135deg, ${agentGradient[0]} 0%, ${agentGradient[1]} 50%, ${agentGradient[2] || agentGradient[1]} 100%)`,
+                                }}
+                              >
+                                {agent.name.charAt(0).toUpperCase()}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setColorPickerAgentId(colorPickerAgentId === agent.id ? null : agent.id);
+                                }}
+                                className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-white border-2 border-gray-200 shadow-md flex items-center justify-center text-gray-500 hover:text-gray-700 hover:border-gray-300 transition-all hover:scale-110 z-10"
+                                title="Change icon color"
+                              >
+                                <Palette className="h-3.5 w-3.5" />
+                              </button>
+                              {/* Color Picker Popover */}
+                              {colorPickerAgentId === agent.id && (
+                                <div
+                                  ref={colorPickerRef}
+                                  className="absolute top-full left-1/2 -translate-x-1/2 mt-3"
+                                  style={{ zIndex: 9999 }}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 p-4 w-64">
+                                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Choose Color Scheme</p>
+                                    <div className="grid grid-cols-4 gap-2">
+                                      {GRADIENT_PRESETS.map((preset, i) => {
+                                        const isActive = JSON.stringify(preset) === JSON.stringify(agentGradient);
+                                        return (
+                                          <button
+                                            key={i}
+                                            type="button"
+                                            disabled={savingColor}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleChangeGradient(agent.id, preset);
+                                            }}
+                                            className={`w-12 h-12 rounded-xl transition-all hover:scale-110 disabled:opacity-50 ${
+                                              isActive ? "ring-2 ring-blue-500 ring-offset-2 scale-110" : "hover:ring-2 hover:ring-gray-300 hover:ring-offset-1"
+                                            }`}
+                                            style={{
+                                              background: `linear-gradient(135deg, ${preset[0]} 0%, ${preset[1]} 50%, ${preset[2] || preset[1]} 100%)`,
+                                            }}
+                                            title={`Color scheme ${i + 1}`}
+                                          />
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                             
                             {/* Agent Name & Status */}
@@ -370,28 +433,6 @@ export default function FrontendPage() {
                             </p>
                           )}
 
-                          {/* Agent Metrics - Centered */}
-                          <div className="flex items-center justify-center gap-8 pt-6 border-t border-gray-200">
-                            <div className="flex items-center gap-2 text-gray-600">
-                              <div className="p-2 bg-gray-100 rounded-xl">
-                                <MessageSquare className="h-5 w-5" />
-                              </div>
-                              <div className="text-left">
-                                <div className="text-xs text-gray-500 uppercase tracking-wide">Conversations</div>
-                                <div className="text-lg font-semibold text-gray-900">0</div>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 text-gray-600">
-                              <div className="p-2 bg-gray-100 rounded-xl">
-                                <Clock className="h-5 w-5" />
-                              </div>
-                              <div className="text-left">
-                                <div className="text-xs text-gray-500 uppercase tracking-wide">Avg Duration</div>
-                                <div className="text-lg font-semibold text-gray-900">0 min</div>
-                              </div>
-                            </div>
-                          </div>
-
                           {/* Action Indicator */}
                           <div className="mt-6 flex justify-center">
                             <div className="relative group/arrow">
@@ -402,7 +443,7 @@ export default function FrontendPage() {
                               </div>
                             </div>
                           </div>
-                        </button>
+                        </div>
                       );
                     })}
                   </div>
@@ -419,21 +460,70 @@ export default function FrontendPage() {
                   {agents.map((agent) => {
                     const agentGradient = JSON.parse(agent.gradient_color || generateGradientColor(agent.id)) as string[];
                     return (
-                      <button
+                      <div
                         key={agent.id}
-                        onClick={() => router.push(`/frontend/agent/${agent.id}`)}
-                        className="bg-white rounded-2xl shadow-md p-6 border border-gray-200 hover:shadow-xl hover:scale-[1.02] transition-all text-left group"
+                        onClick={() => { if (!colorPickerAgentId) router.push(`/frontend/agent/${agent.id}`); }}
+                        className={`bg-white rounded-2xl shadow-md p-6 border border-gray-200 transition-all text-left group cursor-pointer ${colorPickerAgentId === agent.id ? '' : 'hover:shadow-xl hover:scale-[1.02]'}`}
+                        style={colorPickerAgentId === agent.id ? { position: 'relative' as const, zIndex: 9998 } : undefined}
                       >
                         {/* Agent Header */}
                         <div className="flex items-start justify-between mb-4">
                           <div className="flex items-center gap-3">
-                            <div
-                              className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-lg shadow-md"
-                              style={{
-                                background: `linear-gradient(135deg, ${agentGradient[0]} 0%, ${agentGradient[1]} 100%)`,
-                              }}
-                            >
-                              {agent.name.charAt(0).toUpperCase()}
+                            <div className="relative">
+                              <div
+                                className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-lg shadow-md"
+                                style={{
+                                  background: `linear-gradient(135deg, ${agentGradient[0]} 0%, ${agentGradient[1]} 100%)`,
+                                }}
+                              >
+                                {agent.name.charAt(0).toUpperCase()}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setColorPickerAgentId(colorPickerAgentId === agent.id ? null : agent.id);
+                                }}
+                                className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-gray-400 hover:text-gray-600 hover:border-gray-300 transition-all hover:scale-110 z-10"
+                                title="Change icon color"
+                              >
+                                <Palette className="h-3 w-3" />
+                              </button>
+                              {/* Color Picker Popover */}
+                              {colorPickerAgentId === agent.id && (
+                                <div
+                                  ref={colorPickerRef}
+                                  className="absolute top-full left-0 mt-2"
+                                  style={{ zIndex: 9999 }}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 p-3 w-56">
+                                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Color Scheme</p>
+                                    <div className="grid grid-cols-4 gap-1.5">
+                                      {GRADIENT_PRESETS.map((preset, i) => {
+                                        const isActive = JSON.stringify(preset) === JSON.stringify(agentGradient);
+                                        return (
+                                          <button
+                                            key={i}
+                                            type="button"
+                                            disabled={savingColor}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleChangeGradient(agent.id, preset);
+                                            }}
+                                            className={`w-10 h-10 rounded-xl transition-all hover:scale-110 disabled:opacity-50 ${
+                                              isActive ? "ring-2 ring-blue-500 ring-offset-1 scale-110" : "hover:ring-2 hover:ring-gray-300 hover:ring-offset-1"
+                                            }`}
+                                            style={{
+                                              background: `linear-gradient(135deg, ${preset[0]} 0%, ${preset[1]} 50%, ${preset[2] || preset[1]} 100%)`,
+                                            }}
+                                          />
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                             <div>
                               <h3 className="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors mb-1">
@@ -458,18 +548,7 @@ export default function FrontendPage() {
                           </p>
                         )}
 
-                        {/* Agent Metrics */}
-                        <div className="flex items-center gap-6 pt-4 border-t border-gray-100">
-                          <div className="flex items-center gap-2 text-gray-600">
-                            <MessageSquare className="h-4 w-4" />
-                            <span className="text-xs font-medium">0 conversations</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-gray-600">
-                            <Clock className="h-4 w-4" />
-                            <span className="text-xs font-medium">0 min avg</span>
-                          </div>
-                        </div>
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -478,6 +557,7 @@ export default function FrontendPage() {
           )}
         </div>
       </div>
+
     </div>
   );
 }
