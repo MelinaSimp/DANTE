@@ -1,0 +1,100 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createServerSupabase } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+import { hasSuperadminAccess } from "@/lib/superadmin";
+import { ALL_FEATURE_IDS, type FeatureId } from "@/lib/features";
+
+export const dynamic = "force-dynamic";
+
+async function verifySuperadmin() {
+  const supabase = await createServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("is_superadmin")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (!hasSuperadminAccess(user.email, profile?.is_superadmin)) return null;
+  return user;
+}
+
+export async function GET() {
+  const admin = await verifySuperadmin();
+  if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const { data: workspaces, error } = await supabaseAdmin
+    .from("workspaces")
+    .select("id, name, created_at, owner_id, enabled_features, plan_status, plan_name")
+    .order("created_at", { ascending: false });
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  const { data: profiles } = await supabaseAdmin
+    .from("profiles")
+    .select("id, workspace_id, full_name");
+
+  const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers();
+  const emailMap = new Map<string, string>();
+  authUsers?.users.forEach((u) => {
+    if (u.email) emailMap.set(u.id, u.email);
+  });
+
+  const enriched = (workspaces || []).map((ws) => {
+    const owner = profiles?.find((p) => p.id === ws.owner_id);
+    const ownerEmail = owner ? emailMap.get(owner.id) : null;
+    const userCount = profiles?.filter((p) => p.workspace_id === ws.id).length || 0;
+    return {
+      ...ws,
+      owner_name: owner?.full_name || null,
+      owner_email: ownerEmail || null,
+      user_count: userCount,
+    };
+  });
+
+  return NextResponse.json(enriched);
+}
+
+export async function PATCH(req: NextRequest) {
+  const admin = await verifySuperadmin();
+  if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const body = await req.json();
+  const { workspace_id, enabled_features, plan_status, plan_name } = body;
+
+  if (!workspace_id) {
+    return NextResponse.json({ error: "workspace_id is required" }, { status: 400 });
+  }
+
+  const updates: Record<string, unknown> = {};
+
+  if (enabled_features !== undefined) {
+    if (enabled_features === null) {
+      updates.enabled_features = null;
+    } else if (Array.isArray(enabled_features)) {
+      const valid = enabled_features.filter((f: string) =>
+        ALL_FEATURE_IDS.includes(f as FeatureId)
+      );
+      updates.enabled_features = valid;
+    }
+  }
+
+  if (plan_status !== undefined) updates.plan_status = plan_status;
+  if (plan_name !== undefined) updates.plan_name = plan_name;
+
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("workspaces")
+    .update(updates)
+    .eq("id", workspace_id)
+    .select()
+    .single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json(data);
+}

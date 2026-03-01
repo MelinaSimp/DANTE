@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
           if (!conv.data) return { data: null };
           return supabaseAdmin
             .from("agents")
-            .select("id, name, description, elevenlabs_voice_id")
+            .select("id, name, description, elevenlabs_voice_id, llm_instructions")
             .eq("id", conv.data.agent_id)
             .single();
         }),
@@ -104,8 +104,11 @@ export async function POST(req: NextRequest) {
       },
     ];
 
-    // Build system prompt
-    const systemPrompt = `You are ${agent.name || "AI Assistant"}. ${agent.description || "You are a helpful AI assistant."}
+    // Build system prompt: use agent instructions when set, else default
+    const agentInstructions = (agent as { llm_instructions?: string | null }).llm_instructions?.trim();
+    const basePrompt = agentInstructions
+      ? agentInstructions
+      : `You are ${agent.name || "AI Assistant"}. ${agent.description || "You are a helpful AI assistant."}
 
 ${knowledgeBase ? `KNOWLEDGE BASE (use this to answer questions):
 ${knowledgeBase}
@@ -118,6 +121,7 @@ You can help with:
 - Checking appointment availability (use the check_availability function)
 
 Be friendly, concise, and natural. For voice conversations, keep responses short (1-2 sentences).`;
+    const systemPrompt = basePrompt;
 
     // OpenAI function definitions
     const functions = [
@@ -345,17 +349,27 @@ Be friendly, concise, and natural. For voice conversations, keep responses short
 
     const voiceId = agent.elevenlabs_voice_id || "21m00Tcm4TlvDq8ikWAM";
 
+    // Ensure we never return empty output for greeting (prevents Twilio from dropping the call)
+    const isGreeting = !userInput || userInput.trim().length === 0;
+    const output = (finalOutput && finalOutput.trim().length > 0)
+      ? finalOutput.trim()
+      : (isGreeting ? "Hello! How can I help you today?" : "I'm sorry, I didn't catch that. Could you please repeat?");
+
     return NextResponse.json({
       success: true,
-      output: finalOutput,
+      output,
       voiceId,
       shouldContinue: true,
     });
   } catch (error: any) {
     console.error("[Media Stream Execute] Error:", error);
-    return NextResponse.json(
-      { error: error.message || "Failed to execute agent step" },
-      { status: 500 }
-    );
+    // Return 200 with default greeting so Railway can play something and the call doesn't drop
+    const defaultGreeting = "Hello! How can I help you today?";
+    return NextResponse.json({
+      success: false,
+      output: defaultGreeting,
+      voiceId: undefined,
+      shouldContinue: true,
+    });
   }
 }

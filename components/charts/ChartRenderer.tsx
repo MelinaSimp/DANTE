@@ -87,7 +87,7 @@ export default function ChartRenderer({ chartData }: ChartRendererProps) {
   return (
     <div className="w-full p-4 bg-white rounded-lg border border-gray-200">
       {title && <h3 className="text-lg font-semibold mb-4 text-gray-900">{title}</h3>}
-      <ResponsiveContainer width="100%" height={300}>
+      <ResponsiveContainer width="100%" height={320}>
         {renderChart()}
       </ResponsiveContainer>
     </div>

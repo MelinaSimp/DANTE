@@ -19,23 +19,25 @@ export function EmptyState({
   title, 
   description, 
   action,
-  className = "" 
-}: EmptyStateProps) {
+  className = "",
+  theme = "dark",
+}: EmptyStateProps & { theme?: "dark" | "light" }) {
+  const isDark = theme === "dark";
   return (
     <div className={`flex flex-col items-center justify-center py-12 px-4 ${className}`}>
       {Icon && (
-        <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-4">
-          <Icon className="h-8 w-8 text-white/40" />
+        <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${isDark ? "bg-white/5" : "bg-gray-100"}`}>
+          <Icon className={`h-8 w-8 ${isDark ? "text-white/40" : "text-gray-400"}`} />
         </div>
       )}
-      <h3 className="text-lg font-semibold text-white mb-2">{title}</h3>
+      <h3 className={`text-lg font-semibold mb-2 ${isDark ? "text-white" : "text-gray-900"}`}>{title}</h3>
       {description && (
-        <p className="text-white/60 text-sm text-center max-w-md mb-6">{description}</p>
+        <p className={`text-sm text-center max-w-md mb-6 ${isDark ? "text-white/60" : "text-gray-500"}`}>{description}</p>
       )}
       {action && (
         <button
           onClick={action.onClick}
-          className="px-4 py-2 rounded-2xl bg-orange-600 text-white hover:bg-orange-700 transition text-sm font-medium"
+          className={`px-4 py-2 rounded-2xl text-white transition text-sm font-medium ${isDark ? "bg-orange-600 hover:bg-orange-700" : "bg-black hover:bg-gray-800"}`}
         >
           {action.label}
         </button>

@@ -8,6 +8,7 @@ import {
   Highlighter,
   MessageSquare,
   Tag,
+  Table2,
   ChevronLeft,
   ChevronRight,
   Trash2,
@@ -16,10 +17,12 @@ import {
   Maximize2,
 } from "lucide-react";
 
-// Configure PDF.js worker
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+// Override react-pdf's invalid default 'pdf.worker.mjs' (bare specifier fails) - use our public copy
+const baseUrl =
+  process.env.NEXT_PUBLIC_APP_URL || (typeof window !== "undefined" ? window.location.origin : "");
+pdfjs.GlobalWorkerOptions.workerSrc = baseUrl ? `${baseUrl.replace(/\/$/, "")}/pdf.worker.min.mjs` : "/pdf.worker.min.mjs";
 
-export type AnnotationType = "highlight" | "comment" | "tag";
+export type AnnotationType = "highlight" | "comment" | "tag" | "table";
 
 export interface Annotation {
   id: string;
@@ -36,9 +39,10 @@ interface PdfViewerWithAnnotationsProps {
   fileUrl: string;
   fileName: string;
   annotations: Annotation[];
-  /** Accepts new list or updater (prev => newList) so add/delete don't use stale state */
   onAnnotationsChange: (annotations: Annotation[] | ((prev: Annotation[]) => Annotation[])) => void;
   readOnly?: boolean;
+  /** Called when the PDF fails to load (e.g. expired URL). Parent can refetch and pass a new fileUrl. */
+  onLoadError?: () => void;
 }
 
 export default function PdfViewerWithAnnotations({
@@ -48,6 +52,7 @@ export default function PdfViewerWithAnnotations({
   annotations,
   onAnnotationsChange,
   readOnly = false,
+  onLoadError,
 }: PdfViewerWithAnnotationsProps) {
   const [numPages, setNumPages] = useState<number>(0);
   const [pageNumber, setPageNumber] = useState(1);
@@ -66,6 +71,7 @@ export default function PdfViewerWithAnnotations({
     height: number;
   } | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const [saving, setSaving] = useState(false);
   const pageRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
@@ -73,6 +79,23 @@ export default function PdfViewerWithAnnotations({
     setNumPages(numPages);
     setPageNumber(1);
   }, []);
+
+  // Refetch annotations only on mount (documentId change) - parent loads when entering edit.
+  // Avoid refetch on annotationRefetchKey to prevent overwriting freshly saved annotations.
+  useEffect(() => {
+    if (!documentId) return;
+    let cancelled = false;
+    fetch(`/api/documents/annotations?documentId=${documentId}`, { credentials: "include" })
+      .then((res) => res.json().catch(() => ({})))
+      .then((data) => {
+        if (!cancelled && Array.isArray(data.annotations)) {
+          onAnnotationsChange(data.annotations);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [documentId]); // eslint-disable-line react-hooks/exhaustive-deps -- onAnnotationsChange is stable from parent
 
   // Fit to container width when fitToWidth is true
   useEffect(() => {
@@ -147,21 +170,30 @@ export default function PdfViewerWithAnnotations({
     content: string | null
   ): Promise<boolean> => {
     setSaveError(null);
+    setSaveSuccess(false);
     try {
+      // Map "table" to "tag" for DB storage (DB constraint only allows highlight/comment/tag).
+      // Prefix content with [TABLE] so the LLM can identify it as a data table annotation.
+      const dbType = type === "table" ? "tag" : type;
+      const dbContent = type === "table" ? `[TABLE] ${content || ""}`.trim() : content;
+
       const res = await fetch("/api/documents/annotations", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           documentId,
           page_number: pageNumber,
-          type,
-          content,
+          type: dbType,
+          content: dbContent,
           bounding_box,
         }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.error || "Failed to save annotation");
+        const errMsg = data?.error || `Failed to save (${res.status})`;
+        console.error("[Annotation] Save failed", res.status, data);
+        throw new Error(errMsg);
       }
       onAnnotationsChange((prev) => [...prev, data]);
       return true;
@@ -179,9 +211,11 @@ export default function PdfViewerWithAnnotations({
     const ok = await addAnnotation(activeTool, pendingBox, pendingContent || null);
     setSaving(false);
     if (ok) {
+      setSaveSuccess(true);
       setPendingContent("");
       setPendingBox(null);
       setShowContentModal(false);
+      setTimeout(() => setSaveSuccess(false), 2500);
     }
   };
 
@@ -213,6 +247,9 @@ export default function PdfViewerWithAnnotations({
           <span className="text-sm font-medium text-[#374151]">
             Page {pageNumber} of {numPages || "—"}
           </span>
+          {saveSuccess && (
+            <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">Saved</span>
+          )}
           <button
             type="button"
             onClick={() => setPageNumber((p) => Math.min(numPages || 1, p + 1))}
@@ -253,7 +290,7 @@ export default function PdfViewerWithAnnotations({
             <button
               type="button"
               onClick={() => setActiveTool(activeTool === "highlight" ? null : "highlight")}
-              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+              className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition ${
                 activeTool === "highlight"
                   ? "bg-amber-100 text-amber-800"
                   : "text-[#6b7280] hover:bg-[#f3f4f6]"
@@ -265,7 +302,7 @@ export default function PdfViewerWithAnnotations({
             <button
               type="button"
               onClick={() => setActiveTool(activeTool === "comment" ? null : "comment")}
-              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+              className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition ${
                 activeTool === "comment"
                   ? "bg-blue-100 text-blue-800"
                   : "text-[#6b7280] hover:bg-[#f3f4f6]"
@@ -277,7 +314,7 @@ export default function PdfViewerWithAnnotations({
             <button
               type="button"
               onClick={() => setActiveTool(activeTool === "tag" ? null : "tag")}
-              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+              className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition ${
                 activeTool === "tag"
                   ? "bg-purple-100 text-purple-800"
                   : "text-[#6b7280] hover:bg-[#f3f4f6]"
@@ -285,6 +322,19 @@ export default function PdfViewerWithAnnotations({
             >
               <Tag className="h-4 w-4" />
               Tag
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTool(activeTool === "table" ? null : "table")}
+              className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition ${
+                activeTool === "table"
+                  ? "bg-emerald-100 text-emerald-800"
+                  : "text-[#6b7280] hover:bg-[#f3f4f6]"
+              }`}
+              title="Data table (box) – LLM will find and extract this table in other PDFs; add a comment to request a chart"
+            >
+              <Table2 className="h-4 w-4" />
+              Table
             </button>
           </div>
         )}
@@ -296,14 +346,26 @@ export default function PdfViewerWithAnnotations({
           <Document
             file={fileUrl}
             onLoadSuccess={onDocumentLoadSuccess}
+            onLoadError={onLoadError}
             loading={
-              <div className="flex items-center justify-center w-[600px] h-[800px] bg-white rounded-lg">
-                <p className="text-[#6b7280]">Loading PDF…</p>
+              <div className="flex flex-col items-center justify-center w-full max-w-[600px] min-h-[400px] bg-white rounded-xl gap-3">
+                <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+                <p className="text-sm text-[#6b7280]">Loading PDF…</p>
               </div>
             }
             error={
-              <div className="flex items-center justify-center w-[600px] h-[400px] bg-red-50 rounded-lg">
-                <p className="text-red-600">Failed to load PDF</p>
+              <div className="flex flex-col items-center justify-center w-full max-w-[600px] min-h-[300px] bg-red-50 rounded-xl gap-3 p-6">
+                <p className="text-sm font-medium text-red-600">Failed to load PDF</p>
+                <p className="text-xs text-red-500 text-center">The file may be corrupted or the URL may have expired.</p>
+                {onLoadError && (
+                  <button
+                    type="button"
+                    onClick={onLoadError}
+                    className="mt-2 px-4 py-2 text-sm font-medium rounded-xl bg-red-600 text-white hover:bg-red-700 transition"
+                  >
+                    Retry
+                  </button>
+                )}
               </div>
             }
           >
@@ -354,10 +416,17 @@ export default function PdfViewerWithAnnotations({
                           </span>
                         </div>
                       )}
-                      {ann.type === "tag" && (
+                      {ann.type === "tag" && !(ann.content || "").startsWith("[TABLE]") && (
                         <div className="w-full h-full min-w-[24px] min-h-[24px] bg-purple-200/70 rounded flex items-center justify-center">
                           <span className="text-xs text-purple-900 truncate px-1">
                             {ann.content || "tag"}
+                          </span>
+                        </div>
+                      )}
+                      {(ann.type === "table" || (ann.type === "tag" && (ann.content || "").startsWith("[TABLE]"))) && (
+                        <div className="w-full h-full min-w-[24px] min-h-[24px] bg-emerald-200/70 rounded flex items-center justify-center border border-emerald-400/50">
+                          <span className="text-xs text-emerald-900 truncate px-1">
+                            {(ann.content || "table").replace(/^\[TABLE\]\s*/, "")}
                           </span>
                         </div>
                       )}
@@ -395,10 +464,16 @@ export default function PdfViewerWithAnnotations({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-xl shadow-xl p-4 w-80">
             <p className="text-sm font-medium text-[#374151] mb-2">
-              {activeTool === "highlight" ? "Add comment (optional)" : activeTool === "comment" ? "Add comment" : "Add tag"}
+              {activeTool === "highlight"
+                ? "Add comment (optional)"
+                : activeTool === "comment"
+                  ? "Add comment"
+                  : activeTool === "table"
+                    ? "Describe table (e.g. &quot;Account summary&quot; or &quot;Convert to pie chart&quot;)"
+                    : "Add tag"}
             </p>
             {saveError && (
-              <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">
+              <div className="mb-3 rounded-xl border border-red-200 bg-red-50 p-2 text-xs text-red-700">
                 {saveError}
               </div>
             )}
@@ -406,8 +481,8 @@ export default function PdfViewerWithAnnotations({
               type="text"
               value={pendingContent}
               onChange={(e) => setPendingContent(e.target.value)}
-              placeholder={activeTool === "highlight" ? "Your comment…" : activeTool === "comment" ? "Your comment…" : "Tag name…"}
-              className="w-full rounded-lg border border-[#e5e7eb] px-3 py-2 text-sm"
+              placeholder={activeTool === "highlight" ? "Your comment…" : activeTool === "comment" ? "Your comment…" : activeTool === "table" ? "e.g. Holdings table, or convert to bar chart" : "Tag name…"}
+              className="w-full rounded-xl border border-[#e5e7eb] px-3 py-2 text-sm"
               autoFocus
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleContentSubmit();
@@ -427,7 +502,7 @@ export default function PdfViewerWithAnnotations({
                   setPendingContent("");
                   setSaveError(null);
                 }}
-                className="rounded-lg px-3 py-2 text-sm text-[#6b7280] hover:bg-[#f3f4f6]"
+                className="rounded-xl px-3 py-2 text-sm text-[#6b7280] hover:bg-[#f3f4f6]"
                 disabled={saving}
               >
                 Cancel
@@ -436,7 +511,7 @@ export default function PdfViewerWithAnnotations({
                 type="button"
                 onClick={handleContentSubmit}
                 disabled={saving}
-                className="rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+                className="rounded-xl bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
               >
                 {saving ? "Saving…" : "Add"}
               </button>

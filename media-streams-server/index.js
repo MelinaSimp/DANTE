@@ -24,8 +24,8 @@ const alawmulaw = require('alawmulaw');
 const PORT = process.env.PORT || 3001;
 const NEXTJS_API_URL = process.env.NEXTJS_API_URL || 'https://driftai.studio';
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
-// How long to wait after last user speech before sending to LLM (ms). Higher = less cutting off user.
-const INPUT_DEBOUNCE_MS = parseInt(process.env.INPUT_DEBOUNCE_MS || '1500', 10);
+// Checkpoint: 500ms debounce (configurable via INPUT_DEBOUNCE_MS)
+const INPUT_DEBOUNCE_MS = parseInt(process.env.INPUT_DEBOUNCE_MS || '500', 10);
 
 // Store active connections
 const activeConnections = new Map();
@@ -135,6 +135,7 @@ wss.on('connection', (ws, req) => {
     recentTranscriptions: [], // Track recent transcriptions to prevent duplicates (last 5, with timestamps)
     isProcessingInput: false, // Track if we're currently processing user input (prevent concurrent processing)
     currentTTSSessionId: 0, // Track current TTS session to prevent old chunks from being sent
+    pendingResponse: null, // Queued API response to play after current TTS (e.g. "You're welcome" during greeting)
   };
 
   activeConnections.set(connectionId, connection);
@@ -360,11 +361,6 @@ async function processAudioChunk(connection) {
                 console.log(`[Media Stream] 🔇 Skipping silence detection - STT call in progress`);
                 return;
               }
-              // Don't end call due to silence before greeting has started (greetingStartTime=0 would make timeSinceLastUserSpeech huge and end call immediately)
-              if (connection.greetingStartTime === 0) {
-                console.log(`[Media Stream] 🔇 Skipping silence detection - greeting not started yet`);
-                return;
-              }
               
               // Check if 20 seconds have passed since last user speech (or greeting start if no speech yet)
               const silenceTimeout = 20000; // 20 seconds
@@ -506,11 +502,6 @@ async function processAudioChunk(connection) {
             console.log(`[Media Stream] 🔇 Skipping silence detection - STT call in progress`);
             return;
           }
-          // Don't end call due to silence before greeting has started (greetingStartTime=0 would make timeSinceLastUserSpeech huge and end call immediately)
-          if (connection.greetingStartTime === 0) {
-            console.log(`[Media Stream] 🔇 Skipping silence detection - greeting not started yet`);
-            return;
-          }
           
           // Check if 20 seconds have passed since last user speech (or greeting start if no speech yet)
           const silenceTimeout = 20000; // 20 seconds
@@ -573,21 +564,14 @@ async function processAudioChunk(connection) {
 async function sendInitialGreeting(connection) {
   const startTime = Date.now();
   try {
-    connection.isSpeaking = true;
-    connection.greetingStartTime = Date.now();
-    connection.consecutiveSilences = 0; // Reset silence counter when greeting starts
-
-    // No conversationId (lookup failed or not in params) -> play fallback so call doesn't drop with silence
     if (!connection.conversationId) {
-      console.warn(`[Media Stream] No conversationId - playing fallback greeting so call does not cut`);
-      await streamAudioResponse(
-        connection,
-        "Thanks for calling. We're setting up our system. Please hold or try again in a moment.",
-        '21m00Tcm4TlvDq8ikWAM'
-      );
+      console.warn(`[Media Stream] No conversationId, skipping greeting`);
       return;
     }
 
+    connection.isSpeaking = true;
+    connection.greetingStartTime = Date.now();
+    connection.consecutiveSilences = 0; // Reset silence counter when greeting starts
     console.log(`[Media Stream] Sending initial greeting for conversation: ${connection.conversationId}`);
 
     // Call Next.js API to get the greeting (empty input triggers greeting)
@@ -608,42 +592,33 @@ async function sendInitialGreeting(connection) {
 
     if (response.ok) {
       const result = await response.json();
-      if (result.output && result.output.trim().length > 0) {
-        const ttsStartTime = Date.now();
-        await streamAudioResponse(connection, result.output, result.voiceId);
-        const ttsEndTime = Date.now();
-        console.log(`[Media Stream] ⏱️  Greeting TTS took ${ttsEndTime - ttsStartTime}ms`);
-        
-        const totalTime = Date.now() - startTime;
-        console.log(`[Media Stream] ⏱️  Total greeting time: ${totalTime}ms`);
-      } else {
-        console.warn(`[Media Stream] Greeting API ok but no output`);
-      }
+      const greetingText = (result.output && result.output.trim().length > 0)
+        ? result.output.trim()
+        : 'Hello! How can I help you today?';
+      const ttsStartTime = Date.now();
+      await streamAudioResponse(connection, greetingText, result.voiceId);
+      const ttsEndTime = Date.now();
+      console.log(`[Media Stream] ⏱️  Greeting TTS took ${ttsEndTime - ttsStartTime}ms`);
+      const totalTime = Date.now() - startTime;
+      console.log(`[Media Stream] ⏱️  Total greeting time: ${totalTime}ms`);
     } else {
       const errBody = await response.text();
       console.error(`[Media Stream] Failed to get greeting: ${response.status} ${errBody}`);
-      // Play fallback so call doesn't drop with silence
-      await streamAudioResponse(
-        connection,
-        "Thanks for calling. We're setting up our system. Please hold or try again in a moment.",
-        '21m00Tcm4TlvDq8ikWAM'
-      );
+      await streamAudioResponse(connection, 'Hello! How can I help you today?', null);
     }
   } catch (error) {
     console.error(`[Media Stream] Error sending initial greeting: ${error.message}`);
-    // Play fallback so call doesn't drop with silence
     try {
-      await streamAudioResponse(
-        connection,
-        "Thanks for calling. We're setting up our system. Please hold or try again in a moment.",
-        '21m00Tcm4TlvDq8ikWAM'
-      );
+      await streamAudioResponse(connection, 'Hello! How can I help you today?', null);
     } catch (fallbackErr) {
-      console.error(`[Media Stream] Fallback greeting failed: ${fallbackErr.message}`);
+      console.error(`[Media Stream] Fallback greeting TTS failed: ${fallbackErr.message}`);
+      connection.isSpeaking = false; // Only clear if fallback also failed
     }
-  } finally {
-    connection.isSpeaking = false;
   }
+  // Do NOT set isSpeaking = false here. streamAudioResponse returns as soon as chunks are
+  // queued; the greeting keeps streaming for ~9s. Clearing isSpeaking here let the next user
+  // input ("Thank you") start a new TTS that skipped the rest of the greeting. Let the
+  // last-chunk callback in streamAudioResponse clear isSpeaking when greeting actually finishes.
 }
 
 /**
@@ -708,10 +683,11 @@ async function processUserInput(connection, userInput) {
             connection.isEndingCall = false;
           }
           
-          // Double-check: if agent is already speaking, don't start another TTS (prevent overlapping)
+          // If agent is already speaking (e.g. greeting still streaming), queue this response to play after
           if (connection.isSpeaking) {
-            console.log(`[Media Stream] ⚠️  Agent is already speaking, skipping duplicate TTS for: "${result.output.substring(0, 50)}..."`);
-            return; // Don't start overlapping TTS
+            console.log(`[Media Stream] ⏳ Agent is speaking (e.g. greeting); queueing response to play after: "${result.output.substring(0, 50)}..."`);
+            connection.pendingResponse = { output: result.output.trim(), voiceId: result.voiceId };
+            return;
           }
           
           // If agent was speaking, it was already stopped by stopCurrentTTS in the transcription handler
@@ -933,6 +909,16 @@ async function streamAudioResponse(connection, text, voiceId) {
                     connection.lastAgentSpeechEndTime = Date.now();
                     connection.consecutiveSilences = 0;
                     console.log(`[Media Stream] 🎤 Agent finished speaking, ready for user input`);
+                    if (connection.pendingResponse) {
+                      const pending = connection.pendingResponse;
+                      connection.pendingResponse = null;
+                      console.log(`[Media Stream] ▶️  Playing queued response: "${pending.output.substring(0, 50)}..."`);
+                      connection.isSpeaking = true;
+                      streamAudioResponse(connection, pending.output, pending.voiceId).catch(err => {
+                        console.error(`[Media Stream] Queued TTS failed: ${err.message}`);
+                        connection.isSpeaking = false;
+                      });
+                    }
                   }, 500);
                 }
               }
@@ -1047,6 +1033,17 @@ async function streamAudioResponse(connection, text, voiceId) {
                 connection.lastAgentSpeechEndTime = Date.now(); // Track when agent finished
                 connection.consecutiveSilences = 0; // Reset silence counter after agent speaks
                 console.log(`[Media Stream] 🎤 Agent finished speaking, ready for user input (silence counter reset)`);
+                // If user said something while we were speaking (e.g. "Thank you" during greeting), play queued response now
+                if (connection.pendingResponse) {
+                  const pending = connection.pendingResponse;
+                  connection.pendingResponse = null;
+                  console.log(`[Media Stream] ▶️  Playing queued response: "${pending.output.substring(0, 50)}..."`);
+                  connection.isSpeaking = true;
+                  streamAudioResponse(connection, pending.output, pending.voiceId).catch(err => {
+                    console.error(`[Media Stream] Queued TTS failed: ${err.message}`);
+                    connection.isSpeaking = false;
+                  });
+                }
               }, 500);
             }
           }
@@ -1066,6 +1063,17 @@ async function streamAudioResponse(connection, text, voiceId) {
       if (connection.isSpeaking) {
         console.warn(`[Media Stream] ⚠️  Safety timeout: Resetting isSpeaking flag after ${expectedCompletionTime}ms`);
         connection.isSpeaking = false;
+        connection.lastAgentSpeechEndTime = Date.now();
+        if (connection.pendingResponse) {
+          const pending = connection.pendingResponse;
+          connection.pendingResponse = null;
+          console.log(`[Media Stream] ▶️  Playing queued response after safety timeout: "${pending.output.substring(0, 50)}..."`);
+          connection.isSpeaking = true;
+          streamAudioResponse(connection, pending.output, pending.voiceId).catch(err => {
+            console.error(`[Media Stream] Queued TTS failed: ${err.message}`);
+            connection.isSpeaking = false;
+          });
+        }
       }
     }, expectedCompletionTime);
   } catch (error) {

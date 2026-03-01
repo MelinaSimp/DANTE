@@ -14,6 +14,7 @@ import { normalizePhone } from "@/lib/phone";
 import { generateSpeechTwiml } from "@/lib/elevenlabs/twiml";
 
 export const dynamic = "force-dynamic";
+const DEBUG = process.env.DEBUG_VOICE === "true";
 export const maxDuration = 10; // 10 seconds max for Twilio webhooks
 
 // Helper function to extract call information from either GET (query params) or POST (form data)
@@ -73,12 +74,23 @@ async function handleMediaStream(req: NextRequest) {
   let to = "";
   
   try {
+    // Validate required environment variables
+    const missingVars: string[] = [];
+    if (!process.env.OPENAI_API_KEY) missingVars.push("OPENAI_API_KEY");
+    if (!process.env.ELEVENLABS_API_KEY) missingVars.push("ELEVENLABS_API_KEY");
+    if (missingVars.length > 0) {
+      console.error(`[Media Stream] Missing env vars: ${missingVars.join(", ")}`);
+      return new NextResponse(generateErrorTwiML("We are experiencing technical difficulties. Please try again later."), {
+        status: 200, headers: { "Content-Type": "text/xml; charset=utf-8" },
+      });
+    }
+
     const callInfo = await getCallInfo(req);
     callSid = callInfo.callSid;
     from = callInfo.from;
     to = callInfo.to;
 
-    console.log("[Media Stream] WebSocket connection request:", { callSid, from, to });
+    if (DEBUG) console.log("[Media Stream] WebSocket connection request:", { callSid, from, to });
 
     if (!callSid || !to) {
       console.error("[Media Stream] Missing call information:", { callSid, to });
@@ -222,19 +234,16 @@ async function handleMediaStream(req: NextRequest) {
     // Validate URL doesn't have trailing slashes or spaces
     railwayUrl = railwayUrl.trim().replace(/\/+$/, "");
     
-    // Optional diagnostic: set env var FORCE_REGULAR_TWILIO=true to disable Media Streams
-    // (helps confirm the regular Twilio flow works while debugging Media Streams)
+    // Checkpoint: Use Media Streams by default when Railway URL is set; opt-out with FORCE_REGULAR_TWILIO=true.
     const forceRegularTwilio = process.env.FORCE_REGULAR_TWILIO === "true";
-    
-    // Check Railway health before using (non-blocking)
-    let useMediaStreams = !forceRegularTwilio;
+    const useMediaStreams = !forceRegularTwilio;
     
     if (forceRegularTwilio) {
-      console.log("[Media Stream] FORCE_REGULAR_TWILIO env var is set - skipping Media Streams");
+      if (DEBUG) console.log("[Media Stream] FORCE_REGULAR_TWILIO env var is set - skipping Media Streams");
     } else {
       try {
         const healthUrl = railwayUrl.replace("wss://", "https://").replace("ws://", "http://") + "/health";
-        console.log("[Media Stream] Checking Railway health:", healthUrl);
+        if (DEBUG) console.log("[Media Stream] Checking Railway health:", healthUrl);
         
         // Increased timeout to 5 seconds and make it non-blocking
         // If health check fails, we'll still try Media Streams (Railway might be slow but working)
@@ -251,7 +260,7 @@ async function handleMediaStream(req: NextRequest) {
         healthCheckPromise.then((healthCheck) => {
           if (healthCheck && healthCheck.ok) {
             healthCheck.json().then((healthData) => {
-              console.log("[Media Stream] Railway health check passed", healthData);
+              if (DEBUG) console.log("[Media Stream] Railway health check passed", healthData);
             }).catch(() => {});
           } else {
             console.warn("[Media Stream] Railway health check failed, but proceeding with Media Streams anyway");
@@ -259,7 +268,7 @@ async function handleMediaStream(req: NextRequest) {
         }).catch(() => {});
         
         // Always use Media Streams if Railway URL is configured (health check is just informational)
-        console.log("[Media Stream] Proceeding with Media Streams (health check is non-blocking)");
+        if (DEBUG) console.log("[Media Stream] Proceeding with Media Streams (health check is non-blocking)");
       } catch (healthError: any) {
         console.warn("[Media Stream] Railway health check error (non-blocking):", healthError?.message || healthError);
         // Don't disable Media Streams on health check error - Railway might still work
@@ -283,12 +292,12 @@ async function handleMediaStream(req: NextRequest) {
   </Connect>
 </Response>`;
       
-      console.log("[Media Stream] ✅ Using Media Streams (Connect+Stream, bidirectional)");
-      console.log("[Media Stream] Railway URL:", mediaStreamUrl);
-      console.log("[Media Stream] conversationId (Parameter):", conversation.id);
+      if (DEBUG) console.log("[Media Stream] ✅ Using Media Streams (Connect+Stream, bidirectional)");
+      if (DEBUG) console.log("[Media Stream] Railway URL:", mediaStreamUrl);
+      if (DEBUG) console.log("[Media Stream] conversationId (Parameter):", conversation.id);
     } else {
       // Fallback to regular Twilio flow if Railway is unavailable
-      console.log("[Media Stream] Falling back to regular Twilio flow");
+      if (DEBUG) console.log("[Media Stream] Falling back to regular Twilio flow");
       const responseUrl = `${baseUrl}/api/twilio/response?callSid=${encodeURIComponent(callSid)}&conversationId=${conversation.id}`;
       
       twiml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -297,9 +306,10 @@ async function handleMediaStream(req: NextRequest) {
   <Pause length="1"/>
   <Gather input="speech" method="POST" speechTimeout="auto" language="en-US" action="${responseUrl.replace(/&/g, "&amp;")}">
   </Gather>
+  <Redirect>${responseUrl.replace(/&/g, "&amp;")}</Redirect>
 </Response>`;
       
-      console.log("[Media Stream] Using fallback TwiML with response URL:", responseUrl);
+      if (DEBUG) console.log("[Media Stream] Using fallback TwiML with response URL:", responseUrl);
     }
 
     return new NextResponse(twiml, {

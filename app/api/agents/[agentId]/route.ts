@@ -86,6 +86,9 @@ export async function PUT(
   if (body.parent_agent_id !== undefined) updates.parent_agent_id = body.parent_agent_id;
   if (body.routing_keywords !== undefined) updates.routing_keywords = body.routing_keywords;
   if (body.llm_instructions !== undefined) updates.llm_instructions = body.llm_instructions;
+  if (body.voice_provider !== undefined) updates.voice_provider = body.voice_provider;
+  if (body.vapi_assistant_id !== undefined) updates.vapi_assistant_id = body.vapi_assistant_id;
+  if (body.vapi_phone_number_id !== undefined) updates.vapi_phone_number_id = body.vapi_phone_number_id;
 
   const { data, error } = await supabaseAdmin
     .from("agents")
@@ -97,6 +100,44 @@ export async function PUT(
   if (error) {
     console.error("Failed to update agent", error);
     return NextResponse.json({ error: "Failed to update agent" }, { status: 500 });
+  }
+
+  // Auto-sync to VAPI when deploying with voice_provider = "vapi"
+  if (data.status === "deployed" && data.voice_provider === "vapi" && body.status === "deployed") {
+    try {
+      const { syncAgentToVapi, importPhoneToVapi } = await import("@/lib/vapi/sync");
+      
+      const { assistantId } = await syncAgentToVapi(agentId);
+      console.log(`[Deploy] Auto-synced agent ${agentId} to VAPI assistant ${assistantId}`);
+
+      if (data.phone_number) {
+        try {
+          await importPhoneToVapi(agentId, data.phone_number, assistantId);
+          console.log(`[Deploy] Imported phone number ${data.phone_number} into VAPI`);
+        } catch (phoneErr: any) {
+          console.error(`[Deploy] Phone import failed (non-fatal):`, phoneErr.message);
+        }
+      }
+    } catch (vapiErr: any) {
+      console.error(`[Deploy] VAPI sync failed (non-fatal):`, vapiErr.message);
+    }
+  }
+
+  // Clean up VAPI resources when switching back to custom or undeploying
+  if (
+    (body.voice_provider === "custom" && data.vapi_assistant_id) ||
+    (body.status === "draft" && data.voice_provider === "vapi" && data.vapi_assistant_id)
+  ) {
+    try {
+      const { removeVapiResources, reconfigureTwilioWebhook } = await import("@/lib/vapi/sync");
+      await removeVapiResources(agentId);
+      if (data.phone_number) {
+        await reconfigureTwilioWebhook(data.phone_number);
+      }
+      console.log(`[Deploy] Cleaned up VAPI resources for agent ${agentId}`);
+    } catch (cleanupErr: any) {
+      console.error(`[Deploy] VAPI cleanup failed (non-fatal):`, cleanupErr.message);
+    }
   }
 
   return NextResponse.json(data);

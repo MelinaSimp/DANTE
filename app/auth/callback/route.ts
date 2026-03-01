@@ -21,12 +21,10 @@ async function ensureUserWorkspace(user: any, supabase: any) {
     .single();
 
   if (existingProfile?.workspace_id) {
-    // User already has a workspace, just ensure profile is complete
     const update: Record<string, any> = {
       id: userId,
       full_name: computedFullName,
       role: "owner",
-      is_superadmin: false,
       workspace_id: existingProfile.workspace_id,
     };
     if (firstName) update.first_name = firstName;

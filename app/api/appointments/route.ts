@@ -236,12 +236,29 @@ export async function POST(req: NextRequest) {
     let emailSuccess = false;
     let scheduledCount = 0;
 
+    // Always send a confirmation email immediately when email channel is enabled
+    if (reminderChannels.email && email && agent) {
+      try {
+        await sendAppointmentEmail(email, {
+          name,
+          description,
+          scheduledAt: appointmentDate.toISOString(),
+          durationMinutes,
+        }, profile.workspace_id);
+        emailSuccess = true;
+        console.log(`[Appointment] Confirmation email sent to ${email}`);
+      } catch (err: any) {
+        emailError = err;
+        console.error("[Appointment] Failed to send confirmation email:", err);
+      }
+    }
+
     if (reminderTimings.length > 0 && agent) {
       try {
         for (const { value, minutes } of reminderTimings) {
           const reminderDate = new Date(appointmentDate.getTime() - minutes * 60 * 1000);
           
-          // For immediate, send right away
+          // For immediate, send right away (skip if we already sent confirmation above)
           if (value === "immediate") {
             // Send SMS if enabled
             if (reminderChannels.sms) {
@@ -608,15 +625,26 @@ export async function sendAppointmentEmail(
     .eq("id", workspaceId)
     .maybeSingle();
 
-  const fromEmail = process.env.RESEND_FROM_EMAIL || "noreply@driftai.studio";
-  const fromName = workspace?.name || "Drift AI";
+  const rawFrom = process.env.RESEND_FROM_EMAIL || "noreply@driftai.studio";
+  // If RESEND_FROM_EMAIL already has "Name <email>" format, use it directly
+  // Otherwise wrap it with workspace name
+  const fromField = rawFrom.includes("<")
+    ? rawFrom
+    : `${workspace?.name || "Drift AI"} <${rawFrom}>`;
+
+  console.log("[sendAppointmentEmail] Sending to:", toEmail, "from:", fromField);
 
   const result = await resend.emails.send({
-    from: `${fromName} <${fromEmail}>`,
+    from: fromField,
     to: [toEmail],
     subject: `Appointment Reminder: ${appointmentData.description}`,
     html: generateEmailContent(appointmentData),
   });
+
+  if (result.error) {
+    console.error("[sendAppointmentEmail] Resend API error:", JSON.stringify(result.error));
+    throw new Error(`Resend API error: ${result.error.message || JSON.stringify(result.error)}`);
+  }
 
   if (!result.data?.id) {
     throw new Error("Resend email ID not returned - email may not have been sent");

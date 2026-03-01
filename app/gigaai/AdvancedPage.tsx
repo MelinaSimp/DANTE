@@ -1,20 +1,27 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Code, Settings, Key, Webhook, Database, Phone, UserCheck, Users } from "lucide-react";
+import { Code, Settings, Key, Webhook, Database, Phone, UserCheck, Users, Radio, Zap, Loader2, CheckCircle2 } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 
 interface AdvancedPageProps {
   agentId?: string;
   phoneNumber?: string;
   onPhoneNumberChange?: (phoneNumber: string) => void;
+  onVoiceProviderChange?: (provider: string) => void;
 }
 
-export default function AdvancedPage({ agentId, phoneNumber = "", onPhoneNumberChange }: AdvancedPageProps) {
+export default function AdvancedPage({ agentId, phoneNumber = "", onPhoneNumberChange, onVoiceProviderChange }: AdvancedPageProps) {
   const { theme, colors } = useTheme();
   const [apiKey, setApiKey] = useState("sk_live_••••••••••••••••");
   const [showApiKey, setShowApiKey] = useState(false);
   const [localPhoneNumber, setLocalPhoneNumber] = useState(phoneNumber);
+  
+  // Voice provider state
+  const [voiceProvider, setVoiceProvider] = useState<"custom" | "vapi">("custom");
+  const [vapiSyncing, setVapiSyncing] = useState(false);
+  const [vapiSyncStatus, setVapiSyncStatus] = useState<string | null>(null);
+  const [vapiAssistantId, setVapiAssistantId] = useState<string | null>(null);
   
   // Agent role/specialist state
   const [agentRole, setAgentRole] = useState<string>("");
@@ -37,6 +44,8 @@ export default function AdvancedPage({ agentId, phoneNumber = "", onPhoneNumberC
           setIsSpecialist(agent.is_specialist || false);
           setParentAgentId(agent.parent_agent_id || "");
           setRoutingKeywords(agent.routing_keywords || []);
+          setVoiceProvider(agent.voice_provider || "custom");
+          setVapiAssistantId(agent.vapi_assistant_id || null);
         }
         
         // Load available agents for parent selection
@@ -52,6 +61,53 @@ export default function AdvancedPage({ agentId, phoneNumber = "", onPhoneNumberC
     
     loadAgentData();
   }, [agentId]);
+
+  const handleVoiceProviderChange = async (provider: "custom" | "vapi") => {
+    if (!agentId) return;
+    setVoiceProvider(provider);
+    setVapiSyncStatus(null);
+    
+    try {
+      // Save voice provider to agent
+      await fetch(`/api/agents/${agentId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ voice_provider: provider }),
+      });
+      
+      if (onVoiceProviderChange) {
+        onVoiceProviderChange(provider);
+      }
+    } catch (error) {
+      console.error("Failed to save voice provider:", error);
+    }
+  };
+
+  const handleSyncToVapi = async () => {
+    if (!agentId) return;
+    setVapiSyncing(true);
+    setVapiSyncStatus(null);
+    
+    try {
+      const response = await fetch(`/api/agents/${agentId}/vapi-sync`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setVapiAssistantId(data.assistantId);
+        setVapiSyncStatus("success");
+      } else {
+        const error = await response.json().catch(() => ({}));
+        setVapiSyncStatus(`error: ${error.error || "Sync failed"}`);
+      }
+    } catch (error: any) {
+      setVapiSyncStatus(`error: ${error.message}`);
+    } finally {
+      setVapiSyncing(false);
+    }
+  };
 
   // Update local state when prop changes
   useEffect(() => {
@@ -95,164 +151,126 @@ export default function AdvancedPage({ agentId, phoneNumber = "", onPhoneNumberC
         </div>
 
         <div className="space-y-6 rounded-lg border border-white/10 bg-[#242423]/90 backdrop-blur-sm p-6">
-        {/* Agent Role & Specialist Settings */}
+        {/* Voice Provider Selection */}
         <div className={`rounded-xl border ${colors.border} ${colors.cardBg} p-6`}>
           <div className="flex items-center gap-3 mb-4">
-            <UserCheck className={`h-5 w-5 ${colors.iconSecondary}`} />
-            <h3 className={`text-lg font-semibold ${colors.text}`}>Agent Role & Routing</h3>
+            <Radio className={`h-5 w-5 ${colors.iconSecondary}`} />
+            <h3 className={`text-lg font-semibold ${colors.text}`}>Voice Engine</h3>
           </div>
-          <div className="space-y-4">
-            <div>
-              <label className={`block text-sm font-medium ${colors.textSecondary} mb-2`}>
-                Agent Role
-              </label>
-              <input
-                type="text"
-                value={agentRole}
-                onChange={(e) => setAgentRole(e.target.value)}
-                placeholder="Type any role name (e.g., customer agent, mechanic, sales rep)"
-                className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-4 py-2 text-sm ${colors.text} focus:border-[#3351ff] focus:outline-none`}
-              />
-              <p className={`text-xs ${colors.textTertiary} mt-2`}>
-                Define the role of this agent for routing purposes. You can type any custom role name (e.g., "customer agent", "mechanic", "sales rep").
-              </p>
-              <div className={`mt-2 p-2 rounded-xl bg-blue-500/10 border border-blue-500/20`}>
-                <p className={`text-xs text-blue-300`}>
-                  💡 <strong>Tip:</strong> Use the same role name in Transfer steps to route to this agent.
-                </p>
-              </div>
-            </div>
-            
-            <div className="flex items-center justify-between p-4 rounded-2xl border border-blue-500/30 bg-blue-500/10">
-              <div>
-                <div className={`text-sm font-medium ${colors.text} mb-1`}>Is Specialist</div>
-                <div className={`text-xs ${colors.textTertiary}`}>
-                  Mark this agent as a specialist that can receive transfers
-                </div>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isSpecialist}
-                  onChange={(e) => setIsSpecialist(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className={`w-11 h-6 ${theme === "white" ? "bg-gray-300" : "bg-white/20"} peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-[#3351ff] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#3351ff]`}></div>
-              </label>
-            </div>
-            
-            {isSpecialist && (
-              <div>
-                <label className={`block text-sm font-medium ${colors.textSecondary} mb-2`}>
-                  Parent Agent (Main Receptionist)
-                </label>
-                <select
-                  value={parentAgentId}
-                  onChange={(e) => setParentAgentId(e.target.value)}
-                  className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-4 py-2 text-sm ${colors.text} focus:border-[#3351ff] focus:outline-none`}
-                >
-                  <option value="">None</option>
-                  {availableAgents.map((agent) => (
-                    <option key={agent.id} value={agent.id}>
-                      {agent.name}
-                    </option>
-                  ))}
-                </select>
-                <p className={`text-xs ${colors.textTertiary} mt-2`}>
-                  Link this specialist to a main receptionist agent
-                </p>
-              </div>
-            )}
-            
-            <div>
-              <label className={`block text-sm font-medium ${colors.textSecondary} mb-2`}>
-                Routing Keywords
-              </label>
-              <div className="flex gap-2 mb-2">
-                <input
-                  type="text"
-                  value={keywordInput}
-                  onChange={(e) => setKeywordInput(e.target.value)}
-                  onKeyPress={(e) => {
-                    if (e.key === "Enter" && keywordInput.trim()) {
-                      handleKeywordInput(keywordInput.trim());
-                      setKeywordInput("");
-                    }
-                  }}
-                  onPaste={(e) => {
-                    // Allow a small delay to get pasted content
-                    setTimeout(() => {
-                      const pasted = e.clipboardData.getData('text');
-                      handleKeywordInput(pasted);
-                    }, 10);
-                  }}
-                  placeholder='Enter keyword and press Enter, or paste array: ["customer", "help", "support"]'
-                  className={`flex-1 rounded-2xl border ${colors.border} ${colors.inputBg} px-4 py-2 text-sm ${colors.text} focus:border-[#3351ff] focus:outline-none`}
-                />
-                <button
-                  onClick={() => {
-                    if (keywordInput.trim()) {
-                      handleKeywordInput(keywordInput.trim());
-                      setKeywordInput("");
-                    }
-                  }}
-                  className={`px-4 py-2 rounded-2xl ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white text-sm font-medium transition`}
-                >
-                  Add
-                </button>
-              </div>
-              {routingKeywords.length > 0 && (
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {routingKeywords.map((keyword, idx) => (
-                    <span
-                      key={idx}
-                      className="px-3 py-1 rounded-2xl bg-blue-500/20 border border-blue-500/30 text-blue-300 text-xs flex items-center gap-2"
-                    >
-                      {keyword}
-                      <button
-                        onClick={() => setRoutingKeywords(routingKeywords.filter((_, i) => i !== idx))}
-                        className="hover:text-red-400"
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
+          <p className={`${colors.textSecondary} text-xs mb-4`}>
+            Choose which voice engine powers this agent's phone calls
+          </p>
+          
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            {/* Custom Engine Option */}
+            <button
+              type="button"
+              onClick={() => handleVoiceProviderChange("custom")}
+              className={`relative p-4 rounded-xl border-2 text-left transition-all ${
+                voiceProvider === "custom"
+                  ? "border-blue-500 bg-blue-500/10"
+                  : `border-white/10 ${colors.bgTertiary} hover:border-white/20`
+              }`}
+            >
+              {voiceProvider === "custom" && (
+                <div className="absolute top-2 right-2">
+                  <CheckCircle2 className="h-4 w-4 text-blue-400" />
                 </div>
               )}
-              <p className={`text-xs ${colors.textTertiary} mt-2`}>
-                Keywords that trigger routing to this agent (e.g., "car", "repair", "engine")
+              <div className="flex items-center gap-2 mb-2">
+                <Zap className={`h-5 w-5 ${voiceProvider === "custom" ? "text-blue-400" : colors.iconSecondary}`} />
+                <span className={`text-sm font-semibold ${colors.text}`}>Custom Engine</span>
+              </div>
+              <p className={`text-xs ${colors.textTertiary}`}>
+                Twilio + ElevenLabs + OpenAI — our built-in voice pipeline with full control
               </p>
-            </div>
+            </button>
             
+            {/* VAPI Option */}
             <button
-              onClick={async () => {
-                if (!agentId) return;
-                try {
-                  const response = await fetch(`/api/agents/${agentId}`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      agent_role: agentRole || null,
-                      is_specialist: isSpecialist,
-                      parent_agent_id: parentAgentId || null,
-                      routing_keywords: routingKeywords,
-                    }),
-                  });
-                  if (response.ok) {
-                    alert("Agent role settings saved!");
-                  } else {
-                    alert("Failed to save settings");
-                  }
-                } catch (error) {
-                  console.error("Failed to save agent role settings:", error);
-                  alert("Failed to save settings");
-                }
-              }}
-              className={`w-full px-4 py-2 rounded-2xl ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white text-sm font-medium transition`}
+              type="button"
+              onClick={() => handleVoiceProviderChange("vapi")}
+              className={`relative p-4 rounded-xl border-2 text-left transition-all ${
+                voiceProvider === "vapi"
+                  ? "border-purple-500 bg-purple-500/10"
+                  : `border-white/10 ${colors.bgTertiary} hover:border-white/20`
+              }`}
             >
-              Save Role Settings
+              {voiceProvider === "vapi" && (
+                <div className="absolute top-2 right-2">
+                  <CheckCircle2 className="h-4 w-4 text-purple-400" />
+                </div>
+              )}
+              <div className="flex items-center gap-2 mb-2">
+                <svg className={`h-5 w-5 ${voiceProvider === "vapi" ? "text-purple-400" : colors.iconSecondary}`} viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+                </svg>
+                <span className={`text-sm font-semibold ${colors.text}`}>VAPI</span>
+              </div>
+              <p className={`text-xs ${colors.textTertiary}`}>
+                VAPI's managed voice platform — ElevenLabs + advanced telephony features
+              </p>
             </button>
           </div>
+
+          {/* VAPI Sync Controls */}
+          {voiceProvider === "vapi" && (
+            <div className="space-y-3 mt-4 p-4 rounded-xl bg-purple-500/5 border border-purple-500/20">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className={`text-sm font-medium ${colors.text}`}>VAPI Assistant</div>
+                  <div className={`text-xs ${colors.textTertiary}`}>
+                    {vapiAssistantId
+                      ? `Synced (ID: ${vapiAssistantId.substring(0, 12)}...)`
+                      : "Not synced yet — sync will happen automatically on deploy"}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSyncToVapi}
+                  disabled={vapiSyncing}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-purple-500/20 border border-purple-500/30 text-purple-300 text-xs font-medium hover:bg-purple-500/30 transition disabled:opacity-50"
+                >
+                  {vapiSyncing ? (
+                    <>
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Syncing...
+                    </>
+                  ) : (
+                    <>
+                      <Radio className="h-3 w-3" />
+                      Sync Now
+                    </>
+                  )}
+                </button>
+              </div>
+              
+              {vapiSyncStatus && (
+                <div className={`text-xs px-3 py-2 rounded-lg ${
+                  vapiSyncStatus === "success"
+                    ? "bg-green-500/10 border border-green-500/20 text-green-300"
+                    : "bg-red-500/10 border border-red-500/20 text-red-300"
+                }`}>
+                  {vapiSyncStatus === "success"
+                    ? "Successfully synced agent to VAPI"
+                    : vapiSyncStatus.replace("error: ", "")}
+                </div>
+              )}
+              
+              <div className={`text-xs ${colors.textTertiary} p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20`}>
+                <strong className="text-yellow-300">Note:</strong> Make sure your ElevenLabs API key is added to your{" "}
+                <a
+                  href="https://dashboard.vapi.ai"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-purple-400 hover:underline"
+                >
+                  VAPI Dashboard
+                </a>{" "}
+                under Provider Keys for voice to work.
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Phone Number Configuration */}

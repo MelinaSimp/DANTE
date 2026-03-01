@@ -27,7 +27,25 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const { data, error } = await supabase
+    // Verify user has access to the document (same check as POST)
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("workspace_id")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const { data: doc } = await supabase
+      .from("documents")
+      .select("id, workspace_id")
+      .eq("id", documentId)
+      .maybeSingle();
+
+    if (!doc || !profile?.workspace_id || doc.workspace_id !== profile.workspace_id) {
+      return NextResponse.json({ error: "Document not found or access denied" }, { status: 404 });
+    }
+
+    // Use admin to bypass RLS (avoids session/RLS edge cases in production)
+    const { data, error } = await supabaseAdmin
       .from("document_annotations")
       .select("*")
       .eq("document_id", documentId)
@@ -35,6 +53,7 @@ export async function GET(req: NextRequest) {
       .order("created_at");
 
     if (error) {
+      console.error("[Annotations GET] Error", error);
       return NextResponse.json(
         { error: error.message },
         { status: 500 }
@@ -77,9 +96,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!["highlight", "comment", "tag"].includes(type)) {
+    if (!["highlight", "comment", "tag", "table"].includes(type)) {
       return NextResponse.json(
-        { error: "type must be highlight, comment, or tag" },
+        { error: "type must be highlight, comment, tag, or table" },
         { status: 400 }
       );
     }
@@ -91,16 +110,18 @@ export async function POST(req: NextRequest) {
       .eq("id", user.id)
       .maybeSingle();
 
-    const { data: doc } = await supabaseAdmin
+    const { data: doc } = await supabase
       .from("documents")
       .select("id, workspace_id")
       .eq("id", documentId)
       .maybeSingle();
 
     if (!doc || !profile?.workspace_id || doc.workspace_id !== profile.workspace_id) {
+      console.error("[Annotations POST] Document not found or access denied", { documentId, userId: user.id });
       return NextResponse.json({ error: "Document not found or access denied" }, { status: 404 });
     }
 
+    // Insert with admin after verifying access; RLS SELECT allows user to read (document in workspace)
     const { data, error } = await supabaseAdmin
       .from("document_annotations")
       .insert({
@@ -114,12 +135,14 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error) {
+      console.error("[Annotations POST] Insert failed", error);
       return NextResponse.json(
         { error: error.message },
         { status: 500 }
       );
     }
 
+    console.log("[Annotations POST] Created", data?.id, "for document", documentId);
     return NextResponse.json(data);
   } catch (error: any) {
     console.error("Annotation create error:", error);
