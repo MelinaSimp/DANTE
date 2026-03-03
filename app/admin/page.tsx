@@ -52,7 +52,7 @@ export default async function AdminPage() {
       <div className="mb-10">
         <h1 className="text-3xl font-bold text-white mb-1">Dashboard</h1>
         <p className="text-white/40 text-sm">
-          Welcome back, <span className="text-orange-500 font-medium">{me?.full_name || auth.user.email}</span>
+          Welcome back, <span className="text-purple-500 font-medium">{me?.full_name || auth.user.email}</span>
         </p>
       </div>
 
@@ -66,12 +66,12 @@ export default async function AdminPage() {
         ].map((stat) => {
           const Icon = stat.icon;
           return (
-            <div key={stat.label} className="rounded-2xl border border-orange-500/20 bg-black p-5">
+            <div key={stat.label} className="rounded-2xl border border-purple-500/20 bg-black p-5">
               <div className="flex items-center gap-2 text-white/40 text-xs font-medium uppercase tracking-wider mb-3">
-                <Icon className="h-3.5 w-3.5 text-orange-500/60" />
+                <Icon className="h-3.5 w-3.5 text-purple-500/60" />
                 {stat.label}
               </div>
-              <div className="text-3xl font-bold text-orange-500">{stat.value}</div>
+              <div className="text-3xl font-bold text-purple-500">{stat.value}</div>
               <div className="text-[11px] text-white/30 mt-1">{stat.sub}</div>
             </div>
           );
@@ -90,13 +90,13 @@ export default async function AdminPage() {
             <Link
               key={action.href}
               href={action.href}
-              className="group rounded-2xl border border-orange-500/20 bg-black p-6 transition-all duration-200 hover:border-orange-500/50 hover:bg-orange-500/5"
+              className="group rounded-2xl border border-purple-500/20 bg-black p-6 transition-all duration-200 hover:border-purple-500/50 hover:bg-purple-500/5"
             >
               <div className="flex items-start justify-between mb-3">
-                <div className="w-10 h-10 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center">
-                  <Icon className="h-5 w-5 text-orange-500" />
+                <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
+                  <Icon className="h-5 w-5 text-purple-500" />
                 </div>
-                <ArrowRight className="h-4 w-4 text-white/20 group-hover:text-orange-500 transition-colors" />
+                <ArrowRight className="h-4 w-4 text-white/20 group-hover:text-purple-500 transition-colors" />
               </div>
               <h3 className="text-white font-semibold mb-1">{action.name}</h3>
               <p className="text-white/40 text-sm">{action.desc}</p>
@@ -106,10 +106,10 @@ export default async function AdminPage() {
       </div>
 
       {/* Recent Workspaces */}
-      <div className="rounded-2xl border border-orange-500/20 bg-black overflow-hidden">
-        <div className="px-6 py-5 border-b border-orange-500/10 flex items-center justify-between">
+      <div className="rounded-2xl border border-purple-500/20 bg-black overflow-hidden">
+        <div className="px-6 py-5 border-b border-purple-500/10 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-white">Recent Workspaces</h2>
-          <Link href="/admin/workspaces" className="text-xs text-orange-500 hover:text-orange-400 transition font-medium">
+          <Link href="/admin/workspaces" className="text-xs text-purple-500 hover:text-purple-400 transition font-medium">
             View All →
           </Link>
         </div>
@@ -119,7 +119,7 @@ export default async function AdminPage() {
             <p className="text-white/40 text-sm">No workspaces yet</p>
           </div>
         ) : (
-          <div className="divide-y divide-orange-500/10">
+          <div className="divide-y divide-purple-500/10">
             {workspaces.slice(0, 5).map((ws) => {
               const owner = profiles?.find(p => p.id === ws.owner_id);
               const wsAgents = agents?.filter(a => a.workspace_id === ws.id) || [];
@@ -136,8 +136,8 @@ export default async function AdminPage() {
               return (
                 <div key={ws.id} className="px-6 py-4 flex items-center justify-between hover:bg-white/[0.02] transition">
                   <div className="flex items-center gap-4">
-                    <div className="w-9 h-9 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center">
-                      <Building2 className="h-4 w-4 text-orange-500/70" />
+                    <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
+                      <Building2 className="h-4 w-4 text-purple-500/70" />
                     </div>
                     <div>
                       <div className="text-sm font-medium text-white">{ws.name}</div>

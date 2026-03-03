@@ -92,7 +92,7 @@ export default function InvitesPage() {
   if (loading) {
     return (
       <div className="px-8 py-8 max-w-5xl mx-auto flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="h-6 w-6 text-orange-500 animate-spin" />
+        <Loader2 className="h-6 w-6 text-purple-500 animate-spin" />
       </div>
     );
   }
@@ -107,13 +107,13 @@ export default function InvitesPage() {
 
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-1">
-          <UserPlus className="h-6 w-6 text-orange-500" />
+          <UserPlus className="h-6 w-6 text-purple-500" />
           <h1 className="text-3xl font-bold text-white">Manage Invites</h1>
         </div>
         <p className="text-white/40 text-sm ml-9">Create and manage workspace invitations</p>
       </div>
 
-      <div className="mb-8 rounded-2xl border border-orange-500/20 bg-black p-6">
+      <div className="mb-8 rounded-2xl border border-purple-500/20 bg-black p-6">
         <h2 className="text-lg font-semibold text-white mb-5">Send Invitation</h2>
         <form onSubmit={handleSendInvite} className="grid grid-cols-1 gap-5 md:grid-cols-3">
           <div>
@@ -126,7 +126,7 @@ export default function InvitesPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full rounded-xl border border-orange-500/20 bg-white/5 px-4 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500/40 transition"
+              className="w-full rounded-xl border border-purple-500/20 bg-white/5 px-4 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-purple-500/40 focus:border-purple-500/40 transition"
               placeholder="user@example.com"
             />
           </div>
@@ -139,7 +139,7 @@ export default function InvitesPage() {
               value={workspaceId}
               onChange={(e) => setWorkspaceId(e.target.value)}
               required
-              className="w-full rounded-xl border border-orange-500/20 bg-white/5 px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500/40 transition"
+              className="w-full rounded-xl border border-purple-500/20 bg-white/5 px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/40 focus:border-purple-500/40 transition"
             >
               <option value="">Select a workspace</option>
               {workspaces.map((ws) => (
@@ -151,7 +151,7 @@ export default function InvitesPage() {
             <button
               type="submit"
               disabled={sending}
-              className="w-full rounded-xl bg-orange-500 px-6 py-2.5 text-sm font-semibold text-black hover:bg-orange-400 transition-all shadow-lg shadow-orange-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full rounded-xl bg-purple-500 px-6 py-2.5 text-sm font-semibold text-black hover:bg-purple-400 transition-all shadow-lg shadow-purple-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
               {sending ? "Sending..." : "Send Invitation"}
@@ -160,8 +160,8 @@ export default function InvitesPage() {
         </form>
       </div>
 
-      <div className="rounded-2xl border border-orange-500/20 bg-black overflow-hidden">
-        <div className="px-6 py-5 border-b border-orange-500/10">
+      <div className="rounded-2xl border border-purple-500/20 bg-black overflow-hidden">
+        <div className="px-6 py-5 border-b border-purple-500/10">
           <h2 className="text-lg font-semibold text-white">Pending Invites</h2>
         </div>
         {invites.length === 0 ? (
@@ -172,7 +172,7 @@ export default function InvitesPage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="border-b border-orange-500/10">
+              <thead className="border-b border-purple-500/10">
                 <tr className="text-left text-white/40 text-xs uppercase tracking-wider">
                   <th className="py-4 px-6 font-medium">Email</th>
                   <th className="py-4 px-4 font-medium">Workspace</th>
@@ -182,7 +182,7 @@ export default function InvitesPage() {
                   <th className="py-4 px-4 font-medium w-20"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-orange-500/5">
+              <tbody className="divide-y divide-purple-500/5">
                 {invites.map((inv) => {
                   const expired = isExpired(inv.expires_at);
                   return (
@@ -191,7 +191,7 @@ export default function InvitesPage() {
                       <td className="py-4 px-4 text-white/50">{wsName(inv.company_id)}</td>
                       <td className="py-4 px-4">
                         <div className="flex items-center gap-2">
-                          <code className="text-xs text-orange-400/80 bg-orange-500/10 px-2 py-0.5 rounded">{inv.token}</code>
+                          <code className="text-xs text-purple-400/80 bg-purple-500/10 px-2 py-0.5 rounded">{inv.token}</code>
                           <button onClick={() => handleCopy(inv.token, inv.id)} className="text-white/30 hover:text-white transition-colors">
                             {copiedId === inv.id ? <Check className="h-3.5 w-3.5 text-green-400" /> : <Copy className="h-3.5 w-3.5" />}
                           </button>

@@ -89,7 +89,7 @@ export default function AnalyticsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="h-6 w-6 animate-spin text-orange-500/40" />
+        <Loader2 className="h-6 w-6 animate-spin text-purple-500/40" />
       </div>
     );
   }
@@ -98,7 +98,7 @@ export default function AnalyticsPage() {
     <div className="px-8 py-8 max-w-6xl mx-auto">
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-1">
-          <BarChart3 className="h-6 w-6 text-orange-500" />
+          <BarChart3 className="h-6 w-6 text-purple-500" />
           <h1 className="text-3xl font-bold text-white">Analytics & Reports</h1>
         </div>
         <p className="text-white/40 text-sm ml-9">Platform expenses and reporting</p>
@@ -106,20 +106,20 @@ export default function AnalyticsPage() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-        <div className="rounded-2xl border border-orange-500/20 bg-black p-5">
+        <div className="rounded-2xl border border-purple-500/20 bg-black p-5">
           <div className="flex items-center gap-2 text-white/40 text-xs font-medium uppercase tracking-wider mb-3">
-            <DollarSign className="h-3.5 w-3.5 text-orange-500/60" />
+            <DollarSign className="h-3.5 w-3.5 text-purple-500/60" />
             Total Expenses
           </div>
-          <div className="text-3xl font-bold text-orange-500">${totalExpenses.toFixed(2)}</div>
+          <div className="text-3xl font-bold text-purple-500">${totalExpenses.toFixed(2)}</div>
           <div className="text-[11px] text-white/30 mt-1">All time</div>
         </div>
-        <div className="rounded-2xl border border-orange-500/20 bg-black p-5">
+        <div className="rounded-2xl border border-purple-500/20 bg-black p-5">
           <div className="flex items-center gap-2 text-white/40 text-xs font-medium uppercase tracking-wider mb-3">
-            <FileText className="h-3.5 w-3.5 text-orange-500/60" />
+            <FileText className="h-3.5 w-3.5 text-purple-500/60" />
             Total Records
           </div>
-          <div className="text-3xl font-bold text-orange-500">{records.length}</div>
+          <div className="text-3xl font-bold text-purple-500">{records.length}</div>
           <div className="text-[11px] text-white/30 mt-1">Expense entries</div>
         </div>
       </div>
@@ -129,13 +129,13 @@ export default function AnalyticsPage() {
         {!showForm ? (
           <button
             onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-orange-500 text-black text-sm font-semibold hover:bg-orange-400 transition shadow-lg shadow-orange-500/20"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-500 text-black text-sm font-semibold hover:bg-purple-400 transition shadow-lg shadow-purple-500/20"
           >
             <Plus className="h-4 w-4" />
             Add Expense
           </button>
         ) : (
-          <div className="rounded-2xl border border-orange-500/20 bg-black p-6">
+          <div className="rounded-2xl border border-purple-500/20 bg-black p-6">
             <h2 className="text-lg font-semibold text-white mb-5">Add Expense Record</h2>
             <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div>
@@ -145,7 +145,7 @@ export default function AnalyticsPage() {
                   required
                   value={formData.product}
                   onChange={(e) => setFormData(prev => ({ ...prev, product: e.target.value }))}
-                  className="w-full rounded-xl border border-orange-500/20 bg-white/5 px-4 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-orange-500/40 transition"
+                  className="w-full rounded-xl border border-purple-500/20 bg-white/5 px-4 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-purple-500/40 transition"
                   placeholder="e.g., Office Supplies"
                 />
               </div>
@@ -158,7 +158,7 @@ export default function AnalyticsPage() {
                   required
                   value={formData.price}
                   onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
-                  className="w-full rounded-xl border border-orange-500/20 bg-white/5 px-4 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-orange-500/40 transition"
+                  className="w-full rounded-xl border border-purple-500/20 bg-white/5 px-4 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-purple-500/40 transition"
                   placeholder="0.00"
                 />
               </div>
@@ -169,7 +169,7 @@ export default function AnalyticsPage() {
                   required
                   value={formData.company_name}
                   onChange={(e) => setFormData(prev => ({ ...prev, company_name: e.target.value }))}
-                  className="w-full rounded-xl border border-orange-500/20 bg-white/5 px-4 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-orange-500/40 transition"
+                  className="w-full rounded-xl border border-purple-500/20 bg-white/5 px-4 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-purple-500/40 transition"
                   placeholder="Company Name"
                 />
               </div>
@@ -178,7 +178,7 @@ export default function AnalyticsPage() {
                 <select
                   value={formData.month}
                   onChange={(e) => setFormData(prev => ({ ...prev, month: parseInt(e.target.value) }))}
-                  className="w-full rounded-xl border border-orange-500/20 bg-white/5 px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/40 transition"
+                  className="w-full rounded-xl border border-purple-500/20 bg-white/5 px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/40 transition"
                 >
                   {Array.from({ length: 12 }, (_, i) => (
                     <option key={i + 1} value={i + 1}>{new Date(0, i).toLocaleString("default", { month: "long" })}</option>
@@ -194,7 +194,7 @@ export default function AnalyticsPage() {
                   required
                   value={formData.day}
                   onChange={(e) => setFormData(prev => ({ ...prev, day: parseInt(e.target.value) }))}
-                  className="w-full rounded-xl border border-orange-500/20 bg-white/5 px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/40 transition"
+                  className="w-full rounded-xl border border-purple-500/20 bg-white/5 px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/40 transition"
                 />
               </div>
               <div>
@@ -206,21 +206,21 @@ export default function AnalyticsPage() {
                   required
                   value={formData.year}
                   onChange={(e) => setFormData(prev => ({ ...prev, year: parseInt(e.target.value) }))}
-                  className="w-full rounded-xl border border-orange-500/20 bg-white/5 px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-orange-500/40 transition"
+                  className="w-full rounded-xl border border-purple-500/20 bg-white/5 px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/40 transition"
                 />
               </div>
               <div className="md:col-span-3 flex gap-3">
                 <button
                   type="submit"
                   disabled={isAdding}
-                  className="px-6 py-2.5 rounded-xl bg-orange-500 text-black text-sm font-semibold hover:bg-orange-400 disabled:opacity-50 transition shadow-lg shadow-orange-500/20"
+                  className="px-6 py-2.5 rounded-xl bg-purple-500 text-black text-sm font-semibold hover:bg-purple-400 disabled:opacity-50 transition shadow-lg shadow-purple-500/20"
                 >
                   {isAdding ? "Adding..." : "Add Expense"}
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowForm(false)}
-                  className="px-6 py-2.5 rounded-xl border border-orange-500/20 text-white/50 text-sm font-medium hover:text-white/80 hover:border-orange-500/40 transition"
+                  className="px-6 py-2.5 rounded-xl border border-purple-500/20 text-white/50 text-sm font-medium hover:text-white/80 hover:border-purple-500/40 transition"
                 >
                   Cancel
                 </button>
@@ -231,8 +231,8 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Expense Records Table */}
-      <div className="rounded-2xl border border-orange-500/20 bg-black overflow-hidden">
-        <div className="px-6 py-5 border-b border-orange-500/10">
+      <div className="rounded-2xl border border-purple-500/20 bg-black overflow-hidden">
+        <div className="px-6 py-5 border-b border-purple-500/10">
           <h2 className="text-lg font-semibold text-white">Expense Records</h2>
         </div>
         {records.length === 0 ? (
@@ -243,7 +243,7 @@ export default function AnalyticsPage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="border-b border-orange-500/10">
+              <thead className="border-b border-purple-500/10">
                 <tr className="text-left text-white/40 text-xs uppercase tracking-wider">
                   <th className="py-4 px-6 font-medium">Date</th>
                   <th className="py-4 px-4 font-medium">Category</th>
@@ -252,12 +252,12 @@ export default function AnalyticsPage() {
                   <th className="py-4 px-4 font-medium"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-orange-500/5">
+              <tbody className="divide-y divide-purple-500/5">
                 {records.map((record) => (
                   <tr key={record.id} className="hover:bg-white/[0.02] transition-colors">
                     <td className="py-4 px-6 text-white/70">{record.month}/{record.day}/{record.year}</td>
                     <td className="py-4 px-4 text-white/70">{record.product}</td>
-                    <td className="py-4 px-4 font-medium text-orange-500">${record.price.toFixed(2)}</td>
+                    <td className="py-4 px-4 font-medium text-purple-500">${record.price.toFixed(2)}</td>
                     <td className="py-4 px-4 text-white/50">{record.company_name}</td>
                     <td className="py-4 px-4">
                       <button
