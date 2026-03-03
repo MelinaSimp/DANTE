@@ -60,7 +60,7 @@ export default async function AdminTestPage() {
         <div className="mt-6">
           <a
             href="/admin"
-            className="inline-block px-6 py-3 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition"
+            className="inline-block px-6 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition"
           >
             Go to Admin Dashboard →
           </a>

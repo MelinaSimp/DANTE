@@ -47,7 +47,7 @@ export default async function WorkspacesPage() {
     <div className="px-8 py-8 max-w-7xl mx-auto">
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-1">
-          <Building2 className="h-6 w-6 text-orange-500" />
+          <Building2 className="h-6 w-6 text-purple-500" />
           <h1 className="text-3xl font-bold text-white">All Workspaces</h1>
         </div>
         <p className="text-white/40 text-sm ml-9">
@@ -55,7 +55,7 @@ export default async function WorkspacesPage() {
         </p>
       </div>
 
-      <div className="rounded-2xl border border-orange-500/20 bg-black overflow-hidden">
+      <div className="rounded-2xl border border-purple-500/20 bg-black overflow-hidden">
         {!workspaces || workspaces.length === 0 ? (
           <div className="py-16 text-center">
             <Building2 className="h-8 w-8 text-white/10 mx-auto mb-3" />
@@ -64,7 +64,7 @@ export default async function WorkspacesPage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="border-b border-orange-500/10">
+              <thead className="border-b border-purple-500/10">
                 <tr className="text-left text-white/40 text-xs uppercase tracking-wider">
                   <th className="py-4 px-6 font-medium">Health</th>
                   <th className="py-4 px-4 font-medium">Workspace</th>
@@ -78,7 +78,7 @@ export default async function WorkspacesPage() {
                   <th className="py-4 px-4 font-medium">Created</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-orange-500/5">
+              <tbody className="divide-y divide-purple-500/5">
                 {workspaces.map((ws) => {
                   const wsProfiles = profiles?.filter(p => p.workspace_id === ws.id) || [];
                   const wsAgents = agents?.filter(a => a.workspace_id === ws.id) || [];
@@ -129,7 +129,7 @@ export default async function WorkspacesPage() {
                       </td>
                       <td className="py-4 px-4 text-white/60">{phones}</td>
                       <td className="py-4 px-4">
-                        <span className="text-orange-500/80 text-xs">{featureCount}/6</span>
+                        <span className="text-purple-500/80 text-xs">{featureCount}/6</span>
                       </td>
                       <td className="py-4 px-4 text-white/60">{wsConvos.length}</td>
                       <td className="py-4 px-4 text-white/30 text-xs">

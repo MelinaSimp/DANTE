@@ -154,11 +154,11 @@ export default function WorkspaceFeatureManager() {
         const statusOption = PLAN_STATUS_OPTIONS.find((o) => o.value === ws.plan_status) || PLAN_STATUS_OPTIONS[0];
 
         return (
-          <div key={ws.id} className="rounded-xl border border-orange-500/20 bg-black overflow-hidden transition-all">
+          <div key={ws.id} className="rounded-xl border border-purple-500/20 bg-black overflow-hidden transition-all">
             {/* Header row */}
             <button
               onClick={() => setExpandedId(isExpanded ? null : ws.id)}
-              className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-orange-500/5 transition"
+              className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-purple-500/5 transition"
             >
               <div className="flex items-center gap-4">
                 <div>
@@ -184,7 +184,7 @@ export default function WorkspaceFeatureManager() {
 
             {/* Expanded content */}
             {isExpanded && (
-              <div className="px-5 pb-5 border-t border-orange-500/10">
+              <div className="px-5 pb-5 border-t border-purple-500/10">
                 {/* Plan Status + Billing row */}
                 <div className="pt-4 pb-3 flex flex-wrap items-start gap-x-10 gap-y-3">
                   <div>
@@ -198,8 +198,8 @@ export default function WorkspaceFeatureManager() {
                           onClick={() => updatePlanStatus(ws.id, opt.value)}
                           className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
                             ws.plan_status === opt.value
-                              ? opt.color + " ring-1 ring-orange-500/20"
-                              : "border-orange-500/10 text-white/40 hover:border-orange-500/30 hover:text-white/60"
+                              ? opt.color + " ring-1 ring-purple-500/20"
+                              : "border-purple-500/10 text-white/40 hover:border-purple-500/30 hover:text-white/60"
                           }`}
                         >
                           {opt.label}
@@ -215,7 +215,7 @@ export default function WorkspaceFeatureManager() {
                     {ws.stripe_customer_id ? (
                       <div className="space-y-1">
                         <div className="flex items-center gap-2 text-xs">
-                          <CreditCard className="h-3.5 w-3.5 text-orange-500/60" />
+                          <CreditCard className="h-3.5 w-3.5 text-purple-500/60" />
                           <code className="text-white/70 bg-white/5 px-1.5 py-0.5 rounded text-[11px]">{ws.stripe_customer_id}</code>
                           <button
                             onClick={() => { navigator.clipboard.writeText(ws.stripe_customer_id!); setToast({ type: "success", message: "Copied customer ID" }); }}
@@ -227,14 +227,14 @@ export default function WorkspaceFeatureManager() {
                             href={`https://dashboard.stripe.com/customers/${ws.stripe_customer_id}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-orange-500 hover:text-orange-400 transition"
+                            className="text-purple-500 hover:text-purple-400 transition"
                           >
                             <ExternalLink className="h-3 w-3" />
                           </a>
                         </div>
                         {ws.stripe_subscription_id && (
                           <div className="flex items-center gap-2 text-xs">
-                            <ExternalLink className="h-3.5 w-3.5 text-orange-500/60" />
+                            <ExternalLink className="h-3.5 w-3.5 text-purple-500/60" />
                             <code className="text-white/70 bg-white/5 px-1.5 py-0.5 rounded text-[11px]">{ws.stripe_subscription_id}</code>
                             <button
                               onClick={() => { navigator.clipboard.writeText(ws.stripe_subscription_id!); setToast({ type: "success", message: "Copied subscription ID" }); }}
@@ -289,14 +289,14 @@ export default function WorkspaceFeatureManager() {
                           disabled={saving === ws.id}
                           className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all ${
                             enabled
-                              ? "border-orange-500/30 bg-orange-500/10 hover:bg-orange-500/15"
-                              : "border-orange-500/10 bg-black hover:bg-white/5"
+                              ? "border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/15"
+                              : "border-purple-500/10 bg-black hover:bg-white/5"
                           }`}
                         >
                           <div
                             className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all shrink-0 ${
                               enabled
-                                ? "bg-orange-500 border-orange-500"
+                                ? "bg-purple-500 border-purple-500"
                                 : "border-white/20 bg-transparent"
                             }`}
                           >
