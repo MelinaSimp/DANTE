@@ -57,6 +57,49 @@ export async function GET() {
   return NextResponse.json(enriched);
 }
 
+export async function DELETE(req: NextRequest) {
+  const admin = await verifySuperadmin();
+  if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const { searchParams } = new URL(req.url);
+  const workspaceId = searchParams.get("id");
+  if (!workspaceId) return NextResponse.json({ error: "id is required" }, { status: 400 });
+
+  // Remove profiles linked to this workspace
+  await supabaseAdmin.from("profiles").update({ workspace_id: null }).eq("workspace_id", workspaceId);
+  // Remove agents
+  await supabaseAdmin.from("agents").delete().eq("workspace_id", workspaceId);
+  // Remove the workspace
+  const { error } = await supabaseAdmin.from("workspaces").delete().eq("id", workspaceId);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json({ success: true });
+}
+
+export async function POST(req: NextRequest) {
+  const admin = await verifySuperadmin();
+  if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const { workspace_id, user_email } = await req.json();
+  if (!workspace_id || !user_email) {
+    return NextResponse.json({ error: "workspace_id and user_email required" }, { status: 400 });
+  }
+
+  // Find user by email
+  const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers();
+  const target = authUsers?.users.find(u => u.email === user_email);
+  if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 });
+
+  // Update their profile to this workspace
+  const { error } = await supabaseAdmin
+    .from("profiles")
+    .update({ workspace_id })
+    .eq("id", target.id);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ success: true, user_id: target.id });
+}
+
 export async function PATCH(req: NextRequest) {
   const admin = await verifySuperadmin();
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
