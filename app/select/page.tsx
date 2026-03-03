@@ -152,7 +152,7 @@ export default function SelectPage() {
             <div className="flex flex-col items-center text-center">
               {/* Icon with colorful gradient background - Apple style */}
               <div className="relative mb-6">
-                <div className="absolute inset-0 bg-gradient-to-br from-orange-400 via-red-500 to-pink-500 rounded-full blur-xl opacity-40 group-hover:opacity-60 animate-pulse"></div>
+                <div className="absolute inset-0 bg-gradient-to-br from-purple-400 via-purple-500 to-purple-600 rounded-full blur-xl opacity-40 group-hover:opacity-60 animate-pulse"></div>
                 <div className="relative bg-gray-900 rounded-full p-4 shadow-md">
                   <img 
                     src="/brand/backend-icon.png?v=3" 
@@ -191,7 +191,7 @@ export default function SelectPage() {
                     }
                   }}
                   placeholder="Password"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-gray-900"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-gray-900"
                   style={{ background: '#ffffff' }}
                   autoFocus
                 />
@@ -230,9 +230,9 @@ export default function SelectPage() {
             >
               <div className="flex flex-col items-center text-center">
                 <div className="relative mb-6">
-                  <div className="absolute inset-0 bg-gradient-to-br from-yellow-400 via-orange-500 to-red-500 rounded-full blur-xl opacity-40 group-hover:opacity-60 animate-pulse"></div>
+                  <div className="absolute inset-0 bg-gradient-to-br from-purple-400 via-purple-500 to-purple-600 rounded-full blur-xl opacity-40 group-hover:opacity-60 animate-pulse"></div>
                   <div className="relative bg-gray-900 rounded-full p-4 shadow-md flex items-center justify-center">
-                    <svg className="w-16 h-16 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-16 h-16 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
                     </svg>
                   </div>
