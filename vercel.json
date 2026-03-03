@@ -1,5 +1,4 @@
 {
-  "name": "DriftCRM",
   "version": 2,
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
@@ -9,11 +8,11 @@
   "crons": [
     {
       "path": "/api/scheduled-sms/process",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 0 * * *"
     },
     {
       "path": "/api/scheduled-emails/process",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 0 * * *"
     }
   ]
 }
