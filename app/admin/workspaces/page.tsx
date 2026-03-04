@@ -11,6 +11,7 @@ import {
   Loader2,
   X,
   Check,
+  Plus,
 } from "lucide-react";
 
 interface Workspace {
@@ -34,6 +35,9 @@ export default function WorkspacesPage() {
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     fetch("/api/admin/workspaces", { credentials: "include" })
@@ -98,6 +102,32 @@ export default function WorkspacesPage() {
       setToast({ type: "error", message: "Network error" });
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleCreate = async () => {
+    if (!newName.trim()) return;
+    setCreating(true);
+    try {
+      const res = await fetch("/api/admin/workspaces", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ name: newName.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setWorkspaces((prev) => [{ ...data, owner_name: null, owner_email: null, user_count: 0 }, ...prev]);
+        setToast({ type: "success", message: `Created workspace "${data.name}"` });
+        setNewName("");
+        setShowCreate(false);
+      } else {
+        setToast({ type: "error", message: data.error || "Failed to create" });
+      }
+    } catch {
+      setToast({ type: "error", message: "Network error" });
+    } finally {
+      setCreating(false);
     }
   };
 

@@ -8,6 +8,7 @@ import {
   Building2,
   UserPlus,
   BarChart3,
+  CreditCard,
   ArrowLeft,
 } from "lucide-react";
 
@@ -15,6 +16,7 @@ const adminNav = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { name: "Features", href: "/admin/features", icon: Shield },
   { name: "Workspaces", href: "/admin/workspaces", icon: Building2 },
+  { name: "Billing", href: "/admin/billing", icon: CreditCard },
   { name: "Invites", href: "/admin/invites", icon: UserPlus },
   { name: "Analytics", href: "/admin/analytics", icon: BarChart3 },
 ];

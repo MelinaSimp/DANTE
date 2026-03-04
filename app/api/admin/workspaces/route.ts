@@ -27,7 +27,7 @@ export async function GET() {
 
   const { data: workspaces, error } = await supabaseAdmin
     .from("workspaces")
-    .select("id, name, created_at, owner_id, enabled_features, plan_status, plan_name")
+    .select("id, name, created_at, owner_id, enabled_features, plan_status")
     .order("created_at", { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -55,6 +55,23 @@ export async function GET() {
   });
 
   return NextResponse.json(enriched);
+}
+
+export async function PUT(req: NextRequest) {
+  const admin = await verifySuperadmin();
+  if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const { name } = await req.json();
+  if (!name?.trim()) return NextResponse.json({ error: "name is required" }, { status: 400 });
+
+  const { data, error } = await supabaseAdmin
+    .from("workspaces")
+    .insert({ name: name.trim(), plan_status: "active" })
+    .select("id, name, created_at, owner_id, enabled_features, plan_status")
+    .single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json(data);
 }
 
 export async function DELETE(req: NextRequest) {
@@ -105,7 +122,7 @@ export async function PATCH(req: NextRequest) {
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await req.json();
-  const { workspace_id, enabled_features, plan_status, plan_name } = body;
+  const { workspace_id, enabled_features, plan_status } = body;
 
   if (!workspace_id) {
     return NextResponse.json({ error: "workspace_id is required" }, { status: 400 });
@@ -125,7 +142,7 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (plan_status !== undefined) updates.plan_status = plan_status;
-  if (plan_name !== undefined) updates.plan_name = plan_name;
+
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
