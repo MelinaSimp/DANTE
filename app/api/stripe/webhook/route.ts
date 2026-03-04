@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { getStripe } from "@/lib/stripe";
+import { getStripeAsync, getWebhookSecret } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";
 
@@ -10,16 +10,16 @@ export async function POST(req: NextRequest) {
 
   if (!sig) return NextResponse.json({ error: "Missing signature" }, { status: 400 });
 
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!webhookSecret) {
-    console.error("[Stripe Webhook] STRIPE_WEBHOOK_SECRET not configured");
+  const webhookSecretValue = await getWebhookSecret();
+  if (!webhookSecretValue) {
+    console.error("[Stripe Webhook] Webhook secret not configured");
     return NextResponse.json({ error: "Webhook secret not configured" }, { status: 500 });
   }
 
   let event;
   try {
-    const stripe = getStripe();
-    event = stripe.webhooks.constructEvent(body, sig, webhookSecret);
+    const stripe = await getStripeAsync();
+    event = stripe.webhooks.constructEvent(body, sig, webhookSecretValue);
   } catch (err: any) {
     console.error("[Stripe Webhook] Signature verification failed:", err.message);
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });

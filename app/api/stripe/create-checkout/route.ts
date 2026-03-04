@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { getStripe } from "@/lib/stripe";
+import { getStripeAsync } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     const { priceId } = await req.json();
     if (!priceId) return NextResponse.json({ error: "priceId is required" }, { status: 400 });
 
-    const stripe = getStripe();
+    const stripe = await getStripeAsync();
 
     const { data: workspace } = await supabaseAdmin
       .from("workspaces")

@@ -3,7 +3,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import Link from "next/link";
 import { hasSuperadminAccess } from "@/lib/superadmin";
-import { Users, Building2, Phone, MessageSquare, Shield, UserPlus, BarChart3, ArrowRight } from "lucide-react";
+import { Users, Building2, Phone, MessageSquare, Shield, UserPlus, BarChart3, CreditCard, ArrowRight } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -82,8 +82,8 @@ export default async function AdminPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10">
         {[
           { name: "Feature Management", desc: "Configure features per workspace", href: "/admin/features", icon: Shield },
+          { name: "Billing Settings", desc: "Connect Stripe and manage payments", href: "/admin/billing", icon: CreditCard },
           { name: "Manage Invites", desc: "Create workspace invitations", href: "/admin/invites", icon: UserPlus },
-          { name: "Analytics & Reports", desc: "View expenses and platform data", href: "/admin/analytics", icon: BarChart3 },
         ].map((action) => {
           const Icon = action.icon;
           return (

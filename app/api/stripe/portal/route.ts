@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { getStripe } from "@/lib/stripe";
+import { getStripeAsync } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +31,7 @@ export async function POST() {
       return NextResponse.json({ error: "No billing account. Subscribe to a plan first." }, { status: 400 });
     }
 
-    const stripe = getStripe();
+    const stripe = await getStripeAsync();
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_BASE_URL || "http://localhost:3000";
 
     const session = await stripe.billingPortal.sessions.create({
