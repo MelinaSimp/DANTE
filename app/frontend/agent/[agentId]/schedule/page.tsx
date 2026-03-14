@@ -8,6 +8,7 @@ import { Bot, Calendar, FileText, CalendarClock, Phone, Mail, Inbox } from "luci
 import { supabase } from "@/lib/supabase/client";
 import ScheduleClient from "@/app/schedule/ScheduleClient";
 import { useFeatures } from "@/hooks/useFeatures";
+import MobileNav from "@/components/frontend/MobileNav";
 import type { FeatureId } from "@/lib/features";
 
 export default function SchedulePage() {
@@ -121,8 +122,13 @@ export default function SchedulePage() {
     );
   }
 
+  const mobileNavItems = sidebarItems
+    .filter((item) => !item.featureId || features.includes(item.featureId))
+    .map(({ name, icon, href, active }) => ({ name, icon, href, active }));
+
   return (
-    <div className="min-h-screen bg-[#f5f5f7] flex" style={{ background: '#f5f5f7' }}>
+    <div className="min-h-screen bg-[#f5f5f7] flex flex-col md:flex-row" style={{ background: '#f5f5f7' }}>
+      <MobileNav items={mobileNavItems} backHref="/frontend" backLabel="Agents" />
       {/* Left Sidebar */}
       <div className="hidden md:flex flex-col w-48 border-r border-gray-200 bg-white shrink-0">
         <div className="p-4 border-b border-gray-200 flex items-center gap-2">

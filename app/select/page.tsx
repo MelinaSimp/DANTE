@@ -87,8 +87,8 @@ export default function SelectPage() {
 
   return (
     <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center px-4 py-16" style={{ background: '#f5f5f7' }}>
-      {/* Top Logo - Apple style */}
-      <div className="absolute top-8 left-8">
+      {/* Top bar - Logo + Sign Out */}
+      <div className="absolute top-8 left-8 right-8 flex items-center justify-between">
         <Link href="/" className="inline-flex items-center gap-2">
           <img 
             src="/brand/logo-circle.png" 
@@ -97,6 +97,15 @@ export default function SelectPage() {
           />
           <span className="text-lg font-medium text-gray-900" style={{ color: '#111827' }}>Drift</span>
         </Link>
+        <button
+          onClick={async () => {
+            await supabase.auth.signOut();
+            router.push("/auth");
+          }}
+          className="text-sm font-medium text-gray-500 hover:text-gray-800 transition-colors"
+        >
+          Sign out
+        </button>
       </div>
 
       <div className="w-full max-w-4xl">
