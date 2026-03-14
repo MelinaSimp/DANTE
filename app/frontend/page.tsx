@@ -8,6 +8,7 @@ import { useFeatures } from "@/hooks/useFeatures";
 import type { FeatureId } from "@/lib/features";
 import Link from "next/link";
 import { Bot, Calendar, FileText, CalendarClock, ArrowRight, MessageSquare, Phone, Clock, BarChart3, Palette, Mail, Inbox } from "lucide-react";
+import MobileNav from "@/components/frontend/MobileNav";
 
 interface Agent {
   id: string;
@@ -254,8 +255,14 @@ export default function FrontendPage() {
     );
   }
 
+  const mobileNavItems = sidebarItems
+    .filter((item) => !item.featureId || features.includes(item.featureId))
+    .filter((item) => !item.requiresAgent || currentAgentId)
+    .map(({ name, icon, href, active }) => ({ name, icon, href, active }));
+
   return (
-    <div className="min-h-screen bg-[#f5f5f7] flex" style={{ background: '#f5f5f7' }}>
+    <div className="min-h-screen bg-[#f5f5f7] flex flex-col md:flex-row" style={{ background: '#f5f5f7' }}>
+      <MobileNav items={mobileNavItems} backHref="/select" backLabel="Back" />
       {/* Left Sidebar */}
       <div className="hidden md:flex flex-col w-48 border-r border-gray-200 bg-white shrink-0">
         <div className="p-4 border-b border-gray-200 flex items-center gap-2">

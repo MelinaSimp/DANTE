@@ -9,6 +9,7 @@ import { ChatListSkeleton, MessageSkeleton } from "@/components/ui/skeleton";
 import { Tooltip } from "@/components/ui/tooltip";
 import { EmptyState } from "@/components/ui/empty-state";
 import ConfirmationModal from "@/components/frontend/ConfirmationModal";
+import MobileNav from "@/components/frontend/MobileNav";
 import { useFeatures } from "@/hooks/useFeatures";
 import type { FeatureId } from "@/lib/features";
 
@@ -857,8 +858,13 @@ export default function FrontendLLMPage() {
     chat.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const mobileNavItems = sidebarNavItems
+    .filter((item) => !item.featureId || features.includes(item.featureId))
+    .map(({ name, icon, href, active }) => ({ name, icon, href, active }));
+
   return (
-    <div className="flex h-screen bg-[#f5f5f7]" style={{ background: '#f5f5f7' }}>
+    <div className="flex flex-col md:flex-row h-screen bg-[#f5f5f7]" style={{ background: '#f5f5f7' }}>
+      <MobileNav items={mobileNavItems} backHref="/frontend" backLabel="Agents" />
       {/* Toast Notification */}
       {toast && (
         <div className={`fixed top-4 right-4 z-[100] max-w-sm w-full animate-in slide-in-from-right pointer-events-auto rounded-2xl shadow-lg border p-4 flex items-start gap-3 ${
