@@ -31,6 +31,7 @@ export default function SchedulePage() {
   const [appointments, setAppointments] = useState<any[]>([]);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     // Override global dark theme styles for Apple-style light theme
@@ -86,8 +87,8 @@ export default function SchedulePage() {
             setAppointments(data || []);
           }
         }
-      } catch (error) {
-        console.error("Failed to load data:", error);
+      } catch {
+        setLoadError("Failed to load schedule data");
       } finally {
         setLoading(false);
       }
@@ -103,20 +104,18 @@ export default function SchedulePage() {
     );
   }
 
-  if (!workspaceId) {
+  if (loadError || !workspaceId) {
     return (
       <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center" style={{ background: '#f5f5f7' }}>
         <div className="text-center">
-          <h1 className="text-2xl font-semibold text-gray-900 mb-4">No workspace found</h1>
-          <div className="relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-purple-400 via-pink-500 to-blue-500 rounded-xl blur-sm opacity-50"></div>
-            <button
-              onClick={() => router.push("/frontend")}
-              className="relative px-6 py-3 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-            >
-              Go Back
-            </button>
-          </div>
+          <h1 className="text-xl font-semibold text-gray-900 mb-2">{loadError || "No workspace found"}</h1>
+          <p className="text-gray-500 text-sm mb-4">Please try again or contact your administrator.</p>
+          <button
+            onClick={() => router.push("/frontend")}
+            className="px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
+          >
+            Go Back
+          </button>
         </div>
       </div>
     );

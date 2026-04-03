@@ -142,7 +142,7 @@ export default function AgentSelectionPage() {
         <div className="text-center max-w-2xl">
           <h1 className="text-3xl font-semibold text-gray-900 mb-4">Agent Selected</h1>
           <p className="text-gray-600 mb-6">
-            Use the sidebar to navigate to Calendar, Client Details, or Meeting Planner.
+            Use the sidebar to navigate between features.
           </p>
         </div>
       </div>

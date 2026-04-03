@@ -1,11 +1,18 @@
-// app/frontend/agent/[agentId]/inbox/page.tsx - Inbox Page with Apple-style Light Theme
+// app/frontend/agent/[agentId]/inbox/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
 import { useParams, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import Link from "next/link";
-import { Bot, Calendar, Database as DbIcon, Shield, CalendarClock, BarChart3, Inbox, FileText, Search, Filter, MessageSquare, Phone, CheckCircle, XCircle, AlertCircle, HelpCircle, Trash2 } from "lucide-react";
+import {
+  Bot, Calendar, CalendarClock, Inbox, FileText, Search,
+  MessageSquare, Phone, CheckCircle, XCircle, AlertCircle,
+  HelpCircle, Trash2, Mail,
+} from "lucide-react";
+import { useFeatures } from "@/hooks/useFeatures";
+import type { FeatureId } from "@/lib/features";
+import MobileNav from "@/components/frontend/MobileNav";
 
 interface Conversation {
   id: string;
@@ -29,368 +36,218 @@ export default function InboxPage() {
   const params = useParams();
   const pathname = usePathname();
   const agentId = params.agentId as string;
+  const { features } = useFeatures();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"todo" | "follow-up" | "done">("todo");
   const [searchQuery, setSearchQuery] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  const sidebarItems = [
+    { name: "Agents", icon: Bot, href: "/frontend", active: pathname === "/frontend" },
+    { name: "Calendar", icon: Calendar, href: `/frontend/agent/${agentId}/schedule`, active: pathname?.includes("/schedule"), featureId: "calendar" as FeatureId },
+    { name: "Client Details", icon: FileText, href: "/client-details-overview", active: pathname === "/client-details-overview", featureId: "client_details" as FeatureId },
+    { name: "Meeting Planner", icon: CalendarClock, href: `/frontend/agent/${agentId}/llm`, active: pathname?.includes("/llm"), featureId: "meeting_planner" as FeatureId },
+    { name: "Sales", icon: Phone, href: `/frontend/agent/${agentId}/sales`, active: pathname?.includes("/sales"), featureId: "sales" as FeatureId },
+    { name: "Emailing", icon: Mail, href: `/frontend/agent/${agentId}/emailing`, active: pathname?.includes("/emailing"), featureId: "emailing" as FeatureId },
+    { name: "Inbox", icon: Inbox, href: `/frontend/agent/${agentId}/inbox`, active: pathname?.includes("/inbox"), featureId: "inbox" as FeatureId },
+  ];
+
   useEffect(() => {
-    // Override global dark theme styles for Apple-style light theme
     const html = document.documentElement;
     const body = document.body;
-    const main = document.querySelector('main');
-    
+    const main = document.querySelector("main");
     const originalHtmlBg = html.style.background;
     const originalBodyBg = body.style.background;
     const originalBodyColor = body.style.color;
     const originalMainBg = main ? (main as HTMLElement).style.background : null;
-    
-    html.style.setProperty('background', '#f5f5f7', 'important');
-    body.style.setProperty('background', '#f5f5f7', 'important');
-    body.style.setProperty('color', '#111827', 'important');
-    if (main) {
-      (main as HTMLElement).style.setProperty('background', '#f5f5f7', 'important');
-    }
-
+    html.style.setProperty("background", "#f5f5f7", "important");
+    body.style.setProperty("background", "#f5f5f7", "important");
+    body.style.setProperty("color", "#111827", "important");
+    if (main) (main as HTMLElement).style.setProperty("background", "#f5f5f7", "important");
     return () => {
-      html.style.setProperty('background', originalHtmlBg, 'important');
-      body.style.setProperty('background', originalBodyBg, 'important');
-      body.style.setProperty('color', originalBodyColor, 'important');
-      if (main && originalMainBg !== null) {
-        (main as HTMLElement).style.setProperty('background', originalMainBg, 'important');
-      }
+      html.style.setProperty("background", originalHtmlBg, "important");
+      body.style.setProperty("background", originalBodyBg, "important");
+      body.style.setProperty("color", originalBodyColor, "important");
+      if (main && originalMainBg !== null) (main as HTMLElement).style.setProperty("background", originalMainBg, "important");
     };
   }, []);
 
   useEffect(() => {
     async function loadConversations() {
-      if (!agentId) {
-        setLoading(false);
-        return;
-      }
+      if (!agentId) { setLoading(false); return; }
       setLoading(true);
+      setError(null);
       try {
         const response = await fetch(`/api/conversations?agentId=${agentId}`);
         if (response.ok) {
-          const data = await response.json();
-          setConversations(data || []);
+          setConversations(await response.json() || []);
+        } else {
+          setError("Failed to load conversations");
         }
-      } catch (error) {
-        console.error("Failed to load conversations:", error);
+      } catch {
+        setError("Failed to load conversations");
       } finally {
         setLoading(false);
       }
     }
     loadConversations();
 
-    // Set up real-time subscription
     const channel = supabase
       .channel(`conversations-${agentId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "conversations",
-          filter: `agent_id=eq.${agentId}`,
-        },
-        () => {
-          loadConversations();
-        }
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "conversations", filter: `agent_id=eq.${agentId}` }, () => loadConversations())
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [agentId]);
 
-  // Get contact name from gathered data
-  const getContactName = (conversation: Conversation): string => {
-    const name = conversation.gathered_data?.customer_name || 
-                 conversation.gathered_data?.name || 
-                 conversation.gathered_data?.contact_name;
+  const getContactName = (c: Conversation): string => {
+    const name = c.gathered_data?.customer_name || c.gathered_data?.name || c.gathered_data?.contact_name;
     if (name) return String(name);
-    
-    // Fallback to phone number initials
-    const phone = conversation.from_number || "";
-    const cleaned = phone.replace(/^\+1/, "").replace(/\D/g, "");
-    if (cleaned.length >= 4) {
-      return `User ${cleaned.slice(-4)}`;
-    }
-    return "Unknown User";
+    const cleaned = (c.from_number || "").replace(/^\+1/, "").replace(/\D/g, "");
+    return cleaned.length >= 4 ? `User ${cleaned.slice(-4)}` : "Unknown User";
   };
 
-  // Get initials for avatar
   const getInitials = (name: string): string => {
     const parts = name.split(" ");
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[1][0]).toUpperCase();
-    }
-    return name.substring(0, 2).toUpperCase();
+    return parts.length >= 2 ? (parts[0][0] + parts[1][0]).toUpperCase() : name.substring(0, 2).toUpperCase();
   };
 
-  // Get last message preview
-  const getLastMessage = (conversation: Conversation): string => {
-    if (!conversation.transcript || conversation.transcript.length === 0) {
-      return "No messages yet";
-    }
-    const lastMsg = conversation.transcript[conversation.transcript.length - 1];
-    return lastMsg.content.length > 60 ? lastMsg.content.substring(0, 60) + "..." : lastMsg.content;
+  const getLastMessage = (c: Conversation): string => {
+    if (!c.transcript?.length) return "No messages yet";
+    const msg = c.transcript[c.transcript.length - 1].content;
+    return msg.length > 60 ? msg.substring(0, 60) + "..." : msg;
   };
 
-  // Get status badge info
-  const getStatusBadge = (conversation: Conversation): { label: string; color: string; icon: any } => {
-    if (conversation.status === "failed") {
-      return { label: "Failed", color: "bg-red-100 text-red-700 border-red-200", icon: XCircle };
-    }
-    if (conversation.status === "transferred") {
-      return { label: "Transferred", color: "bg-orange-100 text-orange-700 border-orange-200", icon: AlertCircle };
-    }
-    if (conversation.status === "completed") {
-      return { label: "Completed", color: "bg-green-100 text-green-700 border-green-200", icon: CheckCircle };
-    }
-    
-    // Active status - check for special cases
-    const metadata = conversation.metadata || {};
-    if (metadata.needsHelp) {
-      return { label: "AI needs your help", color: "bg-orange-100 text-orange-700 border-orange-200", icon: AlertCircle };
-    }
-    if (metadata.missingInfo) {
-      return { label: "AI missing info", color: "bg-gray-100 text-gray-700 border-gray-200", icon: HelpCircle };
-    }
-    
+  const getStatusBadge = (c: Conversation) => {
+    if (c.status === "failed") return { label: "Failed", color: "bg-red-100 text-red-700 border-red-200", icon: XCircle };
+    if (c.status === "transferred") return { label: "Transferred", color: "bg-orange-100 text-orange-700 border-orange-200", icon: AlertCircle };
+    if (c.status === "completed") return { label: "Completed", color: "bg-green-100 text-green-700 border-green-200", icon: CheckCircle };
+    if (c.metadata?.needsHelp) return { label: "AI needs your help", color: "bg-orange-100 text-orange-700 border-orange-200", icon: AlertCircle };
+    if (c.metadata?.missingInfo) return { label: "AI missing info", color: "bg-gray-100 text-gray-700 border-gray-200", icon: HelpCircle };
     return { label: "Active", color: "bg-blue-100 text-blue-700 border-blue-200", icon: MessageSquare };
   };
 
-  // Format timestamp
   const formatTimeAgo = (dateString: string): string => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return "Just now";
-    if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
-    if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
-    if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
-    
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const diffMs = Date.now() - new Date(dateString).getTime();
+    const mins = Math.floor(diffMs / 60000);
+    const hrs = Math.floor(diffMs / 3600000);
+    const days = Math.floor(diffMs / 86400000);
+    if (mins < 1) return "Just now";
+    if (mins < 60) return `${mins}m ago`;
+    if (hrs < 24) return `${hrs}h ago`;
+    if (days < 7) return `${days}d ago`;
+    return new Date(dateString).toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
 
-  // Filter conversations by tab
   const getFilteredConversations = (): Conversation[] => {
     let filtered = conversations;
+    if (activeTab === "todo") filtered = filtered.filter(c => c.status === "active");
+    else if (activeTab === "follow-up") filtered = filtered.filter(c => c.status === "active" && c.metadata?.needsFollowUp);
+    else if (activeTab === "done") filtered = filtered.filter(c => c.status === "completed" || c.status === "failed");
 
-    // Filter by tab
-    if (activeTab === "todo") {
-      filtered = filtered.filter(c => c.status === "active");
-    } else if (activeTab === "follow-up") {
-      filtered = filtered.filter(c => c.status === "active" && (c.metadata?.needsFollowUp || false));
-    } else if (activeTab === "done") {
-      filtered = filtered.filter(c => c.status === "completed" || c.status === "failed");
-    }
-
-    // Filter by search
     if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(conv => {
-        const name = getContactName(conv).toLowerCase();
-        const phone = (conv.from_number || "").toLowerCase();
-        const lastMsg = getLastMessage(conv).toLowerCase();
-        return name.includes(query) || phone.includes(query) || lastMsg.includes(query);
-      });
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(c => getContactName(c).toLowerCase().includes(q) || (c.from_number || "").includes(q) || getLastMessage(c).toLowerCase().includes(q));
     }
-
-    return filtered.sort((a, b) => {
-      return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-    });
+    return filtered.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
   };
 
-  const deleteConversation = async (conversationId: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent card click
-    if (!confirm("Are you sure you want to delete this conversation?")) {
-      return;
-    }
-
-    setDeletingId(conversationId);
+  const deleteConversation = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm("Delete this conversation?")) return;
+    setDeletingId(id);
     try {
-      const response = await fetch(`/api/conversations/${conversationId}`, {
-        method: "DELETE",
-      });
-
-      if (response.ok) {
-        // Remove from local state
-        setConversations(prev => prev.filter(c => c.id !== conversationId));
-      } else {
-        const error = await response.json();
-        alert(`Failed to delete conversation: ${error.error || "Unknown error"}`);
-      }
-    } catch (error) {
-      console.error("Failed to delete conversation:", error);
-      alert("Failed to delete conversation. Please try again.");
-    } finally {
+      const res = await fetch(`/api/conversations/${id}`, { method: "DELETE" });
+      if (res.ok) setConversations(prev => prev.filter(c => c.id !== id));
+    } catch { /* swallow */ } finally {
       setDeletingId(null);
     }
   };
 
-  // Sidebar navigation items
-  const sidebarItems = [
-    { 
-      name: "Agents", 
-      icon: Bot, 
-      href: "/frontend",
-      active: pathname === "/frontend" || pathname?.startsWith("/frontend/agent"),
-      requiresAgent: false
-    },
-    { 
-      name: "Calendar", 
-      icon: Calendar, 
-      href: `/frontend/agent/${agentId}/schedule`,
-      active: pathname?.includes("/schedule"),
-      requiresAgent: true
-    },
-    { 
-      name: "Client Details", 
-      icon: FileText, 
-      href: "/client-details-overview",
-      active: pathname === "/client-details-overview",
-      requiresAgent: true
-    },
-    { 
-      name: "Meeting Planner", 
-      icon: CalendarClock, 
-      href: `/frontend/agent/${agentId}/llm`,
-      active: pathname?.includes("/llm"),
-      requiresAgent: true
-    },
-  ];
+  const mobileNavItems = sidebarItems
+    .filter(item => !item.featureId || features.includes(item.featureId))
+    .map(({ name, icon, href, active }) => ({ name, icon, href, active }));
 
   const filteredConversations = getFilteredConversations();
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7] flex" style={{ background: '#f5f5f7' }}>
-      {/* Left Sidebar - Apple Glass Style */}
-      <div className="fixed left-0 top-0 h-full w-72 z-50">
-        <div 
-          className="h-full border-r border-gray-300/10 bg-gray-200/90 backdrop-blur-sm shadow-2xl"
-        >
-          {/* Sidebar Header */}
-          <div className="p-6 border-b border-gray-200/20">
-            <Link href="/frontend" className="inline-flex items-center gap-2">
-              <img 
-                src="/brand/logo-circle.png" 
-                alt="Drift Logo"
-                className="w-6 h-6 rounded-full object-cover"
-              />
-              <span className="text-lg font-medium text-gray-900">Drift</span>
-            </Link>
-          </div>
+    <div className="min-h-screen bg-[#f5f5f7] flex flex-col md:flex-row" style={{ background: "#f5f5f7" }}>
+      <MobileNav items={mobileNavItems} backHref="/frontend" backLabel="Agents" />
 
-          {/* Navigation Items */}
-          <nav className="p-4 space-y-2">
-            {sidebarItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = item.active;
-              
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
-                    isActive
-                      ? "bg-blue-600/10 text-blue-600"
-                      : "text-gray-700 hover:bg-white/30"
-                  }`}
-                >
-                  {/* Icon with purplish gradient halo */}
-                  <div className="relative">
-                    <div className="absolute inset-0 bg-gradient-to-br from-purple-400 via-pink-500 to-blue-500 rounded-full blur-sm opacity-50"></div>
-                    <div className="relative bg-white rounded-full p-2">
-                      <Icon className={`w-4 h-4 ${isActive ? "text-blue-600" : "text-gray-600"}`} />
-                    </div>
-                  </div>
-                  <span className={`text-sm font-medium ${isActive ? "text-blue-600" : "text-gray-700"}`}>
-                    {item.name}
-                  </span>
-                </Link>
-              );
-            })}
-          </nav>
+      {/* Desktop Sidebar */}
+      <div className="hidden md:flex flex-col w-48 border-r border-gray-200 bg-white shrink-0">
+        <div className="p-4 border-b border-gray-200 flex items-center gap-2">
+          <Link href="/frontend" className="flex items-center gap-2">
+            <img src="/brand/logo-circle.png" alt="Drift" className="w-7 h-7 rounded-full object-cover" />
+            <span className="text-sm font-semibold text-gray-900">Drift</span>
+          </Link>
         </div>
+        <nav className="flex-1 p-3 space-y-1">
+          {sidebarItems.filter(item => !item.featureId || features.includes(item.featureId)).map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+                  item.active ? "bg-gray-100 text-black" : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span>{item.name}</span>
+              </Link>
+            );
+          })}
+        </nav>
       </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 ml-72 flex flex-col h-screen overflow-hidden">
-        <div className="flex-1 overflow-y-auto px-8 py-6 bg-[#f5f5f7]">
-          <div className="max-w-6xl mx-auto">
-            {/* Header */}
-            <div className="mb-6">
-              <h1 className="text-3xl font-semibold text-gray-900 mb-4">Conversations</h1>
-              
-              {/* Tabs */}
-              <div className="flex items-center gap-8 border-b border-gray-200">
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+        <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 bg-[#f5f5f7]">
+          <div className="max-w-4xl mx-auto">
+            <h1 className="text-2xl font-semibold text-gray-900 mb-4">Conversations</h1>
+
+            {/* Tabs */}
+            <div className="flex items-center gap-6 border-b border-gray-200 mb-4">
+              {(["todo", "follow-up", "done"] as const).map(tab => (
                 <button
-                  onClick={() => setActiveTab("todo")}
-                  className={`pb-3 px-1 text-sm font-medium transition-colors ${
-                    activeTab === "todo"
-                      ? "text-blue-600 border-b-2 border-blue-600"
-                      : "text-gray-600 hover:text-gray-900"
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`pb-3 px-1 text-sm font-medium transition-colors capitalize ${
+                    activeTab === tab ? "text-blue-600 border-b-2 border-blue-600" : "text-gray-500 hover:text-gray-900"
                   }`}
                 >
-                  Todo
+                  {tab === "follow-up" ? "Follow up" : tab}
                 </button>
-                <button
-                  onClick={() => setActiveTab("follow-up")}
-                  className={`pb-3 px-1 text-sm font-medium transition-colors ${
-                    activeTab === "follow-up"
-                      ? "text-blue-600 border-b-2 border-blue-600"
-                      : "text-gray-600 hover:text-gray-900"
-                  }`}
-                >
-                  Follow up
-                </button>
-                <button
-                  onClick={() => setActiveTab("done")}
-                  className={`pb-3 px-1 text-sm font-medium transition-colors ${
-                    activeTab === "done"
-                      ? "text-blue-600 border-b-2 border-blue-600"
-                      : "text-gray-600 hover:text-gray-900"
-                  }`}
-                >
-                  Done
-                </button>
-              </div>
+              ))}
             </div>
 
-            {/* Search and Filter Bar */}
-            <div className="mb-4 flex items-center gap-4">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
-              <button className="px-4 py-2 rounded-xl border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition flex items-center gap-2 text-sm font-medium">
-                <Filter className="h-4 w-4" />
-                Filter
-              </button>
+            {/* Search */}
+            <div className="mb-4 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search conversations..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-300 bg-white text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-sm"
+              />
             </div>
 
-            {/* Conversation List */}
+            {/* Content */}
             {loading ? (
-              <div className="text-center py-12 text-gray-500">Loading conversations...</div>
+              <div className="text-center py-16 text-gray-400 text-sm">Loading conversations...</div>
+            ) : error ? (
+              <div className="text-center py-16">
+                <AlertCircle className="h-10 w-10 text-red-400 mx-auto mb-3" />
+                <p className="text-gray-600 text-sm">{error}</p>
+                <button onClick={() => window.location.reload()} className="mt-3 text-sm text-blue-600 hover:underline">Retry</button>
+              </div>
             ) : filteredConversations.length === 0 ? (
-              <div className="text-center py-12">
-                <Inbox className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600">No conversations found</p>
+              <div className="text-center py-16">
+                <Inbox className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500 text-sm">No conversations found</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -400,55 +257,42 @@ export default function InboxPage() {
                   const lastMessage = getLastMessage(conversation);
                   const statusBadge = getStatusBadge(conversation);
                   const StatusIcon = statusBadge.icon;
-                  const timeAgo = formatTimeAgo(conversation.updated_at);
 
                   return (
-                    <div
-                      key={conversation.id}
-                      className="group bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-all cursor-pointer"
-                    >
-                      <div className="flex items-start gap-4">
-                        {/* Avatar */}
-                        <div className="relative">
-                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-semibold text-sm">
+                    <div key={conversation.id} className="group bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md transition-all">
+                      <div className="flex items-start gap-3">
+                        <div className="relative shrink-0">
+                          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-semibold text-xs">
                             {initials}
                           </div>
                           {conversation.status === "active" && (
-                            <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></div>
+                            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
                           )}
                         </div>
-
-                        {/* Content */}
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between mb-1">
-                            <div className="flex items-center gap-3">
-                              <h3 className="text-sm font-semibold text-gray-900">{contactName}</h3>
-                              {conversation.modality === "voice" && (
-                                <Phone className="h-3 w-3 text-gray-400" />
-                              )}
+                          <div className="flex items-center justify-between mb-0.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-semibold text-gray-900">{contactName}</span>
+                              {conversation.modality === "voice" && <Phone className="h-3 w-3 text-gray-400" />}
                             </div>
-                            <span className="text-xs text-gray-500">{timeAgo}</span>
+                            <span className="text-xs text-gray-400">{formatTimeAgo(conversation.updated_at)}</span>
                           </div>
-
-                          <p className="text-sm text-gray-600 mb-2 line-clamp-1">{lastMessage}</p>
-
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${statusBadge.color}`}>
+                          <p className="text-sm text-gray-500 truncate mb-1.5">{lastMessage}</p>
+                          <div className="flex items-center gap-2">
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border ${statusBadge.color}`}>
                               <StatusIcon className="h-3 w-3" />
                               {statusBadge.label}
                             </span>
                             {conversation.from_number && (
-                              <span className="text-xs text-gray-500">
-                                {conversation.from_number.replace(/^\+1/, "")}
-                              </span>
+                              <span className="text-[11px] text-gray-400">{conversation.from_number.replace(/^\+1/, "")}</span>
                             )}
                             <button
                               onClick={(e) => deleteConversation(conversation.id, e)}
                               disabled={deletingId === conversation.id}
-                              className="ml-auto opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-50 text-red-600 transition disabled:opacity-50"
-                              title="Delete conversation"
+                              className="ml-auto opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-red-50 text-red-500 transition disabled:opacity-50"
+                              aria-label="Delete conversation"
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-3.5 w-3.5" />
                             </button>
                           </div>
                         </div>

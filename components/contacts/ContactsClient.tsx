@@ -190,27 +190,27 @@ export default function ContactsClient({ initialContacts, workspaceId }: Contact
                     </div>
                   </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <Link
                     href={`/client-details-overview?contactId=${contact.id}`}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-[#e5e7eb] bg-[#f3f4f6] px-4 py-1 text-xs font-medium text-[#151515] transition hover:border-[#3166bf] hover:bg-[#3166bf]/10 hover:text-[#3166bf]"
+                    className="inline-flex items-center gap-1 rounded-full border border-[#e5e7eb] bg-[#f3f4f6] px-3 py-1 text-xs font-medium text-[#151515] transition hover:border-[#3166bf] hover:bg-[#3166bf]/10 hover:text-[#3166bf]"
                   >
-                    <FileText className="h-3.5 w-3.5" />
-                    View Document
+                    <FileText className="h-3 w-3" />
+                    Docs
                   </Link>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => loadContactData(contact)}
-                    className="rounded-full border border-[#e5e7eb] bg-[#f3f4f6] px-4 py-1 text-xs font-medium text-[#151515] transition hover:border-[#70d4b4] hover:bg-[#ebf9ef] hover:text-[#e8f6f3]"
+                    className="rounded-full border border-[#e5e7eb] bg-[#f3f4f6] px-3 py-1 text-xs font-medium text-[#151515] transition hover:border-[#3166bf] hover:bg-[#3166bf]/10 hover:text-[#3166bf]"
                   >
-                    View Details
+                    Details
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setEditingContact(contact)}
-                    className="rounded-full border border-[#e5e7eb] bg-[#f3f4f6] px-4 py-1 text-xs font-medium text-[#151515] transition hover:border-[#3166bf] hover:bg-[#3166bf]/10 hover:text-[#3166bf]"
+                    className="rounded-full border border-[#e5e7eb] bg-[#f3f4f6] px-3 py-1 text-xs font-medium text-[#151515] transition hover:border-[#3166bf] hover:bg-[#3166bf]/10 hover:text-[#3166bf]"
                   >
                     Edit
                   </Button>
@@ -219,9 +219,9 @@ export default function ContactsClient({ initialContacts, workspaceId }: Contact
                     size="sm"
                     onClick={() => handleDeleteContact(contact.id)}
                     disabled={isDeleting === contact.id}
-                    className="rounded-full border border-[#e5e7eb] bg-[#f3f4f6] px-4 py-1 text-xs font-medium text-[#f0494a] transition hover:border-[#f0494a] hover:bg-[#fef2f2] hover:text-[#f0494a] disabled:opacity-50"
+                    className="rounded-full border border-[#e5e7eb] bg-[#f3f4f6] px-3 py-1 text-xs font-medium text-[#f0494a] transition hover:border-[#f0494a] hover:bg-[#fef2f2] hover:text-[#f0494a] disabled:opacity-50"
                   >
-                    {isDeleting === contact.id ? "Deleting..." : "Delete"}
+                    {isDeleting === contact.id ? "…" : "Delete"}
                   </Button>
                 </div>
               </div>

@@ -47,6 +47,7 @@ export default function FrontendPage() {
   const [loading, setLoading] = useState(true);
   const [colorPickerAgentId, setColorPickerAgentId] = useState<string | null>(null);
   const [savingColor, setSavingColor] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const { features, loading: featuresLoading } = useFeatures();
   const colorPickerRef = useRef<HTMLDivElement>(null);
 
@@ -153,10 +154,10 @@ export default function FrontendPage() {
           }));
           setAgents(agentsWithColors);
         } else {
-          console.error("Failed to load agents:", response.statusText);
+          setLoadError("Failed to load agents");
         }
-      } catch (error) {
-        console.error("Failed to load agents:", error);
+      } catch {
+        setLoadError("Failed to load agents");
       } finally {
         setLoading(false);
       }
@@ -255,6 +256,17 @@ export default function FrontendPage() {
     );
   }
 
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center" style={{ background: '#f5f5f7' }}>
+        <div className="text-center">
+          <p className="text-gray-500 mb-3">{loadError}</p>
+          <button onClick={() => window.location.reload()} className="text-sm text-blue-600 hover:underline">Retry</button>
+        </div>
+      </div>
+    );
+  }
+
   const mobileNavItems = sidebarItems
     .filter((item) => !item.featureId || features.includes(item.featureId))
     .filter((item) => !item.requiresAgent || currentAgentId)
@@ -280,7 +292,7 @@ export default function FrontendPage() {
             if (isDisabled) {
               return (
                 <div
-                  key={item.href}
+                  key={item.name}
                   className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium text-gray-400 cursor-not-allowed opacity-50"
                   title="Select an agent first"
                 >
@@ -292,7 +304,7 @@ export default function FrontendPage() {
 
             return (
               <Link
-                key={item.href}
+                key={item.name}
                 href={item.href}
                 className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
                   isActive ? "bg-gray-100 text-black" : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"

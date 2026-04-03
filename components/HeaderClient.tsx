@@ -16,7 +16,7 @@ const navLinks = [
   { href: "/agents", label: "Agents" },
   { href: "/calls", label: "Calls" },
   { href: "/contacts", label: "Contacts" },
-  { href: "/client-details-overview", label: "Client Details and Overview" },
+  { href: "/client-details-overview", label: "Clients" },
   { href: "/appointments", label: "Appointments" },
   { href: "/schedule", label: "Schedule" },
   { href: "/settings", label: "Settings" },
@@ -62,7 +62,7 @@ export default function HeaderClient({
         className={clsx(
           "relative rounded-full px-3 py-1 transition-all whitespace-nowrap",
           active
-            ? "bg-[#70d4b4] text-[#151515] shadow-sm"
+            ? "bg-[#3166bf] text-white shadow-sm"
             : "text-[#151515]/70 hover:text-[#151515]"
         )}
       >
@@ -83,7 +83,7 @@ export default function HeaderClient({
             <img
               src="/brand/logo-new.png"
               alt="Drift AI Receptionist"
-              className="h-16 w-16 object-contain sm:h-20 sm:w-20"
+              className="h-8 w-8 object-contain sm:h-9 sm:w-9"
               draggable={false}
             />
           </Link>

@@ -71,6 +71,12 @@ function eventColorClass(clientId: string, clients: { id: string }[]): string {
 }
 
 export default function ScheduleClient({ initialAppointments, workspaceId, theme = "dark" }: ScheduleClientProps) {
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const showToast = (message: string, type: "success" | "error" = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3500);
+  };
+
   const [appointments, setAppointments] = useState<Appointment[]>(initialAppointments);
   const [viewMode, setViewMode] = useState<"week" | "month">("week");
   const [weekStart, setWeekStart] = useState(dayjs().startOf("week"));
@@ -197,8 +203,6 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
   const [addingClient, setAddingClient] = useState(false);
 
   const gridRef = useRef<HTMLDivElement>(null);
-  const [gcalConnected, setGcalConnected] = useState<boolean | null>(null);
-  const [gcalConnecting, setGcalConnecting] = useState(false);
 
   // Fetch all contacts for the client list
   useEffect(() => {
@@ -208,12 +212,6 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
       .catch(() => {});
   }, []);
 
-  useEffect(() => {
-    fetch("/api/integrations/google/status", { credentials: "include" })
-      .then((r) => r.ok ? r.json() : { connected: false })
-      .then((data) => setGcalConnected(data.connected ?? false))
-      .catch(() => setGcalConnected(false));
-  }, []);
 
   const handleAddClient = async () => {
     if (!newClientName.trim() || !newClientPhone.trim()) return;
@@ -335,9 +333,9 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
         body: JSON.stringify({ reminderTiming: appointmentReminderTiming, reminderChannels: appointmentReminderChannels }),
       });
       if (!response.ok) throw new Error("Failed to update reminders");
-      alert("Reminder timings updated!");
+      showToast("Reminder timings updated!");
     } catch (error: any) {
-      alert(error.message || "Failed to update reminders");
+      showToast(error.message || "Failed to update reminders", "error");
     } finally {
       setSavingReminders(false);
     }
@@ -345,7 +343,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
 
   const handleCreateAppointment = async () => {
     if (!formName.trim() || !formPhone.trim() || !formDescription.trim()) {
-      alert("Please fill in all required fields");
+      showToast("Please fill in all required fields", "error");
       return;
     }
     setCreating(true);
@@ -375,7 +373,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
       setShowCreateModal(false);
       window.location.reload();
     } catch (error: any) {
-      alert(error.message || "Failed to create appointment");
+      showToast(error.message || "Failed to create appointment", "error");
     } finally {
       setCreating(false);
     }
@@ -412,7 +410,18 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
   );
 
   return (
-    <div className="flex flex-col h-full bg-white text-gray-900 rounded-2xl overflow-hidden border border-gray-200">
+    <div className="flex flex-col h-full bg-white text-gray-900 rounded-2xl overflow-hidden border border-gray-200 relative">
+      {/* Toast */}
+      {toast && (
+        <div className={`absolute top-3 right-3 z-50 max-w-xs rounded-xl shadow-lg border px-4 py-3 flex items-center gap-2 text-sm font-medium animate-in slide-in-from-top ${
+          toast.type === "error" ? "bg-red-50 border-red-200 text-red-700" : "bg-green-50 border-green-200 text-green-700"
+        }`}>
+          <span>{toast.message}</span>
+          <button onClick={() => setToast(null)} className="ml-1 opacity-60 hover:opacity-100">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white">
         <div className="flex items-center gap-3">
@@ -576,30 +585,6 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
               )}
             </div>
 
-            {/* Google Calendar */}
-            <div className="mt-5 pt-4 border-t border-gray-200">
-              <span className="text-xs font-semibold text-gray-700 block mb-2">Integrations</span>
-              {gcalConnected === null ? (
-                <div className="text-xs text-gray-400">Checking...</div>
-              ) : gcalConnected ? (
-                <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-green-50 border border-green-200">
-                  <div className="w-2 h-2 rounded-full bg-green-500" />
-                  <span className="text-xs font-medium text-green-700">Google Calendar connected</span>
-                </div>
-              ) : (
-                <button
-                  onClick={() => {
-                    setGcalConnecting(true);
-                    window.location.href = "/api/integrations/google/oauth";
-                  }}
-                  disabled={gcalConnecting}
-                  className="flex items-center gap-2 w-full px-2 py-2 rounded-lg border border-gray-300 text-xs font-medium text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
-                >
-                  <Calendar className="h-3.5 w-3.5" />
-                  {gcalConnecting ? "Connecting..." : "Connect Google Calendar"}
-                </button>
-              )}
-            </div>
           </div>
         )}
 

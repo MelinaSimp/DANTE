@@ -47,7 +47,7 @@ const quickActions: QuickAction[] = [
 
 export default function QuickActions() {
   return (
-    <aside className="mt-16 w-full max-w-xl rounded-3xl border border-[#e5e7eb] bg-[#ffffff] p-6 text-center shadow-sm">
+    <aside className="mt-6 w-full max-w-xl rounded-3xl border border-[#e5e7eb] bg-[#ffffff] p-6 text-center shadow-sm">
       <p className="text-xs uppercase tracking-[0.3em] text-[#151515]/60">QUICK ACTIONS</p>
       <h2 className="mt-2 text-lg font-semibold text-[#151515]">Jump back into work</h2>
       <div className="mt-5 space-y-3">

@@ -125,12 +125,13 @@ export default async function CallsPage() {
               >
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.3em] text-white/40">Call SID</p>
-                    <h2 className="text-lg font-semibold">{log.call_sid}</h2>
+                    <p className="text-xs uppercase tracking-[0.3em] text-white/40">Caller</p>
+                    <h2 className="text-lg font-semibold">{log.from_number ?? "Unknown caller"}</h2>
+                    <p className="mt-0.5 font-mono text-xs text-white/30">{log.call_sid}</p>
                   </div>
                   <div className="text-xs text-white/50">
                     <div>Received: {formatDate(log.created_at)}</div>
-                    {duration && <div>Twilio reported duration: {duration}s</div>}
+                    {duration && <div>Duration: {duration}s</div>}
                   </div>
                 </div>
 

@@ -3,18 +3,19 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { LayoutDashboard, Phone, UserRound, Settings } from 'lucide-react';
 
 type NavItem = {
   name: string;
   href: string;
-  emoji: string; // keep it dependency-free (no icon lib needed)
+  icon: React.ElementType;
 };
 
 const NAV: NavItem[] = [
-  { name: 'Dashboard', href: '/', emoji: '🏠' },
-  { name: 'Calls', href: '/calls', emoji: '📞' },
-  { name: 'Contacts', href: '/contacts', emoji: '👤' },
-  { name: 'Settings', href: '/settings', emoji: '⚙️' },
+  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Calls', href: '/calls', icon: Phone },
+  { name: 'Contacts', href: '/contacts', icon: UserRound },
+  { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
 function classNames(...c: (string | false | null | undefined)[]) {
@@ -98,12 +99,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   className={classNames(
                     'flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition',
                     active
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-[#3166bf] text-white'
                       : 'text-gray-700 hover:bg-gray-100'
                   )}
                   onClick={() => setOpen(false)}
                 >
-                  <span className="text-base">{item.emoji}</span>
+                  <item.icon size={16} />
                   <span>{item.name}</span>
                 </Link>
               );
