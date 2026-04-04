@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase/client";
 import { useFeatures } from "@/hooks/useFeatures";
 import type { FeatureId } from "@/lib/features";
 import Link from "next/link";
-import { Bot, Calendar, FileText, CalendarClock, ArrowLeft, Phone, Palette, Mail, Inbox } from "lucide-react";
+import { Bot, Calendar, FileText, CalendarClock, ArrowLeft, Phone, Palette, Mail, Inbox, Settings, Shield } from "lucide-react";
 import AgentOrb from "@/components/frontend/AgentOrb";
 import PanelShell from "@/components/panels/PanelShell";
 
@@ -340,15 +340,20 @@ export default function FrontendPage() {
     <div className="min-h-screen bg-[#f5f5f7] flex flex-col" style={{ background: "#f5f5f7" }}>
       {/* Top bar */}
       <div className="flex items-center justify-between px-6 py-4">
-        <button onClick={() => router.push("/select")} className="flex items-center gap-2 text-gray-500 hover:text-gray-800 transition">
-          <ArrowLeft className="w-4 h-4" />
-          <span className="text-sm font-medium">Back</span>
-        </button>
         <Link href="/frontend" className="flex items-center gap-2">
           <img src="/brand/logo-circle.png" alt="Drift" className="w-6 h-6 rounded-full object-cover" />
           <span className="text-sm font-semibold text-gray-900">Drift</span>
         </Link>
-        <div className="w-16" />
+        <div className="flex items-center gap-1">
+          <Link href="/settings" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-gray-500 hover:text-gray-800 hover:bg-gray-200/50 transition text-sm font-medium">
+            <Settings className="w-4 h-4" />
+            <span className="hidden sm:inline">Backend</span>
+          </Link>
+          <Link href="/admin" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-gray-500 hover:text-gray-800 hover:bg-gray-200/50 transition text-sm font-medium">
+            <Shield className="w-4 h-4" />
+            <span className="hidden sm:inline">Admin</span>
+          </Link>
+        </div>
       </div>
 
       {/* Main content */}

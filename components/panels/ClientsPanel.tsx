@@ -1,13 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { UserPlus, Search, Trash2, Phone, Mail, ExternalLink } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { UserPlus, Search, Trash2, Phone, Mail } from "lucide-react";
 
 interface Contact { id: string; name: string; phone?: string; email?: string }
 
 export default function ClientsPanel({ agentId }: { agentId: string }) {
-  const router = useRouter();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -62,9 +60,6 @@ export default function ClientsPanel({ agentId }: { agentId: string }) {
             className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-black/5" />
         </div>
         <div className="flex items-center gap-2 ml-3">
-          <button onClick={() => router.push("/client-details-overview")} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm text-gray-600 hover:bg-gray-100 transition">
-            <ExternalLink className="w-3.5 h-3.5" />Full View
-          </button>
           <button onClick={() => setAdding(true)} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-black text-white text-sm font-medium hover:bg-gray-800">
             <UserPlus className="w-4 h-4" />Add
           </button>
