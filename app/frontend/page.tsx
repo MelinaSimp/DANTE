@@ -1,4 +1,4 @@
-// app/frontend/page.tsx - Frontend Agent Carousel with Apple Glass Sidebar
+// app/frontend/page.tsx - Frontend Agent Page with Radial Orb Navigation
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
@@ -7,8 +7,7 @@ import { supabase } from "@/lib/supabase/client";
 import { useFeatures } from "@/hooks/useFeatures";
 import type { FeatureId } from "@/lib/features";
 import Link from "next/link";
-import { Bot, Calendar, FileText, CalendarClock, ArrowRight, MessageSquare, Phone, Clock, BarChart3, Palette, Mail, Inbox } from "lucide-react";
-import MobileNav from "@/components/frontend/MobileNav";
+import { Bot, Calendar, FileText, CalendarClock, ArrowLeft, Phone, Palette, Mail, Inbox } from "lucide-react";
 import AgentOrb from "@/components/frontend/AgentOrb";
 
 interface Agent {
@@ -19,7 +18,6 @@ interface Agent {
   status: string;
 }
 
-// Gradient presets for agent icons
 const GRADIENT_PRESETS: string[][] = [
   ["#FF6B6B", "#4ECDC4", "#45B7D1"],
   ["#A8E6CF", "#FFD93D", "#FF6B9D"],
@@ -40,29 +38,190 @@ function generateGradientColor(seed: string): string {
   return JSON.stringify(GRADIENT_PRESETS[index]);
 }
 
+interface RadialNavItem {
+  name: string;
+  icon: React.ComponentType<{ className?: string }>;
+  href: string;
+  featureId?: FeatureId;
+}
+
+function RadialAgentCard({
+  agent,
+  navItems,
+  onChangeColor,
+  savingColor,
+}: {
+  agent: Agent;
+  navItems: RadialNavItem[];
+  onChangeColor: (agentId: string, preset: string[]) => void;
+  savingColor: boolean;
+}) {
+  const router = useRouter();
+  const [hovered, setHovered] = useState(false);
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const colorPickerRef = useRef<HTMLDivElement>(null);
+  const agentGradient = JSON.parse(agent.gradient_color || generateGradientColor(agent.id)) as string[];
+
+  const orbSize = 160;
+  const orbitRadius = 140;
+
+  useEffect(() => {
+    if (!showColorPicker) return;
+    const handler = (e: MouseEvent) => {
+      if (colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node)) {
+        setShowColorPicker(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showColorPicker]);
+
+  const count = navItems.length;
+  const startAngle = -Math.PI / 2;
+
+  return (
+    <div className="flex flex-col items-center gap-6">
+      {/* Radial container */}
+      <div
+        className="relative"
+        style={{ width: (orbitRadius + 56) * 2, height: (orbitRadius + 56) * 2 }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      >
+        {/* Orbit ring (visible on hover) */}
+        <div
+          className="absolute inset-0 rounded-full border border-dashed transition-all duration-500"
+          style={{
+            borderColor: hovered ? "rgba(0,0,0,0.08)" : "transparent",
+            margin: 56,
+          }}
+        />
+
+        {/* Nav items in orbit */}
+        {navItems.map((item, i) => {
+          const angle = startAngle + (i / count) * Math.PI * 2;
+          const centerX = orbitRadius + 56;
+          const centerY = orbitRadius + 56;
+          const x = centerX + Math.cos(angle) * orbitRadius - 28;
+          const y = centerY + Math.sin(angle) * orbitRadius - 28;
+          const Icon = item.icon;
+
+          return (
+            <Link
+              key={item.name}
+              href={item.href}
+              className="absolute flex flex-col items-center gap-1 transition-all duration-500 group/nav"
+              style={{
+                left: x,
+                top: y,
+                width: 56,
+                opacity: hovered ? 1 : 0,
+                transform: hovered ? "scale(1)" : "scale(0.3)",
+                pointerEvents: hovered ? "auto" : "none",
+              }}
+            >
+              <div className="w-11 h-11 rounded-2xl bg-white shadow-md border border-gray-200 flex items-center justify-center group-hover/nav:shadow-lg group-hover/nav:scale-110 group-hover/nav:border-gray-300 transition-all duration-200">
+                <Icon className="w-5 h-5 text-gray-600 group-hover/nav:text-black transition-colors" />
+              </div>
+              <span className="text-[10px] font-medium text-gray-500 group-hover/nav:text-gray-900 transition-colors text-center leading-tight whitespace-nowrap">
+                {item.name}
+              </span>
+            </Link>
+          );
+        })}
+
+        {/* Center orb */}
+        <div
+          className="absolute cursor-pointer"
+          style={{
+            left: orbitRadius + 56 - orbSize / 2,
+            top: orbitRadius + 56 - orbSize / 2,
+          }}
+        >
+          <AgentOrb
+            colors={agentGradient}
+            size={orbSize}
+            letter={agent.name.charAt(0).toUpperCase()}
+            className="rounded-full"
+            interactive
+            pulsing={hovered}
+          />
+
+          {/* Color picker button */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowColorPicker(!showColorPicker);
+            }}
+            className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-white border-2 border-gray-200 shadow-md flex items-center justify-center text-gray-400 hover:text-gray-700 hover:border-gray-300 transition-all hover:scale-110 z-20"
+          >
+            <Palette className="h-3.5 w-3.5" />
+          </button>
+
+          {showColorPicker && (
+            <div
+              ref={colorPickerRef}
+              className="absolute top-full left-1/2 -translate-x-1/2 mt-4 z-50"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 p-4 w-64">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Color Scheme</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {GRADIENT_PRESETS.map((preset, i) => {
+                    const isActive = JSON.stringify(preset) === JSON.stringify(agentGradient);
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        disabled={savingColor}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onChangeColor(agent.id, preset);
+                        }}
+                        className={`w-12 h-12 rounded-xl transition-all hover:scale-110 disabled:opacity-50 ${
+                          isActive ? "ring-2 ring-blue-500 ring-offset-2 scale-110" : "hover:ring-2 hover:ring-gray-300 hover:ring-offset-1"
+                        }`}
+                        style={{
+                          background: `linear-gradient(135deg, ${preset[0]} 0%, ${preset[1]} 50%, ${preset[2] || preset[1]} 100%)`,
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Agent info below */}
+      <div className="text-center -mt-2">
+        <h3 className="text-xl font-bold text-gray-900 mb-1">{agent.name}</h3>
+        <span className={`text-xs px-3 py-1 rounded-full font-medium ${
+          agent.status === "deployed"
+            ? "bg-green-100 text-green-700 border border-green-200"
+            : "bg-gray-100 text-gray-600 border border-gray-200"
+        }`}>
+          {agent.status}
+        </span>
+        {agent.description && (
+          <p className="text-sm text-gray-500 mt-3 max-w-xs mx-auto">{agent.description}</p>
+        )}
+        <p className="text-xs text-gray-400 mt-3">Hover over the orb to navigate</p>
+      </div>
+    </div>
+  );
+}
+
 export default function FrontendPage() {
   const router = useRouter();
   const pathname = usePathname();
   const [agents, setAgents] = useState<Agent[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [colorPickerAgentId, setColorPickerAgentId] = useState<string | null>(null);
-  const [savingColor, setSavingColor] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const { features, loading: featuresLoading } = useFeatures();
-  const colorPickerRef = useRef<HTMLDivElement>(null);
-
-  // Close color picker when clicking outside
-  useEffect(() => {
-    if (!colorPickerAgentId) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node)) {
-        setColorPickerAgentId(null);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [colorPickerAgentId]);
+  const [savingColor, setSavingColor] = useState(false);
+  const { features } = useFeatures();
 
   const handleChangeGradient = async (agentId: string, gradient: string[]) => {
     setSavingColor(true);
@@ -75,49 +234,30 @@ export default function FrontendPage() {
         body: JSON.stringify({ gradient_color: gradientJson }),
       });
       if (res.ok) {
-        setAgents((prev) =>
-          prev.map((a) => (a.id === agentId ? { ...a, gradient_color: gradientJson } : a))
-        );
-      } else {
-        const data = await res.json().catch(() => ({}));
-        console.error("Failed to update gradient:", data);
+        setAgents((prev) => prev.map((a) => (a.id === agentId ? { ...a, gradient_color: gradientJson } : a)));
       }
-    } catch (err) {
-      console.error("Failed to update gradient:", err);
-    } finally {
+    } catch {} finally {
       setSavingColor(false);
-      setColorPickerAgentId(null);
     }
   };
 
   useEffect(() => {
-    // Override global dark theme styles for Apple-style light theme
     const html = document.documentElement;
     const body = document.body;
-    const main = document.querySelector('main');
-    
-    // Store original styles
-    const originalHtmlBg = html.style.background;
-    const originalBodyBg = body.style.background;
-    const originalBodyColor = body.style.color;
-    const originalMainBg = main ? (main as HTMLElement).style.background : null;
-    
-    // Apply light theme with !important to override global styles
-    html.style.setProperty('background', '#f5f5f7', 'important');
-    body.style.setProperty('background', '#f5f5f7', 'important');
-    body.style.setProperty('color', '#111827', 'important');
-    if (main) {
-      (main as HTMLElement).style.setProperty('background', '#f5f5f7', 'important');
-    }
-
-    // Cleanup function to restore original styles on unmount
+    const main = document.querySelector("main");
+    const origHtml = html.style.background;
+    const origBody = body.style.background;
+    const origColor = body.style.color;
+    const origMain = main ? (main as HTMLElement).style.background : null;
+    html.style.setProperty("background", "#f5f5f7", "important");
+    body.style.setProperty("background", "#f5f5f7", "important");
+    body.style.setProperty("color", "#111827", "important");
+    if (main) (main as HTMLElement).style.setProperty("background", "#f5f5f7", "important");
     return () => {
-      html.style.setProperty('background', originalHtmlBg, 'important');
-      body.style.setProperty('background', originalBodyBg, 'important');
-      body.style.setProperty('color', originalBodyColor, 'important');
-      if (main && originalMainBg !== null) {
-        (main as HTMLElement).style.setProperty('background', originalMainBg, 'important');
-      }
+      html.style.setProperty("background", origHtml, "important");
+      body.style.setProperty("background", origBody, "important");
+      body.style.setProperty("color", origColor, "important");
+      if (main && origMain !== null) (main as HTMLElement).style.setProperty("background", origMain, "important");
     };
   }, []);
 
@@ -125,35 +265,17 @@ export default function FrontendPage() {
     async function loadAgents() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          router.push("/auth");
-          return;
-        }
-
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("workspace_id")
-          .eq("id", user.id)
-          .maybeSingle();
-
-        if (!profile?.workspace_id) {
-          setLoading(false);
-          return;
-        }
-
-        // Use API endpoint instead of direct Supabase query
+        if (!user) { router.push("/auth"); return; }
+        const { data: profile } = await supabase.from("profiles").select("workspace_id").eq("id", user.id).maybeSingle();
+        if (!profile?.workspace_id) { setLoading(false); return; }
         const response = await fetch("/api/agents");
         if (response.ok) {
-          const agentsData = await response.json();
-          // Generate gradient colors for agents that don't have one
-          const agentsWithColors = (agentsData || []).map((agent: any) => ({
-            id: agent.id,
-            name: agent.name,
-            description: agent.description,
-            gradient_color: agent.gradient_color || generateGradientColor(agent.id),
-            status: agent.status,
-          }));
-          setAgents(agentsWithColors);
+          const data = await response.json();
+          setAgents((data || []).map((a: any) => ({
+            id: a.id, name: a.name, description: a.description,
+            gradient_color: a.gradient_color || generateGradientColor(a.id),
+            status: a.status,
+          })));
         } else {
           setLoadError("Failed to load agents");
         }
@@ -166,92 +288,9 @@ export default function FrontendPage() {
     loadAgents();
   }, [router]);
 
-  const currentAgent = agents[currentIndex];
-  const gradientColors = currentAgent
-    ? (JSON.parse(currentAgent.gradient_color || generateGradientColor(currentAgent.id)) as string[])
-    : ["#667EEA", "#764BA2", "#F093FB"];
-
-  const handlePrev = () => {
-    setCurrentIndex((prev) => (prev > 0 ? prev - 1 : agents.length - 1));
-  };
-
-  const handleNext = () => {
-    setCurrentIndex((prev) => (prev < agents.length - 1 ? prev + 1 : 0));
-  };
-
-  const handleAgentClick = () => {
-    if (currentAgent) {
-      // Go to agent selection page - user can then choose from sidebar
-      router.push(`/frontend/agent/${currentAgent.id}`);
-    }
-  };
-
-  // Extract agentId from pathname if on agent-specific page
-  const agentIdMatch = pathname?.match(/\/frontend\/agent\/([^/]+)/);
-  const currentAgentId = agentIdMatch ? agentIdMatch[1] : null;
-
-  // Sidebar navigation items
-  const sidebarItems = [
-    { 
-      name: "Agents", 
-      icon: Bot, 
-      href: "/frontend",
-      active: pathname === "/frontend" || pathname?.startsWith("/frontend/agent"),
-      requiresAgent: false
-    },
-    { 
-      name: "Calendar", 
-      icon: Calendar, 
-      href: currentAgentId ? `/frontend/agent/${currentAgentId}/schedule` : "#",
-      active: pathname?.includes("/schedule"),
-      requiresAgent: true,
-      featureId: "calendar" as FeatureId
-    },
-    { 
-      name: "Client Details", 
-      icon: FileText, 
-      href: currentAgentId ? "/client-details-overview" : "#",
-      active: pathname === "/client-details-overview",
-      requiresAgent: true,
-      featureId: "client_details" as FeatureId
-    },
-    { 
-      name: "Meeting Planner", 
-      icon: CalendarClock, 
-      href: currentAgentId ? `/frontend/agent/${currentAgentId}/llm` : "#",
-      active: pathname?.includes("/llm"),
-      requiresAgent: true,
-      featureId: "meeting_planner" as FeatureId
-    },
-    { 
-      name: "Sales", 
-      icon: Phone, 
-      href: currentAgentId ? `/frontend/agent/${currentAgentId}/sales` : "#",
-      active: pathname?.includes("/sales"),
-      requiresAgent: true,
-      featureId: "sales" as FeatureId
-    },
-    { 
-      name: "Emailing", 
-      icon: Mail, 
-      href: currentAgentId ? `/frontend/agent/${currentAgentId}/emailing` : "#",
-      active: pathname?.includes("/emailing"),
-      requiresAgent: true,
-      featureId: "emailing" as FeatureId
-    },
-    { 
-      name: "Inbox", 
-      icon: Inbox, 
-      href: currentAgentId ? `/frontend/agent/${currentAgentId}/inbox` : "#",
-      active: pathname?.includes("/inbox"),
-      requiresAgent: true,
-      featureId: "inbox" as FeatureId
-    },
-  ];
-
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center" style={{ background: '#f5f5f7' }}>
+      <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center" style={{ background: "#f5f5f7" }}>
         <div className="text-gray-400">Loading...</div>
       </div>
     );
@@ -259,7 +298,7 @@ export default function FrontendPage() {
 
   if (loadError) {
     return (
-      <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center" style={{ background: '#f5f5f7' }}>
+      <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center" style={{ background: "#f5f5f7" }}>
         <div className="text-center">
           <p className="text-gray-500 mb-3">{loadError}</p>
           <button onClick={() => window.location.reload()} className="text-sm text-blue-600 hover:underline">Retry</button>
@@ -268,313 +307,66 @@ export default function FrontendPage() {
     );
   }
 
-  const mobileNavItems = sidebarItems
-    .filter((item) => !item.featureId || features.includes(item.featureId))
-    .filter((item) => !item.requiresAgent || currentAgentId)
-    .map(({ name, icon, href, active }) => ({ name, icon, href, active }));
+  const getNavItems = (agentId: string): RadialNavItem[] => {
+    const all: RadialNavItem[] = [
+      { name: "Calendar", icon: Calendar, href: `/frontend/agent/${agentId}/schedule`, featureId: "calendar" },
+      { name: "Clients", icon: FileText, href: "/client-details-overview", featureId: "client_details" },
+      { name: "Planner", icon: CalendarClock, href: `/frontend/agent/${agentId}/llm`, featureId: "meeting_planner" },
+      { name: "Sales", icon: Phone, href: `/frontend/agent/${agentId}/sales`, featureId: "sales" },
+      { name: "Email", icon: Mail, href: `/frontend/agent/${agentId}/emailing`, featureId: "emailing" },
+      { name: "Inbox", icon: Inbox, href: `/frontend/agent/${agentId}/inbox`, featureId: "inbox" },
+    ];
+    return all.filter((item) => !item.featureId || features.includes(item.featureId));
+  };
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7] flex flex-col md:flex-row" style={{ background: '#f5f5f7' }}>
-      <MobileNav items={mobileNavItems} backHref="/select" backLabel="Back" />
-      {/* Left Sidebar */}
-      <div className="hidden md:flex flex-col w-48 border-r border-gray-200 bg-white shrink-0">
-        <div className="p-4 border-b border-gray-200 flex items-center gap-2">
-          <Link href="/frontend" className="flex items-center gap-2">
-            <img src="/brand/logo-circle.png" alt="Drift" className="w-7 h-7 rounded-full object-cover" />
-            <span className="text-sm font-semibold text-gray-900">Drift</span>
-          </Link>
-        </div>
-        <nav className="flex-1 p-3 space-y-1">
-          {sidebarItems.filter((item) => !item.featureId || features.includes(item.featureId)).map((item) => {
-            const Icon = item.icon;
-            const isActive = item.active;
-            const isDisabled = item.requiresAgent && !currentAgentId;
-
-            if (isDisabled) {
-              return (
-                <div
-                  key={item.name}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium text-gray-400 cursor-not-allowed opacity-50"
-                  title="Select an agent first"
-                >
-                  <Icon className="w-4 h-4" />
-                  <span>{item.name}</span>
-                </div>
-              );
-            }
-
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
-                  isActive ? "bg-gray-100 text-black" : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                <span>{item.name}</span>
-              </Link>
-            );
-          })}
-        </nav>
+    <div className="min-h-screen bg-[#f5f5f7] flex flex-col" style={{ background: "#f5f5f7" }}>
+      {/* Top bar */}
+      <div className="flex items-center justify-between px-6 py-4">
+        <button onClick={() => router.push("/select")} className="flex items-center gap-2 text-gray-500 hover:text-gray-800 transition">
+          <ArrowLeft className="w-4 h-4" />
+          <span className="text-sm font-medium">Back</span>
+        </button>
+        <Link href="/frontend" className="flex items-center gap-2">
+          <img src="/brand/logo-circle.png" alt="Drift" className="w-6 h-6 rounded-full object-cover" />
+          <span className="text-sm font-semibold text-gray-900">Drift</span>
+        </Link>
+        <div className="w-16" />
       </div>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden">
-        {/* Top Navigation Bar */}
-        <div className="bg-white border-b border-gray-200 px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => router.push("/select")}
-                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                <ArrowRight className="h-5 w-5 text-gray-600 rotate-180" />
-              </button>
-              <h1 className="text-xl font-semibold text-gray-900">Agents</h1>
-            </div>
+      {/* Main content */}
+      <div className="flex-1 flex items-center justify-center px-4 pb-12">
+        {agents.length === 0 ? (
+          <div className="text-center">
+            <Bot className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">No agents found</h2>
+            <p className="text-gray-500 text-sm mb-6">Create an agent in the backend first.</p>
+            <button onClick={() => router.push("/select")} className="px-5 py-2.5 rounded-xl bg-black text-white text-sm font-medium hover:bg-gray-800 transition">
+              Go Back
+            </button>
           </div>
-        </div>
-
-        {/* Dashboard Content */}
-        <div className="flex-1 overflow-y-auto px-8 py-6 bg-[#f5f5f7]">
-          {agents.length === 0 ? (
-            <div className="max-w-2xl mx-auto text-center pt-16">
-              <div className="bg-white rounded-2xl shadow-sm p-12 border border-gray-200">
-                <Bot className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                <h2 className="text-2xl font-semibold text-gray-900 mb-2">No agents found</h2>
-                <p className="text-gray-600 mb-6">Please create an agent in the backend first.</p>
-                <div className="relative">
-                  <div className="absolute inset-0 bg-gradient-to-br from-purple-400 via-pink-500 to-blue-500 rounded-xl blur-sm opacity-50"></div>
-                  <button
-                    onClick={() => router.push("/select")}
-                    className="relative px-6 py-3 rounded-xl bg-black text-white hover:bg-gray-800 transition-colors font-medium"
-                  >
-                    Go Back
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="max-w-7xl mx-auto">
-
-              {/* Conditional Layout: Hero Card for 1 agent, Grid for 2+ */}
-              {agents.length === 1 ? (
-                /* Single Agent - Centered Hero Card */
-                <div className="flex justify-center">
-                  <div className="w-full max-w-2xl">
-                    {agents.map((agent) => {
-                      const agentGradient = JSON.parse(agent.gradient_color || generateGradientColor(agent.id)) as string[];
-                      return (
-                        <div
-                          key={agent.id}
-                          onClick={() => { if (!colorPickerAgentId) router.push(`/frontend/agent/${agent.id}`); }}
-                          className={`w-full bg-white rounded-3xl shadow-xl p-8 border border-gray-200 transition-all text-left group cursor-pointer ${colorPickerAgentId === agent.id ? '' : 'hover:shadow-2xl hover:scale-[1.02]'}`}
-                          style={colorPickerAgentId === agent.id ? { position: 'relative' as const, zIndex: 9998 } : undefined}
-                        >
-                          {/* Hero Agent Card */}
-                          <div className="flex flex-col items-center text-center mb-6">
-                            {/* Large Avatar with Color Picker */}
-                            <div className="relative mb-4">
-                              <AgentOrb
-                                colors={agentGradient}
-                                size={96}
-                                letter={agent.name.charAt(0).toUpperCase()}
-                                className="rounded-full shadow-lg"
-                              />
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setColorPickerAgentId(colorPickerAgentId === agent.id ? null : agent.id);
-                                }}
-                                className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-white border-2 border-gray-200 shadow-md flex items-center justify-center text-gray-500 hover:text-gray-700 hover:border-gray-300 transition-all hover:scale-110 z-10"
-                                title="Change icon color"
-                              >
-                                <Palette className="h-3.5 w-3.5" />
-                              </button>
-                              {/* Color Picker Popover */}
-                              {colorPickerAgentId === agent.id && (
-                                <div
-                                  ref={colorPickerRef}
-                                  className="absolute top-full left-1/2 -translate-x-1/2 mt-3"
-                                  style={{ zIndex: 9999 }}
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 p-4 w-64">
-                                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Choose Color Scheme</p>
-                                    <div className="grid grid-cols-4 gap-2">
-                                      {GRADIENT_PRESETS.map((preset, i) => {
-                                        const isActive = JSON.stringify(preset) === JSON.stringify(agentGradient);
-                                        return (
-                                          <button
-                                            key={i}
-                                            type="button"
-                                            disabled={savingColor}
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleChangeGradient(agent.id, preset);
-                                            }}
-                                            className={`w-12 h-12 rounded-xl transition-all hover:scale-110 disabled:opacity-50 ${
-                                              isActive ? "ring-2 ring-blue-500 ring-offset-2 scale-110" : "hover:ring-2 hover:ring-gray-300 hover:ring-offset-1"
-                                            }`}
-                                            style={{
-                                              background: `linear-gradient(135deg, ${preset[0]} 0%, ${preset[1]} 50%, ${preset[2] || preset[1]} 100%)`,
-                                            }}
-                                            title={`Color scheme ${i + 1}`}
-                                          />
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                            
-                            {/* Agent Name & Status */}
-                            <h3 className="text-2xl font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
-                              {agent.name}
-                            </h3>
-                            <span className={`text-sm px-3 py-1.5 rounded-full font-medium ${
-                              agent.status === 'deployed'
-                                ? 'bg-green-100 text-green-700 border border-green-200'
-                                : 'bg-gray-100 text-gray-600 border border-gray-200'
-                            }`}>
-                              {agent.status}
-                            </span>
-                          </div>
-
-                          {/* Agent Description */}
-                          {agent.description && (
-                            <p className="text-base text-gray-600 mb-6 text-center leading-relaxed">
-                              {agent.description}
-                            </p>
-                          )}
-
-                          {/* Action Indicator */}
-                          <div className="mt-6 flex justify-center">
-                            <div className="relative group/arrow">
-                              <div className="absolute inset-0 bg-gradient-to-br from-purple-400 via-pink-500 to-blue-500 rounded-xl blur-sm opacity-50 group-hover/arrow:opacity-75 transition-opacity"></div>
-                              <div className="relative flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-50 border border-gray-200 group-hover/arrow:bg-gray-100 transition-colors">
-                                <span className="text-sm font-medium text-gray-700">View Details</span>
-                                <ArrowRight className="h-4 w-4 text-gray-600 group-hover/arrow:text-blue-600 transition-colors" />
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : (
-                /* Multiple Agents - Responsive Grid */
-                <div className={`grid gap-6 ${
-                  agents.length === 2 
-                    ? 'grid-cols-1 md:grid-cols-2' 
-                    : agents.length === 3
-                    ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
-                    : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
-                }`}>
-                  {agents.map((agent) => {
-                    const agentGradient = JSON.parse(agent.gradient_color || generateGradientColor(agent.id)) as string[];
-                    return (
-                      <div
-                        key={agent.id}
-                        onClick={() => { if (!colorPickerAgentId) router.push(`/frontend/agent/${agent.id}`); }}
-                        className={`bg-white rounded-2xl shadow-md p-6 border border-gray-200 transition-all text-left group cursor-pointer ${colorPickerAgentId === agent.id ? '' : 'hover:shadow-xl hover:scale-[1.02]'}`}
-                        style={colorPickerAgentId === agent.id ? { position: 'relative' as const, zIndex: 9998 } : undefined}
-                      >
-                        {/* Agent Header */}
-                        <div className="flex items-start justify-between mb-4">
-                          <div className="flex items-center gap-3">
-                            <div className="relative">
-                              <AgentOrb
-                                colors={agentGradient}
-                                size={56}
-                                letter={agent.name.charAt(0).toUpperCase()}
-                                className="rounded-full shadow-md"
-                              />
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setColorPickerAgentId(colorPickerAgentId === agent.id ? null : agent.id);
-                                }}
-                                className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-gray-400 hover:text-gray-600 hover:border-gray-300 transition-all hover:scale-110 z-10"
-                                title="Change icon color"
-                              >
-                                <Palette className="h-3 w-3" />
-                              </button>
-                              {/* Color Picker Popover */}
-                              {colorPickerAgentId === agent.id && (
-                                <div
-                                  ref={colorPickerRef}
-                                  className="absolute top-full left-0 mt-2"
-                                  style={{ zIndex: 9999 }}
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 p-3 w-56">
-                                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Color Scheme</p>
-                                    <div className="grid grid-cols-4 gap-1.5">
-                                      {GRADIENT_PRESETS.map((preset, i) => {
-                                        const isActive = JSON.stringify(preset) === JSON.stringify(agentGradient);
-                                        return (
-                                          <button
-                                            key={i}
-                                            type="button"
-                                            disabled={savingColor}
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleChangeGradient(agent.id, preset);
-                                            }}
-                                            className={`w-10 h-10 rounded-xl transition-all hover:scale-110 disabled:opacity-50 ${
-                                              isActive ? "ring-2 ring-blue-500 ring-offset-1 scale-110" : "hover:ring-2 hover:ring-gray-300 hover:ring-offset-1"
-                                            }`}
-                                            style={{
-                                              background: `linear-gradient(135deg, ${preset[0]} 0%, ${preset[1]} 50%, ${preset[2] || preset[1]} 100%)`,
-                                            }}
-                                          />
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                            <div>
-                              <h3 className="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors mb-1">
-                                {agent.name}
-                              </h3>
-                              <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-                                agent.status === 'deployed'
-                                  ? 'bg-green-100 text-green-700 border border-green-200'
-                                  : 'bg-gray-100 text-gray-600 border border-gray-200'
-                              }`}>
-                                {agent.status}
-                              </span>
-                            </div>
-                          </div>
-                          <ArrowRight className="h-5 w-5 text-gray-400 group-hover:text-blue-600 transition-colors flex-shrink-0" />
-                        </div>
-
-                        {/* Agent Description */}
-                        {agent.description && (
-                          <p className="text-sm text-gray-600 mb-4 line-clamp-2 leading-relaxed">
-                            {agent.description}
-                          </p>
-                        )}
-
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+        ) : agents.length === 1 ? (
+          <RadialAgentCard
+            agent={agents[0]}
+            navItems={getNavItems(agents[0].id)}
+            onChangeColor={handleChangeGradient}
+            savingColor={savingColor}
+          />
+        ) : (
+          /* Multi-agent: show orbs in a row */
+          <div className="flex flex-wrap justify-center gap-16">
+            {agents.map((agent) => (
+              <RadialAgentCard
+                key={agent.id}
+                agent={agent}
+                navItems={getNavItems(agent.id)}
+                onChangeColor={handleChangeGradient}
+                savingColor={savingColor}
+              />
+            ))}
+          </div>
+        )}
       </div>
-
     </div>
   );
 }
-
