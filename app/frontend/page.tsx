@@ -9,6 +9,7 @@ import type { FeatureId } from "@/lib/features";
 import Link from "next/link";
 import { Bot, Calendar, FileText, CalendarClock, ArrowRight, MessageSquare, Phone, Clock, BarChart3, Palette, Mail, Inbox } from "lucide-react";
 import MobileNav from "@/components/frontend/MobileNav";
+import AgentOrb from "@/components/frontend/AgentOrb";
 
 interface Agent {
   id: string;
@@ -375,14 +376,12 @@ export default function FrontendPage() {
                           <div className="flex flex-col items-center text-center mb-6">
                             {/* Large Avatar with Color Picker */}
                             <div className="relative mb-4">
-                              <div
-                                className="w-24 h-24 rounded-3xl flex items-center justify-center text-white font-bold text-3xl shadow-lg"
-                                style={{
-                                  background: `linear-gradient(135deg, ${agentGradient[0]} 0%, ${agentGradient[1]} 50%, ${agentGradient[2] || agentGradient[1]} 100%)`,
-                                }}
-                              >
-                                {agent.name.charAt(0).toUpperCase()}
-                              </div>
+                              <AgentOrb
+                                colors={agentGradient}
+                                size={96}
+                                letter={agent.name.charAt(0).toUpperCase()}
+                                className="rounded-full shadow-lg"
+                              />
                               <button
                                 type="button"
                                 onClick={(e) => {
@@ -489,14 +488,12 @@ export default function FrontendPage() {
                         <div className="flex items-start justify-between mb-4">
                           <div className="flex items-center gap-3">
                             <div className="relative">
-                              <div
-                                className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-lg shadow-md"
-                                style={{
-                                  background: `linear-gradient(135deg, ${agentGradient[0]} 0%, ${agentGradient[1]} 100%)`,
-                                }}
-                              >
-                                {agent.name.charAt(0).toUpperCase()}
-                              </div>
+                              <AgentOrb
+                                colors={agentGradient}
+                                size={56}
+                                letter={agent.name.charAt(0).toUpperCase()}
+                                className="rounded-full shadow-md"
+                              />
                               <button
                                 type="button"
                                 onClick={(e) => {
