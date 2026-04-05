@@ -1,10 +1,20 @@
-// app/select/page.tsx - Frontend/Backend Selection Page
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
+import { Monitor, Server, Shield, LogOut } from "lucide-react";
+import AgentOrb from "@/components/frontend/AgentOrb";
+
+const DRIFT_COLORS = ["#667EEA", "#764BA2", "#F093FB"];
+
+interface NavItem {
+  name: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+  action: () => void;
+  requiresSuperadmin?: boolean;
+}
 
 export default function SelectPage() {
   const router = useRouter();
@@ -12,252 +22,195 @@ export default function SelectPage() {
   const [backendPassword, setBackendPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [isSuperadmin, setIsSuperadmin] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const passwordRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) {
-        router.push("/auth");
-        return;
-      }
+      if (!user) { router.push("/auth"); return; }
       fetch("/api/me", { credentials: "include" })
-        .then((r) => r.ok ? r.json() : null)
-        .then((data) => {
-          if (data?.is_superadmin) setIsSuperadmin(true);
-        })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (data?.is_superadmin) setIsSuperadmin(true); })
         .catch(() => {});
     });
   }, [router]);
 
-  const handleBackendAccess = async () => {
-    if (!backendPassword.trim()) {
-      setPasswordError("Please enter a password");
-      return;
-    }
-
-    // Verify password via API
-    try {
-      const response = await fetch("/api/backend/verify-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: backendPassword }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.valid) {
-          // Store in sessionStorage so they don't have to enter it again this session
-          sessionStorage.setItem("backend_authenticated", "true");
-          router.push("/app");
-        } else {
-          setPasswordError("Incorrect password");
-        }
-      } else {
-        setPasswordError("Error verifying password. Please try again.");
-      }
-    } catch (error) {
-      console.error("Password verification error:", error);
-      setPasswordError("Error verifying password. Please try again.");
-    }
-  };
-
-  // Override global dark theme for select page
   useEffect(() => {
     const html = document.documentElement;
     const body = document.body;
-    const main = document.querySelector('main');
-    
-    // Apply light theme with !important via inline styles
-    html.style.setProperty('background', '#f5f5f7', 'important');
-    body.style.setProperty('background', '#f5f5f7', 'important');
-    body.style.setProperty('color', '#111827', 'important');
-    if (main) {
-      (main as HTMLElement).style.setProperty('background', '#f5f5f7', 'important');
-    }
-    
-    // Cleanup on unmount
+    const main = document.querySelector("main");
+    html.style.setProperty("background", "#f5f5f7", "important");
+    body.style.setProperty("background", "#f5f5f7", "important");
+    body.style.setProperty("color", "#111827", "important");
+    if (main) (main as HTMLElement).style.setProperty("background", "#f5f5f7", "important");
     return () => {
-      html.style.removeProperty('background');
-      body.style.removeProperty('background');
-      body.style.removeProperty('color');
-      if (main) {
-        (main as HTMLElement).style.removeProperty('background');
-      }
+      html.style.removeProperty("background");
+      body.style.removeProperty("background");
+      body.style.removeProperty("color");
+      if (main) (main as HTMLElement).style.removeProperty("background");
     };
   }, []);
 
+  useEffect(() => {
+    if (!showBackendPassword) return;
+    const h = (e: MouseEvent) => {
+      if (passwordRef.current && !passwordRef.current.contains(e.target as Node)) {
+        setShowBackendPassword(false);
+        setBackendPassword("");
+        setPasswordError("");
+      }
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [showBackendPassword]);
+
+  const handleBackendAccess = async () => {
+    if (!backendPassword.trim()) { setPasswordError("Please enter a password"); return; }
+    try {
+      const r = await fetch("/api/backend/verify-password", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: backendPassword }),
+      });
+      if (r.ok) {
+        const data = await r.json();
+        if (data.valid) { sessionStorage.setItem("backend_authenticated", "true"); router.push("/app"); }
+        else setPasswordError("Incorrect password");
+      } else setPasswordError("Error verifying password");
+    } catch { setPasswordError("Error verifying password"); }
+  };
+
+  const navItems: NavItem[] = [
+    { name: "Frontend", description: "Interact with agents", icon: Monitor, action: () => router.push("/frontend") },
+    { name: "Backend", description: "Configure agents", icon: Server, action: () => setShowBackendPassword(true) },
+    { name: "Admin", description: "Manage workspace", icon: Shield, action: () => router.push("/admin"), requiresSuperadmin: true },
+  ];
+
+  const visibleItems = navItems.filter(item => !item.requiresSuperadmin || isSuperadmin);
+  const count = visibleItems.length;
+  const orbSize = 140;
+  const orbitRadius = 130;
+  const startAngle = -Math.PI / 2;
+
   return (
-    <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center px-4 py-16" style={{ background: '#f5f5f7' }}>
-      {/* Top bar - Logo + Sign Out */}
-      <div className="absolute top-8 left-8 right-8 flex items-center justify-between">
-        <Link href="/" className="inline-flex items-center gap-2">
-          <img 
-            src="/brand/logo-circle.png" 
-            alt="Drift Logo"
-            className="w-6 h-6 rounded-full object-cover"
-          />
-          <span className="text-lg font-medium text-gray-900" style={{ color: '#111827' }}>Drift</span>
-        </Link>
+    <div className="min-h-screen bg-[#f5f5f7] flex flex-col" style={{ background: "#f5f5f7" }}>
+      {/* Top bar */}
+      <div className="flex items-center justify-between px-6 py-4">
+        <div className="flex items-center gap-2">
+          <img src="/brand/logo-circle.png" alt="Drift" className="w-6 h-6 rounded-full object-cover" />
+          <span className="text-sm font-semibold text-gray-900">Drift</span>
+        </div>
         <button
-          onClick={async () => {
-            await supabase.auth.signOut();
-            router.push("/auth");
-          }}
-          className="text-sm font-medium text-gray-500 hover:text-gray-800 transition-colors"
+          onClick={async () => { await supabase.auth.signOut(); router.push("/auth"); }}
+          className="flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-800 transition-colors"
         >
-          Sign out
+          <LogOut className="w-4 h-4" />
+          <span className="hidden sm:inline">Sign out</span>
         </button>
       </div>
 
-      <div className="w-full max-w-4xl">
-        {/* Title */}
-        <div className="text-center mb-12">
-          <h1 className="text-3xl font-semibold text-gray-900 mb-3" style={{ color: '#111827' }}>
-            Welcome to Drift
-          </h1>
-          <p className="text-gray-600 text-lg" style={{ color: '#4b5563' }}>
-            Choose your experience
-          </p>
-        </div>
+      {/* Main */}
+      <div className="flex-1 flex flex-col items-center justify-center px-4 pb-16">
+        {/* Radial container */}
+        <div
+          className="relative"
+          style={{ width: (orbitRadius + 56) * 2, height: (orbitRadius + 56) * 2 }}
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
+        >
+          {/* Orbit ring */}
+          <div
+            className="absolute inset-0 rounded-full border border-dashed transition-all duration-500"
+            style={{ borderColor: hovered ? "rgba(0,0,0,0.08)" : "transparent", margin: 56 }}
+          />
 
-        {/* Selection Cards - Apple style */}
-        <div className={`grid grid-cols-1 ${isSuperadmin ? "md:grid-cols-3" : "md:grid-cols-2"} gap-6`}>
-          {/* Frontend Card */}
-          <button
-            onClick={() => router.push("/frontend")}
-            className="group relative bg-white rounded-2xl shadow-lg p-10 hover:shadow-xl transition-all duration-300 border border-gray-100"
-            style={{ background: '#ffffff' }}
+          {/* Nav items */}
+          {visibleItems.map((item, i) => {
+            const angle = startAngle + (i / count) * Math.PI * 2;
+            const cx = orbitRadius + 56;
+            const cy = orbitRadius + 56;
+            const x = cx + Math.cos(angle) * orbitRadius - 28;
+            const y = cy + Math.sin(angle) * orbitRadius - 28;
+            const Icon = item.icon;
+
+            return (
+              <button
+                key={item.name}
+                onClick={item.action}
+                className="absolute flex flex-col items-center gap-1.5 transition-all duration-500 group/nav"
+                style={{
+                  left: x, top: y, width: 56,
+                  opacity: hovered ? 1 : 0,
+                  transform: hovered ? "scale(1)" : "scale(0.3)",
+                  pointerEvents: hovered ? "auto" : "none",
+                }}
+              >
+                <div className="w-12 h-12 rounded-2xl bg-white shadow-md border border-gray-200 flex items-center justify-center group-hover/nav:shadow-lg group-hover/nav:scale-110 group-hover/nav:border-gray-300 transition-all duration-200">
+                  <Icon className="w-5 h-5 text-gray-600 group-hover/nav:text-black transition-colors" />
+                </div>
+                <span className="text-[10px] font-medium text-gray-500 group-hover/nav:text-gray-900 transition-colors text-center leading-tight whitespace-nowrap">
+                  {item.name}
+                </span>
+              </button>
+            );
+          })}
+
+          {/* Center orb with Drift logo */}
+          <div
+            className="absolute"
+            style={{ left: orbitRadius + 56 - orbSize / 2, top: orbitRadius + 56 - orbSize / 2 }}
           >
-            <div className="flex flex-col items-center text-center">
-              {/* Icon with colorful gradient background - Apple style */}
-              <div className="relative mb-6">
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-400 via-purple-500 to-pink-500 rounded-full blur-xl opacity-40 group-hover:opacity-60 animate-pulse"></div>
-                <div className="relative bg-white rounded-full p-4 shadow-md overflow-hidden">
-                  <div className="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center" style={{ clipPath: 'inset(15% 15% 15% 15%)' }}>
-                    <img 
-                      src="/brand/frontend-icon.png?v=3" 
-                      alt="Frontend"
-                      className="w-full h-full object-contain scale-125"
-                    />
-                  </div>
-                </div>
-              </div>
-              
-              <h2 className="text-2xl font-semibold text-gray-900 mb-3" style={{ color: '#111827' }}>
-                Frontend
-              </h2>
-              <p className="text-gray-600 text-sm leading-relaxed" style={{ color: '#4b5563' }}>
-                Clean, minimal interface for interacting with agents
-              </p>
+            <div className="relative inline-flex items-center justify-center" style={{ width: orbSize, height: orbSize }}>
+              <AgentOrb
+                colors={DRIFT_COLORS}
+                size={orbSize}
+                className="rounded-full"
+                interactive
+                pulsing={hovered}
+              />
+              {/* Logo overlay */}
+              <img
+                src="/brand/logo-circle.png"
+                alt="Drift"
+                className="absolute z-10 rounded-full object-cover select-none pointer-events-none"
+                style={{
+                  width: orbSize * 0.45,
+                  height: orbSize * 0.45,
+                  filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.3))",
+                  transition: "transform 0.3s ease",
+                  transform: hovered ? "scale(1.05)" : "scale(1)",
+                }}
+              />
             </div>
-          </button>
-
-          {/* Backend Card */}
-          <div className="relative">
-            <button
-              onClick={() => setShowBackendPassword(!showBackendPassword)}
-              className="group relative bg-white rounded-2xl shadow-lg p-10 hover:shadow-xl transition-all duration-300 border border-gray-100 w-full"
-              style={{ background: '#ffffff' }}
-            >
-            <div className="flex flex-col items-center text-center">
-              {/* Icon with colorful gradient background - Apple style */}
-              <div className="relative mb-6">
-                <div className="absolute inset-0 bg-gradient-to-br from-purple-400 via-purple-500 to-purple-600 rounded-full blur-xl opacity-40 group-hover:opacity-60 animate-pulse"></div>
-                <div className="relative bg-gray-900 rounded-full p-4 shadow-md">
-                  <img 
-                    src="/brand/backend-icon.png?v=3" 
-                    alt="Backend"
-                    className="w-16 h-16 rounded-full object-contain"
-                  />
-                </div>
-              </div>
-              
-              <h2 className="text-2xl font-semibold text-gray-900 mb-3" style={{ color: '#111827' }}>
-                Backend
-              </h2>
-              <p className="text-gray-600 text-sm leading-relaxed" style={{ color: '#4b5563' }}>
-                Full control and configuration for managing agents
-              </p>
-            </div>
-          </button>
-
-          {/* Password Input - Slides down from button */}
-          {showBackendPassword && (
-            <div className="mt-4 bg-white rounded-2xl shadow-lg p-6 border border-gray-100 animate-in slide-in-from-top-2 duration-300">
-              <div className="space-y-4">
-                <label className="block text-sm font-medium text-gray-900" style={{ color: '#111827' }}>
-                  Enter Backend Password
-                </label>
-                <input
-                  type="password"
-                  value={backendPassword}
-                  onChange={(e) => {
-                    setBackendPassword(e.target.value);
-                    setPasswordError("");
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      handleBackendAccess();
-                    }
-                  }}
-                  placeholder="Password"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-gray-900"
-                  style={{ background: '#ffffff' }}
-                  autoFocus
-                />
-                {passwordError && (
-                  <p className="text-sm text-red-600">{passwordError}</p>
-                )}
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={handleBackendAccess}
-                    className="flex-1 px-4 py-3 rounded-xl bg-black text-white font-medium hover:bg-gray-800 transition"
-                  >
-                    Access Backend
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowBackendPassword(false);
-                      setBackendPassword("");
-                      setPasswordError("");
-                    }}
-                    className="px-4 py-3 rounded-xl border border-gray-300 text-gray-700 font-medium hover:bg-gray-50 transition"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
           </div>
-
-          {/* Admin Card - Only for superadmins */}
-          {isSuperadmin && (
-            <button
-              onClick={() => router.push("/admin")}
-              className="group relative bg-white rounded-2xl shadow-lg p-10 hover:shadow-xl transition-all duration-300 border border-gray-100"
-              style={{ background: '#ffffff' }}
-            >
-              <div className="flex flex-col items-center text-center">
-                <div className="relative mb-6">
-                  <div className="absolute inset-0 bg-gradient-to-br from-purple-400 via-purple-500 to-purple-600 rounded-full blur-xl opacity-40 group-hover:opacity-60 animate-pulse"></div>
-                  <div className="relative bg-gray-900 rounded-full p-4 shadow-md flex items-center justify-center">
-                    <svg className="w-16 h-16 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
-                    </svg>
-                  </div>
-                </div>
-                <h2 className="text-2xl font-semibold text-gray-900 mb-3" style={{ color: '#111827' }}>
-                  Admin
-                </h2>
-                <p className="text-gray-600 text-sm leading-relaxed" style={{ color: '#4b5563' }}>
-                  Manage workspaces, features, and billing
-                </p>
-              </div>
-            </button>
-          )}
         </div>
+
+        {/* Info below orb */}
+        <div className="text-center -mt-2">
+          <h2 className="text-xl font-bold text-gray-900 mb-1">Welcome to Drift</h2>
+          <p className="text-xs text-gray-400">Hover over the orb to get started</p>
+        </div>
+
+        {/* Backend password popover */}
+        {showBackendPassword && (
+          <div ref={passwordRef} className="mt-6 bg-white rounded-2xl shadow-2xl border border-gray-200 p-6 w-80" style={{ animation: "panelSlideUp 0.2s ease-out" }}>
+            <style>{`@keyframes panelSlideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+            <label className="block text-sm font-medium text-gray-900 mb-2">Backend Password</label>
+            <input
+              type="password"
+              value={backendPassword}
+              onChange={e => { setBackendPassword(e.target.value); setPasswordError(""); }}
+              onKeyDown={e => { if (e.key === "Enter") handleBackendAccess(); }}
+              placeholder="Enter password"
+              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300"
+              autoFocus
+            />
+            {passwordError && <p className="text-xs text-red-500 mt-2">{passwordError}</p>}
+            <button onClick={handleBackendAccess} className="w-full mt-3 px-4 py-2.5 rounded-xl bg-black text-white text-sm font-medium hover:bg-gray-800 transition">
+              Access Backend
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
 }
-
