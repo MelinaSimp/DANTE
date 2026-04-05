@@ -219,6 +219,7 @@ export default function FrontendPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [savingColor, setSavingColor] = useState(false);
   const [activePanel, setActivePanel] = useState<PanelId | null>(null);
+  const [isSuperadmin, setIsSuperadmin] = useState(false);
   const { features } = useFeatures();
 
   const selectedAgentId = agents.length > 0 ? agents[0].id : "";
@@ -262,7 +263,8 @@ export default function FrontendPage() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { router.push("/auth"); return; }
-        const { data: profile } = await supabase.from("profiles").select("workspace_id").eq("id", user.id).maybeSingle();
+        const { data: profile } = await supabase.from("profiles").select("workspace_id, is_superadmin").eq("id", user.id).maybeSingle();
+        setIsSuperadmin(!!profile?.is_superadmin);
         if (!profile?.workspace_id) { setLoading(false); return; }
         const response = await fetch("/api/agents");
         if (response.ok) {
@@ -353,10 +355,12 @@ export default function FrontendPage() {
             <Settings className="w-4 h-4" />
             <span className="hidden sm:inline">Backend</span>
           </Link>
-          <Link href="/admin" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-gray-500 hover:text-gray-800 hover:bg-gray-200/50 transition text-sm font-medium">
-            <Shield className="w-4 h-4" />
-            <span className="hidden sm:inline">Admin</span>
-          </Link>
+          {isSuperadmin && (
+            <Link href="/admin" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-gray-500 hover:text-gray-800 hover:bg-gray-200/50 transition text-sm font-medium">
+              <Shield className="w-4 h-4" />
+              <span className="hidden sm:inline">Admin</span>
+            </Link>
+          )}
         </div>
       </div>
 

@@ -17,7 +17,7 @@ export default async function FeaturesPage() {
     .eq("id", auth.user.id)
     .maybeSingle();
 
-  if (!hasSuperadminAccess(auth.user.email, me?.is_superadmin)) redirect("/home");
+  if (!hasSuperadminAccess(auth.user.email, me?.is_superadmin)) redirect("/select");
 
   return (
     <div className="px-8 py-8 max-w-5xl mx-auto">

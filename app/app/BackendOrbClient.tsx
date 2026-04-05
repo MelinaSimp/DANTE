@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase/client";
 import Link from "next/link";
 import {
   FileText, Shield, Database, User, Gauge, Code, Rocket,
-  Palette, ArrowLeft, Home, LogOut,
+  Palette, ArrowLeft, Home, Plus, X, MessageSquare, Phone, Layers,
 } from "lucide-react";
 import AgentOrb from "@/components/frontend/AgentOrb";
 import PanelShell from "@/components/panels/PanelShell";
@@ -212,8 +212,34 @@ export default function BackendOrbClient() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [savingColor, setSavingColor] = useState(false);
   const [activePanel, setActivePanel] = useState<PanelId | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createName, setCreateName] = useState("");
+  const [createModality, setCreateModality] = useState<"chat" | "voice" | "multi-modal">("voice");
+  const [creating, setCreating] = useState(false);
+  const [isSuperadmin, setIsSuperadmin] = useState(false);
 
   const selectedAgentId = agents.length > 0 ? agents[0].id : "";
+
+  const handleCreateAgent = async () => {
+    if (!createName.trim()) return;
+    setCreating(true);
+    try {
+      const r = await fetch("/api/agents", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: createName.trim(), modality: createModality }),
+      });
+      if (r.ok) {
+        const newAgent = await r.json();
+        setAgents(prev => [...prev, {
+          id: newAgent.id, name: newAgent.name, description: newAgent.description,
+          gradient_color: generateGradientColor(newAgent.id),
+          status: newAgent.status, modality: newAgent.modality,
+        }]);
+        setShowCreateModal(false);
+        setCreateName("");
+      }
+    } catch {} finally { setCreating(false); }
+  };
 
   const handleChangeGradient = async (agentId: string, gradient: string[]) => {
     setSavingColor(true);
@@ -229,6 +255,10 @@ export default function BackendOrbClient() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) { router.push("/auth"); return; }
+
+        const { data: profile } = await supabase.from("profiles").select("is_superadmin").eq("id", user.id).maybeSingle();
+        setIsSuperadmin(!!profile?.is_superadmin);
+
         const r = await fetch("/api/agents");
         if (r.ok) {
           const data = await r.json();
@@ -299,10 +329,12 @@ export default function BackendOrbClient() {
             <Home className="w-4 h-4" />
             <span className="hidden sm:inline">Frontend</span>
           </Link>
-          <Link href="/admin" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition text-sm font-medium">
-            <Shield className="w-4 h-4" />
-            <span className="hidden sm:inline">Admin</span>
-          </Link>
+          {isSuperadmin && (
+            <Link href="/admin" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition text-sm font-medium">
+              <Shield className="w-4 h-4" />
+              <span className="hidden sm:inline">Admin</span>
+            </Link>
+          )}
         </div>
       </div>
 
@@ -313,6 +345,9 @@ export default function BackendOrbClient() {
             <Rocket className="h-16 w-16 text-white/20 mx-auto mb-4" />
             <h2 className="text-xl font-semibold text-white mb-2">No agents found</h2>
             <p className="text-white/50 text-sm mb-6">Create an agent to get started.</p>
+            <button onClick={() => setShowCreateModal(true)} className="px-5 py-2.5 rounded-xl bg-white text-black text-sm font-medium hover:bg-white/90 transition inline-flex items-center gap-2">
+              <Plus className="w-4 h-4" />Create Agent
+            </button>
           </div>
         ) : agents.length === 1 ? (
           <RadialAgentCard agent={agents[0]} navItems={navItems} onChangeColor={handleChangeGradient} onOpenPanel={openPanel} savingColor={savingColor} />
@@ -338,6 +373,35 @@ export default function BackendOrbClient() {
           </PanelShell>
         );
       })()}
+
+      {/* Create Agent Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="relative w-full max-w-md rounded-2xl border border-white/10 bg-[#1a1a1a] p-6 shadow-2xl">
+            <button onClick={() => setShowCreateModal(false)} className="absolute right-4 top-4 p-2 rounded-full hover:bg-white/10 transition">
+              <X className="h-4 w-4 text-white/50" />
+            </button>
+            <h2 className="text-lg font-semibold text-white mb-5">Create New Agent</h2>
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                {([["chat", MessageSquare], ["voice", Phone], ["multi-modal", Layers]] as const).map(([m, Icon]) => (
+                  <button key={m} type="button" onClick={() => setCreateModality(m)}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition ${createModality === m ? "bg-white/15 border border-white/20 text-white" : "bg-white/5 border border-white/10 text-white/50 hover:bg-white/10"}`}>
+                    <Icon className="h-4 w-4" />{m === "multi-modal" ? "Multi" : m.charAt(0).toUpperCase() + m.slice(1)}
+                  </button>
+                ))}
+              </div>
+              <input type="text" value={createName} onChange={e => setCreateName(e.target.value)} onKeyDown={e => e.key === "Enter" && handleCreateAgent()}
+                placeholder="Agent name" autoFocus
+                className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-white/30" />
+              <button onClick={handleCreateAgent} disabled={creating || !createName.trim()}
+                className="w-full px-4 py-2.5 rounded-xl bg-white text-black text-sm font-medium hover:bg-white/90 disabled:opacity-40 transition">
+                {creating ? "Creating..." : "Create Agent"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

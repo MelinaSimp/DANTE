@@ -17,7 +17,7 @@ export default async function AdminPage() {
     .maybeSingle();
 
   const isAdmin = hasSuperadminAccess(auth.user.email, me?.is_superadmin);
-  if (!isAdmin) redirect("/home");
+  if (!isAdmin) redirect("/select");
 
   return <AdminOrbClient userName={me?.full_name || auth.user.email || undefined} />;
 }
