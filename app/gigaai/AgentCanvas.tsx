@@ -1352,7 +1352,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
         </div>
 
         {/* Fullscreen Content */}
-        <div className={`flex-1 overflow-y-auto ${colors.bg}`} style={{ backgroundImage: 'url(/backgrounds/dunes.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}>
+        <div className={`flex-1 overflow-y-auto ${colors.bg}`} style={{ background: '#000000' }}>
           <div className="max-w-6xl mx-auto px-8 py-8">
             <div className="mb-12">
               {/* Scenario Title */}

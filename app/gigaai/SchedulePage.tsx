@@ -83,7 +83,7 @@ export default function SchedulePage() {
   }
 
   return (
-    <div className="h-full flex flex-col overflow-hidden" style={{ backgroundImage: 'url(/backgrounds/mountain.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}>
+    <div className="h-full flex flex-col overflow-hidden" style={{ background: '#000000' }}>
       <ScheduleClient 
         initialAppointments={appointments} 
         workspaceId={workspaceId}

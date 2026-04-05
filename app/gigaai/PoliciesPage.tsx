@@ -387,7 +387,7 @@ export default function PoliciesPage({ agentId }: PoliciesPageProps) {
   };
 
   return (
-    <div className={`h-full flex flex-col overflow-y-auto ${colors.text}`} style={{ backgroundImage: 'url(/backgrounds/tundra.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}>
+    <div className={`h-full flex flex-col overflow-y-auto ${colors.text}`} style={{ background: '#000000' }}>
       <div className="max-w-4xl mx-auto w-full p-6">
         <div className="mb-6">
           <h2 className={`text-base font-semibold ${colors.text} mb-2`}>Policies</h2>

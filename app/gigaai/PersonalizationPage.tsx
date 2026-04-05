@@ -44,7 +44,7 @@ export default function PersonalizationPage({ agentId }: PersonalizationPageProp
   };
 
   return (
-    <div className={`h-full flex flex-col overflow-y-auto ${colors.text}`} style={{ backgroundImage: 'url(/backgrounds/canyon.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}>
+    <div className={`h-full flex flex-col overflow-y-auto ${colors.text}`} style={{ background: '#000000' }}>
       <div className="max-w-4xl mx-auto w-full p-6">
         <div className="mb-6">
           <h2 className={`text-base font-semibold ${colors.text} mb-2`}>Personalization</h2>

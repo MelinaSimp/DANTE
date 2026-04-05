@@ -141,7 +141,7 @@ export default function AdvancedPage({ agentId, phoneNumber = "", onPhoneNumberC
   };
 
   return (
-    <div className={`h-full flex flex-col ${colors.bg} overflow-y-auto`} style={{ backgroundImage: 'url(/backgrounds/strait.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}>
+    <div className={`h-full flex flex-col ${colors.bg} overflow-y-auto`} style={{ background: '#000000' }}>
       <div className="max-w-4xl mx-auto w-full p-6">
         <div className="mb-6">
           <h2 className={`text-base font-semibold ${colors.text} mb-2`}>Advanced Settings</h2>

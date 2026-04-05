@@ -1180,7 +1180,7 @@ function GigaAIClient({ initialError, initialSuccess, initialMessage }: GigaAICl
       </div>
 
       {/* Main Content */}
-      <div className={`flex-1 flex flex-col overflow-hidden bg-black`} style={{ background: '#000000', backgroundImage: 'url(/backgrounds/dunes.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}>
+      <div className={`flex-1 flex flex-col overflow-hidden bg-black`} style={{ background: '#000000' }}>
         {/* Top Header */}
         {selectedAgent && (
           <div className={`border-b ${themeClasses.border} ${themeClasses.bgSidebar} px-6 py-3`}>
@@ -1302,7 +1302,7 @@ function GigaAIClient({ initialError, initialSuccess, initialMessage }: GigaAICl
         )}
 
         {/* Content Area */}
-        <div className={`flex-1 overflow-y-auto relative ${colors.text}`} style={{ background: '#000000', backgroundImage: 'url(/backgrounds/dunes.jpg)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}>
+        <div className={`flex-1 overflow-y-auto relative ${colors.text}`} style={{ background: '#000000' }}>
             {activePage === "instructions" ? (
                 // Instructions page - rules and instructions for the LLM
                 selectedAgent ? (
