@@ -5,14 +5,13 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import Link from "next/link";
 import {
-  FileText, Calendar, Shield, Database, User, Gauge, Code, Rocket,
+  FileText, Shield, Database, User, Gauge, Code, Rocket,
   Palette, ArrowLeft, Home,
 } from "lucide-react";
 import AgentOrb from "@/components/frontend/AgentOrb";
 import PanelShell from "@/components/panels/PanelShell";
 
 const InstructionsPanel = lazy(() => import("@/components/panels/backend/InstructionsPanel"));
-const ScheduleBPanel = lazy(() => import("@/components/panels/backend/ScheduleBPanel"));
 const PoliciesBPanel = lazy(() => import("@/components/panels/backend/PoliciesBPanel"));
 const DataSourcesBPanel = lazy(() => import("@/components/panels/backend/DataSourcesBPanel"));
 const PersonalizationBPanel = lazy(() => import("@/components/panels/backend/PersonalizationBPanel"));
@@ -28,11 +27,10 @@ interface Agent {
   modality?: string;
 }
 
-type PanelId = "instructions" | "schedule" | "policies" | "data-sources" | "personalization" | "evaluation" | "advanced";
+type PanelId = "instructions" | "policies" | "data-sources" | "personalization" | "evaluation" | "advanced";
 
 const PANEL_TITLES: Record<PanelId, string> = {
   instructions: "Rules & Instructions",
-  schedule: "Schedule",
   policies: "Policies",
   "data-sources": "Data Sources",
   personalization: "Personalization",
@@ -263,7 +261,6 @@ export default function BackendOrbClient() {
 
   const navItems: RadialNavItem[] = [
     { name: "Instructions", icon: FileText, panelId: "instructions" },
-    { name: "Schedule", icon: Calendar, panelId: "schedule" },
     { name: "Policies", icon: Shield, panelId: "policies" },
     { name: "Data Sources", icon: Database, panelId: "data-sources" },
     { name: "Personalize", icon: User, panelId: "personalization" },
@@ -275,7 +272,6 @@ export default function BackendOrbClient() {
     if (!activePanel || !selectedAgentId) return null;
     switch (activePanel) {
       case "instructions": return <InstructionsPanel agentId={selectedAgentId} />;
-      case "schedule": return <ScheduleBPanel />;
       case "policies": return <PoliciesBPanel agentId={selectedAgentId} />;
       case "data-sources": return <DataSourcesBPanel agentId={selectedAgentId} />;
       case "personalization": return <PersonalizationBPanel agentId={selectedAgentId} />;
