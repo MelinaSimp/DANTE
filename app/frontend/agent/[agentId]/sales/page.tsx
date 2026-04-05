@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { useParams, usePathname } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Bot,
@@ -56,6 +56,7 @@ function storageKey(agentId: string, key: string) {
 }
 
 export default function SalesPage() {
+  const router = useRouter();
   const params = useParams();
   const pathname = usePathname();
   const agentId = (params?.agentId as string) || "";
@@ -71,7 +72,13 @@ export default function SalesPage() {
   const [callError, setCallError] = useState<string | null>(null);
   const [expandedCallId, setExpandedCallId] = useState<string | null>(null);
   const stopRef = useRef(false);
-  const { features } = useFeatures();
+  const { features, loading: featuresLoading } = useFeatures();
+
+  useEffect(() => {
+    if (!featuresLoading && features.length > 0 && !features.includes("sales")) {
+      router.replace("/frontend");
+    }
+  }, [features, featuresLoading, router]);
 
   const sidebarItems = [
     {

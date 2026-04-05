@@ -108,7 +108,7 @@ export default function AgentSelectionPage() {
 
   return (
     <div className="min-h-screen bg-[#f5f5f7] flex flex-col md:flex-row" style={{ background: '#f5f5f7' }}>
-      <MobileNav items={mobileNavItems} backHref="/select" backLabel="Back" />
+      <MobileNav items={mobileNavItems} backHref="/frontend" backLabel="Back" />
       {/* Left Sidebar */}
       <div className="hidden md:flex flex-col w-48 border-r border-gray-200 bg-white shrink-0">
         <div className="p-4 border-b border-gray-200 flex items-center gap-2">

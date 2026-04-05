@@ -345,6 +345,10 @@ export default function FrontendPage() {
           <span className="text-sm font-semibold text-gray-900">Drift</span>
         </Link>
         <div className="flex items-center gap-1">
+          <Link href="/select" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-gray-500 hover:text-gray-800 hover:bg-gray-200/50 transition text-sm font-medium">
+            <ArrowLeft className="w-4 h-4" />
+            <span className="hidden sm:inline">Hub</span>
+          </Link>
           <Link href="/app" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-gray-500 hover:text-gray-800 hover:bg-gray-200/50 transition text-sm font-medium">
             <Settings className="w-4 h-4" />
             <span className="hidden sm:inline">Backend</span>

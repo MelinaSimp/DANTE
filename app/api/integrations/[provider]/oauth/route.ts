@@ -247,65 +247,6 @@ async function handleOAuthCallback(
       onConflict: "workspace_id,integration_type,provider"
     });
   
-  // For Google Calendar, automatically set up webhook subscription
-  if (provider === "google") {
-    try {
-      // Set up webhook subscription directly (we have the token)
-      const baseUrl = process.env.PUBLIC_BASE_URL || process.env.VERCEL_URL 
-        ? `https://${process.env.VERCEL_URL}` 
-        : req.nextUrl.origin;
-      
-      const webhookUrl = `${baseUrl}/api/integrations/google-calendar/webhook`;
-      const channelId = `calendar-${workspaceId}-${Date.now()}`;
-      const channelToken = `token-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-
-      const watchResponse = await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/primary/events/watch`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${tokenData.access_token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            id: channelId,
-            type: "web_hook",
-            address: webhookUrl,
-            token: channelToken,
-          }),
-        }
-      );
-
-      if (watchResponse.ok) {
-        const watchData = await watchResponse.json();
-        
-        // Update config with webhook info
-        await supabaseAdmin
-          .from("integration_credentials")
-          .update({
-            config: {
-              calendar_id: "primary",
-              webhook_channel_id: channelId,
-              webhook_resource_id: watchData.resourceId,
-              webhook_expiration: watchData.expiration,
-            },
-          })
-          .eq("workspace_id", workspaceId)
-          .eq("provider", "google")
-          .eq("integration_type", "google");
-        
-        console.log("[OAuth] Google Calendar webhook subscription set up successfully");
-      } else {
-        const errorText = await watchResponse.text();
-        console.error("[OAuth] Failed to set up webhook subscription:", errorText);
-        // Don't fail OAuth if webhook setup fails - user can set it up manually later
-      }
-    } catch (error) {
-      console.error("[OAuth] Error setting up webhook:", error);
-      // Continue with OAuth success even if webhook setup fails
-    }
-  }
-  
   // Redirect to appropriate page based on user role
   const supabase = await createServerSupabase();
   const { data: profile } = await supabase

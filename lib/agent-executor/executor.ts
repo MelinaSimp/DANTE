@@ -2943,10 +2943,6 @@ Answer:`;
    */
   private getIntegrationAdapter(integrationType: string): any {
     switch (integrationType) {
-      case 'google_calendar': {
-        const { GoogleCalendarAdapter } = require("@/lib/integrations/adapters/google-calendar");
-        return new GoogleCalendarAdapter();
-      }
       case 'google_sheet': {
         const { GoogleSheetAdapter } = require("@/lib/integrations/adapters/google-sheet");
         return new GoogleSheetAdapter();

@@ -108,7 +108,13 @@ export default function FrontendLLMPage() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const meetingPdfInputRef = useRef<HTMLInputElement>(null);
-  const { features } = useFeatures();
+  const { features, loading: featuresLoading } = useFeatures();
+
+  useEffect(() => {
+    if (!featuresLoading && features.length > 0 && !features.includes("meeting_planner")) {
+      router.replace("/frontend");
+    }
+  }, [features, featuresLoading, router]);
 
   const showToast = (type: "success" | "error", message: string) => {
     setToast({ type, message });

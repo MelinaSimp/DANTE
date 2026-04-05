@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase/client";
 import Link from "next/link";
 import {
   FileText, Shield, Database, User, Gauge, Code, Rocket,
-  Palette, ArrowLeft, Home,
+  Palette, ArrowLeft, Home, LogOut,
 } from "lucide-react";
 import AgentOrb from "@/components/frontend/AgentOrb";
 import PanelShell from "@/components/panels/PanelShell";
@@ -291,6 +291,10 @@ export default function BackendOrbClient() {
           <span className="text-xs text-white/30 ml-1">Backend</span>
         </Link>
         <div className="flex items-center gap-1">
+          <Link href="/select" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition text-sm font-medium">
+            <ArrowLeft className="w-4 h-4" />
+            <span className="hidden sm:inline">Hub</span>
+          </Link>
           <Link href="/frontend" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition text-sm font-medium">
             <Home className="w-4 h-4" />
             <span className="hidden sm:inline">Frontend</span>

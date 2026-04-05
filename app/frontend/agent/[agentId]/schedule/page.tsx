@@ -17,7 +17,13 @@ export default function SchedulePage() {
   const pathname = usePathname();
   const agentId = (params?.agentId as string) || "";
 
-  const { features } = useFeatures();
+  const { features, loading: featuresLoading } = useFeatures();
+
+  useEffect(() => {
+    if (!featuresLoading && features.length > 0 && !features.includes("calendar")) {
+      router.replace("/frontend");
+    }
+  }, [features, featuresLoading, router]);
 
   const sidebarItems = [
     { name: "Agents", icon: Bot, href: "/frontend", active: pathname === "/frontend" || (pathname?.startsWith("/frontend/agent") && !pathname.includes("/schedule") && !pathname.includes("/llm") && !pathname.includes("/inbox") && !pathname.includes("/sales") && !pathname.includes("/emailing")) },

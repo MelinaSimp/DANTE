@@ -225,12 +225,7 @@ export default function AgentCanvas({ agentId, workspaceId }: AgentCanvasProps) 
       {/* Fullscreen Content - Consolidated in one box with desert background */}
       <div 
         className="flex-1 overflow-y-auto p-6 relative"
-        style={{
-          backgroundImage: 'url(/backgrounds/dunes.jpg)',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundAttachment: 'fixed'
-        }}
+        style={{ background: '#000000' }}
       >
         {scenarios.length === 0 ? (
           <div className="flex items-center justify-center h-full">

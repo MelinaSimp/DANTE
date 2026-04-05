@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Upload, Database, X, GripVertical, Eye, Download, CheckCircle, Calendar } from "lucide-react";
+import { Upload, Database, X, GripVertical, Eye, Download, CheckCircle } from "lucide-react";
 import ConfirmationModal from "./ConfirmationModal";
 import { useTheme } from "./ThemeProvider";
 
@@ -30,7 +30,7 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
   const [apiKeyName, setApiKeyName] = useState("");
   const [apiKeyValue, setApiKeyValue] = useState("");
-  const [apiKeyType, setApiKeyType] = useState<"google_calendar" | "custom">("google_calendar");
+  const [apiKeyType, setApiKeyType] = useState<"custom">("custom");
   const [loading, setLoading] = useState(true);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [confirmationModal, setConfirmationModal] = useState<{
@@ -433,17 +433,6 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
         >
           + Add API Key
         </button>
-        <button
-          onClick={async () => {
-            // Redirect to OAuth flow for Google Calendar
-            // After OAuth, webhook will be automatically set up
-            window.location.href = `/api/integrations/google/oauth`;
-          }}
-          className={`px-4 py-2 rounded-2xl border ${colors.border} ${colors.cardBg} ${colors.text} text-sm font-medium transition flex items-center gap-2`}
-        >
-          <Calendar className="h-4 w-4" />
-          Connect Google Calendar
-        </button>
       </div>
 
       {/* Text Input */}
@@ -484,10 +473,9 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
               <label className={`block text-xs font-medium ${colors.textSecondary} mb-1`}>API Key Type</label>
               <select
                 value={apiKeyType}
-                onChange={(e) => setApiKeyType(e.target.value as "google_calendar" | "custom")}
+                onChange={(e) => setApiKeyType(e.target.value as "custom")}
                 className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-sm ${colors.text} focus:border-[#3351ff] focus:outline-none`}
               >
-                <option value="google_calendar">Google Calendar</option>
                 <option value="custom">Custom API Key</option>
               </select>
             </div>
@@ -497,7 +485,7 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
                 type="text"
                 value={apiKeyName}
                 onChange={(e) => setApiKeyName(e.target.value)}
-                placeholder={apiKeyType === "google_calendar" ? "Google Calendar API Key" : "API Key Name"}
+                placeholder="API Key Name"
                 className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-sm ${colors.text} placeholder:${colors.textTertiary} focus:border-[#3351ff] focus:outline-none`}
               />
             </div>
@@ -524,8 +512,8 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
                         name: apiKeyName.trim(),
                         type: "api_key",
                         content: apiKeyValue.trim(), // Store API key in content field
-                        integration_type: apiKeyType === "google_calendar" ? "google_calendar" : null,
-                        integration_config: apiKeyType === "google_calendar" ? { provider: "google", type: "calendar" } : {},
+                        integration_type: null,
+                        integration_config: {},
                       }),
                     });
 

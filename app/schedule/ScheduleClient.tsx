@@ -1,4 +1,4 @@
-// app/schedule/ScheduleClient.tsx — Google Calendar–inspired schedule
+// app/schedule/ScheduleClient.tsx
 "use client";
 
 import { useState, useEffect, useRef } from "react";
@@ -493,7 +493,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
               })}
             </div>
 
-            {/* My Clients — filter like Google Calendar */}
+            {/* My Clients — filter */}
             <div className="mt-5 pt-4 border-t border-gray-200">
               <div className="flex items-center justify-between mb-2">
                 <button

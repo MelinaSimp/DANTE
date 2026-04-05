@@ -4,7 +4,7 @@ import { useState, useCallback, lazy, Suspense } from "react";
 import Link from "next/link";
 import {
   LayoutDashboard, Shield, Building2, CreditCard, UserPlus, BarChart3,
-  Home, Code,
+  Home, Code, ArrowLeft,
 } from "lucide-react";
 import AgentOrb from "@/components/frontend/AgentOrb";
 import PanelShell from "@/components/panels/PanelShell";
@@ -88,6 +88,10 @@ export default function AdminOrbClient({ userName }: { userName?: string }) {
           <span className="text-[10px] text-purple-400 font-semibold uppercase tracking-wider ml-0.5">Admin</span>
         </div>
         <div className="flex items-center gap-1">
+          <Link href="/select" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition text-sm font-medium">
+            <ArrowLeft className="w-4 h-4" />
+            <span className="hidden sm:inline">Hub</span>
+          </Link>
           <Link href="/frontend" className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition text-sm font-medium">
             <Home className="w-4 h-4" />
             <span className="hidden sm:inline">Frontend</span>

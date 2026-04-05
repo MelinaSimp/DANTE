@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams, usePathname } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import Link from "next/link";
 import {
@@ -33,10 +33,18 @@ interface Conversation {
 }
 
 export default function InboxPage() {
+  const router = useRouter();
   const params = useParams();
   const pathname = usePathname();
   const agentId = params.agentId as string;
-  const { features } = useFeatures();
+  const { features, loading: featuresLoading } = useFeatures();
+
+  useEffect(() => {
+    if (!featuresLoading && features.length > 0 && !features.includes("inbox")) {
+      router.replace("/frontend");
+    }
+  }, [features, featuresLoading, router]);
+
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useParams, usePathname } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Bot,
@@ -139,6 +139,7 @@ Best regards`,
 ];
 
 export default function EmailingPage() {
+  const router = useRouter();
   const params = useParams();
   const pathname = usePathname();
   const agentId = params.agentId as string;
@@ -157,7 +158,13 @@ export default function EmailingPage() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showAiHelper, setShowAiHelper] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
-  const { features } = useFeatures();
+  const { features, loading: featuresLoading } = useFeatures();
+
+  useEffect(() => {
+    if (!featuresLoading && features.length > 0 && !features.includes("emailing")) {
+      router.replace("/frontend");
+    }
+  }, [features, featuresLoading, router]);
 
   const toInputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
