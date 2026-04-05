@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase/client";
 import { Monitor, Server, Shield, LogOut } from "lucide-react";
 import AgentOrb from "@/components/frontend/AgentOrb";
 
-const DRIFT_COLORS = ["#667EEA", "#764BA2", "#F093FB"];
+const DRIFT_COLORS = ["#B4A0D6", "#9B8EC4", "#C7B8E0"];
 
 interface NavItem {
   name: string;
