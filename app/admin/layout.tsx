@@ -28,11 +28,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  const isRoot = pathname === "/admin";
+
+  if (isRoot) {
+    return <div className="min-h-screen bg-black">{children}</div>;
+  }
+
   return (
     <div className="min-h-screen bg-black flex flex-col md:flex-row">
       {/* Mobile header */}
       <div className="md:hidden flex items-center justify-between px-4 py-3 border-b border-purple-500/20 bg-black">
-        <Link href="/select" className="flex items-center gap-2 text-white/60 hover:text-white transition">
+        <Link href="/admin" className="flex items-center gap-2 text-white/60 hover:text-white transition">
           <ArrowLeft className="w-4 h-4" />
           <span className="text-sm">Back</span>
         </Link>
@@ -74,11 +80,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="hidden md:flex flex-col w-56 border-r border-purple-500/20 bg-black shrink-0">
         <div className="p-5 border-b border-purple-500/20">
           <Link
-            href="/select"
+            href="/admin"
             className="flex items-center gap-2 text-white/40 hover:text-white/70 transition-colors mb-3 text-xs font-medium"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Back to App</span>
+            <span>Back to Admin</span>
           </Link>
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-purple-500 flex items-center justify-center">
