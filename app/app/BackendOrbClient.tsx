@@ -326,13 +326,18 @@ export default function BackendOrbClient() {
       </div>
 
       {/* Panel overlay */}
-      {activePanel && (
-        <PanelShell title={PANEL_TITLES[activePanel]} onClose={closePanel} wide={WIDE_PANELS.includes(activePanel)} dark>
-          <Suspense fallback={<PanelLoader />}>
-            {renderPanel()}
-          </Suspense>
-        </PanelShell>
-      )}
+      {activePanel && (() => {
+        const agent = agents.find(a => a.id === selectedAgentId);
+        const gradient = agent ? JSON.parse(agent.gradient_color || generateGradientColor(agent.id)) as string[] : [];
+        const accent = gradient[0] || "#f97316";
+        return (
+          <PanelShell title={PANEL_TITLES[activePanel]} onClose={closePanel} wide={WIDE_PANELS.includes(activePanel)} dark accentColor={accent}>
+            <Suspense fallback={<PanelLoader />}>
+              {renderPanel()}
+            </Suspense>
+          </PanelShell>
+        );
+      })()}
     </div>
   );
 }

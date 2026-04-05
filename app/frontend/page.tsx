@@ -392,17 +392,23 @@ export default function FrontendPage() {
       </div>
 
       {/* Panel overlay */}
-      {activePanel && (
-        <PanelShell
-          title={PANEL_TITLES[activePanel]}
-          onClose={closePanel}
-          wide={WIDE_PANELS.includes(activePanel)}
-        >
-          <Suspense fallback={<PanelLoader />}>
-            {renderPanelContent()}
-          </Suspense>
-        </PanelShell>
-      )}
+      {activePanel && (() => {
+        const agent = agents.find(a => a.id === selectedAgentId);
+        const gradient = agent ? JSON.parse(agent.gradient_color || generateGradientColor(agent.id)) as string[] : [];
+        const accent = gradient[0] || undefined;
+        return (
+          <PanelShell
+            title={PANEL_TITLES[activePanel]}
+            onClose={closePanel}
+            wide={WIDE_PANELS.includes(activePanel)}
+            accentColor={accent}
+          >
+            <Suspense fallback={<PanelLoader />}>
+              {renderPanelContent()}
+            </Suspense>
+          </PanelShell>
+        );
+      })()}
     </div>
   );
 }
