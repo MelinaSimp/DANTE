@@ -94,10 +94,10 @@ export default function SelectPage() {
 
   return (
     <div className="relative min-h-screen bg-[#f5f5f7] flex flex-col overflow-hidden" style={{ background: "#f5f5f7" }}>
-      <div className="absolute inset-0 z-0 opacity-50">
+      <div className="absolute inset-0 z-0 opacity-80">
         <GLSLWaves mode="hills" speed={0.3} />
       </div>
-      <div className="absolute inset-0 z-0 bg-gradient-to-t from-[#f5f5f7]/90 via-transparent to-[#f5f5f7]/60 pointer-events-none" />
+      <div className="absolute inset-0 z-0 bg-gradient-to-t from-[#f5f5f7]/70 via-transparent to-[#f5f5f7]/40 pointer-events-none" />
 
       {/* Top bar */}
       <div className="relative z-10 flex items-center justify-between px-6 py-4">
