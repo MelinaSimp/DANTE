@@ -192,8 +192,8 @@ function getFragmentShader(mode: WaveMode): string {
       void main(void) {
         float d = (96.0 - length(vPosition)) / 256.0;
         float grid = 0.5 + 0.5 * sin(vPosition.x * 3.0) * sin(vPosition.z * 3.0);
-        float opacity = d * 0.5 * (0.4 + grid * 0.6);
-        vec3 color = vec3(0.4, 0.8, 0.6);
+        float opacity = d * 1.2 * (0.5 + grid * 0.5);
+        vec3 color = vec3(0.45, 0.9, 0.65);
         gl_FragColor = vec4(color, opacity);
       }
     `,
@@ -204,8 +204,8 @@ function getFragmentShader(mode: WaveMode): string {
       void main(void) {
         float d = (96.0 - length(vPosition)) / 256.0;
         float shimmer = 0.7 + 0.3 * sin(vPosition.x * 0.5 + vPosition.z * 0.3);
-        float opacity = d * 0.5 * shimmer;
-        vec3 color = vec3(0.6, 0.4, 0.85);
+        float opacity = d * 1.2 * shimmer;
+        vec3 color = vec3(0.65, 0.45, 0.95);
         gl_FragColor = vec4(color, opacity);
       }
     `,

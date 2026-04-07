@@ -79,10 +79,10 @@ export default function AdminOrbClient({ userName }: { userName?: string }) {
 
   return (
     <div className="relative min-h-screen bg-black flex flex-col overflow-hidden">
-      <div className="absolute inset-0 z-0 opacity-40">
+      <div className="absolute inset-0 z-0 opacity-80">
         <GLSLWaves mode="nebula" speed={0.25} />
       </div>
-      <div className="absolute inset-0 z-0 bg-gradient-to-t from-black/80 via-transparent to-black/60 pointer-events-none" />
+      <div className="absolute inset-0 z-0 bg-gradient-to-t from-black/50 via-transparent to-black/40 pointer-events-none" />
 
       {/* Top bar */}
       <div className="relative z-10 flex items-center justify-between px-6 py-4">
