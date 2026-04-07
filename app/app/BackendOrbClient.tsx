@@ -82,11 +82,18 @@ function RadialAgentCard({
 }) {
   const [hovered, setHovered] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [clickedNav, setClickedNav] = useState<PanelId | null>(null);
   const colorPickerRef = useRef<HTMLDivElement>(null);
   const agentGradient = JSON.parse(agent.gradient_color || generateGradientColor(agent.id)) as string[];
 
   const orbSize = 160;
   const orbitRadius = 140;
+
+  const handleNavClick = (panelId: PanelId) => {
+    if (clickedNav) return;
+    setClickedNav(panelId);
+    setTimeout(() => { setClickedNav(null); onOpenPanel(panelId); }, 450);
+  };
 
   useEffect(() => {
     if (!showColorPicker) return;
@@ -123,22 +130,38 @@ function RadialAgentCard({
           const y = cy + Math.sin(angle) * orbitRadius - 28;
           const Icon = item.icon;
 
+          const isClicked = clickedNav === item.panelId;
           return (
             <button
               key={item.name}
-              onClick={() => onOpenPanel(item.panelId)}
+              onClick={() => handleNavClick(item.panelId)}
               className="absolute flex flex-col items-center gap-1 transition-all duration-500 group/nav"
               style={{
                 left: x, top: y, width: 56,
                 opacity: hovered ? 1 : 0,
-                transform: hovered ? "scale(1)" : "scale(0.3)",
+                transform: hovered ? (isClicked ? "scale(1.35)" : "scale(1)") : "scale(0.3)",
                 pointerEvents: hovered ? "auto" : "none",
+                zIndex: isClicked ? 50 : undefined,
               }}
             >
-              <div className="w-11 h-11 rounded-2xl bg-white/10 border border-white/20 backdrop-blur-sm flex items-center justify-center group-hover/nav:bg-white/20 group-hover/nav:scale-110 group-hover/nav:border-white/30 transition-all duration-200">
-                <Icon className="w-5 h-5 text-white/70 group-hover/nav:text-white transition-colors" />
+              <div className="relative">
+                {isClicked && (
+                  <>
+                    <div className="absolute inset-0 rounded-2xl bg-white/20 animate-ping" />
+                    <div className="absolute -inset-3 rounded-full border-2 border-white/40 animate-ping" style={{ animationDuration: "0.6s" }} />
+                  </>
+                )}
+                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all duration-300 ${
+                  isClicked
+                    ? "bg-white text-black shadow-xl shadow-white/20 scale-110 border-2 border-white"
+                    : "bg-white/10 border border-white/20 backdrop-blur-sm group-hover/nav:bg-white/20 group-hover/nav:scale-110 group-hover/nav:border-white/30"
+                }`}>
+                  <Icon className={`w-5 h-5 transition-colors ${isClicked ? "text-black" : "text-white/70 group-hover/nav:text-white"}`} />
+                </div>
               </div>
-              <span className="text-[10px] font-medium text-white/50 group-hover/nav:text-white/90 transition-colors text-center leading-tight whitespace-nowrap">
+              <span className={`text-[10px] font-medium transition-all text-center leading-tight whitespace-nowrap ${
+                isClicked ? "text-white font-bold scale-110" : "text-white/50 group-hover/nav:text-white/90"
+              }`}>
                 {item.name}
               </span>
             </button>

@@ -24,6 +24,7 @@ export default function SelectPage() {
   const [passwordError, setPasswordError] = useState("");
   const [isSuperadmin, setIsSuperadmin] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const [clickedNav, setClickedNav] = useState<string | null>(null);
   const passwordRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -137,23 +138,50 @@ export default function SelectPage() {
             const x = cx + Math.cos(angle) * orbitRadius - 28;
             const y = cy + Math.sin(angle) * orbitRadius - 28;
             const Icon = item.icon;
+            const isClicked = clickedNav === item.name;
+
+            const handleClick = () => {
+              if (clickedNav) return;
+              if (item.name === "Backend") {
+                setClickedNav(item.name);
+                setTimeout(() => { setClickedNav(null); item.action(); }, 450);
+              } else {
+                setClickedNav(item.name);
+                setTimeout(() => { setClickedNav(null); item.action(); }, 450);
+              }
+            };
 
             return (
               <button
                 key={item.name}
-                onClick={item.action}
+                onClick={handleClick}
                 className="absolute flex flex-col items-center gap-1.5 transition-all duration-500 group/nav"
                 style={{
                   left: x, top: y, width: 56,
                   opacity: hovered ? 1 : 0,
-                  transform: hovered ? "scale(1)" : "scale(0.3)",
+                  transform: hovered ? (isClicked ? "scale(1.35)" : "scale(1)") : "scale(0.3)",
                   pointerEvents: hovered ? "auto" : "none",
+                  zIndex: isClicked ? 50 : undefined,
                 }}
               >
-                <div className="w-12 h-12 rounded-2xl bg-white shadow-md border border-gray-200 flex items-center justify-center group-hover/nav:shadow-lg group-hover/nav:scale-110 group-hover/nav:border-gray-300 transition-all duration-200">
-                  <Icon className="w-5 h-5 text-gray-600 group-hover/nav:text-black transition-colors" />
+                <div className="relative">
+                  {isClicked && (
+                    <>
+                      <div className="absolute inset-0 rounded-2xl bg-black/10 animate-ping" />
+                      <div className="absolute -inset-3 rounded-full border-2 border-gray-400/60 animate-ping" style={{ animationDuration: "0.6s" }} />
+                    </>
+                  )}
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 ${
+                    isClicked
+                      ? "bg-black text-white shadow-xl shadow-black/30 scale-110 border-2 border-black"
+                      : "bg-white shadow-md border border-gray-200 group-hover/nav:shadow-lg group-hover/nav:scale-110 group-hover/nav:border-gray-300"
+                  }`}>
+                    <Icon className={`w-5 h-5 transition-colors ${isClicked ? "text-white" : "text-gray-600 group-hover/nav:text-black"}`} />
+                  </div>
                 </div>
-                <span className="text-[10px] font-medium text-gray-500 group-hover/nav:text-gray-900 transition-colors text-center leading-tight whitespace-nowrap">
+                <span className={`text-[10px] font-medium transition-all text-center leading-tight whitespace-nowrap ${
+                  isClicked ? "text-gray-900 font-bold scale-110" : "text-gray-500 group-hover/nav:text-gray-900"
+                }`}>
                   {item.name}
                 </span>
               </button>
