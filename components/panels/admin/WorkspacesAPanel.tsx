@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Building2, CheckCircle2, AlertCircle, XCircle, Trash2, UserPlus, Loader2, X, Check } from "lucide-react";
+import { Building2, CheckCircle2, AlertCircle, XCircle, Trash2, UserPlus, Loader2, X, Check, DollarSign } from "lucide-react";
 
 interface Workspace {
   id: string; name: string; created_at: string; owner_id: string; enabled_features: string[];
   plan_status: string; owner_name: string | null; owner_email: string | null; user_count: number;
+  billing_amount: number | null; billing_cycle: string | null;
 }
 
 export default function WorkspacesAPanel() {
@@ -17,6 +18,10 @@ export default function WorkspacesAPanel() {
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [editingBilling, setEditingBilling] = useState<string | null>(null);
+  const [billingAmount, setBillingAmount] = useState("");
+  const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
+  const [savingBilling, setSavingBilling] = useState(false);
 
   useEffect(() => {
     fetch("/api/admin/workspaces", { credentials: "include" }).then(r => r.ok ? r.json() : []).then(d => setWorkspaces(Array.isArray(d) ? d : [])).catch(() => {}).finally(() => setLoading(false));
@@ -38,6 +43,21 @@ export default function WorkspacesAPanel() {
     } catch { setToast({ type: "error", message: "Error" }); } finally { setSubmitting(false); }
   };
 
+  const handleSaveBilling = async (wsId: string) => {
+    setSavingBilling(true);
+    try {
+      const amount = Math.round(parseFloat(billingAmount) * 100);
+      if (isNaN(amount) || amount < 0) { setToast({ type: "error", message: "Invalid amount" }); return; }
+      const r = await fetch("/api/admin/workspaces", { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include",
+        body: JSON.stringify({ workspace_id: wsId, billing_amount: amount, billing_cycle: billingCycle }) });
+      if (r.ok) {
+        setWorkspaces(p => p.map(w => w.id === wsId ? { ...w, billing_amount: amount, billing_cycle: billingCycle } : w));
+        setToast({ type: "success", message: "Billing updated" });
+        setEditingBilling(null);
+      } else { const d = await r.json(); setToast({ type: "error", message: d.error || "Failed" }); }
+    } catch { setToast({ type: "error", message: "Error" }); } finally { setSavingBilling(false); }
+  };
+
   if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-5 w-5 animate-spin text-white/40" /></div>;
 
   return (
@@ -50,7 +70,7 @@ export default function WorkspacesAPanel() {
           <table className="w-full text-sm">
             <thead className="border-b border-purple-500/10"><tr className="text-left text-white/40 text-xs uppercase tracking-wider">
               <th className="py-3 px-4 font-medium">Health</th><th className="py-3 px-4 font-medium">Workspace</th><th className="py-3 px-4 font-medium">Plan</th>
-              <th className="py-3 px-4 font-medium">Users</th><th className="py-3 px-4 font-medium">Features</th><th className="py-3 px-4 font-medium">Created</th><th className="py-3 px-4 font-medium text-right">Actions</th>
+              <th className="py-3 px-4 font-medium">Billing</th><th className="py-3 px-4 font-medium">Users</th><th className="py-3 px-4 font-medium">Features</th><th className="py-3 px-4 font-medium">Created</th><th className="py-3 px-4 font-medium text-right">Actions</th>
             </tr></thead>
             <tbody className="divide-y divide-purple-500/5">
               {workspaces.map(ws => {
@@ -62,6 +82,34 @@ export default function WorkspacesAPanel() {
                     <td className="py-3 px-4">{health === "healthy" ? <CheckCircle2 className="h-4 w-4 text-green-500" /> : health === "warning" ? <AlertCircle className="h-4 w-4 text-yellow-500" /> : <XCircle className="h-4 w-4 text-red-500" />}</td>
                     <td className="py-3 px-4"><div className="text-sm font-medium text-white">{ws.name}</div><div className="text-[11px] text-white/30">{ws.owner_name || ws.owner_email || "Unknown"}</div></td>
                     <td className="py-3 px-4"><span className={`px-2 py-0.5 rounded-md text-[10px] font-medium border ${sc}`}>{ws.plan_status || "active"}</span></td>
+                    <td className="py-3 px-4">
+                      {editingBilling === ws.id ? (
+                        <div className="flex items-center gap-1.5">
+                          <div className="relative">
+                            <DollarSign className="absolute left-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-white/30" />
+                            <input type="number" value={billingAmount} onChange={e => setBillingAmount(e.target.value)} placeholder="0.00" min="0" step="0.01"
+                              className="w-20 pl-5 pr-1 py-1 text-xs rounded-lg bg-white/5 border border-purple-500/20 text-white placeholder:text-white/30 focus:outline-none" autoFocus />
+                          </div>
+                          <select value={billingCycle} onChange={e => setBillingCycle(e.target.value as "monthly" | "yearly")}
+                            className="px-1 py-1 text-[10px] rounded-lg bg-white/5 border border-purple-500/20 text-white focus:outline-none">
+                            <option value="monthly">Mo</option>
+                            <option value="yearly">Yr</option>
+                          </select>
+                          <button onClick={() => handleSaveBilling(ws.id)} disabled={savingBilling} className="p-1 text-green-400 hover:bg-green-400/10 rounded-lg disabled:opacity-50">
+                            {savingBilling ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                          </button>
+                          <button onClick={() => setEditingBilling(null)} className="p-1 text-white/40 hover:bg-white/5 rounded-lg"><X className="h-3 w-3" /></button>
+                        </div>
+                      ) : (
+                        <button onClick={() => {
+                          setEditingBilling(ws.id);
+                          setBillingAmount(ws.billing_amount ? (ws.billing_amount / 100).toFixed(2) : "");
+                          setBillingCycle((ws.billing_cycle as "monthly" | "yearly") || "monthly");
+                        }} className="text-xs text-white/50 hover:text-purple-400 transition">
+                          {ws.billing_amount ? `$${(ws.billing_amount / 100).toFixed(2)}/${ws.billing_cycle === "yearly" ? "yr" : "mo"}` : "Set pricing"}
+                        </button>
+                      )}
+                    </td>
                     <td className="py-3 px-4 text-white/60">{ws.user_count}</td>
                     <td className="py-3 px-4 text-purple-500/80 text-xs">{fc}/7</td>
                     <td className="py-3 px-4 text-white/30 text-xs">{new Date(ws.created_at).toLocaleDateString()}</td>

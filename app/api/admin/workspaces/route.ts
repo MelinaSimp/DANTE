@@ -27,7 +27,7 @@ export async function GET() {
 
   const { data: workspaces, error } = await supabaseAdmin
     .from("workspaces")
-    .select("id, name, created_at, owner_id, enabled_features, plan_status")
+    .select("id, name, created_at, owner_id, enabled_features, plan_status, billing_amount, billing_cycle")
     .order("created_at", { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -122,7 +122,7 @@ export async function PATCH(req: NextRequest) {
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await req.json();
-  const { workspace_id, enabled_features, plan_status } = body;
+  const { workspace_id, enabled_features, plan_status, billing_amount, billing_cycle } = body;
 
   if (!workspace_id) {
     return NextResponse.json({ error: "workspace_id is required" }, { status: 400 });
@@ -142,6 +142,12 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (plan_status !== undefined) updates.plan_status = plan_status;
+  if (billing_amount !== undefined && typeof billing_amount === "number" && billing_amount >= 0) {
+    updates.billing_amount = Math.round(billing_amount);
+  }
+  if (billing_cycle !== undefined && (billing_cycle === "monthly" || billing_cycle === "yearly")) {
+    updates.billing_cycle = billing_cycle;
+  }
 
 
   if (Object.keys(updates).length === 0) {
