@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Key, Loader2, Check, ExternalLink, Copy } from "lucide-react";
+import { Key, Loader2, Check, ExternalLink, Copy, Lock } from "lucide-react";
 
 export default function BillingAPanel() {
   const [stripeKey, setStripeKey] = useState("");
@@ -13,9 +13,18 @@ export default function BillingAPanel() {
   const [maskedKey, setMaskedKey] = useState("");
   const [copied, setCopied] = useState(false);
 
+  const [backendPw, setBackendPw] = useState("");
+  const [backendPwSet, setBackendPwSet] = useState(false);
+  const [savingPw, setSavingPw] = useState(false);
+  const [savedPw, setSavedPw] = useState(false);
+
   useEffect(() => {
     fetch("/api/admin/settings", { credentials: "include" }).then(r => r.ok ? r.json() : null).then(d => {
-      if (d) { setConnected(!!d.stripe_connected); setMaskedKey(d.stripe_key_masked || ""); }
+      if (d) {
+        setConnected(!!d.stripe_connected);
+        setMaskedKey(d.stripe_key_masked || "");
+        if (d.backend_password?.is_set) setBackendPwSet(true);
+      }
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
@@ -71,6 +80,54 @@ export default function BillingAPanel() {
           <button onClick={() => { navigator.clipboard.writeText(webhookUrl); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
             className="p-2 rounded-lg text-white/40 hover:text-white hover:bg-white/5 transition">
             {copied ? <Check className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4" />}
+          </button>
+        </div>
+      </div>
+
+      {/* Backend Password */}
+      <div className="border-t border-white/10 pt-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Lock className="h-4 w-4 text-purple-400" />
+          <h3 className="text-sm font-semibold text-white">Backend Password</h3>
+        </div>
+        <div className="rounded-2xl border border-purple-500/20 bg-black/40 p-5 space-y-3">
+          <div className="flex items-center gap-2 mb-1">
+            <div className={`w-2 h-2 rounded-full ${backendPwSet ? "bg-green-500" : "bg-yellow-500"}`} />
+            <span className="text-xs text-white/40">{backendPwSet ? "Password is set" : "No password configured"}</span>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-white/50 mb-1 block">New Password</label>
+            <input
+              type="password"
+              value={backendPw}
+              onChange={e => setBackendPw(e.target.value)}
+              placeholder="Enter new backend password"
+              className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-purple-500/20 text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-purple-500/50"
+            />
+          </div>
+          <button
+            onClick={async () => {
+              if (!backendPw.trim() || backendPw.length < 4) return;
+              setSavingPw(true);
+              try {
+                const r = await fetch("/api/admin/settings", {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  credentials: "include",
+                  body: JSON.stringify({ backend_password: backendPw.trim() }),
+                });
+                if (r.ok) {
+                  setSavedPw(true);
+                  setBackendPwSet(true);
+                  setBackendPw("");
+                  setTimeout(() => setSavedPw(false), 2000);
+                }
+              } catch {} finally { setSavingPw(false); }
+            }}
+            disabled={savingPw || backendPw.length < 4}
+            className="px-5 py-2.5 rounded-xl bg-purple-500 text-white text-sm font-medium hover:bg-purple-600 disabled:opacity-40 transition"
+          >
+            {savingPw ? "Saving..." : savedPw ? "Updated!" : "Update Password"}
           </button>
         </div>
       </div>

@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
-const BACKEND_PASSWORD = process.env.BACKEND_PASSWORD;
-
-if (!BACKEND_PASSWORD && process.env.NODE_ENV === "production") {
-  console.error("BACKEND_PASSWORD env var is not set!");
+async function getBackendPassword(): Promise<string | null> {
+  try {
+    const { data } = await supabaseAdmin
+      .from("app_settings")
+      .select("value")
+      .eq("key", "backend_password")
+      .maybeSingle();
+    if (data?.value) return data.value;
+  } catch {}
+  return process.env.BACKEND_PASSWORD || null;
 }
 
 export async function POST(req: NextRequest) {
@@ -17,11 +24,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ valid: false, error: "Password required" }, { status: 400 });
     }
 
-    if (!BACKEND_PASSWORD) {
+    const storedPassword = await getBackendPassword();
+
+    if (!storedPassword) {
       return NextResponse.json({ valid: false, error: "Backend password not configured" }, { status: 500 });
     }
 
-    const isValid = password === BACKEND_PASSWORD;
+    const isValid = password === storedPassword;
 
     if (isValid) {
       // Set authentication cookie (expires in 24 hours)

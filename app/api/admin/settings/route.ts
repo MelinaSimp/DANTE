@@ -32,11 +32,12 @@ export async function GET() {
   const { data: rows } = await supabaseAdmin
     .from("app_settings")
     .select("key, value, updated_at")
-    .in("key", ["stripe_secret_key", "stripe_webhook_secret"]);
+    .in("key", ["stripe_secret_key", "stripe_webhook_secret", "backend_password"]);
 
   const settings: Record<string, { masked: string; updated_at: string | null; is_set: boolean }> = {
     stripe_secret_key: { masked: "", updated_at: null, is_set: false },
     stripe_webhook_secret: { masked: "", updated_at: null, is_set: false },
+    backend_password: { masked: "", updated_at: null, is_set: false },
   };
 
   for (const row of rows || []) {
@@ -54,6 +55,9 @@ export async function GET() {
   if (!settings.stripe_webhook_secret.is_set && process.env.STRIPE_WEBHOOK_SECRET) {
     settings.stripe_webhook_secret = { masked: maskKey(process.env.STRIPE_WEBHOOK_SECRET), updated_at: null, is_set: true };
   }
+  if (!settings.backend_password.is_set && process.env.BACKEND_PASSWORD) {
+    settings.backend_password = { masked: maskKey(process.env.BACKEND_PASSWORD), updated_at: null, is_set: true };
+  }
 
   return NextResponse.json(settings);
 }
@@ -63,7 +67,7 @@ export async function PATCH(req: NextRequest) {
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await req.json();
-  const { stripe_secret_key, stripe_webhook_secret } = body;
+  const { stripe_secret_key, stripe_webhook_secret, backend_password } = body;
 
   const updates: { key: string; value: string }[] = [];
 
@@ -73,9 +77,12 @@ export async function PATCH(req: NextRequest) {
   if (stripe_webhook_secret && typeof stripe_webhook_secret === "string" && stripe_webhook_secret.startsWith("whsec_")) {
     updates.push({ key: "stripe_webhook_secret", value: stripe_webhook_secret });
   }
+  if (backend_password && typeof backend_password === "string" && backend_password.length >= 4) {
+    updates.push({ key: "backend_password", value: backend_password });
+  }
 
   if (updates.length === 0) {
-    return NextResponse.json({ error: "No valid keys provided. Secret key must start with sk_, webhook secret with whsec_" }, { status: 400 });
+    return NextResponse.json({ error: "No valid settings provided" }, { status: 400 });
   }
 
   for (const { key, value } of updates) {
