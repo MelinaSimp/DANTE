@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { normalizePhone } from "@/lib/phone";
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import twilio from "twilio";
 
 export const dynamic = "force-dynamic";
@@ -16,6 +17,9 @@ export async function POST(
   { params }: { params: { agentId: string } }
 ) {
   try {
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    if (!rateLimit(`schedule:${ip}`, 10).allowed) return rateLimitResponse();
+
     const body = await req.json();
     const {
       contactName,

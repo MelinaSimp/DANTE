@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { validateTwilioRequest } from "@/lib/twilio-validate";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 5; // 5 seconds max for status callbacks
+export const maxDuration = 5;
 
 /**
  * Twilio Status Callback Webhook
@@ -14,6 +15,10 @@ export const maxDuration = 5; // 5 seconds max for status callbacks
  */
 export async function POST(req: NextRequest) {
   try {
+    if (!(await validateTwilioRequest(req))) {
+      return new NextResponse("Forbidden", { status: 403 });
+    }
+
     const formData = await req.formData();
     const callSid = formData.get("CallSid")?.toString() || "";
     const callStatus = formData.get("CallStatus")?.toString() || "";

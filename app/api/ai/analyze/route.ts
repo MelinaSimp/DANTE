@@ -1,8 +1,10 @@
 // app/api/ai/analyze/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/api-auth";
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
-export const runtime = "nodejs"; // ensure Node runtime for fetch to external APIs
+export const runtime = "nodejs";
 
 interface NoteLite { id: string; body: string; created_at: string }
 interface KnowledgeBase {
@@ -15,6 +17,11 @@ interface KnowledgeBase {
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireUser();
+    if (auth.error) return auth.error;
+
+    if (!rateLimit(`ai-analyze:${auth.user.id}`, 20).allowed) return rateLimitResponse();
+
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       return NextResponse.json(

@@ -1,13 +1,10 @@
-// next.config.ts
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // ✅ Skip ESLint and TS checks in CI (Vercel). Keeps builds green.
-  eslint: { ignoreDuringBuilds: true },
+  eslint: { ignoreDuringBuilds: false },
+  // Route handler params typing requires Next.js 15 async-params migration
+  // across ~25 files. Re-enable once migrated.
   typescript: { ignoreBuildErrors: true },
-
-  // IMPORTANT: Do NOT set `output: "export"` here.
-  // We want server rendering on Vercel.
 };
 
 export default nextConfig;

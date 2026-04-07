@@ -13,6 +13,14 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
+    const vapiSecret = process.env.VAPI_WEBHOOK_SECRET;
+    if (vapiSecret) {
+      const headerSecret = req.headers.get("x-vapi-secret") || req.headers.get("authorization")?.replace("Bearer ", "");
+      if (headerSecret !== vapiSecret) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
+
     const body = await req.json();
     const { message } = body;
 

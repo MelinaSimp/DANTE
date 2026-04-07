@@ -1,170 +1,115 @@
-const { app, BrowserWindow, dialog } = require('electron');
-const path = require('path');
-const isDev = process.env.NODE_ENV === 'development';
+const { app, BrowserWindow, shell, Tray, Menu, nativeImage, dialog } = require("electron");
+const path = require("path");
+
+const isDev = process.env.NODE_ENV === "development";
+const APP_URL = isDev ? "http://localhost:3000" : "https://driftai.studio";
+
+const ALLOWED_HOSTS = ["driftai.studio", "localhost", "127.0.0.1", "vercel.app"];
 
 let mainWindow;
+let tray;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1400,
+    width: 1440,
     height: 900,
-    minWidth: 1200,
-    minHeight: 700,
+    minWidth: 1024,
+    minHeight: 680,
+    titleBarStyle: "hiddenInset",
+    trafficLightPosition: { x: 16, y: 16 },
+    backgroundColor: "#000000",
+    show: false,
+    icon: path.join(__dirname, "../public/brand/logo-circle.png"),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      enableRemoteModule: false,
-      webSecurity: true,
-      allowRunningInsecureContent: false,
-      experimentalFeatures: false,
+      preload: path.join(__dirname, "preload.js"),
     },
-    icon: path.join(__dirname, '../public/brand/logo-circle.png'),
-    titleBarStyle: 'default',
-    backgroundColor: '#242423',
-    show: false, // Don't show until loaded
   });
 
-  // Load the Vercel-hosted app or local dev server
-  // Try most recent production URL first, then fallback
-  const productionUrls = [
-    'https://drift-heosv3djy-drift4.vercel.app', // Latest production URL
-    'https://drift-nl8gtkql9-drift4.vercel.app',
-    'https://drift-h3siydwxq-drift4.vercel.app',
-    'https://driftai.studio', // Custom domain fallback
-  ];
-  
-  const url = isDev 
-    ? 'http://localhost:3000' 
-    : process.env.ELECTRON_APP_URL || productionUrls[0];
-  
-  console.log(`[Electron] Loading URL: ${url}`);
-  
-  // Show window when ready
-  mainWindow.once('ready-to-show', () => {
-    mainWindow.show();
-  });
+  mainWindow.once("ready-to-show", () => mainWindow.show());
 
-  // Handle load errors
-  let retryCount = 0;
-  const maxRetries = productionUrls.length;
-  
-  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
-    console.error(`[Electron] Failed to load: ${errorCode} - ${errorDescription}`);
-    console.error(`[Electron] URL: ${validatedURL}`);
-    console.error(`[Electron] Error code: ${errorCode}`);
-    
-    // Try fallback URLs for network/SSL errors
-    if (!isDev && retryCount < maxRetries - 1) {
-      retryCount++;
-      const nextUrl = productionUrls[retryCount];
-      console.log(`[Electron] Retry ${retryCount}/${maxRetries - 1}: Trying URL: ${nextUrl}`);
-      setTimeout(() => {
-        mainWindow.loadURL(nextUrl, {
-          userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          httpReferrer: nextUrl
-        });
-      }, 1000);
-      return;
-    }
-    
-    // Show error dialog after all retries failed
+  const loadOpts = {
+    userAgent: `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36`,
+  };
+
+  mainWindow.loadURL(APP_URL, loadOpts).catch((err) => {
+    console.error("[Drift] Load error:", err.message);
     dialog.showErrorBox(
-      'Failed to Load App',
-      `Unable to connect to the application.\n\nError: ${errorDescription} (Code: ${errorCode})\n\nTried URLs:\n${productionUrls.map(u => `- ${u}`).join('\n')}\n\nPlease check your internet connection and try again.\n\nYou can also try running in development mode:\nnpm run electron:dev`
+      "Connection Error",
+      `Could not connect to ${APP_URL}.\n\nCheck your internet connection and try again.`
     );
   });
 
-  // Handle successful load
-  mainWindow.webContents.on('did-finish-load', () => {
-    console.log(`[Electron] Successfully loaded: ${url}`);
+  mainWindow.webContents.on("did-fail-load", (_e, code, desc) => {
+    if (code === -3) return;
+    console.error(`[Drift] Load failed: ${code} ${desc}`);
   });
 
-  // Load the URL with proper user agent to handle redirects
-  mainWindow.loadURL(url, {
-    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    httpReferrer: url
-  }).catch((error) => {
-    console.error(`[Electron] Load error:`, error);
-    dialog.showErrorBox(
-      'Failed to Load App',
-      `Unable to load the application.\n\nError: ${error.message}\n\nURL: ${url}`
-    );
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url);
+    return { action: "deny" };
   });
 
-  // Open DevTools in development or if DEBUG env var is set
-  if (isDev || process.env.DEBUG === 'true') {
-    mainWindow.webContents.openDevTools();
-  }
-  
-  // Log navigation events for debugging
-  mainWindow.webContents.on('will-navigate', (event, navigationUrl) => {
-    console.log(`[Electron] Navigating to: ${navigationUrl}`);
-  });
-  
-  mainWindow.webContents.on('did-start-loading', () => {
-    console.log(`[Electron] Started loading...`);
-  });
-
-  mainWindow.on('closed', () => {
+  mainWindow.on("closed", () => {
     mainWindow = null;
   });
 
-  // Handle external links - open in default browser
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    require('electron').shell.openExternal(url);
-    return { action: 'deny' };
+  if (isDev || process.env.DEBUG === "true") {
+    mainWindow.webContents.openDevTools();
+  }
+}
+
+function createTray() {
+  const iconPath = path.join(__dirname, "../public/brand/logo-circle.png");
+  let icon = nativeImage.createFromPath(iconPath);
+  if (icon.isEmpty()) return;
+  icon = icon.resize({ width: 18, height: 18 });
+  icon.setTemplateImage(true);
+
+  tray = new Tray(icon);
+  tray.setToolTip("Drift AI");
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      {
+        label: "Open Drift",
+        click: () => {
+          if (mainWindow) mainWindow.show();
+          else createWindow();
+        },
+      },
+      { type: "separator" },
+      { label: "Quit", click: () => app.quit() },
+    ])
+  );
+  tray.on("click", () => {
+    if (mainWindow) mainWindow.show();
+    else createWindow();
   });
 }
 
 app.whenReady().then(() => {
   createWindow();
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
+  createTray();
+  app.on("activate", () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") app.quit();
 });
 
-// Handle certificate errors
-app.on('certificate-error', (event, webContents, url, error, certificate, callback) => {
-  // For Vercel (which uses valid certificates), we should not bypass
-  // Only bypass in development for localhost
-  if (isDev && url.includes('localhost')) {
-    event.preventDefault();
-    callback(true);
-  } else {
-    // For production, let Electron handle certificate validation normally
-    callback(false);
-  }
-});
-
-// Additional security: Allow navigation only to our domains
-app.on('web-contents-created', (event, contents) => {
-  contents.on('will-navigate', (event, navigationUrl) => {
-    const parsedUrl = new URL(navigationUrl);
-    
-    // Allow navigation to Vercel domains and localhost
-    const allowedDomains = [
-      'vercel.app',
-      'localhost',
-      '127.0.0.1'
-    ];
-    
-    const isAllowed = allowedDomains.some(domain => 
-      parsedUrl.hostname.includes(domain)
-    );
-    
-    if (!isAllowed) {
+app.on("web-contents-created", (_e, contents) => {
+  contents.on("will-navigate", (event, url) => {
+    try {
+      const host = new URL(url).hostname;
+      if (!ALLOWED_HOSTS.some((d) => host === d || host.endsWith("." + d))) {
+        event.preventDefault();
+        shell.openExternal(url);
+      }
+    } catch {
       event.preventDefault();
-      console.warn(`[Electron] Blocked navigation to: ${navigationUrl}`);
     }
   });
 });
-

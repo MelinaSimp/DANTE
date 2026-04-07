@@ -9,7 +9,6 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
-// Helper to normalize phone numbers
 function normalizePhone(phone: string): string | null {
   if (!phone) return null;
   const cleaned = phone.replace(/\D/g, "");
@@ -22,6 +21,14 @@ function normalizePhone(phone: string): string | null {
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
   try {
+    const internalSecret = process.env.INTERNAL_API_SECRET;
+    if (internalSecret) {
+      const auth = req.headers.get("authorization");
+      if (auth !== `Bearer ${internalSecret}`) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
+
     const body = await req.json();
     const conversationId = body.conversationId;
     const userInput = (body.userInput ?? "") as string;

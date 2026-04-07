@@ -12,10 +12,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { normalizePhone } from "@/lib/phone";
 import { generateSpeechTwiml } from "@/lib/elevenlabs/twiml";
+import { validateTwilioRequest } from "@/lib/twilio-validate";
 
 export const dynamic = "force-dynamic";
 const DEBUG = process.env.DEBUG_VOICE === "true";
-export const maxDuration = 10; // 10 seconds max for Twilio webhooks
+export const maxDuration = 10;
 
 // Helper function to extract call information from either GET (query params) or POST (form data)
 async function getCallInfo(req: NextRequest) {
@@ -66,15 +67,16 @@ async function getGreetingFromStep(stepId: string): Promise<string> {
   }
 }
 
-// Main handler for Media Streams initialization
 async function handleMediaStream(req: NextRequest) {
-  // Declare variables outside try block so they're accessible in catch
   let callSid = "";
   let from = "";
   let to = "";
   
   try {
-    // Validate required environment variables
+    if (!(await validateTwilioRequest(req))) {
+      return new NextResponse("Forbidden", { status: 403 });
+    }
+
     const missingVars: string[] = [];
     if (!process.env.OPENAI_API_KEY) missingVars.push("OPENAI_API_KEY");
     if (!process.env.ELEVENLABS_API_KEY) missingVars.push("ELEVENLABS_API_KEY");

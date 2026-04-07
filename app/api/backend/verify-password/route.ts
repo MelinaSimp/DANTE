@@ -3,9 +3,11 @@ import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
-// Backend password - should be set in environment variable
-// Default password for development (change in production!)
-const BACKEND_PASSWORD = process.env.BACKEND_PASSWORD || "Adhuvishu1";
+const BACKEND_PASSWORD = process.env.BACKEND_PASSWORD;
+
+if (!BACKEND_PASSWORD && process.env.NODE_ENV === "production") {
+  console.error("BACKEND_PASSWORD env var is not set!");
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,7 +17,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ valid: false, error: "Password required" }, { status: 400 });
     }
 
-    // Compare passwords (in production, use secure comparison)
+    if (!BACKEND_PASSWORD) {
+      return NextResponse.json({ valid: false, error: "Backend password not configured" }, { status: 500 });
+    }
+
     const isValid = password === BACKEND_PASSWORD;
 
     if (isValid) {

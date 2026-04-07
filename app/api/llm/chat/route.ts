@@ -1,16 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-/**
- * LLM Chat API
- * POST /api/llm/chat
- * 
- * ChatGPT-style interface for direct LLM interaction (branded as "Drift")
- */
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createServerSupabase();
@@ -21,6 +16,8 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    if (!rateLimit(`llm-chat:${user.id}`, 30).allowed) return rateLimitResponse();
 
     const {
       message,
@@ -50,9 +47,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Load guidelines/templates if available
     let guidelinesContent = "";
-    if (agentId || chatId) {
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const safeAgentId = agentId && UUID_RE.test(agentId) ? agentId : null;
+    const safeChatId = chatId && UUID_RE.test(chatId) ? chatId : null;
+
+    if (safeAgentId || safeChatId) {
       try {
         let guidelinesQuery = supabaseAdmin
           .from("llm_guidelines")
@@ -60,12 +60,12 @@ export async function POST(req: NextRequest) {
           .eq("is_active", true)
           .order("is_agent_template", { ascending: false });
 
-        if (agentId && chatId) {
-          guidelinesQuery = guidelinesQuery.or(`agent_id.eq.${agentId},chat_id.eq.${chatId}`);
-        } else if (agentId) {
-          guidelinesQuery = guidelinesQuery.eq("agent_id", agentId);
-        } else if (chatId) {
-          guidelinesQuery = guidelinesQuery.eq("chat_id", chatId);
+        if (safeAgentId && safeChatId) {
+          guidelinesQuery = guidelinesQuery.or(`agent_id.eq.${safeAgentId},chat_id.eq.${safeChatId}`);
+        } else if (safeAgentId) {
+          guidelinesQuery = guidelinesQuery.eq("agent_id", safeAgentId);
+        } else if (safeChatId) {
+          guidelinesQuery = guidelinesQuery.eq("chat_id", safeChatId);
         }
 
         const { data: guidelines } = await guidelinesQuery;

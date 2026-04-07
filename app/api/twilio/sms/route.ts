@@ -1,14 +1,12 @@
-// app/api/twilio/sms/route.ts
-// Twilio SMS webhook - handles incoming text messages
-
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { normalizePhone } from "@/lib/phone";
 import { AgentExecutor, ConversationContext } from "@/lib/agent-executor/executor";
 import twilio from "twilio";
+import { validateTwilioRequest } from "@/lib/twilio-validate";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 30; // 30 seconds for SMS processing
+export const maxDuration = 30;
 
 /**
  * Twilio SMS Webhook
@@ -19,6 +17,10 @@ export const maxDuration = 30; // 30 seconds for SMS processing
  */
 export async function POST(req: NextRequest) {
   try {
+    if (!(await validateTwilioRequest(req))) {
+      return new NextResponse("Forbidden", { status: 403 });
+    }
+
     const formData = await req.formData();
     const messageSid = formData.get("MessageSid")?.toString() || "";
     const from = formData.get("From")?.toString() || "";

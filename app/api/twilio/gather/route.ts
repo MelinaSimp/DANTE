@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { executeStep, ExecutionContext } from "@/lib/conversation/stepExecutor";
+import { validateTwilioRequest } from "@/lib/twilio-validate";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 10;
 
-/**
- * Handle Gather input from customer
- * POST /api/twilio/gather?conversationId=xxx&stepId=xxx
- */
 export async function POST(req: NextRequest) {
   try {
+    if (!(await validateTwilioRequest(req))) {
+      return new NextResponse("Forbidden", { status: 403 });
+    }
+
     const { searchParams } = req.nextUrl;
     const conversationId = searchParams.get("conversationId");
     const stepId = searchParams.get("stepId");

@@ -13,16 +13,15 @@ export const maxDuration = 10;
 
 export async function GET(req: NextRequest) {
   try {
-    // Optional: Verify this is a cron request (optional but recommended)
     const authHeader = req.headers.get("authorization");
     const cronSecret = process.env.CRON_SECRET;
-    
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-      // Allow requests from Vercel Cron (which sends specific headers)
-      const userAgent = req.headers.get("user-agent") || "";
-      if (!userAgent.includes("vercel-cron")) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
+
+    if (!cronSecret) {
+      return NextResponse.json({ error: "CRON_SECRET not configured" }, { status: 500 });
+    }
+
+    if (authHeader !== `Bearer ${cronSecret}`) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const railwayUrl = process.env.RAILWAY_WEBSOCKET_URL || "wss://motivated-perfection-production.up.railway.app";

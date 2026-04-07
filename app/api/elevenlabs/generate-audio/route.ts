@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireUser } from "@/lib/api-auth";
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 30; // 30 seconds for audio generation
+export const maxDuration = 30;
 
-/**
- * ElevenLabs Audio Generation API
- * POST /api/elevenlabs/generate-audio
- * 
- * Generates audio from text using ElevenLabs API
- * Returns a public URL to the audio file
- */
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireUser();
+    if (auth.error) return auth.error;
+
+    if (!rateLimit(`tts:${auth.user.id}`, 30).allowed) return rateLimitResponse();
+
     const { text, voiceId } = await req.json();
 
     if (!text || typeof text !== "string" || text.trim().length === 0) {

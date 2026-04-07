@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { requireUserWithWorkspace } from "@/lib/api-auth";
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 interface NoteLite {
   id: string;
@@ -19,6 +21,11 @@ interface KnowledgeBase {
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireUserWithWorkspace();
+    if (auth.error) return auth.error;
+
+    if (!rateLimit(`ai-contact:${auth.user.id}`, 20).allowed) return rateLimitResponse();
+
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
@@ -36,7 +43,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Contact ID is required" }, { status: 400 });
     }
 
-    // Get contact details
+    // Get contact details — scoped to user's workspace
+    const ownerWorkspace = auth.workspaceId;
     const { data: contact } = await supabaseAdmin
       .from("contacts")
       .select("id, name, phone, email, notes, workspace_id")
@@ -44,6 +52,10 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (!contact) {
+      return NextResponse.json({ error: "Contact not found" }, { status: 404 });
+    }
+
+    if (ownerWorkspace && contact.workspace_id !== ownerWorkspace) {
       return NextResponse.json({ error: "Contact not found" }, { status: 404 });
     }
 

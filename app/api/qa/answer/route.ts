@@ -1,16 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
-/**
- * Q/A Answer Endpoint
- * POST /api/qa/answer
- * 
- * Searches data sources using RAG and generates an answer
- */
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createServerSupabase();
@@ -22,6 +17,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    if (!rateLimit(`qa:${user.id}`, 30).allowed) return rateLimitResponse();
+
     const body = await req.json();
     const { query, agentId, dataSourceIds } = body;
 
@@ -32,7 +29,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get data sources
+    // Verify agent belongs to user's workspace
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("workspace_id")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (profile?.workspace_id) {
+      const { data: agent } = await supabaseAdmin
+        .from("agents")
+        .select("workspace_id")
+        .eq("id", agentId)
+        .maybeSingle();
+
+      if (agent && agent.workspace_id !== profile.workspace_id) {
+        return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+      }
+    }
+
     let dataSourcesQuery = supabaseAdmin
       .from("agent_data_sources")
       .select("*, data_sources(*)")

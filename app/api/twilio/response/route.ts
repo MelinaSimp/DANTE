@@ -3,9 +3,10 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { AgentExecutor, ConversationContext } from "@/lib/agent-executor/executor";
 import { xmlEscape, xmlEscapeAttr } from "@/lib/xml";
 import { generateSpeechTwiml } from "@/lib/elevenlabs/twiml";
+import { validateTwilioRequest } from "@/lib/twilio-validate";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 10; // 10 seconds max for Twilio webhooks
+export const maxDuration = 10;
 
 const DEBUG = process.env.DEBUG_VOICE === "true";
 
@@ -20,7 +21,10 @@ const DEBUG = process.env.DEBUG_VOICE === "true";
  */
 export async function POST(req: NextRequest) {
   try {
-    // Validate required environment variables
+    if (!(await validateTwilioRequest(req))) {
+      return new NextResponse("Forbidden", { status: 403 });
+    }
+
     const missing: string[] = [];
     if (!process.env.OPENAI_API_KEY) missing.push("OPENAI_API_KEY");
     if (!process.env.ELEVENLABS_API_KEY) missing.push("ELEVENLABS_API_KEY");

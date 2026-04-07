@@ -1,8 +1,6 @@
-// app/api/twilio/partial/route.ts
-// Handle Twilio partial speech results for interruptability
-
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { validateTwilioRequest } from "@/lib/twilio-validate";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 10;
@@ -16,6 +14,10 @@ export const maxDuration = 10;
  */
 export async function POST(req: NextRequest) {
   try {
+    if (!(await validateTwilioRequest(req))) {
+      return new NextResponse("Forbidden", { status: 403 });
+    }
+
     const formData = await req.formData();
     const conversationId = formData.get("conversationId")?.toString() || "";
     const speechResult = formData.get("SpeechResult")?.toString() || "";

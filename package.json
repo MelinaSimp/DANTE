@@ -1,6 +1,8 @@
 {
-  "name": "gigaai",
+  "name": "drift-ai",
   "version": "1.0.0",
+  "description": "Drift AI — Customer Relationship Management",
+  "author": "Drift AI",
   "private": true,
   "main": "electron/main.js",
   "scripts": {
@@ -12,10 +14,10 @@
     "electron": "electron .",
     "electron:dev": "NODE_ENV=development electron .",
     "electron:debug": "DEBUG=true electron .",
-    "electron:build": "npm run build && electron-builder",
-    "electron:build:mac": "npm run build && electron-builder --mac",
-    "electron:build:win": "npm run build && electron-builder --win",
-    "electron:build:linux": "npm run build && electron-builder --linux"
+    "electron:build": "electron-builder --publish=never",
+    "electron:build:mac": "electron-builder --mac --publish=never",
+    "electron:build:win": "electron-builder --win --publish=never",
+    "electron:build:linux": "electron-builder --linux --publish=never"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.3",
@@ -40,6 +42,7 @@
     "resend": "^6.1.1",
     "stripe": "^20.4.0",
     "tailwind-merge": "^3.3.1",
+    "three": "^0.183.2",
     "twilio": "^5.10.2"
   },
   "devDependencies": {
@@ -70,19 +73,15 @@
       "output": "dist-electron"
     },
     "files": [
-      "app/**/*",
-      "components/**/*",
-      "lib/**/*",
-      "public/**/*",
       "electron/**/*",
-      "next.config.ts",
-      "package.json",
-      ".next/**/*"
+      "public/brand/**/*",
+      "package.json"
     ],
     "mac": {
       "category": "public.app-category.business",
       "target": "dmg",
-      "icon": "public/brand/logo-circle.png"
+      "icon": "public/brand/logo-circle.png",
+      "darkModeSupport": true
     },
     "win": {
       "target": "nsis",

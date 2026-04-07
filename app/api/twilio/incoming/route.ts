@@ -3,10 +3,11 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { xmlEscape, xmlEscapeAttr } from "@/lib/xml";
 import { normalizePhone } from "@/lib/phone";
 import { generateSpeechTwiml } from "@/lib/elevenlabs/twiml";
+import { validateTwilioRequest } from "@/lib/twilio-validate";
 
 export const dynamic = "force-dynamic";
 const DEBUG = process.env.DEBUG_VOICE === "true";
-export const maxDuration = 10; // 10 seconds max for Twilio webhooks
+export const maxDuration = 10;
 
 /** Get call params from either GET (query) or POST (form). Twilio may use either. */
 async function getIncomingCallParams(req: NextRequest): Promise<{ callSid: string; from: string; to: string; callStatus: string }> {
@@ -50,7 +51,11 @@ async function handleIncoming(req: NextRequest): Promise<NextResponse> {
   let to = "";
 
   try {
-    // Validate required environment variables
+    if (!(await validateTwilioRequest(req))) {
+      console.warn("[Twilio Incoming] Invalid signature — rejecting request");
+      return new NextResponse("Forbidden", { status: 403 });
+    }
+
     const envError = validateEnvVars();
     if (envError) {
       console.error(`[Twilio Incoming] ${envError}`);
