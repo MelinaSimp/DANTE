@@ -367,7 +367,7 @@ export default function FrontendPage() {
 
   return (
     <div className="relative min-h-screen bg-[#f5f5f7] flex flex-col overflow-hidden" style={{ background: "#f5f5f7" }}>
-      <div className="absolute inset-0 z-0 opacity-40">
+      <div className="absolute inset-0 z-0 opacity-70">
         <GLSLWaves mode="ocean" speed={0.4} />
       </div>
       <div className="absolute inset-0 z-0 bg-gradient-to-t from-[#f5f5f7]/80 via-transparent to-[#f5f5f7]/50 pointer-events-none" />

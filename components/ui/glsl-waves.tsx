@@ -180,8 +180,8 @@ function getFragmentShader(mode: WaveMode): string {
       #define GLSLIFY 1
       varying vec3 vPosition;
       void main(void) {
-        float opacity = (96.0 - length(vPosition)) / 256.0 * 0.2;
-        vec3 color = vec3(0.5, 0.65, 0.8);
+        float opacity = (96.0 - length(vPosition)) / 256.0 * 0.5;
+        vec3 color = vec3(0.4, 0.6, 0.85);
         gl_FragColor = vec4(color, opacity);
       }
     `,
@@ -192,8 +192,8 @@ function getFragmentShader(mode: WaveMode): string {
       void main(void) {
         float d = (96.0 - length(vPosition)) / 256.0;
         float grid = 0.5 + 0.5 * sin(vPosition.x * 3.0) * sin(vPosition.z * 3.0);
-        float opacity = d * 0.3 * (0.5 + grid * 0.5);
-        vec3 color = vec3(0.5, 0.75, 0.9);
+        float opacity = d * 0.7 * (0.5 + grid * 0.5);
+        vec3 color = vec3(0.5, 0.85, 1.0);
         gl_FragColor = vec4(color, opacity);
       }
     `,
