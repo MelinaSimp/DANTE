@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
-import GLSLWaves from "@/components/ui/glsl-waves";
+import { GLSLHills } from "@/components/ui/glsl-hills";
 
 export default function AuthPage() {
   const router = useRouter();
@@ -96,7 +96,7 @@ export default function AuthPage() {
     <div className="relative min-h-screen bg-black overflow-hidden">
       {/* GLSL Hills background */}
       <div className="absolute inset-0 z-0 opacity-70">
-        <GLSLWaves mode="hills" speed={0.3} />
+        <GLSLHills speed={0.3} cameraZ={140} />
       </div>
 
       {/* Gradient overlays for depth */}
