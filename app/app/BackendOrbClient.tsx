@@ -337,7 +337,7 @@ export default function BackendOrbClient() {
 
   return (
     <div className="relative min-h-screen bg-black flex flex-col overflow-hidden">
-      <div className="absolute inset-0 z-0 opacity-55">
+      <div className="absolute inset-0 z-0 opacity-40">
         <GLSLWaves mode="grid" speed={0.3} />
       </div>
       <div className="absolute inset-0 z-0 bg-gradient-to-t from-black/70 via-transparent to-black/50 pointer-events-none" />
