@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { Monitor, Server, Shield, LogOut } from "lucide-react";
 import AgentOrb from "@/components/frontend/AgentOrb";
+import GLSLWaves from "@/components/ui/glsl-waves";
 
 const DRIFT_COLORS = ["#B4A0D6", "#9B8EC4", "#C7B8E0"];
 
@@ -92,9 +93,14 @@ export default function SelectPage() {
   const startAngle = -Math.PI / 2;
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7] flex flex-col" style={{ background: "#f5f5f7" }}>
+    <div className="relative min-h-screen bg-[#f5f5f7] flex flex-col overflow-hidden" style={{ background: "#f5f5f7" }}>
+      <div className="absolute inset-0 z-0 opacity-50">
+        <GLSLWaves mode="hills" speed={0.3} />
+      </div>
+      <div className="absolute inset-0 z-0 bg-gradient-to-t from-[#f5f5f7]/90 via-transparent to-[#f5f5f7]/60 pointer-events-none" />
+
       {/* Top bar */}
-      <div className="flex items-center justify-between px-6 py-4">
+      <div className="relative z-10 flex items-center justify-between px-6 py-4">
         <div className="flex items-center gap-2">
           <img src="/brand/logo-circle.png" alt="Drift" className="w-6 h-6 rounded-full object-cover" />
           <span className="text-sm font-semibold text-gray-900">Drift</span>
@@ -109,7 +115,7 @@ export default function SelectPage() {
       </div>
 
       {/* Main */}
-      <div className="flex-1 flex flex-col items-center justify-center px-4 pb-16">
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 pb-16">
         {/* Radial container */}
         <div
           className="relative"

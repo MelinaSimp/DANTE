@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import AgentOrb from "@/components/frontend/AgentOrb";
 import PanelShell from "@/components/panels/PanelShell";
+import GLSLWaves from "@/components/ui/glsl-waves";
 
 const InstructionsPanel = lazy(() => import("@/components/panels/backend/InstructionsPanel"));
 const PoliciesBPanel = lazy(() => import("@/components/panels/backend/PoliciesBPanel"));
@@ -312,9 +313,14 @@ export default function BackendOrbClient() {
   };
 
   return (
-    <div className="min-h-screen bg-black flex flex-col">
+    <div className="relative min-h-screen bg-black flex flex-col overflow-hidden">
+      <div className="absolute inset-0 z-0 opacity-50">
+        <GLSLWaves mode="grid" speed={0.3} />
+      </div>
+      <div className="absolute inset-0 z-0 bg-gradient-to-t from-black/80 via-transparent to-black/50 pointer-events-none" />
+
       {/* Top bar */}
-      <div className="flex items-center justify-between px-6 py-4">
+      <div className="relative z-10 flex items-center justify-between px-6 py-4">
         <Link href="/app" className="flex items-center gap-2">
           <img src="/brand/logo-circle.png" alt="Drift" className="w-6 h-6 rounded-full object-cover" />
           <span className="text-sm font-semibold text-white">Drift</span>
@@ -339,7 +345,7 @@ export default function BackendOrbClient() {
       </div>
 
       {/* Main */}
-      <div className="flex-1 flex items-center justify-center px-4 pb-12">
+      <div className="relative z-10 flex-1 flex items-center justify-center px-4 pb-12">
         {agents.length === 0 ? (
           <div className="text-center">
             <Rocket className="h-16 w-16 text-white/20 mx-auto mb-4" />

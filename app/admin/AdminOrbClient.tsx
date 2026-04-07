@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import AgentOrb from "@/components/frontend/AgentOrb";
 import PanelShell from "@/components/panels/PanelShell";
+import GLSLWaves from "@/components/ui/glsl-waves";
 
 const DashboardAPanel = lazy(() => import("@/components/panels/admin/DashboardAPanel"));
 const FeaturesAPanel = lazy(() => import("@/components/panels/admin/FeaturesAPanel"));
@@ -77,9 +78,14 @@ export default function AdminOrbClient({ userName }: { userName?: string }) {
   };
 
   return (
-    <div className="min-h-screen bg-black flex flex-col">
+    <div className="relative min-h-screen bg-black flex flex-col overflow-hidden">
+      <div className="absolute inset-0 z-0 opacity-40">
+        <GLSLWaves mode="nebula" speed={0.25} />
+      </div>
+      <div className="absolute inset-0 z-0 bg-gradient-to-t from-black/80 via-transparent to-black/60 pointer-events-none" />
+
       {/* Top bar */}
-      <div className="flex items-center justify-between px-6 py-4">
+      <div className="relative z-10 flex items-center justify-between px-6 py-4">
         <div className="flex items-center gap-2">
           <div className="w-7 h-7 rounded-lg bg-purple-500 flex items-center justify-center">
             <Shield className="w-3.5 h-3.5 text-white" />
@@ -104,7 +110,7 @@ export default function AdminOrbClient({ userName }: { userName?: string }) {
       </div>
 
       {/* Main */}
-      <div className="flex-1 flex flex-col items-center justify-center px-4 pb-16">
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 pb-16">
         <div
           className="relative"
           style={{ width: (orbitRadius + 56) * 2, height: (orbitRadius + 56) * 2 }}

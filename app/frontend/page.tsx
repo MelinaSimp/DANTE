@@ -10,6 +10,7 @@ import Link from "next/link";
 import { Bot, Calendar, FileText, CalendarClock, ArrowLeft, Phone, Palette, Mail, Inbox, Settings, Shield } from "lucide-react";
 import AgentOrb from "@/components/frontend/AgentOrb";
 import PanelShell from "@/components/panels/PanelShell";
+import GLSLWaves from "@/components/ui/glsl-waves";
 
 const SchedulePanel = lazy(() => import("@/components/panels/SchedulePanel"));
 const InboxPanel = lazy(() => import("@/components/panels/InboxPanel"));
@@ -339,9 +340,14 @@ export default function FrontendPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7] flex flex-col" style={{ background: "#f5f5f7" }}>
+    <div className="relative min-h-screen bg-[#f5f5f7] flex flex-col overflow-hidden" style={{ background: "#f5f5f7" }}>
+      <div className="absolute inset-0 z-0 opacity-40">
+        <GLSLWaves mode="ocean" speed={0.4} />
+      </div>
+      <div className="absolute inset-0 z-0 bg-gradient-to-t from-[#f5f5f7]/90 via-transparent to-[#f5f5f7]/70 pointer-events-none" />
+
       {/* Top bar */}
-      <div className="flex items-center justify-between px-6 py-4">
+      <div className="relative z-10 flex items-center justify-between px-6 py-4">
         <Link href="/frontend" className="flex items-center gap-2">
           <img src="/brand/logo-circle.png" alt="Drift" className="w-6 h-6 rounded-full object-cover" />
           <span className="text-sm font-semibold text-gray-900">Drift</span>
@@ -365,7 +371,7 @@ export default function FrontendPage() {
       </div>
 
       {/* Main content */}
-      <div className="flex-1 flex items-center justify-center px-4 pb-12">
+      <div className="relative z-10 flex-1 flex items-center justify-center px-4 pb-12">
         {agents.length === 0 ? (
           <div className="text-center">
             <Bot className="h-16 w-16 text-gray-300 mx-auto mb-4" />
