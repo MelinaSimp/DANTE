@@ -50,15 +50,15 @@ async function buildAssistantConfig(agentId: string): Promise<VapiAssistantConfi
   if (scenarios && scenarios.length > 0) {
     for (const scenario of scenarios) {
       const { data: steps } = await supabaseAdmin
-        .from("scenario_steps")
-        .select("type, ai_message, variable_name, order_index")
+        .from("steps")
+        .select("type, ai_message, name")
         .eq("scenario_id", scenario.id)
-        .order("order_index");
+        .order("sort_order");
 
       if (steps && steps.length > 0) {
         scenarioContext += `\n\nSCENARIO: ${scenario.name}\nSteps:\n`;
         for (const step of steps) {
-          scenarioContext += `- ${step.type}: ${step.ai_message || step.variable_name || ""}\n`;
+          scenarioContext += `- ${step.type}: ${step.ai_message || step.name || ""}\n`;
         }
       }
     }
@@ -160,11 +160,11 @@ Keep responses short and natural for voice (1-3 sentences).`;
   if (scenarios && scenarios.length > 0) {
     // Try to get first step's message
     const { data: firstStep } = await supabaseAdmin
-      .from("scenario_steps")
+      .from("steps")
       .select("ai_message")
       .eq("scenario_id", scenarios[0].id)
-      .eq("order_index", 0)
-      .single();
+      .eq("sort_order", 0)
+      .maybeSingle();
 
     if (firstStep?.ai_message) {
       firstMessage = firstStep.ai_message;

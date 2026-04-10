@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
       try {
         const supabase = await createServerSupabase();
         const { data: kb } = await supabase
-          .from("knowledge_bases")
+          .from("knowledge_base")
           .select("company_info, services, hours, policies, faq")
           .eq("workspace_id", workspaceId)
           .maybeSingle();

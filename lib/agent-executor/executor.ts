@@ -380,7 +380,7 @@ export class AgentExecutor {
    */
   private async evaluateBranches(stepId: string, userInput: string, context: any): Promise<any> {
     const { data: branches } = await this.supabase
-      .from("branches")
+      .from("step_branches")
       .select("*")
       .eq("step_id", stepId)
       .order("created_at", { ascending: true });

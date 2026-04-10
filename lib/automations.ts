@@ -20,50 +20,128 @@ interface AutomationRule {
   active: boolean;
 }
 
+export interface EmitResult {
+  logged: boolean;
+  rulesProcessed: number;
+  rulesSucceeded: number;
+  rulesFailed: number;
+  errors: string[];
+}
+
+/**
+ * Retry a fetch-based operation with exponential backoff.
+ * Throws on final failure so callers can handle it.
+ */
+async function withRetry<T>(
+  operation: () => Promise<T>,
+  opts: { maxAttempts?: number; baseDelayMs?: number; label: string } = { label: "op" }
+): Promise<T> {
+  const maxAttempts = opts.maxAttempts ?? 3;
+  const baseDelay = opts.baseDelayMs ?? 500;
+  let lastErr: any;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await operation();
+    } catch (err: any) {
+      lastErr = err;
+      if (attempt === maxAttempts) break;
+      // Exponential backoff: 500ms, 1s, 2s
+      const delay = baseDelay * Math.pow(2, attempt - 1);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+  throw new Error(`[${opts.label}] Failed after ${maxAttempts} attempts: ${lastErr?.message || lastErr}`);
+}
+
+/**
+ * Emit an automation event. Awaits logging + rule execution so callers
+ * know whether everything succeeded. Callers that don't want to block
+ * should use `.catch()` or wrap in a Promise.resolve() — but they should
+ * NOT assume this succeeds silently.
+ */
 export async function emitEvent(
   event: AutomationEvent,
   payload: Record<string, unknown> = {},
   workspaceId?: string
-): Promise<void> {
-  try {
-    supabaseAdmin
-      .from("automation_events")
-      .insert({
-        workspace_id: workspaceId || null,
-        event_type: event,
-        direction: "outbound",
-        payload: { event, timestamp: new Date().toISOString(), ...payload },
-      })
-      .then(() => {})
-      .catch((err) => console.error(`[Automations] Failed to log event ${event}:`, err.message));
+): Promise<EmitResult> {
+  const result: EmitResult = {
+    logged: false,
+    rulesProcessed: 0,
+    rulesSucceeded: 0,
+    rulesFailed: 0,
+    errors: [],
+  };
 
-    executeRules(event, payload).catch((err) =>
-      console.error(`[Automations] Rule execution error for ${event}:`, err.message)
-    );
+  // 1. Log the event (awaited — no more fire-and-forget)
+  try {
+    const { error } = await supabaseAdmin.from("automation_events").insert({
+      workspace_id: workspaceId || null,
+      event_type: event,
+      direction: "outbound",
+      payload: { event, timestamp: new Date().toISOString(), ...payload },
+    });
+    if (error) throw error;
+    result.logged = true;
   } catch (err: any) {
-    console.error(`[Automations] emitEvent error:`, err.message);
+    result.errors.push(`event log failed: ${err.message}`);
+    console.error(`[Automations] Failed to log event ${event}:`, err.message);
   }
+
+  // 2. Execute matching rules (awaited)
+  try {
+    const ruleResult = await executeRules(event, payload);
+    result.rulesProcessed = ruleResult.processed;
+    result.rulesSucceeded = ruleResult.succeeded;
+    result.rulesFailed = ruleResult.failed;
+    result.errors.push(...ruleResult.errors);
+  } catch (err: any) {
+    result.errors.push(`rule execution failed: ${err.message}`);
+    console.error(`[Automations] Rule execution error for ${event}:`, err.message);
+  }
+
+  return result;
+}
+
+interface RuleExecutionResult {
+  processed: number;
+  succeeded: number;
+  failed: number;
+  errors: string[];
 }
 
 async function executeRules(
   event: AutomationEvent,
   payload: Record<string, unknown>
-): Promise<void> {
-  const { data: rules } = await supabaseAdmin
+): Promise<RuleExecutionResult> {
+  const result: RuleExecutionResult = { processed: 0, succeeded: 0, failed: 0, errors: [] };
+
+  const { data: rules, error } = await supabaseAdmin
     .from("automation_rules")
     .select("*")
     .eq("trigger_event", event)
     .eq("active", true);
 
-  if (!rules || rules.length === 0) return;
+  if (error) {
+    throw new Error(`Failed to load rules: ${error.message}`);
+  }
+
+  if (!rules || rules.length === 0) return result;
 
   for (const rule of rules as AutomationRule[]) {
+    result.processed++;
     try {
       await executeAction(rule, payload);
+      result.succeeded++;
     } catch (err: any) {
-      console.error(`[Automations] Action failed for rule ${rule.id}:`, err.message);
+      result.failed++;
+      const msg = `rule ${rule.id} (${rule.channel}): ${err.message}`;
+      result.errors.push(msg);
+      console.error(`[Automations] Action failed for ${msg}`);
     }
   }
+
+  return result;
 }
 
 async function executeAction(
@@ -98,37 +176,57 @@ function buildMessage(template: string, payload: Record<string, unknown>): strin
 
 async function sendEmailAction(to: string, body: string, rule: AutomationRule): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey || !to) return;
+  if (!apiKey) throw new Error("RESEND_API_KEY not configured");
+  if (!to) throw new Error("No recipient");
 
   const fromEmail = process.env.RESEND_FROM_EMAIL || "noreply@driftai.studio";
 
-  await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      from: fromEmail,
-      to,
-      subject: `Automation: ${rule.trigger_event}`,
-      html: `<div style="font-family:-apple-system,sans-serif;max-width:600px;margin:0 auto;">${body.replace(/\n/g, "<br/>")}</div>`,
-    }),
-  });
+  await withRetry(
+    async () => {
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from: fromEmail,
+          to,
+          subject: `Automation: ${rule.trigger_event}`,
+          html: `<div style="font-family:-apple-system,sans-serif;max-width:600px;margin:0 auto;">${body.replace(/\n/g, "<br/>")}</div>`,
+        }),
+      });
+      if (!res.ok) {
+        const errText = await res.text().catch(() => res.statusText);
+        throw new Error(`Resend ${res.status}: ${errText}`);
+      }
+    },
+    { label: "email", maxAttempts: 3 }
+  );
 }
 
 async function sendSmsAction(to: string, body: string): Promise<void> {
   const sid = process.env.TWILIO_ACCOUNT_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
   const from = process.env.TWILIO_PHONE_NUMBER;
-  if (!sid || !token || !from || !to) return;
+  if (!sid || !token || !from) throw new Error("Twilio credentials not configured");
+  if (!to) throw new Error("No recipient");
 
-  const url = `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`;
-  await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: "Basic " + Buffer.from(`${sid}:${token}`).toString("base64"),
-      "Content-Type": "application/x-www-form-urlencoded",
+  await withRetry(
+    async () => {
+      const url = `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: "Basic " + Buffer.from(`${sid}:${token}`).toString("base64"),
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({ To: to, From: from, Body: body }).toString(),
+      });
+      if (!res.ok) {
+        const errText = await res.text().catch(() => res.statusText);
+        throw new Error(`Twilio ${res.status}: ${errText}`);
+      }
     },
-    body: new URLSearchParams({ To: to, From: from, Body: body }).toString(),
-  });
+    { label: "sms", maxAttempts: 3 }
+  );
 }
 
 async function sendWebhookAction(
@@ -138,23 +236,33 @@ async function sendWebhookAction(
 ): Promise<void> {
   const condition = rule.condition?.trim();
   const webhookUrl = condition?.startsWith("http") ? condition : null;
-  if (!webhookUrl) return;
+  if (!webhookUrl) throw new Error("Webhook URL missing from rule condition");
 
-  await fetch(webhookUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      event: rule.trigger_event,
-      action: rule.action_description,
-      message,
-      payload,
-      timestamp: new Date().toISOString(),
-    }),
-  });
+  await withRetry(
+    async () => {
+      const res = await fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: rule.trigger_event,
+          action: rule.action_description,
+          message,
+          payload,
+          timestamp: new Date().toISOString(),
+        }),
+      });
+      if (!res.ok) {
+        throw new Error(`Webhook ${res.status}`);
+      }
+    },
+    { label: "webhook", maxAttempts: 3 }
+  );
 }
 
 async function logAction(rule: AutomationRule, payload: Record<string, unknown>): Promise<void> {
-  console.log(`[Automations] Rule ${rule.id} (${rule.trigger_event} -> ${rule.channel}):`, payload);
+  // No-op logging action — "log" channel intentionally does nothing.
+  void rule;
+  void payload;
 }
 
 export async function testSend(
@@ -166,19 +274,30 @@ export async function testSend(
     switch (channel) {
       case "email":
         await sendEmailAction(recipient, message, {
-          id: "test", agent_id: "", trigger_event: "test",
-          condition: "", action_description: message, channel: "email", active: true,
+          id: "test",
+          agent_id: "",
+          trigger_event: "test",
+          condition: "",
+          action_description: message,
+          channel: "email",
+          active: true,
         });
         return { success: true };
       case "sms":
         await sendSmsAction(recipient, message);
         return { success: true };
       case "webhook":
-        await fetch(recipient, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message, timestamp: new Date().toISOString() }),
-        });
+        await withRetry(
+          async () => {
+            const res = await fetch(recipient, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ message, timestamp: new Date().toISOString() }),
+            });
+            if (!res.ok) throw new Error(`Webhook ${res.status}`);
+          },
+          { label: "test-webhook", maxAttempts: 2 }
+        );
         return { success: true };
       default:
         return { success: false, error: `Unsupported channel: ${channel}` };
