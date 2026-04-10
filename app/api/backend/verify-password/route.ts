@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,11 @@ async function getBackendPassword(): Promise<string | null> {
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limit: 5 attempts per minute per IP
+    const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "unknown";
+    const { allowed } = rateLimit(`backend-pw:${ip}`, 5, 60_000);
+    if (!allowed) return rateLimitResponse();
+
     const { password } = await req.json();
 
     if (!password) {

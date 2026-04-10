@@ -12,9 +12,10 @@ export const maxDuration = 30;
  */
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const supabase = await createServerSupabase();
     const {
       data: { user },
@@ -24,7 +25,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const appointmentId = params.id;
+    const appointmentId = id;
     const body = await req.json();
     const { reminderTiming = [], reminderChannels = { sms: true, email: false } } = body;
 
@@ -249,9 +250,10 @@ export async function PATCH(
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const supabase = await createServerSupabase();
     const {
       data: { user },
@@ -261,7 +263,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const appointmentId = params.id;
+    const appointmentId = id;
 
     // Get workspace
     const { data: profile } = await supabase

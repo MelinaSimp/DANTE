@@ -34,6 +34,11 @@ export const FEATURE_DEFINITIONS = {
     name: "Inbox",
     description: "Conversation inbox for managing voice and chat interactions",
   },
+  automations: {
+    id: "automations",
+    name: "Automations",
+    description: "Built-in multi-channel automations and workflows",
+  },
 } as const;
 
 export type FeatureId = keyof typeof FEATURE_DEFINITIONS;

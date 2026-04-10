@@ -105,11 +105,7 @@ function defaultMessage(type: StepType): string {
 
 export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepSelect, isDeployed = false, onTestFlow }: AgentCanvasProps) {
   const { theme, colors } = useTheme();
-  
-  // Debug: Log deployment status
-  useEffect(() => {
-    console.log("[AgentCanvas] isDeployed:", isDeployed);
-  }, [isDeployed]);
+
   const [scenario, setScenario] = useState<Scenario>({
     id: scenarioId,
     name: scenarioName,
@@ -224,16 +220,13 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
   useEffect(() => {
     async function loadScenarios() {
       if (!agentId) {
-        console.log("[AgentCanvas] No agentId, skipping scenario load");
         return;
       }
       
       try {
-        console.log("[AgentCanvas] Loading scenarios for agentId:", agentId);
         const response = await fetch(`/api/agents/${agentId}/scenarios`);
         if (response.ok) {
           const scenariosData = await response.json();
-          console.log("[AgentCanvas] Loaded scenarios:", scenariosData);
           setAvailableScenarios(
             scenariosData.map((s: any) => ({
               id: s.id,
@@ -276,9 +269,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
   const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setDraggedOver(false);
-    console.log("[AgentCanvas] handleDrop - isDeployed:", isDeployed);
     if (isDeployed) {
-      console.log("[AgentCanvas] Blocking drop - agent is deployed");
       setConfirmationModal({
         isOpen: true,
         title: "Cannot Edit",
@@ -291,9 +282,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
       return;
     }
     const type = event.dataTransfer.getData("step-type") as StepType;
-    console.log("[AgentCanvas] Dropped step type:", type);
     if (!type) {
-      console.log("[AgentCanvas] No step type in dataTransfer");
       return;
     }
 
@@ -560,7 +549,6 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
 
       // Get the updated branch data from the response
       const updatedBranch = await response.json();
-      console.log("[AgentCanvas] Branch updated successfully:", updatedBranch);
       
       // Update state with the actual response from server (this ensures we have the correct data)
       setScenario((prev) => {
@@ -592,10 +580,8 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
       // Force a re-check of branch target type after update
       if (updatedBranch.next_scenario_id) {
         setBranchTargetType("scenario");
-        console.log("[AgentCanvas] Set branchTargetType to 'scenario' after update");
       } else if (updatedBranch.next_step_id) {
         setBranchTargetType("step");
-        console.log("[AgentCanvas] Set branchTargetType to 'step' after update");
       }
       
       // Reload the step's branches from API to ensure we have the latest data
@@ -604,7 +590,6 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
         if (branchesResponse.ok) {
           const freshBranches = await branchesResponse.json();
           const updatedBranchFromApi = freshBranches.find((b: any) => b.id === branchId);
-          console.log("[AgentCanvas] Reloaded branch from API:", updatedBranchFromApi);
           
           // Update the specific branch in state with fresh data
           setScenario((prev) => {
@@ -770,41 +755,25 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
 
   // Update branch target type when branch changes (useEffect to avoid render issues)
   useEffect(() => {
-    console.log("[AgentCanvas] ===== BRANCH EDITOR OPENED/CHANGED =====");
-    console.log("[AgentCanvas] selectedStepForBranch:", selectedStepForBranch);
     
     if (!selectedStepForBranch) {
       // No branch selected, default to step
-      console.log("[AgentCanvas] No branch selected, defaulting to 'step'");
       setBranchTargetType("step");
       return;
     }
     
     // Reload the specific branch from API to ensure we have latest data
     async function reloadBranch() {
-      console.log("[AgentCanvas] Reloading branch from API...");
-      console.log("[AgentCanvas] StepId:", selectedStepForBranch.stepId);
-      console.log("[AgentCanvas] BranchId:", selectedStepForBranch.branchId);
       
       try {
         const branchesResponse = await fetch(`/api/steps/${selectedStepForBranch.stepId}/branches`);
-        console.log("[AgentCanvas] Branches API response status:", branchesResponse.status);
         
         if (branchesResponse.ok) {
           const branches = await branchesResponse.json();
-          console.log("[AgentCanvas] All branches:", branches);
           
           const freshBranch = branches.find((b: any) => b.id === selectedStepForBranch.branchId);
-          console.log("[AgentCanvas] Found branch:", freshBranch);
           
           if (freshBranch) {
-            console.log("[AgentCanvas] Branch loaded from API:", {
-              id: freshBranch.id,
-              next_scenario_id: freshBranch.next_scenario_id,
-              next_step_id: freshBranch.next_step_id,
-              condition_tag: freshBranch.condition_tag
-            });
-            
             // Update the branch in state with fresh data
             setScenario((prev) => {
               if (!prev) return prev;
@@ -831,13 +800,10 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
             
             // Set branch target type based on fresh data
             if (freshBranch.next_scenario_id) {
-              console.log("[AgentCanvas] ✅ Setting branchTargetType to 'scenario' (has next_scenario_id)");
               setBranchTargetType("scenario");
             } else if (freshBranch.next_step_id) {
-              console.log("[AgentCanvas] Setting branchTargetType to 'step' (has next_step_id)");
               setBranchTargetType("step");
             } else {
-              console.log("[AgentCanvas] No target set, defaulting to 'step'");
               setBranchTargetType("step");
             }
           } else {
@@ -850,16 +816,12 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
         console.error("[AgentCanvas] ❌ Failed to reload branch:", error);
         // Fallback to reading from state
         const branch = getCurrentBranch();
-        console.log("[AgentCanvas] Fallback: reading from state, branch:", branch);
         if (branch) {
           if (branch.next_scenario_id) {
-            console.log("[AgentCanvas] Fallback: Setting to 'scenario' from state");
             setBranchTargetType("scenario");
           } else if (branch.next_step_id) {
-            console.log("[AgentCanvas] Fallback: Setting to 'step' from state");
             setBranchTargetType("step");
           } else {
-            console.log("[AgentCanvas] Fallback: Defaulting to 'step'");
             setBranchTargetType("step");
           }
         }
@@ -1124,7 +1086,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                 value={editingText}
                 onChange={(e) => setEditingText(e.target.value)}
                 rows={3}
-                className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} placeholder:${colors.textTertiary} focus:border-[#f97316] focus:outline-none`}
+                className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} placeholder:${colors.textTertiary} focus:border-cyan-500 focus:outline-none`}
               />
               <div className="flex gap-2">
                 <button
@@ -1156,7 +1118,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
 
         {/* Step-specific configurations - render all except loop config (since loop is handled separately) */}
         {step.type === "qa" && (
-          <div className="mb-4 p-3 rounded-2xl border border-orange-500/30 bg-orange-500/10">
+          <div className="mb-4 p-3 rounded-2xl border border-cyan-500/30 bg-cyan-500/10">
             <div className="flex items-center justify-between mb-2">
               <label className={`text-[10px] font-medium ${colors.textSecondary}`}>
                 Data Sources
@@ -1219,7 +1181,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                         <span
                           className={`px-2 py-0.5 rounded text-xs font-mono ${
                             branch.condition_tag.startsWith("@")
-                              ? "bg-orange-500/20 text-orange-300 border border-orange-500/30"
+                              ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
                               : branch.condition_tag === "If Statement"
                               ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
                               : "bg-green-500/20 text-green-300 border border-green-500/30"
@@ -1310,7 +1272,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
             {onTestFlow && (
               <button
                 onClick={onTestFlow}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 text-orange-400 text-xs font-medium transition`}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/30 text-cyan-400 text-xs font-medium transition`}
                 title="Test agent interaction (works even when not deployed)"
               >
                 <Play className="h-3 w-3" />
@@ -1335,7 +1297,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                       e.dataTransfer.setData("step-type", fn.type);
                       e.dataTransfer.effectAllowed = "move";
                     }}
-                    className={`flex-shrink-0 cursor-grab active:cursor-grabbing rounded-3xl border ${colors.border} ${colors.cardBg} px-4 py-3 text-xs ${colors.text} hover:border-[#f97316]/50 ${colors.hover} transition`}
+                    className={`flex-shrink-0 cursor-grab active:cursor-grabbing rounded-3xl border ${colors.border} ${colors.cardBg} px-4 py-3 text-xs ${colors.text} hover:border-cyan-500/50 ${colors.hover} transition`}
                   >
                     <div className="flex items-center gap-2">
                       <Icon className={`h-4 w-4 ${colors.iconSecondary}`} />
@@ -1364,7 +1326,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
               <div
                 className={`rounded-3xl border border-white/10 bg-[#242423]/90 backdrop-blur-sm px-4 py-4 max-w-4xl mx-auto transition ${
                   draggedOver
-                    ? "border-[#f97316] bg-[#f97316]/10"
+                    ? "border-cyan-500 bg-cyan-500/10"
                     : ""
                 }`}
                 onDragOver={(e) => {
@@ -1457,7 +1419,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                           value={editingText}
                                           onChange={(e) => setEditingText(e.target.value)}
                                           rows={3}
-                                          className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} placeholder:${colors.textTertiary} focus:border-[#f97316] focus:outline-none`}
+                                          className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} placeholder:${colors.textTertiary} focus:border-cyan-500 focus:outline-none`}
                                         />
                                         <div className="flex gap-2">
                                           <button
@@ -1498,7 +1460,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                           Number of Iterations
                                         </label>
                                         <select
-                                          className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} focus:border-[#f97316] focus:outline-none`}
+                                          className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} focus:border-cyan-500 focus:outline-none`}
                                           value={step.loop_config?.iterations || "1"}
                                           onChange={async (e) => {
                                             const newConfig = {
@@ -1618,7 +1580,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                         value={editingText}
                                         onChange={(e) => setEditingText(e.target.value)}
                                         rows={3}
-                                        className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} placeholder:${colors.textTertiary} focus:border-[#f97316] focus:outline-none`}
+                                        className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} placeholder:${colors.textTertiary} focus:border-cyan-500 focus:outline-none`}
                                       />
                                       <div className="flex gap-2">
                                         <button
@@ -1650,7 +1612,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                 
                                 {/* Step-specific configurations */}
                                 {step.type === "send_sms" && (
-                                  <div className="mb-4 p-3 rounded-2xl border border-orange-500/30 bg-orange-500/10 space-y-3">
+                                  <div className="mb-4 p-3 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 space-y-3">
                                     <div>
                                       <label className={`block text-[10px] font-medium ${colors.textSecondary} mb-2`}>
                                         SMS Message
@@ -1664,7 +1626,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                           });
                                         }}
                                         rows={3}
-                                        className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} placeholder:${colors.textTertiary} focus:border-[#f97316] focus:outline-none resize-none`}
+                                        className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} placeholder:${colors.textTertiary} focus:border-cyan-500 focus:outline-none resize-none`}
                                         placeholder="Hi {{customer_name}}, reminder: Your appointment is on {{appointment_date}}..."
                                       />
                                       <p className={`text-[10px] ${colors.textTertiary} mt-1`}>
@@ -1684,7 +1646,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                             phone_number: e.target.value,
                                           });
                                         }}
-                                        className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} placeholder:${colors.textTertiary} focus:border-[#f97316] focus:outline-none`}
+                                        className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} placeholder:${colors.textTertiary} focus:border-cyan-500 focus:outline-none`}
                                         placeholder="{{phone_number}} or +1234567890"
                                       />
                                       <p className={`text-[10px] ${colors.textTertiary} mt-1`}>
@@ -1723,7 +1685,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                   </div>
                                 )}
                                 {step.type === "qa" && (
-                                  <div className="mb-4 p-3 rounded-2xl border border-orange-500/30 bg-orange-500/10">
+                                  <div className="mb-4 p-3 rounded-2xl border border-cyan-500/30 bg-cyan-500/10">
                                     <div className="flex items-center justify-between mb-2">
                                       <label className={`text-[10px] font-medium ${colors.textSecondary}`}>
                                         Data Sources
@@ -1786,7 +1748,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                                 <span
                                                   className={`px-2 py-0.5 rounded text-xs font-mono ${
                                                     branch.condition_tag.startsWith("@")
-                                                      ? "bg-orange-500/20 text-orange-300 border border-orange-500/30"
+                                                      ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
                                                       : branch.condition_tag === "If Statement"
                                                       ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
                                                       : "bg-green-500/20 text-green-300 border border-green-500/30"
@@ -1908,7 +1870,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                   }
                 }}
                 rows={3}
-                className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} placeholder:${colors.textTertiary} focus:border-[#f97316] focus:outline-none resize-none`}
+                className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} px-3 py-2 text-xs ${colors.text} placeholder:${colors.textTertiary} focus:border-cyan-500 focus:outline-none resize-none`}
                 placeholder="Customer provides their full name and date of birth"
               />
               <p className={`text-[10px] ${colors.textTertiary} mt-1`}>
@@ -1928,14 +1890,14 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                     onClick={() => selectTag(tag)}
                     className={`w-full text-left px-3 py-2 rounded-2xl border transition text-sm ${
                       currentBranch?.condition_tag === tag
-                        ? `border-[#f97316] bg-[#f97316]/20 ${colors.text}`
+                        ? `border-cyan-500 bg-cyan-500/20 ${colors.text}`
                         : `${colors.border} ${colors.cardBg} ${colors.textSecondary} ${colors.hover}`
                     }`}
                   >
                     <span
                       className={`px-2 py-0.5 rounded text-xs font-mono ${
                         tag.startsWith("@")
-                          ? "bg-orange-500/20 text-orange-300 border border-orange-500/30"
+                          ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30"
                           : tag === "If Statement"
                           ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
                           : "bg-green-500/20 text-green-300 border border-green-500/30"
@@ -1969,7 +1931,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                   }}
                   className={`flex-1 px-3 py-2 rounded-2xl border text-xs transition ${
                     branchTargetType === "step"
-                      ? `border-[#f97316] bg-[#f97316]/20 ${colors.text}`
+                      ? `border-cyan-500 bg-cyan-500/20 ${colors.text}`
                       : `${colors.border} ${colors.cardBg} ${colors.textSecondary} ${colors.hover}`
                   }`}
                 >
@@ -1990,7 +1952,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                   }}
                   className={`flex-1 px-3 py-2 rounded-2xl border text-xs transition ${
                     branchTargetType === "scenario"
-                      ? `border-[#f97316] bg-[#f97316]/20 ${colors.text}`
+                      ? `border-cyan-500 bg-cyan-500/20 ${colors.text}`
                       : `${colors.border} ${colors.cardBg} ${colors.textSecondary} ${colors.hover}`
                   }`}
                 >
@@ -2018,7 +1980,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                       }
                     }}
                     rows={2}
-                    className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} ${colors.text} placeholder:${colors.textTertiary} focus:border-[#f97316] focus:outline-none resize-none px-3 py-2 text-sm`}
+                    className={`w-full rounded-2xl border ${colors.border} ${colors.inputBg} ${colors.text} placeholder:${colors.textTertiary} focus:border-cyan-500 focus:outline-none resize-none px-3 py-2 text-sm`}
                     placeholder="Identity Verification step"
                   />
                   <p className={`text-[10px] ${colors.textTertiary} mt-1`}>
@@ -2051,7 +2013,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                           }}
                           className={`w-full text-left px-3 py-2 rounded-2xl border transition text-xs ${
                             currentBranch?.next_step_id === step.id
-                              ? `border-[#f97316] bg-[#f97316]/20 ${colors.text}`
+                              ? `border-cyan-500 bg-cyan-500/20 ${colors.text}`
                               : `${colors.border} ${colors.cardBg} ${colors.textSecondary} ${colors.hover}`
                           }`}
                         >
@@ -2081,9 +2043,6 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                   <div className="space-y-2">
                     {(() => {
                       const filteredScenarios = availableScenarios.filter((s) => s.id !== scenarioId);
-                      console.log("[AgentCanvas] Available scenarios:", availableScenarios);
-                      console.log("[AgentCanvas] Current scenarioId:", scenarioId);
-                      console.log("[AgentCanvas] Filtered scenarios:", filteredScenarios);
                       return filteredScenarios.length === 0 ? (
                         <div className={`text-xs ${colors.textTertiary} p-3 rounded-2xl ${colors.bgSecondary}`}>
                           No other scenarios available. Create more scenarios to switch between them.
@@ -2100,22 +2059,10 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                               return;
                             }
                             try {
-                              console.log("[AgentCanvas] ===== CLICKING SCENARIO =====");
-                              console.log("[AgentCanvas] Scenario clicked:", scenario);
-                              console.log("[AgentCanvas] selectedStepForBranch:", selectedStepForBranch);
                               
                               // Explicitly set branch target type to scenario
-                              console.log("[AgentCanvas] Setting branchTargetType to 'scenario'");
                               setBranchTargetType("scenario");
-                              
-                              console.log("[AgentCanvas] Calling updateBranch with:", {
-                                stepId: selectedStepForBranch.stepId,
-                                branchId: selectedStepForBranch.branchId,
-                                next_scenario_id: scenario.id,
-                                next_step_id: null,
-                                target: scenario.name || "Scheduling"
-                              });
-                              
+
                               await updateBranch(
                                 selectedStepForBranch.stepId,
                                 selectedStepForBranch.branchId,
@@ -2126,8 +2073,6 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                 }
                               );
                               
-                              console.log("[AgentCanvas] ✅ Branch updated successfully with scenario:", scenario.id);
-                              console.log("[AgentCanvas] ===== SCENARIO SELECTION COMPLETE =====");
                             } catch (error: any) {
                               console.error("[AgentCanvas] ❌ Failed to update branch with scenario:", error);
                               alert(`Failed to connect to scenario: ${error?.message || "Unknown error"}`);
@@ -2135,7 +2080,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                           }}
                           className={`w-full text-left px-3 py-2 rounded-2xl border transition text-xs ${
                             currentBranch?.next_scenario_id === scenario.id
-                              ? `border-[#f97316] bg-[#f97316]/20 ${colors.text}`
+                              ? `border-cyan-500 bg-cyan-500/20 ${colors.text}`
                               : `${colors.border} ${colors.cardBg} ${colors.textSecondary} ${colors.hover}`
                           }`}
                         >
@@ -2190,7 +2135,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
               ) : (
                 <div className="space-y-4">
                   {/* Info message */}
-                  <div className={`p-3 rounded-2xl bg-orange-500/10 border border-orange-500/30`}>
+                  <div className={`p-3 rounded-2xl bg-cyan-500/10 border border-cyan-500/30`}>
                     <p className={`text-xs ${colors.textSecondary}`}>
                       Select data sources from the <strong>Data Sources</strong> page. Go to the Data Sources tab to add PDFs, text, or API keys.
                     </p>
@@ -2207,7 +2152,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                       {availableDataSources.map((ds) => (
                         <label
                           key={ds.id}
-                          className={`flex items-center gap-3 p-3 rounded-2xl border ${colors.border} ${colors.bgSecondary} cursor-pointer hover:border-[#f97316]/50 transition`}
+                          className={`flex items-center gap-3 p-3 rounded-2xl border ${colors.border} ${colors.bgSecondary} cursor-pointer hover:border-cyan-500/50 transition`}
                         >
                           <input
                             type="checkbox"

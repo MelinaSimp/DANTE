@@ -14,9 +14,10 @@ export const maxDuration = 30;
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { chatId: string } }
+  { params }: { params: Promise<{ chatId: string }> }
 ) {
   try {
+    const { chatId } = await params;
     const supabase = await createServerSupabase();
     const {
       data: { user },
@@ -29,7 +30,7 @@ export async function GET(
     const { data: chat, error } = await supabaseAdmin
       .from("llm_chats")
       .select("*")
-      .eq("id", params.chatId)
+      .eq("id", chatId)
       .eq("user_id", user.id)
       .single();
 
@@ -49,9 +50,10 @@ export async function GET(
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { chatId: string } }
+  { params }: { params: Promise<{ chatId: string }> }
 ) {
   try {
+    const { chatId } = await params;
     const supabase = await createServerSupabase();
     const {
       data: { user },
@@ -69,7 +71,7 @@ export async function PATCH(
         ...updates,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", params.chatId)
+      .eq("id", chatId)
       .eq("user_id", user.id)
       .select()
       .single();
@@ -90,9 +92,10 @@ export async function PATCH(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { chatId: string } }
+  { params }: { params: Promise<{ chatId: string }> }
 ) {
   try {
+    const { chatId } = await params;
     const supabase = await createServerSupabase();
     const {
       data: { user },
@@ -105,7 +108,7 @@ export async function DELETE(
     const { error } = await supabaseAdmin
       .from("llm_chats")
       .delete()
-      .eq("id", params.chatId)
+      .eq("id", chatId)
       .eq("user_id", user.id);
 
     if (error) {

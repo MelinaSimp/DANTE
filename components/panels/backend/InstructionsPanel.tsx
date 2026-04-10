@@ -38,7 +38,7 @@ export default function InstructionsPanel({ agentId }: { agentId: string }) {
           <p className="text-white/50 text-sm mt-1">Provide rules and instructions for the LLM. The agent will follow these during conversations.</p>
         </div>
         <button onClick={handleSave} disabled={saving}
-          className="px-5 py-2 rounded-2xl bg-[#f97316] hover:bg-[#ea580c] disabled:opacity-50 text-white font-medium text-sm transition">
+          className="px-5 py-2 rounded-2xl bg-cyan-500 hover:bg-cyan-600 disabled:opacity-50 text-white font-medium text-sm transition">
           {saving ? "Saving..." : saved ? "Saved!" : "Save"}
         </button>
       </div>
@@ -46,7 +46,7 @@ export default function InstructionsPanel({ agentId }: { agentId: string }) {
         value={instructions}
         onChange={e => setInstructions(e.target.value)}
         placeholder="e.g. You are a friendly support agent. Always greet the customer by name. Keep responses brief and helpful."
-        className="flex-1 min-h-[320px] w-full px-4 py-3 rounded-2xl bg-black/60 border border-white/10 text-white placeholder-white/40 text-sm focus:border-[#f97316] focus:outline-none resize-y"
+        className="flex-1 min-h-[320px] w-full px-4 py-3 rounded-2xl bg-black/60 border border-white/10 text-white placeholder-white/40 text-sm focus:border-cyan-500 focus:outline-none resize-y"
         spellCheck={false}
       />
     </div>

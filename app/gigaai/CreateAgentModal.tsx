@@ -69,7 +69,7 @@ export default function CreateAgentModal({ onClose, onCreate }: CreateAgentModal
                     : `${colors.bgTertiary} border ${colors.border} ${colors.hover}`
                 }`}
               >
-                <MessageSquare className={`h-4 w-4 ${modality === "chat" ? "text-orange-400" : colors.iconSecondary}`} />
+                <MessageSquare className={`h-4 w-4 ${modality === "chat" ? "text-cyan-400" : colors.iconSecondary}`} />
                 <div className={`text-sm font-medium ${modality === "chat" ? colors.text : colors.textTertiary}`}>
                   Chat
                 </div>
@@ -179,7 +179,7 @@ export default function CreateAgentModal({ onClose, onCreate }: CreateAgentModal
               Cancel
             </button>
             <div className="relative inline-block">
-              <div className="absolute -inset-1 bg-gradient-to-br from-orange-500 via-orange-600 to-red-500 rounded-2xl blur-sm opacity-50"></div>
+              <div className="absolute -inset-1 bg-gradient-to-br from-cyan-500 via-cyan-600 to-red-500 rounded-2xl blur-sm opacity-50"></div>
               <button
                 type="submit"
                 className={`relative px-6 py-2 rounded-2xl ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white font-medium transition`}

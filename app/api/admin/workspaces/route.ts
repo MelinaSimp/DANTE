@@ -27,7 +27,7 @@ export async function GET() {
 
   const { data: workspaces, error } = await supabaseAdmin
     .from("workspaces")
-    .select("id, name, created_at, owner_id, enabled_features, plan_status, billing_amount, billing_cycle")
+    .select("id, name, created_at, owner_id, enabled_features, plan_status, billing_amount, billing_cycle, invite_code")
     .order("created_at", { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -64,10 +64,11 @@ export async function PUT(req: NextRequest) {
   const { name } = await req.json();
   if (!name?.trim()) return NextResponse.json({ error: "name is required" }, { status: 400 });
 
+  const invite_code = "DRIFT-" + Math.random().toString(36).substring(2, 8).toUpperCase();
   const { data, error } = await supabaseAdmin
     .from("workspaces")
-    .insert({ name: name.trim(), plan_status: "active" })
-    .select("id, name, created_at, owner_id, enabled_features, plan_status")
+    .insert({ name: name.trim(), plan_status: "active", invite_code })
+    .select("id, name, created_at, owner_id, enabled_features, plan_status, invite_code")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

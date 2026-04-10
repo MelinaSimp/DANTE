@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { Resend } from "resend";
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { emitEvent } from "@/lib/automations";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +74,8 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
+
+    emitEvent("email.sent", { to: recipients, subject, messageId: data?.id });
 
     return NextResponse.json({
       success: true,

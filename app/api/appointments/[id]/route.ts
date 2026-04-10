@@ -21,8 +21,9 @@ async function getWorkspace(req: NextRequest) {
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const { workspaceId } = await getWorkspace(req);
   if (!workspaceId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -44,7 +45,7 @@ export async function GET(
         email
       )
     `)
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("workspace_id", workspaceId)
     .single();
 
@@ -57,8 +58,9 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const { workspaceId } = await getWorkspace(req);
   if (!workspaceId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -68,7 +70,7 @@ export async function PUT(
   const { data: appointment } = await supabaseAdmin
     .from("appointments")
     .select("workspace_id, contact_id")
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("workspace_id", workspaceId)
     .single();
 
@@ -116,7 +118,7 @@ export async function PUT(
   const { data, error } = await supabaseAdmin
     .from("appointments")
     .update(appointmentUpdates)
-    .eq("id", params.id)
+    .eq("id", id)
     .select(`
       id,
       scheduled_at,
@@ -143,8 +145,9 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const { workspaceId } = await getWorkspace(req);
   if (!workspaceId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -154,7 +157,7 @@ export async function DELETE(
   const { data: appointment } = await supabaseAdmin
     .from("appointments")
     .select("workspace_id")
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("workspace_id", workspaceId)
     .single();
 
@@ -165,7 +168,7 @@ export async function DELETE(
   const { error } = await supabaseAdmin
     .from("appointments")
     .delete()
-    .eq("id", params.id);
+    .eq("id", id);
 
   if (error) {
     console.error("Failed to delete appointment", error);

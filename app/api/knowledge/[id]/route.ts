@@ -4,11 +4,12 @@ import { createServerSupabase } from "@/lib/supabase/server";
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const supabase = await createServerSupabase();
-    const entryId = params.id;
+    const entryId = id;
 
     // Get the current user
     const {
@@ -78,11 +79,12 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const supabase = await createServerSupabase();
-    const entryId = params.id;
+    const entryId = id;
 
     // Get the current user
     const {

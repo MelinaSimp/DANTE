@@ -196,7 +196,7 @@ export default function ChatInterface({
             onChange={(e) => setInput(e.target.value)}
             placeholder="Type your message..."
             disabled={loading}
-            className={`flex-1 rounded-2xl border ${colors.border} ${colors.inputBg} px-4 py-2 ${colors.text} placeholder:${colors.textTertiary} focus:border-[#f97316] focus:outline-none disabled:opacity-50`}
+            className={`flex-1 rounded-2xl border ${colors.border} ${colors.inputBg} px-4 py-2 ${colors.text} placeholder:${colors.textTertiary} focus:border-cyan-500 focus:outline-none disabled:opacity-50`}
           />
           <button
             type="submit"

@@ -7,9 +7,10 @@ export const maxDuration = 60;
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { agentId: string } }
+  { params }: { params: Promise<{ agentId: string }> }
 ) {
   try {
+    const { agentId } = await params;
     const supabase = await createServerSupabase();
     const {
       data: { user },
@@ -28,8 +29,6 @@ export async function POST(
     if (!profile?.workspace_id) {
       return NextResponse.json({ error: "No workspace found" }, { status: 400 });
     }
-
-    const agentId = params.agentId;
     const { userInput, scenarioId, currentStepId, gatheredData = {}, transcript = [] } = await req.json();
 
     // Verify agent belongs to workspace

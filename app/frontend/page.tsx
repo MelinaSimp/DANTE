@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase/client";
 import { useFeatures } from "@/hooks/useFeatures";
 import type { FeatureId } from "@/lib/features";
 import Link from "next/link";
-import { Bot, Calendar, FileText, CalendarClock, ArrowLeft, Phone, Palette, Mail, Inbox, Settings, Shield } from "lucide-react";
+import { Bot, Calendar, FileText, CalendarClock, ArrowLeft, Phone, Palette, Mail, Inbox, Settings, Shield, Zap } from "lucide-react";
 import AgentOrb from "@/components/frontend/AgentOrb";
 import PanelShell from "@/components/panels/PanelShell";
 import GLSLWaves from "@/components/ui/glsl-waves";
@@ -18,6 +18,7 @@ const SalesPanel = lazy(() => import("@/components/panels/SalesPanel"));
 const EmailPanel = lazy(() => import("@/components/panels/EmailPanel"));
 const PlannerPanel = lazy(() => import("@/components/panels/PlannerPanel"));
 const ClientsPanel = lazy(() => import("@/components/panels/ClientsPanel"));
+const AutomationsPanel = lazy(() => import("@/components/panels/AutomationsPanel"));
 
 interface Agent {
   id: string;
@@ -27,7 +28,7 @@ interface Agent {
   status: string;
 }
 
-type PanelId = "calendar" | "clients" | "planner" | "sales" | "email" | "inbox";
+type PanelId = "calendar" | "clients" | "planner" | "sales" | "email" | "inbox" | "automations";
 
 const PANEL_TITLES: Record<PanelId, string> = {
   calendar: "Schedule",
@@ -36,9 +37,10 @@ const PANEL_TITLES: Record<PanelId, string> = {
   sales: "Sales",
   email: "Email",
   inbox: "Inbox",
+  automations: "Automations",
 };
 
-const WIDE_PANELS: PanelId[] = ["planner", "email", "sales"];
+const WIDE_PANELS: PanelId[] = ["planner", "email", "sales", "automations"];
 
 const GRADIENT_PRESETS: string[][] = [
   ["#FF6B6B", "#4ECDC4", "#45B7D1"],
@@ -292,6 +294,7 @@ export default function FrontendPage() {
         if (!user) { router.push("/auth"); return; }
         const { data: profile } = await supabase.from("profiles").select("workspace_id, is_superadmin").eq("id", user.id).maybeSingle();
         setIsSuperadmin(!!profile?.is_superadmin);
+        if (!profile?.workspace_id && !profile?.is_superadmin) { router.push("/join"); return; }
         if (!profile?.workspace_id) { setLoading(false); return; }
         const response = await fetch("/api/agents");
         if (response.ok) {
@@ -348,6 +351,7 @@ export default function FrontendPage() {
       { name: "Sales", icon: Phone, panelId: "sales", featureId: "sales" },
       { name: "Email", icon: Mail, panelId: "email", featureId: "emailing" },
       { name: "Inbox", icon: Inbox, panelId: "inbox", featureId: "inbox" },
+      { name: "Automations", icon: Zap, panelId: "automations", featureId: "automations" },
     ];
     return all.filter((item) => !item.featureId || features.includes(item.featureId));
   };
@@ -361,6 +365,7 @@ export default function FrontendPage() {
       case "email": return <EmailPanel agentId={selectedAgentId} />;
       case "planner": return <PlannerPanel agentId={selectedAgentId} />;
       case "clients": return <ClientsPanel agentId={selectedAgentId} />;
+      case "automations": return <AutomationsPanel agentId={selectedAgentId} />;
       default: return null;
     }
   };

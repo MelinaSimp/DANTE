@@ -14,7 +14,7 @@ export async function GET() {
   // Read profile with service role to avoid any RLS edge cases
   const { data: prof, error } = await supabaseAdmin
     .from("profiles")
-    .select("id, is_superadmin, role")
+    .select("id, is_superadmin, role, workspace_id")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -27,5 +27,6 @@ export async function GET() {
     userId: user.id,
     is_superadmin: hasSuperadminAccess(user.email, prof?.is_superadmin),
     role: prof?.role ?? null,
+    workspace_id: prof?.workspace_id ?? null,
   });
 }

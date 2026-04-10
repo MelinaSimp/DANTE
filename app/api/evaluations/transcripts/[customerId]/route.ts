@@ -27,7 +27,7 @@ export interface CustomerTranscript {
 
 export async function GET(
   req: Request,
-  { params }: { params: { customerId: string } }
+  { params }: { params: Promise<{ customerId: string }> }
 ) {
   try {
     const supabase = await createServerSupabase();
@@ -49,7 +49,7 @@ export async function GET(
     }
 
     const workspaceId = profile.workspace_id;
-    const { customerId } = params;
+    const { customerId } = await params;
 
     // Find contact by ID or phone
     const { data: contact } = await supabase

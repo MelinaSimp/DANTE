@@ -20,8 +20,9 @@ async function getWorkspace(req: NextRequest) {
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { agentId: string; policyId: string } }
+  { params }: { params: Promise<{ agentId: string; policyId: string }> }
 ) {
+  const { agentId, policyId } = await params;
   const { workspaceId } = await getWorkspace(req);
   if (!workspaceId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -31,7 +32,7 @@ export async function DELETE(
   const { data: agent } = await supabaseAdmin
     .from("agents")
     .select("workspace_id")
-    .eq("id", params.agentId)
+    .eq("id", agentId)
     .eq("workspace_id", workspaceId)
     .maybeSingle();
 
@@ -42,8 +43,8 @@ export async function DELETE(
   const { error } = await supabaseAdmin
     .from("agent_policies")
     .delete()
-    .eq("id", params.policyId)
-    .eq("agent_id", params.agentId);
+    .eq("id", policyId)
+    .eq("agent_id", agentId);
 
   if (error) {
     console.error("Failed to delete policy", error);

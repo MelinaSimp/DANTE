@@ -25,6 +25,7 @@ export default function SelectPage() {
   const [isSuperadmin, setIsSuperadmin] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [clickedNav, setClickedNav] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
   const passwordRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -32,7 +33,15 @@ export default function SelectPage() {
       if (!user) { router.push("/auth"); return; }
       fetch("/api/me", { credentials: "include" })
         .then(r => r.ok ? r.json() : null)
-        .then(data => { if (data?.is_superadmin) setIsSuperadmin(true); })
+        .then(data => {
+          if (!data) return;
+          if (data.is_superadmin) setIsSuperadmin(true);
+          if (!data.workspace_id && !data.is_superadmin) {
+            router.push("/join");
+            return;
+          }
+          setReady(true);
+        })
         .catch(() => {});
     });
   }, [router]);
@@ -92,6 +101,10 @@ export default function SelectPage() {
   const orbSize = 140;
   const orbitRadius = 130;
   const startAngle = -Math.PI / 2;
+
+  if (!ready) {
+    return <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center" style={{ background: "#f5f5f7" }}><div className="text-gray-400 text-sm">Loading...</div></div>;
+  }
 
   return (
     <div className="relative min-h-screen bg-[#f5f5f7] flex flex-col overflow-hidden" style={{ background: "#f5f5f7" }}>

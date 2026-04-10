@@ -6,12 +6,11 @@ import { createOutboundCall, getCall } from "@/lib/vapi/client";
 export const dynamic = "force-dynamic";
 
 // POST — initiate an outbound VAPI call
-export async function POST(req: NextRequest, { params }: { params: { agentId: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ agentId: string }> }) {
+  const { agentId } = await params;
   const supabase = await createServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const { agentId } = params;
   const body = await req.json();
   const { phoneNumber, salesScript } = body;
 

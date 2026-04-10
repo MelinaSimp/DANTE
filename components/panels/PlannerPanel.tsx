@@ -94,7 +94,7 @@ export default function PlannerPanel({ agentId }: { agentId: string }) {
       {/* Chat list */}
       <div className="w-56 border-r border-gray-100 bg-gray-50/50 flex-col shrink-0 hidden md:flex">
         <div className="p-3 border-b border-gray-100">
-          <button onClick={createChat} className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-black text-white text-sm font-medium hover:bg-gray-800">
+          <button onClick={createChat} className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-cyan-600 text-white text-sm font-medium hover:bg-cyan-700">
             <Plus className="w-4 h-4" />New Chat
           </button>
         </div>
@@ -123,7 +123,7 @@ export default function PlannerPanel({ agentId }: { agentId: string }) {
             <div className="text-center">
               <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500 text-sm mb-4">Start a conversation with the meeting planner</p>
-              <button onClick={createChat} className="px-5 py-2.5 rounded-xl bg-black text-white text-sm font-medium hover:bg-gray-800">New Chat</button>
+              <button onClick={createChat} className="px-5 py-2.5 rounded-xl bg-cyan-600 text-white text-sm font-medium hover:bg-cyan-700">New Chat</button>
             </div>
           </div>
         ) : (
@@ -138,7 +138,7 @@ export default function PlannerPanel({ agentId }: { agentId: string }) {
                 <div className="max-w-3xl mx-auto space-y-4">
                   {messages.map((msg, i) => (
                     <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                      <div className={`max-w-[80%] px-4 py-3 rounded-2xl ${msg.role === "user" ? "bg-black text-white" : "bg-gray-100 text-gray-800"}`}>
+                      <div className={`max-w-[80%] px-4 py-3 rounded-2xl ${msg.role === "user" ? "bg-cyan-600 text-white" : "bg-gray-100 text-gray-800"}`}>
                         {msg.role === "user" ? <p className="text-sm whitespace-pre-wrap">{msg.content}</p> : <div className="prose-sm">{formatContent(msg.content)}</div>}
                       </div>
                     </div>
@@ -161,9 +161,9 @@ export default function PlannerPanel({ agentId }: { agentId: string }) {
                 <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} rows={1}
                   onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(e); } }}
                   placeholder="Ask about meetings, schedules, or plans..."
-                  className="flex-1 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-black/5" />
+                  className="flex-1 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-cyan-500/20" />
                 <button type="submit" disabled={!input.trim() || loading}
-                  className="shrink-0 w-10 h-10 rounded-xl bg-black text-white flex items-center justify-center hover:bg-gray-800 disabled:opacity-40 self-end">
+                  className="shrink-0 w-10 h-10 rounded-xl bg-cyan-600 text-white flex items-center justify-center hover:bg-cyan-700 disabled:opacity-40 self-end">
                   <Send className="w-4 h-4" />
                 </button>
               </div>

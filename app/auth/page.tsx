@@ -13,7 +13,6 @@ export default function AuthPage() {
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [companyName, setCompanyName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -43,8 +42,8 @@ export default function AuthPage() {
 
     try {
       if (isSignUp) {
-        if (!firstName.trim() || !lastName.trim() || !companyName.trim()) {
-          setError("First name, last name, and company name are required");
+        if (!firstName.trim() || !lastName.trim()) {
+          setError("First name and last name are required");
           setLoading(false);
           return;
         }
@@ -57,7 +56,6 @@ export default function AuthPage() {
             data: {
               first_name: firstName.trim(),
               last_name: lastName.trim(),
-              company_name: companyName.trim(),
             },
           },
         });
@@ -67,7 +65,9 @@ export default function AuthPage() {
         } else if (data.session) {
           window.location.href = "/auth/callback";
         } else {
-          setMessage("Check your email to confirm your account, then sign in.");
+          setMessage(
+            "Check your email to confirm, then sign in. You'll need a workspace invite code from your admin — use Join workspace after login.",
+          );
         }
       } else {
         const { error: signInError, data } = await supabase.auth.signInWithPassword({
@@ -141,7 +141,9 @@ export default function AuthPage() {
               {isSignUp ? "Create your account" : "Sign in to Drift"}
             </h1>
             <p className="text-sm text-white/40 text-center mb-8">
-              {isSignUp ? "Get started with your workspace" : "Welcome back"}
+              {isSignUp
+                ? "After sign-in, use your workspace invite code to join"
+                : "Welcome back"}
             </p>
 
             {/* Form */}
@@ -166,14 +168,6 @@ export default function AuthPage() {
                       required={isSignUp}
                     />
                   </div>
-                  <input
-                    type="text"
-                    value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
-                    className="w-full rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white placeholder:text-white/30 focus:border-purple-500/50 focus:outline-none focus:ring-1 focus:ring-purple-500/30 transition"
-                    placeholder="Company name"
-                    required={isSignUp}
-                  />
                 </>
               )}
 

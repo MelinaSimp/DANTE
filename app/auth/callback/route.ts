@@ -13,12 +13,11 @@ async function ensureUserWorkspace(user: any, supabase: any) {
     typeof meta.company_category === "string" ? meta.company_category.trim() : null;
   const computedFullName = `${firstName} ${lastName}`.trim() || userEmail.split("@")[0];
 
-  // Check if user already has a profile with workspace
   const { data: existingProfile } = await supabase
     .from("profiles")
     .select("workspace_id")
     .eq("id", userId)
-    .single();
+    .maybeSingle();
 
   if (existingProfile?.workspace_id) {
     const update: Record<string, any> = {
@@ -42,34 +41,18 @@ async function ensureUserWorkspace(user: any, supabase: any) {
     return;
   }
 
-  // Create a new workspace for the user
-  const workspaceName = companyName || `${userEmail.split('@')[0]}'s Workspace`;
-  const { data: workspace, error: workspaceError } = await supabase
-    .from("workspaces")
-    .insert({
-      name: workspaceName,
-      owner_id: userId,
-    })
-    .select()
-    .single();
-
-  if (workspaceError) {
-    console.error("Workspace creation error:", workspaceError);
-    return;
-  }
-
-  // Create/update profile with workspace
-  const newProfile: Record<string, any> = {
+  // No workspace yet: only superadmin creates workspaces (admin API). Users join via invite code on /join.
+  const pendingProfile: Record<string, any> = {
     id: userId,
     full_name: computedFullName,
-    role: "owner",
+    role: "member",
     is_superadmin: false,
-    workspace_id: workspace.id,
+    workspace_id: null,
   };
-  if (firstName) newProfile.first_name = firstName;
-  if (lastName) newProfile.last_name = lastName;
-  if (companyCategory) newProfile.company_category = companyCategory;
-  await supabase.from("profiles").upsert(newProfile);
+  if (firstName) pendingProfile.first_name = firstName;
+  if (lastName) pendingProfile.last_name = lastName;
+  if (companyCategory) pendingProfile.company_category = companyCategory;
+  await supabase.from("profiles").upsert(pendingProfile);
 }
 
 export async function GET(req: Request) {
@@ -87,7 +70,6 @@ export async function GET(req: Request) {
     }
     
     if (data.session && data.user) {
-      // Ensure user has a workspace and profile
       await ensureUserWorkspace(data.user, supabase);
       
       return NextResponse.redirect(new URL("/select", requestUrl.origin));
@@ -100,7 +82,6 @@ export async function GET(req: Request) {
   } = await supabase.auth.getUser();
 
   if (user) {
-    // Ensure user has a workspace and profile
     await ensureUserWorkspace(user, supabase);
     
     return NextResponse.redirect(new URL("/select", requestUrl.origin));

@@ -6,9 +6,10 @@ export const dynamic = "force-dynamic";
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { conversationId: string } }
+  { params }: { params: Promise<{ conversationId: string }> }
 ) {
   try {
+    const { conversationId } = await params;
     const supabase = await createServerSupabase();
     const {
       data: { user },
@@ -27,8 +28,6 @@ export async function DELETE(
     if (!profile?.workspace_id) {
       return NextResponse.json({ error: "No workspace found" }, { status: 400 });
     }
-
-    const conversationId = params.conversationId;
 
     // Verify the conversation belongs to the user's workspace
     const { data: conversation } = await supabaseAdmin

@@ -524,7 +524,7 @@ export default function LLMPage({ agentId }: LLMPageProps) {
               placeholder="Search chats"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 rounded-2xl bg-white/5 border border-white/10 text-white text-sm placeholder:text-white/40 focus:outline-none focus:border-orange-500/50"
+              className="w-full pl-9 pr-3 py-2 rounded-2xl bg-white/5 border border-white/10 text-white text-sm placeholder:text-white/40 focus:outline-none focus:border-cyan-500/50"
             />
           </div>
         </div>
@@ -607,7 +607,7 @@ export default function LLMPage({ agentId }: LLMPageProps) {
                   }`}
                 >
                   {message.role === "assistant" && (
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-400 to-cyan-600 flex items-center justify-center flex-shrink-0">
                       <Sparkles className="h-4 w-4 text-white" />
                     </div>
                   )}
@@ -622,7 +622,7 @@ export default function LLMPage({ agentId }: LLMPageProps) {
                   <div
                     className={`max-w-[80%] rounded-2xl px-4 py-3 ${
                       message.role === "user"
-                        ? "bg-orange-600 text-white"
+                        ? "bg-cyan-600 text-white"
                         : "bg-white/10 text-white border border-white/20"
                     }`}
                   >
@@ -702,7 +702,7 @@ export default function LLMPage({ agentId }: LLMPageProps) {
               ))}
               {streaming && (
                 <div className="flex gap-4 justify-start">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center flex-shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-400 to-cyan-600 flex items-center justify-center flex-shrink-0">
                     <Sparkles className="h-4 w-4 text-white" />
                   </div>
                   <div className="bg-white/10 text-white border border-white/20 rounded-2xl px-4 py-3">
@@ -748,7 +748,7 @@ export default function LLMPage({ agentId }: LLMPageProps) {
                           </div>
                         ) : (
                           <>
-                            <FileText className="h-4 w-4 text-orange-400" />
+                            <FileText className="h-4 w-4 text-cyan-400" />
                             <span className="text-sm text-white/90 truncate max-w-[200px]">
                               {file.name}
                             </span>
@@ -766,7 +766,7 @@ export default function LLMPage({ agentId }: LLMPageProps) {
                   })}
                 </div>
               )}
-              <div className="flex items-center gap-2 bg-white/5 rounded-2xl border border-white/10 focus-within:border-orange-500/50 focus-within:bg-white/10 transition">
+              <div className="flex items-center gap-2 bg-white/5 rounded-2xl border border-white/10 focus-within:border-cyan-500/50 focus-within:bg-white/10 transition">
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -823,7 +823,7 @@ export default function LLMPage({ agentId }: LLMPageProps) {
                     <button
                       type="submit"
                       disabled={!input.trim() || loading}
-                      className="p-2 rounded-xl bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                      className="p-2 rounded-xl bg-cyan-600 text-white hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
                     >
                       {loading ? (
                         <Loader2 className="w-5 h-5 animate-spin" />

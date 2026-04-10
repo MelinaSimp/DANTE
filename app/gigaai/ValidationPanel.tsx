@@ -272,7 +272,7 @@ export default function ValidationPanel({
                   onProceedWithDeployment();
                 }
               }}
-              className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl transition"
+              className="px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-xl transition"
             >
               Proceed with Deployment
             </button>

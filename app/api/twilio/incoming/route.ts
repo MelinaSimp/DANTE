@@ -216,6 +216,20 @@ async function handleIncoming(req: NextRequest): Promise<NextResponse> {
       });
     }
 
+    // Check if workspace has voice_agent feature enabled
+    if (agent.workspace_id) {
+      const { data: ws } = await supabaseAdmin
+        .from("workspaces")
+        .select("enabled_features")
+        .eq("id", agent.workspace_id)
+        .maybeSingle();
+      const features: string[] | null = ws?.enabled_features;
+      if (features && features.length > 0 && !features.includes("voice_agent")) {
+        const disabledTwiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Say>Voice services are not enabled for this account.</Say><Hangup/></Response>`;
+        return new NextResponse(disabledTwiml, { status: 200, headers: { "Content-Type": "text/xml; charset=utf-8" } });
+      }
+    }
+
     // Get base URL - ALWAYS use current deployment (VERCEL_URL or request host)
     // Priority: 1) VERCEL_URL (current deployment), 2) Request headers, 3) Environment vars
     let baseUrl = "";

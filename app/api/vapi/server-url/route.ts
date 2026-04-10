@@ -8,6 +8,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { naiveLocalIsoToUtcIso, appDayRangeUtcIso, appWallClockToUtcMs, getAppTimezone } from "@/lib/app-timezone";
+import dayjs from "dayjs";
 
 export const dynamic = "force-dynamic";
 
@@ -147,30 +149,15 @@ async function handleToolCalls(message: any) {
 async function executeScheduleAppointment(call: any, params: any): Promise<string> {
   const { contactName, scheduledAt: rawScheduledAt, serviceType, durationMinutes = 60, notes, conversationSummary } = params;
 
-  // The AI sends local time (e.g. "2026-02-19T14:00:00" = 2 PM local).
-  // We must convert to UTC for Supabase, since the calendar converts UTC back to local.
-  // EST = UTC-5, EDT = UTC-4. Use Intl to get the correct offset.
+  // Naive ISO (no Z / offset) = wall clock in APP_TIMEZONE (e.g. America/New_York), not UTC.
   let scheduledAt = rawScheduledAt;
-  if (scheduledAt && !scheduledAt.includes("Z") && !scheduledAt.includes("+") && !/T\d{2}:\d{2}:\d{2}-/.test(scheduledAt)) {
-    const tz = process.env.APP_TIMEZONE || "America/New_York";
+  if (scheduledAt) {
     try {
-      // Parse the date parts
-      const d = new Date(scheduledAt + "Z"); // treat as UTC temporarily
-      // Get the UTC offset for this timezone at this date
-      const formatter = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "shortOffset" });
-      const parts = formatter.formatToParts(d);
-      const tzPart = parts.find(p => p.type === "timeZoneName");
-      // tzPart.value is like "GMT-5" or "GMT-4"
-      if (tzPart) {
-        const match = tzPart.value.match(/GMT([+-]?\d+)/);
-        if (match) {
-          const offsetHours = parseInt(match[1]);
-          // Convert: if local time is 2 PM EST (UTC-5), UTC is 2 PM + 5 = 7 PM UTC
-          const utcDate = new Date(d.getTime() - offsetHours * 3600000);
-          scheduledAt = utcDate.toISOString();
-          console.log(`[VAPI Schedule] Timezone conversion: ${rawScheduledAt} (${tz}, GMT${offsetHours >= 0 ? "+" : ""}${offsetHours}) → ${scheduledAt}`);
-        }
+      const converted = naiveLocalIsoToUtcIso(scheduledAt);
+      if (String(rawScheduledAt).trim() !== converted) {
+        console.log(`[VAPI Schedule] TZ ${getAppTimezone()}: ${rawScheduledAt} → ${converted}`);
       }
+      scheduledAt = converted;
     } catch (e) {
       console.error("[VAPI Schedule] Timezone conversion failed:", e);
     }
@@ -344,19 +331,29 @@ async function executeCheckAvailability(call: any, params: any): Promise<string>
       .eq("slot_date", date);
 
     if (!openSlots || openSlots.length === 0) {
+      const alternatives = await findNextAvailableSlots(agent.workspace_id, date, 3);
+      if (alternatives.length > 0) {
+        const altList = alternatives.map(a => `${a.date} at ${a.time}`).join(", ");
+        return JSON.stringify({
+          success: true,
+          message: `There are no open slots on ${date}. However, the next available times are: ${altList}. Would any of those work for you?`,
+        });
+      }
       return JSON.stringify({
         success: true,
-        message: `There are no open slots on ${date}. The consultant hasn't opened any availability for that day. Would you like to check a different date?`,
+        message: `There are no open slots on ${date} and no availability in the coming days. Would you like to leave your information so we can contact you when availability opens up?`,
       });
     }
 
-    // 2. Get existing appointments to subtract from open slots
+    const { startUtcIso, endExclusiveUtcIso } = appDayRangeUtcIso(date);
+
+    // 2. Get existing appointments to subtract from open slots (same calendar day in app TZ)
     const { data: existingAppts } = await supabaseAdmin
       .from("appointments")
       .select("scheduled_at, duration_minutes")
       .eq("workspace_id", agent.workspace_id)
-      .gte("scheduled_at", `${date}T00:00:00`)
-      .lte("scheduled_at", `${date}T23:59:59`)
+      .gte("scheduled_at", startUtcIso)
+      .lt("scheduled_at", endExclusiveUtcIso)
       .neq("status", "cancelled");
 
     const busyTimes = (existingAppts || []).map((a) => ({
@@ -375,10 +372,10 @@ async function executeCheckAvailability(call: any, params: any): Promise<string>
         for (let m = (h === sh ? sm : 0); m < 60; m += 30) {
           if (h > eh || (h === eh && m >= em)) break;
           
-          const slotStart = new Date(`${date}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`);
-          const slotEnd = new Date(slotStart.getTime() + 30 * 60000);
+          const slotStartMs = appWallClockToUtcMs(date, h, m);
+          const slotEndMs = slotStartMs + 30 * 60000;
 
-          const isBusy = busyTimes.some((b) => slotStart.getTime() < b.end && slotEnd.getTime() > b.start);
+          const isBusy = busyTimes.some((b) => slotStartMs < b.end && slotEndMs > b.start);
           if (!isBusy) {
             const displayHour = h > 12 ? h - 12 : h === 0 ? 12 : h;
             const ampm = h >= 12 ? "PM" : "AM";
@@ -392,9 +389,17 @@ async function executeCheckAvailability(call: any, params: any): Promise<string>
 
     const typeEntries = Object.entries(windowsByType);
     if (typeEntries.length === 0) {
+      const alternatives = await findNextAvailableSlots(agent.workspace_id, date, 3);
+      if (alternatives.length > 0) {
+        const altList = alternatives.map(a => `${a.date} at ${a.time}`).join(", ");
+        return JSON.stringify({
+          success: true,
+          message: `All slots on ${date} are fully booked. The next available times are: ${altList}. Would any of those work for you?`,
+        });
+      }
       return JSON.stringify({
         success: true,
-        message: `All open slots on ${date} are already booked. Would you like to check a different date?`,
+        message: `All slots on ${date} are fully booked and no availability was found in the coming days. Would you like to leave your information so we can contact you when availability opens up?`,
       });
     }
 
@@ -412,6 +417,68 @@ async function executeCheckAvailability(call: any, params: any): Promise<string>
     console.error("[VAPI CheckAvailability] Error:", err);
     return JSON.stringify({ success: false, message: "Something went wrong while checking availability. Please try again." });
   }
+}
+
+async function findNextAvailableSlots(
+  workspaceId: string,
+  afterDate: string,
+  count: number
+): Promise<{ date: string; time: string }[]> {
+  const results: { date: string; time: string }[] = [];
+  const tz = getAppTimezone();
+
+  for (let dayOffset = 1; dayOffset <= 14 && results.length < count; dayOffset++) {
+    const d = dayjs.tz(afterDate, "YYYY-MM-DD", tz).add(dayOffset, "day");
+    const dateStr = d.format("YYYY-MM-DD");
+
+    const { data: slots } = await supabaseAdmin
+      .from("availability_slots")
+      .select("start_time, end_time")
+      .eq("workspace_id", workspaceId)
+      .eq("slot_date", dateStr);
+
+    if (!slots || slots.length === 0) continue;
+
+    const { startUtcIso, endExclusiveUtcIso } = appDayRangeUtcIso(dateStr);
+    const { data: existingAppts } = await supabaseAdmin
+      .from("appointments")
+      .select("scheduled_at, duration_minutes")
+      .eq("workspace_id", workspaceId)
+      .gte("scheduled_at", startUtcIso)
+      .lt("scheduled_at", endExclusiveUtcIso)
+      .neq("status", "cancelled");
+
+    const busyTimes = (existingAppts || []).map(a => ({
+      start: new Date(a.scheduled_at).getTime(),
+      end: new Date(a.scheduled_at).getTime() + (a.duration_minutes || 30) * 60000,
+    }));
+
+    const dayName = d.format("dddd, MMMM D");
+
+    for (const slot of slots) {
+      if (results.length >= count) break;
+      const [sh, sm] = slot.start_time.split(":").map(Number);
+      const [eh, em] = slot.end_time.split(":").map(Number);
+
+      for (let h = sh; h < eh || (h === eh && 0 < em); h++) {
+        if (results.length >= count) break;
+        for (let m = h === sh ? sm : 0; m < 60; m += 30) {
+          if (results.length >= count) break;
+          if (h > eh || (h === eh && m >= em)) break;
+          const slotStartMs = appWallClockToUtcMs(dateStr, h, m);
+          const slotEndMs = slotStartMs + 30 * 60000;
+          const isBusy = busyTimes.some(b => slotStartMs < b.end && slotEndMs > b.start);
+          if (!isBusy) {
+            const displayHour = h > 12 ? h - 12 : h === 0 ? 12 : h;
+            const ampm = h >= 12 ? "PM" : "AM";
+            const displayMin = m === 0 ? "00" : String(m);
+            results.push({ date: dayName, time: `${displayHour}:${displayMin} ${ampm}` });
+          }
+        }
+      }
+    }
+  }
+  return results;
 }
 
 // ─── End of Call Report ──────────────────────────────────────

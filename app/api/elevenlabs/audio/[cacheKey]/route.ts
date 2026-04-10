@@ -10,11 +10,11 @@ export const maxDuration = 30;
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { cacheKey: string } }
+  { params }: { params: Promise<{ cacheKey: string }> }
 ) {
   const startTime = Date.now();
   try {
-    const { cacheKey } = params;
+    const { cacheKey } = await params;
     const userAgent = req.headers.get("user-agent") || "unknown";
     const referer = req.headers.get("referer") || "none";
     

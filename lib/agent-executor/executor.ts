@@ -1056,7 +1056,23 @@ Answer:`;
       let outputMessage = step.ai_message || "";
       
       if (availableSlots.length === 0) {
-        outputMessage = `I checked the schedule for ${new Date(checkDate).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} and there are no available slots for a ${duration}-minute appointment. Would you like to check a different date?`;
+        const baseUrl = process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || "https://driftai.studio";
+        let altMessage = "";
+        try {
+          const altRes = await fetch(`${baseUrl}/api/agents/${this.context.agentId}/schedule/next-available?after=${checkDate}&count=3`);
+          if (altRes.ok) {
+            const altData = await altRes.json();
+            if (altData.slots && altData.slots.length > 0) {
+              const altList = altData.slots.map((s: any) => `${s.date} at ${s.time}`).join(", ");
+              altMessage = `I checked the schedule for ${new Date(checkDate).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} and there are no available slots. However, the next available times are: ${altList}. Would any of those work for you?`;
+            }
+          }
+        } catch {}
+        if (!altMessage) {
+          outputMessage = `I checked the schedule for ${new Date(checkDate).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })} and there are no available slots for a ${duration}-minute appointment. There may not be availability in the coming days.`;
+        } else {
+          outputMessage = altMessage;
+        }
       } else {
         const slotsList = formattedSlots.slice(0, 10).join(", "); // Show first 10 slots
         const moreSlots = availableSlots.length > 10 ? ` and ${availableSlots.length - 10} more` : "";

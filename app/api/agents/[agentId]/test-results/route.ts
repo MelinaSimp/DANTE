@@ -3,7 +3,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 
 export async function GET(
   req: Request,
-  { params }: { params: { agentId: string } }
+  { params }: { params: Promise<{ agentId: string }> }
 ) {
   try {
     const supabase = await createServerSupabase();
@@ -13,7 +13,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { agentId } = params;
+    const { agentId } = await params;
 
     // Verify agent belongs to user's workspace
     const { data: agent } = await supabase

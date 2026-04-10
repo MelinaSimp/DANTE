@@ -196,7 +196,7 @@ export default function AddDocModal({ onClose, onAdd, agentId }: AddDocModalProp
               Cancel
             </button>
             <div className="relative inline-block">
-              <div className="absolute -inset-1 bg-gradient-to-br from-orange-500 via-orange-600 to-red-500 rounded-2xl blur-sm opacity-50"></div>
+              <div className="absolute -inset-1 bg-gradient-to-br from-cyan-500 via-cyan-600 to-red-500 rounded-2xl blur-sm opacity-50"></div>
               <button
                 type="submit"
                 disabled={!name.trim() || uploading || (type === "file" && !file) || (type === "text" && !textContent.trim())}

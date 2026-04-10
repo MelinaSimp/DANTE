@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase/client";
 import Link from "next/link";
 import {
   FileText, Shield, Database, User, Gauge, Code, Rocket,
-  Palette, ArrowLeft, Home, Plus, X, MessageSquare, Phone, Layers,
+  Palette, ArrowLeft, Home, Plus, X, MessageSquare, Phone, Layers, Zap,
 } from "lucide-react";
 import AgentOrb from "@/components/frontend/AgentOrb";
 import PanelShell from "@/components/panels/PanelShell";
@@ -18,6 +18,7 @@ const DataSourcesBPanel = lazy(() => import("@/components/panels/backend/DataSou
 const PersonalizationBPanel = lazy(() => import("@/components/panels/backend/PersonalizationBPanel"));
 const EvaluationBPanel = lazy(() => import("@/components/panels/backend/EvaluationBPanel"));
 const AdvancedBPanel = lazy(() => import("@/components/panels/backend/AdvancedBPanel"));
+const AutomationsBPanel = lazy(() => import("@/components/panels/backend/AutomationsBPanel"));
 
 interface Agent {
   id: string;
@@ -28,7 +29,7 @@ interface Agent {
   modality?: string;
 }
 
-type PanelId = "instructions" | "policies" | "data-sources" | "personalization" | "evaluation" | "advanced";
+type PanelId = "instructions" | "policies" | "data-sources" | "personalization" | "evaluation" | "advanced" | "automations";
 
 const PANEL_TITLES: Record<PanelId, string> = {
   instructions: "Rules & Instructions",
@@ -37,23 +38,24 @@ const PANEL_TITLES: Record<PanelId, string> = {
   personalization: "Personalization",
   evaluation: "Evaluation",
   advanced: "Advanced",
+  automations: "Automations",
 };
 
-const WIDE_PANELS: PanelId[] = ["instructions", "data-sources", "evaluation"];
+const WIDE_PANELS: PanelId[] = ["instructions", "data-sources", "evaluation", "automations"];
 
 const GRADIENT_PRESETS: string[][] = [
-  ["#FF6B6B", "#4ECDC4", "#45B7D1"],
-  ["#A8E6CF", "#FFD93D", "#FF6B9D"],
-  ["#C471ED", "#F64F59", "#FBD786"],
-  ["#30E8BF", "#FF8235", "#FF6E7F"],
-  ["#667EEA", "#764BA2", "#F093FB"],
-  ["#F093FB", "#F5576C", "#4FACFE"],
-  ["#43E97B", "#38F9D7", "#667EEA"],
-  ["#FA709A", "#FEE140", "#30CFC0"],
-  ["#4158D0", "#C850C0", "#FFCC70"],
-  ["#0093E9", "#80D0C7", "#A9E4D7"],
-  ["#8EC5FC", "#E0C3FC", "#F5D5EE"],
-  ["#D9AFD9", "#97D9E1", "#B8E9C2"],
+  ["#06b6d4", "#22d3ee", "#67e8f9"],
+  ["#0ea5e9", "#38bdf8", "#7dd3fc"],
+  ["#22d3ee", "#06b6d4", "#0891b2"],
+  ["#2dd4bf", "#14b8a6", "#0d9488"],
+  ["#667EEA", "#764BA2", "#38bdf8"],
+  ["#06b6d4", "#3b82f6", "#6366f1"],
+  ["#43E97B", "#38F9D7", "#22d3ee"],
+  ["#2dd4bf", "#5eead4", "#99f6e4"],
+  ["#4158D0", "#06b6d4", "#67e8f9"],
+  ["#0093E9", "#80D0C7", "#22d3ee"],
+  ["#8EC5FC", "#a5f3fc", "#cffafe"],
+  ["#99f6e4", "#5eead4", "#2dd4bf"],
 ];
 
 function generateGradientColor(seed: string): string {
@@ -200,7 +202,7 @@ function RadialAgentCard({
                         type="button"
                         disabled={savingColor}
                         onClick={e => { e.stopPropagation(); onChangeColor(agent.id, preset); }}
-                        className={`w-12 h-12 rounded-xl transition-all hover:scale-110 disabled:opacity-50 ${isActive ? "ring-2 ring-[#f97316] ring-offset-2 ring-offset-[#1a1a1a] scale-110" : "hover:ring-2 hover:ring-white/30 hover:ring-offset-1 hover:ring-offset-[#1a1a1a]"}`}
+                        className={`w-12 h-12 rounded-xl transition-all hover:scale-110 disabled:opacity-50 ${isActive ? "ring-2 ring-cyan-400 ring-offset-2 ring-offset-[#1a1a1a] scale-110" : "hover:ring-2 hover:ring-white/30 hover:ring-offset-1 hover:ring-offset-[#1a1a1a]"}`}
                         style={{ background: `linear-gradient(135deg, ${preset[0]} 0%, ${preset[1]} 50%, ${preset[2] || preset[1]} 100%)` }}
                       />
                     );
@@ -320,6 +322,7 @@ export default function BackendOrbClient() {
     { name: "Personalize", icon: User, panelId: "personalization" },
     { name: "Evaluation", icon: Gauge, panelId: "evaluation" },
     { name: "Advanced", icon: Code, panelId: "advanced" },
+    { name: "Automations", icon: Zap, panelId: "automations" },
   ];
 
   const renderPanel = () => {
@@ -331,6 +334,7 @@ export default function BackendOrbClient() {
       case "personalization": return <PersonalizationBPanel agentId={selectedAgentId} />;
       case "evaluation": return <EvaluationBPanel agentId={selectedAgentId} />;
       case "advanced": return <AdvancedBPanel agentId={selectedAgentId} />;
+      case "automations": return <AutomationsBPanel agentId={selectedAgentId} />;
       default: return null;
     }
   };
@@ -393,7 +397,7 @@ export default function BackendOrbClient() {
       {activePanel && (() => {
         const agent = agents.find(a => a.id === selectedAgentId);
         const gradient = agent ? JSON.parse(agent.gradient_color || generateGradientColor(agent.id)) as string[] : [];
-        const accent = gradient[0] || "#f97316";
+        const accent = gradient[0] || "#06b6d4";
         return (
           <PanelShell title={PANEL_TITLES[activePanel]} onClose={closePanel} wide={WIDE_PANELS.includes(activePanel)} dark accentColor={accent}>
             <Suspense fallback={<PanelLoader />}>

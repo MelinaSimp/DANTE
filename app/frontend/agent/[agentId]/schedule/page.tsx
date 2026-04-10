@@ -118,7 +118,7 @@ export default function SchedulePage() {
           <p className="text-gray-500 text-sm mb-4">Please try again or contact your administrator.</p>
           <button
             onClick={() => router.push("/frontend")}
-            className="px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
+            className="px-5 py-2.5 rounded-xl bg-cyan-600 text-white text-sm font-medium hover:bg-cyan-700 transition-colors"
           >
             Go Back
           </button>

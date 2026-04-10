@@ -20,8 +20,9 @@ async function getWorkspace(req: NextRequest) {
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { stepId: string; branchId: string } }
+  { params }: { params: Promise<{ stepId: string; branchId: string }> }
 ) {
+  const { stepId, branchId } = await params;
   const { workspaceId } = await getWorkspace(req);
   if (!workspaceId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -31,7 +32,7 @@ export async function PUT(
   const { data: step } = await supabaseAdmin
     .from("steps")
     .select("scenario_id, scenarios!inner(agent_id, agents!inner(workspace_id))")
-    .eq("id", params.stepId)
+    .eq("id", stepId)
     .maybeSingle();
 
   if (!step || ((step.scenarios as any).agents as any).workspace_id !== workspaceId) {
@@ -51,8 +52,8 @@ export async function PUT(
   const { data, error } = await supabaseAdmin
     .from("step_branches")
     .update(updates)
-    .eq("id", params.branchId)
-    .eq("step_id", params.stepId)
+    .eq("id", branchId)
+    .eq("step_id", stepId)
     .select("*")
     .single();
 
@@ -66,8 +67,9 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { stepId: string; branchId: string } }
+  { params }: { params: Promise<{ stepId: string; branchId: string }> }
 ) {
+  const { stepId, branchId } = await params;
   const { workspaceId } = await getWorkspace(req);
   if (!workspaceId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -77,7 +79,7 @@ export async function DELETE(
   const { data: step } = await supabaseAdmin
     .from("steps")
     .select("scenario_id, scenarios!inner(agent_id, agents!inner(workspace_id))")
-    .eq("id", params.stepId)
+    .eq("id", stepId)
     .maybeSingle();
 
   if (!step || ((step.scenarios as any).agents as any).workspace_id !== workspaceId) {
@@ -87,8 +89,8 @@ export async function DELETE(
   const { error } = await supabaseAdmin
     .from("step_branches")
     .delete()
-    .eq("id", params.branchId)
-    .eq("step_id", params.stepId);
+    .eq("id", branchId)
+    .eq("step_id", stepId);
 
   if (error) {
     console.error("Failed to delete branch", error);

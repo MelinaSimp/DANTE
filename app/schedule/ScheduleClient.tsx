@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import dayjs from "dayjs";
-import { Plus, X, Calendar, Clock, User, Phone, FileText, Mail, Pencil, Check, Loader2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from "lucide-react";
+import { Plus, X, Calendar, Clock, User, Phone, FileText, Mail, Pencil, Check, Loader2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Mic, MessageSquare, Sparkles } from "lucide-react";
 
 interface Appointment {
   id: string;
@@ -91,6 +91,13 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
   const [editingAppointment, setEditingAppointment] = useState(false);
   const [editFields, setEditFields] = useState({ service_type: "", notes: "", scheduled_at: "", duration_minutes: 30 });
   const [savingAppointment, setSavingAppointment] = useState(false);
+
+  // Call record & AI overview for selected appointment
+  const [callRecord, setCallRecord] = useState<{ recording_url?: string; transcript?: any; summary?: string } | null>(null);
+  const [loadingCallRecord, setLoadingCallRecord] = useState(false);
+  const [aiOverview, setAiOverview] = useState<string | null>(null);
+  const [loadingAiOverview, setLoadingAiOverview] = useState(false);
+  const [showTranscript, setShowTranscript] = useState(false);
 
   // Slot type management
   const DEFAULT_SLOT_TYPES = ["General", "Appointments", "Estate Planning", "Tax Consultation", "Portfolio Review"];
@@ -269,19 +276,54 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
   // Filtered appointments (exclude hidden clients)
   const normalizedAppointments = allNormalized.filter((a) => !hiddenClients.has(a.contacts.id));
 
-  // Fetch reminders when appointment is selected
+  // Fetch reminders and call record when appointment is selected
   useEffect(() => {
     if (selectedAppointment) {
       setLoadingReminders(true);
+      setCallRecord(null);
+      setAiOverview(null);
+      setShowTranscript(false);
+
       fetch(`/api/appointments/${selectedAppointment.id}/reminders`)
         .then((r) => r.json())
         .then((data) => setAppointmentReminderTiming(data.reminderTiming || []))
         .catch(() => setAppointmentReminderTiming([]))
         .finally(() => setLoadingReminders(false));
+
+      if (selectedAppointment.contacts?.phone) {
+        setLoadingCallRecord(true);
+        fetch(`/api/appointments/${selectedAppointment.id}/call-record`)
+          .then((r) => r.ok ? r.json() : null)
+          .then((data) => { if (data) setCallRecord(data); })
+          .catch(() => {})
+          .finally(() => setLoadingCallRecord(false));
+      }
     } else {
       setAppointmentReminderTiming([]);
+      setCallRecord(null);
+      setAiOverview(null);
     }
   }, [selectedAppointment]);
+
+  const generateAiOverview = async () => {
+    if (!callRecord?.transcript || !selectedAppointment) return;
+    setLoadingAiOverview(true);
+    try {
+      const r = await fetch("/api/llm/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          message: `Provide a brief professional summary of this call between the AI agent and ${selectedAppointment.contacts.name}. Include key topics discussed, decisions made, and any follow-up items.\n\nTranscript:\n${JSON.stringify(callRecord.transcript)}`,
+          history: [],
+        }),
+      });
+      if (r.ok) {
+        const d = await r.json();
+        setAiOverview(d.message || d.content || "");
+      }
+    } catch {} finally { setLoadingAiOverview(false); }
+  };
 
   const startEditingAppointment = () => {
     if (!selectedAppointment) return;
@@ -449,7 +491,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
             <Plus className="h-4 w-4" />
             Open Slot
           </button>
-          <button onClick={() => setShowCreateModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black text-white text-sm font-medium hover:bg-gray-800 transition shadow-sm">
+          <button onClick={() => setShowCreateModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-600 text-white text-sm font-medium hover:bg-cyan-700 transition shadow-sm">
             <Plus className="h-4 w-4" />
             Create
           </button>
@@ -533,7 +575,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                     <button
                       onClick={handleAddClient}
                       disabled={addingClient || !newClientName.trim() || !newClientPhone.trim()}
-                      className="flex-1 py-1 rounded-lg bg-black text-white text-[10px] font-medium hover:bg-gray-800 disabled:opacity-50 transition"
+                      className="flex-1 py-1 rounded-lg bg-cyan-600 text-white text-[10px] font-medium hover:bg-cyan-700 disabled:opacity-50 transition"
                     >
                       {addingClient ? "Adding..." : "Add"}
                     </button>
@@ -809,7 +851,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                       key={opt.value}
                       type="button"
                       onClick={() => setFormReminderTiming((prev) => prev.includes(opt.value) ? prev.filter((v) => v !== opt.value) : [...prev, opt.value])}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition ${formReminderTiming.includes(opt.value) ? "bg-black text-white border-black" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition ${formReminderTiming.includes(opt.value) ? "bg-cyan-600 text-white border-cyan-600" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
                     >
                       {opt.label}
                     </button>
@@ -822,7 +864,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                   </label>
                 </div>
               </div>
-              <button onClick={handleCreateAppointment} disabled={creating} className="w-full py-2.5 rounded-xl bg-black text-white text-sm font-semibold hover:bg-gray-800 disabled:opacity-50 transition">
+              <button onClick={handleCreateAppointment} disabled={creating} className="w-full py-2.5 rounded-xl bg-cyan-600 text-white text-sm font-semibold hover:bg-cyan-700 disabled:opacity-50 transition">
                 {creating ? "Creating..." : "Create Appointment"}
               </button>
             </div>
@@ -860,7 +902,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                         placeholder="New type name..."
                         className="flex-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-black/10"
                       />
-                      <button onClick={addSlotType} disabled={!newTypeName.trim()} className="px-2.5 py-1.5 rounded-lg bg-black text-white text-xs font-medium hover:bg-gray-800 disabled:opacity-40 transition">
+                      <button onClick={addSlotType} disabled={!newTypeName.trim()} className="px-2.5 py-1.5 rounded-lg bg-cyan-600 text-white text-xs font-medium hover:bg-cyan-700 disabled:opacity-40 transition">
                         <Plus className="h-3 w-3" />
                       </button>
                     </div>
@@ -921,7 +963,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                   <input type="time" value={slotEndTime} onChange={(e) => setSlotEndTime(e.target.value)} className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/10" />
                 </div>
               </div>
-              <button onClick={createAvailabilitySlot} disabled={creatingSlot} className="w-full py-2.5 rounded-xl bg-black text-white text-sm font-semibold hover:bg-gray-800 disabled:opacity-50 transition">
+              <button onClick={createAvailabilitySlot} disabled={creatingSlot} className="w-full py-2.5 rounded-xl bg-cyan-600 text-white text-sm font-semibold hover:bg-cyan-700 disabled:opacity-50 transition">
                 {creatingSlot ? "Creating..." : "Add Open Slot"}
               </button>
             </div>
@@ -1025,6 +1067,66 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                 </div>
               </div>
 
+              {/* Call Record & AI Overview */}
+              {loadingCallRecord ? (
+                <div className="border-t border-gray-200 pt-4 flex items-center gap-2 text-xs text-gray-400">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading call data...
+                </div>
+              ) : callRecord ? (
+                <div className="border-t border-gray-200 pt-4 space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                    <Mic className="h-4 w-4 text-cyan-500" /> Call Recording
+                  </div>
+                  {callRecord.recording_url ? (
+                    <audio controls className="w-full h-8 rounded-lg" src={callRecord.recording_url} />
+                  ) : (
+                    <p className="text-xs text-gray-400 italic">No recording available</p>
+                  )}
+
+                  {callRecord.transcript && (
+                    <div>
+                      <button onClick={() => setShowTranscript(!showTranscript)} className="flex items-center gap-1.5 text-xs text-cyan-600 hover:text-cyan-700 font-medium">
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        {showTranscript ? "Hide Transcript" : "View Transcript"}
+                      </button>
+                      {showTranscript && (
+                        <div className="mt-2 max-h-48 overflow-y-auto bg-gray-50 rounded-xl p-3 border border-gray-200 text-xs text-gray-600 space-y-1.5">
+                          {Array.isArray(callRecord.transcript) ? callRecord.transcript.map((entry: any, i: number) => (
+                            <div key={i}>
+                              <span className="font-semibold text-gray-800">{entry.role === "assistant" ? "AI" : "Caller"}:</span>{" "}
+                              {entry.content || entry.message || entry.text}
+                            </div>
+                          )) : (
+                            <pre className="whitespace-pre-wrap">{typeof callRecord.transcript === "string" ? callRecord.transcript : JSON.stringify(callRecord.transcript, null, 2)}</pre>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {callRecord.summary ? (
+                    <div>
+                      <div className="flex items-center gap-1.5 text-xs font-medium text-gray-700 mb-1">
+                        <Sparkles className="h-3.5 w-3.5 text-cyan-500" /> AI Overview
+                      </div>
+                      <p className="text-xs text-gray-600 bg-gray-50 rounded-xl p-3 border border-gray-200">{callRecord.summary}</p>
+                    </div>
+                  ) : aiOverview ? (
+                    <div>
+                      <div className="flex items-center gap-1.5 text-xs font-medium text-gray-700 mb-1">
+                        <Sparkles className="h-3.5 w-3.5 text-cyan-500" /> AI Overview
+                      </div>
+                      <p className="text-xs text-gray-600 bg-gray-50 rounded-xl p-3 border border-gray-200">{aiOverview}</p>
+                    </div>
+                  ) : callRecord.transcript ? (
+                    <button onClick={generateAiOverview} disabled={loadingAiOverview} className="flex items-center gap-1.5 text-xs text-cyan-600 hover:text-cyan-700 font-medium disabled:opacity-50">
+                      {loadingAiOverview ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                      Generate AI Overview
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+
               {/* Reminders */}
               <div className="border-t border-gray-200 pt-4">
                 <label className="block text-xs font-medium text-gray-500 mb-2">Email Reminder</label>
@@ -1040,13 +1142,13 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                       key={opt.value}
                       type="button"
                       onClick={() => setAppointmentReminderTiming((prev) => prev.includes(opt.value) ? prev.filter((v) => v !== opt.value) : [...prev, opt.value])}
-                      className={`px-2 py-1 rounded-lg text-[11px] font-medium border transition ${appointmentReminderTiming.includes(opt.value) ? "bg-black text-white border-black" : "bg-white text-gray-500 border-gray-300 hover:bg-gray-50"}`}
+                      className={`px-2 py-1 rounded-lg text-[11px] font-medium border transition ${appointmentReminderTiming.includes(opt.value) ? "bg-cyan-600 text-white border-cyan-600" : "bg-white text-gray-500 border-gray-300 hover:bg-gray-50"}`}
                     >
                       {opt.label}
                     </button>
                   ))}
                 </div>
-                <button onClick={handleSaveReminders} disabled={savingReminders || loadingReminders} className="w-full py-2 rounded-xl bg-black text-white text-xs font-semibold hover:bg-gray-800 disabled:opacity-50 transition">
+                <button onClick={handleSaveReminders} disabled={savingReminders || loadingReminders} className="w-full py-2 rounded-xl bg-cyan-600 text-white text-xs font-semibold hover:bg-cyan-700 disabled:opacity-50 transition">
                   {savingReminders ? "Saving..." : "Save Reminders"}
                 </button>
               </div>

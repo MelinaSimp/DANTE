@@ -56,7 +56,7 @@ export default function InboxPanel({ agentId }: { agentId: string }) {
     if (c.status === "transferred") return { label: "Transferred", cls: "bg-orange-100 text-orange-700", icon: AlertCircle };
     if (c.status === "completed") return { label: "Completed", cls: "bg-green-100 text-green-700", icon: CheckCircle };
     if (c.metadata?.needsHelp) return { label: "Needs help", cls: "bg-orange-100 text-orange-700", icon: AlertCircle };
-    return { label: "Active", cls: "bg-blue-100 text-blue-700", icon: MessageSquare };
+    return { label: "Active", cls: "bg-cyan-100 text-cyan-700", icon: MessageSquare };
   };
 
   const timeAgo = (d: string) => {
@@ -88,7 +88,7 @@ export default function InboxPanel({ agentId }: { agentId: string }) {
     <div className="p-6 max-w-3xl mx-auto">
       <div className="flex items-center gap-6 border-b border-gray-200 mb-4">
         {(["todo", "follow-up", "done"] as const).map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)} className={`pb-3 text-sm font-medium capitalize transition ${activeTab === tab ? "text-blue-600 border-b-2 border-blue-600" : "text-gray-500 hover:text-gray-900"}`}>
+          <button key={tab} onClick={() => setActiveTab(tab)} className={`pb-3 text-sm font-medium capitalize transition ${activeTab === tab ? "text-cyan-600 border-b-2 border-cyan-600" : "text-gray-500 hover:text-gray-900"}`}>
             {tab === "follow-up" ? "Follow up" : tab}
           </button>
         ))}
@@ -96,7 +96,7 @@ export default function InboxPanel({ agentId }: { agentId: string }) {
       <div className="relative mb-4">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
         <input type="text" placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-          className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20" />
+          className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20" />
       </div>
       {loading ? (
         <div className="text-center py-16 text-gray-400 text-sm">Loading...</div>
@@ -110,7 +110,7 @@ export default function InboxPanel({ agentId }: { agentId: string }) {
             return (
               <div key={c.id} className="group flex items-start gap-3 bg-white rounded-xl border border-gray-100 p-4 hover:shadow-sm transition">
                 <div className="relative shrink-0">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-xs font-bold">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-cyan-600 flex items-center justify-center text-white text-xs font-bold">
                     {getName(c).substring(0, 2).toUpperCase()}
                   </div>
                   {c.status === "active" && <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-white" />}

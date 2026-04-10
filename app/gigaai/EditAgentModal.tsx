@@ -59,7 +59,6 @@ export default function EditAgentModal({ agent, onClose, onSave }: EditAgentModa
       
       if (response.ok) {
         const voicesList = data.voices || [];
-        console.log(`[EditAgentModal] Loaded ${voicesList.length} voices`);
         setVoices(voicesList);
         
         if (voicesList.length === 0) {

@@ -47,7 +47,7 @@ export default function EvaluationInbox({ onSelectCustomer }: EvaluationInboxPro
   const getStatusColor = (status: string) => {
     switch (status) {
       case "inquiry":
-        return "bg-orange-500/20 text-orange-300 border-orange-500/30";
+        return "bg-cyan-500/20 text-cyan-300 border-cyan-500/30";
       case "current":
         return "bg-blue-500/20 text-blue-300 border-blue-500/30";
       case "past":

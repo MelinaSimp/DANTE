@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { normalizePhone } from "@/lib/phone";
 import twilio from "twilio";
 import { Resend } from "resend";
+import { emitEvent } from "@/lib/automations";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -247,6 +248,13 @@ export async function POST(req: NextRequest) {
         }, profile.workspace_id);
         emailSuccess = true;
         console.log(`[Appointment] Confirmation email sent to ${email}`);
+
+        await supabaseAdmin.from("sent_emails").insert({
+          workspace_id: profile.workspace_id,
+          sender_id: user.id,
+          to_email: email,
+          subject: `Appointment Reminder: ${description}`,
+        });
       } catch (err: any) {
         emailError = err;
         console.error("[Appointment] Failed to send confirmation email:", err);
@@ -357,6 +365,13 @@ export async function POST(req: NextRequest) {
     } else if (!agent) {
       console.error("[Appointment] No agent found for reminder sending");
     }
+
+    emitEvent("appointment.booked", {
+      appointment_id: appointment.id,
+      contact_name: name,
+      scheduled_at: scheduledAt,
+      description,
+    });
 
     return NextResponse.json({
       success: true,

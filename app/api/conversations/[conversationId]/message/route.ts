@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { requireUserWithWorkspace } from "@/lib/api-auth";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { AgentExecutor, ConversationContext } from "@/lib/agent-executor/executor";
 
@@ -12,17 +12,14 @@ export const dynamic = "force-dynamic";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { conversationId: string } }
+  { params }: { params: Promise<{ conversationId: string }> }
 ) {
   try {
-    const supabase = await createServerSupabase();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { error: authErr, workspaceId } = await requireUserWithWorkspace();
+    if (authErr) return authErr;
+    if (!workspaceId) return NextResponse.json({ error: "No workspace" }, { status: 400 });
 
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const { conversationId } = await params;
 
     const body = await req.json();
     const { message } = body;
@@ -31,11 +28,12 @@ export async function POST(
       return NextResponse.json({ error: "Message required" }, { status: 400 });
     }
 
-    // Load conversation
+    // Load conversation and verify it belongs to user's workspace
     const { data: conversation } = await supabaseAdmin
       .from("conversations")
       .select("*")
-      .eq("id", params.conversationId)
+      .eq("id", conversationId)
+      .eq("workspace_id", workspaceId)
       .single();
 
     if (!conversation) {
@@ -53,7 +51,7 @@ export async function POST(
     await supabaseAdmin
       .from("conversations")
       .update({ transcript })
-      .eq("id", params.conversationId);
+      .eq("id", conversationId);
 
     // Create execution context
     const context: ConversationContext = {
@@ -106,7 +104,7 @@ export async function POST(
     await supabaseAdmin
       .from("conversations")
       .update(updates)
-      .eq("id", params.conversationId);
+      .eq("id", conversationId);
 
     return NextResponse.json({
       success: true,

@@ -224,9 +224,9 @@ export default function FlowTester({
           <div>
             <div className="flex items-center gap-2">
               {agentModality === "voice" ? (
-                <Mic className="h-5 w-5 text-orange-400" />
+                <Mic className="h-5 w-5 text-cyan-400" />
               ) : (
-                <MessageSquare className="h-5 w-5 text-orange-400" />
+                <MessageSquare className="h-5 w-5 text-cyan-400" />
               )}
               <h2 className={`text-xl font-semibold ${colors.text}`}>Test {agentModality === "voice" ? "Voice" : "Chat"} Agent</h2>
             </div>
@@ -261,18 +261,18 @@ export default function FlowTester({
                   }`}
                 >
                   {message.role === "assistant" && (
-                    <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-cyan-500/20 flex items-center justify-center flex-shrink-0">
                       {agentModality === "voice" ? (
-                        <Mic className="h-4 w-4 text-orange-400" />
+                        <Mic className="h-4 w-4 text-cyan-400" />
                       ) : (
-                        <MessageSquare className="h-4 w-4 text-orange-400" />
+                        <MessageSquare className="h-4 w-4 text-cyan-400" />
                       )}
                     </div>
                   )}
                   <div
                     className={`max-w-[80%] rounded-3xl px-4 py-3 ${
                       message.role === "user"
-                        ? "bg-orange-600 text-white"
+                        ? "bg-cyan-600 text-white"
                         : message.role === "system"
                         ? "bg-white/5 text-white/60 text-xs"
                         : "bg-white/10 text-white border border-white/20"
@@ -297,8 +297,8 @@ export default function FlowTester({
               ))}
               {loading && (
                 <div className="flex gap-3 justify-start">
-                  <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center">
-                    <Loader2 className="h-4 w-4 text-orange-400 animate-spin" />
+                  <div className="w-8 h-8 rounded-full bg-cyan-500/20 flex items-center justify-center">
+                    <Loader2 className="h-4 w-4 text-cyan-400 animate-spin" />
                   </div>
                   <div className="bg-white/10 text-white border border-white/20 rounded-2xl px-4 py-3">
                     Processing...
@@ -321,13 +321,13 @@ export default function FlowTester({
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder={agentModality === "voice" ? "Type what you would say to the voice agent..." : "Type a message to test the flow..."}
-                  className={`flex-1 ${colors.cardBg} ${colors.border} border rounded-xl px-4 py-2 ${colors.text} placeholder:${colors.textTertiary} focus:outline-none focus:ring-2 focus:ring-orange-500/50`}
+                  className={`flex-1 ${colors.cardBg} ${colors.border} border rounded-xl px-4 py-2 ${colors.text} placeholder:${colors.textTertiary} focus:outline-none focus:ring-2 focus:ring-cyan-500/50`}
                   disabled={loading}
                 />
                 <button
                   type="submit"
                   disabled={!input.trim() || loading}
-                  className="px-4 py-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl transition"
+                  className="px-4 py-2 bg-cyan-500 hover:bg-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl transition"
                 >
                   {loading ? (
                     <Loader2 className="h-4 w-4 animate-spin" />

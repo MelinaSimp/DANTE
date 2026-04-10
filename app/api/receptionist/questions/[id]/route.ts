@@ -17,13 +17,13 @@ async function ensureWorkspace() {
   return { supabase, workspaceId: profile?.workspace_id ?? null };
 }
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { supabase, workspaceId } = await ensureWorkspace();
   if (!workspaceId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const id = params.id;
+  const { id } = await params;
   const updates = await req.json();
 
   const payload: Record<string, unknown> = {};
@@ -59,7 +59,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   return NextResponse.json({ success: true });
 }
 
-export async function DELETE(_: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const { supabase, workspaceId } = await ensureWorkspace();
   if (!workspaceId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -68,7 +69,7 @@ export async function DELETE(_: NextRequest, { params }: { params: { id: string 
   const { error } = await supabase
     .from("receptionist_questions")
     .delete()
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("workspace_id", workspaceId);
 
   if (error) {

@@ -129,7 +129,7 @@ export default function EvaluationData() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-orange-500"></div>
+                  <div className="w-3 h-3 rounded-full bg-cyan-500"></div>
                   <span className={colors.text}>Inquiry</span>
                 </div>
                 <span className={`font-medium ${colors.text}`}>

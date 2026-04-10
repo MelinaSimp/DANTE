@@ -9,14 +9,17 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { normalizePhone } from "@/lib/phone";
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import twilio from "twilio";
+import { naiveLocalIsoToUtcIso, appDayRangeUtcIso, appWallClockToUtcMs, getAppTimezone } from "@/lib/app-timezone";
+import dayjs from "dayjs";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { agentId: string } }
+  { params }: { params: Promise<{ agentId: string }> }
 ) {
   try {
+    const { agentId } = await params;
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
     if (!rateLimit(`schedule:${ip}`, 10).allowed) return rateLimitResponse();
 
@@ -46,7 +49,7 @@ export async function POST(
     const { data: agent } = await supabaseAdmin
       .from("agents")
       .select("id, workspace_id")
-      .eq("id", params.agentId)
+      .eq("id", agentId)
       .single();
 
     if (!agent) {
@@ -122,8 +125,10 @@ export async function POST(
       contactId = newContact.id;
     }
 
+    const scheduledAtUtc = naiveLocalIsoToUtcIso(String(scheduledAt));
+
     // Validate scheduled_at is not in the past
-    const scheduledDate = new Date(scheduledAt);
+    const scheduledDate = new Date(scheduledAtUtc);
     if (scheduledDate < new Date()) {
       return NextResponse.json(
         { error: "Appointment time cannot be in the past" },
@@ -153,7 +158,7 @@ export async function POST(
       .insert({
         workspace_id: workspaceId,
         contact_id: contactId,
-        scheduled_at: scheduledAt,
+        scheduled_at: scheduledAtUtc,
         duration_minutes: durationMinutes,
         service_type: serviceType,
         status: "scheduled",
@@ -187,14 +192,14 @@ export async function POST(
     const aiMessage = await generateAppointmentReminderMessage({
       name: contactName,
       description: serviceType,
-      scheduledAt,
+      scheduledAt: scheduledAtUtc,
       durationMinutes,
     });
 
     // Send immediate SMS reminder (for testing - sends immediately regardless of appointment time)
     try {
-      await sendAppointmentSMS(normalizedPhone, aiMessage, workspaceId, params.agentId);
-      console.log(`[Agent Schedule] Immediate SMS reminder sent to ${normalizedPhone} for appointment on ${scheduledAt}`);
+      await sendAppointmentSMS(normalizedPhone, aiMessage, workspaceId, agentId);
+      console.log(`[Agent Schedule] Immediate SMS reminder sent to ${normalizedPhone} for appointment on ${scheduledAtUtc}`);
     } catch (smsError: any) {
       console.error("Failed to send SMS reminder:", smsError);
       // Don't fail the appointment creation if SMS fails
@@ -218,9 +223,10 @@ export async function POST(
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { agentId: string } }
+  { params }: { params: Promise<{ agentId: string }> }
 ) {
   try {
+    const { agentId } = await params;
     // Get workspace - supports both user auth and agent-based calls
     let workspaceId: string;
     
@@ -228,7 +234,7 @@ export async function GET(
     const { data: agent } = await supabaseAdmin
       .from("agents")
       .select("id, workspace_id")
-      .eq("id", params.agentId)
+      .eq("id", agentId)
       .maybeSingle();
 
     if (!agent) {
@@ -263,54 +269,47 @@ export async function GET(
     }
 
     const { searchParams } = new URL(req.url);
-    const date = searchParams.get("date"); // YYYY-MM-DD format
+    const tz = getAppTimezone();
+    const date =
+      searchParams.get("date") || dayjs().tz(tz).format("YYYY-MM-DD");
     const duration = parseInt(searchParams.get("duration") || "60");
 
-    // Get existing appointments for the date
-    const startDate = date ? new Date(date + "T00:00:00") : new Date();
-    const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + 1);
+    const { startUtcIso, endExclusiveUtcIso } = appDayRangeUtcIso(date);
 
     const { data: existingAppointments } = await supabaseAdmin
       .from("appointments")
       .select("scheduled_at, duration_minutes")
       .eq("workspace_id", workspaceId)
       .eq("status", "scheduled")
-      .gte("scheduled_at", startDate.toISOString())
-      .lt("scheduled_at", endDate.toISOString());
+      .gte("scheduled_at", startUtcIso)
+      .lt("scheduled_at", endExclusiveUtcIso);
 
-    // Generate available slots (9 AM - 5 PM, 30-minute intervals)
+    // Generate available slots (9 AM – 5 PM app-local, 30-minute intervals) as UTC ISO strings
     const availableSlots: string[] = [];
     const startHour = 9;
     const endHour = 17;
     const intervalMinutes = 30;
+    const now = Date.now();
 
     for (let hour = startHour; hour < endHour; hour++) {
       for (let minute = 0; minute < 60; minute += intervalMinutes) {
-        const slotTime = new Date(startDate);
-        slotTime.setHours(hour, minute, 0, 0);
+        const slotStartMs = appWallClockToUtcMs(date, hour, minute);
+        const slotEndMs = slotStartMs + duration * 60000;
 
-        // Check if this slot conflicts with existing appointments
         const hasConflict = existingAppointments?.some((apt) => {
-          const aptStart = new Date(apt.scheduled_at);
-          const aptEnd = new Date(aptStart.getTime() + (apt.duration_minutes || 60) * 60000);
-          const slotEnd = new Date(slotTime.getTime() + duration * 60000);
-
-          return (
-            (slotTime >= aptStart && slotTime < aptEnd) ||
-            (slotEnd > aptStart && slotEnd <= aptEnd) ||
-            (slotTime <= aptStart && slotEnd >= aptEnd)
-          );
+          const aptStart = new Date(apt.scheduled_at).getTime();
+          const aptEnd = aptStart + (apt.duration_minutes || 60) * 60000;
+          return slotStartMs < aptEnd && slotEndMs > aptStart;
         });
 
-        if (!hasConflict && slotTime > new Date()) {
-          availableSlots.push(slotTime.toISOString());
+        if (!hasConflict && slotStartMs > now) {
+          availableSlots.push(new Date(slotStartMs).toISOString());
         }
       }
     }
 
     return NextResponse.json({
-      date: date || startDate.toISOString().split("T")[0],
+      date,
       availableSlots,
       existingAppointments: existingAppointments || [],
     });

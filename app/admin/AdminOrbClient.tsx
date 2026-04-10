@@ -3,24 +3,21 @@
 import { useState, useCallback, lazy, Suspense } from "react";
 import Link from "next/link";
 import {
-  LayoutDashboard, Shield, Building2, CreditCard, UserPlus, BarChart3,
+  Shield, Building2, CreditCard, UserPlus, BarChart3,
   Home, Code, ArrowLeft,
 } from "lucide-react";
 import AgentOrb from "@/components/frontend/AgentOrb";
 import PanelShell from "@/components/panels/PanelShell";
 import GLSLWaves from "@/components/ui/glsl-waves";
 
-const DashboardAPanel = lazy(() => import("@/components/panels/admin/DashboardAPanel"));
 const FeaturesAPanel = lazy(() => import("@/components/panels/admin/FeaturesAPanel"));
 const WorkspacesAPanel = lazy(() => import("@/components/panels/admin/WorkspacesAPanel"));
 const BillingAPanel = lazy(() => import("@/components/panels/admin/BillingAPanel"));
 const InvitesAPanel = lazy(() => import("@/components/panels/admin/InvitesAPanel"));
 const AnalyticsAPanel = lazy(() => import("@/components/panels/admin/AnalyticsAPanel"));
-
-type PanelId = "dashboard" | "features" | "workspaces" | "billing" | "invites" | "analytics";
+type PanelId = "features" | "workspaces" | "billing" | "invites" | "analytics";
 
 const PANEL_TITLES: Record<PanelId, string> = {
-  dashboard: "Dashboard",
   features: "Feature Management",
   workspaces: "All Workspaces",
   billing: "Billing & Stripe",
@@ -39,7 +36,6 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { name: "Dashboard", icon: LayoutDashboard, panelId: "dashboard" },
   { name: "Features", icon: Shield, panelId: "features" },
   { name: "Workspaces", icon: Building2, panelId: "workspaces" },
   { name: "Billing", icon: CreditCard, panelId: "billing" },
@@ -74,7 +70,6 @@ export default function AdminOrbClient({ userName }: { userName?: string }) {
   const renderPanel = () => {
     if (!activePanel) return null;
     switch (activePanel) {
-      case "dashboard": return <DashboardAPanel />;
       case "features": return <FeaturesAPanel />;
       case "workspaces": return <WorkspacesAPanel />;
       case "billing": return <BillingAPanel />;

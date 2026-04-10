@@ -20,8 +20,9 @@ async function getWorkspace(req: NextRequest) {
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { scenarioId: string } }
+  { params }: { params: Promise<{ scenarioId: string }> }
 ) {
+  const { scenarioId } = await params;
   const { workspaceId } = await getWorkspace(req);
   if (!workspaceId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -31,7 +32,7 @@ export async function PUT(
   const { data: scenario } = await supabaseAdmin
     .from("scenarios")
     .select("agent_id, agents!inner(workspace_id)")
-    .eq("id", params.scenarioId)
+    .eq("id", scenarioId)
     .maybeSingle();
 
   if (!scenario || (scenario.agents as any).workspace_id !== workspaceId) {
@@ -50,7 +51,7 @@ export async function PUT(
   const { data, error } = await supabaseAdmin
     .from("scenarios")
     .update(updates)
-    .eq("id", params.scenarioId)
+    .eq("id", scenarioId)
     .select("*")
     .single();
 
@@ -64,8 +65,9 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { scenarioId: string } }
+  { params }: { params: Promise<{ scenarioId: string }> }
 ) {
+  const { scenarioId } = await params;
   const { workspaceId } = await getWorkspace(req);
   if (!workspaceId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -75,7 +77,7 @@ export async function DELETE(
   const { data: scenario } = await supabaseAdmin
     .from("scenarios")
     .select("agent_id, agents!inner(workspace_id)")
-    .eq("id", params.scenarioId)
+    .eq("id", scenarioId)
     .maybeSingle();
 
   if (!scenario || (scenario.agents as any).workspace_id !== workspaceId) {
@@ -85,7 +87,7 @@ export async function DELETE(
   const { error } = await supabaseAdmin
     .from("scenarios")
     .delete()
-    .eq("id", params.scenarioId);
+    .eq("id", scenarioId);
 
   if (error) {
     console.error("Failed to delete scenario", error);

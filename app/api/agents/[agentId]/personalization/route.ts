@@ -20,8 +20,9 @@ async function getWorkspace(req: NextRequest) {
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { agentId: string } }
+  { params }: { params: Promise<{ agentId: string }> }
 ) {
+  const { agentId } = await params;
   const { workspaceId } = await getWorkspace(req);
   if (!workspaceId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -31,7 +32,7 @@ export async function GET(
   const { data: agent } = await supabaseAdmin
     .from("agents")
     .select("workspace_id")
-    .eq("id", params.agentId)
+    .eq("id", agentId)
     .eq("workspace_id", workspaceId)
     .maybeSingle();
 
@@ -42,7 +43,7 @@ export async function GET(
   const { data, error } = await supabaseAdmin
     .from("agent_personalization")
     .select("*")
-    .eq("agent_id", params.agentId)
+    .eq("agent_id", agentId)
     .maybeSingle();
 
   if (error && error.code !== "PGRST116") {
@@ -53,7 +54,7 @@ export async function GET(
   // Return defaults if not found
   if (!data) {
     return NextResponse.json({
-      agent_id: params.agentId,
+      agent_id: agentId,
       voice_model: "professional",
       personality: "helpful",
       response_style: "concise",
@@ -70,8 +71,9 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { agentId: string } }
+  { params }: { params: Promise<{ agentId: string }> }
 ) {
+  const { agentId } = await params;
   const { workspaceId } = await getWorkspace(req);
   if (!workspaceId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -81,7 +83,7 @@ export async function PUT(
   const { data: agent } = await supabaseAdmin
     .from("agents")
     .select("workspace_id")
-    .eq("id", params.agentId)
+    .eq("id", agentId)
     .eq("workspace_id", workspaceId)
     .maybeSingle();
 
@@ -91,7 +93,7 @@ export async function PUT(
 
   const body = await req.json();
   const updates: Record<string, any> = {
-    agent_id: params.agentId,
+    agent_id: agentId,
     updated_at: new Date().toISOString(),
   };
 

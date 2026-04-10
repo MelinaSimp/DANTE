@@ -87,7 +87,6 @@ export default function InboxPage({ agentId }: InboxPageProps) {
           filter: `agent_id=eq.${agentId}`,
         },
         (payload) => {
-          console.log("Conversation update:", payload);
           loadConversations();
         }
       )
@@ -236,7 +235,7 @@ export default function InboxPage({ agentId }: InboxPageProps) {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as "active" | "completed" | "all")}
-              className={`px-3 py-1.5 rounded-2xl border ${colors.border} ${colors.inputBg} ${colors.text} text-sm focus:outline-none focus:border-[#f97316]`}
+              className={`px-3 py-1.5 rounded-2xl border ${colors.border} ${colors.inputBg} ${colors.text} text-sm focus:outline-none focus:border-cyan-500`}
             >
               <option value="active">Active</option>
               <option value="completed">Completed</option>
@@ -253,7 +252,7 @@ export default function InboxPage({ agentId }: InboxPageProps) {
             placeholder="Search by phone number or message..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className={`w-full pl-10 pr-4 py-2 rounded-2xl border ${colors.border} ${colors.inputBg} ${colors.text} placeholder:${colors.textTertiary} text-sm focus:outline-none focus:border-[#f97316]`}
+            className={`w-full pl-10 pr-4 py-2 rounded-2xl border ${colors.border} ${colors.inputBg} ${colors.text} placeholder:${colors.textTertiary} text-sm focus:outline-none focus:border-cyan-500`}
           />
         </div>
       </div>
@@ -284,7 +283,7 @@ export default function InboxPage({ agentId }: InboxPageProps) {
                     onClick={() => setSelectedConversation(conversation)}
                     className={`w-full text-left p-4 hover:bg-gray-100 dark:hover:bg-gray-800 transition ${
                       isSelected
-                        ? "bg-orange-50 dark:bg-orange-900/20 border-l-4 border-orange-500"
+                        ? "bg-cyan-50 dark:bg-cyan-900/20 border-l-4 border-cyan-500"
                         : ""
                     }`}
                   >
@@ -382,14 +381,14 @@ export default function InboxPage({ agentId }: InboxPageProps) {
                           className={`max-w-[70%] rounded-2xl px-4 py-2 ${
                             isUser
                               ? `${colors.bgSecondary} ${colors.text}`
-                              : "bg-orange-500 text-white"
+                              : "bg-cyan-500 text-white"
                           }`}
                         >
                           <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                           {timestamp && (
                             <p
                               className={`text-xs mt-1 ${
-                                isUser ? colors.textTertiary : "text-orange-100"
+                                isUser ? colors.textTertiary : "text-cyan-100"
                               }`}
                             >
                               {timestamp}
@@ -427,7 +426,7 @@ export default function InboxPage({ agentId }: InboxPageProps) {
                   <button
                     onClick={handleSendReply}
                     disabled={!replyText.trim() || sendingReply}
-                    className={`px-4 py-2 rounded-2xl bg-orange-500 text-white font-medium text-sm hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2`}
+                    className={`px-4 py-2 rounded-2xl bg-cyan-500 text-white font-medium text-sm hover:bg-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2`}
                   >
                     {sendingReply ? (
                       <>

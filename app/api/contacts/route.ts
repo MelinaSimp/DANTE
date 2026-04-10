@@ -2,6 +2,7 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { validateContact, sanitizeInput } from "@/lib/validation";
+import { emitEvent } from "@/lib/automations";
 
 export async function POST(request: Request) {
   try {
@@ -73,6 +74,8 @@ export async function POST(request: Request) {
       console.error("Contact creation error:", error);
       return NextResponse.json({ error: "Failed to create contact" }, { status: 500 });
     }
+
+    emitEvent("contact.created", { id: contact.id, name: contact.name, email: contact.email, phone: contact.phone });
 
     return NextResponse.json(contact);
   } catch (error) {

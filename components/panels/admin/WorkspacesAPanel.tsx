@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Building2, CheckCircle2, AlertCircle, XCircle, Trash2, UserPlus, Loader2, X, Check, DollarSign } from "lucide-react";
+import { Building2, CheckCircle2, AlertCircle, XCircle, Trash2, UserPlus, Loader2, X, Check, DollarSign, Copy, KeyRound } from "lucide-react";
 
 interface Workspace {
   id: string; name: string; created_at: string; owner_id: string; enabled_features: string[];
   plan_status: string; owner_name: string | null; owner_email: string | null; user_count: number;
-  billing_amount: number | null; billing_cycle: string | null;
+  billing_amount: number | null; billing_cycle: string | null; invite_code: string | null;
 }
 
 export default function WorkspacesAPanel() {
@@ -22,6 +22,33 @@ export default function WorkspacesAPanel() {
   const [billingAmount, setBillingAmount] = useState("");
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
   const [savingBilling, setSavingBilling] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  const handleCreate = async () => {
+    if (!newName.trim()) return;
+    setCreating(true);
+    try {
+      const r = await fetch("/api/admin/workspaces", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ name: newName.trim() }),
+      });
+      const d = await r.json();
+      if (r.ok) {
+        setWorkspaces(p => [{ ...d, owner_name: null, owner_email: null, user_count: 0, billing_amount: null, billing_cycle: null }, ...p]);
+        setNewName("");
+        setToast({ type: "success", message: `Created "${d.name}"` });
+      } else {
+        setToast({ type: "error", message: d.error || "Failed to create" });
+      }
+    } catch {
+      setToast({ type: "error", message: "Error creating workspace" });
+    } finally {
+      setCreating(false);
+    }
+  };
 
   useEffect(() => {
     fetch("/api/admin/workspaces", { credentials: "include" }).then(r => r.ok ? r.json() : []).then(d => setWorkspaces(Array.isArray(d) ? d : [])).catch(() => {}).finally(() => setLoading(false));
@@ -63,13 +90,34 @@ export default function WorkspacesAPanel() {
   return (
     <div className="p-4">
       {toast && <div className={`fixed bottom-6 right-6 z-[60] px-4 py-3 rounded-xl text-sm font-medium shadow-lg border ${toast.type === "success" ? "bg-green-500/10 border-green-500/30 text-green-400" : "bg-red-500/10 border-red-500/30 text-red-400"}`}>{toast.message}</div>}
+
+      {/* Create workspace */}
+      <div className="flex items-center gap-2 mb-4">
+        <input
+          type="text"
+          value={newName}
+          onChange={e => setNewName(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter") handleCreate(); }}
+          placeholder="New workspace name..."
+          className="flex-1 px-3 py-2 text-sm rounded-xl bg-white/5 border border-purple-500/20 text-white placeholder:text-white/30 focus:outline-none focus:border-purple-500/40"
+        />
+        <button
+          onClick={handleCreate}
+          disabled={creating || !newName.trim()}
+          className="px-4 py-2 rounded-xl bg-purple-500 text-white text-sm font-medium hover:bg-purple-600 transition disabled:opacity-40 flex items-center gap-1.5"
+        >
+          {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Building2 className="h-3.5 w-3.5" />}
+          Create
+        </button>
+      </div>
+
       {workspaces.length === 0 ? (
-        <div className="text-center py-16"><Building2 className="h-8 w-8 text-white/10 mx-auto mb-3" /><p className="text-white/40 text-sm">No workspaces</p></div>
+        <div className="text-center py-16"><Building2 className="h-8 w-8 text-white/10 mx-auto mb-3" /><p className="text-white/40 text-sm">No workspaces yet</p></div>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-purple-500/20 bg-black/40">
           <table className="w-full text-sm">
             <thead className="border-b border-purple-500/10"><tr className="text-left text-white/40 text-xs uppercase tracking-wider">
-              <th className="py-3 px-4 font-medium">Health</th><th className="py-3 px-4 font-medium">Workspace</th><th className="py-3 px-4 font-medium">Plan</th>
+              <th className="py-3 px-4 font-medium">Health</th><th className="py-3 px-4 font-medium">Workspace</th><th className="py-3 px-4 font-medium">Invite Code</th><th className="py-3 px-4 font-medium">Plan</th>
               <th className="py-3 px-4 font-medium">Billing</th><th className="py-3 px-4 font-medium">Users</th><th className="py-3 px-4 font-medium">Features</th><th className="py-3 px-4 font-medium">Created</th><th className="py-3 px-4 font-medium text-right">Actions</th>
             </tr></thead>
             <tbody className="divide-y divide-purple-500/5">
@@ -81,6 +129,21 @@ export default function WorkspacesAPanel() {
                   <tr key={ws.id} className="hover:bg-white/[0.02] group">
                     <td className="py-3 px-4">{health === "healthy" ? <CheckCircle2 className="h-4 w-4 text-green-500" /> : health === "warning" ? <AlertCircle className="h-4 w-4 text-yellow-500" /> : <XCircle className="h-4 w-4 text-red-500" />}</td>
                     <td className="py-3 px-4"><div className="text-sm font-medium text-white">{ws.name}</div><div className="text-[11px] text-white/30">{ws.owner_name || ws.owner_email || "Unknown"}</div></td>
+                    <td className="py-3 px-4">
+                      {ws.invite_code ? (
+                        <button
+                          onClick={() => { navigator.clipboard.writeText(ws.invite_code!); setToast({ type: "success", message: "Code copied!" }); }}
+                          className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-purple-500/10 border border-purple-500/20 hover:bg-purple-500/20 transition group/code"
+                          title="Click to copy"
+                        >
+                          <KeyRound className="h-3 w-3 text-purple-400/60" />
+                          <span className="text-[11px] font-mono text-purple-300">{ws.invite_code}</span>
+                          <Copy className="h-3 w-3 text-white/20 group-hover/code:text-purple-400 transition" />
+                        </button>
+                      ) : (
+                        <span className="text-[11px] text-white/20">—</span>
+                      )}
+                    </td>
                     <td className="py-3 px-4"><span className={`px-2 py-0.5 rounded-md text-[10px] font-medium border ${sc}`}>{ws.plan_status || "active"}</span></td>
                     <td className="py-3 px-4">
                       {editingBilling === ws.id ? (
