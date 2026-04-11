@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { UserPlus, Search, Trash2, Phone, Mail, FileText, Sparkles, Loader2, ExternalLink, Users } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import { confirmDialog } from "@/components/ui/confirm-dialog";
 import { reportError } from "@/lib/report-error";
 
@@ -120,7 +121,17 @@ export default function ClientsPanel({ agentId }: { agentId: string }) {
 
       {/* List */}
       {loading ? (
-        <div className="text-center py-16 text-gray-400 text-sm">Loading clients...</div>
+        <div className="space-y-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-100">
+              <Skeleton variant="circular" width={40} height={40} className="!bg-gray-100" />
+              <div className="flex-1 space-y-2">
+                <Skeleton variant="text" width="35%" height={14} className="!bg-gray-100" />
+                <Skeleton variant="text" width="55%" height={12} className="!bg-gray-100" />
+              </div>
+            </div>
+          ))}
+        </div>
       ) : filtered.length === 0 ? (
         searchQuery ? (
           <EmptyState

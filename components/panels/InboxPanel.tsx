@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase/client";
 import { Inbox, Search, MessageSquare, Phone, CheckCircle, XCircle, AlertCircle, HelpCircle, Trash2 } from "lucide-react";
 import { confirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface Conversation {
   id: string;
@@ -102,7 +103,17 @@ export default function InboxPanel({ agentId }: { agentId: string }) {
           className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20" />
       </div>
       {loading ? (
-        <div className="text-center py-16 text-gray-400 text-sm">Loading...</div>
+        <div className="space-y-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex items-start gap-3 bg-white rounded-xl border border-gray-100 p-4">
+              <Skeleton variant="circular" width={40} height={40} className="!bg-gray-100" />
+              <div className="flex-1 min-w-0 space-y-2">
+                <Skeleton variant="text" width="40%" height={14} className="!bg-gray-100" />
+                <Skeleton variant="text" width="80%" height={12} className="!bg-gray-100" />
+              </div>
+            </div>
+          ))}
+        </div>
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={Inbox}
