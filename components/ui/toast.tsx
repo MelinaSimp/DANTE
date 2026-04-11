@@ -1,7 +1,18 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, ReactNode, useEffect } from "react";
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from "lucide-react";
+
+// Imperative API — set by provider on mount so non-hook code can call it.
+let imperativeShow: ((toast: Omit<Toast, "id">) => void) | null = null;
+
+export const toast = {
+  success: (title: string, message?: string) => imperativeShow?.({ type: "success", title, message }),
+  error: (title: string, message?: string) =>
+    imperativeShow?.({ type: "error", title, message, duration: 6000 }),
+  warning: (title: string, message?: string) => imperativeShow?.({ type: "warning", title, message }),
+  info: (title: string, message?: string) => imperativeShow?.({ type: "info", title, message }),
+};
 
 export type ToastType = "success" | "error" | "warning" | "info";
 
@@ -60,6 +71,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     },
     [removeToast]
   );
+
+  useEffect(() => {
+    imperativeShow = showToast;
+    return () => {
+      imperativeShow = null;
+    };
+  }, [showToast]);
 
   const success = useCallback(
     (title: string, message?: string) => {

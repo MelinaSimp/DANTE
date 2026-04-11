@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { UserPlus, Search, Trash2, Phone, Mail, FileText, Sparkles, Loader2, ExternalLink } from "lucide-react";
+import { confirmDialog } from "@/components/ui/confirm-dialog";
 
 interface Contact { id: string; name: string; phone?: string; email?: string }
 interface DocCount { contact_id: string; count: number }
@@ -42,7 +43,8 @@ export default function ClientsPanel({ agentId }: { agentId: string }) {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this contact?")) return;
+    const ok = await confirmDialog({ title: "Delete contact?", message: "This will permanently remove this contact.", confirmText: "Delete", variant: "danger" });
+    if (!ok) return;
     setDeletingId(id);
     try {
       const r = await fetch(`/api/contacts/${id}`, { method: "DELETE", credentials: "include" });

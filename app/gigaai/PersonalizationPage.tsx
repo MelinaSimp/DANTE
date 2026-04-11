@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { User, Volume2, Sparkles, Settings } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
+import { toast } from "@/components/ui/toast";
 
 interface VoiceModel {
   id: string;
@@ -175,13 +176,13 @@ export default function PersonalizationPage({ agentId }: PersonalizationPageProp
                   }),
                 });
                 if (response.ok) {
-                  alert("Personalization settings saved!");
+                  toast.success("Personalization settings saved");
                 } else {
-                  alert("Failed to save settings");
+                  toast.error("Failed to save settings");
                 }
               } catch (error) {
                 console.error("Failed to save personalization:", error);
-                alert("Failed to save settings");
+                toast.error("Failed to save settings");
               }
             }}
             className={`px-6 py-3 rounded-2xl ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white font-medium transition`}

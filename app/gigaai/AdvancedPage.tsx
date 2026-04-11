@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Code, Settings, Key, Webhook, Database, Phone, UserCheck, Users, Radio, Zap, Loader2, CheckCircle2 } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
+import { toast } from "@/components/ui/toast";
 
 interface AdvancedPageProps {
   agentId?: string;
@@ -513,13 +514,13 @@ export default function AdvancedPage({ agentId, phoneNumber = "", onPhoneNumberC
                   }),
                 });
                 if (response.ok) {
-                  alert("Advanced settings saved!");
+                  toast.success("Advanced settings saved");
                 } else {
-                  alert("Failed to save settings");
+                  toast.error("Failed to save settings");
                 }
               } catch (error) {
                 console.error("Failed to save advanced settings:", error);
-                alert("Failed to save settings");
+                toast.error("Failed to save settings");
               }
             }}
             className={`px-6 py-3 rounded-lg ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white font-medium transition`}

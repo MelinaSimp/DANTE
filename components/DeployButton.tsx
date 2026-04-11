@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Rocket, X, Loader2 } from "lucide-react";
+import { toast } from "@/components/ui/toast";
 
 interface DeploymentStatus {
   status: "idle" | "deploying" | "deployed" | "cancelled" | "failed";
@@ -53,10 +54,10 @@ export default function DeployButton() {
           isDeployed: true,
         });
       } else {
-        alert(data.error || "Failed to start deployment");
+        toast.error("Failed to start deployment", data.error);
       }
     } catch (error: any) {
-      alert(error.message || "Failed to start deployment");
+      toast.error("Failed to start deployment", error.message);
     } finally {
       setLoading(false);
     }
@@ -76,10 +77,10 @@ export default function DeployButton() {
           isDeployed: false,
         });
       } else {
-        alert(data.error || "Failed to cancel deployment");
+        toast.error("Failed to cancel deployment", data.error);
       }
     } catch (error: any) {
-      alert(error.message || "Failed to cancel deployment");
+      toast.error("Failed to cancel deployment", error.message);
     } finally {
       setLoading(false);
     }

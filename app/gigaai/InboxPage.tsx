@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { MessageSquare, Search, Send, Phone, User, Clock, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
+import { toast } from "@/components/ui/toast";
 // Using native Date methods instead of date-fns
 
 interface Conversation {
@@ -218,7 +219,7 @@ export default function InboxPage({ agentId }: InboxPageProps) {
       setReplyText("");
     } catch (error: any) {
       console.error("Error sending reply:", error);
-      alert(error.message || "Failed to send reply");
+      toast.error("Failed to send reply", error.message);
     } finally {
       setSendingReply(false);
     }

@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/toast";
 
 export default function AddTaskForm({
   workspaceId,
@@ -31,7 +32,7 @@ export default function AddTaskForm({
         due_at,
       });
       if (error) {
-        alert(error.message);
+        toast.error("Failed to add task", error.message);
         return;
       }
       setTitle("");

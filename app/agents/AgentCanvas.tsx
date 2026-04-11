@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { Plus, MessageCircle, Code as CodeIcon, ArrowRight, ChevronRight, Upload, CheckCircle, XCircle, Trash2, Database } from "lucide-react";
 import StepEditor from "./StepEditor";
+import { toast } from "@/components/ui/toast";
+import { confirmDialog } from "@/components/ui/confirm-dialog";
 
 interface Scenario {
   id: string;
@@ -146,9 +148,13 @@ export default function AgentCanvas({ agentId, workspaceId }: AgentCanvasProps) 
   };
 
   const handleDeleteStep = async (stepId: string, scenarioId: string) => {
-    if (!confirm("Are you sure you want to delete this step? This action cannot be undone.")) {
-      return;
-    }
+    const ok = await confirmDialog({
+      title: "Delete step?",
+      message: "Are you sure you want to delete this step? This action cannot be undone.",
+      confirmText: "Delete",
+      variant: "danger",
+    });
+    if (!ok) return;
 
     try {
       const response = await fetch(`/api/steps/${stepId}`, {
@@ -166,11 +172,11 @@ export default function AgentCanvas({ agentId, workspaceId }: AgentCanvasProps) 
         }
       } else {
         const error = await response.json();
-        alert(`Failed to delete step: ${error.error || "Unknown error"}`);
+        toast.error("Failed to delete step", error.error || "Unknown error");
       }
     } catch (error) {
       console.error("Error deleting step:", error);
-      alert("Failed to delete step. Please try again.");
+      toast.error("Failed to delete step", "Please try again.");
     }
   };
 

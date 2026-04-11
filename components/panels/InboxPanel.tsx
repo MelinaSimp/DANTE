@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { Inbox, Search, MessageSquare, Phone, CheckCircle, XCircle, AlertCircle, HelpCircle, Trash2 } from "lucide-react";
+import { confirmDialog } from "@/components/ui/confirm-dialog";
 
 interface Conversation {
   id: string;
@@ -68,7 +69,8 @@ export default function InboxPanel({ agentId }: { agentId: string }) {
 
   const deleteConv = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm("Delete this conversation?")) return;
+    const ok = await confirmDialog({ title: "Delete conversation?", message: "This will permanently remove the conversation.", confirmText: "Delete", variant: "danger" });
+    if (!ok) return;
     setDeletingId(id);
     try { const r = await fetch(`/api/conversations/${id}`, { method: "DELETE" }); if (r.ok) setConversations(p => p.filter(c => c.id !== id)); }
     catch {} finally { setDeletingId(null); }

@@ -3,6 +3,7 @@
 
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm-dialog";
 
 interface KnowledgeEntry {
   id: string;
@@ -88,7 +89,8 @@ export default function KnowledgeSetupClient({ initialEntries, workspaceId }: Kn
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this entry?")) return;
+    const ok = await confirmDialog({ title: "Delete entry?", message: "This will permanently remove the knowledge entry.", confirmText: "Delete", variant: "danger" });
+    if (!ok) return;
 
     try {
       const response = await fetch(`/api/knowledge/${id}`, { method: "DELETE" });

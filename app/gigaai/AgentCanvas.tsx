@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { MessageSquare, FileText, GitBranch, Code, Zap, ArrowRight, X, Plus, Trash2, Calendar, CheckCircle, HelpCircle, Repeat, UserCheck, Phone, Eye, Edit, Play } from "lucide-react";
 import ConfirmationModal from "./ConfirmationModal";
 import { useTheme } from "./ThemeProvider";
+import { toast } from "@/components/ui/toast";
 
 type StepType = "say" | "gather" | "code" | "api_call" | "schedule" | "check_schedule" | "qa" | "loop" | "send_sms" | "transfer";
 
@@ -2075,7 +2076,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                               
                             } catch (error: any) {
                               console.error("[AgentCanvas] ❌ Failed to update branch with scenario:", error);
-                              alert(`Failed to connect to scenario: ${error?.message || "Unknown error"}`);
+                              toast.error("Failed to connect to scenario", error?.message || "Unknown error");
                             }
                           }}
                           className={`w-full text-left px-3 py-2 rounded-2xl border transition text-xs ${
@@ -2219,11 +2220,11 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                     } else {
                       const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
                       console.error("Failed to save data source selection:", errorData);
-                      alert(`Failed to save: ${errorData.error || "Please try again"}`);
+                      toast.error("Failed to save", errorData.error || "Please try again");
                     }
                   } catch (error) {
                     console.error("Failed to save data source selection:", error);
-                    alert("Failed to save data source selection. Please try again.");
+                    toast.error("Failed to save data source selection", "Please try again.");
                   }
                 }}
                 className={`px-4 py-2 rounded-2xl ${colors.buttonPrimary} ${colors.buttonPrimaryHover} text-white text-sm font-medium`}

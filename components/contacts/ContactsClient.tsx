@@ -10,6 +10,7 @@ import AddTaskForm from "@/components/tasks/AddTaskForm";
 import TaskItem from "@/components/tasks/TaskItem";
 import AddNoteForm from "@/components/notes/AddNoteForm";
 import { FileText } from "lucide-react";
+import { confirmDialog } from "@/components/ui/confirm-dialog";
 
 interface Contact {
   id: string;
@@ -87,9 +88,13 @@ export default function ContactsClient({ initialContacts, workspaceId }: Contact
   };
 
   const handleDeleteContact = async (contactId: string) => {
-    if (!confirm("Are you sure you want to delete this contact? This action cannot be undone.")) {
-      return;
-    }
+    const ok = await confirmDialog({
+      title: "Delete contact?",
+      message: "Are you sure you want to delete this contact? This action cannot be undone.",
+      confirmText: "Delete",
+      variant: "danger",
+    });
+    if (!ok) return;
 
     setIsDeleting(contactId);
     setError(null);

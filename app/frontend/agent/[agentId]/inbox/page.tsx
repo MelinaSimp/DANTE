@@ -13,6 +13,7 @@ import {
 import { useFeatures } from "@/hooks/useFeatures";
 import type { FeatureId } from "@/lib/features";
 import MobileNav from "@/components/frontend/MobileNav";
+import { confirmDialog } from "@/components/ui/confirm-dialog";
 
 interface Conversation {
   id: string;
@@ -163,7 +164,8 @@ export default function InboxPage() {
 
   const deleteConversation = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm("Delete this conversation?")) return;
+    const ok = await confirmDialog({ title: "Delete conversation?", message: "This will permanently remove the conversation.", confirmText: "Delete", variant: "danger" });
+    if (!ok) return;
     setDeletingId(id);
     try {
       const res = await fetch(`/api/conversations/${id}`, { method: "DELETE" });

@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/toast";
 
 interface NoteLite { id: string; body: string; created_at: string }
 
@@ -30,7 +31,7 @@ export default function AnalyzeContactAI({
       .eq("contact_id", contactId)
       .order("created_at", { ascending: false });
     if (error) {
-      alert(error.message);
+      toast.error("Failed to load notes", error.message);
       return [];
     }
     return (data as NoteLite[]) || [];
@@ -49,7 +50,7 @@ export default function AnalyzeContactAI({
       });
       const data = await resp.json();
       if (!resp.ok) {
-        alert(data?.error || "Analysis failed");
+        toast.error("Analysis failed", data?.error);
         return;
       }
 
@@ -73,7 +74,7 @@ export default function AnalyzeContactAI({
     }));
     const { error } = await supabase.from("tasks").insert(rows);
     if (error) {
-      alert(error.message);
+      toast.error("Failed to add tasks", error.message);
       return;
     }
     // reload page to show tasks block updated

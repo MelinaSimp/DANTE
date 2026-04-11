@@ -4,6 +4,7 @@
 import { supabase } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { toast } from "@/components/ui/toast";
 
 export interface TaskModel {
   id: string;
@@ -30,7 +31,7 @@ export default function TaskItem({ task }: { task: TaskModel }) {
       if (error) {
         // revert on error
         setLocal({ ...local, status: local.status });
-        alert(error.message);
+        toast.error("Failed to update task", error.message);
       }
     } finally {
       setSaving(false);

@@ -11,6 +11,7 @@ import { useTheme } from "./ThemeProvider";
 import { Skeleton, ChatListSkeleton, MessageSkeleton } from "@/components/ui/skeleton";
 import { Tooltip } from "@/components/ui/tooltip";
 import { EmptyState } from "@/components/ui/empty-state";
+import { toast } from "@/components/ui/toast";
 import ConfirmationModal from "./ConfirmationModal";
 import ChartRenderer from "@/components/charts/ChartRenderer";
 
@@ -363,7 +364,7 @@ export default function LLMPage({ agentId }: LLMPageProps) {
       const isImage = file.type.startsWith("image/");
       
       if (!isPDF && !isImage) {
-        alert(`Only PDF and image files (PNG, JPG, JPEG, GIF, WebP) are supported. ${file.name} is not a supported file type.`);
+        toast.warning("Unsupported file type", `${file.name}: only PDF and images are supported.`);
         continue;
       }
 
@@ -393,7 +394,7 @@ export default function LLMPage({ agentId }: LLMPageProps) {
         });
       } catch (error: any) {
         console.error(`Failed to upload ${file.name}:`, error);
-        alert(`Failed to upload ${file.name}: ${error.message}`);
+        toast.error(`Failed to upload ${file.name}`, error.message);
       }
     }
 

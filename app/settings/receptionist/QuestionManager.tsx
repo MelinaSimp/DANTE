@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { PlusIcon, ArrowUpAZIcon, ArrowDownAZIcon, TrashIcon, SaveIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { confirmDialog } from "@/components/ui/confirm-dialog";
 
 type Question = {
   id: string;
@@ -106,7 +107,7 @@ export default function QuestionManager({ workspaceId, initialQuestions, initial
   }
 
   async function deleteQuestion(id: string) {
-    const confirmed = confirm("Delete this question?");
+    const confirmed = await confirmDialog({ title: "Delete question?", message: "This will permanently remove the question.", confirmText: "Delete", variant: "danger" });
     if (!confirmed) return;
 
     const prev = questions;

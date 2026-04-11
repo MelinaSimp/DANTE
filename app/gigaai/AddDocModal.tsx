@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { X, FileText, Upload } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
+import { toast } from "@/components/ui/toast";
 
 interface AddDocModalProps {
   onClose: () => void;
@@ -52,18 +53,18 @@ export default function AddDocModal({ onClose, onAdd, agentId }: AddDocModalProp
           setFile(null);
           setTextContent("");
         } else {
-          alert("Failed to upload file");
+          toast.error("Failed to upload file");
         }
       } else if (type === "text" && textContent.trim()) {
         onAdd(name.trim(), "text", textContent.trim());
         setName("");
         setTextContent("");
       } else {
-        alert(type === "file" ? "Please select a file" : "Please enter text content");
+        toast.warning(type === "file" ? "Please select a file" : "Please enter text content");
       }
     } catch (error) {
       console.error("Upload error:", error);
-      alert("Failed to upload");
+      toast.error("Failed to upload");
     } finally {
       setUploading(false);
     }

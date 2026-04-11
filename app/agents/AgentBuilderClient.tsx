@@ -5,6 +5,7 @@ import { Plus, Search, FileText, Database, User, Gauge, Code, Rocket, CheckCircl
 import AgentCanvas from "./AgentCanvas";
 import CreateAgentModal from "./CreateAgentModal";
 import TestResults from "./TestResults";
+import { toast } from "@/components/ui/toast";
 
 interface Agent {
   id: string;
@@ -55,7 +56,7 @@ export default function AgentBuilderClient({ workspaceId, initialAgents }: Agent
       setShowCreateModal(false);
     } catch (error) {
       console.error("Error creating agent:", error);
-      alert("Failed to create agent");
+      toast.error("Failed to create agent");
     }
   };
 

@@ -6,6 +6,8 @@ import PushNotificationManager from "@/components/PushNotificationManager";
 import OfflineIndicator from "@/components/OfflineIndicator";
 import { OnboardingProvider } from "@/components/onboarding/OnboardingProvider";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { ToastProvider } from "@/components/ui/toast";
+import { ConfirmDialogProvider } from "@/components/ui/confirm-dialog";
 
 export const metadata: Metadata = {
   title: "Drift - Agent Canvas",
@@ -32,16 +34,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className="bg-[#242423] min-h-screen antialiased text-white">
-        <OnboardingProvider>
-          <OfflineIndicator />
-          <div className="hidden">
-            <Header />
-          </div>
-          <ErrorBoundary>
-            <main className="relative z-0 bg-[#242423]" style={{ background: '#242423', backgroundImage: 'none' }}>{children}</main>
-          </ErrorBoundary>
-          <PushNotificationManager />
-        </OnboardingProvider>
+        <ToastProvider>
+         <ConfirmDialogProvider>
+          <OnboardingProvider>
+            <OfflineIndicator />
+            <div className="hidden">
+              <Header />
+            </div>
+            <ErrorBoundary>
+              <main className="relative z-0 bg-[#242423]" style={{ background: '#242423', backgroundImage: 'none' }}>{children}</main>
+            </ErrorBoundary>
+            <PushNotificationManager />
+          </OnboardingProvider>
+         </ConfirmDialogProvider>
+        </ToastProvider>
         <script
           dangerouslySetInnerHTML={{
             __html: `
