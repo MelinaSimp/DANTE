@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Send, Loader2, Sparkles, Plus, X, ChevronDown, Mail } from "lucide-react";
+import { reportError } from "@/lib/report-error";
 
 interface Contact { id: string; name: string; email?: string }
 interface SentEmail { id: string; to_email: string; subject: string; created_at: string }
@@ -36,12 +37,12 @@ export default function EmailPanel({ agentId }: { agentId: string }) {
     fetch("/api/emails/history", { credentials: "include" })
       .then(r => r.ok ? r.json() : [])
       .then(d => setSentEmails(Array.isArray(d) ? d : []))
-      .catch(() => {})
+      .catch(reportError("EmailPanel: load sent"))
       .finally(() => setLoadingSent(false));
   }, []);
 
   useEffect(() => {
-    fetch("/api/contacts", { credentials: "include" }).then(r => r.ok ? r.json() : []).then(d => setContacts(Array.isArray(d) ? d : [])).catch(() => {});
+    fetch("/api/contacts", { credentials: "include" }).then(r => r.ok ? r.json() : []).then(d => setContacts(Array.isArray(d) ? d : [])).catch(reportError("EmailPanel: load contacts"));
   }, []);
 
   useEffect(() => {

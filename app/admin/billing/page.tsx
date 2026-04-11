@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { CreditCard, Loader2, Check, X, Eye, EyeOff, Copy, ExternalLink } from "lucide-react";
+import { reportError } from "@/lib/report-error";
 
 interface KeyStatus {
   masked: string;
@@ -25,7 +26,7 @@ export default function BillingSettingsPage() {
     fetch("/api/admin/settings", { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => setSettings(data))
-      .catch(() => {})
+      .catch(reportError("admin/billing: load settings"))
       .finally(() => setLoading(false));
   }, []);
 

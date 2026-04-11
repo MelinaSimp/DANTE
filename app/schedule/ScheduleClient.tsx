@@ -4,6 +4,7 @@
 import { useState, useEffect, useRef } from "react";
 import dayjs from "dayjs";
 import { Plus, X, Calendar, Clock, User, Phone, FileText, Mail, Pencil, Check, Loader2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Mic, MessageSquare, Sparkles } from "lucide-react";
+import { reportError } from "@/lib/report-error";
 
 interface Appointment {
   id: string;
@@ -148,7 +149,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
     fetch("/api/availability-slots", { credentials: "include" })
       .then((r) => r.ok ? r.json() : [])
       .then((data) => setAvailabilitySlots(Array.isArray(data) ? data : []))
-      .catch(() => {});
+      .catch(reportError("ScheduleClient: load slots"));
   }, []);
 
   const createAvailabilitySlot = async () => {
@@ -216,7 +217,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
     fetch("/api/contacts", { credentials: "include" })
       .then((r) => r.ok ? r.json() : [])
       .then((data) => setAllContacts(Array.isArray(data) ? data : []))
-      .catch(() => {});
+      .catch(reportError("ScheduleClient: load contacts"));
   }, []);
 
 
@@ -295,7 +296,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
         fetch(`/api/appointments/${selectedAppointment.id}/call-record`)
           .then((r) => r.ok ? r.json() : null)
           .then((data) => { if (data) setCallRecord(data); })
-          .catch(() => {})
+          .catch(reportError("ScheduleClient: load call record"))
           .finally(() => setLoadingCallRecord(false));
       }
     } else {

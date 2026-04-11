@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Loader2, Trash2, Copy, Check, Send } from "lucide-react";
+import { reportError } from "@/lib/report-error";
 
 interface Invite { id: string; email: string; workspace_id: string; workspace_name?: string; token: string; expires_at: string; used: boolean }
 interface WsOption { id: string; name: string }
@@ -24,7 +25,7 @@ export default function InvitesAPanel() {
       setWorkspaces(Array.isArray(wsList) ? wsList.map((w: any) => ({ id: w.id, name: w.name })) : []);
       setInvites(Array.isArray(invList) ? invList : []);
       if (Array.isArray(wsList) && wsList.length > 0) setWsId(wsList[0].id);
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).catch(reportError("InvitesAPanel: load")).finally(() => setLoading(false));
   }, []);
 
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 3000); return () => clearTimeout(t); }, [toast]);

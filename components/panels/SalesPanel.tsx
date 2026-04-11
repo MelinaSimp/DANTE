@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { FileText, Phone, Plus, Trash2, Loader2, Play, PhoneCall, Square, ChevronDown, ChevronUp } from "lucide-react";
+import { reportError } from "@/lib/report-error";
 
 interface CallLogEntry {
   id: string;
@@ -45,7 +46,7 @@ export default function SalesPanel({ agentId }: { agentId: string }) {
         setPhoneNumbers(config.phone_numbers || []);
       }
       setCallLog(Array.isArray(logs) ? logs : []);
-    }).catch(() => {}).finally(() => setLoadingConfig(false));
+    }).catch(reportError("SalesPanel: load config")).finally(() => setLoadingConfig(false));
   }, [agentId]);
 
   const saveConfig = useCallback(async (script: string, numbers: string[]) => {

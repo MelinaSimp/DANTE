@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Zap, Play, Pause, Clock, CheckCircle2, MessageSquare, Mail, Phone, Calendar, Loader2 } from "lucide-react";
+import { reportError } from "@/lib/report-error";
 
 interface AutomationEvent {
   id: string;
@@ -71,7 +72,7 @@ export default function AutomationsPanel({ agentId }: { agentId: string }) {
     fetch("/api/automations/events", { credentials: "include" })
       .then(r => r.ok ? r.json() : [])
       .then(d => setEvents(Array.isArray(d) ? d.slice(0, 20) : []))
-      .catch(() => {})
+      .catch(reportError("AutomationsPanel: load events"))
       .finally(() => setLoadingEvents(false));
   }, []);
 
@@ -79,7 +80,7 @@ export default function AutomationsPanel({ agentId }: { agentId: string }) {
     fetch(`/api/agents/${agentId}/automation-rules`, { credentials: "include" })
       .then(r => r.ok ? r.json() : [])
       .then(d => setRules(Array.isArray(d) ? d : []))
-      .catch(() => {})
+      .catch(reportError("AutomationsPanel: load rules"))
       .finally(() => setLoadingRules(false));
   }, [agentId]);
 

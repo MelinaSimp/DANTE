@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { reportError } from "@/lib/report-error";
 
 export default function InstructionsPanel({ agentId }: { agentId: string }) {
   const [instructions, setInstructions] = useState("");
@@ -12,7 +13,7 @@ export default function InstructionsPanel({ agentId }: { agentId: string }) {
     fetch(`/api/agents/${agentId}`, { credentials: "include" })
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d) setInstructions(d.llm_instructions || ""); })
-      .catch(() => {})
+      .catch(reportError("InstructionsPanel: load agent"))
       .finally(() => setLoading(false));
   }, [agentId]);
 

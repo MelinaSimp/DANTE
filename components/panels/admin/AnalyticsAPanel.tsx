@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { DollarSign, Plus, Trash2, Loader2 } from "lucide-react";
+import { reportError } from "@/lib/report-error";
 
 interface Record { id: string; description: string; amount: number; category: string; date: string }
 
@@ -14,7 +15,7 @@ export default function AnalyticsAPanel() {
   const [adding, setAdding] = useState(false);
 
   useEffect(() => {
-    fetch("/api/sales-records").then(r => r.ok ? r.json() : []).then(d => setRecords(Array.isArray(d) ? d : [])).catch(() => {}).finally(() => setLoading(false));
+    fetch("/api/sales-records").then(r => r.ok ? r.json() : []).then(d => setRecords(Array.isArray(d) ? d : [])).catch(reportError("AnalyticsAPanel: load")).finally(() => setLoading(false));
   }, []);
 
   const handleAdd = async () => {

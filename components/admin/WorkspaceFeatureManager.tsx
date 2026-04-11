@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { FEATURE_DEFINITIONS, ALL_FEATURE_IDS, type FeatureId } from "@/lib/features";
 import { Check, X, Loader2, Shield, ChevronDown, ChevronUp, CreditCard, ExternalLink, Copy } from "lucide-react";
+import { reportError } from "@/lib/report-error";
 
 interface Workspace {
   id: string;
@@ -32,7 +33,7 @@ export default function WorkspaceFeatureManager() {
     fetch("/api/admin/workspace-features", { credentials: "include" })
       .then((r) => (r.ok ? r.json() : []))
       .then((data) => setWorkspaces(Array.isArray(data) ? data : []))
-      .catch(() => {})
+      .catch(reportError("WorkspaceFeatureManager: load"))
       .finally(() => setLoading(false));
   }, []);
 

@@ -5,6 +5,7 @@ import {
   Zap, Plus, Trash2, CheckCircle2, Loader2,
   Phone, Mail, ArrowRight, Globe, Send,
 } from "lucide-react";
+import { reportError } from "@/lib/report-error";
 
 interface AutomationRule {
   id: string;
@@ -50,7 +51,7 @@ export default function AutomationsBPanel({ agentId }: { agentId: string }) {
     fetch(`/api/agents/${agentId}/automation-rules`, { credentials: "include" })
       .then(r => r.ok ? r.json() : [])
       .then(d => setRules(Array.isArray(d) ? d : []))
-      .catch(() => {})
+      .catch(reportError("AutomationsBPanel: load rules"))
       .finally(() => setLoadingRules(false));
   }, [agentId]);
 

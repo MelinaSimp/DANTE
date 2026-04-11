@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import BackendPanelWrapper from "./BackendPanelWrapper";
 import AdvancedPage from "@/app/gigaai/AdvancedPage";
+import { reportError } from "@/lib/report-error";
 
 export default function AdvancedBPanel({ agentId }: { agentId: string }) {
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -11,7 +12,7 @@ export default function AdvancedBPanel({ agentId }: { agentId: string }) {
     fetch(`/api/agents/${agentId}`, { credentials: "include" })
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d?.phoneNumber) setPhoneNumber(d.phoneNumber); })
-      .catch(() => {});
+      .catch(reportError("AdvancedBPanel: load agent"));
   }, [agentId]);
 
   const handlePhoneChange = async (newPhone: string) => {

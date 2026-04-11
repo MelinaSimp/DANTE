@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { UserPlus, Search, Trash2, Phone, Mail, FileText, Sparkles, Loader2, ExternalLink } from "lucide-react";
 import { confirmDialog } from "@/components/ui/confirm-dialog";
+import { reportError } from "@/lib/report-error";
 
 interface Contact { id: string; name: string; phone?: string; email?: string }
 interface DocCount { contact_id: string; count: number }
@@ -25,7 +26,7 @@ export default function ClientsPanel({ agentId }: { agentId: string }) {
     fetch("/api/contacts", { credentials: "include" })
       .then(r => r.ok ? r.json() : [])
       .then(d => setContacts(Array.isArray(d) ? d : []))
-      .catch(() => {})
+      .catch(reportError("ClientsPanel: load contacts"))
       .finally(() => setLoading(false));
   }, []);
 

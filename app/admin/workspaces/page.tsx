@@ -13,6 +13,7 @@ import {
   Check,
   Plus,
 } from "lucide-react";
+import { reportError } from "@/lib/report-error";
 
 interface Workspace {
   id: string;
@@ -43,7 +44,7 @@ export default function WorkspacesPage() {
     fetch("/api/admin/workspaces", { credentials: "include" })
       .then((r) => (r.ok ? r.json() : []))
       .then((data) => setWorkspaces(Array.isArray(data) ? data : []))
-      .catch(() => {})
+      .catch(reportError("admin/workspaces: load"))
       .finally(() => setLoading(false));
   }, []);
 

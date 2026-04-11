@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Building2, Users, Phone, MessageSquare } from "lucide-react";
+import { reportError } from "@/lib/report-error";
 
 interface Stats {
   workspaces: number;
@@ -20,7 +21,7 @@ export default function DashboardAPanel() {
     fetch("/api/admin/dashboard-stats", { credentials: "include" })
       .then(r => r.ok ? r.json() : null)
       .then(d => { if (d) setStats(d); })
-      .catch(() => {})
+      .catch(reportError("DashboardAPanel: load stats"))
       .finally(() => setLoading(false));
   }, []);
 

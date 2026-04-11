@@ -31,6 +31,7 @@ import DocumentSummaryChat from "@/components/documents/DocumentSummaryChat";
 import ConfirmationModal from "@/components/frontend/ConfirmationModal";
 import { useFeatures } from "@/hooks/useFeatures";
 import type { FeatureId } from "@/lib/features";
+import { reportError } from "@/lib/report-error";
 
 type Contact = { id: string; name: string; phone?: string; email?: string };
 
@@ -69,7 +70,7 @@ export default function ClientDetailsOverviewClient({
     fetch("/api/agents", { credentials: "include" })
       .then((r) => r.json())
       .then((agents) => { if (agents?.length > 0) setAgentId(agents[0].id); })
-      .catch(() => {});
+      .catch(reportError("ClientDetailsOverview: load agents"));
   }, []);
 
   const { features } = useFeatures();

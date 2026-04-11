@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Key, Loader2, Check, ExternalLink, Copy, Lock } from "lucide-react";
+import { reportError } from "@/lib/report-error";
 
 export default function BillingAPanel() {
   const [stripeKey, setStripeKey] = useState("");
@@ -25,7 +26,7 @@ export default function BillingAPanel() {
         setMaskedKey(d.stripe_key_masked || "");
         if (d.backend_password?.is_set) setBackendPwSet(true);
       }
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).catch(reportError("BillingAPanel: load")).finally(() => setLoading(false));
   }, []);
 
   const handleSave = async () => {

@@ -21,6 +21,7 @@ import {
 import { useFeatures } from "@/hooks/useFeatures";
 import type { FeatureId } from "@/lib/features";
 import MobileNav from "@/components/frontend/MobileNav";
+import { reportError } from "@/lib/report-error";
 
 interface Contact {
   id: string;
@@ -273,7 +274,7 @@ export default function EmailingPage() {
     fetch("/api/contacts", { credentials: "include" })
       .then((r) => (r.ok ? r.json() : []))
       .then((data) => setContacts(Array.isArray(data) ? data : []))
-      .catch(() => {});
+      .catch(reportError("emailing: load contacts"));
   }, []);
 
   useEffect(() => {

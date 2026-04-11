@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase/client";
 import { Monitor, Server, Shield, LogOut } from "lucide-react";
 import AgentOrb from "@/components/frontend/AgentOrb";
 import GLSLWaves from "@/components/ui/glsl-waves";
+import { reportError } from "@/lib/report-error";
 
 const DRIFT_COLORS = ["#B4A0D6", "#9B8EC4", "#C7B8E0"];
 
@@ -42,7 +43,7 @@ export default function SelectPage() {
           }
           setReady(true);
         })
-        .catch(() => {});
+        .catch(reportError("select: check workspace"));
     });
   }, [router]);
 

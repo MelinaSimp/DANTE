@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Building2, CheckCircle2, AlertCircle, XCircle, Trash2, UserPlus, Loader2, X, Check, DollarSign, Copy, KeyRound } from "lucide-react";
+import { reportError } from "@/lib/report-error";
 
 interface Workspace {
   id: string; name: string; created_at: string; owner_id: string; enabled_features: string[];
@@ -51,7 +52,7 @@ export default function WorkspacesAPanel() {
   };
 
   useEffect(() => {
-    fetch("/api/admin/workspaces", { credentials: "include" }).then(r => r.ok ? r.json() : []).then(d => setWorkspaces(Array.isArray(d) ? d : [])).catch(() => {}).finally(() => setLoading(false));
+    fetch("/api/admin/workspaces", { credentials: "include" }).then(r => r.ok ? r.json() : []).then(d => setWorkspaces(Array.isArray(d) ? d : [])).catch(reportError("WorkspacesAPanel: load")).finally(() => setLoading(false));
   }, []);
 
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 3000); return () => clearTimeout(t); }, [toast]);
