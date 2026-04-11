@@ -11,13 +11,21 @@ interface CreateAgentModalProps {
 export default function CreateAgentModal({ onClose, onCreate }: CreateAgentModalProps) {
   const [name, setName] = useState("");
   const [modality, setModality] = useState<"chat" | "voice" | "multi-modal">("chat");
-  const [description, setDescription] = useState("");
   const [files, setFiles] = useState<File[]>([]);
+  const [nameError, setNameError] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
-    onCreate({ name, modality, description: description || undefined });
+    if (!name.trim()) {
+      setNameError("Give your agent a name so you can find it later.");
+      return;
+    }
+    if (name.trim().length > 60) {
+      setNameError("Name must be 60 characters or fewer.");
+      return;
+    }
+    setNameError(null);
+    onCreate({ name: name.trim(), modality });
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -56,6 +64,33 @@ export default function CreateAgentModal({ onClose, onCreate }: CreateAgentModal
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Agent Name */}
+          <div>
+            <label htmlFor="agent-name" className="block text-sm font-medium text-white/70 mb-2">
+              Agent name
+            </label>
+            <input
+              id="agent-name"
+              type="text"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (nameError) setNameError(null);
+              }}
+              placeholder="e.g. Front Desk Receptionist"
+              autoFocus
+              maxLength={60}
+              className={`w-full rounded-2xl border bg-black/40 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-2 transition ${
+                nameError
+                  ? "border-red-500/50 focus:border-red-500 focus:ring-red-500/30"
+                  : "border-white/15 focus:border-[#3351ff] focus:ring-[#3351ff]/30"
+              }`}
+            />
+            {nameError && (
+              <p className="mt-2 text-xs text-red-400">{nameError}</p>
+            )}
+          </div>
+
           {/* Modality Selection - GigaAI Style */}
           <div>
             <label className="block text-sm font-medium text-white/70 mb-3">
