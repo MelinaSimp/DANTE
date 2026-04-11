@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { UserPlus, Search, Trash2, Phone, Mail, FileText, Sparkles, Loader2, ExternalLink } from "lucide-react";
+import { UserPlus, Search, Trash2, Phone, Mail, FileText, Sparkles, Loader2, ExternalLink, Users } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { confirmDialog } from "@/components/ui/confirm-dialog";
 import { reportError } from "@/lib/report-error";
 
@@ -121,10 +122,25 @@ export default function ClientsPanel({ agentId }: { agentId: string }) {
       {loading ? (
         <div className="text-center py-16 text-gray-400 text-sm">Loading clients...</div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-16">
-          <UserPlus className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-          <p className="text-gray-400 text-sm">{searchQuery ? "No clients match your search" : "No clients yet"}</p>
-        </div>
+        searchQuery ? (
+          <EmptyState
+            icon={Search}
+            theme="light"
+            title="No matching clients"
+            description={`We couldn't find anyone matching "${searchQuery}". Try a different name, phone, or email.`}
+          />
+        ) : (
+          <EmptyState
+            icon={Users}
+            theme="light"
+            title="No clients yet"
+            description="Add your first client to start tracking conversations, appointments, and notes in one place."
+            action={{
+              label: "Add client",
+              onClick: () => setAdding(true),
+            }}
+          />
+        )
       ) : (
         <div className="space-y-2">
           {filtered.map(c => {

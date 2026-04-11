@@ -7,6 +7,8 @@ import AddAppointmentForm from "@/components/appointments/AddAppointmentForm";
 import ErrorMessage from "@/components/ui/error-message";
 import SuccessMessage from "@/components/ui/success-message";
 import LoadingSpinner from "@/components/ui/loading-spinner";
+import { EmptyState } from "@/components/ui/empty-state";
+import { CalendarDays } from "lucide-react";
 import dayjs from "dayjs";
 
 interface Contact {
@@ -111,9 +113,17 @@ export default function AppointmentsClient({ initialAppointments, workspaceId }:
           <LoadingSpinner size="lg" text="Loading appointments..." />
         </div>
       ) : appointments.length === 0 ? (
-        <div className="rounded-2xl border border-[#e5e7eb] bg-[#ffffff] p-8 text-center shadow-lg">
-          <p className="text-[#151515]/70">No appointments yet.</p>
-          <p className="mt-2 text-sm text-[#151515]/60">Add your first appointment to get started.</p>
+        <div className="rounded-2xl border border-[#e5e7eb] bg-[#ffffff] p-8 shadow-lg">
+          <EmptyState
+            icon={CalendarDays}
+            theme="light"
+            title="No appointments yet"
+            description="Schedule your first appointment to start tracking client meetings, calls, and visits in one place."
+            action={{
+              label: "Add appointment",
+              onClick: () => setShowAddForm(true),
+            }}
+          />
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-[#e5e7eb] bg-[#ffffff] shadow-lg">

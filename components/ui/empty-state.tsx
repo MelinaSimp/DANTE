@@ -37,7 +37,7 @@ export function EmptyState({
       {action && (
         <button
           onClick={action.onClick}
-          className={`px-4 py-2 rounded-2xl text-white transition text-sm font-medium ${isDark ? "bg-orange-600 hover:bg-orange-700" : "bg-black hover:bg-gray-800"}`}
+          className={`px-4 py-2 rounded-2xl text-white transition text-sm font-medium ${isDark ? "bg-[#3351ff] hover:bg-[#4a64ff]" : "bg-black hover:bg-gray-800"}`}
         >
           {action.label}
         </button>

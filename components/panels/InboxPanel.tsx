@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { Inbox, Search, MessageSquare, Phone, CheckCircle, XCircle, AlertCircle, HelpCircle, Trash2 } from "lucide-react";
 import { confirmDialog } from "@/components/ui/confirm-dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface Conversation {
   id: string;
@@ -103,7 +104,24 @@ export default function InboxPanel({ agentId }: { agentId: string }) {
       {loading ? (
         <div className="text-center py-16 text-gray-400 text-sm">Loading...</div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-16"><Inbox className="h-10 w-10 text-gray-300 mx-auto mb-2" /><p className="text-gray-400 text-sm">No conversations</p></div>
+        <EmptyState
+          icon={Inbox}
+          theme="light"
+          title={
+            activeTab === "todo"
+              ? "No active conversations"
+              : activeTab === "follow-up"
+              ? "Nothing to follow up on"
+              : "No completed conversations"
+          }
+          description={
+            activeTab === "todo"
+              ? "Conversations will appear here as soon as your agent starts handling chats or calls."
+              : activeTab === "follow-up"
+              ? "Conversations flagged for follow-up will show up here."
+              : "Once your agent finishes a conversation, the history will live here."
+          }
+        />
       ) : (
         <div className="space-y-2">
           {filtered.map(c => {
