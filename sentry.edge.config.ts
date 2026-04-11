@@ -1,5 +1,5 @@
-// Sentry server-side initialization.
-// Runs in Node.js API routes and server components.
+// Sentry edge-runtime initialization.
+// Runs in Next.js middleware and edge API routes.
 import * as Sentry from "@sentry/nextjs";
 
 const dsn = process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN;
