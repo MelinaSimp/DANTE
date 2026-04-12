@@ -11,6 +11,14 @@ export default async function SettingsPage() {
 
   if (!user) redirect("/auth");
 
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const isAdmin = profile?.role === "admin" || profile?.role === "owner";
+
   return (
     <div className="relative mx-auto flex max-w-5xl flex-col gap-8 px-4 py-12 text-white">
       <div className="absolute inset-0 -z-10 opacity-40">
@@ -56,6 +64,24 @@ export default async function SettingsPage() {
         </a>
 
         <BillingCard />
+
+        {isAdmin && (
+          <a
+            href="/settings/audit-log"
+            className="group rounded-3xl border border-white/10 bg-black/40 p-6 shadow-[0_20px_70px_rgba(8,8,16,0.6)] transition hover:border-[#3351ff]/40 hover:bg-black/30"
+          >
+            <p className="text-xs uppercase tracking-[0.35em] text-white/50">Compliance</p>
+            <h2 className="mt-3 text-2xl font-semibold text-white">Audit log</h2>
+            <p className="mt-3 text-sm text-white/60">
+              Review sensitive workspace events — deployments, member invites,
+              API key changes — with actor, timestamp, and target.
+            </p>
+            <div className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-[#6f89ff]">
+              View events
+              <span aria-hidden className="text-lg leading-none">→</span>
+            </div>
+          </a>
+        )}
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { logAudit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -50,8 +51,18 @@ export async function POST(req: NextRequest) {
       console.error("Error storing deployment status:", deployError);
     }
 
-    return NextResponse.json({ 
-      success: true, 
+    await logAudit({
+      workspaceId: profile.workspace_id,
+      actorId: user.id,
+      actorEmail: user.email ?? null,
+      action: "agent.deployed",
+      targetType: "workspace",
+      targetId: profile.workspace_id,
+      request: req,
+    });
+
+    return NextResponse.json({
+      success: true,
       message: "Deployment started. Changes are now locked.",
       status: "deploying"
     });
