@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
-import { Monitor, Server, Shield, LogOut } from "lucide-react";
+import { Monitor, Server, Shield, LogOut, Settings } from "lucide-react";
 import AgentOrb from "@/components/frontend/AgentOrb";
 import GLSLWaves from "@/components/ui/glsl-waves";
 import { reportError } from "@/lib/report-error";
@@ -93,8 +93,9 @@ export default function SelectPage() {
 
   const navItems: NavItem[] = [
     { name: "Frontend", description: "Interact with agents", icon: Monitor, action: () => router.push("/frontend") },
-    { name: "Backend", description: "Configure agents", icon: Server, action: () => setShowBackendPassword(true) },
     { name: "Admin", description: "Manage workspace", icon: Shield, action: () => router.push("/admin"), requiresSuperadmin: true },
+    { name: "Backend", description: "Configure agents", icon: Server, action: () => setShowBackendPassword(true) },
+    { name: "Settings", description: "Workspace settings", icon: Settings, action: () => router.push("/settings") },
   ];
 
   const visibleItems = navItems.filter(item => !item.requiresSuperadmin || isSuperadmin);
