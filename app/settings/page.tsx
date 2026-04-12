@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import DeployButton from "@/components/DeployButton";
 import BillingCard from "./BillingCard";
 import ExportDataCard from "./ExportDataCard";
+import { isWorkspaceAdmin } from "@/lib/rbac";
 
 export default async function SettingsPage() {
   const supabase = await createServerSupabase();
@@ -18,7 +19,7 @@ export default async function SettingsPage() {
     .eq("id", user.id)
     .maybeSingle();
 
-  const isAdmin = profile?.role === "admin" || profile?.role === "owner";
+  const isAdmin = isWorkspaceAdmin(profile?.role);
 
   return (
     <div className="relative mx-auto flex max-w-5xl flex-col gap-8 px-4 py-12 text-white">

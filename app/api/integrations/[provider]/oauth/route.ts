@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { isOwner } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -44,10 +45,10 @@ export async function GET(
     
     if (error) {
       // Redirect to appropriate page based on user role
-      const redirectPath = (profile?.is_superadmin || profile?.role?.toLowerCase() === "owner") 
-        ? "/admin" 
+      const redirectPath = (profile?.is_superadmin || isOwner(profile?.role))
+        ? "/admin"
         : "/home";
-      
+
       return NextResponse.redirect(
         new URL(`${redirectPath}?error=oauth_${error}`, req.url)
       );
@@ -256,7 +257,7 @@ async function handleOAuthCallback(
     .maybeSingle();
 
   // If superadmin or owner, redirect to admin page
-  if (profile?.is_superadmin || profile?.role?.toLowerCase() === "owner") {
+  if (profile?.is_superadmin || isOwner(profile?.role)) {
     return NextResponse.redirect(new URL("/admin?success=oauth_connected", req.url));
   } else {
     // Regular user, redirect to the personalized home hub

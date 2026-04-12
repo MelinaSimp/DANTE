@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { isWorkspaceAdmin } from "@/lib/rbac";
 import AuditLogClient from "./AuditLogClient";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +24,7 @@ export default async function AuditLogPage() {
     redirect("/select");
   }
 
-  const isAdmin = profile.role === "admin" || profile.role === "owner";
+  const isAdmin = isWorkspaceAdmin(profile.role);
 
   if (!isAdmin) {
     return (

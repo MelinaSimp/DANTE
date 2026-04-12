@@ -3,6 +3,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { logAudit } from "@/lib/audit";
 import { reportError } from "@/lib/report-error";
+import { can } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -69,7 +70,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "No workspace" }, { status: 400 });
     }
 
-    if (!["admin", "owner"].includes(profile.role)) {
+    if (!can(profile.role, "workspace.export_data")) {
       return NextResponse.json(
         { error: "Only workspace admins and owners can export workspace data." },
         { status: 403 }

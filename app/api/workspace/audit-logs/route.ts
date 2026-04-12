@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { reportError } from "@/lib/report-error";
+import { can } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +38,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "No workspace" }, { status: 400 });
     }
 
-    if (!["admin", "owner"].includes(profile.role)) {
+    if (!can(profile.role, "workspace.view_audit_log")) {
       return NextResponse.json(
         { error: "Audit logs are only available to workspace admins and owners." },
         { status: 403 }
