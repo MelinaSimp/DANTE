@@ -260,11 +260,11 @@ export default function AuthPage() {
             {isSignUp && (
               <p className="mt-5 text-center text-[11px] text-white/25 leading-relaxed">
                 By signing up, you agree to our{" "}
-                <Link href="#" className="text-white/40 hover:text-white/60 underline underline-offset-2 transition">
+                <Link href="/terms" className="text-white/40 hover:text-white/60 underline underline-offset-2 transition">
                   Terms
                 </Link>{" "}
                 and{" "}
-                <Link href="#" className="text-white/40 hover:text-white/60 underline underline-offset-2 transition">
+                <Link href="/privacy" className="text-white/40 hover:text-white/60 underline underline-offset-2 transition">
                   Privacy Policy
                 </Link>
               </p>
