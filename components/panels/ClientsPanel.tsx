@@ -19,6 +19,7 @@ export default function ClientsPanel({ agentId }: { agentId: string }) {
   const [newPhone, setNewPhone] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [saving, setSaving] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
@@ -35,14 +36,19 @@ export default function ClientsPanel({ agentId }: { agentId: string }) {
   const handleAdd = async () => {
     if (!newName.trim()) return;
     setSaving(true);
+    setAddError(null);
     try {
       const r = await fetch("/api/contacts", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ name: newName.trim(), phone: newPhone.trim() || undefined, email: newEmail.trim() || undefined }) });
       if (r.ok) {
         const c = await r.json();
         setContacts(prev => [c, ...prev]);
         setNewName(""); setNewPhone(""); setNewEmail(""); setAdding(false);
+        setAddError(null);
+      } else {
+        const body = await r.json().catch(() => null);
+        setAddError(body?.error || body?.details?.join(", ") || "Failed to add client");
       }
-    } catch {} finally { setSaving(false); }
+    } catch { setAddError("Network error — please try again"); } finally { setSaving(false); }
   };
 
   const handleDelete = async (id: string) => {
@@ -110,11 +116,14 @@ export default function ClientsPanel({ agentId }: { agentId: string }) {
             <input value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="Phone" className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20" />
             <input value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="Email" className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20" />
           </div>
+          {addError && (
+            <p className="text-xs text-red-600 mb-2">{addError}</p>
+          )}
           <div className="flex gap-2">
             <button onClick={handleAdd} disabled={!newName.trim() || saving} className="px-4 py-2 rounded-xl bg-cyan-600 text-white text-sm font-medium hover:bg-cyan-700 disabled:opacity-40">
               {saving ? "Saving..." : "Save"}
             </button>
-            <button onClick={() => setAdding(false)} className="px-4 py-2 rounded-xl bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200">Cancel</button>
+            <button onClick={() => { setAdding(false); setAddError(null); }} className="px-4 py-2 rounded-xl bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200">Cancel</button>
           </div>
         </div>
       )}

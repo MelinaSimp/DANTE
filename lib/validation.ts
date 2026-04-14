@@ -7,28 +7,21 @@
  */
 export function validatePhoneNumber(phone: string | null | undefined): string | null {
   if (!phone) {
-    return "Phone number is required";
+    return null; // Phone is optional
   }
 
-  // Remove all non-digit characters except +
   const cleaned = phone.replace(/[^\d+]/g, "");
+  if (cleaned.length === 0) return null;
 
-  // Must start with + and have 10-15 digits after country code
-  if (!cleaned.startsWith("+")) {
-    return "Phone number must start with + (e.g., +1234567890)";
+  const digits = cleaned.replace(/\+/g, "");
+  if (digits.length < 7) {
+    return "Phone number is too short (minimum 7 digits)";
+  }
+  if (digits.length > 15) {
+    return "Phone number is too long (maximum 15 digits)";
   }
 
-  const digits = cleaned.substring(1);
-  if (digits.length < 10 || digits.length > 15) {
-    return "Phone number must be 10-15 digits after country code";
-  }
-
-  // Check for valid country code (1-3 digits)
-  if (digits.length < 10) {
-    return "Phone number is too short";
-  }
-
-  return null; // Valid
+  return null;
 }
 
 /**

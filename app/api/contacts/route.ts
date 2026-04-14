@@ -4,6 +4,42 @@ import { NextResponse } from "next/server";
 import { validateContact, sanitizeInput } from "@/lib/validation";
 import { emitEvent } from "@/lib/automations";
 
+export async function GET() {
+  try {
+    const supabase = await createServerSupabase();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("workspace_id")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile?.workspace_id) {
+      return NextResponse.json([], { status: 200 });
+    }
+
+    const { data: contacts, error } = await supabase
+      .from("contacts")
+      .select("id, name, phone, email, created_at")
+      .eq("workspace_id", profile.workspace_id)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Fetch contacts error:", error);
+      return NextResponse.json({ error: "Failed to fetch contacts" }, { status: 500 });
+    }
+
+    return NextResponse.json(contacts || []);
+  } catch (error) {
+    console.error("Contacts GET error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const supabase = await createServerSupabase();
@@ -45,16 +81,18 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
-    // Check for duplicate phone number in workspace
-    const { data: existingContact } = await supabase
-      .from("contacts")
-      .select("id")
-      .eq("workspace_id", profile.workspace_id)
-      .eq("phone", sanitizedData.phone)
-      .single();
+    // Check for duplicate phone number in workspace (skip if phone is empty)
+    if (sanitizedData.phone) {
+      const { data: existingContact } = await supabase
+        .from("contacts")
+        .select("id")
+        .eq("workspace_id", profile.workspace_id)
+        .eq("phone", sanitizedData.phone)
+        .single();
 
-    if (existingContact) {
-      return NextResponse.json({ error: "A contact with this phone number already exists" }, { status: 400 });
+      if (existingContact) {
+        return NextResponse.json({ error: "A contact with this phone number already exists" }, { status: 400 });
+      }
     }
 
     // Create contact (only insert columns that exist in schema: no notes if DB lacks the column)
