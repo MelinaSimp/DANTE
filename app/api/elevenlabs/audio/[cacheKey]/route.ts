@@ -128,7 +128,7 @@ export async function GET(
       console.log("[Audio Endpoint] Content-Type: audio/mpeg");
       console.log("=".repeat(80));
       
-      return new NextResponse(audioBuffer, {
+      return new NextResponse(new Uint8Array(audioBuffer), {
         status: 200,
         headers: {
           "Content-Type": "audio/mpeg",

@@ -25,9 +25,18 @@ import {
   Archive,
   Inbox,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { formatPhoneToE164 } from "@/lib/validation";
-import PdfViewerWithAnnotations, { type Annotation } from "@/components/documents/PdfViewerWithAnnotations";
-import DocumentSummaryChat from "@/components/documents/DocumentSummaryChat";
+import type { Annotation } from "@/components/documents/PdfViewerWithAnnotations";
+
+const PdfViewerWithAnnotations = dynamic(
+  () => import("@/components/documents/PdfViewerWithAnnotations"),
+  { ssr: false, loading: () => <div className="flex items-center justify-center h-full text-zinc-400 text-sm">Loading PDF viewer…</div> }
+);
+const DocumentSummaryChat = dynamic(
+  () => import("@/components/documents/DocumentSummaryChat"),
+  { ssr: false, loading: () => <div className="flex items-center justify-center p-4 text-zinc-400 text-sm">Loading…</div> }
+);
 import ConfirmationModal from "@/components/frontend/ConfirmationModal";
 import { useFeatures } from "@/hooks/useFeatures";
 import type { FeatureId } from "@/lib/features";
@@ -57,21 +66,26 @@ function formatTime() {
 interface ClientDetailsOverviewClientProps {
   initialContacts?: Contact[];
   initialContactId?: string | null;
+  panelMode?: boolean;
+  onClose?: () => void;
 }
 
 export default function ClientDetailsOverviewClient({
   initialContacts = [],
   initialContactId = null,
+  panelMode = false,
+  onClose,
 }: ClientDetailsOverviewClientProps) {
   const router = useRouter();
   const [agentId, setAgentId] = useState<string | null>(null);
 
   useEffect(() => {
+    if (panelMode) return;
     fetch("/api/agents", { credentials: "include" })
       .then((r) => r.json())
       .then((agents) => { if (agents?.length > 0) setAgentId(agents[0].id); })
       .catch(reportError("ClientDetailsOverview: load agents"));
-  }, []);
+  }, [panelMode]);
 
   const { features } = useFeatures();
 
@@ -557,17 +571,18 @@ export default function ClientDetailsOverviewClient({
   // ——— Selection screen (household vs client bars) ———
   if (view === "select") {
     return (
-      <div className="min-h-[calc(100vh-4rem)] bg-[#f5f5f7] text-[#151515]">
-        <div className="mx-auto max-w-2xl px-6 py-12">
-          {/* Back button */}
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="mb-6 flex items-center gap-2 text-sm font-medium text-[#6b7280] hover:text-[#151515] transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </button>
+      <div className={panelMode ? "bg-white text-[#151515]" : "min-h-[calc(100vh-4rem)] bg-[#f5f5f7] text-[#151515]"}>
+        <div className={panelMode ? "mx-auto max-w-2xl px-6 py-8" : "mx-auto max-w-2xl px-6 py-12"}>
+          {!panelMode && (
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="mb-6 flex items-center gap-2 text-sm font-medium text-[#6b7280] hover:text-[#151515] transition-colors"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </button>
+          )}
 
           <div className="relative">
             <div className="absolute -inset-4 bg-gradient-to-br from-purple-400/20 via-pink-500/20 to-blue-500/20 rounded-3xl blur-2xl -z-10" aria-hidden />
@@ -823,33 +838,34 @@ export default function ClientDetailsOverviewClient({
   const displayName = selected?.name ?? "Client";
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex bg-[#f5f5f7] text-[#151515]">
-      {/* Left Sidebar */}
-      <div className="hidden md:flex flex-col w-48 border-r border-gray-200 bg-white shrink-0">
-        <div className="p-4 border-b border-gray-200 flex items-center gap-2">
-          <Link href="/frontend" className="flex items-center gap-2">
-            <img src="/brand/logo-circle.png" alt="Drift" className="w-7 h-7 rounded-full object-cover" />
-            <span className="text-sm font-semibold text-gray-900">Drift</span>
-          </Link>
+    <div className={panelMode ? "flex bg-white text-[#151515] h-full" : "min-h-[calc(100vh-4rem)] flex bg-[#f5f5f7] text-[#151515]"}>
+      {!panelMode && (
+        <div className="hidden md:flex flex-col w-48 border-r border-gray-200 bg-white shrink-0">
+          <div className="p-4 border-b border-gray-200 flex items-center gap-2">
+            <Link href="/frontend" className="flex items-center gap-2">
+              <img src="/brand/logo-circle.png" alt="Drift" className="w-7 h-7 rounded-full object-cover" />
+              <span className="text-sm font-semibold text-gray-900">Drift</span>
+            </Link>
+          </div>
+          <nav className="flex-1 p-3 space-y-1">
+            {sidebarNavItems.filter((item) => !item.featureId || features.includes(item.featureId)).map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+                    item.active ? "bg-gray-100 text-black" : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{item.name}</span>
+                </Link>
+              );
+            })}
+          </nav>
         </div>
-        <nav className="flex-1 p-3 space-y-1">
-          {sidebarNavItems.filter((item) => !item.featureId || features.includes(item.featureId)).map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
-                  item.active ? "bg-gray-100 text-black" : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                <span>{item.name}</span>
-              </Link>
-            );
-          })}
-        </nav>
-      </div>
+      )}
 
       {/* Main content */}
       <div className="flex-1 overflow-auto">
@@ -873,10 +889,10 @@ export default function ClientDetailsOverviewClient({
                   <button
                     onClick={() => {
                       if (selected?.type === "client") {
-                        const data = { name: selected.name, documents: documents.map(d => ({ name: d.name, url: d.url })) };
+                        const data = { name: selected.name, document: document ? { name: document.file_name, url: document.url } : null };
                         const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
                         const url = URL.createObjectURL(blob);
-                        const a = Object.assign(document.createElement?.("a") || {}, { href: url, download: `${selected.name}-export.json` }) as HTMLAnchorElement;
+                        const a = Object.assign(window.document.createElement("a"), { href: url, download: `${selected.name}-export.json` });
                         a.click();
                         URL.revokeObjectURL(url);
                       }
@@ -900,13 +916,24 @@ export default function ClientDetailsOverviewClient({
                 </div>
               )}
             </div>
-            <Link
-              href="/client-details-overview"
-              className="rounded-xl p-2 text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#151515]"
-              aria-label="Close"
-            >
-              <X className="h-5 w-5" />
-            </Link>
+            {panelMode ? (
+              <button
+                type="button"
+                onClick={handleGoBack}
+                className="rounded-xl p-2 text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#151515]"
+                aria-label="Back to clients"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </button>
+            ) : (
+              <Link
+                href="/client-details-overview"
+                className="rounded-xl p-2 text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#151515]"
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </Link>
+            )}
           </div>
         </div>
 
@@ -919,8 +946,8 @@ export default function ClientDetailsOverviewClient({
               Here&apos;s an overview on {displayName}.
             </h2>
             <p className="mt-3 text-[#374151]">
-              {documents.length > 0
-                ? `${displayName} has ${documents.length} document${documents.length !== 1 ? "s" : ""} on file and ${templates.length} template${templates.length !== 1 ? "s" : ""} available.`
+              {document
+                ? `${displayName} has a document on file and ${templates.length} template${templates.length !== 1 ? "s" : ""} available.`
                 : `No documents uploaded yet for ${displayName}. Upload documents to get started.`}
             </p>
 

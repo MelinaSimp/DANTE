@@ -6,7 +6,7 @@ import { X, Code, FileText, Zap, Globe, Plus, Trash2 } from "lucide-react";
 interface Step {
   id: string;
   name: string;
-  type: "say" | "gather" | "code" | "api_call" | "condition";
+  type: "say" | "gather" | "code" | "api_call" | "condition" | "qa";
   code?: string;
   ai_message?: string;
   input_schema?: Record<string, any>;
@@ -333,9 +333,9 @@ except Exception as e:
                           value={branch.next_step_id || branch.next_scenario_id || ""}
                           onChange={(e) => {
                             if (e.target.value.startsWith("step_")) {
-                              handleUpdateBranch(branch.id, { next_step_id: e.target.value.replace("step_", ""), next_scenario_id: null });
+                              handleUpdateBranch(branch.id, { next_step_id: e.target.value.replace("step_", ""), next_scenario_id: undefined });
                             } else if (e.target.value.startsWith("scenario_")) {
-                              handleUpdateBranch(branch.id, { next_scenario_id: e.target.value.replace("scenario_", ""), next_step_id: null });
+                              handleUpdateBranch(branch.id, { next_scenario_id: e.target.value.replace("scenario_", ""), next_step_id: undefined });
                             }
                           }}
                           className="w-full px-3 py-2 rounded-lg border border-white/10 bg-black/40 text-white text-sm focus:outline-none focus:border-[#3351ff]"

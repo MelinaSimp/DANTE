@@ -310,7 +310,7 @@ export default function BackendOrbClient() {
   if (loadError) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-center"><p className="text-white/50 mb-3">{loadError}</p><button onClick={() => window.location.reload()} className="text-sm text-[#f97316] hover:underline">Retry</button></div>
+        <div className="text-center"><p className="text-white/50 mb-3">{loadError}</p><button onClick={() => window.location.reload()} className="text-sm text-[#6f89ff] hover:underline">Retry</button></div>
       </div>
     );
   }

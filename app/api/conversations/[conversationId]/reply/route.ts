@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { createServerSupabase } from "@/lib/supabase/server";
 import twilio from "twilio";
 import { normalizePhone } from "@/lib/phone";
 
@@ -16,6 +17,11 @@ export async function POST(
 ) {
   try {
     const { conversationId } = await params;
+
+    const supabase = await createServerSupabase();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const { message } = await req.json();
 
     if (!message || !message.trim()) {

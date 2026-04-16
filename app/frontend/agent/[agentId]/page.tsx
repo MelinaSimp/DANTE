@@ -12,7 +12,7 @@ import MobileNav from "@/components/frontend/MobileNav";
 export default function AgentSelectionPage() {
   const params = useParams();
   const pathname = usePathname();
-  const agentId = params.agentId as string;
+  const agentId = (params?.agentId ?? "") as string;
   const { features } = useFeatures();
 
   useEffect(() => {

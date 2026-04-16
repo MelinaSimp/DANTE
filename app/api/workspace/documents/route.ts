@@ -39,12 +39,15 @@ export async function GET() {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const documents = (rows ?? []).map((d: { id: string; file_name: string; contact_id: string; contacts: { name: string } | null }) => ({
-      id: d.id,
-      file_name: d.file_name,
-      contact_id: d.contact_id,
-      contact_name: d.contacts?.name ?? "Unknown",
-    }));
+    const documents = (rows ?? []).map((d: any) => {
+      const contact = Array.isArray(d.contacts) ? d.contacts[0] : d.contacts;
+      return {
+        id: d.id,
+        file_name: d.file_name,
+        contact_id: d.contact_id,
+        contact_name: contact?.name ?? "Unknown",
+      };
+    });
 
     return NextResponse.json({ documents });
   } catch (error: any) {

@@ -5,19 +5,17 @@ import { createServerClient } from "@supabase/ssr";
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // ✅ Always pass API routes straight through
   if (pathname.startsWith("/api")) {
     return NextResponse.next();
   }
 
-  // ✅ Always pass auth routes straight through (including callback)
   if (pathname.startsWith("/auth")) {
     return NextResponse.next();
   }
 
   // Create response for cookie handling
   const response = NextResponse.next();
-  
+
   // Create Supabase client with proper cookie handling
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -50,7 +48,7 @@ export async function middleware(req: NextRequest) {
   );
 
   // Protected routes that require authentication
-  const protectedRoutes = ["/app", "/admin", "/frontend", "/home", "/select", "/superadmin", "/schedule", "/client-details-overview", "/gigaai"];
+  const protectedRoutes = ["/app", "/admin", "/frontend", "/home", "/select", "/superadmin", "/schedule", "/client-details-overview", "/gigaai", "/dashboard", "/settings", "/contacts", "/calls", "/appointments", "/agents"];
   const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
 
   // Check authentication for protected routes
@@ -74,6 +72,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Run everywhere so the early /api check always applies
-  matcher: ["/:path*"],
+  matcher: ["/((?!_next/static|_next/image|favicon\\.ico|brand/|downloads/|monitoring).*)"],
 };

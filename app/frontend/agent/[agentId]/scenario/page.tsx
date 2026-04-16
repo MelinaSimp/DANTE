@@ -180,7 +180,7 @@ function calculateLayout(
 export default function ScenarioVisualizationPage() {
   const router = useRouter();
   const params = useParams();
-  const agentId = params.agentId as string;
+  const agentId = (params?.agentId ?? "") as string;
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
   const [steps, setSteps] = useState<Step[]>([]);

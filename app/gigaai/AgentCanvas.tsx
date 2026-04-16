@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { MessageSquare, FileText, GitBranch, Code, Zap, ArrowRight, X, Plus, Trash2, Calendar, CheckCircle, HelpCircle, Repeat, UserCheck, Phone, Eye, Edit, Play } from "lucide-react";
 import ConfirmationModal from "./ConfirmationModal";
 import { useTheme } from "./ThemeProvider";
@@ -128,7 +128,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
     isOpen: false,
     stepId: null,
   });
-  const [availableDataSources, setAvailableDataSources] = useState<Array<{ id: string; name: string; type: string; file_url?: string; file_type?: string; content?: string }>>([]);
+  const [availableDataSources, setAvailableDataSources] = useState<Array<{ id: string; name: string; type: string; file_url?: string; file_type?: string; content?: string; integration_type?: string }>>([]);
   const [selectedDataSourceIds, setSelectedDataSourceIds] = useState<string[]>([]);
   const [loadingDataSources, setLoadingDataSources] = useState(false);
   const [showAddDataSource, setShowAddDataSource] = useState(false);
@@ -140,7 +140,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
   const [uploadingFile, setUploadingFile] = useState(false);
   const [previewModal, setPreviewModal] = useState<{
     isOpen: boolean;
-    dataSource: { id: string; name: string; type: string; file_url?: string; file_type?: string; content?: string } | null;
+    dataSource: { id: string; name: string; type: string; file_url?: string; file_type?: string; content?: string; integration_type?: string } | null;
     content: string | null;
     loading: boolean;
   }>({
@@ -764,15 +764,16 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
     }
     
     // Reload the specific branch from API to ensure we have latest data
+    const currentBranch = selectedStepForBranch;
     async function reloadBranch() {
-      
+
       try {
-        const branchesResponse = await fetch(`/api/steps/${selectedStepForBranch.stepId}/branches`);
+        const branchesResponse = await fetch(`/api/steps/${currentBranch.stepId}/branches`);
         
         if (branchesResponse.ok) {
           const branches = await branchesResponse.json();
           
-          const freshBranch = branches.find((b: any) => b.id === selectedStepForBranch.branchId);
+          const freshBranch = branches.find((b: any) => b.id === currentBranch.branchId);
           
           if (freshBranch) {
             // Update the branch in state with fresh data
@@ -781,11 +782,11 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
               return {
                 ...prev,
                 steps: prev.steps.map((step) =>
-                  step.id === selectedStepForBranch.stepId
+                  step.id === currentBranch.stepId
                     ? {
                         ...step,
                         branches: step.branches?.map((branch) =>
-                          branch.id === selectedStepForBranch.branchId
+                          branch.id === currentBranch.branchId
                             ? {
                                 ...branch,
                                 next_scenario_id: freshBranch.next_scenario_id ?? null,
@@ -843,7 +844,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
   const currentBranch = getCurrentBranch();
   const availableSteps = getAvailableSteps();
 
-  const previewDataSource = async (dataSource: { id: string; name: string; type: string; file_url?: string; file_type?: string; content?: string }) => {
+  const previewDataSource = async (dataSource: { id: string; name: string; type: string; file_url?: string; file_type?: string; content?: string; integration_type?: string }) => {
     setPreviewModal({
       isOpen: true,
       dataSource,
@@ -1160,8 +1161,8 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
               )}
             </div>
             <p className={`text-[10px] ${colors.textTertiary}`}>
-              {step.selected_data_source_ids?.length > 0
-                ? `${step.selected_data_source_ids.length} data source(s) selected`
+              {(step.selected_data_source_ids?.length ?? 0) > 0
+                ? `${step.selected_data_source_ids?.length} data source(s) selected`
                 : "No data sources selected - AI will answer from general knowledge"}
             </p>
           </div>
@@ -1373,7 +1374,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                     {(() => {
                       // Group steps by loops - find loop steps and their nested steps
                       const renderedSteps: Set<string> = new Set();
-                      const result: JSX.Element[] = [];
+                      const result: React.ReactElement[] = [];
                       
                       for (let i = 0; i < scenario.steps.length; i++) {
                         const step = scenario.steps[i];
@@ -1532,8 +1533,6 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                         ? "Code"
                                         : step.type === "api_call"
                                         ? "API Call"
-                                        : step.type === "loop"
-                                        ? "Loop"
                                         : step.type === "send_sms"
                                         ? "Send SMS"
                                         : step.type === "transfer"
@@ -1727,8 +1726,8 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                                       )}
                                     </div>
                                     <p className={`text-[10px] ${colors.textTertiary}`}>
-                                      {step.selected_data_source_ids?.length > 0
-                                        ? `${step.selected_data_source_ids.length} data source(s) selected`
+                                      {(step.selected_data_source_ids?.length ?? 0) > 0
+                                        ? `${step.selected_data_source_ids?.length} data source(s) selected`
                                         : "No data sources selected - AI will answer from general knowledge"}
                                     </p>
                                   </div>
@@ -1864,8 +1863,8 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                 onChange={(e) => {
                   if (selectedStepForBranch) {
                     updateBranch(
-                      selectedStepForBranch.stepId,
-                      selectedStepForBranch.branchId,
+                      selectedStepForBranch!.stepId,
+                      selectedStepForBranch!.branchId,
                       { condition: e.target.value }
                     );
                   }
@@ -1924,9 +1923,9 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                       // Only clear next_scenario_id when switching to step mode
                       // Don't clear next_step_id as it might already be set
                       updateBranch(
-                        selectedStepForBranch.stepId,
-                        selectedStepForBranch.branchId,
-                        { next_scenario_id: null }
+                        selectedStepForBranch!.stepId,
+                        selectedStepForBranch!.branchId,
+                        { next_scenario_id: undefined }
                       );
                     }
                   }}
@@ -1945,9 +1944,9 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                       // Only clear next_step_id when switching to scenario mode
                       // Don't clear next_scenario_id as it might already be set
                       updateBranch(
-                        selectedStepForBranch.stepId,
-                        selectedStepForBranch.branchId,
-                        { next_step_id: null }
+                        selectedStepForBranch!.stepId,
+                        selectedStepForBranch!.branchId,
+                        { next_step_id: undefined }
                       );
                     }
                   }}
@@ -1974,8 +1973,8 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                     onChange={(e) => {
                       if (selectedStepForBranch) {
                         updateBranch(
-                          selectedStepForBranch.stepId,
-                          selectedStepForBranch.branchId,
+                          selectedStepForBranch!.stepId,
+                          selectedStepForBranch!.branchId,
                           { target: e.target.value }
                         );
                       }
@@ -2002,12 +2001,12 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                           onClick={() => {
                             if (selectedStepForBranch) {
                               updateBranch(
-                                selectedStepForBranch.stepId,
-                                selectedStepForBranch.branchId,
+                                selectedStepForBranch!.stepId,
+                                selectedStepForBranch!.branchId,
                                 { 
                                   target: step.message.substring(0, 50),
                                   next_step_id: step.id,
-                                  next_scenario_id: null
+                                  next_scenario_id: undefined
                                 }
                               );
                             }
@@ -2065,11 +2064,11 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                               setBranchTargetType("scenario");
 
                               await updateBranch(
-                                selectedStepForBranch.stepId,
-                                selectedStepForBranch.branchId,
+                                selectedStepForBranch!.stepId,
+                                selectedStepForBranch!.branchId,
                                 { 
                                   next_scenario_id: scenario.id,
-                                  next_step_id: null,
+                                  next_step_id: undefined,
                                   target: scenario.name || "Scheduling"
                                 }
                               );

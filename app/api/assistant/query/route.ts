@@ -91,7 +91,7 @@ function parsePlannerOutput(raw: string): PlannedResponse | null {
         action: typeof op?.action === "string" ? op.action : "",
         args: typeof op?.args === "object" && op?.args !== null ? op.args : {},
       }))
-      .filter((op) => !!op.action);
+      .filter((op: { action: string; args: Record<string, unknown> }) => !!op.action);
 
     return { operations };
   } catch (error) {

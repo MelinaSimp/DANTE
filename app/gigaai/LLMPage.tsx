@@ -53,7 +53,7 @@ interface LLMPageProps {
 }
 
 export default function LLMPage({ agentId }: LLMPageProps) {
-  const { colors, themeClasses } = useTheme();
+  const { colors } = useTheme();
   const [chats, setChats] = useState<Chat[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);

@@ -34,10 +34,10 @@ export default function ConfirmationModal({
       bgColor: "bg-red-50",
     },
     warning: {
-      confirmBg: "bg-orange-500 hover:bg-orange-600",
-      iconColor: "text-orange-600",
-      borderColor: "border-orange-200",
-      bgColor: "bg-orange-50",
+      confirmBg: "bg-[#3351ff] hover:bg-[#4a64ff]",
+      iconColor: "text-[#3351ff]",
+      borderColor: "border-blue-200",
+      bgColor: "bg-blue-50",
     },
     info: {
       confirmBg: "bg-blue-500 hover:bg-blue-600",

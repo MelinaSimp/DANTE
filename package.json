@@ -30,6 +30,7 @@
     "clsx": "^2.1.1",
     "dayjs": "^1.11.18",
     "form-data": "^4.0.5",
+    "framer-motion": "^12.38.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^2.5.2",
     "lucide-react": "^0.544.0",

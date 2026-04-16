@@ -43,15 +43,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Contact ID is required" }, { status: 400 });
     }
 
-    // Get contact details — scoped to user's workspace
     const ownerWorkspace = auth.workspaceId;
-    const { data: contact } = await supabaseAdmin
+    const { data: contact, error: contactError } = await supabaseAdmin
       .from("contacts")
-      .select("id, name, phone, email, notes, workspace_id")
+      .select("id, name, phone, email, workspace_id")
       .eq("id", contactId)
       .single();
 
-    if (!contact) {
+    if (!contact || contactError) {
+      console.error("Contact lookup error:", contactError);
       return NextResponse.json({ error: "Contact not found" }, { status: 404 });
     }
 
@@ -61,15 +61,18 @@ export async function POST(req: NextRequest) {
 
     const finalWorkspaceId = workspaceId || contact.workspace_id;
 
-    // Get notes for this contact
-    const { data: notesData } = await supabaseAdmin
-      .from("notes")
-      .select("id, body, created_at")
-      .eq("contact_id", contactId)
-      .eq("workspace_id", finalWorkspaceId)
-      .order("created_at", { ascending: false });
-
-    const notesSafe = (Array.isArray(notesData) ? notesData : []) as NoteLite[];
+    let notesSafe: NoteLite[] = [];
+    try {
+      const { data: notesData } = await supabaseAdmin
+        .from("notes")
+        .select("id, body, created_at")
+        .eq("contact_id", contactId)
+        .eq("workspace_id", finalWorkspaceId)
+        .order("created_at", { ascending: false });
+      notesSafe = (Array.isArray(notesData) ? notesData : []) as NoteLite[];
+    } catch {
+      // notes table may not exist — proceed with empty notes
+    }
 
     // Get company knowledge base if workspaceId provided
     let knowledgeBase: KnowledgeBase = {};
@@ -107,13 +110,11 @@ export async function POST(req: NextRequest) {
       companyContext.push(`FREQUENTLY ASKED QUESTIONS: ${knowledgeBase.faq}`);
     }
 
-    // Build contact summary
     const contactInfo = [
       `CONTACT DETAILS:`,
       `- Name: ${contact.name}`,
-      `- Phone: ${contact.phone}`,
+      contact.phone ? `- Phone: ${contact.phone}` : null,
       contact.email ? `- Email: ${contact.email}` : null,
-      contact.notes ? `- Notes: ${contact.notes}` : null,
     ].filter(Boolean).join('\n');
 
     const notesJoined = notesSafe
@@ -181,14 +182,16 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      const parsed = JSON.parse(content);
+      // Strip markdown code fences the model sometimes wraps around JSON
+      let cleaned = content.trim();
+      if (cleaned.startsWith("```")) {
+        cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "");
+      }
+      const parsed = JSON.parse(cleaned);
       return NextResponse.json(parsed);
     } catch (e) {
-      console.error("Failed to parse AI response:", content);
-      return NextResponse.json(
-        { error: "Invalid AI response format" },
-        { status: 500 }
-      );
+      // Fallback: return the raw text as a summary
+      return NextResponse.json({ summary: content });
     }
   } catch (error) {
     console.error("Contact analysis API error:", error);

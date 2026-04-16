@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
       // Find conversation by channel_id (callSid)
       const { data: conversation } = await supabaseAdmin
         .from("conversations")
-        .select("id, workspace_id")
+        .select("id, workspace_id, metadata, transcript")
         .eq("channel_id", callSid)
         .maybeSingle();
 

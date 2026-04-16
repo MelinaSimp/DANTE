@@ -12,7 +12,7 @@ export default function DownloadPage() {
       <div className="max-w-4xl w-full bg-white/5 backdrop-blur-sm rounded-3xl p-12 border border-white/10 shadow-2xl">
         {/* Logo and Header */}
         <div className="text-center mb-12">
-          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
+          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-[#3351ff] to-[#4a64ff] flex items-center justify-center">
             <span className="text-4xl">🚀</span>
           </div>
           <h1 className="text-4xl font-bold text-white mb-4">Download Drift AI</h1>
@@ -27,12 +27,12 @@ export default function DownloadPage() {
           <a
             href="/downloads/Drift-AI-1.0.0.dmg"
             download
-            className="group bg-white/5 hover:bg-white/10 border border-white/10 hover:border-orange-500/50 rounded-2xl p-8 text-center transition-all duration-300 hover:scale-105 cursor-pointer"
+            className="group bg-white/5 hover:bg-white/10 border border-white/10 hover:border-[#3351ff]/50 rounded-2xl p-8 text-center transition-all duration-300 hover:scale-105 cursor-pointer"
           >
             <div className="text-6xl mb-4">🍎</div>
             <h3 className="text-xl font-semibold text-white mb-2">macOS</h3>
             <p className="text-sm text-white/60 mb-4">.dmg installer</p>
-            <div className="text-orange-500 font-medium group-hover:text-orange-400">
+            <div className="text-[#3351ff] font-medium group-hover:text-[#6f89ff]">
               Download →
             </div>
           </a>
@@ -41,12 +41,12 @@ export default function DownloadPage() {
           <a
             href="/downloads/Drift-AI-Setup-1.0.0.exe"
             download
-            className="group bg-white/5 hover:bg-white/10 border border-white/10 hover:border-orange-500/50 rounded-2xl p-8 text-center transition-all duration-300 hover:scale-105 cursor-pointer"
+            className="group bg-white/5 hover:bg-white/10 border border-white/10 hover:border-[#3351ff]/50 rounded-2xl p-8 text-center transition-all duration-300 hover:scale-105 cursor-pointer"
           >
             <div className="text-6xl mb-4">🪟</div>
             <h3 className="text-xl font-semibold text-white mb-2">Windows</h3>
             <p className="text-sm text-white/60 mb-4">.exe installer</p>
-            <div className="text-orange-500 font-medium group-hover:text-orange-400">
+            <div className="text-[#3351ff] font-medium group-hover:text-[#6f89ff]">
               Download →
             </div>
           </a>
@@ -55,37 +55,37 @@ export default function DownloadPage() {
           <a
             href="/downloads/Drift-AI-1.0.0.AppImage"
             download
-            className="group bg-white/5 hover:bg-white/10 border border-white/10 hover:border-orange-500/50 rounded-2xl p-8 text-center transition-all duration-300 hover:scale-105 cursor-pointer"
+            className="group bg-white/5 hover:bg-white/10 border border-white/10 hover:border-[#3351ff]/50 rounded-2xl p-8 text-center transition-all duration-300 hover:scale-105 cursor-pointer"
           >
             <div className="text-6xl mb-4">🐧</div>
             <h3 className="text-xl font-semibold text-white mb-2">Linux</h3>
             <p className="text-sm text-white/60 mb-4">.AppImage</p>
-            <div className="text-orange-500 font-medium group-hover:text-orange-400">
+            <div className="text-[#3351ff] font-medium group-hover:text-[#6f89ff]">
               Download →
             </div>
           </a>
         </div>
 
         {/* System Requirements */}
-        <div className="bg-orange-500/10 border border-orange-500/30 rounded-2xl p-6 mb-8">
-          <h3 className="text-lg font-semibold text-orange-400 mb-4 flex items-center gap-2">
+        <div className="bg-[#3351ff]/10 border border-[#3351ff]/30 rounded-2xl p-6 mb-8">
+          <h3 className="text-lg font-semibold text-[#6f89ff] mb-4 flex items-center gap-2">
             <span>ℹ️</span> System Requirements
           </h3>
           <ul className="space-y-2 text-white/80">
             <li className="flex items-start gap-2">
-              <span className="text-orange-500 mt-1">✓</span>
+              <span className="text-[#3351ff] mt-1">✓</span>
               <span>Internet connection required</span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-orange-500 mt-1">✓</span>
+              <span className="text-[#3351ff] mt-1">✓</span>
               <span>macOS 10.13+ / Windows 10+ / Linux (Ubuntu 18.04+)</span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-orange-500 mt-1">✓</span>
+              <span className="text-[#3351ff] mt-1">✓</span>
               <span>100MB free disk space</span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="text-orange-500 mt-1">✓</span>
+              <span className="text-[#3351ff] mt-1">✓</span>
               <span>Latest version automatically connects to our servers</span>
             </li>
           </ul>
@@ -111,7 +111,7 @@ export default function DownloadPage() {
         <div className="text-center mt-8">
           <Link
             href="/"
-            className="text-orange-500 hover:text-orange-400 transition-colors"
+            className="text-[#3351ff] hover:text-[#6f89ff] transition-colors"
           >
             ← Back to Home
           </Link>

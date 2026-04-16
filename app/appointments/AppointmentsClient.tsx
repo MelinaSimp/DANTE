@@ -24,7 +24,7 @@ interface Appointment {
   service_type: string;
   status: string;
   notes: string;
-  contacts: Contact;
+  contacts: Contact | Contact[];
 }
 
 interface AppointmentsClientProps {
@@ -139,21 +139,23 @@ export default function AppointmentsClient({ initialAppointments, workspaceId }:
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#e5e7eb]">
-                {appointments.map((appointment) => (
+                {appointments.map((appointment) => {
+                  const contact = Array.isArray(appointment.contacts) ? appointment.contacts[0] : appointment.contacts;
+                  return (
                   <tr key={appointment.id} className="transition hover:bg-[#f3f4f6]">
                     <td className="whitespace-nowrap px-6 py-4">
                       <div className="flex items-center">
                         <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#3166bf]/25 text-[#3166bf]">
                           <span className="text-sm font-medium">
-                            {appointment.contacts.name.charAt(0).toUpperCase()}
+                            {contact?.name?.charAt(0)?.toUpperCase() ?? "?"}
                           </span>
                         </div>
                         <div className="ml-3">
                           <div className="text-sm font-medium text-[#151515]">
-                            {appointment.contacts.name}
+                            {contact?.name ?? "Unknown"}
                           </div>
                           <div className="text-sm text-[#151515]/60">
-                            {appointment.contacts.phone}
+                            {contact?.phone ?? "—"}
                           </div>
                         </div>
                       </div>
@@ -173,7 +175,8 @@ export default function AppointmentsClient({ initialAppointments, workspaceId }:
                       </span>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

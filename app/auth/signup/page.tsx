@@ -9,11 +9,12 @@ export const dynamic = "force-dynamic";
 export default async function SignupPage({
   searchParams,
 }: {
-  searchParams?: { token?: string };
+  searchParams?: Promise<{ token?: string }>;
 }) {
+  const resolvedParams = searchParams ? await searchParams : {};
   async function redeem(formData: FormData) {
     "use server";
-    const token = normalizeToken((formData.get("token") as string) || (searchParams?.token as string));
+    const token = normalizeToken((formData.get("token") as string) || (resolvedParams?.token as string));
     const email = (formData.get("email") as string) || "";
     const password = (formData.get("password") as string) || "";
     const first_name = ((formData.get("first_name") as string) || "").trim();
@@ -126,7 +127,7 @@ export default async function SignupPage({
           <label className="block text-sm font-medium text-white/70">Invite token</label>
           <input
             name="token"
-            defaultValue={normalizeToken(searchParams?.token)}
+            defaultValue={normalizeToken(resolvedParams?.token)}
             placeholder="DRIFT-XXXX-YYYY"
             className="w-full rounded-2xl border border-white/15 bg-black/45 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
             required

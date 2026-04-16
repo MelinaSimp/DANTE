@@ -37,7 +37,7 @@ export default function InboxPage() {
   const router = useRouter();
   const params = useParams();
   const pathname = usePathname();
-  const agentId = params.agentId as string;
+  const agentId = (params?.agentId ?? "") as string;
   const { features, loading: featuresLoading } = useFeatures();
 
   useEffect(() => {

@@ -84,7 +84,7 @@ export async function PUT(
   // Normalize phone number if provided
   let normalizedPhone: string | undefined;
   if (phoneNumber) {
-    normalizedPhone = normalizePhone(phoneNumber);
+    normalizedPhone = normalizePhone(phoneNumber) ?? undefined;
     if (!normalizedPhone) {
       return NextResponse.json({ error: "Invalid phone number format" }, { status: 400 });
     }

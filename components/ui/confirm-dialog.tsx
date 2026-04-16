@@ -70,7 +70,7 @@ export function ConfirmDialogProvider({ children }: { children: ReactNode }) {
   const variant: Variant = state?.variant ?? "danger";
   const variantStyles = {
     danger: { btn: "bg-red-500 hover:bg-red-600", icon: "text-red-400" },
-    warning: { btn: "bg-orange-500 hover:bg-orange-600", icon: "text-orange-400" },
+    warning: { btn: "bg-[#3351ff] hover:bg-[#4a64ff]", icon: "text-[#6f89ff]" },
     info: { btn: "bg-blue-500 hover:bg-blue-600", icon: "text-blue-400" },
   }[variant];
 

@@ -479,7 +479,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
           </button>
           <h2 className="text-lg font-semibold text-gray-900 ml-1">{headerLabel}</h2>
         </div>
-        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
           <div className="flex rounded-lg border border-gray-300 overflow-hidden">
             <button onClick={() => setViewMode("week")} className={`px-3 py-1.5 text-xs font-medium transition ${viewMode === "week" ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
               Week
@@ -520,7 +520,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                 const isCurrentMonth = day.month() === monthDate.month();
                 const hasAppt = getAppointmentsForDay(day).length > 0;
                 return (
-                  <button
+                <button
                     key={i}
                     onClick={() => { setWeekStart(day.startOf("week")); }}
                     className={`text-[11px] py-1 rounded-full transition ${
@@ -531,7 +531,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                   >
                     {day.date()}
                     {hasAppt && !isToday && <span className="block w-1 h-1 bg-blue-500 rounded-full mx-auto -mt-0.5" />}
-                  </button>
+                </button>
                 );
               })}
             </div>
@@ -652,7 +652,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                   </div>
                 );
               })}
-            </div>
+          </div>
 
             {/* Time grid */}
             <div ref={gridRef} className="flex-1 overflow-y-auto">
@@ -662,17 +662,17 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                   {HOURS.map((hour) => (
                     <div key={hour} className="relative" style={{ height: HOUR_HEIGHT }}>
                       <span className="absolute -top-2 right-2 text-[10px] text-gray-400 font-medium">
-                        {hour === 0 ? "12 AM" : hour < 12 ? `${hour} AM` : hour === 12 ? "12 PM" : `${hour - 12} PM`}
-                      </span>
-                    </div>
-                  ))}
+                    {hour === 0 ? "12 AM" : hour < 12 ? `${hour} AM` : hour === 12 ? "12 PM" : `${hour - 12} PM`}
+                  </span>
                 </div>
+              ))}
+            </div>
 
                 {/* Day columns */}
                 {weekDays.map((day, dayIdx) => {
                   const dayAppts = getAppointmentsForDay(day);
                   const daySlots = getSlotsForDay(day);
-                  return (
+                return (
                     <div key={dayIdx} className={`relative border-r border-gray-100 ${dayIdx === 6 ? "border-r-0" : ""}`}>
                       {/* Hour lines */}
                       {HOURS.map((hour) => (
@@ -689,8 +689,8 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                         const height = (endHour - startHour) * HOUR_HEIGHT;
                         if (topOffset < 0 || height <= 0) return null;
                         const typeColor = getSlotTypeColor(slot.slot_type || "General", slotTypes);
-                        return (
-                          <div
+                      return (
+                        <div
                             key={slot.id}
                             className={`absolute left-0 right-0 ${typeColor.bg} border-l-[3px] ${typeColor.border} opacity-70 group/slot`}
                             style={{ top: topOffset, height }}
@@ -746,9 +746,9 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                           </div>
                         );
                       })()}
-                    </div>
-                  );
-                })}
+                        </div>
+                      );
+                    })}
               </div>
             </div>
           </div>
@@ -791,7 +791,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
             </div>
           </div>
         )}
-      </div>
+        </div>
 
       {/* ─── Create Appointment Modal ─── */}
       {showCreateModal && (
@@ -801,7 +801,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
               <h3 className="text-lg font-semibold text-gray-900">New Appointment</h3>
               <button onClick={() => setShowCreateModal(false)} className="p-1.5 rounded-full hover:bg-gray-100 transition">
                 <X className="h-5 w-5 text-gray-500" />
-              </button>
+                  </button>
             </div>
             <div className="space-y-4">
               <div>
@@ -841,7 +841,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                     <option value="90">1.5 hr</option>
                     <option value="120">2 hr</option>
                   </select>
-                </div>
+                  </div>
               </div>
               {/* Reminder */}
               <div>
@@ -921,11 +921,11 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                                 <X className="h-3 w-3" />
                               </button>
                             )}
-                          </div>
+                        </div>
                         );
                       })}
-                    </div>
-                  </div>
+                        </div>
+                      </div>
                 ) : (
                   <div className="flex flex-wrap gap-1.5">
                     {slotTypes.map((type) => {
@@ -1011,8 +1011,8 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                     <span>{selectedAppointment.contacts.email}</span>
                   </div>
                 )}
-              </div>
-
+          </div>
+          
               <div className="border-t border-gray-200 pt-4 space-y-3">
                 {/* Date & Time */}
                 <div>
@@ -1102,7 +1102,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                           )}
                         </div>
                       )}
-                    </div>
+                      </div>
                   )}
 
                   {callRecord.summary ? (
@@ -1125,7 +1125,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                       Generate AI Overview
                     </button>
                   ) : null}
-                </div>
+                  </div>
               ) : null}
 
               {/* Reminders */}

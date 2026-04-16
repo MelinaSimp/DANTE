@@ -614,7 +614,7 @@ export default function DataSourcesPage({ agentId }: DataSourcesPageProps) {
                        (dataSource.file_type === "application/pdf" || dataSource.name.toLowerCase().endsWith('.pdf')) &&
                        dataSource.content && 
                        dataSource.content.trim().length > 0 && (
-                        <CheckCircle className="h-4 w-4 text-green-400 flex-shrink-0" title="Text extracted successfully" />
+                        <CheckCircle className="h-4 w-4 text-green-400 flex-shrink-0" aria-label="Text extracted successfully" />
                       )}
                     </div>
                     <div className={`text-xs ${colors.textTertiary} mt-1 line-clamp-2`}>

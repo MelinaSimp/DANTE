@@ -178,7 +178,7 @@ export default function CallsClient({ initialCallLogs, workspaceId }: CallsClien
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <Button
                         size="sm"
-                        variant="outline"
+                        variant="ghost"
                         onClick={() => setSelectedCall(call)}
                       >
                         View Details
@@ -200,7 +200,7 @@ export default function CallsClient({ initialCallLogs, workspaceId }: CallsClien
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">Call Details</h3>
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
                   onClick={() => setSelectedCall(null)}
                 >

@@ -225,7 +225,7 @@ export async function POST(req: NextRequest) {
       console.error(`[Media Stream Process] ❌ STT processing error:`, sttError.message);
       console.error(`[Media Stream Process] Error stack:`, sttError.stack);
       // Try to return debug info if we have it
-      let debugInfo = { error: sttError.message };
+      let debugInfo: Record<string, unknown> = { error: sttError.message };
       try {
         const mulawSamples = new Uint8Array(Buffer.from(audioBase64, 'base64'));
         const pcm8kSamples = mulaw.decode(mulawSamples);

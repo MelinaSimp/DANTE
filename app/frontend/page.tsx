@@ -19,6 +19,7 @@ const EmailPanel = lazy(() => import("@/components/panels/EmailPanel"));
 const PlannerPanel = lazy(() => import("@/components/panels/PlannerPanel"));
 const ClientsPanel = lazy(() => import("@/components/panels/ClientsPanel"));
 const AutomationsPanel = lazy(() => import("@/components/panels/AutomationsPanel"));
+const ClientDetailsPanel = lazy(() => import("@/components/panels/ClientDetailsPanel"));
 
 interface Agent {
   id: string;
@@ -28,7 +29,7 @@ interface Agent {
   status: string;
 }
 
-type PanelId = "calendar" | "clients" | "planner" | "sales" | "email" | "inbox" | "automations";
+type PanelId = "calendar" | "clients" | "planner" | "sales" | "email" | "inbox" | "automations" | "client_details";
 
 const PANEL_TITLES: Record<PanelId, string> = {
   calendar: "Schedule",
@@ -38,9 +39,10 @@ const PANEL_TITLES: Record<PanelId, string> = {
   email: "Email",
   inbox: "Inbox",
   automations: "Automations",
+  client_details: "Client Details",
 };
 
-const WIDE_PANELS: PanelId[] = ["planner", "email", "sales", "automations"];
+const WIDE_PANELS: PanelId[] = ["planner", "email", "sales", "automations", "client_details"];
 
 const GRADIENT_PRESETS: string[][] = [
   ["#FF6B6B", "#4ECDC4", "#45B7D1"],
@@ -248,6 +250,7 @@ export default function FrontendPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [savingColor, setSavingColor] = useState(false);
   const [activePanel, setActivePanel] = useState<PanelId | null>(null);
+  const [clientDetailsContactId, setClientDetailsContactId] = useState<string | null>(null);
   const [isSuperadmin, setIsSuperadmin] = useState(false);
   const { features } = useFeatures();
 
@@ -322,6 +325,12 @@ export default function FrontendPage() {
 
   const closePanel = useCallback(() => {
     setActivePanel(null);
+    setClientDetailsContactId(null);
+  }, []);
+
+  const openClientDetails = useCallback((contactId?: string) => {
+    setClientDetailsContactId(contactId || null);
+    setActivePanel("client_details");
   }, []);
 
   if (loading) {
@@ -364,8 +373,9 @@ export default function FrontendPage() {
       case "sales": return <SalesPanel agentId={selectedAgentId} />;
       case "email": return <EmailPanel agentId={selectedAgentId} />;
       case "planner": return <PlannerPanel agentId={selectedAgentId} />;
-      case "clients": return <ClientsPanel agentId={selectedAgentId} />;
+      case "clients": return <ClientsPanel agentId={selectedAgentId} onOpenClientDetails={openClientDetails} />;
       case "automations": return <AutomationsPanel agentId={selectedAgentId} />;
+      case "client_details": return <ClientDetailsPanel agentId={selectedAgentId} initialContactId={clientDetailsContactId} onClose={closePanel} />;
       default: return null;
     }
   };

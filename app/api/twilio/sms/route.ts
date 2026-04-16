@@ -313,7 +313,8 @@ export async function POST(req: NextRequest) {
       console.error("[Twilio SMS] Failed to send SMS:", twilioError);
       
       // Log error with handling
-      const { logError, handleTwilioError } = await import("@/lib/errors/twilio-errors");
+      const { handleTwilioError } = await import("@/lib/errors/twilio-errors");
+      const { logError } = await import("@/lib/errors/logger");
       await logError({
         type: "twilio_sms_error",
         source: "/api/twilio/sms",

@@ -143,7 +143,7 @@ export default function EmailingPage() {
   const router = useRouter();
   const params = useParams();
   const pathname = usePathname();
-  const agentId = params.agentId as string;
+  const agentId = (params?.agentId ?? "") as string;
 
   const [composing, setComposing] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<EmailTemplate | null>(null);

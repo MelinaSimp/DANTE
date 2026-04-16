@@ -96,8 +96,9 @@ export async function PATCH(
       .eq("metadata->>appointment_id", appointmentId);
 
     // Generate AI message for SMS reminder
+    const contact = Array.isArray(appointment.contacts) ? appointment.contacts[0] : appointment.contacts;
     const aiMessage = await generateAppointmentReminderMessage({
-      name: appointment.contacts.name,
+      name: contact?.name ?? "Customer",
       description: appointment.service_type,
       scheduledAt: appointment.scheduled_at,
       durationMinutes: appointment.duration_minutes,
@@ -137,24 +138,24 @@ export async function PATCH(
         if (reminderChannels.sms) {
           try {
             await sendAppointmentSMS(
-              appointment.contacts.phone,
+              contact?.phone,
               aiMessage,
               profile.workspace_id
             );
             immediateSent = true;
-            console.log(`[Appointment Reminders] Immediate SMS sent to ${appointment.contacts.phone}`);
+            console.log(`[Appointment Reminders] Immediate SMS sent to ${contact?.phone}`);
           } catch (err: any) {
             console.error("[Appointment Reminders] Failed to send immediate SMS:", err);
           }
         }
         
         // Send Email if enabled and email is provided
-        if (reminderChannels.email && appointment.contacts.email) {
+        if (reminderChannels.email && contact?.email) {
           try {
             await sendAppointmentEmail(
-              appointment.contacts.email,
+              contact?.email,
               {
-                name: appointment.contacts.name,
+                name: contact?.name ?? "Customer",
                 description: appointment.service_type,
                 scheduledAt: appointment.scheduled_at,
                 durationMinutes: appointment.duration_minutes,
@@ -162,7 +163,7 @@ export async function PATCH(
               profile.workspace_id
             );
             immediateSent = true;
-            console.log(`[Appointment Reminders] Immediate email sent to ${appointment.contacts.email}`);
+            console.log(`[Appointment Reminders] Immediate email sent to ${contact?.email}`);
           } catch (err: any) {
             console.error("[Appointment Reminders] Failed to send immediate email:", err);
           }
@@ -177,7 +178,7 @@ export async function PATCH(
               .insert({
                 workspace_id: profile.workspace_id,
                 agent_id: agent.id,
-                phone_number: appointment.contacts.phone,
+                phone_number: contact?.phone,
                 message: aiMessage,
                 scheduled_at: reminderDate.toISOString(),
                 status: "pending",
@@ -196,16 +197,16 @@ export async function PATCH(
           }
           
           // Schedule Email if enabled and email is provided
-          if (reminderChannels.email && appointment.contacts.email) {
+          if (reminderChannels.email && contact?.email) {
             const { error: emailScheduleError } = await supabaseAdmin
               .from("scheduled_emails")
               .insert({
                 workspace_id: profile.workspace_id,
                 agent_id: agent.id,
-                to_email: appointment.contacts.email,
+                to_email: contact?.email,
                 subject: `Appointment Reminder: ${appointment.service_type}`,
                 html_content: generateEmailContent({
-                  name: appointment.contacts.name,
+                  name: contact?.name ?? "Customer",
                   description: appointment.service_type,
                   scheduledAt: appointment.scheduled_at,
                   durationMinutes: appointment.duration_minutes,

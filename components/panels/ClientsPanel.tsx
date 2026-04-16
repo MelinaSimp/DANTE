@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { UserPlus, Search, Trash2, Phone, Mail, FileText, Sparkles, Loader2, ExternalLink, Users } from "lucide-react";
+import { UserPlus, Search, Trash2, Phone, Mail, FileText, Sparkles, Loader2, Users } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { confirmDialog } from "@/components/ui/confirm-dialog";
@@ -10,7 +10,7 @@ import { reportError } from "@/lib/report-error";
 interface Contact { id: string; name: string; phone?: string; email?: string }
 interface DocCount { contact_id: string; count: number }
 
-export default function ClientsPanel({ agentId }: { agentId: string }) {
+export default function ClientsPanel({ agentId, onOpenClientDetails }: { agentId: string; onOpenClientDetails?: (contactId?: string) => void }) {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -71,11 +71,20 @@ export default function ClientsPanel({ agentId }: { agentId: string }) {
         credentials: "include",
         body: JSON.stringify({ contactId: contact.id, name: contact.name, email: contact.email, phone: contact.phone }),
       });
-      if (r.ok) {
-        const d = await r.json();
-        setAiSummary(d.summary || d.analysis || d.message || "No insights available.");
+      const d = await r.json().catch(() => null);
+      if (r.ok && d) {
+        const parts: string[] = [];
+        if (d.summary) parts.push(d.summary);
+        if (d.keywords?.length) parts.push(`Keywords: ${d.keywords.join(", ")}`);
+        if (d.suggested_tasks?.length) {
+          parts.push("Suggested tasks:");
+          d.suggested_tasks.forEach((t: { title: string; details?: string }) => {
+            parts.push(`• ${t.title}${t.details ? ` — ${t.details}` : ""}`);
+          });
+        }
+        setAiSummary(parts.join("\n") || "No insights available.");
       } else {
-        setAiSummary("Unable to generate insights at this time.");
+        setAiSummary(d?.error || "Unable to generate insights at this time.");
       }
     } catch {
       setAiSummary("Error analyzing contact.");
@@ -98,10 +107,9 @@ export default function ClientsPanel({ agentId }: { agentId: string }) {
             className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20" />
         </div>
         <div className="flex items-center gap-2 ml-3">
-          <a href="/client-details-overview" target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 transition">
+          <button onClick={() => onOpenClientDetails?.()} className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 transition">
             <FileText className="w-4 h-4" />Docs
-          </a>
+          </button>
           <button onClick={() => setAdding(true)} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-cyan-600 text-white text-sm font-medium hover:bg-cyan-700">
             <UserPlus className="w-4 h-4" />Add
           </button>
@@ -195,15 +203,13 @@ export default function ClientsPanel({ agentId }: { agentId: string }) {
                         {loadingAi ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
                         AI Insights
                       </button>
-                      <a
-                        href={`/client-details-overview?contactId=${c.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        onClick={() => onOpenClientDetails?.(c.id)}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 text-xs font-medium hover:bg-gray-200 transition"
                       >
-                        <ExternalLink className="w-3 h-3" />
+                        <FileText className="w-3 h-3" />
                         Documents & Details
-                      </a>
+                      </button>
                     </div>
 
                     {aiSummary && (
