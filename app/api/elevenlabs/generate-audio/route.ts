@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     const auth = await requireUser();
     if (auth.error) return auth.error;
 
-    if (!rateLimit(`tts:${auth.user.id}`, 30).allowed) return rateLimitResponse();
+    if (!(await rateLimit(`tts:${auth.user.id}`, 30)).allowed) return rateLimitResponse();
 
     const { text, voiceId } = await req.json();
 

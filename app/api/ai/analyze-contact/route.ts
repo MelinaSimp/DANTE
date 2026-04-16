@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     const auth = await requireUserWithWorkspace();
     if (auth.error) return auth.error;
 
-    if (!rateLimit(`ai-contact:${auth.user.id}`, 20).allowed) return rateLimitResponse();
+    if (!(await rateLimit(`ai-contact:${auth.user.id}`, 20)).allowed) return rateLimitResponse();
 
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {

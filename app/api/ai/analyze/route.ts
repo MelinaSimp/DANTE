@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     const auth = await requireUser();
     if (auth.error) return auth.error;
 
-    if (!rateLimit(`ai-analyze:${auth.user.id}`, 20).allowed) return rateLimitResponse();
+    if (!(await rateLimit(`ai-analyze:${auth.user.id}`, 20)).allowed) return rateLimitResponse();
 
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {

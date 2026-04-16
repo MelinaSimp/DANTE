@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!rateLimit(`email:${user.id}`, 20).allowed) return rateLimitResponse();
+  if (!(await rateLimit(`email:${user.id}`, 20)).allowed) return rateLimitResponse();
 
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {

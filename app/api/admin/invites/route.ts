@@ -3,6 +3,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { hasSuperadminAccess } from "@/lib/superadmin";
 import { logAudit } from "@/lib/audit";
+import { getAppUrl } from "@/lib/app-url";
 import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
     request: req,
   });
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_BASE_URL || "http://localhost:3000";
+  const appUrl = getAppUrl();
   const signupUrl = `${appUrl}/auth/signup?token=${token}`;
 
   if (process.env.RESEND_API_KEY) {

@@ -21,7 +21,7 @@ export async function POST(
   try {
     const { agentId } = await params;
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-    if (!rateLimit(`schedule:${ip}`, 10).allowed) return rateLimitResponse();
+    if (!(await rateLimit(`schedule:${ip}`, 10)).allowed) return rateLimitResponse();
 
     const body = await req.json();
     const {

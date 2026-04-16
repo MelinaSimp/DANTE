@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (!rateLimit(`llm-chat:${user.id}`, 30).allowed) return rateLimitResponse();
+    if (!(await rateLimit(`llm-chat:${user.id}`, 30)).allowed) return rateLimitResponse();
 
     const {
       message,

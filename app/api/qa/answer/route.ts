@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (!rateLimit(`qa:${user.id}`, 30).allowed) return rateLimitResponse();
+    if (!(await rateLimit(`qa:${user.id}`, 30)).allowed) return rateLimitResponse();
 
     const body = await req.json();
     const { query, agentId, dataSourceIds } = body;

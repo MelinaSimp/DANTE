@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   try {
     // Rate limit: 5 attempts per minute per IP
     const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "unknown";
-    const { allowed } = rateLimit(`backend-pw:${ip}`, 5, 60_000);
+    const { allowed } = await rateLimit(`backend-pw:${ip}`, 5, 60_000);
     if (!allowed) return rateLimitResponse();
 
     const { password } = await req.json();
