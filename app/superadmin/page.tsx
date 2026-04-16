@@ -204,7 +204,7 @@ export default async function SuperadminPage() {
                 color: '#e2e8f0'
               }}
             >
-              {profile.full_name || "Administrator"}
+              {profile?.full_name || "Administrator"}
             </span>
           </div>
         </div>

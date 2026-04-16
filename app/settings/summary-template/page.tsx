@@ -45,12 +45,16 @@ export default async function SummaryTemplateSettingsPage() {
   ]);
 
   const documents = (documentRows ?? []).map(
-    (d: { id: string; file_name: string; contact_id: string; contacts: { name: string } | null }) => ({
-      id: d.id,
-      file_name: d.file_name,
-      contact_id: d.contact_id,
-      contact_name: d.contacts?.name ?? "Unknown",
-    })
+    // Supabase embedded relation returns array; normalise to single object
+    (d: { id: any; file_name: any; contact_id: any; contacts: { name: any }[] | { name: any } | null }) => {
+      const contactsObj = Array.isArray(d.contacts) ? d.contacts[0] : d.contacts;
+      return {
+        id: d.id as string,
+        file_name: d.file_name as string,
+        contact_id: d.contact_id as string,
+        contact_name: contactsObj?.name ?? "Unknown",
+      };
+    }
   );
 
   return (

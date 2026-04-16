@@ -3,9 +3,7 @@ import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
   eslint: { ignoreDuringBuilds: false },
-  // TODO: flip back to false once remaining legacy TS errors in app/gigaai/* are fixed.
-  // We already fixed ~20 errors across the codebase; the ones left are non-critical UI warnings.
-  typescript: { ignoreBuildErrors: true },
+  typescript: { ignoreBuildErrors: false },
   headers: async () => [
     {
       source: "/(.*)",

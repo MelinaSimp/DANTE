@@ -144,7 +144,7 @@ export default function AddAppointmentForm({ workspaceId, onAppointmentAdded, on
         
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           onClick={onCancel}
           disabled={isSubmitting}
         >

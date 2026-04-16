@@ -64,8 +64,8 @@ export default async function SchedulePage() {
         </a>
         <h1 className="text-2xl font-semibold text-white">Schedule & Tasks</h1>
       </div>
-      <ScheduleClient 
-        initialAppointments={appointments || []} 
+      <ScheduleClient
+        initialAppointments={(appointments as any[]) || []}
         workspaceId={profile.workspace_id}
       />
     </div>

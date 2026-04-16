@@ -15,7 +15,7 @@ export {
   sanitizeInput,
   validateContact,
   type ContactValidationResult,
-} from "@/lib/validation.ts";
+} from "@/lib/validation";
 
 // Re-export agent validator functions
 export {

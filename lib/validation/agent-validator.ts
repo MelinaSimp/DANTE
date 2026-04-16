@@ -149,12 +149,12 @@ export function validateScenario(scenario: {
     });
 
     // Check for branch validity
-    scenario.steps.forEach((step) => {
+    (scenario.steps ?? []).forEach((step) => {
       if (step.branches && step.branches.length > 0) {
         step.branches.forEach((branch: any) => {
           // Check if branch target exists
           if (branch.next_step_id) {
-            const targetStep = scenario.steps.find((s: any) => s.id === branch.next_step_id);
+            const targetStep = (scenario.steps ?? []).find((s: any) => s.id === branch.next_step_id);
             if (!targetStep) {
               errors.push({
                 type: 'error',

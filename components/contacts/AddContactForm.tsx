@@ -174,9 +174,9 @@ export default function AddContactForm({ workspaceId, contact, onContactAdded, o
         >
           {loading ? (isEditing ? "Updating..." : "Adding...") : (isEditing ? "Update Contact" : "Add Contact")}
         </Button>
-        <Button 
-          type="button" 
-          variant="outline"
+        <Button
+          type="button"
+          variant="ghost"
           onClick={onCancel}
           disabled={loading}
           className="rounded-xl border-gray-300 hover:border-gray-400 hover:bg-gray-50 shadow-sm hover:shadow-md transition-all duration-200"

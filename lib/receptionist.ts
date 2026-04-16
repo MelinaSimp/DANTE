@@ -33,6 +33,15 @@ export type ReceptionistSettings = {
   farewell: string;
 };
 
+export type ReceptionistAnswer = {
+  question_id: string;
+  prompt: string;
+  answer: string;
+  captured_at: string;
+  followup_field?: string | null;
+  type?: "script" | "followup" | "knowledge";
+};
+
 export type ReceptionistFollowupItem = {
   field: string;
   question: string;
@@ -45,14 +54,7 @@ export type ReceptionistSession = {
   from_number: string | null;
   to_number: string | null;
   current_index: number;
-  answers: Array<{
-    question_id: string;
-    prompt: string;
-    answer: string;
-    captured_at: string;
-    followup_field?: string | null;
-    type?: "script" | "followup" | "knowledge";
-  }>;
+  answers: ReceptionistAnswer[];
   followup_queue: ReceptionistFollowupItem[];
   followup_index: number;
   completed: boolean;

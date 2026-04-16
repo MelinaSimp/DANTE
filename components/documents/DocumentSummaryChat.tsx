@@ -135,7 +135,8 @@ export default function DocumentSummaryChat({
         canvas.height = viewport.height;
         const ctx = canvas.getContext("2d");
         if (!ctx) continue;
-        await page.render({ canvasContext: ctx, viewport }).promise;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await page.render({ canvasContext: ctx as any, viewport } as any).promise;
         const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
         const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, "");
         out.push({ imageBase64: base64, type: "image/jpeg", name: `page-${pageNum}.jpg` });

@@ -231,7 +231,7 @@ export default function OnboardingModal({ isOpen, onClose, onComplete }: Onboard
             <div>
               {!isFirstStep && (
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   onClick={handlePrevious}
                   className="flex items-center gap-2"
                 >
@@ -243,7 +243,7 @@ export default function OnboardingModal({ isOpen, onClose, onComplete }: Onboard
 
             <div className="flex items-center gap-3">
               <Button
-                variant="outline"
+                variant="ghost"
                 onClick={handleSkip}
               >
                 Skip Tour

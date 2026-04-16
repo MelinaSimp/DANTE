@@ -204,7 +204,7 @@ export default function ContactsClient({ initialContacts, workspaceId }: Contact
                     Docs
                   </Link>
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
                     onClick={() => loadContactData(contact)}
                     className="rounded-full border border-[#e5e7eb] bg-[#f3f4f6] px-3 py-1 text-xs font-medium text-[#151515] transition hover:border-[#3166bf] hover:bg-[#3166bf]/10 hover:text-[#3166bf]"
@@ -212,7 +212,7 @@ export default function ContactsClient({ initialContacts, workspaceId }: Contact
                     Details
                   </Button>
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
                     onClick={() => setEditingContact(contact)}
                     className="rounded-full border border-[#e5e7eb] bg-[#f3f4f6] px-3 py-1 text-xs font-medium text-[#151515] transition hover:border-[#3166bf] hover:bg-[#3166bf]/10 hover:text-[#3166bf]"
@@ -220,7 +220,7 @@ export default function ContactsClient({ initialContacts, workspaceId }: Contact
                     Edit
                   </Button>
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
                     onClick={() => handleDeleteContact(contact.id)}
                     disabled={isDeleting === contact.id}
@@ -293,7 +293,7 @@ export default function ContactsClient({ initialContacts, workspaceId }: Contact
               <p className="mt-1 text-[#151515]/60">Contact information, intelligence, and follow-ups</p>
             </div>
             <Button
-              variant="outline"
+              variant="ghost"
               onClick={() => setSelectedContact(null)}
               className="rounded-full border border-[#e5e7eb] bg-[#f3f4f6] px-4 py-2 text-sm font-medium text-[#151515] transition hover:border-[#151515] hover:bg-[#e5e7eb]"
             >
