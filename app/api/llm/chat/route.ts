@@ -32,6 +32,7 @@ export async function POST(req: NextRequest) {
       templateId,
       templateName,
       templateDocumentId,
+      recipientEmail,
     } = await req.json();
 
     console.log("[LLM Chat] Request:", { templateName, templateDocumentId, imagesCount: images?.length, hasExtractedText: !!extractedTextFromPages, messagePreview: (message || "").substring(0, 100) });
@@ -130,6 +131,60 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Load workspace contacts so the LLM can reference them by name when
+    // composing emails, planning meetings, or answering questions like
+    // "can you see the clients?". Skipped in heavy template/document-analysis
+    // mode where the prompt is already large and contacts would just be noise.
+    let contactsContext = "";
+    const isDocumentAnalysisMode = !!(templateName && templateDocumentId);
+    if (!isDocumentAnalysisMode) {
+      try {
+        const { data: prof } = await supabaseAdmin
+          .from("profiles")
+          .select("workspace_id")
+          .eq("id", user.id)
+          .maybeSingle();
+        const workspaceId = prof?.workspace_id;
+        if (workspaceId) {
+          const { data: contacts } = await supabaseAdmin
+            .from("contacts")
+            .select("id, name, email, phone, created_at")
+            .eq("workspace_id", workspaceId)
+            .order("created_at", { ascending: false })
+            .limit(150);
+
+          if (contacts && contacts.length > 0) {
+            const list = contacts
+              .map((c, i) => {
+                const parts = [c.name || "(no name)"];
+                if (c.email) parts.push(`<${c.email}>`);
+                if (c.phone) parts.push(`phone: ${c.phone}`);
+                return `${i + 1}. ${parts.join(" ")}`;
+              })
+              .join("\n");
+
+            contactsContext = `\n\nWORKSPACE CLIENT LIST (${contacts.length} ${contacts.length === 1 ? "client" : "clients"}):\nThese are the clients/contacts in the user's workspace. You can reference them by name and use their contact details when composing emails, planning meetings, or answering questions about who the clients are. Do NOT invent clients that are not on this list.\n\n${list}`;
+
+            // If the emailing compose form tells us who the recipient is,
+            // pull out that contact specifically so the LLM keys its
+            // personalization on the right person.
+            if (recipientEmail && typeof recipientEmail === "string") {
+              const match = contacts.find(
+                (c) => c.email && c.email.toLowerCase() === recipientEmail.toLowerCase()
+              );
+              if (match) {
+                contactsContext += `\n\nACTIVE RECIPIENT: The email is being composed for ${match.name || match.email} (${match.email}). Personalize the content for this specific person — use their name, reference any relevant context from the client list if applicable.`;
+              } else {
+                contactsContext += `\n\nACTIVE RECIPIENT: The email is being composed for ${recipientEmail}. This recipient is not in the workspace client list — treat them as a new/external contact.`;
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("[LLM Chat] Failed to load workspace contacts:", err);
+      }
+    }
+
     // Track chart requirements for the user message reminder
     let requiredChartCount = 0;
     let chartRequirementsList: string[] = [];
@@ -171,7 +226,7 @@ CRITICAL RULES:
    
    Always structure your analysis using these sections when dealing with data or documents.
 
-You CAN generate PDFs - when users ask for a PDF, provide the content in a well-formatted way that can be converted to PDF. Use clear headings, bullet points, and organized sections.${guidelinesContent}`;
+You CAN generate PDFs - when users ask for a PDF, provide the content in a well-formatted way that can be converted to PDF. Use clear headings, bullet points, and organized sections.${guidelinesContent}${contactsContext}`;
 
     // When using a saved template, load template annotations and tell the model how to handle tables vs paragraphs
     if (templateName && (templateId || templateName)) {

@@ -342,6 +342,7 @@ export default function EmailingPage() {
           message: `You are helping compose an email. Here is the current email body:\n\n---\n${body}\n---\n\nThe user's request: ${aiPrompt}\n\nPlease provide the improved or new email body text only, without any extra explanation.`,
           history: [],
           agentId,
+          recipientEmail: toEmail || undefined,
         }),
       });
 
