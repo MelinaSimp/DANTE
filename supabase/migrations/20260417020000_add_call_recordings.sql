@@ -32,7 +32,7 @@ drop policy if exists call_recordings_select on call_recordings;
 create policy call_recordings_select on call_recordings
   for select using (
     workspace_id in (
-      select workspace_id from workspace_members where user_id = auth.uid()
+      select workspace_id from profiles where id = auth.uid()
     )
   );
 
@@ -41,7 +41,7 @@ create policy call_recordings_insert on call_recordings
   for insert with check (
     user_id = auth.uid()
     and workspace_id in (
-      select workspace_id from workspace_members where user_id = auth.uid()
+      select workspace_id from profiles where id = auth.uid()
     )
   );
 
@@ -49,7 +49,7 @@ drop policy if exists call_recordings_update on call_recordings;
 create policy call_recordings_update on call_recordings
   for update using (
     workspace_id in (
-      select workspace_id from workspace_members where user_id = auth.uid()
+      select workspace_id from profiles where id = auth.uid()
     )
   );
 
@@ -70,7 +70,7 @@ create policy call_recordings_storage_insert on storage.objects
   for insert to authenticated with check (
     bucket_id = 'call-recordings'
     and (storage.foldername(name))[1] in (
-      select workspace_id::text from workspace_members where user_id = auth.uid()
+      select workspace_id::text from profiles where id = auth.uid()
     )
   );
 
@@ -79,7 +79,7 @@ create policy call_recordings_storage_select on storage.objects
   for select to authenticated using (
     bucket_id = 'call-recordings'
     and (storage.foldername(name))[1] in (
-      select workspace_id::text from workspace_members where user_id = auth.uid()
+      select workspace_id::text from profiles where id = auth.uid()
     )
   );
 
@@ -88,6 +88,6 @@ create policy call_recordings_storage_delete on storage.objects
   for delete to authenticated using (
     bucket_id = 'call-recordings'
     and (storage.foldername(name))[1] in (
-      select workspace_id::text from workspace_members where user_id = auth.uid()
+      select workspace_id::text from profiles where id = auth.uid()
     )
   );
