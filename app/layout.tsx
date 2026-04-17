@@ -8,6 +8,7 @@ import { OnboardingProvider } from "@/components/onboarding/OnboardingProvider";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { ToastProvider } from "@/components/ui/toast";
 import { ConfirmDialogProvider } from "@/components/ui/confirm-dialog";
+import FloatingDashboardButton from "@/components/FloatingDashboardButton";
 
 export const metadata: Metadata = {
   title: "Drift - Agent Canvas",
@@ -44,6 +45,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <ErrorBoundary>
               <main className="relative z-0 bg-[#242423]" style={{ background: '#242423', backgroundImage: 'none' }}>{children}</main>
             </ErrorBoundary>
+            <FloatingDashboardButton />
             <PushNotificationManager />
           </OnboardingProvider>
          </ConfirmDialogProvider>
