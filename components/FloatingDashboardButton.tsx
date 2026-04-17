@@ -27,6 +27,7 @@ const HIDDEN_PREFIXES = [
   "/status",
   "/test-superadmin",
   "/debug-admin",
+  "/call",
   "/compiled",
   "/frontend",
   "/gigaai",

@@ -1,0 +1,126 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import Link from "next/link";
+import { ArrowLeft, Search } from "lucide-react";
+import CallRecorder from "@/components/call/CallRecorder";
+
+type Contact = {
+  id: string;
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+};
+
+export default function CallPageClient({
+  contacts,
+  initialContactId,
+}: {
+  contacts: Contact[];
+  initialContactId: string | null;
+}) {
+  const [query, setQuery] = useState("");
+  const [picked, setPicked] = useState<Contact | null>(
+    initialContactId
+      ? contacts.find((c) => c.id === initialContactId) || null
+      : null
+  );
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return contacts;
+    return contacts.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        (c.email || "").toLowerCase().includes(q) ||
+        (c.phone || "").toLowerCase().includes(q)
+    );
+  }, [contacts, query]);
+
+  return (
+    <div className="min-h-screen bg-[#f6f6f4] text-[#151515]">
+      <div className="mx-auto max-w-3xl px-4 py-10">
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.3em] text-[#151515]/60">
+              New call recording
+            </p>
+            <h1 className="mt-1 text-3xl font-semibold text-[#151515]">
+              {picked ? picked.name : "Pick a client"}
+            </h1>
+            <p className="mt-1 text-sm text-[#151515]/60">
+              {picked
+                ? "Record the call — we'll transcribe and summarize into their notes."
+                : "Search your clients, then start recording."}
+            </p>
+          </div>
+          <Link
+            href={picked ? "/call" : "/dashboard"}
+            onClick={(e) => {
+              if (picked) {
+                e.preventDefault();
+                setPicked(null);
+              }
+            }}
+            className="inline-flex items-center gap-1.5 rounded-full border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#151515] transition hover:border-[#3166bf] hover:text-[#3166bf]"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            {picked ? "Back to clients" : "Dashboard"}
+          </Link>
+        </div>
+
+        {!picked ? (
+          <>
+            <div className="relative mb-4">
+              <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#151515]/40" />
+              <input
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search clients by name, email, or phone…"
+                className="w-full rounded-full border border-[#e5e7eb] bg-white py-3 pl-11 pr-4 text-sm text-[#151515] shadow-sm outline-none transition focus:border-[#3166bf]"
+              />
+            </div>
+
+            {filtered.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-[#e5e7eb] bg-white p-12 text-center text-sm text-[#151515]/60">
+                {contacts.length === 0
+                  ? "No clients in your workspace yet. Add one from the Contacts page."
+                  : "No clients match that search."}
+              </div>
+            ) : (
+              <ul className="divide-y divide-[#e5e7eb] overflow-hidden rounded-2xl border border-[#e5e7eb] bg-white shadow-sm">
+                {filtered.map((c) => (
+                  <li key={c.id}>
+                    <button
+                      onClick={() => setPicked(c)}
+                      className="flex w-full items-center gap-3 px-5 py-4 text-left transition hover:bg-[#f3f4f6]"
+                    >
+                      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#3166bf]/15 text-sm font-medium text-[#3166bf]">
+                        {c.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-[#151515]">
+                          {c.name}
+                        </div>
+                        <div className="truncate text-xs text-[#151515]/60">
+                          {[c.email, c.phone].filter(Boolean).join(" · ") ||
+                            "No contact info"}
+                        </div>
+                      </div>
+                      <span className="text-xs font-medium text-[#3166bf]">
+                        Record →
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        ) : (
+          <CallRecorder contact={picked} />
+        )}
+      </div>
+    </div>
+  );
+}

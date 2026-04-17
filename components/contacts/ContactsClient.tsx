@@ -9,7 +9,7 @@ import AnalyzeContactAI from "@/components/ai/AnalyzeContactAI";
 import AddTaskForm from "@/components/tasks/AddTaskForm";
 import TaskItem from "@/components/tasks/TaskItem";
 import AddNoteForm from "@/components/notes/AddNoteForm";
-import { FileText } from "lucide-react";
+import { FileText, Mic } from "lucide-react";
 import { confirmDialog } from "@/components/ui/confirm-dialog";
 
 interface Contact {
@@ -137,12 +137,21 @@ export default function ContactsClient({ initialContacts, workspaceId }: Contact
 
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-[#151515]">All Contacts</h2>
-        <Button 
-          onClick={() => setShowAddForm(true)}
-          className="rounded-full bg-[#3166bf] px-5 py-2 text-white shadow-lg transition hover:bg-[#2a5aa8]"
-        >
-          Add Contact
-        </Button>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/call"
+            className="inline-flex items-center gap-2 rounded-full border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#151515] shadow-sm transition hover:border-red-500 hover:text-red-600"
+          >
+            <Mic className="h-4 w-4" />
+            Start Call
+          </Link>
+          <Button
+            onClick={() => setShowAddForm(true)}
+            className="rounded-full bg-[#3166bf] px-5 py-2 text-white shadow-lg transition hover:bg-[#2a5aa8]"
+          >
+            Add Contact
+          </Button>
+        </div>
       </div>
 
       {showAddForm && (
@@ -202,6 +211,14 @@ export default function ContactsClient({ initialContacts, workspaceId }: Contact
                   >
                     <FileText className="h-3 w-3" />
                     Docs
+                  </Link>
+                  <Link
+                    href={`/call?contactId=${contact.id}`}
+                    className="inline-flex items-center gap-1 rounded-full border border-[#e5e7eb] bg-[#f3f4f6] px-3 py-1 text-xs font-medium text-[#151515] transition hover:border-red-500 hover:bg-red-50 hover:text-red-600"
+                    title="Record a call with this client"
+                  >
+                    <Mic className="h-3 w-3" />
+                    Call
                   </Link>
                   <Button
                     variant="ghost"
