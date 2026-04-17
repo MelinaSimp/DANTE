@@ -41,10 +41,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
     }
 
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
+    // Prefer Claude Sonnet when ANTHROPIC_API_KEY is set; fall back to OpenAI.
+    const anthropicKey = process.env.ANTHROPIC_API_KEY;
+    const openaiKey = process.env.OPENAI_API_KEY;
+    const provider: "anthropic" | "openai" = anthropicKey ? "anthropic" : "openai";
+    if (provider === "anthropic" ? !anthropicKey : !openaiKey) {
       return NextResponse.json(
-        { error: "OpenAI API key not configured" },
+        { error: "No LLM API key configured (set ANTHROPIC_API_KEY or OPENAI_API_KEY)" },
         { status: 500 }
       );
     }
@@ -154,26 +157,81 @@ export async function POST(req: NextRequest) {
             .limit(150);
 
           if (contacts && contacts.length > 0) {
+            // Pull the 200 most recent notes across the workspace so the model
+            // has real context about each client (history, preferences,
+            // objections, prior meetings) and not just name/email/phone.
+            const { data: notesRows } = await supabaseAdmin
+              .from("notes")
+              .select("contact_id, body, created_at")
+              .eq("workspace_id", workspaceId)
+              .order("created_at", { ascending: false })
+              .limit(200);
+
+            // Group notes by contact, keep latest 5 per contact, cap each body
+            // to 400 chars so one contact with 50 long notes can't dominate.
+            const notesByContact = new Map<string, { body: string; created_at: string }[]>();
+            (notesRows || []).forEach((n) => {
+              const arr = notesByContact.get(n.contact_id) || [];
+              if (arr.length < 5) {
+                arr.push({
+                  body: (n.body || "").slice(0, 400),
+                  created_at: n.created_at,
+                });
+                notesByContact.set(n.contact_id, arr);
+              }
+            });
+
             const list = contacts
               .map((c, i) => {
                 const parts = [c.name || "(no name)"];
                 if (c.email) parts.push(`<${c.email}>`);
                 if (c.phone) parts.push(`phone: ${c.phone}`);
-                return `${i + 1}. ${parts.join(" ")}`;
+                let line = `${i + 1}. ${parts.join(" ")}`;
+                const cNotes = notesByContact.get(c.id);
+                if (cNotes && cNotes.length > 0) {
+                  const notesText = cNotes
+                    .map((n) => {
+                      const date = new Date(n.created_at).toISOString().split("T")[0];
+                      return `   - [${date}] ${n.body}`;
+                    })
+                    .join("\n");
+                  line += `\n${notesText}`;
+                }
+                return line;
               })
               .join("\n");
 
-            contactsContext = `\n\nWORKSPACE CLIENT LIST (${contacts.length} ${contacts.length === 1 ? "client" : "clients"}):\nThese are the clients/contacts in the user's workspace. You can reference them by name and use their contact details when composing emails, planning meetings, or answering questions about who the clients are. Do NOT invent clients that are not on this list.\n\n${list}`;
+            const notesCount = notesRows?.length ?? 0;
+            contactsContext = `\n\nWORKSPACE CLIENT LIST (${contacts.length} ${contacts.length === 1 ? "client" : "clients"}${notesCount > 0 ? `, ${notesCount} recent notes` : ""}):\nThese are the clients/contacts in the user's workspace along with recent notes the consultant has taken about each one. Use the notes as ground truth when personalizing emails, planning meetings, or answering questions — they capture real conversation history, preferences, goals, concerns, and prior commitments. Do NOT invent clients or notes that are not in this list.\n\n${list}`;
 
             // If the emailing compose form tells us who the recipient is,
             // pull out that contact specifically so the LLM keys its
-            // personalization on the right person.
+            // personalization on the right person — and surface ALL their
+            // notes (not just the latest 5) since we care about this one.
             if (recipientEmail && typeof recipientEmail === "string") {
               const match = contacts.find(
                 (c) => c.email && c.email.toLowerCase() === recipientEmail.toLowerCase()
               );
               if (match) {
-                contactsContext += `\n\nACTIVE RECIPIENT: The email is being composed for ${match.name || match.email} (${match.email}). Personalize the content for this specific person — use their name, reference any relevant context from the client list if applicable.`;
+                const { data: recipientNotes } = await supabaseAdmin
+                  .from("notes")
+                  .select("body, created_at")
+                  .eq("workspace_id", workspaceId)
+                  .eq("contact_id", match.id)
+                  .order("created_at", { ascending: false })
+                  .limit(20);
+
+                let recipientBlock = `\n\nACTIVE RECIPIENT: The email is being composed for ${match.name || match.email} (${match.email}). Personalize the content for this specific person — use their name, reference relevant context from their notes below.`;
+                if (recipientNotes && recipientNotes.length > 0) {
+                  recipientBlock += `\n\nAll notes for ${match.name || match.email}:\n`;
+                  recipientBlock += recipientNotes
+                    .map((n) => {
+                      const date = new Date(n.created_at).toISOString().split("T")[0];
+                      return `- [${date}] ${(n.body || "").slice(0, 800)}`;
+                    })
+                    .join("\n");
+                }
+                contactsContext += recipientBlock;
               } else {
                 contactsContext += `\n\nACTIVE RECIPIENT: The email is being composed for ${recipientEmail}. This recipient is not in the workspace client list — treat them as a new/external contact.`;
               }
@@ -495,37 +553,124 @@ Be specific about WHO needs to do WHAT and by WHEN. Reference client data and gu
       content: userMessageContent,
     });
 
-    // Call OpenAI API
-    // Use gpt-4o for template mode (better at following complex chart instructions), gpt-4o-mini otherwise
-    const model = (templateName && requiredChartCount > 0) ? "gpt-4o" : "gpt-4o-mini";
-    console.log("[LLM Chat] Model:", model, "requiredChartCount:", requiredChartCount, "chartRequirements:", chartRequirementsList);
+    // Pick the model based on provider + mode.
+    // Anthropic: Sonnet 4.5 for everything (handles charts fine too).
+    // OpenAI fallback: gpt-4o for template chart mode, gpt-4o-mini otherwise.
+    const model =
+      provider === "anthropic"
+        ? "claude-sonnet-4-5"
+        : templateName && requiredChartCount > 0
+          ? "gpt-4o"
+          : "gpt-4o-mini";
+    console.log("[LLM Chat] Provider:", provider, "Model:", model, "requiredChartCount:", requiredChartCount, "chartRequirements:", chartRequirementsList);
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: model,
-        messages,
-        temperature: 0.3, // Reduced from 0.7 for faster, more deterministic responses
-        max_tokens: 4000, // Increased from 500 to allow chart data blocks + text content
-        stream: false,
-      }),
-    });
+    let assistantMessage = "";
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let finishReason: string | undefined;
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("OpenAI API error:", errorText);
-      return NextResponse.json(
-        { error: "Failed to get response from AI" },
-        { status: response.status }
-      );
+    if (provider === "anthropic") {
+      // Translate OpenAI-shaped `messages` into Anthropic shape:
+      //  - system prompt is a separate top-level field
+      //  - images use {type:"image", source:{type:"base64", media_type, data}}
+      //    instead of {type:"image_url", image_url:{url:"data:..."}}
+      const systemMessages = messages.filter((m) => m.role === "system");
+      const systemPrompt = systemMessages
+        .map((m) => (typeof m.content === "string" ? m.content : ""))
+        .join("\n\n");
+      const turns = messages
+        .filter((m) => m.role !== "system")
+        .map((m) => {
+          if (typeof m.content === "string") {
+            return { role: m.role, content: m.content };
+          }
+          const parts = m.content.map((part) => {
+            if (part.type === "image_url" && part.image_url?.url) {
+              const url = part.image_url.url;
+              const match = url.match(/^data:([^;]+);base64,(.+)$/);
+              if (match) {
+                return {
+                  type: "image" as const,
+                  source: {
+                    type: "base64" as const,
+                    media_type: match[1],
+                    data: match[2],
+                  },
+                };
+              }
+              // Fallback: send URL reference as text if not base64
+              return { type: "text" as const, text: `[image: ${url}]` };
+            }
+            return { type: "text" as const, text: part.text || "" };
+          });
+          return { role: m.role, content: parts };
+        });
+
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": anthropicKey!,
+          "anthropic-version": "2023-06-01",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 4000,
+          temperature: 0.3,
+          system: systemPrompt,
+          messages: turns,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Anthropic API error:", errorText);
+        return NextResponse.json(
+          { error: "Failed to get response from AI" },
+          { status: response.status }
+        );
+      }
+
+      const data = await response.json();
+      // Anthropic returns content as an array of blocks; concatenate text blocks.
+      assistantMessage = (data.content || [])
+        .filter((b: any) => b.type === "text")
+        .map((b: any) => b.text || "")
+        .join("") || "I'm sorry, I couldn't generate a response.";
+      inputTokens = data.usage?.input_tokens ?? 0;
+      outputTokens = data.usage?.output_tokens ?? 0;
+      finishReason = data.stop_reason;
+    } else {
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${openaiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: 0.3,
+          max_tokens: 4000,
+          stream: false,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("OpenAI API error:", errorText);
+        return NextResponse.json(
+          { error: "Failed to get response from AI" },
+          { status: response.status }
+        );
+      }
+
+      const data = await response.json();
+      assistantMessage = data.choices[0]?.message?.content || "I'm sorry, I couldn't generate a response.";
+      inputTokens = data.usage?.prompt_tokens ?? 0;
+      outputTokens = data.usage?.completion_tokens ?? 0;
+      finishReason = data.choices[0]?.finish_reason;
     }
-
-    const data = await response.json();
-    const assistantMessage = data.choices[0]?.message?.content || "I'm sorry, I couldn't generate a response.";
 
     // Meter LLM usage for billing (fire-and-forget).
     try {
@@ -534,21 +679,21 @@ Be specific about WHO needs to do WHAT and by WHEN. Reference client data and gu
         .select("workspace_id")
         .eq("id", user.id)
         .maybeSingle();
-      if (prof?.workspace_id && data.usage) {
+      if (prof?.workspace_id && (inputTokens > 0 || outputTokens > 0)) {
         recordLlmUsage({
           workspaceId: prof.workspace_id,
           userId: user.id,
           model,
-          inputTokens: data.usage.prompt_tokens ?? 0,
-          outputTokens: data.usage.completion_tokens ?? 0,
+          inputTokens,
+          outputTokens,
           source: "llm_chat",
-          metadata: { agentId, chatId },
+          metadata: { agentId, chatId, provider },
         });
       }
     } catch (err) {
       console.error("[LLM Chat] usage tracking failed:", err);
     }
-    const finishReason = data.choices[0]?.finish_reason;
+
     const chartBlockCount = (assistantMessage.match(/<!--\s*CHART_DATA\s*-->/gi) || []).length;
     console.log("[LLM Chat] Response length:", assistantMessage.length, "finish_reason:", finishReason, "chart blocks found:", chartBlockCount, "required:", requiredChartCount);
     if (requiredChartCount > 0 && chartBlockCount < requiredChartCount) {
