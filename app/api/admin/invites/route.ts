@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { hasSuperadminAccess } from "@/lib/superadmin";
 import { logAudit } from "@/lib/audit";
 import { getAppUrl } from "@/lib/app-url";
+import { recordEmailUsage } from "@/lib/usage/track";
 import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
@@ -103,6 +104,12 @@ export async function POST(req: NextRequest) {
             </p>
           </div>
         `,
+      });
+      recordEmailUsage({
+        workspaceId,
+        recipientCount: 1,
+        source: "invite",
+        metadata: { invited_email: email },
       });
     } catch (emailErr: any) {
       console.error("[Admin Invites] Email send failed:", emailErr.message);

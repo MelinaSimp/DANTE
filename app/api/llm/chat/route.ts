@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { recordLlmUsage } from "@/lib/usage/track";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -470,6 +471,28 @@ Be specific about WHO needs to do WHAT and by WHEN. Reference client data and gu
 
     const data = await response.json();
     const assistantMessage = data.choices[0]?.message?.content || "I'm sorry, I couldn't generate a response.";
+
+    // Meter LLM usage for billing (fire-and-forget).
+    try {
+      const { data: prof } = await supabaseAdmin
+        .from("profiles")
+        .select("workspace_id")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (prof?.workspace_id && data.usage) {
+        recordLlmUsage({
+          workspaceId: prof.workspace_id,
+          userId: user.id,
+          model,
+          inputTokens: data.usage.prompt_tokens ?? 0,
+          outputTokens: data.usage.completion_tokens ?? 0,
+          source: "llm_chat",
+          metadata: { agentId, chatId },
+        });
+      }
+    } catch (err) {
+      console.error("[LLM Chat] usage tracking failed:", err);
+    }
     const finishReason = data.choices[0]?.finish_reason;
     const chartBlockCount = (assistantMessage.match(/<!--\s*CHART_DATA\s*-->/gi) || []).length;
     console.log("[LLM Chat] Response length:", assistantMessage.length, "finish_reason:", finishReason, "chart blocks found:", chartBlockCount, "required:", requiredChartCount);

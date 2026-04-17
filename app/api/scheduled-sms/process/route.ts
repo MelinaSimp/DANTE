@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import twilio from "twilio";
+import { recordSmsUsage } from "@/lib/usage/track";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60; // 60 seconds for batch processing
@@ -99,7 +100,15 @@ export async function GET(req: NextRequest) {
             sent_at: new Date().toISOString(),
           })
           .eq("id", sms.id);
-        
+
+        if (sms.workspace_id) {
+          recordSmsUsage({
+            workspaceId: sms.workspace_id,
+            source: "scheduled",
+            metadata: { scheduled_sms_id: sms.id, twilio_sid: message.sid },
+          });
+        }
+
         processed++;
         console.log(`[Scheduled SMS] Sent SMS ${sms.id} to ${sms.phone_number}`);
       } catch (error: any) {

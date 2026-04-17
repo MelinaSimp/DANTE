@@ -10,6 +10,7 @@ import {
   UserPlus,
   BarChart3,
   CreditCard,
+  Gauge,
   ArrowLeft,
   Menu,
   X,
@@ -20,6 +21,7 @@ const adminNav = [
   { name: "Features", href: "/admin/features", icon: Shield },
   { name: "Workspaces", href: "/admin/workspaces", icon: Building2 },
   { name: "Billing", href: "/admin/billing", icon: CreditCard },
+  { name: "Usage", href: "/admin/usage", icon: Gauge },
   { name: "Invites", href: "/admin/invites", icon: UserPlus },
   { name: "Analytics", href: "/admin/analytics", icon: BarChart3 },
 ];

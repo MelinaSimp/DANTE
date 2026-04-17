@@ -4,6 +4,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { requireUserWithWorkspace } from "@/lib/api-auth";
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { recordLlmUsage } from "@/lib/usage/track";
 
 interface NoteLite {
   id: string;
@@ -179,6 +180,17 @@ export async function POST(req: NextRequest) {
         { error: "No AI response received" },
         { status: 500 }
       );
+    }
+
+    if (data.usage && auth.workspaceId) {
+      recordLlmUsage({
+        workspaceId: auth.workspaceId,
+        userId: auth.user.id,
+        model: "gpt-4o-mini",
+        inputTokens: data.usage.prompt_tokens ?? 0,
+        outputTokens: data.usage.completion_tokens ?? 0,
+        source: "analyze_contact",
+      });
     }
 
     try {

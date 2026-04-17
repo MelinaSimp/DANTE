@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { Resend } from "resend";
+import { recordEmailUsage } from "@/lib/usage/track";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -73,6 +74,15 @@ export async function GET(req: NextRequest) {
             sent_at: new Date().toISOString(),
           })
           .eq("id", email.id);
+
+        if (email.workspace_id) {
+          recordEmailUsage({
+            workspaceId: email.workspace_id,
+            recipientCount: 1,
+            source: "scheduled",
+            metadata: { scheduled_email_id: email.id },
+          });
+        }
 
         processed++;
         console.log(`[Scheduled Emails] Sent email ${email.id} to ${email.to_email}`);

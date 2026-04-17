@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { naiveLocalIsoToUtcIso, appDayRangeUtcIso, appWallClockToUtcMs, getAppTimezone } from "@/lib/app-timezone";
+import { recordVoiceUsage } from "@/lib/usage/track";
 import dayjs from "dayjs";
 
 export const dynamic = "force-dynamic";
@@ -556,6 +557,15 @@ async function handleEndOfCallReport(message: any) {
       console.error("[VAPI Webhook] Failed to save conversation:", error);
     } else {
       console.log(`[VAPI Webhook] Saved conversation for call ${call.id}, agent ${agentId}`);
+    }
+
+    if (workspaceId && durationSeconds > 0) {
+      recordVoiceUsage({
+        workspaceId,
+        minutes: durationSeconds / 60,
+        source: "vapi",
+        metadata: { call_id: call.id, agent_id: agentId, ended_reason: endedReason },
+      });
     }
   } catch (err) {
     console.error("[VAPI Webhook] Error saving conversation:", err);

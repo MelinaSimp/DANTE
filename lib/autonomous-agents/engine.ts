@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { buildAgentPrompt } from "./prompts";
+import { recordLlmUsage } from "@/lib/usage/track";
 
 interface AgentDef {
   id: string;
@@ -404,6 +405,17 @@ export async function executeAutonomousAgent(
     const json = await res.json();
     const content = json.choices?.[0]?.message?.content;
     if (!content) throw new Error("Empty response from OpenAI");
+
+    if (json.usage) {
+      recordLlmUsage({
+        workspaceId,
+        model: "gpt-4o-mini",
+        inputTokens: json.usage.prompt_tokens ?? 0,
+        outputTokens: json.usage.completion_tokens ?? 0,
+        source: "autonomous_agent",
+        metadata: { agent_id: agentId, agent_name: agent.name },
+      });
+    }
 
     let parsed: LLMResponse;
     try {

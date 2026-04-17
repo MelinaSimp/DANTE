@@ -3,6 +3,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { Resend } from "resend";
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { emitEvent } from "@/lib/automations";
+import { recordEmailUsage } from "@/lib/usage/track";
 
 export const dynamic = "force-dynamic";
 
@@ -76,6 +77,25 @@ export async function POST(req: NextRequest) {
     }
 
     emitEvent("email.sent", { to: recipients, subject, messageId: data?.id });
+
+    try {
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("workspace_id")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (prof?.workspace_id) {
+        recordEmailUsage({
+          workspaceId: prof.workspace_id,
+          userId: user.id,
+          recipientCount: recipients.length,
+          source: "direct_send",
+          metadata: { messageId: data?.id, subject: String(subject).slice(0, 100) },
+        });
+      }
+    } catch (err) {
+      console.error("[emails/send] usage tracking failed:", err);
+    }
 
     return NextResponse.json({
       success: true,
