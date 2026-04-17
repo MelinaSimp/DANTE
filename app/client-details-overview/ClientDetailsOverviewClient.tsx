@@ -27,6 +27,8 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { formatPhoneToE164 } from "@/lib/validation";
+import { supabase } from "@/lib/supabase/client";
+import AddNoteForm from "@/components/notes/AddNoteForm";
 import type { Annotation } from "@/components/documents/PdfViewerWithAnnotations";
 
 const PdfViewerWithAnnotations = dynamic(
@@ -52,6 +54,13 @@ type ClientTemplate = {
   name: string;
   document_id: string;
   annotated_page_numbers: number[];
+  created_at: string;
+};
+
+type ClientNote = {
+  id: string;
+  contact_id: string;
+  body: string;
   created_at: string;
 };
 
@@ -121,6 +130,9 @@ export default function ClientDetailsOverviewClient({
   // Templates list + "Use this template" flow
   const [templates, setTemplates] = useState<ClientTemplate[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<ClientTemplate | null>(null);
+  // Notes list for the selected client (hand-written + AI call-recording notes)
+  const [clientNotes, setClientNotes] = useState<ClientNote[]>([]);
+  const [notesLoading, setNotesLoading] = useState(false);
   const [useTemplateMode, setUseTemplateMode] = useState(false);
   const [documentToAnalyzeUrl, setDocumentToAnalyzeUrl] = useState<string | null>(null);
   const [documentToAnalyzeFileName, setDocumentToAnalyzeFileName] = useState<string | null>(null);
@@ -207,15 +219,33 @@ export default function ClientDetailsOverviewClient({
     setTemplates(data.templates ?? []);
   }, []);
 
+  // RLS on `notes` is already scoped to the user's workspace, so a plain
+  // select by contact_id is safe from the client.
+  const loadNotes = useCallback(async (contactId: string) => {
+    setNotesLoading(true);
+    try {
+      const { data } = await supabase
+        .from("notes")
+        .select("id, contact_id, body, created_at")
+        .eq("contact_id", contactId)
+        .order("created_at", { ascending: false });
+      setClientNotes((data as ClientNote[]) ?? []);
+    } finally {
+      setNotesLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     setUploadError(null);
     if (selected?.type === "client") {
       loadDocument(selected.id);
       loadTemplates(selected.id);
+      loadNotes(selected.id);
     } else {
       setDocument(null);
       setAnnotations([]);
       setTemplates([]);
+      setClientNotes([]);
     }
     setSelectedTemplate(null);
     setUseTemplateMode(false);
@@ -223,7 +253,7 @@ export default function ClientDetailsOverviewClient({
     setEditingTemplateAnnotations(null);
     setTemplateDocForEdit(null);
     setTemplateAnnotationsForEdit([]);
-  }, [selected?.type, selected?.id ?? "", loadDocument, loadTemplates]);
+  }, [selected?.type, selected?.id ?? "", loadDocument, loadTemplates, loadNotes]);
 
   // Reset template prompt when document changes so we can ask again for the new doc
   useEffect(() => {
@@ -1391,10 +1421,69 @@ export default function ClientDetailsOverviewClient({
                   </div>
                 )}
                 </div>
+
+                {/* Notes — hand-written + AI-generated call summaries */}
+                <div className="rounded-xl border border-[#e5e7eb] bg-white p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-[#6b7280]">Notes</h3>
+                    {selected?.type === "client" && (
+                      <Link
+                        href={`/call?contactId=${selected.id}`}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs font-medium text-[#151515] hover:border-[#3166bf] hover:text-[#3166bf]"
+                      >
+                        <Phone className="h-3.5 w-3.5" />
+                        Record call
+                      </Link>
+                    )}
+                  </div>
+                  {selected?.type !== "client" ? (
+                    <p className="text-sm text-[#6b7280]">Select a client to view and add notes.</p>
+                  ) : (
+                    <div className="space-y-4">
+                      <AddNoteForm contactId={selected.id} />
+                      {notesLoading ? (
+                        <p className="text-sm text-[#6b7280]">Loading notes…</p>
+                      ) : clientNotes.length === 0 ? (
+                        <p className="text-sm text-[#6b7280]">No notes yet. Write one above, or record a call to auto-generate one.</p>
+                      ) : (
+                        <ul className="space-y-3">
+                          {clientNotes.map((n) => {
+                            const isCallNote = n.body.startsWith("📞 Call with");
+                            return (
+                              <li
+                                key={n.id}
+                                className={`rounded-xl border p-3 text-sm whitespace-pre-wrap ${
+                                  isCallNote
+                                    ? "border-[#3166bf]/30 bg-[#3166bf]/5 text-[#151515]"
+                                    : "border-[#e5e7eb] bg-[#f9fafb] text-[#374151]"
+                                }`}
+                              >
+                                <div className="mb-1 flex items-center justify-between gap-2 text-xs text-[#6b7280]">
+                                  <span>
+                                    {new Date(n.created_at).toLocaleString("en-US", {
+                                      dateStyle: "medium",
+                                      timeStyle: "short",
+                                    })}
+                                  </span>
+                                  {isCallNote && (
+                                    <span className="rounded-full bg-[#3166bf]/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-[#3166bf]">
+                                      Call recording
+                                    </span>
+                                  )}
+                                </div>
+                                <div>{n.body}</div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
-            
+
           </div>
         </div>
       </div>
