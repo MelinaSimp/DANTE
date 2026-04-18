@@ -16,9 +16,14 @@ const AGENT_PURPOSES: Record<string, string> = {
 export function buildAgentPrompt(
   agentName: string,
   purpose: string,
-  data: string
+  data: string,
+  opts: { isCustom?: boolean } = {}
 ): { system: string; user: string } {
-  const resolvedPurpose = AGENT_PURPOSES[agentName] || purpose;
+  // Custom agents always use their own instructions — never fall back to a
+  // preset prompt even if the customer named their agent the same as a built-in.
+  const resolvedPurpose = opts.isCustom
+    ? purpose
+    : AGENT_PURPOSES[agentName] || purpose;
 
   const system = `You are an autonomous CRM intelligence agent called "${agentName}".
 

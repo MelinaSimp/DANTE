@@ -9,9 +9,12 @@ import {
   CheckCircle2, XCircle, Circle, Layers, Radio,
   Settings, Loader2, Users, DollarSign, AlertTriangle,
   CheckCircle, Play, Sparkles, ThumbsUp, X, Clock,
-  Lightbulb, FileText, Bell,
+  Lightbulb, FileText, Bell, Plus, Trash2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import CreateAutonomousAgentModal, {
+  type CreatedAgent,
+} from "@/components/agents/CreateAutonomousAgentModal";
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -52,6 +55,7 @@ interface AutoAgent {
   pending_reviews: number;
   last_run: string | null;
   last_error: string | null;
+  is_custom?: boolean;
 }
 
 interface AgentOutput {
@@ -159,6 +163,10 @@ export default function AgentsPage() {
 
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Create-agent modal for customer-defined autonomous agents
+  const [createAgentOpen, setCreateAgentOpen] = useState(false);
+  const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null);
 
   // ── CRM data fetch ────────────────────────────────────────
 
@@ -280,6 +288,32 @@ export default function AgentsPage() {
     } catch {}
   };
 
+  const handleAgentCreated = (agent: CreatedAgent) => {
+    // Prepend so the new custom agent shows up first
+    setAutoAgents((prev) => [{ ...agent, is_custom: true }, ...prev]);
+  };
+
+  const handleDeleteAgent = async (agent: AutoAgent) => {
+    if (!agent.is_custom) return;
+    if (!confirm(`Delete custom agent "${agent.name}"? This can't be undone.`))
+      return;
+    setDeletingAgentId(agent.id);
+    try {
+      const res = await fetch(`/api/autonomous-agents/${agent.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (res.ok) {
+        setAutoAgents((prev) => prev.filter((a) => a.id !== agent.id));
+      } else {
+        const json = await res.json().catch(() => ({}));
+        setError(json.error || "Failed to delete agent");
+      }
+    } finally {
+      setDeletingAgentId(null);
+    }
+  };
+
   const updateTask = async (taskId: string, status: string) => {
     try {
       await fetch(`/api/autonomous-agents/tasks/${taskId}`, {
@@ -375,14 +409,23 @@ export default function AgentsPage() {
             setOutputFilter={setOutputFilter}
             runningAll={runningAll}
             runningAgent={runningAgent}
+            deletingAgentId={deletingAgentId}
             onRunAll={runAll}
             onRunAgent={runAgent}
             onReviewOutput={reviewOutput}
             onUpdateTask={updateTask}
+            onCreateAgent={() => setCreateAgentOpen(true)}
+            onDeleteAgent={handleDeleteAgent}
             totalPending={outputs.filter((o) => o.review_status === "PENDING").length}
           />
         )}
       </div>
+
+      <CreateAutonomousAgentModal
+        open={createAgentOpen}
+        onClose={() => setCreateAgentOpen(false)}
+        onCreated={handleAgentCreated}
+      />
     </div>
   );
 }
@@ -514,7 +557,8 @@ function CRMAgentsTab({ agents, stats, onToggle }: { agents: CRMAgent[]; stats: 
 
 function AutonomousAgentsTab({
   agents, outputs, tasks, outputFilter, setOutputFilter,
-  runningAll, runningAgent, onRunAll, onRunAgent, onReviewOutput, onUpdateTask, totalPending,
+  runningAll, runningAgent, deletingAgentId,
+  onRunAll, onRunAgent, onReviewOutput, onUpdateTask, onCreateAgent, onDeleteAgent, totalPending,
 }: {
   agents: AutoAgent[];
   outputs: AgentOutput[];
@@ -523,10 +567,13 @@ function AutonomousAgentsTab({
   setOutputFilter: (f: string) => void;
   runningAll: boolean;
   runningAgent: string | null;
+  deletingAgentId: string | null;
   onRunAll: () => void;
   onRunAgent: (id: string) => void;
   onReviewOutput: (id: string, status: string) => void;
   onUpdateTask: (id: string, status: string) => void;
+  onCreateAgent: () => void;
+  onDeleteAgent: (agent: AutoAgent) => void;
   totalPending: number;
 }) {
   return (
@@ -542,11 +589,18 @@ function AutonomousAgentsTab({
           </div>
           <p className="text-sm text-zinc-500">AI agents that analyze your CRM data and generate actionable insights.</p>
         </div>
-        <button onClick={onRunAll} disabled={runningAll}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition disabled:opacity-50">
-          {runningAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-          {runningAll ? "Running..." : "Run All Agents"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={onCreateAgent}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-zinc-700 bg-zinc-900 hover:border-fuchsia-500/50 hover:bg-fuchsia-500/10 text-zinc-100 hover:text-fuchsia-300 text-sm font-semibold transition">
+            <Plus className="h-4 w-4" />
+            Create agent
+          </button>
+          <button onClick={onRunAll} disabled={runningAll}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition disabled:opacity-50">
+            {runningAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+            {runningAll ? "Running..." : "Run All Agents"}
+          </button>
+        </div>
       </div>
 
       {/* Agent cards */}
@@ -594,11 +648,20 @@ function AutonomousAgentsTab({
                   <p className="text-[11px] text-red-400 mt-2 line-clamp-2">{agent.last_error}</p>
                 )}
 
-                <button onClick={() => onRunAgent(agent.id)} disabled={isRunning}
-                  className="w-full mt-3 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-emerald-400 hover:bg-emerald-500/10 border border-zinc-800 hover:border-emerald-500/30 transition disabled:opacity-50">
-                  {isRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
-                  {isRunning ? "Running..." : "Run"}
-                </button>
+                <div className="flex items-center gap-1.5 mt-3">
+                  <button onClick={() => onRunAgent(agent.id)} disabled={isRunning}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-emerald-400 hover:bg-emerald-500/10 border border-zinc-800 hover:border-emerald-500/30 transition disabled:opacity-50">
+                    {isRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
+                    {isRunning ? "Running..." : "Run"}
+                  </button>
+                  {agent.is_custom && (
+                    <button onClick={() => onDeleteAgent(agent)} disabled={deletingAgentId === agent.id}
+                      title="Delete agent"
+                      className="flex items-center justify-center px-2 py-2 rounded-lg text-xs font-medium text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 border border-zinc-800 hover:border-rose-500/30 transition disabled:opacity-50">
+                      {deletingAgentId === agent.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                    </button>
+                  )}
+                </div>
               </motion.div>
             );
           })}

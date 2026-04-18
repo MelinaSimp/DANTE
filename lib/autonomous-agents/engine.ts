@@ -346,6 +346,36 @@ const DATA_LOADERS: Record<string, (wid: string) => Promise<string>> = {
   "Meeting Follow-up": loadMeetingData,
 };
 
+// Customer-defined agents pick which CRM data sources to feed the LLM.
+// The keys here are what the UI exposes as checkboxes.
+const CUSTOM_SOURCE_LOADERS: Record<string, (wid: string) => Promise<string>> = {
+  contacts: loadEngagementData,
+  sales: loadRevenueData,
+  conversations: loadConversationData,
+  appointments: loadMeetingData,
+  tasks_activity: loadTaskGenData,
+  churn_signals: loadChurnData,
+};
+
+async function loadCustomAgentData(
+  wid: string,
+  sources: string[]
+): Promise<string> {
+  if (!sources?.length) {
+    return "(No data sources selected for this agent.)";
+  }
+  const blocks: string[] = [];
+  for (const src of sources) {
+    const loader = CUSTOM_SOURCE_LOADERS[src];
+    if (!loader) continue;
+    const data = await loader(wid);
+    blocks.push(`=== ${src.toUpperCase().replace(/_/g, " ")} ===\n${data}`);
+  }
+  return blocks.length
+    ? blocks.join("\n\n")
+    : "(Selected data sources produced no data.)";
+}
+
 // ── Main executor ─────────────────────────────────────────────
 
 export async function executeAutonomousAgent(
@@ -369,13 +399,29 @@ export async function executeAutonomousAgent(
     .eq("id", agentId);
 
   try {
-    const loader = DATA_LOADERS[agent.name];
-    if (!loader) {
-      throw new Error(`No data loader for agent: ${agent.name}`);
+    let data: string;
+    let promptPurpose: string;
+
+    if (agent.is_custom) {
+      // Custom agent: load user-selected data sources, feed in user-written
+      // instructions as the "purpose" so the prompt template respects them.
+      data = await loadCustomAgentData(
+        workspaceId,
+        Array.isArray(agent.data_sources) ? agent.data_sources : []
+      );
+      promptPurpose = agent.custom_instructions || agent.purpose;
+    } else {
+      const loader = DATA_LOADERS[agent.name];
+      if (!loader) {
+        throw new Error(`No data loader for agent: ${agent.name}`);
+      }
+      data = await loader(workspaceId);
+      promptPurpose = agent.purpose;
     }
 
-    const data = await loader(workspaceId);
-    const { system, user } = buildAgentPrompt(agent.name, agent.purpose, data);
+    const { system, user } = buildAgentPrompt(agent.name, promptPurpose, data, {
+      isCustom: !!agent.is_custom,
+    });
 
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
