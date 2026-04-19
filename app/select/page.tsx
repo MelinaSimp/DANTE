@@ -1,14 +1,27 @@
 "use client";
 
+// Workspace hub / role picker. Harvey-ized: pure white canvas,
+// editorial serif header, flat cards in a grid, 1px rules. No GLSL,
+// no purple orb, no hover-to-reveal gate — on a CCO's first visit
+// every destination is visible immediately.
+//
+// Post-auth users normally skip this page (callback redirects to
+// /dashboard). /select remains accessible for multi-role workspaces
+// and superadmins who need Backend/Admin.
+
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import {
+  Monitor,
+  Server,
+  Shield,
+  LogOut,
+  Settings,
+  LayoutDashboard,
+} from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
-import { Monitor, Server, Shield, LogOut, Settings, LayoutDashboard } from "lucide-react";
-import AgentOrb from "@/components/frontend/AgentOrb";
-import GLSLWaves from "@/components/ui/glsl-waves";
 import { reportError } from "@/lib/report-error";
-
-const DRIFT_COLORS = ["#B4A0D6", "#9B8EC4", "#C7B8E0"];
 
 interface NavItem {
   name: string;
@@ -24,17 +37,18 @@ export default function SelectPage() {
   const [backendPassword, setBackendPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [isSuperadmin, setIsSuperadmin] = useState(false);
-  const [hovered, setHovered] = useState(false);
-  const [clickedNav, setClickedNav] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const passwordRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) { router.push("/auth"); return; }
+      if (!user) {
+        router.push("/auth");
+        return;
+      }
       fetch("/api/me", { credentials: "include" })
-        .then(r => r.ok ? r.json() : null)
-        .then(data => {
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
           if (!data) return;
           if (data.is_superadmin) setIsSuperadmin(true);
           if (!data.workspace_id && !data.is_superadmin) {
@@ -47,14 +61,21 @@ export default function SelectPage() {
     });
   }, [router]);
 
+  // Same canvas override pattern as /auth — pave over any legacy
+  // dark-theme styling on html/body/main so this page reads pure white.
   useEffect(() => {
     const html = document.documentElement;
     const body = document.body;
     const main = document.querySelector("main");
-    html.style.setProperty("background", "#f5f5f7", "important");
-    body.style.setProperty("background", "#f5f5f7", "important");
-    body.style.setProperty("color", "#111827", "important");
-    if (main) (main as HTMLElement).style.setProperty("background", "#f5f5f7", "important");
+    html.style.setProperty("background", "var(--canvas)", "important");
+    body.style.setProperty("background", "var(--canvas)", "important");
+    body.style.setProperty("color", "var(--ink)", "important");
+    if (main)
+      (main as HTMLElement).style.setProperty(
+        "background",
+        "var(--canvas)",
+        "important"
+      );
     return () => {
       html.style.removeProperty("background");
       body.style.removeProperty("background");
@@ -66,7 +87,10 @@ export default function SelectPage() {
   useEffect(() => {
     if (!showBackendPassword) return;
     const h = (e: MouseEvent) => {
-      if (passwordRef.current && !passwordRef.current.contains(e.target as Node)) {
+      if (
+        passwordRef.current &&
+        !passwordRef.current.contains(e.target as Node)
+      ) {
         setShowBackendPassword(false);
         setBackendPassword("");
         setPasswordError("");
@@ -77,189 +101,244 @@ export default function SelectPage() {
   }, [showBackendPassword]);
 
   const handleBackendAccess = async () => {
-    if (!backendPassword.trim()) { setPasswordError("Please enter a password"); return; }
+    if (!backendPassword.trim()) {
+      setPasswordError("Please enter a password");
+      return;
+    }
     try {
       const r = await fetch("/api/backend/verify-password", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password: backendPassword }),
       });
       if (r.ok) {
         const data = await r.json();
-        if (data.valid) { sessionStorage.setItem("backend_authenticated", "true"); router.push("/app"); }
-        else setPasswordError("Incorrect password");
+        if (data.valid) {
+          sessionStorage.setItem("backend_authenticated", "true");
+          router.push("/app");
+        } else setPasswordError("Incorrect password");
       } else setPasswordError("Error verifying password");
-    } catch { setPasswordError("Error verifying password"); }
+    } catch {
+      setPasswordError("Error verifying password");
+    }
   };
 
   const navItems: NavItem[] = [
-    { name: "Frontend", description: "Interact with agents", icon: Monitor, action: () => router.push("/frontend") },
-    { name: "Admin", description: "Manage workspace", icon: Shield, action: () => router.push("/admin"), requiresSuperadmin: true },
-    { name: "Backend", description: "Configure agents", icon: Server, action: () => setShowBackendPassword(true) },
-    { name: "Dashboard", description: "Analytics & insights", icon: LayoutDashboard, action: () => router.push("/dashboard") },
-    { name: "Settings", description: "Workspace settings", icon: Settings, action: () => router.push("/settings") },
+    {
+      name: "Dashboard",
+      description: "Client book, calls, flags awaiting review.",
+      icon: LayoutDashboard,
+      action: () => router.push("/dashboard"),
+    },
+    {
+      name: "Frontend",
+      description: "Live agents and voice interactions.",
+      icon: Monitor,
+      action: () => router.push("/frontend"),
+    },
+    {
+      name: "Backend",
+      description: "Configure agents, prompts, tools.",
+      icon: Server,
+      action: () => setShowBackendPassword(true),
+    },
+    {
+      name: "Admin",
+      description: "Manage members, invites, billing.",
+      icon: Shield,
+      action: () => router.push("/admin"),
+      requiresSuperadmin: true,
+    },
+    {
+      name: "Settings",
+      description: "Workspace settings and integrations.",
+      icon: Settings,
+      action: () => router.push("/settings"),
+    },
   ];
 
-  const visibleItems = navItems.filter(item => !item.requiresSuperadmin || isSuperadmin);
-  const count = visibleItems.length;
-  const orbSize = 140;
-  const orbitRadius = 130;
-  const startAngle = -Math.PI / 2;
+  const visibleItems = navItems.filter(
+    (item) => !item.requiresSuperadmin || isSuperadmin
+  );
 
   if (!ready) {
-    return <div className="min-h-screen bg-[#f5f5f7] flex items-center justify-center" style={{ background: "#f5f5f7" }}><div className="text-gray-400 text-sm">Loading...</div></div>;
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ background: "var(--canvas)" }}
+      >
+        <div
+          className="text-sm mono"
+          style={{ color: "var(--ink-subtle)" }}
+        >
+          Loading…
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="relative min-h-screen bg-[#f5f5f7] flex flex-col overflow-hidden" style={{ background: "#f5f5f7" }}>
-      <div className="absolute inset-0 z-0 opacity-20">
-        <GLSLWaves mode="hills" speed={0.3} />
-      </div>
-      <div className="absolute inset-0 z-0 bg-gradient-to-t from-[#f5f5f7]/70 via-transparent to-[#f5f5f7]/40 pointer-events-none" />
-
+    <div
+      className="relative min-h-screen flex flex-col"
+      style={{ background: "var(--canvas)" }}
+    >
       {/* Top bar */}
-      <div className="relative z-10 flex items-center justify-between px-6 py-4">
-        <div className="flex items-center gap-2">
-          <img src="/brand/logo-circle.png" alt="Drift" className="w-6 h-6 rounded-full object-cover" />
-          <span className="text-sm font-semibold text-gray-900">Drift</span>
-        </div>
+      <div
+        className="flex items-center justify-between px-6 md:px-10 py-5"
+        style={{ borderBottom: "1px solid var(--rule)" }}
+      >
+        <Link href="/" className="inline-flex items-center gap-2 group">
+          <img
+            src="/brand/logo-circle.png"
+            alt="Drift"
+            className="w-6 h-6 rounded-full object-cover"
+          />
+          <span
+            className="heading-display text-xl"
+            style={{ color: "var(--ink)" }}
+          >
+            Drift
+          </span>
+        </Link>
         <button
-          onClick={async () => { await supabase.auth.signOut(); router.push("/auth"); }}
-          className="flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-800 transition-colors"
+          onClick={async () => {
+            await supabase.auth.signOut();
+            router.push("/auth");
+          }}
+          className="inline-flex items-center gap-1.5 text-xs transition-colors"
+          style={{ color: "var(--ink-muted)" }}
         >
-          <LogOut className="w-4 h-4" />
+          <LogOut className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Sign out</span>
         </button>
       </div>
 
       {/* Main */}
-      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 pb-16">
-        {/* Radial container */}
-        <div
-          className="relative"
-          style={{ width: (orbitRadius + 56) * 2, height: (orbitRadius + 56) * 2 }}
-          onMouseEnter={() => setHovered(true)}
-          onMouseLeave={() => setHovered(false)}
-        >
-          {/* Orbit ring */}
-          <div
-            className="absolute inset-0 rounded-full border border-dashed transition-all duration-500"
-            style={{ borderColor: hovered ? "rgba(0,0,0,0.08)" : "transparent", margin: 56 }}
-          />
+      <div className="flex-1 flex flex-col items-center justify-center px-6 py-12 md:py-16">
+        <div className="w-full max-w-3xl">
+          <div className="mb-8">
+            <div className="label-section mb-2">Workspace</div>
+            <h1
+              className="heading-display text-4xl md:text-5xl mb-2"
+              style={{ color: "var(--ink)" }}
+            >
+              Where would you like to go?
+            </h1>
+            <p
+              className="prose-body"
+              style={{ color: "var(--ink-muted)" }}
+            >
+              Most advisors spend their day in the dashboard. Other
+              surfaces are here if you need them.
+            </p>
+          </div>
 
-          {/* Nav items */}
-          {visibleItems.map((item, i) => {
-            const angle = startAngle + (i / count) * Math.PI * 2;
-            const cx = orbitRadius + 56;
-            const cy = orbitRadius + 56;
-            const x = cx + Math.cos(angle) * orbitRadius - 28;
-            const y = cy + Math.sin(angle) * orbitRadius - 28;
-            const Icon = item.icon;
-            const isClicked = clickedNav === item.name;
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {visibleItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.name}
+                  onClick={item.action}
+                  className="card-flat-hover text-left p-5 transition-colors"
+                  style={{
+                    borderColor: "var(--rule)",
+                    background: "var(--canvas)",
+                  }}
+                >
+                  <div className="flex items-start gap-3">
+                    <div
+                      className="flex items-center justify-center shrink-0"
+                      style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: "var(--r-chip)",
+                        background: "var(--accent-soft)",
+                        color: "var(--accent)",
+                      }}
+                    >
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div
+                        className="text-sm font-medium mb-0.5"
+                        style={{ color: "var(--ink)" }}
+                      >
+                        {item.name}
+                      </div>
+                      <div
+                        className="text-xs leading-relaxed"
+                        style={{ color: "var(--ink-muted)" }}
+                      >
+                        {item.description}
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
 
-            const handleClick = () => {
-              if (clickedNav) return;
-              if (item.name === "Backend") {
-                setClickedNav(item.name);
-                setTimeout(() => { setClickedNav(null); item.action(); }, 450);
-              } else {
-                setClickedNav(item.name);
-                setTimeout(() => { setClickedNav(null); item.action(); }, 450);
-              }
-            };
-
-            return (
-              <button
-                key={item.name}
-                onClick={handleClick}
-                className="absolute flex flex-col items-center gap-1.5 transition-all duration-500 group/nav"
+          {showBackendPassword && (
+            <div
+              ref={passwordRef}
+              className="mt-6 card-flat p-6 max-w-sm"
+              style={{
+                borderColor: "var(--rule)",
+                animation: "panelSlideUp 0.18s ease-out",
+              }}
+            >
+              <style>{`@keyframes panelSlideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+              <div className="label-section mb-2">Backend access</div>
+              <input
+                type="password"
+                value={backendPassword}
+                onChange={(e) => {
+                  setBackendPassword(e.target.value);
+                  setPasswordError("");
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleBackendAccess();
+                }}
+                placeholder="Enter password"
+                className="w-full px-3.5 py-2.5 text-sm outline-none"
                 style={{
-                  left: x, top: y, width: 56,
-                  opacity: hovered ? 1 : 0,
-                  transform: hovered ? (isClicked ? "scale(1.35)" : "scale(1)") : "scale(0.3)",
-                  pointerEvents: hovered ? "auto" : "none",
-                  zIndex: isClicked ? 50 : undefined,
+                  border: "1px solid var(--rule)",
+                  background: "var(--canvas)",
+                  color: "var(--ink)",
+                  borderRadius: "var(--r-input)",
+                }}
+                autoFocus
+              />
+              {passwordError && (
+                <p
+                  className="text-xs mt-2"
+                  style={{ color: "var(--danger)" }}
+                >
+                  {passwordError}
+                </p>
+              )}
+              <button
+                onClick={handleBackendAccess}
+                className="w-full mt-3 px-4 py-2.5 text-sm font-medium transition"
+                style={{
+                  background: "var(--ink)",
+                  color: "var(--canvas)",
+                  borderRadius: "var(--r-input)",
                 }}
               >
-                <div className="relative">
-                  {isClicked && (
-                    <>
-                      <div className="absolute inset-0 rounded-2xl bg-black/10 animate-ping" />
-                      <div className="absolute -inset-3 rounded-full border-2 border-gray-400/60 animate-ping" style={{ animationDuration: "0.6s" }} />
-                    </>
-                  )}
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300 ${
-                    isClicked
-                      ? "bg-black text-white shadow-xl shadow-black/30 scale-110 border-2 border-black"
-                      : "bg-white shadow-md border border-gray-200 group-hover/nav:shadow-lg group-hover/nav:scale-110 group-hover/nav:border-gray-300"
-                  }`}>
-                    <Icon className={`w-5 h-5 transition-colors ${isClicked ? "text-white" : "text-gray-600 group-hover/nav:text-black"}`} />
-                  </div>
-                </div>
-                <span className={`text-[10px] font-medium transition-all text-center leading-tight whitespace-nowrap ${
-                  isClicked ? "text-gray-900 font-bold scale-110" : "text-gray-500 group-hover/nav:text-gray-900"
-                }`}>
-                  {item.name}
-                </span>
+                Access Backend
               </button>
-            );
-          })}
-
-          {/* Center orb with Drift logo */}
-          <div
-            className="absolute"
-            style={{ left: orbitRadius + 56 - orbSize / 2, top: orbitRadius + 56 - orbSize / 2 }}
-          >
-            <div className="relative inline-flex items-center justify-center" style={{ width: orbSize, height: orbSize }}>
-              <AgentOrb
-                colors={DRIFT_COLORS}
-                size={orbSize}
-                className="rounded-full"
-                interactive
-                pulsing={hovered}
-              />
-              {/* Logo overlay */}
-              <img
-                src="/brand/logo-circle.png"
-                alt="Drift"
-                className="absolute z-10 rounded-full object-cover select-none pointer-events-none"
-                style={{
-                  width: orbSize * 0.45,
-                  height: orbSize * 0.45,
-                  filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.3))",
-                  transition: "transform 0.3s ease",
-                  transform: hovered ? "scale(1.05)" : "scale(1)",
-                }}
-              />
             </div>
-          </div>
+          )}
         </div>
+      </div>
 
-        {/* Info below orb */}
-        <div className="text-center -mt-2">
-          <h2 className="text-xl font-bold text-gray-900 mb-1">Welcome to Drift</h2>
-          <p className="text-xs text-gray-400">Hover over the orb to get started</p>
-        </div>
-
-        {/* Backend password popover */}
-        {showBackendPassword && (
-          <div ref={passwordRef} className="mt-6 bg-white rounded-2xl shadow-2xl border border-gray-200 p-6 w-80" style={{ animation: "panelSlideUp 0.2s ease-out" }}>
-            <style>{`@keyframes panelSlideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }`}</style>
-            <label className="block text-sm font-medium text-gray-900 mb-2">Backend Password</label>
-            <input
-              type="password"
-              value={backendPassword}
-              onChange={e => { setBackendPassword(e.target.value); setPasswordError(""); }}
-              onKeyDown={e => { if (e.key === "Enter") handleBackendAccess(); }}
-              placeholder="Enter password"
-              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300"
-              autoFocus
-            />
-            {passwordError && <p className="text-xs text-red-500 mt-2">{passwordError}</p>}
-            <button onClick={handleBackendAccess} className="w-full mt-3 px-4 py-2.5 rounded-xl bg-black text-white text-sm font-medium hover:bg-gray-800 transition">
-              Access Backend
-            </button>
-          </div>
-        )}
+      <div
+        className="text-center text-[11px] mono py-5"
+        style={{ color: "var(--ink-subtle)" }}
+      >
+        © {new Date().getFullYear()} Drift AI
       </div>
     </div>
   );

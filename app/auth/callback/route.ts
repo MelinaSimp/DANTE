@@ -71,8 +71,11 @@ export async function GET(req: Request) {
     
     if (data.session && data.user) {
       await ensureUserWorkspace(data.user, supabase);
-      
-      return NextResponse.redirect(new URL("/select", requestUrl.origin));
+
+      // Send users straight to the dashboard (the "sharp core").
+      // The /select hub is still reachable for multi-role workspaces
+      // but isn't the landing page anymore.
+      return NextResponse.redirect(new URL("/dashboard", requestUrl.origin));
     }
   }
 
@@ -83,8 +86,8 @@ export async function GET(req: Request) {
 
   if (user) {
     await ensureUserWorkspace(user, supabase);
-    
-    return NextResponse.redirect(new URL("/select", requestUrl.origin));
+
+    return NextResponse.redirect(new URL("/dashboard", requestUrl.origin));
   }
 
   // No user found, redirect to auth page

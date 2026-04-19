@@ -1,13 +1,15 @@
 "use client";
 
+// Workspace join page. Harvey-ized to match the rest of the auth
+// flow: pure white canvas, editorial serif header, flat card, 1px
+// rules. Shown to users who have an auth session but no workspace
+// yet — they redeem an invite code their admin shared.
+
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import { KeyRound, ArrowRight, Loader2, LogOut } from "lucide-react";
-import AgentOrb from "@/components/frontend/AgentOrb";
-import GLSLWaves from "@/components/ui/glsl-waves";
-
-const DRIFT_COLORS = ["#B4A0D6", "#9B8EC4", "#C7B8E0"];
 
 export default function JoinPage() {
   const router = useRouter();
@@ -25,18 +27,29 @@ export default function JoinPage() {
   useEffect(() => {
     const html = document.documentElement;
     const body = document.body;
-    html.style.setProperty("background", "#f5f5f7", "important");
-    body.style.setProperty("background", "#f5f5f7", "important");
-    body.style.setProperty("color", "#111827", "important");
+    const main = document.querySelector("main");
+    html.style.setProperty("background", "var(--canvas)", "important");
+    body.style.setProperty("background", "var(--canvas)", "important");
+    body.style.setProperty("color", "var(--ink)", "important");
+    if (main)
+      (main as HTMLElement).style.setProperty(
+        "background",
+        "var(--canvas)",
+        "important"
+      );
     return () => {
       html.style.removeProperty("background");
       body.style.removeProperty("background");
       body.style.removeProperty("color");
+      if (main) (main as HTMLElement).style.removeProperty("background");
     };
   }, []);
 
   const handleJoin = async () => {
-    if (!code.trim()) { setError("Please enter an invite code"); return; }
+    if (!code.trim()) {
+      setError("Please enter an invite code");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -48,7 +61,8 @@ export default function JoinPage() {
       const data = await r.json();
       if (r.ok && data.success) {
         setSuccess(data.workspace_name || "Workspace");
-        setTimeout(() => router.push("/select"), 1500);
+        // Land on the dashboard, not the orb hub.
+        setTimeout(() => router.push("/dashboard"), 1200);
       } else {
         setError(data.error || "Invalid invite code");
       }
@@ -60,74 +74,160 @@ export default function JoinPage() {
   };
 
   return (
-    <div className="relative min-h-screen bg-[#f5f5f7] flex flex-col overflow-hidden" style={{ background: "#f5f5f7" }}>
-      <div className="absolute inset-0 z-0 opacity-20">
-        <GLSLWaves mode="hills" speed={0.3} />
-      </div>
-      <div className="absolute inset-0 z-0 bg-gradient-to-t from-[#f5f5f7]/70 via-transparent to-[#f5f5f7]/40 pointer-events-none" />
-
-      <div className="relative z-10 flex items-center justify-between px-6 py-4">
-        <div className="flex items-center gap-2">
-          <img src="/brand/logo-circle.png" alt="Drift" className="w-6 h-6 rounded-full object-cover" />
-          <span className="text-sm font-semibold text-gray-900">Drift</span>
-        </div>
+    <div
+      className="relative min-h-screen flex flex-col"
+      style={{ background: "var(--canvas)" }}
+    >
+      {/* Top bar */}
+      <div
+        className="flex items-center justify-between px-6 md:px-10 py-5"
+        style={{ borderBottom: "1px solid var(--rule)" }}
+      >
+        <Link href="/" className="inline-flex items-center gap-2 group">
+          <img
+            src="/brand/logo-circle.png"
+            alt="Drift"
+            className="w-6 h-6 rounded-full object-cover"
+          />
+          <span
+            className="heading-display text-xl"
+            style={{ color: "var(--ink)" }}
+          >
+            Drift
+          </span>
+        </Link>
         <button
-          onClick={async () => { await supabase.auth.signOut(); router.push("/auth"); }}
-          className="flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-800 transition-colors"
+          onClick={async () => {
+            await supabase.auth.signOut();
+            router.push("/auth");
+          }}
+          className="inline-flex items-center gap-1.5 text-xs transition-colors"
+          style={{ color: "var(--ink-muted)" }}
         >
-          <LogOut className="w-4 h-4" />
+          <LogOut className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Sign out</span>
         </button>
       </div>
 
-      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 pb-16">
-        <div className="relative inline-flex items-center justify-center mb-8" style={{ width: 120, height: 120 }}>
-          <AgentOrb colors={DRIFT_COLORS} size={120} className="rounded-full" interactive pulsing={!!success} />
-          <img
-            src="/brand/logo-circle.png"
-            alt="Drift"
-            className="absolute z-10 rounded-full object-cover select-none pointer-events-none"
-            style={{ width: 54, height: 54, filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.3))" }}
-          />
-        </div>
-
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Join a Workspace</h2>
-        <p className="text-sm text-gray-400 mb-8 text-center max-w-xs">
-          Enter the invite code provided by your admin to join their workspace.
-        </p>
-
-        {success ? (
-          <div className="bg-green-50 border border-green-200 rounded-2xl px-6 py-4 text-center" style={{ animation: "panelSlideUp 0.2s ease-out" }}>
-            <p className="text-sm font-medium text-green-700">Joined {success}!</p>
-            <p className="text-xs text-green-500 mt-1">Redirecting...</p>
-          </div>
-        ) : (
-          <div className="w-full max-w-sm" style={{ animation: "panelSlideUp 0.2s ease-out" }}>
-            <style>{`@keyframes panelSlideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }`}</style>
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-6">
-              <div className="relative">
-                <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-300" />
-                <input
-                  type="text"
-                  value={code}
-                  onChange={e => { setCode(e.target.value.toUpperCase()); setError(""); }}
-                  onKeyDown={e => { if (e.key === "Enter") handleJoin(); }}
-                  placeholder="DRIFT-XXXXXX"
-                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-900 font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-gray-300 placeholder:text-gray-300"
-                  autoFocus
-                />
-              </div>
-              {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
-              <button
-                onClick={handleJoin}
-                disabled={loading}
-                className="w-full mt-4 px-4 py-3 rounded-xl bg-black text-white text-sm font-medium hover:bg-gray-800 transition flex items-center justify-center gap-2 disabled:opacity-50"
+      <div className="flex-1 flex items-center justify-center px-6 py-12">
+        <div className="w-full max-w-[440px]">
+          <div
+            className="card-flat p-8"
+            style={{ borderColor: "var(--rule)" }}
+          >
+            <div className="mb-6">
+              <div className="label-section mb-2">Join workspace</div>
+              <h1
+                className="heading-display text-3xl mb-1"
+                style={{ color: "var(--ink)" }}
               >
-                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><span>Join Workspace</span><ArrowRight className="h-4 w-4" /></>}
-              </button>
+                Enter your invite code
+              </h1>
+              <p
+                className="text-sm"
+                style={{ color: "var(--ink-muted)" }}
+              >
+                Your admin shared a code like{" "}
+                <span className="mono">DRIFT-XXXXXX</span>. Paste it
+                below to join their workspace.
+              </p>
             </div>
+
+            {success ? (
+              <div
+                className="px-4 py-3 text-sm"
+                style={{
+                  background: "var(--verified-soft)",
+                  color: "var(--verified)",
+                  border: "1px solid var(--verified)",
+                  borderRadius: "var(--r-input)",
+                  animation: "panelSlideUp 0.18s ease-out",
+                }}
+              >
+                <style>{`@keyframes panelSlideUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+                <div className="font-medium">Joined {success}</div>
+                <div
+                  className="text-xs mt-0.5"
+                  style={{ color: "var(--verified)", opacity: 0.8 }}
+                >
+                  Redirecting to the dashboard…
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="relative">
+                  <KeyRound
+                    className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4"
+                    style={{ color: "var(--ink-subtle)" }}
+                  />
+                  <input
+                    type="text"
+                    value={code}
+                    onChange={(e) => {
+                      setCode(e.target.value.toUpperCase());
+                      setError("");
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleJoin();
+                    }}
+                    placeholder="DRIFT-XXXXXX"
+                    className="w-full pl-10 pr-4 py-3 text-sm outline-none mono tracking-wider"
+                    style={{
+                      border: "1px solid var(--rule)",
+                      background: "var(--canvas)",
+                      color: "var(--ink)",
+                      borderRadius: "var(--r-input)",
+                    }}
+                    autoFocus
+                  />
+                </div>
+
+                {error && (
+                  <div
+                    className="px-3 py-2 text-sm"
+                    style={{
+                      background: "var(--danger-soft)",
+                      color: "var(--danger)",
+                      border: "1px solid var(--danger)",
+                      borderRadius: "var(--r-input)",
+                    }}
+                  >
+                    {error}
+                  </div>
+                )}
+
+                <button
+                  onClick={handleJoin}
+                  disabled={loading}
+                  className="w-full px-4 py-3 text-sm font-medium transition flex items-center justify-center gap-2"
+                  style={{
+                    background: "var(--ink)",
+                    color: "var(--canvas)",
+                    borderRadius: "var(--r-input)",
+                    opacity: loading ? 0.5 : 1,
+                    cursor: loading ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <span>Join workspace</span>
+                      <ArrowRight className="h-4 w-4" />
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
-        )}
+
+          <div
+            className="mt-6 text-center text-[11px] mono"
+            style={{ color: "var(--ink-subtle)" }}
+          >
+            © {new Date().getFullYear()} Drift AI
+          </div>
+        </div>
       </div>
     </div>
   );
