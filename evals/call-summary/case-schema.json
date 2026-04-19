@@ -1,0 +1,90 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Drift call-summary eval case",
+  "type": "object",
+  "required": ["id", "description", "transcript_segments", "must_mention", "expected_citations"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Stable identifier, e.g. 'rmd-2026-04-18-johnson'"
+    },
+    "description": {
+      "type": "string",
+      "description": "One-sentence summary of what this case tests"
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Free-form labels: 'rmd', 'suitability', 'compliance-edge', 'short', 'long'"
+    },
+    "transcript_segments": {
+      "type": "array",
+      "description": "Whisper verbose_json segments — exact shape the pipeline receives",
+      "items": {
+        "type": "object",
+        "required": ["id", "start", "end", "text"],
+        "properties": {
+          "id": { "type": "integer" },
+          "start": { "type": "number" },
+          "end": { "type": "number" },
+          "text": { "type": "string" }
+        }
+      }
+    },
+    "must_mention": {
+      "type": "array",
+      "description": "Facts the summary MUST surface. Each one is matched against summary text as a substring or semantic equivalence (see scoring.ts).",
+      "items": {
+        "type": "object",
+        "required": ["fact"],
+        "properties": {
+          "fact": { "type": "string" },
+          "matchers": {
+            "type": "array",
+            "description": "Alternative phrasings that also count as matches. Case-insensitive substring.",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "prohibited": {
+      "type": "array",
+      "description": "Claims the summary must NOT make. Each is a substring-match against the output.",
+      "items": {
+        "type": "object",
+        "required": ["claim"],
+        "properties": {
+          "claim": { "type": "string" },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "expected_citations": {
+      "type": "array",
+      "description": "For each must_mention, which segment IDs are acceptable as supporting citations. If the model cites one of these, the citation is considered valid.",
+      "items": {
+        "type": "object",
+        "required": ["for_fact", "valid_segments"],
+        "properties": {
+          "for_fact": { "type": "string" },
+          "valid_segments": {
+            "type": "array",
+            "items": { "type": "integer" }
+          }
+        }
+      }
+    },
+    "rubric": {
+      "type": "array",
+      "description": "Qualitative checks the grader runs in addition to the mechanical ones",
+      "items": {
+        "type": "object",
+        "required": ["check", "severity"],
+        "properties": {
+          "check": { "type": "string" },
+          "severity": { "enum": ["fail", "warn"] }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,163 @@
+{
+  "id": "rmd-2026-04-18-johnson",
+  "description": "RMD planning call with Margaret Johnson, age 74, IRA at Schwab",
+  "tags": ["rmd", "ira", "short"],
+  "transcript_segments": [
+    {
+      "id": 0,
+      "start": 0.0,
+      "end": 4.2,
+      "text": "Hi Margaret, thanks for hopping on. I wanted to talk through your required minimum distribution for this year."
+    },
+    {
+      "id": 1,
+      "start": 4.2,
+      "end": 9.8,
+      "text": "So you turned 74 in February, which means you're in your second RMD year — the first one was last year after you hit 73."
+    },
+    {
+      "id": 2,
+      "start": 9.8,
+      "end": 16.4,
+      "text": "Based on your December 31st IRA balance of about 640,000 dollars, this year's RMD comes out to roughly 25,000 dollars."
+    },
+    {
+      "id": 3,
+      "start": 16.4,
+      "end": 22.1,
+      "text": "That's using the Uniform Lifetime Table divisor of 25.5 for age 74. The IRS deadline is December 31st."
+    },
+    {
+      "id": 4,
+      "start": 22.1,
+      "end": 28.6,
+      "text": "Okay. Last year I waited until December and it was kind of stressful. Can we set it up earlier this year?"
+    },
+    {
+      "id": 5,
+      "start": 28.6,
+      "end": 35.0,
+      "text": "Absolutely. I'd recommend we schedule the distribution for early October — gives us a buffer if Schwab needs any paperwork."
+    },
+    {
+      "id": 6,
+      "start": 35.0,
+      "end": 41.3,
+      "text": "I'll send you the distribution request form this week. You'll need to choose a withholding percentage — most clients pick 10 to 15 percent federal."
+    },
+    {
+      "id": 7,
+      "start": 41.3,
+      "end": 46.8,
+      "text": "Ten percent sounds right. Same as last year. Should I do anything about state tax withholding?"
+    },
+    {
+      "id": 8,
+      "start": 46.8,
+      "end": 53.2,
+      "text": "California doesn't require withholding on IRA distributions but you can opt in. We can handle that when you sign the form."
+    },
+    {
+      "id": 9,
+      "start": 53.2,
+      "end": 58.7,
+      "text": "One more thing — have you thought about doing a qualified charitable distribution? You mentioned the church fund drive last time."
+    },
+    {
+      "id": 10,
+      "start": 58.7,
+      "end": 65.1,
+      "text": "Oh right, the QCD. Yes, I'd like to send 5,000 directly to the church. That counts toward the RMD, right?"
+    },
+    {
+      "id": 11,
+      "start": 65.1,
+      "end": 71.4,
+      "text": "Exactly — up to 108,000 this year can go direct to charity and it comes out of your RMD requirement, tax-free."
+    },
+    {
+      "id": 12,
+      "start": 71.4,
+      "end": 77.0,
+      "text": "So we'll do 5,000 QCD to the church, and 20,000 to your checking account in early October."
+    },
+    {
+      "id": 13,
+      "start": 77.0,
+      "end": 81.5,
+      "text": "Perfect. I'll send the paperwork today and we'll touch base in September to confirm everything."
+    }
+  ],
+  "must_mention": [
+    {
+      "fact": "RMD amount is approximately $25,000",
+      "matchers": ["25,000", "25000", "$25k", "twenty-five thousand"]
+    },
+    {
+      "fact": "distribution scheduled for early October",
+      "matchers": ["October", "Oct"]
+    },
+    {
+      "fact": "10% federal withholding",
+      "matchers": ["10 percent", "10%", "ten percent"]
+    },
+    {
+      "fact": "Qualified Charitable Distribution of $5,000 to church",
+      "matchers": ["QCD", "charitable distribution", "5,000", "5000"]
+    },
+    {
+      "fact": "advisor will send distribution form",
+      "matchers": ["send the form", "send paperwork", "distribution request"]
+    }
+  ],
+  "prohibited": [
+    {
+      "claim": "Roth conversion",
+      "reason": "Roth conversions were not discussed on this call."
+    },
+    {
+      "claim": "first RMD year",
+      "reason": "Margaret is in her second RMD year, not her first."
+    },
+    {
+      "claim": "rebalanc",
+      "reason": "Portfolio rebalancing was not discussed — this is an RMD logistics call."
+    }
+  ],
+  "expected_citations": [
+    {
+      "for_fact": "RMD amount is approximately $25,000",
+      "valid_segments": [2, 3]
+    },
+    {
+      "for_fact": "distribution scheduled for early October",
+      "valid_segments": [5, 12]
+    },
+    {
+      "for_fact": "10% federal withholding",
+      "valid_segments": [6, 7]
+    },
+    {
+      "for_fact": "Qualified Charitable Distribution of $5,000 to church",
+      "valid_segments": [9, 10, 11, 12]
+    },
+    {
+      "for_fact": "advisor will send distribution form",
+      "valid_segments": [6, 13]
+    }
+  ],
+  "rubric": [
+    {
+      "check": "Action items owner is the advisor, not Margaret (she signs forms, advisor sends them)",
+      "severity": "warn"
+    },
+    {
+      "check": "TLDR mentions RMD planning, not generic 'portfolio review'",
+      "severity": "warn"
+    },
+    {
+      "check": "QCD amount cited as $5,000 — not conflated with the $108,000 annual cap",
+      "severity": "fail"
+    }
+  ]
+}

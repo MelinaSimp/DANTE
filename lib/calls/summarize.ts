@@ -1,0 +1,283 @@
+// Shared summarizer for call transcripts.
+//
+// Used by both the live pipeline (app/api/calls/process/route.ts) and the
+// eval harness (evals/call-summary/runner.ts). Keeping this in one place
+// means the eval actually measures what production does — not a drifted
+// copy of the prompt.
+//
+// Input: whisper-style segments + contact name + API keys.
+// Output: a structured, verified summary + the raw LLM response + token usage.
+//
+// The verification pass (validateClaims) is the grounding gate — any claim
+// whose cite_segments is empty or references a non-existent segment ID is
+// dropped. This is the thing the eval harness grades.
+//
+// Dropping claims silently is deliberate: the remaining summary is always
+// grounded, but we report verified_count / total_claims so the UI and the
+// eval can see the gap.
+//
+// No Supabase/storage/Whisper here — just string in, string out. That makes
+// it cheap to test in isolation.
+export type TranscriptSegment = {
+  id: number;
+  start: number;
+  end: number;
+  text: string;
+};
+
+export type StructuredClaim = {
+  text: string;
+  cite_segments: number[];
+  owner?: string;
+  deadline?: string | null;
+};
+
+export type StructuredSummary = {
+  tldr: string;
+  key_points: StructuredClaim[];
+  action_items: StructuredClaim[];
+  follow_ups: StructuredClaim[];
+  verified_count: number;
+  total_claims: number;
+};
+
+export type SummarizeResult = {
+  structured: StructuredSummary | null;
+  rawResponse: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  markdown: string;
+};
+
+export type SummarizeInput = {
+  segments: TranscriptSegment[];
+  transcript?: string; // fallback body if segments missing
+  contactName: string;
+  openaiKey?: string;
+  anthropicKey?: string;
+};
+
+export function buildSummaryPrompt(
+  segments: TranscriptSegment[],
+  transcript: string,
+  contactName: string
+): string {
+  const segmentLines = segments.length
+    ? segments
+        .map(
+          (s) =>
+            `[${s.id}] (${s.start.toFixed(1)}s–${s.end.toFixed(1)}s) ${s.text}`
+        )
+        .join("\n")
+    : transcript;
+
+  return `You are an AI assistant for a financial consultant. Below is a transcript of a call they just had with their client ${contactName}, broken into numbered segments. You MUST cite segment IDs for every claim you make — this is non-negotiable. Claims without citations will be discarded.
+
+Return a JSON object with this exact shape (no markdown, no prose outside the JSON):
+
+{
+  "tldr": "2-3 sentences on what the call was about and the overall tone/outcome",
+  "key_points": [
+    { "text": "short bullet about a decision, goal, concern, or commitment", "cite_segments": [<segment_id>, ...] }
+  ],
+  "action_items": [
+    { "text": "concrete follow-up", "owner": "Consultant" | "${contactName}" | "Unclear", "deadline": "string or null", "cite_segments": [<segment_id>, ...] }
+  ],
+  "follow_ups": [
+    { "text": "unresolved item or thing to probe next time", "cite_segments": [<segment_id>, ...] }
+  ]
+}
+
+Rules:
+- Every key_point, action_item, and follow_up MUST include at least one segment ID from the transcript in cite_segments.
+- Only cite segment IDs that actually support the claim. If you can't cite, omit the claim.
+- Do not invent details not present in the transcript.
+- Be concise. 3–7 key points, 0–5 action items, 0–4 follow-ups.
+- tldr itself does not need citations — but every specific claim beyond the tldr must.
+
+TRANSCRIPT SEGMENTS:
+${segmentLines.slice(0, 24000)}`;
+}
+
+function cleanJsonBlob(s: string): string {
+  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/);
+  return (fence ? fence[1] : s).trim();
+}
+
+// Verification pass: reject claims that cite no segments or cite IDs that
+// don't exist. This is the grounding gate — same logic the eval measures.
+export function verifyStructured(
+  parsed: any,
+  segments: TranscriptSegment[]
+): StructuredSummary {
+  const validSegIds = new Set(segments.map((s) => s.id));
+
+  const validateClaims = (arr: any): StructuredClaim[] => {
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .map((c) => ({
+        text: typeof c?.text === "string" ? c.text.trim() : "",
+        owner: typeof c?.owner === "string" ? c.owner : undefined,
+        deadline:
+          typeof c?.deadline === "string" && c.deadline.trim()
+            ? c.deadline.trim()
+            : null,
+        cite_segments: Array.isArray(c?.cite_segments)
+          ? c.cite_segments
+              .filter((n: unknown) => typeof n === "number")
+              .filter((n: number) => validSegIds.has(n))
+          : [],
+      }))
+      .filter((c) => c.text && c.cite_segments.length > 0);
+  };
+
+  const keyPoints = validateClaims(parsed.key_points);
+  const actionItems = validateClaims(parsed.action_items);
+  const followUps = validateClaims(parsed.follow_ups);
+
+  const totalClaims =
+    (Array.isArray(parsed.key_points) ? parsed.key_points.length : 0) +
+    (Array.isArray(parsed.action_items) ? parsed.action_items.length : 0) +
+    (Array.isArray(parsed.follow_ups) ? parsed.follow_ups.length : 0);
+  const verifiedCount =
+    keyPoints.length + actionItems.length + followUps.length;
+
+  return {
+    tldr: typeof parsed.tldr === "string" ? parsed.tldr.trim() : "",
+    key_points: keyPoints,
+    action_items: actionItems,
+    follow_ups: followUps,
+    verified_count: verifiedCount,
+    total_claims: totalClaims,
+  };
+}
+
+export function renderSummaryMarkdown(s: StructuredSummary): string {
+  const citeStr = (ids: number[]) =>
+    ids.length ? ` *[segments ${ids.join(", ")}]*` : "";
+  const lines: string[] = [];
+  if (s.tldr) lines.push(`## Summary\n${s.tldr}`);
+  if (s.key_points.length) {
+    lines.push(
+      "",
+      "## Key Points",
+      ...s.key_points.map((p) => `- ${p.text}${citeStr(p.cite_segments)}`)
+    );
+  }
+  if (s.action_items.length) {
+    lines.push(
+      "",
+      "## Action Items",
+      ...s.action_items.map(
+        (a) =>
+          `- **${a.owner || "Unclear"}**: ${a.text}${
+            a.deadline ? ` (by ${a.deadline})` : ""
+          }${citeStr(a.cite_segments)}`
+      )
+    );
+  }
+  if (s.follow_ups.length) {
+    lines.push(
+      "",
+      "## Follow-up Questions",
+      ...s.follow_ups.map((f) => `- ${f.text}${citeStr(f.cite_segments)}`)
+    );
+  }
+  lines.push(
+    "",
+    `*Verified: ${s.verified_count} / ${s.total_claims} claims grounded in the transcript.*`
+  );
+  return lines.join("\n");
+}
+
+export async function summarizeCall(
+  input: SummarizeInput
+): Promise<SummarizeResult> {
+  const {
+    segments,
+    transcript = "",
+    contactName,
+    openaiKey,
+    anthropicKey,
+  } = input;
+
+  const prompt = buildSummaryPrompt(segments, transcript, contactName);
+
+  let rawResponse = "";
+  let model = "";
+  let inputTokens = 0;
+  let outputTokens = 0;
+
+  try {
+    if (anthropicKey) {
+      model = "claude-sonnet-4-5";
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": anthropicKey,
+          "anthropic-version": "2023-06-01",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 2000,
+          temperature: 0.2,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+      if (r.ok) {
+        const d = await r.json();
+        rawResponse = (d.content || [])
+          .filter((b: any) => b.type === "text")
+          .map((b: any) => b.text || "")
+          .join("")
+          .trim();
+        inputTokens = d.usage?.input_tokens ?? 0;
+        outputTokens = d.usage?.output_tokens ?? 0;
+      }
+    }
+    if (!rawResponse && openaiKey) {
+      model = "gpt-4o-mini";
+      const r = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${openaiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          temperature: 0.2,
+          max_tokens: 2000,
+          response_format: { type: "json_object" },
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+      if (r.ok) {
+        const d = await r.json();
+        rawResponse = (d.choices?.[0]?.message?.content || "").trim();
+        inputTokens = d.usage?.prompt_tokens ?? 0;
+        outputTokens = d.usage?.completion_tokens ?? 0;
+      }
+    }
+  } catch {
+    // fall through — rawResponse empty
+  }
+
+  let structured: StructuredSummary | null = null;
+  if (rawResponse) {
+    try {
+      const parsed = JSON.parse(cleanJsonBlob(rawResponse));
+      structured = verifyStructured(parsed, segments);
+    } catch {
+      // leave structured null
+    }
+  }
+
+  const markdown = structured
+    ? renderSummaryMarkdown(structured)
+    : rawResponse ||
+      "_(Summary generation failed — raw transcript preserved below.)_";
+
+  return { structured, rawResponse, model, inputTokens, outputTokens, markdown };
+}

@@ -11,6 +11,7 @@
     "build": "next build",
     "start": "next start -p 3000",
     "lint": "next lint",
+    "eval:call-summary": "npx tsx evals/call-summary/runner.ts",
     "electron": "electron .",
     "electron:dev": "NODE_ENV=development electron .",
     "electron:debug": "DEBUG=true electron .",
