@@ -30,128 +30,160 @@ Why this one:
 - Compliance value is obvious: "here's the transcript that produced this
   summary" is a story a CCO can take to the SEC.
 
-## Milestones, not days
+## Where we are — April 2026 update
 
-Calendar dates are arbitrary. Ship to milestones.
+Milestone 1 shipped. The recorder → Whisper → summary → note chain now
+requires every summary claim to cite a transcript segment ID; unsupported
+claims are dropped at the verification pass and a "Verified X/Y" badge
+shows the grounded ratio. CallAuditView renders summary-left / transcript-
+right with hover-to-highlight.
 
-### Milestone 1 — One grounded summary
-Ship when: a call recording produces a summary where every bullet in
-"Key Points" and "Action Items" has a hover tooltip showing the exact
-transcript sentence + timestamp it came from. A "Verified: X/Y claims"
-badge is visible. Nothing else ships until this does.
+Two things have changed since the original plan:
 
-Scope:
-- Store Whisper's verbose segments (we already request them, currently
-  discard them).
-- Change the summary prompt to return structured JSON with per-claim
-  citations referencing segment IDs.
-- Build a CallAuditView component rendering summary + transcript
-  side-by-side with hover-to-verify.
-- On the contact's note, detect call notes and surface a "View audit"
-  button that opens the audit view.
+1. **We're investing in the moat-around-the-moat earlier.** The original
+   plan deferred custodian integration, primary-source ingestion, and
+   structured client-doc extraction until after a paying design partner.
+   After the Harvey review, it's clear those three are the only things
+   that make Milestone 4's score credible to a CCO. Without them, a
+   grounded summary is just "the LLM didn't lie about what was said" —
+   true but insufficient. With them, the grounded summary can be cross-
+   checked against positions, balances, 1099s, and authoritative rules.
+   That's the story a CCO actually wants.
 
-Estimated effort: 1 week solo.
+2. **The UI got Harvey-ified.** Not polish — alignment of visual
+   language with what compliance officers and senior advisors recognize
+   as "serious tool." Pure white canvas, editorial serif headers, 1px
+   rules, mono for data. The redesign is design-tokens-deep, not a
+   skin, so every page we migrate inherits it.
 
-### Milestone 2 — Pre-meeting brief
-Ship when: from a calendar item with a linked contact, we generate a
-one-page brief with sections (Context / Open items / Talking points /
-Risks). Every section cites which past note, annotation, or document
-chunk it came from.
+## Milestones, revised
 
-Scope:
-- Retrieval over a client's prior 3 notes + document annotations.
-- Pipeline: classify meeting type → retrieve → extract open action items
-  → draft brief → cite every section.
-- Same hover-to-verify UX, reusing the audit component from M1.
+### Milestone 1 — One grounded summary ✅ Apr 2026
+- Whisper verbose segments stored on call_recordings.
+- Structured summary prompt with per-claim cite_segments.
+- CallAuditView with hover-to-verify (Harvey-ized Apr 19).
+- Verified X/Y badge on every grounded summary.
 
-Estimated effort: 1–2 weeks after M1.
+### Milestone 1.5 — The moat-around-the-moat (in progress, Apr 2026)
+Scaffold shipped; production usage behind.
 
-### Milestone 3 — Verification + audit packet
-Ship when: any call note or meeting brief has a "Download audit packet"
-button that produces a document (PDF or ZIP) containing: audio,
-transcript, structured summary, cite map, brief, source chunks, formatted
-for a compliance review.
+- **Eval harness for call summaries** — scoring against the four failure
+  conditions from Luca's repo (unsupported claim, wrong citation,
+  missing required fact, prohibited claim). 1 sample case today,
+  target 10 before we cite a number, 100 before we call the summary
+  pipeline production-ready.
+- **Reference library** — `reference_sources` + `reference_chunks`
+  tables, ingest script, 10-doc target corpus (IRS Pub 590-A/B, 575,
+  550, SSA COLA, CMS IRMAA, FINRA 2210, SEC Reg BI, Form ADV Part 2A,
+  2025 contribution limits). Embeddings stored as jsonb today;
+  pgvector migration when traffic justifies.
+- **Compliance scanner** — deterministic rules (FINRA 2210 guarantees,
+  Reg BI blanket recs, unqualified tax advice, RMD statements) + LLM
+  layer for fuzzier issues + `compliance_flags` with pending/approved/
+  dismissed workflow. Sticky dismissals so false-positive-once stays
+  suppressed. Wired into the dashboard's "awaiting review" count.
+- **Custodian layer** — driver interface + mock Schwab driver (three
+  seeded households, realistic positions) + sync API that writes
+  `custodian_balances` + `custodian_positions` per day. Real Schwab /
+  Fidelity / Altruist drivers slot in without touching downstream.
+- **Client-doc extraction** — per-doc schemas (1099-B complete,
+  1099-DIV / 1099-R headers done, W-2 / K-1 / 5498 pending),
+  extraction pipeline that calls Claude/GPT-4o-mini and stores
+  structured fields + rows + per-field confidence in
+  `document_extractions`.
 
-Scope:
-- Post-processing verification pass: extract every number, date, and
-  proper noun from the output; match against retrieved chunks; flag
-  unmatched claims in yellow.
-- Audit packet generator endpoint.
+Ship when: each scaffold has at least one end-to-end real use. For the
+compliance scanner, that means auto-running on call-summary save and
+showing flags inline. For the custodian layer, that means the dashboard
+shows real household AUM pulled from `custodian_balances`. For the
+reference library, that means the call-summary prompt retrieves
+relevant chunks and includes them as context when the transcript hints
+at a regulatory question (e.g. RMD calculation).
 
-Estimated effort: 3–5 days.
+### Milestone 2 — Pre-meeting brief (unchanged)
+From a calendar item with a linked contact, generate a one-page brief
+with sections (Context / Open items / Talking points / Risks). Every
+section cites which past note, annotation, document chunk, custodian
+position, or reference doc it came from.
+
+Now that the custodian layer and reference library exist, the brief
+can include quantitative sections: "Current 60/40 drift: +3.1% equity
+over band" or "RMD required by Dec 31: approx $25,000 per Pub 590-B
+Uniform Lifetime Table."
+
+### Milestone 3 — Verification + audit packet (unchanged)
+Post-processing verification pass + audit packet PDF/ZIP for a call or
+brief.
 
 ### Milestone 4 — Eval harness + published score
-Ship when: we have a golden set of 40+ real advisor prompts, graded by a
-CFP on a 1–5 rubric (accuracy / usefulness / grounding). Our pipeline
-beats raw Claude by 1+ point on average. The number is published on the
-landing page.
+Two eval tracks now:
+- Call-summary eval (harness shipped Apr 2026; need 100 cases).
+- Pre-meeting brief eval (needs harness scaffold + 40 cases).
 
-Scope:
-- Write 40 prompts by hand, using real contacts in the seeded workspace.
-- Manual grading rubric + simple runner.
-- Landing page update showing the number honestly.
+Ship when: we have ≥100 call-summary cases and ≥40 brief cases,
+CFP-graded, and can publish an honest pass rate per failure condition
+on the landing page.
 
-Estimated effort: 1 week, including CFP review.
+### Milestone 5 — One design partner (unchanged)
+One real small RIA using the workflow weekly.
 
-### Milestone 5 — One design partner
-Ship when: one real small RIA (1–20 advisors) is using the grounded
-meeting workflow weekly and giving us 30 minutes of feedback every week.
-Not paid yet, but committed.
+### Milestone 6 — The yes-or-no (unchanged)
+First design partner either pays or tells us why not.
 
-Scope:
-- 90-second Loom showing the audit packet flow.
-- Cold email to 30 small RIAs. Target: 1 yes.
-- Weekly feedback call cadence.
+## What this plan explicitly refuses to do (revised)
 
-Estimated effort: depends on them, not us. 2–6 weeks of outreach.
-
-### Milestone 6 — The yes-or-no
-Ship when: our first design partner either agrees to pay $600/seat/month
-or tells us why not. Either outcome is a win — we know which.
-
-## What this plan explicitly refuses to do
-
-- No SEC EDGAR ingestion. Not needed until M5 asks for it.
-- No Cohere reranker. Overkill for one workflow.
-- No 1,000-case eval. 40 is enough for month 1.
-- No SOC 2, no SSO, no SCIM. Zero enterprise prospects today — these are
-  solutions looking for problems.
-- No new UI pages. If anything, we hide some (see B: Labs flag).
-- No landing page rewrite until M4 gives us a real number to publish.
+- No SEC EDGAR ingestion beyond the 10-doc reference corpus until M5
+  demands it.
+- No Cohere reranker. The retrieval layer uses jsonb cosine until
+  traffic justifies pgvector; we'll measure before swapping.
+- No 1,000-case eval. 100 for call-summary, 40 for brief is enough
+  through M5.
+- No SOC 2, no SSO, no SCIM. Zero enterprise prospects today.
+- No landing-page rewrite until M4 gives us a real number.
+- No new custodian drivers (Fidelity, Altruist) until the Schwab driver
+  is real. The mock driver is scaffold — replace it with Schwab before
+  we add more.
 
 ## What "done" looks like at M5
 
 - One grounded workflow (meeting prep + recap) that a CCO would accept.
-- A published accuracy score against a real golden set.
-- An audit packet format a compliance officer can sign off on.
+- Published accuracy score against ≥100 call-summary cases.
+- Audit packet a compliance officer can sign off on.
+- Call summaries auto-scanned for FINRA / Reg BI issues, flags gated
+  before send.
+- Primary-source citations on every regulatory claim the AI makes.
+- Custodian data backing every quantitative claim in briefs.
+- Structured tax-doc data available for cross-check against custodian
+  cost basis.
 - One design partner using it weekly.
-- Everything else in the product exists but is gated behind a Labs flag
-  so new users see the sharp 20%, not the shallow 80%.
+- Everything else in the product exists but is gated behind Labs so
+  new users see the sharp core, not the shallow periphery.
 
-At that point, we earn the right to build M2 of the broader product —
-IPS drafting, tax-loss harvesting, whatever the design partner says hurts
-most. Not before.
+At M5, we earn the right to build IPS drafting, tax-loss harvesting, or
+whatever the design partner says hurts most. Not before.
 
-## Non-goals for this plan
+## Non-goals (unchanged)
 
-- Investor decks. A real product plan becomes the pitch as a side effect.
-  If M1–M5 ship, the deck writes itself.
-- Team hiring. One CFP co-authoring prompts for equity is the only hire
-  that matters, and they come after M2 not before.
-- Fundraising. Raising before M5 is raising on a façade.
+- Investor decks.
+- Team hiring beyond a CFP co-author.
+- Fundraising before M5.
 
-## Failure modes to watch
+## Failure modes to watch (revised)
 
-1. **Scope creep mid-milestone.** If M1 starts growing past "hover-to-
-   verify on call summaries," delete the extra scope.
-2. **Filling time.** If M1 takes 3 days, ship it at day 3. Don't pad to
-   a week. Move to M2 immediately.
-3. **Polishing UI.** Every hour on animation, shadow, or typography is
-   an hour not spent on grounding. The audit view should be ugly and
-   functional until M5 says otherwise.
-4. **Chasing the 10 Harvey items.** That list is a description of a
-   company that took 2 years and $100M. Treating it as a to-do list is
-   how we die.
+1. **Scope creep mid-milestone.** Still the biggest risk.
+2. **Filling time.** If a milestone takes less time than estimated,
+   ship and move on.
+3. **Polishing UI.** The Harvey redesign is done. Further UI work
+   before M5 is procrastination.
+4. **Chasing the 10 Harvey items.** That list describes a 2-year $100M
+   company. Stop.
+5. **Over-building the moat layers.** Each of the five M1.5 scaffolds
+   is *scaffold*. It's tempting to keep hardening them before using
+   them. Don't. Wire them into the user-facing flow as soon as they're
+   minimally usable, even if rough.
+6. **Pretending the mock driver is a custodian.** It's fixtures. Any
+   user-facing copy that reads balances must say "Demo data" until a
+   real driver is wired.
 
 ## One-line test
 
