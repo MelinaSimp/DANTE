@@ -1,5 +1,13 @@
 // app/layout.tsx
+//
+// Root layout. Ships the Harvey-inspired design language by default:
+// white canvas, serif display type (Instrument Serif), sans UI (Inter),
+// mono for data (JetBrains Mono). Individual legacy pages can still
+// override to their own theme (e.g. /app agent canvas, /frontend orb)
+// via useEffect — we only set a sensible default here.
+
 import type { Metadata } from "next";
+import { Instrument_Serif, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/Header";
 import PushNotificationManager from "@/components/PushNotificationManager";
@@ -10,9 +18,27 @@ import { ToastProvider } from "@/components/ui/toast";
 import { ConfirmDialogProvider } from "@/components/ui/confirm-dialog";
 import FloatingDashboardButton from "@/components/FloatingDashboardButton";
 
+const fontUi = Inter({
+  subsets: ["latin"],
+  variable: "--font-ui-loaded",
+  display: "swap",
+});
+const fontDisplay = Instrument_Serif({
+  subsets: ["latin"],
+  weight: "400",
+  variable: "--font-display-loaded",
+  display: "swap",
+});
+const fontMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono-loaded",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: "Drift - Agent Canvas",
-  description: "Build and deploy AI agents with visual flows",
+  title: "Drift — for financial advisors",
+  description:
+    "Grounded AI for RIAs. Citation-backed summaries, compliance review, client intelligence.",
   manifest: "/manifest.json",
   icons: {
     icon: "/brand/logo-circle.png",
@@ -33,41 +59,36 @@ export const viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className="bg-[#242423] min-h-screen antialiased text-white">
+    <html
+      lang="en"
+      className={`${fontUi.variable} ${fontDisplay.variable} ${fontMono.variable}`}
+    >
+      <body className="bg-white min-h-screen antialiased text-[#151515]">
         <ToastProvider>
-         <ConfirmDialogProvider>
-          <OnboardingProvider>
-            <OfflineIndicator />
-            <div className="hidden">
-              <Header />
-            </div>
-            <ErrorBoundary>
-              <main className="relative z-0 bg-[#242423]" style={{ background: '#242423', backgroundImage: 'none' }}>{children}</main>
-            </ErrorBoundary>
-            <FloatingDashboardButton />
-            <PushNotificationManager />
-          </OnboardingProvider>
-         </ConfirmDialogProvider>
+          <ConfirmDialogProvider>
+            <OnboardingProvider>
+              <OfflineIndicator />
+              <div className="hidden">
+                <Header />
+              </div>
+              <ErrorBoundary>
+                <main className="relative z-0 bg-white">{children}</main>
+              </ErrorBoundary>
+              <FloatingDashboardButton />
+              <PushNotificationManager />
+            </OnboardingProvider>
+          </ConfirmDialogProvider>
         </ToastProvider>
         <script
           dangerouslySetInnerHTML={{
             __html: `
-              // Unregister all existing service workers to fix redirect issues
               if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.getRegistrations().then(function(registrations) {
                   for(let registration of registrations) {
-                    registration.unregister().then(function(success) {
-                      if (success) {
-                        console.log('Service worker unregistered');
-                      }
-                    });
+                    registration.unregister();
                   }
                 });
               }
-              
-              // Service worker registration temporarily disabled
-              // Re-enable after clearing all caches and cookies
             `,
           }}
         />

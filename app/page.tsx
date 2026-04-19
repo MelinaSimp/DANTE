@@ -12,7 +12,10 @@ export default async function Home() {
   } = await supabase.auth.getUser();
 
   if (user) {
-    redirect("/select");
+    // Advisor hub: dashboard-first. /select (orbital hub) is still
+    // reachable if anyone links to it but is no longer the default
+    // landing for authenticated users.
+    redirect("/dashboard");
   }
   
   // If user is NOT signed in, redirect to auth page
