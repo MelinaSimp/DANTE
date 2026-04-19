@@ -31,6 +31,7 @@ import { supabase } from "@/lib/supabase/client";
 import AddNoteForm from "@/components/notes/AddNoteForm";
 import CallAuditView, {
   type StructuredSummary,
+  type ComplianceFlag,
 } from "@/components/call/CallAuditView";
 import type { Annotation } from "@/components/documents/PdfViewerWithAnnotations";
 
@@ -152,6 +153,7 @@ export default function ClientDetailsOverviewClient({
   const [auditOpen, setAuditOpen] = useState(false);
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditData, setAuditData] = useState<AuditData | null>(null);
+  const [auditFlags, setAuditFlags] = useState<ComplianceFlag[]>([]);
   const [auditError, setAuditError] = useState<string | null>(null);
 
   const openAuditForNote = useCallback(async (noteId: string) => {
@@ -159,6 +161,7 @@ export default function ClientDetailsOverviewClient({
     setAuditLoading(true);
     setAuditError(null);
     setAuditData(null);
+    setAuditFlags([]);
     try {
       const res = await fetch(
         `/api/calls/audit?noteId=${encodeURIComponent(noteId)}`,
@@ -169,6 +172,7 @@ export default function ClientDetailsOverviewClient({
         setAuditError(json.error || "Failed to load audit");
       } else {
         setAuditData(json.audit as AuditData);
+        setAuditFlags((json.flags as ComplianceFlag[]) || []);
       }
     } catch (err) {
       setAuditError(err instanceof Error ? err.message : "Failed to load");
@@ -176,6 +180,38 @@ export default function ClientDetailsOverviewClient({
       setAuditLoading(false);
     }
   }, []);
+
+  const handleFlagAction = useCallback(
+    async (flagId: string, action: "approved" | "dismissed") => {
+      // Optimistic update — the modal's UI is already "busy" via its
+      // own pendingFlagAction state. We roll back on error.
+      const prev = auditFlags;
+      setAuditFlags((fs) =>
+        fs.map((f) => (f.id === flagId ? { ...f, status: action } : f))
+      );
+      try {
+        const r = await fetch(
+          `/api/compliance/flags/${encodeURIComponent(flagId)}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ action }),
+          }
+        );
+        if (!r.ok) throw new Error(`Failed (${r.status})`);
+        // Dismissed flags shouldn't linger in the modal — they're
+        // cleared from the reviewer view. Approved stay with the
+        // "approved" chip so the audit trail is visible.
+        if (action === "dismissed") {
+          setAuditFlags((fs) => fs.filter((f) => f.id !== flagId));
+        }
+      } catch {
+        setAuditFlags(prev);
+      }
+    },
+    [auditFlags]
+  );
   const [useTemplateMode, setUseTemplateMode] = useState(false);
   const [documentToAnalyzeUrl, setDocumentToAnalyzeUrl] = useState<string | null>(null);
   const [documentToAnalyzeFileName, setDocumentToAnalyzeFileName] = useState<string | null>(null);
@@ -1686,12 +1722,15 @@ export default function ClientDetailsOverviewClient({
               setAuditOpen(false);
               setAuditData(null);
               setAuditError(null);
+              setAuditFlags([]);
             }}
             contactName={selected?.type === "client" ? selected.name : "Client"}
             createdAt={auditData.created_at}
             transcript={auditData.transcript || ""}
             segments={auditData.transcript_segments || []}
             structured={auditData.summary_structured}
+            flags={auditFlags}
+            onFlagAction={handleFlagAction}
           />
         ) : null
       )}

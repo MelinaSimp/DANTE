@@ -65,7 +65,13 @@ Two things have changed since the original plan:
 - Verified X/Y badge on every grounded summary.
 
 ### Milestone 1.5 — The moat-around-the-moat (in progress, Apr 2026)
-Scaffold shipped; production usage behind.
+Scaffolds shipped. Three of five now have end-to-end real use wired
+(compliance scanner auto-runs on every call summary, custodian AUM
+shows on the advisor dashboard with Demo-data labeling and a one-
+click seed, reference library retrieves chunks into the summarizer
+prompt when the transcript hints at RMD / IRMAA / contribution /
+Reg-BI topics). Client-doc extraction + eval harness still await
+their first real corpus pass.
 
 - **Eval harness for call summaries** — scoring against the four failure
   conditions from Luca's repo (unsupported claim, wrong citation,

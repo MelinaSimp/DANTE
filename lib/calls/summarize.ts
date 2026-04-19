@@ -56,12 +56,18 @@ export type SummarizeInput = {
   contactName: string;
   openaiKey?: string;
   anthropicKey?: string;
+  // Optional reference-library chunks retrieved out-of-band (see
+  // lib/references/retrieve.ts). The eval harness leaves this empty
+  // so scoring stays deterministic; the prod route fills it in based
+  // on regulatory topics detected in the transcript.
+  referenceContext?: string;
 };
 
 export function buildSummaryPrompt(
   segments: TranscriptSegment[],
   transcript: string,
-  contactName: string
+  contactName: string,
+  referenceContext?: string
 ): string {
   const segmentLines = segments.length
     ? segments
@@ -71,6 +77,11 @@ export function buildSummaryPrompt(
         )
         .join("\n")
     : transcript;
+
+  const refBlock =
+    referenceContext && referenceContext.trim()
+      ? `\n${referenceContext.trim()}\n`
+      : "";
 
   return `You are an AI assistant for a financial consultant. Below is a transcript of a call they just had with their client ${contactName}, broken into numbered segments. You MUST cite segment IDs for every claim you make — this is non-negotiable. Claims without citations will be discarded.
 
@@ -95,7 +106,8 @@ Rules:
 - Do not invent details not present in the transcript.
 - Be concise. 3–7 key points, 0–5 action items, 0–4 follow-ups.
 - tldr itself does not need citations — but every specific claim beyond the tldr must.
-
+- If the REFERENCE CONTEXT below is present, use it to avoid regulatory errors (RMD age, contribution limits, IRMAA brackets). Do NOT put reference keys into cite_segments — those must be transcript IDs only.
+${refBlock}
 TRANSCRIPT SEGMENTS:
 ${segmentLines.slice(0, 24000)}`;
 }
@@ -200,9 +212,15 @@ export async function summarizeCall(
     contactName,
     openaiKey,
     anthropicKey,
+    referenceContext,
   } = input;
 
-  const prompt = buildSummaryPrompt(segments, transcript, contactName);
+  const prompt = buildSummaryPrompt(
+    segments,
+    transcript,
+    contactName,
+    referenceContext
+  );
 
   let rawResponse = "";
   let model = "";

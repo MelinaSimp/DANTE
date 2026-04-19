@@ -11,6 +11,11 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { recordLlmUsage } from "@/lib/usage/track";
 import { summarizeCall } from "@/lib/calls/summarize";
+import { scanForCompliance } from "@/lib/compliance/scan";
+import {
+  retrieveReferences,
+  formatReferenceContext,
+} from "@/lib/references/retrieve";
 
 export const dynamic = "force-dynamic";
 // Whisper can take 30–90s on long clips; give it headroom. Hobby caps this at
@@ -169,6 +174,26 @@ export async function POST(req: NextRequest) {
     })
     .eq("id", recordingId);
 
+  // Reference-library retrieval — scan the transcript for regulatory
+  // topics (RMD, IRMAA, contribution limits, etc.) and pull the most
+  // relevant chunks from the ingested corpus. Failures here are
+  // non-fatal: the summarizer still runs without the context, the
+  // summary is just less protected from regulatory-fact drift.
+  let referenceContext = "";
+  let referenceRefs: Array<{ source_key: string; chunk_index: number }> = [];
+  try {
+    const chunks = await retrieveReferences(transcript);
+    if (chunks.length > 0) {
+      referenceContext = formatReferenceContext(chunks);
+      referenceRefs = chunks.map((c) => ({
+        source_key: c.source_key,
+        chunk_index: c.chunk_index,
+      }));
+    }
+  } catch (e) {
+    console.error("reference retrieval failed for call", recordingId, e);
+  }
+
   // Summarization — delegated to lib/calls/summarize so the eval harness
   // exercises the same code path. That lib handles the prompt, the model
   // fallback (Anthropic → OpenAI), JSON parsing, and the grounding pass
@@ -186,6 +211,7 @@ export async function POST(req: NextRequest) {
     contactName,
     openaiKey,
     anthropicKey,
+    referenceContext,
   });
 
   // Fire-and-forget usage metering for the summary call.
@@ -241,12 +267,69 @@ export async function POST(req: NextRequest) {
     })
     .eq("id", recordingId);
 
+  // Auto-run the compliance scanner on the generated summary. This is
+  // the M1.5 end-to-end wiring: every saved summary gets scanned, flags
+  // land in compliance_flags with source_type='call_summary' and
+  // source_id=recordingId so the dashboard count + audit view pick them
+  // up immediately. We intentionally don't block the response on scan
+  // failures — if the LLM layer is slow the deterministic rules still
+  // fire synchronously and land.
+  let complianceFlags: Awaited<ReturnType<typeof scanForCompliance>>["flags"] = [];
+  try {
+    // Sticky dismissals: re-summarize of the same recording shouldn't
+    // resurface a rule the user already dismissed for this call.
+    const { data: existing } = await supabaseAdmin
+      .from("compliance_flags")
+      .select("rule_id, status")
+      .eq("workspace_id", rec.workspace_id)
+      .eq("source_type", "call_summary")
+      .eq("source_id", recordingId);
+    const dismissed = new Set(
+      (existing || [])
+        .filter((f: any) => f.status === "dismissed" && f.rule_id)
+        .map((f: any) => f.rule_id as string)
+    );
+
+    const scan = await scanForCompliance({
+      text: summary,
+      contextLabel: `Call summary for ${contactName}`,
+      anthropicKey,
+    });
+    const fresh = scan.flags.filter(
+      (f) => !f.rule_id || !dismissed.has(f.rule_id)
+    );
+    complianceFlags = fresh;
+
+    if (fresh.length > 0) {
+      await supabaseAdmin.from("compliance_flags").insert(
+        fresh.map((f) => ({
+          workspace_id: rec.workspace_id,
+          source_type: "call_summary",
+          source_id: recordingId,
+          scanned_text: summary,
+          layer: f.layer,
+          rule_id: f.rule_id,
+          severity: f.severity,
+          message: f.message,
+          citation_refs: f.citations,
+          status: "pending" as const,
+        }))
+      );
+    }
+  } catch (e) {
+    // Non-fatal: summary is saved, flags are best-effort. Log for
+    // observability but don't fail the user-facing response.
+    console.error("compliance scan failed for call", recordingId, e);
+  }
+
   return NextResponse.json({
     recordingId,
     noteId: noteRow.id,
     summary,
     structured,
     transcript,
+    complianceFlags,
+    referenceRefs,
     durationSeconds: durationSeconds ?? Math.round(whisperDuration || 0),
   });
 }

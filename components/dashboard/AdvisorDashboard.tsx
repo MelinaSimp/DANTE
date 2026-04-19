@@ -25,6 +25,9 @@ import {
   LayoutDashboard,
   Users,
   FileText,
+  Database,
+  Loader2,
+  CheckCircle2,
 } from "lucide-react";
 
 type Meeting = {
@@ -63,8 +66,21 @@ type DashboardData = {
     calls7d: number;
     documents: number;
     verifiedPct: number | null;
+    aumTotal: number | null;
+    aumAsOf: string | null;
+    aumIsDemo: boolean;
+    aumAccountCount: number;
   };
 };
+
+// Compact AUM formatting — $4.2M, $812K, $0 — for the stat cell.
+function formatAumCompact(n: number | null): string {
+  if (n === null || n === undefined) return "—";
+  if (n >= 1_000_000)
+    return `$${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
+  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
+  return `$${Math.round(n)}`;
+}
 
 function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString("en-US", {
@@ -193,7 +209,22 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
         </div>
 
         {/* Stat strip — stripped down, no giant cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-[var(--rule)] mb-12 rounded-md overflow-hidden border border-[var(--rule)]">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-px bg-[var(--rule)] mb-12 rounded-md overflow-hidden border border-[var(--rule)]">
+          <StatCell
+            label="AUM"
+            value={formatAumCompact(data.stats.aumTotal)}
+            hint={
+              data.stats.aumTotal === null
+                ? undefined
+                : data.stats.aumIsDemo
+                ? "demo data"
+                : data.stats.aumAccountCount > 0
+                ? `${data.stats.aumAccountCount} acct${
+                    data.stats.aumAccountCount === 1 ? "" : "s"
+                  }`
+                : undefined
+            }
+          />
           <StatCell
             label="Clients"
             value={data.stats.clients.toString()}
@@ -219,6 +250,14 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
             hint="citation-grounded"
           />
         </div>
+
+        {/* Demo-data prompt for empty custodian state. Appears only
+            when no AUM data exists — gives a one-click "try it" path
+            to the mock driver so the scaffold has an end-to-end real
+            use in development. Hidden once any balance rolls in. */}
+        {data.stats.aumTotal === null && (
+          <DemoCustodianPrompt />
+        )}
 
         {/* Two-column: Today / Awaiting */}
         <section className="grid grid-cols-1 md:grid-cols-2 gap-10 mb-16">
@@ -456,6 +495,120 @@ function EmptyNote({ children }: { children: React.ReactNode }) {
   return (
     <div className="py-6 border-t border-b border-[var(--rule)] text-sm text-[var(--ink-subtle)] italic">
       {children}
+    </div>
+  );
+}
+
+// Shown on the advisor dashboard when no custodian data exists yet.
+// Clicking provisions a mock driver connection and runs an immediate
+// sync — the "end-to-end real use" wiring for the M1.5 custodian
+// scaffold. Labeled "Demo data" per DEPTH-PLAN failure-mode guard:
+// the mock driver is fixtures, not a real custodian.
+function DemoCustodianPrompt() {
+  const [state, setState] = useState<
+    "idle" | "seeding" | "done" | "error"
+  >("idle");
+  const [err, setErr] = useState<string | null>(null);
+
+  async function seed() {
+    setState("seeding");
+    setErr(null);
+    try {
+      const r = await fetch("/api/custodians/seed-demo", {
+        method: "POST",
+        credentials: "include",
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setErr(j?.error || "Seed failed");
+        setState("error");
+        return;
+      }
+      setState("done");
+      // Give the user a moment to see "Connected," then reload so the
+      // AUM stat picks up.
+      setTimeout(() => window.location.reload(), 800);
+    } catch (e: any) {
+      setErr(e?.message || "Seed failed");
+      setState("error");
+    }
+  }
+
+  return (
+    <div
+      className="mb-12 flex items-start gap-3 px-4 py-3 border"
+      style={{
+        borderColor: "var(--rule)",
+        background: "var(--canvas-subtle)",
+        borderRadius: "var(--r-card)",
+      }}
+    >
+      <div
+        className="flex items-center justify-center flex-shrink-0 mt-0.5"
+        style={{
+          width: 28,
+          height: 28,
+          borderRadius: "var(--r-chip)",
+          background: "var(--accent-soft)",
+          color: "var(--accent)",
+        }}
+      >
+        <Database className="w-3.5 h-3.5" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm" style={{ color: "var(--ink)" }}>
+          No custodian data yet.
+        </div>
+        <div
+          className="text-xs mt-0.5"
+          style={{ color: "var(--ink-muted)" }}
+        >
+          Connect Schwab, Fidelity, or Altruist to populate AUM and
+          positions. For now you can seed fixtures to see how it looks —
+          everything pulled from the mock driver is labeled{" "}
+          <span className="mono">demo data</span>.
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={seed}
+        disabled={state === "seeding" || state === "done"}
+        className="flex-shrink-0 text-xs inline-flex items-center gap-1.5 px-3 py-1.5 transition"
+        style={{
+          border: "1px solid var(--rule)",
+          color: state === "done" ? "var(--verified)" : "var(--ink)",
+          background: "var(--canvas)",
+          borderRadius: "var(--r-input)",
+          opacity: state === "seeding" ? 0.6 : 1,
+        }}
+      >
+        {state === "seeding" && (
+          <>
+            <Loader2 className="w-3 h-3 animate-spin" />
+            Seeding…
+          </>
+        )}
+        {state === "done" && (
+          <>
+            <CheckCircle2 className="w-3 h-3" />
+            Connected
+          </>
+        )}
+        {(state === "idle" || state === "error") && (
+          <>
+            <Database className="w-3 h-3" />
+            Seed demo data
+          </>
+        )}
+      </button>
+      {state === "error" && err && (
+        <div
+          className="w-full text-xs"
+          style={{ color: "var(--danger)" }}
+        >
+          {err}
+        </div>
+      )}
     </div>
   );
 }

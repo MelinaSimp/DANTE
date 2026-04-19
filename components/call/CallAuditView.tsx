@@ -17,6 +17,10 @@ import {
   Download,
   ShieldCheck,
   AlertTriangle,
+  AlertOctagon,
+  Info,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 
 type Segment = {
@@ -40,6 +44,18 @@ export type StructuredSummary = {
   follow_ups: Claim[];
   verified_count: number;
   total_claims: number;
+};
+
+export type ComplianceFlag = {
+  id: string;
+  layer: "rule" | "llm";
+  rule_id: string | null;
+  severity: "info" | "warn" | "block";
+  message: string;
+  citation_refs:
+    | Array<{ source_key: string; quote?: string; chunk_index?: number }>
+    | null;
+  status: "pending" | "approved" | "dismissed";
 };
 
 function formatTime(seconds: number): string {
@@ -142,6 +158,8 @@ export default function CallAuditView({
   transcript,
   segments,
   structured,
+  flags,
+  onFlagAction,
   onDownloadAudit,
 }: {
   open: boolean;
@@ -151,9 +169,23 @@ export default function CallAuditView({
   transcript: string;
   segments: Segment[];
   structured: StructuredSummary | null;
+  flags?: ComplianceFlag[];
+  onFlagAction?: (
+    flagId: string,
+    action: "approved" | "dismissed"
+  ) => Promise<void> | void;
   onDownloadAudit?: () => void;
 }) {
   const [highlighted, setHighlighted] = useState<number[] | null>(null);
+  const [pendingFlagAction, setPendingFlagAction] = useState<string | null>(
+    null
+  );
+
+  const pendingFlags = useMemo(
+    () => (flags || []).filter((f) => f.status === "pending"),
+    [flags]
+  );
+  const hasBlockingFlag = pendingFlags.some((f) => f.severity === "block");
 
   const verifiedPct = useMemo(() => {
     if (!structured || structured.total_claims === 0) return null;
@@ -240,6 +272,24 @@ export default function CallAuditView({
                 ({verifiedPct}%)
               </span>
             )}
+            {pendingFlags.length > 0 && (
+              <span
+                className="chip-flag inline-flex items-center gap-1.5"
+                title={
+                  hasBlockingFlag
+                    ? "Blocking compliance flags require review before send"
+                    : "Compliance flags awaiting review"
+                }
+              >
+                {hasBlockingFlag ? (
+                  <AlertOctagon className="h-3.5 w-3.5" />
+                ) : (
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                )}
+                {pendingFlags.length} flag
+                {pendingFlags.length === 1 ? "" : "s"}
+              </span>
+            )}
             {onDownloadAudit && (
               <button
                 type="button"
@@ -284,6 +334,156 @@ export default function CallAuditView({
             </button>
           </div>
         </div>
+
+        {/* Compliance review strip — only rendered when flags exist.
+            Lives between the header and the summary/transcript grid so
+            a CCO can't miss it. */}
+        {flags && flags.length > 0 && (
+          <div
+            className="border-b px-6 py-4"
+            style={{
+              borderColor: "var(--rule)",
+              background: hasBlockingFlag
+                ? "var(--danger-soft)"
+                : "var(--flag-soft, var(--accent-soft))",
+            }}
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <AlertTriangle
+                className="h-4 w-4"
+                style={{
+                  color: hasBlockingFlag
+                    ? "var(--danger)"
+                    : "var(--flag, var(--accent))",
+                }}
+              />
+              <h3
+                className="label-section"
+                style={{ color: "var(--ink)" }}
+              >
+                Compliance review ({pendingFlags.length} pending)
+              </h3>
+            </div>
+            <ul className="space-y-2">
+              {flags.map((f) => {
+                const sevColor =
+                  f.severity === "block"
+                    ? "var(--danger)"
+                    : f.severity === "warn"
+                    ? "var(--flag, var(--accent))"
+                    : "var(--ink-muted)";
+                const Icon =
+                  f.severity === "block"
+                    ? AlertOctagon
+                    : f.severity === "warn"
+                    ? AlertTriangle
+                    : Info;
+                const isBusy = pendingFlagAction === f.id;
+                return (
+                  <li
+                    key={f.id}
+                    className="border p-3 text-sm flex items-start gap-3"
+                    style={{
+                      borderColor: "var(--rule)",
+                      background: "var(--canvas)",
+                      borderRadius: "var(--r-card)",
+                      opacity: f.status === "approved" ? 0.65 : 1,
+                    }}
+                  >
+                    <Icon
+                      className="h-4 w-4 mt-0.5 flex-shrink-0"
+                      style={{ color: sevColor }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div
+                        className="prose-body"
+                        style={{ color: "var(--ink)" }}
+                      >
+                        {f.message}
+                      </div>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                        <span
+                          className="text-[10px] mono uppercase tracking-wider"
+                          style={{ color: sevColor }}
+                        >
+                          {f.severity} · {f.layer}
+                          {f.rule_id ? ` · ${f.rule_id}` : ""}
+                        </span>
+                        {f.citation_refs?.map((c, i) => (
+                          <span
+                            key={i}
+                            className="chip-citation inline-flex items-center gap-1"
+                            title={c.quote}
+                          >
+                            {c.source_key}
+                          </span>
+                        ))}
+                        {f.status === "approved" && (
+                          <span
+                            className="chip-verified inline-flex items-center gap-1"
+                          >
+                            <CheckCircle2 className="h-2.5 w-2.5" />
+                            approved
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {onFlagAction && f.status === "pending" && (
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={async () => {
+                            setPendingFlagAction(f.id);
+                            try {
+                              await onFlagAction(f.id, "approved");
+                            } finally {
+                              setPendingFlagAction(null);
+                            }
+                          }}
+                          className="text-xs inline-flex items-center gap-1 px-2 py-1 transition"
+                          style={{
+                            border: "1px solid var(--rule)",
+                            color: "var(--ink)",
+                            borderRadius: "var(--r-input)",
+                            opacity: isBusy ? 0.5 : 1,
+                          }}
+                          title="Mark as reviewed — keeps on record but clears from queue"
+                        >
+                          <CheckCircle2 className="h-3 w-3" />
+                          Approve
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isBusy}
+                          onClick={async () => {
+                            setPendingFlagAction(f.id);
+                            try {
+                              await onFlagAction(f.id, "dismissed");
+                            } finally {
+                              setPendingFlagAction(null);
+                            }
+                          }}
+                          className="text-xs inline-flex items-center gap-1 px-2 py-1 transition"
+                          style={{
+                            border: "1px solid var(--rule)",
+                            color: "var(--ink-muted)",
+                            borderRadius: "var(--r-input)",
+                            opacity: isBusy ? 0.5 : 1,
+                          }}
+                          title="False positive — same rule won't re-fire for this call"
+                        >
+                          <XCircle className="h-3 w-3" />
+                          Dismiss
+                        </button>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
 
         {/* Body: summary | transcript */}
         <div className="flex-1 grid grid-cols-1 md:grid-cols-2 overflow-hidden">
