@@ -173,17 +173,24 @@ export async function GET() {
     }
   }
 
-  // Awaiting review — placeholder until compliance scanner scaffold lands.
-  // Uses pending tasks as a proxy so the section shows real counts rather
-  // than fake zeros.
+  // Awaiting review — pending compliance flags + tasks awaiting approval.
+  // Once the compliance scanner rolls out workspace-wide the task proxy
+  // can go; for now it catches everything the scanner doesn't.
   let awaitingReview = 0;
   if (wid) {
-    const { count } = await supabaseAdmin
-      .from("tasks")
-      .select("id", { count: "exact", head: true })
-      .eq("workspace_id", wid)
-      .in("status", ["pending", "review", "pending_approval"]);
-    awaitingReview = count || 0;
+    const [{ count: taskCount }, { count: flagCount }] = await Promise.all([
+      supabaseAdmin
+        .from("tasks")
+        .select("id", { count: "exact", head: true })
+        .eq("workspace_id", wid)
+        .in("status", ["pending", "review", "pending_approval"]),
+      supabaseAdmin
+        .from("compliance_flags")
+        .select("id", { count: "exact", head: true })
+        .eq("workspace_id", wid)
+        .eq("status", "pending"),
+    ]);
+    awaitingReview = (taskCount || 0) + (flagCount || 0);
   }
 
   // Verified % across recent recordings (real signal from grounded summaries)
