@@ -98,17 +98,26 @@ async function buildAssistantConfig(agentId: string): Promise<VapiAssistantConfi
     systemPrompt += `\n\nKNOWLEDGE BASE (use this to answer questions):\n${knowledgeBase}\n\nIMPORTANT: Use information from the Knowledge Base above when answering factual questions.`;
   }
 
-  // Add current date context and scheduling capabilities
-  const now = new Date();
-  const currentDateStr = now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
-  
-  systemPrompt += `\n\nCURRENT DATE: Today is ${currentDateStr}. The current year is ${now.getFullYear()}. ALWAYS use ${now.getFullYear()} as the year when the caller doesn't specify a year.
+  // Add current date context and scheduling capabilities.
+  //
+  // IMPORTANT: we must NOT bake `new Date()` into the string here. The
+  // system prompt is stored on the VAPI assistant at sync time and
+  // reused on every subsequent call — if we hardcode today's date, the
+  // agent will still think it's Feb 27 a month from now.
+  //
+  // Instead we use VAPI's built-in dynamic variables ({{now}}, {{date}},
+  // {{year}}) which VAPI substitutes per-call at the moment the phone
+  // rings. The assistant always sees the real current date without any
+  // re-sync, cron, or manual re-deploy.
+  //
+  // Ref: https://docs.vapi.ai/assistants/dynamic-variables
+  systemPrompt += `\n\nCURRENT DATE: Today is {{date}} ({{now}}). The current year is {{year}}. ALWAYS use {{year}} as the year when the caller doesn't specify a year. NEVER guess or remember a date from past context — always use the values above, which are replaced live at call time.
 
 SCHEDULING CAPABILITIES:
 You can schedule appointments and check availability. When a caller wants to schedule a meeting or appointment:
 1. Ask for their name if you don't have it.
 2. Ask what date and time they'd prefer.
-3. Use the check_availability function to see open slots. The date MUST be in YYYY-MM-DD format using the current year (${now.getFullYear()}).
+3. Use the check_availability function to see open slots. The date MUST be in YYYY-MM-DD format using the current year ({{year}}).
 4. Use the schedule_appointment function to book the appointment. The scheduledAt MUST be in ISO 8601 format (YYYY-MM-DDTHH:MM:SS) using the current year.
 Keep responses short and natural for voice (1-3 sentences).`;
 
