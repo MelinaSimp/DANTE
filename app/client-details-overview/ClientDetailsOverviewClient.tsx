@@ -34,6 +34,7 @@ import CallAuditView, {
   type ComplianceFlag,
 } from "@/components/call/CallAuditView";
 import type { Annotation } from "@/components/documents/PdfViewerWithAnnotations";
+import DocumentExtractionPanel from "@/components/documents/DocumentExtractionPanel";
 
 const PdfViewerWithAnnotations = dynamic(
   () => import("@/components/documents/PdfViewerWithAnnotations"),
@@ -1383,6 +1384,11 @@ export default function ClientDetailsOverviewClient({
                       </div>
                       <div className="w-[380px] shrink-0 flex flex-col bg-[#f9fafb]">
                         <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                          {/* Structured extraction (1099-B / DIV / R).
+                              Wired to lib/documents for M1.5 "end-to-end
+                              real use". Collapsible so it doesn't crowd
+                              the annotations panel when unused. */}
+                          <DocumentExtractionPanel documentId={document.id} />
                           <p className="text-xs font-semibold uppercase tracking-wider text-[#6b7280]">
                             Annotations & comments
                           </p>

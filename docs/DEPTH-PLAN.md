@@ -65,13 +65,21 @@ Two things have changed since the original plan:
 - Verified X/Y badge on every grounded summary.
 
 ### Milestone 1.5 — The moat-around-the-moat (in progress, Apr 2026)
-Scaffolds shipped. Three of five now have end-to-end real use wired
-(compliance scanner auto-runs on every call summary, custodian AUM
-shows on the advisor dashboard with Demo-data labeling and a one-
-click seed, reference library retrieves chunks into the summarizer
-prompt when the transcript hints at RMD / IRMAA / contribution /
-Reg-BI topics). Client-doc extraction + eval harness still await
-their first real corpus pass.
+Scaffolds shipped. Four of five now have end-to-end real use wired:
+
+- Compliance scanner auto-runs on every call-summary save; flags land
+  in the audit modal's Compliance review strip with Approve/Dismiss.
+- Custodian AUM shows on the advisor dashboard with Demo-data
+  labeling and a one-click seed for the mock driver.
+- Reference library retrieves topical chunks (RMD, IRMAA,
+  contribution limits, Reg BI) into the summarizer prompt so
+  regulatory facts aren't hallucinated.
+- Client-doc extraction has a review panel in the document viewer —
+  pick form type, hit Extract, get structured fields + rows with
+  per-field confidence.
+
+Eval harness still needs its first real corpus pass (1 sample case
+today, target 10 before citing a number, 100 before production-ready).
 
 - **Eval harness for call summaries** — scoring against the four failure
   conditions from Luca's repo (unsupported claim, wrong citation,
