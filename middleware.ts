@@ -2,8 +2,17 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
+// Decorative/experimental routes — gated behind a Labs cookie so the
+// default product surface stays focused on the workflows that actually
+// work (client details, calls, documents, agents). Visitors can opt in
+// by appending `?labs=1` to any URL (sets cookie, enables Labs routes)
+// or `?labs=0` to opt out. Without the cookie these paths redirect to
+// `/dashboard`.
+const LABS_ROUTES = ["/home", "/compiled"];
+const LABS_COOKIE = "drift_labs";
+
 export async function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl;
+  const { pathname, searchParams } = req.nextUrl;
 
   if (pathname.startsWith("/api")) {
     return NextResponse.next();
@@ -15,6 +24,42 @@ export async function middleware(req: NextRequest) {
 
   // Create response for cookie handling
   const response = NextResponse.next();
+
+  // Labs opt-in / opt-out via ?labs=1 / ?labs=0. Works on any route so
+  // you can toggle from wherever.
+  const labsParam = searchParams.get("labs");
+  if (labsParam === "1") {
+    response.cookies.set({
+      name: LABS_COOKIE,
+      value: "1",
+      path: "/",
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 60 * 60 * 24 * 365,
+    });
+  } else if (labsParam === "0") {
+    response.cookies.set({
+      name: LABS_COOKIE,
+      value: "",
+      path: "/",
+      maxAge: 0,
+    });
+  }
+
+  // Gate Labs routes unless cookie was present on the incoming request
+  // (or is being set right now via ?labs=1).
+  const isLabsRoute = LABS_ROUTES.some(
+    (r) => pathname === r || pathname.startsWith(`${r}/`)
+  );
+  if (isLabsRoute) {
+    const hasCookie = req.cookies.get(LABS_COOKIE)?.value === "1";
+    if (!hasCookie && labsParam !== "1") {
+      const url = req.nextUrl.clone();
+      url.pathname = "/dashboard";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+  }
 
   // Create Supabase client with proper cookie handling
   const supabase = createServerClient(

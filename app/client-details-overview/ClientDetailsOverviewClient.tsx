@@ -29,6 +29,9 @@ import dynamic from "next/dynamic";
 import { formatPhoneToE164 } from "@/lib/validation";
 import { supabase } from "@/lib/supabase/client";
 import AddNoteForm from "@/components/notes/AddNoteForm";
+import CallAuditView, {
+  type StructuredSummary,
+} from "@/components/call/CallAuditView";
 import type { Annotation } from "@/components/documents/PdfViewerWithAnnotations";
 
 const PdfViewerWithAnnotations = dynamic(
@@ -133,6 +136,46 @@ export default function ClientDetailsOverviewClient({
   // Notes list for the selected client (hand-written + AI call-recording notes)
   const [clientNotes, setClientNotes] = useState<ClientNote[]>([]);
   const [notesLoading, setNotesLoading] = useState(false);
+  // Audit view state — opens when the user clicks "View audit" on a call note.
+  type AuditData = {
+    id: string;
+    contact_id: string;
+    transcript: string | null;
+    transcript_segments:
+      | { id: number; start: number; end: number; text: string }[]
+      | null;
+    summary_structured: StructuredSummary | null;
+    summary: string | null;
+    created_at: string;
+    note_id: string | null;
+  };
+  const [auditOpen, setAuditOpen] = useState(false);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditData, setAuditData] = useState<AuditData | null>(null);
+  const [auditError, setAuditError] = useState<string | null>(null);
+
+  const openAuditForNote = useCallback(async (noteId: string) => {
+    setAuditOpen(true);
+    setAuditLoading(true);
+    setAuditError(null);
+    setAuditData(null);
+    try {
+      const res = await fetch(
+        `/api/calls/audit?noteId=${encodeURIComponent(noteId)}`,
+        { credentials: "include" }
+      );
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setAuditError(json.error || "Failed to load audit");
+      } else {
+        setAuditData(json.audit as AuditData);
+      }
+    } catch (err) {
+      setAuditError(err instanceof Error ? err.message : "Failed to load");
+    } finally {
+      setAuditLoading(false);
+    }
+  }, []);
   const [useTemplateMode, setUseTemplateMode] = useState(false);
   const [documentToAnalyzeUrl, setDocumentToAnalyzeUrl] = useState<string | null>(null);
   const [documentToAnalyzeFileName, setDocumentToAnalyzeFileName] = useState<string | null>(null);
@@ -1465,11 +1508,23 @@ export default function ClientDetailsOverviewClient({
                                       timeStyle: "short",
                                     })}
                                   </span>
-                                  {isCallNote && (
-                                    <span className="rounded-full bg-[#3166bf]/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-[#3166bf]">
-                                      Call recording
-                                    </span>
-                                  )}
+                                  <div className="flex items-center gap-2">
+                                    {isCallNote && (
+                                      <span className="rounded-full bg-[#3166bf]/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-[#3166bf]">
+                                        Call recording
+                                      </span>
+                                    )}
+                                    {isCallNote && (
+                                      <button
+                                        type="button"
+                                        onClick={() => openAuditForNote(n.id)}
+                                        className="inline-flex items-center gap-1 rounded-full border border-[#3166bf]/40 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#3166bf] hover:bg-[#3166bf] hover:text-white transition"
+                                        title="See which transcript segments each claim came from"
+                                      >
+                                        View audit
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
                                 <div>{n.body}</div>
                               </li>
@@ -1554,6 +1609,61 @@ export default function ClientDetailsOverviewClient({
           message={confirmModal.message}
           variant="danger"
         />
+      )}
+
+      {/* Call audit modal — opens when user clicks "View audit" on a call note */}
+      {auditOpen && (
+        auditLoading ? (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <div className="rounded-2xl border border-[#e5e7eb] bg-white px-6 py-5 text-sm text-[#151515]/70 shadow-2xl">
+              Loading audit…
+            </div>
+          </div>
+        ) : auditError ? (
+          <div
+            className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={() => {
+              setAuditOpen(false);
+              setAuditError(null);
+              setAuditData(null);
+            }}
+          >
+            <div
+              className="rounded-2xl border border-[#e5e7eb] bg-white px-6 py-5 shadow-2xl max-w-md w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-sm font-semibold text-[#151515] mb-2">
+                Couldn&rsquo;t load audit
+              </h3>
+              <p className="text-sm text-[#151515]/70 mb-4">{auditError}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuditOpen(false);
+                  setAuditError(null);
+                  setAuditData(null);
+                }}
+                className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs font-medium text-[#151515] hover:border-[#3166bf] hover:text-[#3166bf]"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        ) : auditData ? (
+          <CallAuditView
+            open={auditOpen}
+            onClose={() => {
+              setAuditOpen(false);
+              setAuditData(null);
+              setAuditError(null);
+            }}
+            contactName={selected?.type === "client" ? selected.name : "Client"}
+            createdAt={auditData.created_at}
+            transcript={auditData.transcript || ""}
+            segments={auditData.transcript_segments || []}
+            structured={auditData.summary_structured}
+          />
+        ) : null
       )}
 
       {/* Toast Notification */}
