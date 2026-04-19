@@ -1,5 +1,11 @@
 // app/auth/signup/page.tsx
+//
+// Invite-token sign-up flow. Harvey-ized to match /auth: pure white
+// canvas, editorial serif heading, 1px rules, ink-on-canvas submit.
+// Server action preserved verbatim — only the visuals changed.
+
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { isValidEmail, normalizeToken } from "@/lib/invite";
@@ -107,100 +113,154 @@ export default async function SignupPage({
     redirect("/"); // you can change to /contacts or /settings
   }
 
+  const inputClass =
+    "w-full px-3.5 py-3 text-sm outline-none transition-colors";
+  const inputStyle: React.CSSProperties = {
+    border: "1px solid var(--rule)",
+    background: "var(--canvas)",
+    color: "var(--ink)",
+    borderRadius: "var(--r-input)",
+  };
+
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-16 text-white">
-      <div className="pointer-events-none absolute inset-0 opacity-40" aria-hidden>
-        <div className="absolute left-1/3 top-1/4 h-80 w-80 rounded-full bg-gradient-to-br from-[#3351ff]/35 via-transparent to-transparent blur-[140px]" />
-        <div className="absolute bottom-1/4 right-1/3 h-[26rem] w-[26rem] rounded-full bg-gradient-to-tr from-[#1b3b6f]/30 via-transparent to-transparent blur-[180px]" />
+    <div
+      className="relative min-h-screen overflow-hidden"
+      style={{ background: "var(--canvas)" }}
+    >
+      {/* Top-left wordmark */}
+      <div className="absolute top-6 left-6 md:top-8 md:left-10 z-10">
+        <Link href="/" className="inline-flex items-center gap-2 group">
+          <img
+            src="/brand/logo-circle.png"
+            alt="Drift"
+            className="w-6 h-6 rounded-full object-cover"
+          />
+          <span
+            className="heading-display text-xl"
+            style={{ color: "var(--ink)" }}
+          >
+            Drift
+          </span>
+        </Link>
       </div>
 
-      <form
-        action={redeem}
-        className="relative z-10 w-full max-w-md space-y-5 rounded-3xl border border-white/12 bg-black/65 p-10 shadow-[0_30px_90px_rgba(9,9,17,0.55)] backdrop-blur"
-      >
-        <div className="text-center">
-          <h1 className="text-3xl font-semibold">Create your account</h1>
-          <p className="mt-2 text-sm text-white/60">Use your invite to join your company workspace.</p>
-        </div>
-
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-white/70">Invite token</label>
-          <input
-            name="token"
-            defaultValue={normalizeToken(resolvedParams?.token)}
-            placeholder="DRIFT-XXXX-YYYY"
-            className="w-full rounded-2xl border border-white/15 bg-black/45 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
-            required
-          />
-        </div>
-
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-white/70">First name</label>
-          <input
-            name="first_name"
-            placeholder="Jane"
-            className="w-full rounded-2xl border border-white/15 bg-black/45 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
-            required
-          />
-        </div>
-
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-white/70">Last name</label>
-          <input
-            name="last_name"
-            placeholder="Doe"
-            className="w-full rounded-2xl border border-white/15 bg-black/45 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
-            required
-          />
-        </div>
-
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-white/70">Email</label>
-          <input
-            name="email"
-            type="email"
-            placeholder="jane@acme.com"
-            className="w-full rounded-2xl border border-white/15 bg-black/45 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
-            required
-          />
-        </div>
-
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-white/70">Password</label>
-          <input
-            name="password"
-            type="password"
-            placeholder="••••••••"
-            className="w-full rounded-2xl border border-white/15 bg-black/45 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
-            required
-            minLength={8}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-white/70">Company type</label>
-          <select
-            name="company_category"
-            className="w-full rounded-2xl border border-white/15 bg-black/45 px-4 py-3 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
-            required
-            defaultValue=""
+      <div className="relative z-10 flex items-center justify-center min-h-screen px-6 py-16">
+        <div className="w-full max-w-[440px]">
+          <div
+            className="card-flat p-8"
+            style={{ borderColor: "var(--rule)" }}
           >
-            <option value="" disabled>
-              Select one
-            </option>
-            <option value="service">Service-based company</option>
-            <option value="restaurant">Restaurant</option>
-          </select>
+            <div className="mb-6">
+              <div className="label-section mb-2">Join workspace</div>
+              <h1
+                className="heading-display text-3xl mb-1"
+                style={{ color: "var(--ink)" }}
+              >
+                Create your account
+              </h1>
+              <p className="text-sm" style={{ color: "var(--ink-muted)" }}>
+                Redeem your invite to join your company workspace.
+              </p>
+            </div>
+
+            <form action={redeem} className="space-y-3">
+              <div>
+                <label
+                  className="label-section mb-1.5 block"
+                  style={{ color: "var(--ink-muted)" }}
+                >
+                  Invite token
+                </label>
+                <input
+                  name="token"
+                  defaultValue={normalizeToken(resolvedParams?.token)}
+                  placeholder="DRIFT-XXXX-YYYY"
+                  className={`${inputClass} mono`}
+                  style={inputStyle}
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  name="first_name"
+                  placeholder="First name"
+                  className={inputClass}
+                  style={inputStyle}
+                  required
+                />
+                <input
+                  name="last_name"
+                  placeholder="Last name"
+                  className={inputClass}
+                  style={inputStyle}
+                  required
+                />
+              </div>
+
+              <input
+                name="email"
+                type="email"
+                placeholder="Email"
+                className={inputClass}
+                style={inputStyle}
+                required
+              />
+
+              <input
+                name="password"
+                type="password"
+                placeholder="Password (8+ characters)"
+                className={inputClass}
+                style={inputStyle}
+                required
+                minLength={8}
+              />
+
+              <select
+                name="company_category"
+                className={inputClass}
+                style={inputStyle}
+                required
+                defaultValue=""
+              >
+                <option value="" disabled>
+                  Company type…
+                </option>
+                <option value="service">Service-based company</option>
+                <option value="restaurant">Restaurant</option>
+              </select>
+
+              <button
+                type="submit"
+                className="w-full px-4 py-3 text-sm font-medium transition mt-2"
+                style={{
+                  background: "var(--ink)",
+                  color: "var(--canvas)",
+                  borderRadius: "var(--r-input)",
+                  cursor: "pointer",
+                }}
+              >
+                Create account
+              </button>
+            </form>
+
+            <p
+              className="mt-5 text-center text-[11px] leading-relaxed"
+              style={{ color: "var(--ink-subtle)" }}
+            >
+              Having trouble? Ask your admin for a fresh token or direct signup link.
+            </p>
+          </div>
+
+          <div
+            className="mt-6 text-center text-[11px] mono"
+            style={{ color: "var(--ink-subtle)" }}
+          >
+            © {new Date().getFullYear()} Drift AI
+          </div>
         </div>
-
-        <button className="w-full rounded-full bg-gradient-to-r from-[#3351ff] to-[#4b63ff] px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition hover:from-[#4663ff] hover:to-[#5f74ff]">
-          Create account
-        </button>
-
-        <p className="text-xs text-white/50">
-          Having trouble? Ask your admin for a fresh token or a direct signup link.
-        </p>
-      </form>
-    </main>
+      </div>
+    </div>
   );
 }

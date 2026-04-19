@@ -1,13 +1,15 @@
 "use client";
 
+// Sign-in / sign-up page, Harvey-ized.
+// Pure white canvas, editorial serif heading, 1px rules, no glass, no
+// GLSL hills. The page that sets the tone for a CCO's first 30 seconds
+// with the product.
+
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
-import { GLSLHills } from "@/components/ui/glsl-hills";
 
 export default function AuthPage() {
-  const router = useRouter();
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -18,14 +20,22 @@ export default function AuthPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [keepSignedIn, setKeepSignedIn] = useState(false);
 
+  // The old dark-theme override set html/body to #000. The whole app is
+  // now white-by-default, so we just make sure nothing legacy is still
+  // overriding it.
   useEffect(() => {
     const html = document.documentElement;
     const body = document.body;
     const main = document.querySelector("main");
-    html.style.setProperty("background", "#000", "important");
-    body.style.setProperty("background", "#000", "important");
-    body.style.setProperty("color", "#fff", "important");
-    if (main) (main as HTMLElement).style.setProperty("background", "#000", "important");
+    html.style.setProperty("background", "var(--canvas)", "important");
+    body.style.setProperty("background", "var(--canvas)", "important");
+    body.style.setProperty("color", "var(--ink)", "important");
+    if (main)
+      (main as HTMLElement).style.setProperty(
+        "background",
+        "var(--canvas)",
+        "important"
+      );
     return () => {
       html.style.removeProperty("background");
       body.style.removeProperty("background");
@@ -66,14 +76,12 @@ export default function AuthPage() {
           window.location.href = "/auth/callback";
         } else {
           setMessage(
-            "Check your email to confirm, then sign in. You'll need a workspace invite code from your admin — use Join workspace after login.",
+            "Check your email to confirm, then sign in. You'll need a workspace invite code from your admin — use Join workspace after login."
           );
         }
       } else {
-        const { error: signInError, data } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+        const { error: signInError, data } =
+          await supabase.auth.signInWithPassword({ email, password });
 
         if (signInError) {
           setError(signInError.message);
@@ -82,7 +90,10 @@ export default function AuthPage() {
         }
       }
     } catch (err: any) {
-      if (err.message?.includes("Failed to fetch") || err.message?.includes("NetworkError")) {
+      if (
+        err.message?.includes("Failed to fetch") ||
+        err.message?.includes("NetworkError")
+      ) {
         setError("Unable to connect. Please check your internet connection.");
       } else {
         setError(err.message || "An error occurred");
@@ -92,90 +103,123 @@ export default function AuthPage() {
     }
   };
 
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    border: "1px solid var(--rule)",
+    background: "var(--canvas)",
+    color: "var(--ink)",
+    padding: "12px 14px",
+    fontSize: 14,
+    borderRadius: "var(--r-input)",
+    outline: "none",
+    transition: "border-color 120ms ease",
+  };
+
   return (
-    <div className="relative min-h-screen bg-black overflow-hidden">
-      {/* GLSL Hills background */}
-      <div className="absolute inset-0 z-0 opacity-70">
-        <GLSLHills speed={0.3} cameraZ={140} />
-      </div>
-
-      {/* Gradient overlays for depth */}
-      <div className="absolute inset-0 z-[1] bg-gradient-to-t from-black/80 via-transparent to-black/40 pointer-events-none" />
-      <div className="absolute inset-0 z-[1] bg-gradient-to-b from-black/60 via-transparent to-transparent pointer-events-none" />
-
-      {/* Top Logo */}
-      <div className="absolute top-8 left-8 z-10">
+    <div
+      className="relative min-h-screen overflow-hidden"
+      style={{ background: "var(--canvas)" }}
+    >
+      {/* Top-left wordmark */}
+      <div className="absolute top-6 left-6 md:top-8 md:left-10 z-10">
         <Link href="/" className="inline-flex items-center gap-2 group">
           <img
             src="/brand/logo-circle.png"
-            alt="Drift Logo"
+            alt="Drift"
             className="w-6 h-6 rounded-full object-cover"
           />
-          <span className="text-lg font-medium text-white/80 group-hover:text-white transition">
+          <span
+            className="heading-display text-xl"
+            style={{ color: "var(--ink)" }}
+          >
             Drift
           </span>
         </Link>
       </div>
 
+      {/* Editorial intro column — shows only on wide screens. It gives
+          the page the Harvey "quiet authority" feel without any
+          decorative graphic. */}
+      <div className="hidden lg:flex absolute left-[8%] top-1/2 -translate-y-1/2 max-w-md flex-col gap-6 z-10">
+        <div className="label-section">For financial advisors</div>
+        <h2
+          className="heading-display text-5xl leading-[1.05]"
+          style={{ color: "var(--ink)" }}
+        >
+          Every answer,
+          <br />
+          traced to a source.
+        </h2>
+        <p
+          className="prose-body"
+          style={{ color: "var(--ink-muted)", maxWidth: 380 }}
+        >
+          Drift grounds every call summary, meeting brief, and compliance
+          check in the exact transcript segment, document chunk, or
+          custodian balance it came from. A compliance officer can hover
+          any claim and see where it came from.
+        </p>
+        <div className="flex items-center gap-3 pt-2">
+          <span className="chip-verified">Citation-grounded</span>
+          <span className="chip-citation">Audit packet</span>
+        </div>
+      </div>
+
       {/* Card container */}
-      <div className="relative z-10 flex items-center justify-center min-h-screen px-4 py-16">
-        <div className="w-full max-w-[420px]">
-          {/* Glass card */}
-          <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-2xl shadow-2xl shadow-black/40 p-10">
-            {/* Logo */}
-            <div className="mb-8 flex justify-center">
-              <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-br from-purple-500/50 via-violet-500/40 to-blue-500/30 rounded-full blur-xl scale-150 animate-pulse" />
-                <div className="relative bg-black/50 backdrop-blur-sm rounded-full p-3 ring-1 ring-white/10">
-                  <img
-                    src="/brand/logo-circle.png"
-                    alt="Drift Logo"
-                    className="w-12 h-12 rounded-full object-cover"
-                  />
-                </div>
+      <div className="relative z-10 flex items-center justify-center lg:justify-end min-h-screen px-6 py-16 lg:pr-[10%]">
+        <div className="w-full max-w-[400px]">
+          {/* Flat card */}
+          <div
+            className="card-flat p-8"
+            style={{ borderColor: "var(--rule)" }}
+          >
+            <div className="mb-6">
+              <div className="label-section mb-2">
+                {isSignUp ? "Create account" : "Sign in"}
               </div>
+              <h1
+                className="heading-display text-3xl mb-1"
+                style={{ color: "var(--ink)" }}
+              >
+                {isSignUp ? "Create your account" : "Welcome back"}
+              </h1>
+              <p
+                className="text-sm"
+                style={{ color: "var(--ink-muted)" }}
+              >
+                {isSignUp
+                  ? "Use your workspace invite code after sign-up to join."
+                  : "Sign in to continue."}
+              </p>
             </div>
 
-            {/* Title */}
-            <h1 className="text-2xl font-semibold text-white text-center mb-1">
-              {isSignUp ? "Create your account" : "Sign in to Drift"}
-            </h1>
-            <p className="text-sm text-white/40 text-center mb-8">
-              {isSignUp
-                ? "After sign-in, use your workspace invite code to join"
-                : "Welcome back"}
-            </p>
-
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-3">
               {isSignUp && (
-                <>
-                  <div className="grid grid-cols-2 gap-3">
-                    <input
-                      type="text"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      className="w-full rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white placeholder:text-white/30 focus:border-purple-500/50 focus:outline-none focus:ring-1 focus:ring-purple-500/30 transition"
-                      placeholder="First name"
-                      required={isSignUp}
-                    />
-                    <input
-                      type="text"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                      className="w-full rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white placeholder:text-white/30 focus:border-purple-500/50 focus:outline-none focus:ring-1 focus:ring-purple-500/30 transition"
-                      placeholder="Last name"
-                      required={isSignUp}
-                    />
-                  </div>
-                </>
+                <div className="grid grid-cols-2 gap-3">
+                  <input
+                    type="text"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    style={inputStyle}
+                    placeholder="First name"
+                    required={isSignUp}
+                  />
+                  <input
+                    type="text"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    style={inputStyle}
+                    placeholder="Last name"
+                    required={isSignUp}
+                  />
+                </div>
               )}
 
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white placeholder:text-white/30 focus:border-purple-500/50 focus:outline-none focus:ring-1 focus:ring-purple-500/30 transition"
+                style={inputStyle}
                 placeholder="Email"
                 required
               />
@@ -184,35 +228,56 @@ export default function AuthPage() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white placeholder:text-white/30 focus:border-purple-500/50 focus:outline-none focus:ring-1 focus:ring-purple-500/30 transition"
+                style={inputStyle}
                 placeholder="Password"
                 required
                 minLength={8}
               />
 
               {!isSignUp && (
-                <div className="flex items-center">
+                <div className="flex items-center pt-1">
                   <input
                     type="checkbox"
                     id="keepSignedIn"
                     checked={keepSignedIn}
                     onChange={(e) => setKeepSignedIn(e.target.checked)}
-                    className="w-3.5 h-3.5 rounded border-white/20 bg-white/5 text-purple-500 focus:ring-purple-500/30 focus:ring-offset-0"
+                    className="w-3.5 h-3.5"
+                    style={{ accentColor: "var(--accent)" }}
                   />
-                  <label htmlFor="keepSignedIn" className="ml-2 text-xs text-white/40">
+                  <label
+                    htmlFor="keepSignedIn"
+                    className="ml-2 text-xs"
+                    style={{ color: "var(--ink-muted)" }}
+                  >
                     Keep me signed in
                   </label>
                 </div>
               )}
 
               {error && (
-                <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-300">
+                <div
+                  className="px-3 py-2 text-sm"
+                  style={{
+                    background: "var(--danger-soft)",
+                    color: "var(--danger)",
+                    border: "1px solid var(--danger)",
+                    borderRadius: "var(--r-input)",
+                  }}
+                >
                   {error}
                 </div>
               )}
 
               {message && (
-                <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-sm text-emerald-300">
+                <div
+                  className="px-3 py-2 text-sm"
+                  style={{
+                    background: "var(--verified-soft)",
+                    color: "var(--verified)",
+                    border: "1px solid var(--verified)",
+                    borderRadius: "var(--r-input)",
+                  }}
+                >
                   {message}
                 </div>
               )}
@@ -220,28 +285,43 @@ export default function AuthPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full rounded-xl bg-white px-4 py-3 text-sm font-semibold text-black hover:bg-white/90 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 text-sm font-medium transition"
+                style={{
+                  background: "var(--ink)",
+                  color: "var(--canvas)",
+                  borderRadius: "var(--r-input)",
+                  opacity: loading ? 0.5 : 1,
+                  cursor: loading ? "not-allowed" : "pointer",
+                }}
               >
-                {loading ? "Loading..." : isSignUp ? "Create account" : "Sign in"}
+                {loading
+                  ? "Loading…"
+                  : isSignUp
+                  ? "Create account"
+                  : "Sign in"}
               </button>
             </form>
 
-            {/* Links */}
-            <div className="mt-6 space-y-2 text-center">
+            <div className="mt-6 text-center">
               {!isSignUp ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsSignUp(true);
-                      setError(null);
-                      setMessage(null);
-                    }}
-                    className="text-xs text-white/40 hover:text-white/70 transition"
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSignUp(true);
+                    setError(null);
+                    setMessage(null);
+                  }}
+                  className="text-xs transition"
+                  style={{ color: "var(--ink-muted)" }}
+                >
+                  Don&apos;t have an account?{" "}
+                  <span
+                    className="underline underline-offset-2"
+                    style={{ color: "var(--accent)" }}
                   >
-                    Don&apos;t have an account? <span className="text-white/60 underline underline-offset-2">Create one</span>
-                  </button>
-                </>
+                    Create one
+                  </span>
+                </button>
               ) : (
                 <button
                   type="button"
@@ -250,29 +330,49 @@ export default function AuthPage() {
                     setError(null);
                     setMessage(null);
                   }}
-                  className="text-xs text-white/40 hover:text-white/70 transition"
+                  className="text-xs transition"
+                  style={{ color: "var(--ink-muted)" }}
                 >
-                  Already have an account? <span className="text-white/60 underline underline-offset-2">Sign in</span>
+                  Already have an account?{" "}
+                  <span
+                    className="underline underline-offset-2"
+                    style={{ color: "var(--accent)" }}
+                  >
+                    Sign in
+                  </span>
                 </button>
               )}
             </div>
 
             {isSignUp && (
-              <p className="mt-5 text-center text-[11px] text-white/25 leading-relaxed">
+              <p
+                className="mt-5 text-center text-[11px] leading-relaxed"
+                style={{ color: "var(--ink-subtle)" }}
+              >
                 By signing up, you agree to our{" "}
-                <Link href="/terms" className="text-white/40 hover:text-white/60 underline underline-offset-2 transition">
+                <Link
+                  href="/terms"
+                  className="underline underline-offset-2"
+                  style={{ color: "var(--ink-muted)" }}
+                >
                   Terms
                 </Link>{" "}
                 and{" "}
-                <Link href="/privacy" className="text-white/40 hover:text-white/60 underline underline-offset-2 transition">
+                <Link
+                  href="/privacy"
+                  className="underline underline-offset-2"
+                  style={{ color: "var(--ink-muted)" }}
+                >
                   Privacy Policy
                 </Link>
               </p>
             )}
           </div>
 
-          {/* Footer */}
-          <div className="mt-8 text-center text-[11px] text-white/20">
+          <div
+            className="mt-6 text-center text-[11px] mono"
+            style={{ color: "var(--ink-subtle)" }}
+          >
             © {new Date().getFullYear()} Drift AI
           </div>
         </div>
