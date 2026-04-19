@@ -14,11 +14,14 @@
 export function getAppUrl(): string {
   const explicit = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_BASE_URL;
   if (explicit) {
-    return explicit.replace(/\/$/, "");
+    // .trim() guards against the classic Vercel env paste-with-newline
+    // bug (a trailing `\n` makes every downstream URL malformed and
+    // things like VAPI's assistant config reject the webhook URL).
+    return explicit.trim().replace(/\/$/, "");
   }
 
   if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`;
+    return `https://${process.env.VERCEL_URL.trim()}`;
   }
 
   if (process.env.NODE_ENV === "production") {

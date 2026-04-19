@@ -5,6 +5,7 @@
  */
 
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getAppUrl } from "@/lib/app-url";
 import {
   createAssistant,
   updateAssistant,
@@ -15,9 +16,10 @@ import {
   type VapiAssistantConfig,
 } from "./client";
 
-const SERVER_URL = process.env.NEXT_PUBLIC_APP_URL
-  ? `${process.env.NEXT_PUBLIC_APP_URL}/api/vapi/server-url`
-  : "https://driftai.studio/api/vapi/server-url";
+// getAppUrl() strips trailing whitespace + slash; NEXT_PUBLIC_APP_URL
+// on Vercel had a trailing newline that made VAPI reject the webhook
+// URL as malformed ("found https://driftai.studio\n/api/vapi/server-url").
+const SERVER_URL = `${getAppUrl()}/api/vapi/server-url`;
 
 /**
  * Build a VAPI assistant config from a Drift agent
