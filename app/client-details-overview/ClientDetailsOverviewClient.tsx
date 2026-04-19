@@ -1468,11 +1468,25 @@ export default function ClientDetailsOverviewClient({
                 {/* Notes — hand-written + AI-generated call summaries */}
                 <div className="rounded-xl border border-[#e5e7eb] bg-white p-4">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-semibold uppercase tracking-wider text-[#6b7280]">Notes</h3>
+                    <h3 className="label-section">Notes</h3>
                     {selected?.type === "client" && (
                       <Link
                         href={`/call?contactId=${selected.id}`}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs font-medium text-[#151515] hover:border-[#3166bf] hover:text-[#3166bf]"
+                        className="inline-flex items-center gap-1.5 border px-3 py-1.5 text-xs font-medium transition"
+                        style={{
+                          borderColor: "var(--rule)",
+                          color: "var(--ink)",
+                          background: "var(--canvas)",
+                          borderRadius: "var(--r-input)",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.borderColor = "var(--accent)";
+                          e.currentTarget.style.color = "var(--accent)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.borderColor = "var(--rule)";
+                          e.currentTarget.style.color = "var(--ink)";
+                        }}
                       >
                         <Phone className="h-3.5 w-3.5" />
                         Record call
@@ -1480,29 +1494,32 @@ export default function ClientDetailsOverviewClient({
                     )}
                   </div>
                   {selected?.type !== "client" ? (
-                    <p className="text-sm text-[#6b7280]">Select a client to view and add notes.</p>
+                    <p className="prose-body text-sm" style={{ color: "var(--ink-muted)" }}>Select a client to view and add notes.</p>
                   ) : (
                     <div className="space-y-4">
                       <AddNoteForm contactId={selected.id} />
                       {notesLoading ? (
-                        <p className="text-sm text-[#6b7280]">Loading notes…</p>
+                        <p className="prose-body text-sm" style={{ color: "var(--ink-muted)" }}>Loading notes…</p>
                       ) : clientNotes.length === 0 ? (
-                        <p className="text-sm text-[#6b7280]">No notes yet. Write one above, or record a call to auto-generate one.</p>
+                        <p className="prose-body text-sm" style={{ color: "var(--ink-muted)" }}>No notes yet. Write one above, or record a call to auto-generate one.</p>
                       ) : (
-                        <ul className="space-y-3">
+                        <ul className="space-y-2">
                           {clientNotes.map((n) => {
                             const isCallNote = n.body.startsWith("📞 Call with");
                             return (
                               <li
                                 key={n.id}
-                                className={`rounded-xl border p-3 text-sm whitespace-pre-wrap ${
-                                  isCallNote
-                                    ? "border-[#3166bf]/30 bg-[#3166bf]/5 text-[#151515]"
-                                    : "border-[#e5e7eb] bg-[#f9fafb] text-[#374151]"
-                                }`}
+                                className="border p-3 text-sm whitespace-pre-wrap prose-body"
+                                style={{
+                                  borderColor: "var(--rule)",
+                                  background: isCallNote ? "var(--accent-soft)" : "var(--canvas-subtle)",
+                                  color: "var(--ink)",
+                                  borderRadius: "var(--r-card)",
+                                  borderLeft: isCallNote ? "2px solid var(--accent)" : `1px solid var(--rule)`,
+                                }}
                               >
-                                <div className="mb-1 flex items-center justify-between gap-2 text-xs text-[#6b7280]">
-                                  <span>
+                                <div className="mb-2 flex items-center justify-between gap-2 text-xs" style={{ color: "var(--ink-muted)" }}>
+                                  <span className="mono">
                                     {new Date(n.created_at).toLocaleString("en-US", {
                                       dateStyle: "medium",
                                       timeStyle: "short",
@@ -1510,15 +1527,28 @@ export default function ClientDetailsOverviewClient({
                                   </span>
                                   <div className="flex items-center gap-2">
                                     {isCallNote && (
-                                      <span className="rounded-full bg-[#3166bf]/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-[#3166bf]">
-                                        Call recording
-                                      </span>
+                                      <span className="chip-citation">Call recording</span>
                                     )}
                                     {isCallNote && (
                                       <button
                                         type="button"
                                         onClick={() => openAuditForNote(n.id)}
-                                        className="inline-flex items-center gap-1 rounded-full border border-[#3166bf]/40 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[#3166bf] hover:bg-[#3166bf] hover:text-white transition"
+                                        className="inline-flex items-center gap-1 border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider transition"
+                                        style={{
+                                          borderColor: "var(--accent)",
+                                          color: "var(--accent)",
+                                          background: "var(--canvas)",
+                                          borderRadius: "var(--r-chip)",
+                                          letterSpacing: "0.08em",
+                                        }}
+                                        onMouseEnter={(e) => {
+                                          e.currentTarget.style.background = "var(--accent)";
+                                          e.currentTarget.style.color = "var(--canvas)";
+                                        }}
+                                        onMouseLeave={(e) => {
+                                          e.currentTarget.style.background = "var(--canvas)";
+                                          e.currentTarget.style.color = "var(--accent)";
+                                        }}
                                         title="See which transcript segments each claim came from"
                                       >
                                         View audit
