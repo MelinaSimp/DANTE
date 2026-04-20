@@ -38,10 +38,10 @@ export default async function SuperadminPage() {
             <span className="text-xs text-[var(--ink-muted)]">Superadmin</span>
           </div>
           <Link
-            href="/"
+            href="/dashboard"
             className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] transition-colors"
           >
-            Back to app
+            Back to dashboard
           </Link>
         </div>
       </div>

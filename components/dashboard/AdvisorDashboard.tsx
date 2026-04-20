@@ -57,6 +57,9 @@ type Flag = {
 type DashboardData = {
   advisorName: string;
   workspaceName: string;
+  // Only true when the logged-in user is a platform superadmin
+  // (per hasSuperadminAccess). Used to reveal the Admin nav item.
+  isSuperadmin?: boolean;
   today: Meeting[];
   awaitingReview: number;
   recentCalls: CallNote[];
@@ -174,6 +177,16 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
           >
             Settings
           </Link>
+          {/* Superadmin-only: the admin console lives at /admin and is
+              always gated server-side too — this is purely a nav hint. */}
+          {data.isSuperadmin && (
+            <Link
+              href="/admin"
+              className="px-3 py-1.5 text-sm text-[var(--accent)] hover:text-[var(--ink)] transition"
+            >
+              Admin
+            </Link>
+          )}
           <button
             onClick={async () => {
               await supabase.auth.signOut();

@@ -104,7 +104,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="hidden md:flex flex-col w-60 border-r border-[var(--rule)] bg-[var(--canvas)] shrink-0">
         <div className="p-5 border-b border-[var(--rule)]">
           <Link
-            href="/select"
+            href="/dashboard"
             className="flex items-center gap-2 text-[var(--ink-subtle)] hover:text-[var(--ink)] transition-colors mb-3 text-xs"
           >
             <ArrowLeft className="w-3.5 h-3.5" strokeWidth={1.5} />

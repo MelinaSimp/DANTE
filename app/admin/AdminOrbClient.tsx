@@ -130,7 +130,7 @@ export default function AdminOrbClient({ userName }: { userName?: string }) {
         </div>
         <div className="flex items-center gap-1">
           <Link
-            href="/select"
+            href="/dashboard"
             className="flex items-center gap-1.5 px-3 py-2 rounded-[4px] text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition"
           >
             <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />

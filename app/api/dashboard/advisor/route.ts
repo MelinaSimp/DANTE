@@ -12,6 +12,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { hasSuperadminAccess } from "@/lib/superadmin";
 
 export const dynamic = "force-dynamic";
 
@@ -271,6 +272,7 @@ export async function GET() {
   return NextResponse.json({
     advisorName: profile.full_name || user.email?.split("@")[0] || "Advisor",
     workspaceName,
+    isSuperadmin: hasSuperadminAccess(user.email, profile.is_superadmin),
     today,
     awaitingReview,
     recentCalls,
