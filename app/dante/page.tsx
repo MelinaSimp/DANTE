@@ -167,17 +167,6 @@ export default async function DantePage() {
           </Link>
         </div>
 
-        {/* Phase 2 roadmap note */}
-        <div className="mt-12 card-flat p-5 bg-[var(--canvas-subtle)]">
-          <div className="label-section mb-2">Phase 2 roadmap</div>
-          <p className="text-xs text-[var(--ink-muted)] leading-relaxed">
-            Visual node canvas for workflows (drag-drop, wires, branching).
-            Cron + webhook triggers. Nightly churn recompute with score-over-time
-            sparklines. ML model trained on observed churn, layered over the
-            current rule-based baseline. More integrations (Slack, Stripe,
-            Sheets, Notion).
-          </p>
-        </div>
       </div>
     </div>
   );
