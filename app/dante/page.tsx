@@ -16,7 +16,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import {
   ArrowLeft, TrendingDown, Zap, ArrowUpRight, Flame,
-  Activity, AlertTriangle,
+  Activity, AlertTriangle, Key, ShieldCheck,
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +31,9 @@ export default async function DantePage() {
   if (!profile?.workspace_id) redirect("/dashboard");
 
   // Pull summary counts so the landing page isn't just two dead links.
-  const [{ count: criticalCount }, { count: atRiskCount }, { count: workflowCount }, { data: latestScore }] = await Promise.all([
+  // Secrets count is wrapped in a try/catch so a missing table (pre-migration)
+  // doesn't break the page — the runner already no-ops on 42P01.
+  const [{ count: criticalCount }, { count: atRiskCount }, { count: workflowCount }, { data: latestScore }, secretCountResp] = await Promise.all([
     supabaseAdmin.from("dante_churn_scores").select("id", { count: "exact", head: true })
       .eq("workspace_id", profile.workspace_id).eq("tier", "critical"),
     supabaseAdmin.from("dante_churn_scores").select("id", { count: "exact", head: true })
@@ -41,7 +43,10 @@ export default async function DantePage() {
     supabaseAdmin.from("dante_churn_scores").select("computed_at")
       .eq("workspace_id", profile.workspace_id)
       .order("computed_at", { ascending: false }).limit(1).maybeSingle(),
+    supabaseAdmin.from("dante_secrets").select("id", { count: "exact", head: true })
+      .eq("workspace_id", profile.workspace_id),
   ]);
+  const secretCount = secretCountResp.error ? 0 : (secretCountResp.count ?? 0);
 
   return (
     <div className="min-h-screen bg-[var(--canvas)]">
@@ -77,7 +82,7 @@ export default async function DantePage() {
           </p>
         </div>
 
-        {/* Two surface cards */}
+        {/* Surface cards */}
         <div className="grid md:grid-cols-2 gap-4">
           {/* Churn */}
           <Link href="/dante/churn"
@@ -131,6 +136,33 @@ export default async function DantePage() {
                 <Activity className="w-3.5 h-3.5" strokeWidth={1.5} />
                 <strong className="font-semibold text-[var(--ink)]">{workflowCount ?? 0}</strong> workflow{(workflowCount ?? 0) === 1 ? "" : "s"}
               </span>
+            </div>
+          </Link>
+        </div>
+
+        {/* Settings strip — single full-width row so it doesn't compete
+            visually with the two primary surfaces above. */}
+        <div className="mt-4">
+          <Link href="/dante/settings/secrets"
+            className="group card-flat card-flat-hover p-5 flex items-center gap-4">
+            <div className="border border-[var(--rule)] bg-[var(--canvas)] rounded-[4px] p-2.5">
+              <Key className="w-4 h-4 text-[var(--ink)]" strokeWidth={1.5} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-0.5">
+                <h2 className="text-sm font-semibold text-[var(--ink)]">Secrets vault</h2>
+                <span className="inline-flex items-center gap-1 text-[10px] text-[var(--ink-subtle)]">
+                  <ShieldCheck className="w-3 h-3" strokeWidth={1.5} />
+                  service-role only
+                </span>
+              </div>
+              <p className="text-xs text-[var(--ink-muted)] leading-relaxed">
+                API keys and tokens for workflow steps. Reference as <code className="text-[var(--ink)]">{"{{secrets.key}}"}</code> and the runner redacts them from logs before insert.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 text-xs text-[var(--ink-muted)]">
+              <span><strong className="font-semibold text-[var(--ink)]">{secretCount}</strong> stored</span>
+              <ArrowUpRight className="w-4 h-4 text-[var(--ink-subtle)] group-hover:text-[var(--ink)] transition" strokeWidth={1.5} />
             </div>
           </Link>
         </div>

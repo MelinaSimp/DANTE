@@ -48,7 +48,7 @@ import "@xyflow/react/dist/style.css";
 import {
   ArrowLeft, Save, Loader2, Play, Trash2, AlertCircle,
   CheckCircle2, Power, X, Plus, Copy, ChevronDown, ChevronUp,
-  Sparkles,
+  Sparkles, History, Clock,
 } from "lucide-react";
 
 import type {
@@ -82,6 +82,21 @@ interface WorkflowRow {
 
 // React Flow speaks generic Node<TData>; ours always carries DanteNodeData.
 type DanteRFNode = RFNode<DanteNodeData>;
+
+// Run history types. The list endpoint returns lightweight rows; the
+// per-run GET fills in log + output when a row is expanded.
+interface RunHistoryRow {
+  id: string;
+  status: "success" | "error" | "running" | string;
+  started_at: string;
+  finished_at: string | null;
+  error: string | null;
+}
+interface RunDetail extends RunHistoryRow {
+  input: unknown;
+  output: unknown;
+  log: StepLogEntry[] | null;
+}
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -173,10 +188,21 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [runLog, setRunLog] = useState<StepLogEntry[] | null>(null);
-  const [runStatus, setRunStatus] = useState<"success" | "error" | null>(null);
+  // Status covers transient queue states too so the pill in the log
+  // header reflects live progress during polling.
+  const [runStatus, setRunStatus] = useState<"queued" | "running" | "success" | "error" | null>(null);
   const [logOpen, setLogOpen] = useState(true);
   const [webhookToken, setWebhookToken] = useState<string | null>(null);
   const [mintingToken, setMintingToken] = useState(false);
+
+  // Run history drawer state. Opens from the toolbar; rows show
+  // status + when, expand to load the full log.
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyRows, setHistoryRows] = useState<RunHistoryRow[] | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
+  const [runDetail, setRunDetail] = useState<RunDetail | null>(null);
+  const [runDetailLoading, setRunDetailLoading] = useState(false);
 
   // ── React Flow callbacks ──────────────────────────────────
 
@@ -301,22 +327,116 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, description, enabled, trigger: triggerTag, graph }),
       });
-      const res = await fetch(`/api/dante/workflows/${workflow.id}/run`, {
+
+      // Queue mode — enqueue then poll the run detail endpoint until
+      // we reach a terminal state. Unlocks workflows that exceed the
+      // 60s synchronous route budget (long OpenAI calls, chained HTTP).
+      const enqueueRes = await fetch(`/api/dante/workflows/${workflow.id}/run`, {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input: {} }),
+        body: JSON.stringify({ input: {}, mode: "queue" }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Run failed");
-      setRunLog(json.log);
-      setRunStatus(json.status);
+      const enqueueJson = await enqueueRes.json();
+      if (!enqueueRes.ok) throw new Error(enqueueJson.error || "Enqueue failed");
+
+      const runId: string = enqueueJson.run_id;
       setLogOpen(true);
+      setRunStatus("queued");
+
+      // Poll. Cap at ~5 minutes to avoid a client tab spinning forever
+      // if something wedged; the DB row is the source of truth either
+      // way. We back off slightly after the first few ticks so a slow
+      // run doesn't hammer the endpoint.
+      const started = Date.now();
+      const MAX_MS = 5 * 60 * 1000;
+      let delay = 1200;
+      let terminal = false;
+      while (!terminal && Date.now() - started < MAX_MS) {
+        await new Promise((r) => setTimeout(r, delay));
+        delay = Math.min(3000, delay + 200);
+        const detailRes = await fetch(
+          `/api/dante/workflows/${workflow.id}/runs/${runId}`,
+          { credentials: "include" },
+        );
+        if (!detailRes.ok) continue; // transient — keep polling
+        const detailJson = await detailRes.json();
+        const rd = detailJson.run;
+        if (!rd) continue;
+        if (rd.status === "success" || rd.status === "error") {
+          setRunLog(rd.log ?? []);
+          setRunStatus(rd.status);
+          if (rd.status === "error" && rd.error) setError(rd.error);
+          terminal = true;
+        } else {
+          // Keep showing the "queued"/"running" ghost state; rely on
+          // the next poll to update.
+          setRunStatus(rd.status as "queued" | "running");
+        }
+      }
+      if (!terminal) {
+        setError("Run is still executing — check the history drawer.");
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Run failed");
       setRunStatus("error");
       setLogOpen(true);
     } finally { setRunning(false); }
   }, [workflow.id, name, description, enabled, nodes, edges]);
+
+  // ── Run history ───────────────────────────────────────────
+  // Reuses the workflow detail GET, which already returns the last 20
+  // runs with just id/status/timestamps/error. Expanding a row fetches
+  // the single-run detail endpoint for the full log.
+
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    try {
+      const res = await fetch(`/api/dante/workflows/${workflow.id}`, { credentials: "include" });
+      if (!res.ok) throw new Error(await res.text());
+      const json = await res.json();
+      setHistoryRows(json.runs || []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load history");
+    } finally { setHistoryLoading(false); }
+  }, [workflow.id]);
+
+  const toggleHistory = useCallback(() => {
+    setHistoryOpen((v) => {
+      const next = !v;
+      if (next && historyRows === null) loadHistory();
+      return next;
+    });
+  }, [historyRows, loadHistory]);
+
+  const loadRunDetail = useCallback(async (runId: string) => {
+    if (expandedRunId === runId) {
+      // Clicked the same row again → collapse
+      setExpandedRunId(null);
+      setRunDetail(null);
+      return;
+    }
+    setExpandedRunId(runId);
+    setRunDetail(null);
+    setRunDetailLoading(true);
+    try {
+      const res = await fetch(`/api/dante/workflows/${workflow.id}/runs/${runId}`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const json = await res.json();
+      setRunDetail(json.run);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load run");
+      setExpandedRunId(null);
+    } finally { setRunDetailLoading(false); }
+  }, [workflow.id, expandedRunId]);
+
+  // After a fresh run finishes, invalidate the history cache so the
+  // next open reflects the just-finished row at the top.
+  useEffect(() => {
+    if (!runStatus) return;
+    setHistoryRows(null);
+  }, [runStatus]);
 
   // Paint run status on each node after a run finishes.
   useEffect(() => {
@@ -397,6 +517,15 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
               <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={1.5} /> Saved
             </span>
           )}
+          <button onClick={toggleHistory}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-[4px] border text-sm font-medium transition ${
+              historyOpen
+                ? "border-[var(--rule-strong)] bg-[var(--canvas-subtle)] text-[var(--ink)]"
+                : "border-[var(--rule)] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
+            }`}>
+            <History className="w-4 h-4" strokeWidth={1.5} />
+            <span className="hidden sm:inline">History</span>
+          </button>
           <button onClick={save} disabled={saving}
             className="flex items-center gap-1.5 px-3 py-2 rounded-[4px] border border-[var(--rule)] text-[var(--ink)] hover:bg-[var(--canvas-subtle)] text-sm font-medium transition disabled:opacity-50">
             {saving ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.5} /> : <Save className="w-4 h-4" strokeWidth={1.5} />}
@@ -476,8 +605,9 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
             </ReactFlowProvider>
           </div>
 
-          {/* Run log */}
-          {runLog && (
+          {/* Run log — renders while a run is queued/running too so the
+              user sees live status, even before steps have been logged. */}
+          {(runLog || (runStatus && runStatus !== null)) && (
             <div className="border-t border-[var(--rule)] bg-[var(--canvas)] max-h-[40vh] flex flex-col">
               <button
                 onClick={() => setLogOpen((v) => !v)}
@@ -487,13 +617,13 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
                   <span className="label-section">Last run</span>
                   {runStatus && (
                     <span className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full border border-[var(--rule)] ${
-                      runStatus === "success"
-                        ? "text-[var(--verified)] bg-[var(--verified-soft)]"
-                        : "text-[var(--danger)] bg-[var(--danger-soft)]"
+                      runStatus === "success" ? "text-[var(--verified)] bg-[var(--verified-soft)]"
+                      : runStatus === "error" ? "text-[var(--danger)] bg-[var(--danger-soft)]"
+                      : "text-[var(--ink-muted)] bg-[var(--canvas-subtle)]"
                     }`}>
-                      {runStatus === "success"
-                        ? <CheckCircle2 className="w-3 h-3" strokeWidth={1.5} />
-                        : <AlertCircle  className="w-3 h-3" strokeWidth={1.5} />}
+                      {runStatus === "success" ? <CheckCircle2 className="w-3 h-3" strokeWidth={1.5} />
+                        : runStatus === "error" ? <AlertCircle  className="w-3 h-3" strokeWidth={1.5} />
+                        : <Loader2 className="w-3 h-3 animate-spin" strokeWidth={1.5} />}
                       {runStatus}
                     </span>
                   )}
@@ -504,7 +634,13 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
               </button>
               {logOpen && (
                 <div className="overflow-y-auto px-5 py-3 space-y-2.5">
-                  {runLog.map((entry) => (
+                  {!runLog && runStatus && runStatus !== "success" && runStatus !== "error" && (
+                    <div className="text-xs text-[var(--ink-muted)] flex items-center gap-2 py-2">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.5} />
+                      {runStatus === "queued" ? "Queued — waiting for a worker." : "Executing steps…"}
+                    </div>
+                  )}
+                  {(runLog ?? []).map((entry) => (
                     <div key={entry.step_id} className="border border-[var(--rule)] rounded-[4px] p-2.5 bg-[var(--canvas-subtle)]">
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2">
@@ -536,8 +672,155 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
           )}
         </div>
 
+        {/* History drawer — opens over the config drawer when both would
+            be visible, since it's an explicit user toggle from the toolbar. */}
+        {historyOpen && (
+          <aside className="w-[420px] shrink-0 border-l border-[var(--rule)] bg-[var(--canvas)] overflow-y-auto flex flex-col">
+            <div className="sticky top-0 bg-[var(--canvas)] border-b border-[var(--rule)] px-5 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <History className="w-4 h-4 text-[var(--ink)]" strokeWidth={1.5} />
+                <div className="label-section">Run history</div>
+                {historyRows && (
+                  <span className="text-[10px] text-[var(--ink-subtle)]">
+                    last {historyRows.length}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => { setHistoryRows(null); loadHistory(); }}
+                  disabled={historyLoading}
+                  title="Refresh"
+                  className="p-1.5 text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] rounded-[4px] disabled:opacity-40"
+                >
+                  {historyLoading
+                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.5} />
+                    : <Clock className="w-3.5 h-3.5" strokeWidth={1.5} />}
+                </button>
+                <button
+                  onClick={() => setHistoryOpen(false)}
+                  className="p-1.5 text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] rounded-[4px]"
+                >
+                  <X className="w-3.5 h-3.5" strokeWidth={1.5} />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              {historyLoading && !historyRows ? (
+                <div className="p-8 flex items-center justify-center text-[var(--ink-muted)]">
+                  <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.5} />
+                </div>
+              ) : !historyRows || historyRows.length === 0 ? (
+                <div className="p-8 text-center">
+                  <History className="w-5 h-5 text-[var(--ink-subtle)] mx-auto mb-2" strokeWidth={1.5} />
+                  <p className="text-xs text-[var(--ink-muted)] mb-1">No runs yet.</p>
+                  <p className="text-[10px] text-[var(--ink-subtle)]">Hit Run to create the first one.</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-[var(--rule)]">
+                  {historyRows.map((row) => {
+                    const expanded = expandedRunId === row.id;
+                    const duration = row.finished_at
+                      ? Math.max(0, new Date(row.finished_at).getTime() - new Date(row.started_at).getTime())
+                      : null;
+                    return (
+                      <div key={row.id}>
+                        <button
+                          onClick={() => loadRunDetail(row.id)}
+                          className={`w-full px-5 py-3 text-left hover:bg-[var(--canvas-subtle)] transition ${
+                            expanded ? "bg-[var(--canvas-subtle)]" : ""
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            {row.status === "success" && <CheckCircle2 className="w-3.5 h-3.5 text-[var(--verified)]" strokeWidth={1.5} />}
+                            {row.status === "error"   && <AlertCircle  className="w-3.5 h-3.5 text-[var(--danger)]"   strokeWidth={1.5} />}
+                            {row.status === "running" && <Loader2      className="w-3.5 h-3.5 text-[var(--ink-muted)] animate-spin" strokeWidth={1.5} />}
+                            <span className="text-xs font-medium text-[var(--ink)]">
+                              {new Date(row.started_at).toLocaleString(undefined, {
+                                month: "short", day: "numeric",
+                                hour: "2-digit", minute: "2-digit",
+                              })}
+                            </span>
+                            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-[3px] ${
+                              row.status === "success" ? "text-[var(--verified)] bg-[var(--verified-soft)]"
+                              : row.status === "error" ? "text-[var(--danger)] bg-[var(--danger-soft)]"
+                              : "text-[var(--ink-muted)] bg-[var(--canvas-subtle)]"
+                            }`}>
+                              {row.status}
+                            </span>
+                            {duration !== null && (
+                              <span className="text-[10px] text-[var(--ink-subtle)] ml-auto mono">
+                                {duration < 1000 ? `${duration}ms` : `${(duration / 1000).toFixed(1)}s`}
+                              </span>
+                            )}
+                          </div>
+                          {row.error && !expanded && (
+                            <div className="text-[10px] text-[var(--danger)] truncate mono">
+                              {row.error}
+                            </div>
+                          )}
+                        </button>
+                        {expanded && (
+                          <div className="px-5 pb-4 bg-[var(--canvas-subtle)]">
+                            {runDetailLoading ? (
+                              <div className="py-4 flex items-center justify-center text-[var(--ink-muted)]">
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.5} />
+                              </div>
+                            ) : runDetail ? (
+                              <div className="space-y-2">
+                                {runDetail.error && (
+                                  <pre className="mono text-[10px] text-[var(--danger)] bg-[var(--danger-soft)] rounded-[4px] p-2 whitespace-pre-wrap break-words">
+                                    {runDetail.error}
+                                  </pre>
+                                )}
+                                {runDetail.log && runDetail.log.length > 0 ? (
+                                  runDetail.log.map((entry) => (
+                                    <div key={entry.step_id} className="border border-[var(--rule)] rounded-[4px] p-2 bg-[var(--canvas)]">
+                                      <div className="flex items-center justify-between mb-1">
+                                        <div className="flex items-center gap-1.5 min-w-0">
+                                          {entry.status === "success"
+                                            ? <CheckCircle2 className="w-3 h-3 text-[var(--verified)] shrink-0" strokeWidth={1.5} />
+                                            : <AlertCircle  className="w-3 h-3 text-[var(--danger)] shrink-0"   strokeWidth={1.5} />}
+                                          <span className="text-[11px] font-medium text-[var(--ink)] truncate">{entry.step_name}</span>
+                                          <span className="text-[9px] text-[var(--ink-subtle)] mono shrink-0">{entry.step_type}</span>
+                                        </div>
+                                        <span className="text-[9px] text-[var(--ink-subtle)] shrink-0 ml-2">
+                                          {durationMs(entry.started_at, entry.finished_at)}ms
+                                        </span>
+                                      </div>
+                                      {entry.error && (
+                                        <pre className="mono text-[9px] text-[var(--danger)] bg-[var(--danger-soft)] rounded-[3px] p-1.5 whitespace-pre-wrap break-words">
+                                          {entry.error}
+                                        </pre>
+                                      )}
+                                      {entry.output !== undefined && entry.status === "success" && (
+                                        <pre className="mono text-[9px] text-[var(--ink)] bg-[var(--canvas-subtle)] border border-[var(--rule)] rounded-[3px] p-1.5 whitespace-pre-wrap break-words max-h-32 overflow-auto">
+                                          {JSON.stringify(entry.output, null, 2)}
+                                        </pre>
+                                      )}
+                                    </div>
+                                  ))
+                                ) : (
+                                  <p className="text-[10px] text-[var(--ink-subtle)] italic">
+                                    No step log recorded for this run.
+                                  </p>
+                                )}
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </aside>
+        )}
+
         {/* Right drawer */}
-        {selectedNode && (
+        {selectedNode && !historyOpen && (
           <aside className="w-[380px] shrink-0 border-l border-[var(--rule)] bg-[var(--canvas)] overflow-y-auto">
             <div className="sticky top-0 bg-[var(--canvas)] border-b border-[var(--rule)] px-5 py-3 flex items-center justify-between">
               <div className="min-w-0">

@@ -10,6 +10,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { naiveLocalIsoToUtcIso, appDayRangeUtcIso, appWallClockToUtcMs, getAppTimezone } from "@/lib/app-timezone";
 import { recordVoiceUsage } from "@/lib/usage/track";
+import { logChurnEvent } from "@/lib/dante/churn-events";
+import { normalizePhone } from "@/lib/phone";
 import dayjs from "dayjs";
 
 export const dynamic = "force-dynamic";
@@ -244,6 +246,25 @@ async function executeScheduleAppointment(call: any, params: any): Promise<strin
       console.error("[VAPI Schedule] Failed to create appointment:", JSON.stringify(apptError));
       return JSON.stringify({ success: false, message: `Failed to create the appointment: ${apptError?.message || "unknown error"}` });
     }
+
+    // Dante churn signal: scheduled through voice agent counts as both
+    // an appointment commitment AND a successful agent interaction.
+    logChurnEvent({
+      workspace_id: agent.workspace_id,
+      contact_id: contactId,
+      event_type: "appointment_scheduled",
+      source: "vapi",
+      source_id: appointment.id,
+      metadata: { scheduled_at: scheduledAt, duration_minutes: durationMinutes, service_type: service },
+    });
+    logChurnEvent({
+      workspace_id: agent.workspace_id,
+      contact_id: contactId,
+      event_type: "agent_interaction_positive",
+      source: "vapi",
+      source_id: appointment.id,
+      metadata: { outcome: "appointment_booked" },
+    });
 
     const tz = process.env.APP_TIMEZONE || "America/New_York";
     const formattedDate = new Date(scheduledAt).toLocaleString("en-US", {
@@ -566,6 +587,38 @@ async function handleEndOfCallReport(message: any) {
         source: "vapi",
         metadata: { call_id: call.id, agent_id: agentId, ended_reason: endedReason },
       });
+    }
+
+    // Dante churn signal — log an agent_interaction event if we can
+    // resolve the caller phone to a contact in this workspace.
+    if (workspaceId && callerPhone) {
+      const normalized = normalizePhone(callerPhone) || callerPhone;
+      const { data: matchedContact } = await supabaseAdmin
+        .from("contacts")
+        .select("id")
+        .eq("workspace_id", workspaceId)
+        .eq("phone", normalized)
+        .maybeSingle();
+      if (matchedContact?.id) {
+        // Duration-based classification: long calls usually mean real
+        // engagement, quick hang-ups don't. Under 30s is suspicious.
+        const eventType =
+          durationSeconds < 30 ? "agent_interaction_negative" :
+          durationSeconds > 120 ? "agent_interaction_positive" :
+          "agent_interaction";
+        logChurnEvent({
+          workspace_id: workspaceId,
+          contact_id: matchedContact.id,
+          event_type: eventType,
+          source: "vapi",
+          source_id: call.id,
+          metadata: {
+            duration_seconds: durationSeconds,
+            ended_reason: endedReason,
+            agent_id: agentId,
+          },
+        });
+      }
     }
   } catch (err) {
     console.error("[VAPI Webhook] Error saving conversation:", err);

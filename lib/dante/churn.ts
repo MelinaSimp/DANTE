@@ -20,6 +20,7 @@
 // contact was actually lost, but keeps the same signal extraction.
 
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { fetchRecentEvents, rollupEngagement } from "./churn-events";
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -48,12 +49,18 @@ export interface ChurnScore {
 // re-run. The tier cutoffs below determine what renders as red vs.
 // amber vs. green on the dashboard.
 
+// Phase-2 update: we now also consume the `dante_churn_events` time
+// series. The existing signals still fire against current-state
+// queries; the new `events` signal folds in the rolled-up engagement
+// delta with 30-day half-life decay. When the events table is empty
+// `eventsNorm()` returns the neutral 0.4 so nothing breaks.
 const WEIGHTS = {
-  recency: 0.30,
-  attendance: 0.20,
-  engagement: 0.20,
-  sentiment: 0.15,
-  trajectory: 0.15,
+  recency: 0.25,
+  attendance: 0.15,
+  engagement: 0.15,
+  sentiment: 0.10,
+  trajectory: 0.10,
+  events: 0.25,
 } as const;
 
 const TIER_CUTOFFS: Array<[ChurnTier, number]> = [
@@ -139,6 +146,24 @@ function median(arr: number[]): number {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
+// Events signal: rolled-up engagement delta → [0, 1] where 1 = worst.
+// rollupEngagement() returns a number roughly in [-5, +5] with 0 =
+// neutral, positive = engaged, negative = churning. We map it onto
+// our at-risk scale so that negative engagement pushes the score up.
+//   +2 or more  → 0.00   (strongly engaged, brings score down)
+//    0          → 0.40   (neutral, same default as other signals)
+//   -2          → 0.80
+//   -4 or less  → 1.00   (heavy negative signal)
+function eventsNorm(engagement: number, sampleCount: number): number {
+  if (sampleCount === 0) return 0.4; // no data yet
+  if (engagement >=  2) return 0;
+  if (engagement <= -4) return 1;
+  // Linear from (+2, 0) through (0, 0.4) to (-4, 1).
+  // Piecewise: above 0 → scale 0→0.4 on [+2, 0]; below 0 → 0.4→1 on [0, -4].
+  if (engagement >= 0) return 0.4 * (1 - engagement / 2);
+  return 0.4 + 0.6 * Math.min(1, -engagement / 4);
+}
+
 // ── Main ──────────────────────────────────────────────────────
 
 /**
@@ -154,6 +179,17 @@ export async function recomputeChurnForWorkspace(
     .eq("workspace_id", workspaceId);
 
   if (!contacts?.length) return [];
+
+  // Pull all churn events for this workspace in one shot (180-day
+  // window — older events are essentially decayed to zero anyway).
+  // This beats N+1 fetches per contact.
+  const allEvents = await fetchRecentEvents(workspaceId, { lookbackDays: 180 });
+  const eventsByContact = new Map<string, typeof allEvents>();
+  for (const e of allEvents) {
+    const arr = eventsByContact.get(e.contact_id) || [];
+    arr.push(e);
+    eventsByContact.set(e.contact_id, arr);
+  }
 
   const scores: ChurnScore[] = [];
   const now = Date.now();
@@ -268,6 +304,26 @@ export async function recomputeChurnForWorkspace(
         weight: WEIGHTS.trajectory,
         contribution: traj * WEIGHTS.trajectory,
       },
+      (() => {
+        const events = eventsByContact.get(contact.id) || [];
+        const engagement = rollupEngagement(events);
+        const norm = eventsNorm(engagement, events.length);
+        return {
+          key: "events",
+          label: "Engagement signal log",
+          raw: events.length === 0
+            ? "no events logged yet"
+            : `${events.length} events, Δ${engagement.toFixed(1)}`,
+          normalized: norm,
+          weight: WEIGHTS.events,
+          contribution: norm * WEIGHTS.events,
+          detail: events.length === 0
+            ? "Start logging signals to improve accuracy"
+            : engagement > 0 ? "Net positive engagement"
+            : engagement < 0 ? "Net negative engagement"
+            : "Neutral",
+        };
+      })(),
     ];
 
     const score = Math.round(

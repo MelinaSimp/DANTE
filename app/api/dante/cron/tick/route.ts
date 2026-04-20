@@ -20,8 +20,8 @@
 
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { runWorkflow } from "@/lib/dante/workflow-runner";
 import { definitionFromRow, type WorkflowGraph, type GraphNode } from "@/lib/dante/workflow-types";
+import { enqueueRun, kickQueueWorker } from "@/lib/dante/run-executor";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -114,42 +114,31 @@ async function handle(request: Request) {
       continue;
     }
 
-    const { data: run } = await supabaseAdmin
-      .from("dante_workflow_runs")
-      .insert({
-        workflow_id: wf.id,
-        workspace_id: wf.workspace_id,
-        status: "running",
-        input: { triggered_by: "cron", cron, fired_at: now.toISOString() },
-      })
-      .select()
-      .single();
-
-    try {
-      const result = await runWorkflow(def, { triggered_by: "cron", cron });
-      await supabaseAdmin.from("dante_workflow_runs").update({
-        status: result.status,
-        log: result.log,
-        output: result.output,
-        error: result.error ?? null,
-        finished_at: new Date().toISOString(),
-      }).eq("id", run?.id);
-
+    // Enqueue only — the queue worker picks it up on the next kick.
+    // This keeps the cron tick itself well under the 60s budget even
+    // with many scheduled workflows and long individual runs.
+    const enq = await enqueueRun({
+      workflow_id: wf.id,
+      workspace_id: wf.workspace_id,
+      triggered_by: null,
+      payload: { triggered_by: "cron", cron, fired_at: now.toISOString() },
+    });
+    if ("error" in enq) {
+      fired.push({ id: wf.id, status: "enqueue_failed" });
+    } else {
+      fired.push({ id: wf.id, status: "queued" });
+      // Bump last_run_at so the in-minute de-dupe above catches a
+      // double-tick; the real status arrives when the worker finishes.
       await supabaseAdmin.from("dante_workflows").update({
         last_run_at: new Date().toISOString(),
-        last_run_status: result.status,
       }).eq("id", wf.id);
-
-      fired.push({ id: wf.id, status: result.status });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Run failed";
-      await supabaseAdmin.from("dante_workflow_runs").update({
-        status: "error",
-        error: msg,
-        finished_at: new Date().toISOString(),
-      }).eq("id", run?.id);
-      fired.push({ id: wf.id, status: "error" });
     }
+  }
+
+  // One eager kick at the end so the queue worker drains everything
+  // we just enqueued without waiting for its own cron minute.
+  if (fired.some((f) => f.status === "queued")) {
+    kickQueueWorker(new URL(request.url).origin);
   }
 
   return NextResponse.json({

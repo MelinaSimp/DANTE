@@ -27,12 +27,14 @@ import type {
   WorkflowRunResult,
   GraphNode,
 } from "./workflow-types";
+import { loadWorkspaceSecrets, redactSecrets, type SecretMap } from "./secrets";
 
 // ── Template resolver ─────────────────────────────────────────
 
 type Ctx = {
   input: Record<string, unknown>;
   steps: Record<string, unknown>;
+  secrets: SecretMap;
 };
 
 function getPath(obj: unknown, path: string): unknown {
@@ -289,7 +291,11 @@ export async function runWorkflow(
   workflow: WorkflowDefinition,
   input: Record<string, unknown> = {}
 ): Promise<WorkflowRunResult> {
-  const ctx: Ctx = { input, steps: {} };
+  // Load the workspace secret vault once up front. Templates can
+  // reference them as {{secrets.foo}}; the resolver treats them like
+  // any other namespace, and we redact raw values from the log below.
+  const secrets = await loadWorkspaceSecrets(workflow.workspace_id);
+  const ctx: Ctx = { input, steps: {}, secrets };
   const log: StepLogEntry[] = [];
 
   const { nodes, edges } = workflow.graph;
@@ -338,7 +344,10 @@ export async function runWorkflow(
         status: "success",
         started_at,
         finished_at: new Date().toISOString(),
-        output,
+        // Scrub raw secret values out of anything we're about to
+        // persist. ctx.steps keeps the original so downstream templates
+        // can still reference it.
+        output: redactSecrets(output, secrets),
       });
     } catch (err) {
       errored = true;
@@ -350,10 +359,15 @@ export async function runWorkflow(
         status: "error",
         started_at,
         finished_at: new Date().toISOString(),
-        error: message,
+        error: redactSecrets(message, secrets),
       });
       if (step.on_error !== "continue") {
-        return { status: "error", log, output: ctx.steps, error: message };
+        return {
+          status: "error",
+          log,
+          output: redactSecrets(ctx.steps, secrets),
+          error: redactSecrets(message, secrets),
+        };
       }
       // on_error === "continue": fall through and still walk children
       // so the rest of the graph can make progress.
@@ -366,5 +380,5 @@ export async function runWorkflow(
     for (const n of nexts) if (!fired.has(n)) queue.push(n);
   }
 
-  return { status: "success", log, output: ctx.steps };
+  return { status: "success", log, output: redactSecrets(ctx.steps, secrets) };
 }

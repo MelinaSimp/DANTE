@@ -1,15 +1,26 @@
 // app/api/dante/workflows/[workflowId]/run/route.ts
 //
-// POST → kick off a run of this workflow. Executes synchronously and
-// returns the full log + output. Long-running steps should lean on
-// the `delay` cap or move to a phase-2 background queue — this route
-// is not durable past the HTTP timeout.
+// POST → kick off a run of this workflow.
+//
+// Two modes:
+//   • mode: "sync" (default, back-compat) — executes inline and returns
+//     the full log + output. Capped by the 60s route budget.
+//   • mode: "queue" — inserts a queued row, fires a best-effort kick
+//     to /api/dante/queue/tick so a worker starts immediately, and
+//     returns { run_id, status: "queued" }. The caller polls the run
+//     detail endpoint. Required for workflows that legitimately take
+//     longer than 60s.
+//
+// The editor's Run button uses "queue" so it can poll and render
+// intermediate state; external callers default to "sync" to keep
+// the one-shot behavior they're wired for.
 
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { runWorkflow } from "@/lib/dante/workflow-runner";
 import { definitionFromRow } from "@/lib/dante/workflow-types";
+import { enqueueRun, kickQueueWorker } from "@/lib/dante/run-executor";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60; // Vercel hobby limit
@@ -37,8 +48,27 @@ export async function POST(
 
   const body = await request.json().catch(() => ({}));
   const input = (body.input && typeof body.input === "object") ? body.input : {};
+  const mode = body.mode === "queue" ? "queue" : "sync";
 
-  // Pre-insert a "running" row so the UI shows live state if polled.
+  // ── Queue mode ────────────────────────────────────────────
+  if (mode === "queue") {
+    const result = await enqueueRun({
+      workflow_id: workflowId,
+      workspace_id: profile.workspace_id,
+      triggered_by: user.id,
+      payload: input,
+    });
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, { status: 500 });
+    }
+    // Eager kick — don't block the response on this; it returns fast
+    // and the worker drains in its own lambda invocation.
+    const origin = new URL(request.url).origin;
+    kickQueueWorker(origin);
+    return NextResponse.json({ run_id: result.run_id, status: "queued" });
+  }
+
+  // ── Sync mode (legacy path) ───────────────────────────────
   const { data: run } = await supabaseAdmin
     .from("dante_workflow_runs")
     .insert({

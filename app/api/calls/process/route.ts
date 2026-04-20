@@ -16,6 +16,7 @@ import {
   retrieveReferences,
   formatReferenceContext,
 } from "@/lib/references/retrieve";
+import { logChurnEvent } from "@/lib/dante/churn-events";
 
 export const dynamic = "force-dynamic";
 // Whisper can take 30–90s on long clips; give it headroom. Hobby caps this at
@@ -266,6 +267,22 @@ export async function POST(req: NextRequest) {
         durationSeconds ?? (Math.round(whisperDuration || 0) || null),
     })
     .eq("id", recordingId);
+
+  // Dante churn signal — a completed call is engagement. Long calls
+  // (> 5 min) carry a bigger positive weight; include the generated
+  // summary in metadata so a future sentiment pass can upgrade the
+  // event type to agent_interaction_negative if warranted.
+  if (rec.contact_id) {
+    const totalSeconds = Math.round(durationSeconds ?? whisperDuration ?? 0);
+    logChurnEvent({
+      workspace_id: rec.workspace_id,
+      contact_id: rec.contact_id,
+      event_type: totalSeconds > 300 ? "call_completed_long" : "call_completed",
+      source: "calls",
+      source_id: recordingId,
+      metadata: { duration_seconds: totalSeconds, note_id: noteRow.id },
+    });
+  }
 
   // Auto-run the compliance scanner on the generated summary. This is
   // the M1.5 end-to-end wiring: every saved summary gets scanned, flags

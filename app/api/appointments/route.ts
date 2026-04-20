@@ -5,6 +5,7 @@ import { normalizePhone } from "@/lib/phone";
 import twilio from "twilio";
 import { Resend } from "resend";
 import { emitEvent } from "@/lib/automations";
+import { logChurnEvent } from "@/lib/dante/churn-events";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -191,6 +192,20 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Fire-and-forget engagement signal for Dante churn.
+    logChurnEvent({
+      workspace_id: profile.workspace_id,
+      contact_id: contactId,
+      event_type: "appointment_scheduled",
+      source: "appointments",
+      source_id: appointment.id,
+      metadata: {
+        scheduled_at: scheduledAt,
+        duration_minutes: durationMinutes,
+        service_type: description,
+      },
+    });
 
     // Generate AI message for SMS reminder
     const aiMessage = await generateAppointmentReminderMessage({
