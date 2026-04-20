@@ -355,7 +355,7 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
         await new Promise((r) => setTimeout(r, delay));
         delay = Math.min(3000, delay + 200);
         const detailRes = await fetch(
-          `/api/dante/workflows/${workflow.id}/runs/${runId}`,
+          `/api/dante/workflows/runs/${runId}`,
           { credentials: "include" },
         );
         if (!detailRes.ok) continue; // transient — keep polling
@@ -419,7 +419,7 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
     setRunDetail(null);
     setRunDetailLoading(true);
     try {
-      const res = await fetch(`/api/dante/workflows/${workflow.id}/runs/${runId}`, {
+      const res = await fetch(`/api/dante/workflows/runs/${runId}`, {
         credentials: "include",
       });
       if (!res.ok) throw new Error(await res.text());
