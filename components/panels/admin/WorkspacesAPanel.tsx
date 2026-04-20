@@ -86,11 +86,11 @@ export default function WorkspacesAPanel() {
     } catch { setToast({ type: "error", message: "Error" }); } finally { setSavingBilling(false); }
   };
 
-  if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-5 w-5 animate-spin text-white/40" /></div>;
+  if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-5 w-5 animate-spin text-[var(--ink-subtle)]" strokeWidth={1.5} /></div>;
 
   return (
     <div className="p-4">
-      {toast && <div className={`fixed bottom-6 right-6 z-[60] px-4 py-3 rounded-xl text-sm font-medium shadow-lg border ${toast.type === "success" ? "bg-green-500/10 border-green-500/30 text-green-400" : "bg-red-500/10 border-red-500/30 text-red-400"}`}>{toast.message}</div>}
+      {toast && <div className={`fixed bottom-6 right-6 z-[60] px-4 py-3 rounded-[6px] text-sm font-medium shadow-lg border ${toast.type === "success" ? "bg-[var(--canvas-subtle)] border-[var(--rule)] text-[var(--verified)]" : "bg-[var(--danger-soft)] border-[var(--rule)] text-[var(--danger)]"}`}>{toast.message}</div>}
 
       {/* Create workspace */}
       <div className="flex items-center gap-2 mb-4">
@@ -100,95 +100,95 @@ export default function WorkspacesAPanel() {
           onChange={e => setNewName(e.target.value)}
           onKeyDown={e => { if (e.key === "Enter") handleCreate(); }}
           placeholder="New workspace name..."
-          className="flex-1 px-3 py-2 text-sm rounded-xl bg-white/5 border border-purple-500/20 text-white placeholder:text-white/30 focus:outline-none focus:border-purple-500/40"
+          className="flex-1 px-3 py-2 text-sm rounded-[4px] bg-[var(--canvas)] border border-[var(--rule)] text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none focus:border-[var(--rule-strong)]"
         />
         <button
           onClick={handleCreate}
           disabled={creating || !newName.trim()}
-          className="px-4 py-2 rounded-xl bg-purple-500 text-white text-sm font-medium hover:bg-purple-600 transition disabled:opacity-40 flex items-center gap-1.5"
+          className="px-4 py-2 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-sm font-medium hover:opacity-90 transition disabled:opacity-40 flex items-center gap-1.5"
         >
-          {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Building2 className="h-3.5 w-3.5" />}
+          {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} /> : <Building2 className="h-3.5 w-3.5" strokeWidth={1.5} />}
           Create
         </button>
       </div>
 
       {workspaces.length === 0 ? (
-        <div className="text-center py-16"><Building2 className="h-8 w-8 text-white/10 mx-auto mb-3" /><p className="text-white/40 text-sm">No workspaces yet</p></div>
+        <div className="text-center py-16"><Building2 className="h-8 w-8 text-[var(--ink-subtle)] mx-auto mb-3" strokeWidth={1.5} /><p className="text-[var(--ink-subtle)] text-sm">No workspaces yet</p></div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-purple-500/20 bg-black/40">
+        <div className="overflow-x-auto rounded-[6px] border border-[var(--rule)] bg-[var(--canvas-subtle)]">
           <table className="w-full text-sm">
-            <thead className="border-b border-purple-500/10"><tr className="text-left text-white/40 text-xs uppercase tracking-wider">
+            <thead className="border-b border-[var(--rule)]"><tr className="text-left text-[var(--ink-subtle)] text-xs uppercase tracking-wider">
               <th className="py-3 px-4 font-medium">Health</th><th className="py-3 px-4 font-medium">Workspace</th><th className="py-3 px-4 font-medium">Invite Code</th><th className="py-3 px-4 font-medium">Plan</th>
               <th className="py-3 px-4 font-medium">Billing</th><th className="py-3 px-4 font-medium">Users</th><th className="py-3 px-4 font-medium">Features</th><th className="py-3 px-4 font-medium">Created</th><th className="py-3 px-4 font-medium text-right">Actions</th>
             </tr></thead>
-            <tbody className="divide-y divide-purple-500/5">
+            <tbody className="divide-y divide-[var(--rule)]">
               {workspaces.map(ws => {
                 const fc = (ws.enabled_features || []).length;
                 const health = ws.user_count === 0 ? "error" : fc === 0 ? "warning" : "healthy";
-                const sc = ws.plan_status === "active" ? "text-green-400 bg-green-400/10 border-green-400/30" : ws.plan_status === "trial" ? "text-blue-400 bg-blue-400/10 border-blue-400/30" : "text-red-400 bg-red-400/10 border-red-400/30";
+                const sc = ws.plan_status === "active" ? "text-[var(--verified)] bg-[var(--canvas)] border-[var(--rule)]" : ws.plan_status === "trial" ? "text-[var(--accent)] bg-[var(--canvas)] border-[var(--rule)]" : "text-[var(--danger)] bg-[var(--danger-soft)] border-[var(--rule)]";
                 return (
-                  <tr key={ws.id} className="hover:bg-white/[0.02] group">
-                    <td className="py-3 px-4">{health === "healthy" ? <CheckCircle2 className="h-4 w-4 text-green-500" /> : health === "warning" ? <AlertCircle className="h-4 w-4 text-yellow-500" /> : <XCircle className="h-4 w-4 text-red-500" />}</td>
-                    <td className="py-3 px-4"><div className="text-sm font-medium text-white">{ws.name}</div><div className="text-[11px] text-white/30">{ws.owner_name || ws.owner_email || "Unknown"}</div></td>
+                  <tr key={ws.id} className="hover:bg-[var(--canvas-subtle)] group">
+                    <td className="py-3 px-4">{health === "healthy" ? <CheckCircle2 className="h-4 w-4 text-[var(--verified)]" strokeWidth={1.5} /> : health === "warning" ? <AlertCircle className="h-4 w-4 text-yellow-500" strokeWidth={1.5} /> : <XCircle className="h-4 w-4 text-[var(--danger)]" strokeWidth={1.5} />}</td>
+                    <td className="py-3 px-4"><div className="text-sm font-medium text-[var(--ink)]">{ws.name}</div><div className="text-[11px] text-[var(--ink-subtle)]">{ws.owner_name || ws.owner_email || "Unknown"}</div></td>
                     <td className="py-3 px-4">
                       {ws.invite_code ? (
                         <button
                           onClick={() => { navigator.clipboard.writeText(ws.invite_code!); setToast({ type: "success", message: "Code copied!" }); }}
-                          className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-purple-500/10 border border-purple-500/20 hover:bg-purple-500/20 transition group/code"
+                          className="flex items-center gap-1.5 px-2 py-1 rounded-[4px] bg-[var(--canvas)] border border-[var(--rule)] hover:bg-[var(--canvas-subtle)] transition group/code"
                           title="Click to copy"
                         >
-                          <KeyRound className="h-3 w-3 text-purple-400/60" />
-                          <span className="text-[11px] font-mono text-purple-300">{ws.invite_code}</span>
-                          <Copy className="h-3 w-3 text-white/20 group-hover/code:text-purple-400 transition" />
+                          <KeyRound className="h-3 w-3 text-[var(--accent)]" strokeWidth={1.5} />
+                          <span className="text-[11px] font-mono text-[var(--accent)]">{ws.invite_code}</span>
+                          <Copy className="h-3 w-3 text-[var(--ink-subtle)] group-hover/code:text-[var(--accent)] transition" strokeWidth={1.5} />
                         </button>
                       ) : (
-                        <span className="text-[11px] text-white/20">—</span>
+                        <span className="text-[11px] text-[var(--ink-subtle)]">—</span>
                       )}
                     </td>
-                    <td className="py-3 px-4"><span className={`px-2 py-0.5 rounded-md text-[10px] font-medium border ${sc}`}>{ws.plan_status || "active"}</span></td>
+                    <td className="py-3 px-4"><span className={`px-2 py-0.5 rounded-[4px] text-[10px] font-medium border ${sc}`}>{ws.plan_status || "active"}</span></td>
                     <td className="py-3 px-4">
                       {editingBilling === ws.id ? (
                         <div className="flex items-center gap-1.5">
                           <div className="relative">
-                            <DollarSign className="absolute left-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-white/30" />
+                            <DollarSign className="absolute left-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-[var(--ink-subtle)]" strokeWidth={1.5} />
                             <input type="number" value={billingAmount} onChange={e => setBillingAmount(e.target.value)} placeholder="0.00" min="0" step="0.01"
-                              className="w-20 pl-5 pr-1 py-1 text-xs rounded-lg bg-white/5 border border-purple-500/20 text-white placeholder:text-white/30 focus:outline-none" autoFocus />
+                              className="w-20 pl-5 pr-1 py-1 text-xs rounded-[4px] bg-[var(--canvas)] border border-[var(--rule)] text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none" autoFocus />
                           </div>
                           <select value={billingCycle} onChange={e => setBillingCycle(e.target.value as "monthly" | "yearly")}
-                            className="px-1 py-1 text-[10px] rounded-lg bg-white/5 border border-purple-500/20 text-white focus:outline-none">
+                            className="px-1 py-1 text-[10px] rounded-[4px] bg-[var(--canvas)] border border-[var(--rule)] text-[var(--ink)] focus:outline-none">
                             <option value="monthly">Mo</option>
                             <option value="yearly">Yr</option>
                           </select>
-                          <button onClick={() => handleSaveBilling(ws.id)} disabled={savingBilling} className="p-1 text-green-400 hover:bg-green-400/10 rounded-lg disabled:opacity-50">
-                            {savingBilling ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                          <button onClick={() => handleSaveBilling(ws.id)} disabled={savingBilling} className="p-1 text-[var(--verified)] hover:bg-[var(--canvas-subtle)] rounded-[4px] disabled:opacity-50">
+                            {savingBilling ? <Loader2 className="h-3 w-3 animate-spin" strokeWidth={1.5} /> : <Check className="h-3 w-3" strokeWidth={1.5} />}
                           </button>
-                          <button onClick={() => setEditingBilling(null)} className="p-1 text-white/40 hover:bg-white/5 rounded-lg"><X className="h-3 w-3" /></button>
+                          <button onClick={() => setEditingBilling(null)} className="p-1 text-[var(--ink-subtle)] hover:bg-[var(--canvas-subtle)] rounded-[4px]"><X className="h-3 w-3" strokeWidth={1.5} /></button>
                         </div>
                       ) : (
                         <button onClick={() => {
                           setEditingBilling(ws.id);
                           setBillingAmount(ws.billing_amount ? (ws.billing_amount / 100).toFixed(2) : "");
                           setBillingCycle((ws.billing_cycle as "monthly" | "yearly") || "monthly");
-                        }} className="text-xs text-white/50 hover:text-purple-400 transition">
+                        }} className="text-xs text-[var(--ink-muted)] hover:text-[var(--accent)] transition">
                           {ws.billing_amount ? `$${(ws.billing_amount / 100).toFixed(2)}/${ws.billing_cycle === "yearly" ? "yr" : "mo"}` : "Set pricing"}
                         </button>
                       )}
                     </td>
-                    <td className="py-3 px-4 text-white/60">{ws.user_count}</td>
-                    <td className="py-3 px-4 text-purple-500/80 text-xs">{fc}/7</td>
-                    <td className="py-3 px-4 text-white/30 text-xs">{new Date(ws.created_at).toLocaleDateString()}</td>
+                    <td className="py-3 px-4 text-[var(--ink-muted)]">{ws.user_count}</td>
+                    <td className="py-3 px-4 text-[var(--accent)] text-xs">{fc}/7</td>
+                    <td className="py-3 px-4 text-[var(--ink-subtle)] text-xs">{new Date(ws.created_at).toLocaleDateString()}</td>
                     <td className="py-3 px-4">
                       <div className="flex items-center justify-end gap-2">
                         {addingUser === ws.id ? (
-                          <div className="flex items-center gap-1"><input type="email" value={userEmail} onChange={e => setUserEmail(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAddUser(ws.id)} placeholder="email" className="px-2 py-1 text-xs rounded-lg bg-white/5 border border-purple-500/20 text-white placeholder:text-white/30 focus:outline-none w-36" autoFocus />
-                            <button onClick={() => handleAddUser(ws.id)} disabled={submitting} className="p-1 text-green-400 hover:bg-green-400/10 rounded-lg disabled:opacity-50">{submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}</button>
-                            <button onClick={() => { setAddingUser(null); setUserEmail(""); }} className="p-1 text-white/40 hover:bg-white/5 rounded-lg"><X className="h-3.5 w-3.5" /></button></div>
-                        ) : <button onClick={() => setAddingUser(ws.id)} className="p-1.5 rounded-lg text-white/30 hover:text-purple-400 hover:bg-purple-500/10 opacity-0 group-hover:opacity-100"><UserPlus className="h-4 w-4" /></button>}
+                          <div className="flex items-center gap-1"><input type="email" value={userEmail} onChange={e => setUserEmail(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAddUser(ws.id)} placeholder="email" className="px-2 py-1 text-xs rounded-[4px] bg-[var(--canvas)] border border-[var(--rule)] text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none w-36" autoFocus />
+                            <button onClick={() => handleAddUser(ws.id)} disabled={submitting} className="p-1 text-[var(--verified)] hover:bg-[var(--canvas-subtle)] rounded-[4px] disabled:opacity-50">{submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} /> : <Check className="h-3.5 w-3.5" strokeWidth={1.5} />}</button>
+                            <button onClick={() => { setAddingUser(null); setUserEmail(""); }} className="p-1 text-[var(--ink-subtle)] hover:bg-[var(--canvas-subtle)] rounded-[4px]"><X className="h-3.5 w-3.5" strokeWidth={1.5} /></button></div>
+                        ) : <button onClick={() => setAddingUser(ws.id)} className="p-1.5 rounded-[4px] text-[var(--ink-subtle)] hover:text-[var(--accent)] hover:bg-[var(--canvas-subtle)] opacity-0 group-hover:opacity-100"><UserPlus className="h-4 w-4" strokeWidth={1.5} /></button>}
                         {confirmDelete === ws.id ? (
-                          <div className="flex items-center gap-1"><span className="text-[10px] text-red-400">Delete?</span>
-                            <button onClick={() => handleDelete(ws.id)} disabled={deleting === ws.id} className="p-1 text-red-400 hover:bg-red-400/10 rounded-lg disabled:opacity-50">{deleting === ws.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}</button>
-                            <button onClick={() => setConfirmDelete(null)} className="p-1 text-white/40 hover:bg-white/5 rounded-lg"><X className="h-3.5 w-3.5" /></button></div>
-                        ) : <button onClick={() => setConfirmDelete(ws.id)} className="p-1.5 rounded-lg text-white/30 hover:text-red-400 hover:bg-red-400/10 opacity-0 group-hover:opacity-100"><Trash2 className="h-4 w-4" /></button>}
+                          <div className="flex items-center gap-1"><span className="text-[10px] text-[var(--danger)]">Delete?</span>
+                            <button onClick={() => handleDelete(ws.id)} disabled={deleting === ws.id} className="p-1 text-[var(--danger)] hover:bg-[var(--danger-soft)] rounded-[4px] disabled:opacity-50">{deleting === ws.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} /> : <Check className="h-3.5 w-3.5" strokeWidth={1.5} />}</button>
+                            <button onClick={() => setConfirmDelete(null)} className="p-1 text-[var(--ink-subtle)] hover:bg-[var(--canvas-subtle)] rounded-[4px]"><X className="h-3.5 w-3.5" strokeWidth={1.5} /></button></div>
+                        ) : <button onClick={() => setConfirmDelete(ws.id)} className="p-1.5 rounded-[4px] text-[var(--ink-subtle)] hover:text-[var(--danger)] hover:bg-[var(--danger-soft)] opacity-0 group-hover:opacity-100"><Trash2 className="h-4 w-4" strokeWidth={1.5} /></button>}
                       </div>
                     </td>
                   </tr>

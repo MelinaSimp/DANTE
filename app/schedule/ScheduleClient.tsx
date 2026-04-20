@@ -34,28 +34,30 @@ const HOUR_HEIGHT = 60; // px per hour
 
 // Appointment blocks keep colored hues for visual differentiation, but at
 // Harvey-compatible low saturation: -50 fill, -500 accent border, -800/-900 text.
+// Note: blue/indigo/cyan are reserved for the "today" accent — using them for
+// appointments made the today-ring indistinguishable from an appointment block.
 const CLIENT_COLORS = [
-  { bg: "bg-blue-50", border: "border-blue-500", text: "text-blue-900", dot: "bg-blue-500", check: "text-blue-600 border-blue-500 bg-blue-50" },
   { bg: "bg-green-50", border: "border-green-500", text: "text-green-900", dot: "bg-green-500", check: "text-green-600 border-green-500 bg-green-50" },
   { bg: "bg-purple-50", border: "border-purple-500", text: "text-purple-900", dot: "bg-purple-500", check: "text-purple-600 border-purple-500 bg-purple-50" },
   { bg: "bg-amber-50", border: "border-amber-500", text: "text-amber-900", dot: "bg-amber-500", check: "text-amber-600 border-amber-500 bg-amber-50" },
   { bg: "bg-rose-50", border: "border-rose-500", text: "text-rose-900", dot: "bg-rose-500", check: "text-rose-600 border-rose-500 bg-rose-50" },
-  { bg: "bg-cyan-50", border: "border-cyan-500", text: "text-cyan-900", dot: "bg-cyan-500", check: "text-cyan-600 border-cyan-500 bg-cyan-50" },
-  { bg: "bg-indigo-50", border: "border-indigo-500", text: "text-indigo-900", dot: "bg-indigo-500", check: "text-indigo-600 border-indigo-500 bg-indigo-50" },
   { bg: "bg-teal-50", border: "border-teal-500", text: "text-teal-900", dot: "bg-teal-500", check: "text-teal-600 border-teal-500 bg-teal-50" },
+  { bg: "bg-orange-50", border: "border-orange-500", text: "text-orange-900", dot: "bg-orange-500", check: "text-orange-600 border-orange-500 bg-orange-50" },
+  { bg: "bg-lime-50", border: "border-lime-500", text: "text-lime-900", dot: "bg-lime-500", check: "text-lime-600 border-lime-500 bg-lime-50" },
+  { bg: "bg-fuchsia-50", border: "border-fuchsia-500", text: "text-fuchsia-900", dot: "bg-fuchsia-500", check: "text-fuchsia-600 border-fuchsia-500 bg-fuchsia-50" },
 ];
 
 const SLOT_TYPE_COLORS = [
   { bg: "bg-green-50", border: "border-green-500", text: "text-green-800", dot: "bg-green-500" },
-  { bg: "bg-blue-50", border: "border-blue-500", text: "text-blue-800", dot: "bg-blue-500" },
   { bg: "bg-purple-50", border: "border-purple-500", text: "text-purple-800", dot: "bg-purple-500" },
   { bg: "bg-amber-50", border: "border-amber-500", text: "text-amber-800", dot: "bg-amber-500" },
   { bg: "bg-rose-50", border: "border-rose-500", text: "text-rose-800", dot: "bg-rose-500" },
-  { bg: "bg-cyan-50", border: "border-cyan-500", text: "text-cyan-800", dot: "bg-cyan-500" },
-  { bg: "bg-indigo-50", border: "border-indigo-500", text: "text-indigo-800", dot: "bg-indigo-500" },
   { bg: "bg-teal-50", border: "border-teal-500", text: "text-teal-800", dot: "bg-teal-500" },
   { bg: "bg-orange-50", border: "border-orange-500", text: "text-orange-800", dot: "bg-orange-500" },
   { bg: "bg-lime-50", border: "border-lime-500", text: "text-lime-800", dot: "bg-lime-500" },
+  { bg: "bg-fuchsia-50", border: "border-fuchsia-500", text: "text-fuchsia-800", dot: "bg-fuchsia-500" },
+  { bg: "bg-emerald-50", border: "border-emerald-500", text: "text-emerald-800", dot: "bg-emerald-500" },
+  { bg: "bg-pink-50", border: "border-pink-500", text: "text-pink-800", dot: "bg-pink-500" },
 ];
 
 function getSlotTypeColor(slotType: string, allTypes: string[]) {

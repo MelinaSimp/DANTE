@@ -16,10 +16,10 @@ interface Workspace {
 }
 
 const PLAN_STATUS_OPTIONS = [
-  { value: "active", label: "Active", color: "text-green-400 bg-green-400/10 border-green-400/20" },
-  { value: "trial", label: "Trial", color: "text-blue-400 bg-blue-400/10 border-blue-400/20" },
-  { value: "inactive", label: "Inactive", color: "text-red-400 bg-red-400/10 border-red-400/20" },
-  { value: "past_due", label: "Past Due", color: "text-yellow-400 bg-yellow-400/10 border-yellow-400/20" },
+  { value: "active", label: "Active", color: "text-[var(--verified)] bg-[var(--canvas-subtle)] border-[var(--rule)]" },
+  { value: "trial", label: "Trial", color: "text-[var(--accent)] bg-[var(--canvas-subtle)] border-[var(--rule)]" },
+  { value: "inactive", label: "Inactive", color: "text-[var(--danger)] bg-[var(--danger-soft)] border-[var(--rule)]" },
+  { value: "past_due", label: "Past Due", color: "text-[var(--ink-muted)] bg-[var(--canvas-subtle)] border-[var(--rule)]" },
 ];
 
 export default function WorkspaceFeatureManager() {
@@ -132,7 +132,7 @@ export default function WorkspaceFeatureManager() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-6 w-6 animate-spin text-white/40" />
+        <Loader2 strokeWidth={1.5} className="h-6 w-6 animate-spin text-[var(--ink-subtle)]" />
       </div>
     );
   }
@@ -140,8 +140,8 @@ export default function WorkspaceFeatureManager() {
   if (workspaces.length === 0) {
     return (
       <div className="py-12 text-center">
-        <Shield className="mx-auto mb-3 h-10 w-10 text-white/20" />
-        <p className="text-white/60">No workspaces found.</p>
+        <Shield strokeWidth={1.5} className="mx-auto mb-3 h-10 w-10 text-[var(--ink-subtle)]" />
+        <p className="text-[var(--ink-muted)]">No workspaces found.</p>
       </div>
     );
   }
@@ -155,41 +155,41 @@ export default function WorkspaceFeatureManager() {
         const statusOption = PLAN_STATUS_OPTIONS.find((o) => o.value === ws.plan_status) || PLAN_STATUS_OPTIONS[0];
 
         return (
-          <div key={ws.id} className="rounded-xl border border-purple-500/20 bg-black overflow-hidden transition-all">
+          <div key={ws.id} className="rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] overflow-hidden transition-all">
             {/* Header row */}
             <button
               onClick={() => setExpandedId(isExpanded ? null : ws.id)}
-              className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-purple-500/5 transition"
+              className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-[var(--canvas-subtle)] transition"
             >
               <div className="flex items-center gap-4">
                 <div>
-                  <div className="font-medium text-white">{ws.name}</div>
-                  <div className="text-xs text-white/40 mt-0.5">
+                  <div className="font-medium text-[var(--ink)]">{ws.name}</div>
+                  <div className="text-xs text-[var(--ink-subtle)] mt-0.5">
                     {enabledCount}/{totalCount} features enabled
                   </div>
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <span className={`px-2.5 py-1 rounded-lg text-xs font-medium border ${statusOption.color}`}>
+                <span className={`px-2.5 py-1 rounded-[4px] text-xs font-medium border ${statusOption.color}`}>
                   {statusOption.label}
                 </span>
                 {saving === ws.id ? (
-                  <Loader2 className="h-4 w-4 animate-spin text-white/40" />
+                  <Loader2 strokeWidth={1.5} className="h-4 w-4 animate-spin text-[var(--ink-subtle)]" />
                 ) : isExpanded ? (
-                  <ChevronUp className="h-4 w-4 text-white/40" />
+                  <ChevronUp strokeWidth={1.5} className="h-4 w-4 text-[var(--ink-subtle)]" />
                 ) : (
-                  <ChevronDown className="h-4 w-4 text-white/40" />
+                  <ChevronDown strokeWidth={1.5} className="h-4 w-4 text-[var(--ink-subtle)]" />
                 )}
               </div>
             </button>
 
             {/* Expanded content */}
             {isExpanded && (
-              <div className="px-5 pb-5 border-t border-purple-500/10">
+              <div className="px-5 pb-5 border-t border-[var(--rule)]">
                 {/* Plan Status + Billing row */}
                 <div className="pt-4 pb-3 flex flex-wrap items-start gap-x-10 gap-y-3">
                   <div>
-                    <label className="block text-xs font-medium text-white/50 uppercase tracking-wide mb-2">
+                    <label className="block text-xs font-medium text-[var(--ink-muted)] uppercase tracking-wide mb-2">
                       Plan Status
                     </label>
                     <div className="flex gap-2">
@@ -197,10 +197,10 @@ export default function WorkspaceFeatureManager() {
                         <button
                           key={opt.value}
                           onClick={() => updatePlanStatus(ws.id, opt.value)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                          className={`px-3 py-1.5 rounded-[4px] text-xs font-medium border transition-all ${
                             ws.plan_status === opt.value
-                              ? opt.color + " ring-1 ring-purple-500/20"
-                              : "border-purple-500/10 text-white/40 hover:border-purple-500/30 hover:text-white/60"
+                              ? opt.color + " ring-1 ring-[var(--rule)]"
+                              : "border-[var(--rule)] text-[var(--ink-subtle)] hover:border-[var(--rule-strong)] hover:text-[var(--ink-muted)]"
                           }`}
                         >
                           {opt.label}
@@ -210,45 +210,45 @@ export default function WorkspaceFeatureManager() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-white/50 uppercase tracking-wide mb-2">
+                    <label className="block text-xs font-medium text-[var(--ink-muted)] uppercase tracking-wide mb-2">
                       Billing
                     </label>
                     {ws.stripe_customer_id ? (
                       <div className="space-y-1">
                         <div className="flex items-center gap-2 text-xs">
-                          <CreditCard className="h-3.5 w-3.5 text-purple-500/60" />
-                          <code className="text-white/70 bg-white/5 px-1.5 py-0.5 rounded text-[11px]">{ws.stripe_customer_id}</code>
+                          <CreditCard strokeWidth={1.5} className="h-3.5 w-3.5 text-[var(--accent)]" />
+                          <code className="text-[var(--ink-muted)] bg-[var(--canvas-subtle)] px-1.5 py-0.5 rounded text-[11px]">{ws.stripe_customer_id}</code>
                           <button
                             onClick={() => { navigator.clipboard.writeText(ws.stripe_customer_id!); setToast({ type: "success", message: "Copied customer ID" }); }}
-                            className="text-white/30 hover:text-white/60 transition"
+                            className="text-[var(--ink-subtle)] hover:text-[var(--ink-muted)] transition"
                           >
-                            <Copy className="h-3 w-3" />
+                            <Copy strokeWidth={1.5} className="h-3 w-3" />
                           </button>
                           <a
                             href={`https://dashboard.stripe.com/customers/${ws.stripe_customer_id}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-purple-500 hover:text-purple-400 transition"
+                            className="text-[var(--accent)] hover:opacity-90 transition"
                           >
-                            <ExternalLink className="h-3 w-3" />
+                            <ExternalLink strokeWidth={1.5} className="h-3 w-3" />
                           </a>
                         </div>
                         {ws.stripe_subscription_id && (
                           <div className="flex items-center gap-2 text-xs">
-                            <ExternalLink className="h-3.5 w-3.5 text-purple-500/60" />
-                            <code className="text-white/70 bg-white/5 px-1.5 py-0.5 rounded text-[11px]">{ws.stripe_subscription_id}</code>
+                            <ExternalLink strokeWidth={1.5} className="h-3.5 w-3.5 text-[var(--accent)]" />
+                            <code className="text-[var(--ink-muted)] bg-[var(--canvas-subtle)] px-1.5 py-0.5 rounded text-[11px]">{ws.stripe_subscription_id}</code>
                             <button
                               onClick={() => { navigator.clipboard.writeText(ws.stripe_subscription_id!); setToast({ type: "success", message: "Copied subscription ID" }); }}
-                              className="text-white/30 hover:text-white/60 transition"
+                              className="text-[var(--ink-subtle)] hover:text-[var(--ink-muted)] transition"
                             >
-                              <Copy className="h-3 w-3" />
+                              <Copy strokeWidth={1.5} className="h-3 w-3" />
                             </button>
                           </div>
                         )}
                       </div>
                     ) : (
-                      <div className="text-xs text-white/30 flex items-center gap-2">
-                        <CreditCard className="h-3.5 w-3.5 text-white/20" />
+                      <div className="text-xs text-[var(--ink-subtle)] flex items-center gap-2">
+                        <CreditCard strokeWidth={1.5} className="h-3.5 w-3.5 text-[var(--ink-subtle)]" />
                         No Stripe customer linked
                       </div>
                     )}
@@ -258,20 +258,20 @@ export default function WorkspaceFeatureManager() {
                 {/* Features */}
                 <div className="pt-2">
                   <div className="flex items-center justify-between mb-3">
-                    <label className="text-xs font-medium text-white/50 uppercase tracking-wide">
+                    <label className="text-xs font-medium text-[var(--ink-muted)] uppercase tracking-wide">
                       Enabled Features
                     </label>
                     <div className="flex gap-2">
                       <button
                         onClick={() => toggleAll(ws.id, true)}
-                        className="text-[10px] text-green-400 hover:text-green-300 transition"
+                        className="text-[10px] text-[var(--verified)] hover:opacity-90 transition"
                       >
                         Enable All
                       </button>
-                      <span className="text-white/20">·</span>
+                      <span className="text-[var(--ink-subtle)]">·</span>
                       <button
                         onClick={() => toggleAll(ws.id, false)}
-                        className="text-[10px] text-red-400 hover:text-red-300 transition"
+                        className="text-[10px] text-[var(--danger)] hover:text-[var(--danger)] transition"
                       >
                         Disable All
                       </button>
@@ -288,26 +288,26 @@ export default function WorkspaceFeatureManager() {
                           key={featureId}
                           onClick={() => toggleFeature(ws.id, featureId)}
                           disabled={saving === ws.id}
-                          className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-left transition-all ${
+                          className={`flex items-center gap-3 px-4 py-3 rounded-[4px] border text-left transition-all ${
                             enabled
-                              ? "border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/15"
-                              : "border-purple-500/10 bg-black hover:bg-white/5"
+                              ? "border-[var(--rule-strong)] bg-[var(--canvas-subtle)] hover:bg-[var(--canvas-subtle)]"
+                              : "border-[var(--rule)] bg-[var(--canvas)] hover:bg-[var(--canvas-subtle)]"
                           }`}
                         >
                           <div
-                            className={`w-5 h-5 rounded-md flex items-center justify-center border transition-all shrink-0 ${
+                            className={`w-5 h-5 rounded-[4px] flex items-center justify-center border transition-all shrink-0 ${
                               enabled
-                                ? "bg-purple-500 border-purple-500"
-                                : "border-white/20 bg-transparent"
+                                ? "bg-[var(--ink)] border-[var(--ink)]"
+                                : "border-[var(--rule)] bg-transparent"
                             }`}
                           >
-                            {enabled && <Check className="h-3 w-3 text-white" />}
+                            {enabled && <Check strokeWidth={1.5} className="h-3 w-3 text-[var(--canvas)]" />}
                           </div>
                           <div className="min-w-0">
-                            <div className={`text-sm font-medium ${enabled ? "text-white" : "text-white/50"}`}>
+                            <div className={`text-sm font-medium ${enabled ? "text-[var(--ink)]" : "text-[var(--ink-muted)]"}`}>
                               {feature.name}
                             </div>
-                            <div className="text-[11px] text-white/30 truncate">{feature.description}</div>
+                            <div className="text-[11px] text-[var(--ink-subtle)] truncate">{feature.description}</div>
                           </div>
                         </button>
                       );
@@ -325,13 +325,13 @@ export default function WorkspaceFeatureManager() {
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-bottom-4 fade-in duration-200">
           <div
-            className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-medium shadow-lg border ${
+            className={`flex items-center gap-2 px-4 py-3 rounded-[4px] text-sm font-medium shadow-lg border ${
               toast.type === "success"
-                ? "bg-green-500/10 border-green-500/30 text-green-400"
-                : "bg-red-500/10 border-red-500/30 text-red-400"
+                ? "bg-[var(--canvas-subtle)] border-[var(--rule)] text-[var(--verified)]"
+                : "bg-[var(--danger-soft)] border-[var(--rule)] text-[var(--danger)]"
             }`}
           >
-            {toast.type === "success" ? <Check className="h-4 w-4" /> : <X className="h-4 w-4" />}
+            {toast.type === "success" ? <Check strokeWidth={1.5} className="h-4 w-4" /> : <X strokeWidth={1.5} className="h-4 w-4" />}
             {toast.message}
           </div>
         </div>

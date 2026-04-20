@@ -1,5 +1,7 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 
 type TranscriptAnswer = {
   question_id?: string;
@@ -55,6 +57,13 @@ export default async function CallsPage() {
   if (!profile?.workspace_id) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-12 text-[var(--ink)] bg-[var(--canvas)] min-h-screen">
+        <Link
+          href="/dashboard"
+          className="inline-flex items-center gap-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition mb-6"
+        >
+          <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
+          Dashboard
+        </Link>
         <h1 className="heading-display text-4xl text-[var(--ink)] mb-6">Call Transcripts</h1>
         <div className="rounded-[6px] border border-[var(--flag)] bg-[var(--flag-soft)] p-6 text-sm text-[var(--ink)]">
           We couldn’t find your workspace. Please contact an administrator.
@@ -95,6 +104,13 @@ export default async function CallsPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-12 text-[var(--ink)] bg-[var(--canvas)] min-h-screen">
+      <Link
+        href="/dashboard"
+        className="inline-flex items-center gap-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition mb-6"
+      >
+        <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
+        Dashboard
+      </Link>
       <div className="mb-8">
         <h1 className="heading-display text-4xl text-[var(--ink)]">Call Transcripts</h1>
         <p className="mt-2 max-w-3xl text-sm text-[var(--ink-muted)]">

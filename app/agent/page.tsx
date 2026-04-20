@@ -3,11 +3,15 @@
 // Workspace-level agent management. Consolidates what used to live at
 // /dashboard/agents (CRM roster + autonomous outputs queue + task list)
 // under a top-nav entry. The old /dashboard/agents URL redirects here.
+//
+// Voice/chat agents and autonomous agents live side-by-side in one
+// roster — they're all "agents that do work for the workspace", and
+// splitting them into tabs forced users to hunt for which kind of
+// agent handles which kind of work. Outputs + tasks live below.
+//
 // Per-agent deep config (LLM prompt, sales, schedule, inbox, scenario,
 // data-sources, policies) still lives at /frontend/agent/[id]/* and is
-// reached via the CRM Agents tab's "Configure" button. Those sub-routes
-// still carry their own legacy shells; stripping them is follow-up
-// work.
+// reached via the "Configure" button on each voice/chat agent card.
 
 "use client";
 
@@ -151,11 +155,8 @@ function getTimeAgo(dateStr: string | null): string {
 
 // ── Main page ─────────────────────────────────────────────────
 
-type Tab = "crm" | "autonomous";
-
 export default function AgentsPage() {
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("crm");
 
   // CRM agents state
   const [crmAgents, setCrmAgents] = useState<CRMAgent[]>([]);
@@ -342,9 +343,7 @@ export default function AgentsPage() {
 
   // ── Loading state ─────────────────────────────────────────
 
-  const isLoading = tab === "crm" ? crmLoading : autoLoading;
-
-  if (isLoading && crmLoading && autoLoading) {
+  if (crmLoading && autoLoading) {
     return (
       <div className="min-h-screen bg-[var(--canvas)] flex items-center justify-center">
         <Loader2 className="w-6 h-6 animate-spin text-[var(--ink-muted)]" strokeWidth={1.5} />
@@ -379,30 +378,7 @@ export default function AgentsPage() {
         </div>
       </div>
 
-      {/* Tab bar */}
-      <div className="px-6 md:px-8 pt-6">
-        <div className="flex gap-1 bg-[var(--canvas-subtle)] border border-[var(--rule)] rounded-[4px] p-0.5 max-w-xs">
-          <button
-            onClick={() => setTab("crm")}
-            className={`flex-1 px-4 py-2 rounded-[4px] text-sm font-medium transition ${tab === "crm" ? "bg-[var(--canvas)] border border-[var(--rule-strong)] text-[var(--ink)]" : "text-[var(--ink-muted)] hover:text-[var(--ink)]"}`}
-          >
-            CRM Agents
-          </button>
-          <button
-            onClick={() => setTab("autonomous")}
-            className={`flex-1 px-4 py-2 rounded-[4px] text-sm font-medium transition relative ${tab === "autonomous" ? "bg-[var(--canvas)] border border-[var(--rule-strong)] text-[var(--ink)]" : "text-[var(--ink-muted)] hover:text-[var(--ink)]"}`}
-          >
-            Autonomous
-            {outputs.filter((o) => o.review_status === "PENDING").length > 0 && (
-              <span className="absolute -top-1 -right-1 h-4 min-w-[16px] px-1 flex items-center justify-center rounded-full bg-[var(--flag)] text-[10px] font-bold text-[var(--canvas)]">
-                {outputs.filter((o) => o.review_status === "PENDING").length}
-              </span>
-            )}
-          </button>
-        </div>
-      </div>
-
-      <div className="px-6 md:px-8 py-6 max-w-[1400px] mx-auto">
+      <div className="px-6 md:px-8 py-8 max-w-[1400px] mx-auto">
         {error && (
           <div className="border border-[var(--rule)] bg-[var(--danger-soft)] rounded-[6px] p-4 mb-6 text-sm text-[var(--danger)]">
             {error}
@@ -410,26 +386,97 @@ export default function AgentsPage() {
           </div>
         )}
 
-        {tab === "crm" ? (
-          <CRMAgentsTab agents={crmAgents} stats={crmStats} onToggle={handleToggleCRM} />
-        ) : (
-          <AutonomousAgentsTab
-            agents={autoAgents}
-            outputs={filteredOutputs}
-            tasks={tasks}
-            outputFilter={outputFilter}
-            setOutputFilter={setOutputFilter}
-            runningAll={runningAll}
-            runningAgent={runningAgent}
-            deletingAgentId={deletingAgentId}
-            onRunAll={runAll}
-            onRunAgent={runAgent}
-            onReviewOutput={reviewOutput}
-            onUpdateTask={updateTask}
-            onCreateAgent={() => setCreateAgentOpen(true)}
-            onDeleteAgent={handleDeleteAgent}
-            totalPending={outputs.filter((o) => o.review_status === "PENDING").length}
-          />
+        {/* Page header */}
+        <div className="flex items-start justify-between mb-8 flex-wrap gap-4">
+          <div>
+            <div className="label-section mb-2">Workspace</div>
+            <h1 className="heading-display text-4xl text-[var(--ink)] mb-2">Agents</h1>
+            <p className="text-sm text-[var(--ink-muted)] max-w-2xl">
+              Voice and chat agents that talk to clients, plus autonomous agents that
+              analyze your CRM and surface actions. All in one roster.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setCreateAgentOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] hover:border-[var(--rule-strong)] hover:bg-[var(--canvas-subtle)] text-[var(--ink)] text-sm font-semibold transition">
+              <Plus className="h-4 w-4" strokeWidth={1.5} />
+              Create autonomous agent
+            </button>
+            <button onClick={runAll} disabled={runningAll}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-[4px] bg-[var(--ink)] hover:opacity-90 text-[var(--canvas)] text-sm font-semibold transition disabled:opacity-50">
+              {runningAll ? <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} /> : <Play className="h-4 w-4" strokeWidth={1.5} />}
+              {runningAll ? "Running..." : "Run all autonomous"}
+            </button>
+          </div>
+        </div>
+
+        {/* CRM / voice stats */}
+        {crmStats && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            {[
+              { label: "Total agents", value: crmStats.totalAgents + autoAgents.length, icon: Bot },
+              { label: "Deployed voice/chat", value: crmStats.deployed, icon: Radio },
+              { label: "Conversations", value: crmStats.totalConversations, icon: MessageSquare },
+              { label: "Pending outputs", value: outputs.filter((o) => o.review_status === "PENDING").length, icon: Lightbulb },
+            ].map((s) => (
+              <div key={s.label} className="card-flat p-5">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="label-section">{s.label}</span>
+                  <div className="border border-[var(--rule)] bg-[var(--canvas)] rounded-[4px] p-1.5">
+                    <s.icon className="h-3.5 w-3.5 text-[var(--ink)]" strokeWidth={1.5} />
+                  </div>
+                </div>
+                <div className="text-2xl font-semibold text-[var(--ink)]">{s.value}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Unified agent roster */}
+        <UnifiedRoster
+          crmAgents={crmAgents}
+          autoAgents={autoAgents}
+          onToggleCRM={handleToggleCRM}
+          onRunAuto={runAgent}
+          onDeleteAuto={handleDeleteAgent}
+          runningAll={runningAll}
+          runningAgent={runningAgent}
+          deletingAgentId={deletingAgentId}
+        />
+
+        {/* Outputs + tasks */}
+        <AutoOutputsAndTasks
+          outputs={filteredOutputs}
+          tasks={tasks}
+          outputFilter={outputFilter}
+          setOutputFilter={setOutputFilter}
+          onReviewOutput={reviewOutput}
+          onUpdateTask={updateTask}
+          totalPending={outputs.filter((o) => o.review_status === "PENDING").length}
+        />
+
+        {/* Voice/chat performance overview */}
+        {crmAgents.length > 0 && (
+          <div className="mt-10 card-flat p-6">
+            <div className="flex items-center gap-2 mb-5">
+              <Layers className="h-4 w-4 text-[var(--ink-muted)]" strokeWidth={1.5} />
+              <h2 className="text-base font-semibold text-[var(--ink)]">Voice &amp; chat performance</h2>
+            </div>
+            <div className="space-y-3">
+              {crmAgents.map((agent) => (
+                <div key={agent.id} className="flex items-center gap-4">
+                  <span className="text-xs text-[var(--ink-muted)] w-36 truncate shrink-0">{agent.name}</span>
+                  <div className="flex-1 flex items-center gap-2">
+                    <div className="flex-1 h-2 rounded-full bg-[var(--canvas-muted)] overflow-hidden flex">
+                      <div className="h-full bg-[var(--accent)] transition-all" style={{ width: `${agent.successRate}%` }} />
+                      {agent.conversations.failed > 0 && <div className="h-full bg-[var(--danger)] transition-all" style={{ width: `${agent.conversations.total > 0 ? (agent.conversations.failed / agent.conversations.total) * 100 : 0}%` }} />}
+                    </div>
+                    <span className="text-xs text-[var(--ink-muted)] w-10 text-right">{agent.successRate}%</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </div>
 
@@ -442,251 +489,181 @@ export default function AgentsPage() {
   );
 }
 
-// ── CRM Agents Tab ────────────────────────────────────────────
+// ── Unified Roster ────────────────────────────────────────────
+// Shows voice/chat agents and autonomous agents in one grid. Each
+// card carries a "kind" chip so users can skim what does what
+// without hopping between tabs.
 
-function CRMAgentsTab({ agents, stats, onToggle }: { agents: CRMAgent[]; stats: CRMStats | null; onToggle: (a: CRMAgent) => void }) {
-  return (
-    <>
-      <div className="flex items-start justify-between mb-8">
-        <div>
-          <div className="flex items-center gap-3 mb-2">
-            <div className="border border-[var(--rule)] bg-[var(--canvas)] rounded-[4px] p-2">
-              <Bot className="h-5 w-5 text-[var(--ink)]" strokeWidth={1.5} />
-            </div>
-            <h1 className="heading-display text-4xl text-[var(--ink)]">CRM Agents</h1>
-          </div>
-          <p className="text-sm text-[var(--ink-muted)]">Your conversational AI agents — chat, voice, and multi-modal.</p>
-        </div>
-      </div>
-
-      {stats && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {[
-            { label: "Total", value: stats.totalAgents, icon: Bot },
-            { label: "Deployed", value: stats.deployed, icon: Radio },
-            { label: "Conversations", value: stats.totalConversations, icon: MessageSquare },
-            { label: "Completed", value: stats.completedConversations, icon: CheckCircle2 },
-          ].map((s) => (
-            <div key={s.label} className="card-flat p-5">
-              <div className="flex items-center justify-between mb-2">
-                <span className="label-section">{s.label}</span>
-                <div className="border border-[var(--rule)] bg-[var(--canvas)] rounded-[4px] p-1.5">
-                  <s.icon className="h-3.5 w-3.5 text-[var(--ink)]" strokeWidth={1.5} />
-                </div>
-              </div>
-              <div className="text-2xl font-semibold text-[var(--ink)]">{s.value}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {agents.length === 0 ? (
-        <div className="card-flat p-12 text-center">
-          <Bot className="h-10 w-10 text-[var(--ink-subtle)] mx-auto mb-3" strokeWidth={1.5} />
-          <p className="text-[var(--ink-muted)] mb-1">No CRM agents found</p>
-          <p className="text-xs text-[var(--ink-subtle)]">Create an agent in the Backend to get started.</p>
-        </div>
-      ) : (
-        <>
-          <div className="label-section mb-4">Agent Roster</div>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {agents.map((agent) => {
-              const sc = STATUS_CONFIG[agent.status] || STATUS_CONFIG.draft;
-              return (
-                <div key={agent.id} className="card-flat card-flat-hover overflow-hidden">
-                  <div className="p-5">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="border border-[var(--rule)] bg-[var(--canvas)] rounded-[4px] p-2 shrink-0">
-                          <Bot className="h-4 w-4 text-[var(--ink)]" strokeWidth={1.5} />
-                        </div>
-                        <div className="min-w-0">
-                          <h3 className="text-sm font-semibold text-[var(--ink)] truncate">{agent.name}</h3>
-                          <span className="text-[11px] text-[var(--ink-subtle)]">{MODALITY_LABELS[agent.modality] || agent.modality}</span>
-                        </div>
-                      </div>
-                      <span className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${sc.bg} ${sc.color} border ${sc.border}`}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${sc.dot}`} />{sc.label}
-                      </span>
-                    </div>
-                    {agent.description && <p className="text-xs text-[var(--ink-muted)] mb-4 line-clamp-2">{agent.description}</p>}
-                    <div className="flex items-center justify-between text-xs mb-3">
-                      <span className="text-[var(--ink-muted)]">Success rate</span>
-                      <span className="font-semibold text-[var(--ink)]">{agent.successRate}%</span>
-                    </div>
-                    <ProgressBar value={agent.successRate} />
-                    <div className="grid grid-cols-3 gap-3 mt-4 mb-4">
-                      <div className="text-center"><div className="text-lg font-semibold text-[var(--ink)]">{agent.conversations.completed}</div><div className="text-[10px] text-[var(--ink-subtle)] uppercase tracking-wide">Done</div></div>
-                      <div className="text-center"><div className="text-lg font-semibold text-[var(--ink)]">{agent.conversations.active}</div><div className="text-[10px] text-[var(--ink-subtle)] uppercase tracking-wide">Active</div></div>
-                      <div className="text-center"><div className="text-lg font-semibold text-[var(--ink)]">{agent.scenarios}</div><div className="text-[10px] text-[var(--ink-subtle)] uppercase tracking-wide">Scenarios</div></div>
-                    </div>
-                    <div className="flex items-center justify-between text-[11px] text-[var(--ink-subtle)]">
-                      <span>Updated {getTimeAgo(agent.updatedAt || agent.createdAt)}</span>
-                      {agent.conversations.failed > 0 && <span className="flex items-center gap-1 text-[var(--danger)]"><XCircle className="h-3 w-3" strokeWidth={1.5} /> {agent.conversations.failed} failed</span>}
-                    </div>
-                  </div>
-                  <div className="flex border-t border-[var(--rule)]">
-                    <button onClick={() => onToggle(agent)}
-                      className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium transition ${agent.status === "deployed" ? "text-[var(--flag)] hover:bg-[var(--flag-soft)]" : "text-[var(--verified)] hover:bg-[var(--verified-soft)]"}`}>
-                      {agent.status === "deployed" ? <><Circle className="h-3 w-3" strokeWidth={1.5} /> Pause</> : <><Zap className="h-3 w-3" strokeWidth={1.5} /> Deploy</>}
-                    </button>
-                    <div className="w-px bg-[var(--rule)]" />
-                    <Link href={`/frontend/agent/${agent.id}/llm`}
-                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition">
-                      <Settings className="h-3 w-3" strokeWidth={1.5} /> Configure
-                    </Link>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {agents.length > 0 && (
-            <div className="mt-8 card-flat p-6">
-              <div className="flex items-center gap-2 mb-5">
-                <Layers className="h-4 w-4 text-[var(--ink-muted)]" strokeWidth={1.5} />
-                <h2 className="text-base font-semibold text-[var(--ink)]">Performance Overview</h2>
-              </div>
-              <div className="space-y-3">
-                {agents.map((agent) => (
-                  <div key={agent.id} className="flex items-center gap-4">
-                    <span className="text-xs text-[var(--ink-muted)] w-36 truncate shrink-0">{agent.name}</span>
-                    <div className="flex-1 flex items-center gap-2">
-                      <div className="flex-1 h-2 rounded-full bg-[var(--canvas-muted)] overflow-hidden flex">
-                        <div className="h-full bg-[var(--accent)] transition-all" style={{ width: `${agent.successRate}%` }} />
-                        {agent.conversations.failed > 0 && <div className="h-full bg-[var(--danger)] transition-all" style={{ width: `${agent.conversations.total > 0 ? (agent.conversations.failed / agent.conversations.total) * 100 : 0}%` }} />}
-                      </div>
-                      <span className="text-xs text-[var(--ink-muted)] w-10 text-right">{agent.successRate}%</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </>
-      )}
-    </>
-  );
-}
-
-// ── Autonomous Agents Tab ─────────────────────────────────────
-
-function AutonomousAgentsTab({
-  agents, outputs, tasks, outputFilter, setOutputFilter,
+function UnifiedRoster({
+  crmAgents, autoAgents, onToggleCRM, onRunAuto, onDeleteAuto,
   runningAll, runningAgent, deletingAgentId,
-  onRunAll, onRunAgent, onReviewOutput, onUpdateTask, onCreateAgent, onDeleteAgent, totalPending,
 }: {
-  agents: AutoAgent[];
-  outputs: AgentOutput[];
-  tasks: AgentTask[];
-  outputFilter: string;
-  setOutputFilter: (f: string) => void;
+  crmAgents: CRMAgent[];
+  autoAgents: AutoAgent[];
+  onToggleCRM: (a: CRMAgent) => void;
+  onRunAuto: (id: string) => void;
+  onDeleteAuto: (agent: AutoAgent) => void;
   runningAll: boolean;
   runningAgent: string | null;
   deletingAgentId: string | null;
-  onRunAll: () => void;
-  onRunAgent: (id: string) => void;
-  onReviewOutput: (id: string, status: string) => void;
-  onUpdateTask: (id: string, status: string) => void;
-  onCreateAgent: () => void;
-  onDeleteAgent: (agent: AutoAgent) => void;
-  totalPending: number;
 }) {
+  if (crmAgents.length === 0 && autoAgents.length === 0) {
+    return (
+      <div className="card-flat p-12 text-center">
+        <Bot className="h-10 w-10 text-[var(--ink-subtle)] mx-auto mb-3" strokeWidth={1.5} />
+        <p className="text-[var(--ink-muted)] mb-1">No agents yet</p>
+        <p className="text-xs text-[var(--ink-subtle)]">
+          Create a voice agent in the Backend, or an autonomous agent from the button above.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <>
-      {/* Header */}
-      <div className="flex items-start justify-between mb-8">
-        <div>
-          <div className="flex items-center gap-3 mb-2">
-            <div className="border border-[var(--rule)] bg-[var(--canvas)] rounded-[4px] p-2">
-              <Sparkles className="h-5 w-5 text-[var(--ink)]" strokeWidth={1.5} />
+      <div className="label-section mb-4">Agent roster</div>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {/* Voice / chat agents */}
+        {crmAgents.map((agent) => {
+          const sc = STATUS_CONFIG[agent.status] || STATUS_CONFIG.draft;
+          return (
+            <div key={`crm-${agent.id}`} className="card-flat card-flat-hover overflow-hidden">
+              <div className="p-5">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="border border-[var(--rule)] bg-[var(--canvas)] rounded-[4px] p-2 shrink-0">
+                      <Bot className="h-4 w-4 text-[var(--ink)]" strokeWidth={1.5} />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-semibold text-[var(--ink)] truncate">{agent.name}</h3>
+                      <span className="text-[11px] text-[var(--ink-subtle)]">
+                        {MODALITY_LABELS[agent.modality] || agent.modality} agent
+                      </span>
+                    </div>
+                  </div>
+                  <span className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${sc.bg} ${sc.color} border ${sc.border}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${sc.dot}`} />{sc.label}
+                  </span>
+                </div>
+                {agent.description && <p className="text-xs text-[var(--ink-muted)] mb-4 line-clamp-2">{agent.description}</p>}
+                <div className="flex items-center justify-between text-xs mb-3">
+                  <span className="text-[var(--ink-muted)]">Success rate</span>
+                  <span className="font-semibold text-[var(--ink)]">{agent.successRate}%</span>
+                </div>
+                <ProgressBar value={agent.successRate} />
+                <div className="grid grid-cols-3 gap-3 mt-4">
+                  <div className="text-center"><div className="text-lg font-semibold text-[var(--ink)]">{agent.conversations.completed}</div><div className="text-[10px] text-[var(--ink-subtle)] uppercase tracking-wide">Done</div></div>
+                  <div className="text-center"><div className="text-lg font-semibold text-[var(--ink)]">{agent.conversations.active}</div><div className="text-[10px] text-[var(--ink-subtle)] uppercase tracking-wide">Active</div></div>
+                  <div className="text-center"><div className="text-lg font-semibold text-[var(--ink)]">{agent.scenarios}</div><div className="text-[10px] text-[var(--ink-subtle)] uppercase tracking-wide">Scenarios</div></div>
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-[var(--ink-subtle)] mt-3">
+                  <span>Updated {getTimeAgo(agent.updatedAt || agent.createdAt)}</span>
+                  {agent.conversations.failed > 0 && <span className="flex items-center gap-1 text-[var(--danger)]"><XCircle className="h-3 w-3" strokeWidth={1.5} /> {agent.conversations.failed} failed</span>}
+                </div>
+              </div>
+              <div className="flex border-t border-[var(--rule)]">
+                <button onClick={() => onToggleCRM(agent)}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium transition ${agent.status === "deployed" ? "text-[var(--flag)] hover:bg-[var(--flag-soft)]" : "text-[var(--verified)] hover:bg-[var(--verified-soft)]"}`}>
+                  {agent.status === "deployed" ? <><Circle className="h-3 w-3" strokeWidth={1.5} /> Pause</> : <><Zap className="h-3 w-3" strokeWidth={1.5} /> Deploy</>}
+                </button>
+                <div className="w-px bg-[var(--rule)]" />
+                <Link href={`/frontend/agent/${agent.id}/llm`}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition">
+                  <Settings className="h-3 w-3" strokeWidth={1.5} /> Configure
+                </Link>
+              </div>
             </div>
-            <h1 className="heading-display text-4xl text-[var(--ink)]">Autonomous Agents</h1>
-          </div>
-          <p className="text-sm text-[var(--ink-muted)]">AI agents that analyze your CRM data and generate actionable insights.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={onCreateAgent}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] hover:border-[var(--rule-strong)] hover:bg-[var(--canvas-subtle)] text-[var(--ink)] text-sm font-semibold transition">
-            <Plus className="h-4 w-4" strokeWidth={1.5} />
-            Create agent
-          </button>
-          <button onClick={onRunAll} disabled={runningAll}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-[4px] bg-[var(--ink)] hover:opacity-90 text-[var(--canvas)] text-sm font-semibold transition disabled:opacity-50">
-            {runningAll ? <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} /> : <Play className="h-4 w-4" strokeWidth={1.5} />}
-            {runningAll ? "Running..." : "Run All Agents"}
-          </button>
-        </div>
-      </div>
+          );
+        })}
 
-      {/* Agent cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 mb-10">
-        {agents.map((agent) => {
+        {/* Autonomous agents */}
+        {autoAgents.map((agent) => {
           const st = AUTO_STATUS[agent.status] || AUTO_STATUS.IDLE;
           const isRunning = runningAgent === agent.id || runningAll;
           return (
-            <div key={agent.id} className="card-flat card-flat-hover p-5">
-              <div className="flex items-center gap-2.5 mb-3">
-                <div className="border border-[var(--rule)] bg-[var(--canvas)] rounded-[4px] p-2">
-                  <AgentIcon name={agent.icon} className="h-4 w-4 text-[var(--ink)]" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-sm font-semibold text-[var(--ink)] truncate">{agent.name}</h3>
-                  <div className="flex items-center gap-1.5">
-                    <span className={`h-1.5 w-1.5 rounded-full ${isRunning ? "bg-[var(--accent)] animate-pulse" : st.dot}`} />
-                    <span className="text-[11px] text-[var(--ink-subtle)]">{isRunning ? "Running..." : st.label}</span>
+            <div key={`auto-${agent.id}`} className="card-flat card-flat-hover overflow-hidden">
+              <div className="p-5">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="border border-[var(--rule)] bg-[var(--canvas)] rounded-[4px] p-2 shrink-0">
+                      <AgentIcon name={agent.icon} className="h-4 w-4 text-[var(--ink)]" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-semibold text-[var(--ink)] truncate">{agent.name}</h3>
+                      <span className="text-[11px] text-[var(--ink-subtle)]">Autonomous agent</span>
+                    </div>
                   </div>
+                  <span className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${st.bg} ${st.color} border border-[var(--rule)]`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${isRunning ? "bg-[var(--accent)] animate-pulse" : st.dot}`} />
+                    {isRunning ? "Running..." : st.label}
+                  </span>
                 </div>
-              </div>
-
-              <p className="text-[11px] text-[var(--ink-muted)] mb-3 line-clamp-2">{agent.purpose}</p>
-
-              <div className="flex items-center justify-between text-xs mb-2">
-                <span className="text-[var(--ink-muted)]">Success</span>
-                <span className="font-semibold text-[var(--ink)]">{agent.success_rate}%</span>
-              </div>
-              <ProgressBar value={agent.success_rate} />
-
-              <div className="flex items-center justify-between mt-3 text-[11px] text-[var(--ink-subtle)]">
-                <span>{agent.outputs_today} outputs</span>
-                {agent.pending_reviews > 0 && (
-                  <span className="text-[var(--flag)]">{agent.pending_reviews} pending</span>
+                <p className="text-xs text-[var(--ink-muted)] mb-4 line-clamp-2">{agent.purpose}</p>
+                <div className="flex items-center justify-between text-xs mb-3">
+                  <span className="text-[var(--ink-muted)]">Success</span>
+                  <span className="font-semibold text-[var(--ink)]">{agent.success_rate}%</span>
+                </div>
+                <ProgressBar value={agent.success_rate} />
+                <div className="flex items-center justify-between text-[11px] text-[var(--ink-subtle)] mt-3">
+                  <span>{agent.outputs_today} outputs today</span>
+                  {agent.pending_reviews > 0 && (
+                    <span className="text-[var(--flag)]">{agent.pending_reviews} pending</span>
+                  )}
+                </div>
+                <div className="text-[11px] text-[var(--ink-subtle)] mt-1">
+                  Last run: {getTimeAgo(agent.last_run)}
+                </div>
+                {agent.status === "ERROR" && agent.last_error && (
+                  <p className="text-[11px] text-[var(--danger)] mt-2 line-clamp-2">{agent.last_error}</p>
                 )}
               </div>
-
-              <div className="text-[11px] text-[var(--ink-subtle)] mt-1">
-                Last run: {getTimeAgo(agent.last_run)}
-              </div>
-
-              {agent.status === "ERROR" && agent.last_error && (
-                <p className="text-[11px] text-[var(--danger)] mt-2 line-clamp-2">{agent.last_error}</p>
-              )}
-
-              <div className="flex items-center gap-1.5 mt-3">
-                <button onClick={() => onRunAgent(agent.id)} disabled={isRunning}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-[4px] text-xs font-medium text-[var(--ink)] hover:bg-[var(--canvas-subtle)] border border-[var(--rule)] hover:border-[var(--rule-strong)] transition disabled:opacity-50">
+              <div className="flex border-t border-[var(--rule)]">
+                <button onClick={() => onRunAuto(agent.id)} disabled={isRunning}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition disabled:opacity-50">
                   {isRunning ? <Loader2 className="h-3 w-3 animate-spin" strokeWidth={1.5} /> : <Play className="h-3 w-3" strokeWidth={1.5} />}
                   {isRunning ? "Running..." : "Run"}
                 </button>
                 {agent.is_custom && (
-                  <button onClick={() => onDeleteAgent(agent)} disabled={deletingAgentId === agent.id}
-                    title="Delete agent"
-                    className="flex items-center justify-center px-2 py-2 rounded-[4px] text-xs font-medium text-[var(--ink-muted)] hover:text-[var(--danger)] hover:bg-[var(--danger-soft)] border border-[var(--rule)] transition disabled:opacity-50">
-                    {deletingAgentId === agent.id ? <Loader2 className="h-3 w-3 animate-spin" strokeWidth={1.5} /> : <Trash2 className="h-3 w-3" strokeWidth={1.5} />}
-                  </button>
+                  <>
+                    <div className="w-px bg-[var(--rule)]" />
+                    <button onClick={() => onDeleteAuto(agent)} disabled={deletingAgentId === agent.id}
+                      className="flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-[var(--ink-muted)] hover:text-[var(--danger)] hover:bg-[var(--danger-soft)] transition disabled:opacity-50">
+                      {deletingAgentId === agent.id ? <Loader2 className="h-3 w-3 animate-spin" strokeWidth={1.5} /> : <Trash2 className="h-3 w-3" strokeWidth={1.5} />}
+                      Delete
+                    </button>
+                  </>
                 )}
               </div>
             </div>
           );
         })}
       </div>
+    </>
+  );
+}
 
+// ── Outputs + Tasks ───────────────────────────────────────────
+
+function AutoOutputsAndTasks({
+  outputs, tasks, outputFilter, setOutputFilter,
+  onReviewOutput, onUpdateTask, totalPending,
+}: {
+  outputs: AgentOutput[];
+  tasks: AgentTask[];
+  outputFilter: string;
+  setOutputFilter: (f: string) => void;
+  onReviewOutput: (id: string, status: string) => void;
+  onUpdateTask: (id: string, status: string) => void;
+  totalPending: number;
+}) {
+  return (
+    <>
       {/* Outputs section */}
-      <div className="mb-10">
+      <div className="mt-10 mb-10">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Lightbulb className="h-4 w-4 text-[var(--ink-muted)]" strokeWidth={1.5} />
-            <h2 className="text-base font-semibold text-[var(--ink)]">Agent Outputs</h2>
+            <h2 className="text-base font-semibold text-[var(--ink)]">Autonomous agent outputs</h2>
             {totalPending > 0 && (
               <span className="text-xs font-medium text-[var(--flag)] bg-[var(--flag-soft)] border border-[var(--rule)] rounded-full px-2 py-0.5">
                 {totalPending} pending
@@ -763,7 +740,7 @@ function AutonomousAgentsTab({
       <div>
         <div className="flex items-center gap-2 mb-4">
           <CheckCircle className="h-4 w-4 text-[var(--ink-muted)]" strokeWidth={1.5} />
-          <h2 className="text-base font-semibold text-[var(--ink)]">Suggested Tasks</h2>
+          <h2 className="text-base font-semibold text-[var(--ink)]">Suggested tasks</h2>
         </div>
 
         {tasks.length === 0 ? (

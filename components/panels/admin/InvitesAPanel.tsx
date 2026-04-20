@@ -51,47 +51,47 @@ export default function InvitesAPanel() {
     setCopied(token); setTimeout(() => setCopied(null), 1500);
   };
 
-  if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-5 w-5 animate-spin text-white/40" /></div>;
+  if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-5 w-5 animate-spin text-[var(--ink-subtle)]" strokeWidth={1.5} /></div>;
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
-      {toast && <div className={`fixed bottom-6 right-6 z-[60] px-4 py-3 rounded-xl text-sm font-medium shadow-lg border ${toast.type === "success" ? "bg-green-500/10 border-green-500/30 text-green-400" : "bg-red-500/10 border-red-500/30 text-red-400"}`}>{toast.msg}</div>}
+      {toast && <div className={`fixed bottom-6 right-6 z-[60] px-4 py-3 rounded-[6px] text-sm font-medium shadow-lg border ${toast.type === "success" ? "bg-[var(--canvas-subtle)] border-[var(--rule)] text-[var(--verified)]" : "bg-[var(--danger-soft)] border-[var(--rule)] text-[var(--danger)]"}`}>{toast.msg}</div>}
 
       {/* Send form */}
-      <div className="rounded-2xl border border-purple-500/20 bg-black/40 p-5 mb-6">
-        <p className="text-sm font-medium text-white mb-3">Send Invite</p>
+      <div className="rounded-[6px] border border-[var(--rule)] bg-[var(--canvas-subtle)] p-5 mb-6">
+        <p className="text-sm font-medium text-[var(--ink)] mb-3">Send Invite</p>
         <div className="flex gap-2">
           <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="user@email.com"
-            className="flex-1 px-3 py-2 rounded-xl bg-white/5 border border-purple-500/20 text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-purple-500/50" />
+            className="flex-1 px-3 py-2 rounded-[4px] bg-[var(--canvas)] border border-[var(--rule)] text-[var(--ink)] text-sm placeholder:text-[var(--ink-subtle)] focus:outline-none focus:border-[var(--rule-strong)]" />
           <select value={wsId} onChange={e => setWsId(e.target.value)}
-            className="px-3 py-2 rounded-xl bg-white/5 border border-purple-500/20 text-white text-sm focus:outline-none">
+            className="px-3 py-2 rounded-[4px] bg-[var(--canvas)] border border-[var(--rule)] text-[var(--ink)] text-sm focus:outline-none">
             {workspaces.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
           </select>
           <button onClick={handleSend} disabled={sending || !email.trim()}
-            className="px-4 py-2 rounded-xl bg-purple-500 text-white text-sm font-medium hover:bg-purple-600 disabled:opacity-40 flex items-center gap-1.5">
-            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}Send
+            className="px-4 py-2 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-sm font-medium hover:opacity-90 disabled:opacity-40 flex items-center gap-1.5">
+            {sending ? <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} /> : <Send className="h-4 w-4" strokeWidth={1.5} />}Send
           </button>
         </div>
       </div>
 
       {/* List */}
       {invites.length === 0 ? (
-        <div className="text-center py-12 text-white/30 text-sm">No invites yet</div>
+        <div className="text-center py-12 text-[var(--ink-subtle)] text-sm">No invites yet</div>
       ) : (
         <div className="space-y-2">
           {invites.map(inv => {
             const expired = new Date(inv.expires_at) < new Date();
             return (
-              <div key={inv.id} className="flex items-center justify-between rounded-xl border border-purple-500/10 bg-black/30 px-4 py-3">
+              <div key={inv.id} className="flex items-center justify-between rounded-[6px] border border-[var(--rule)] bg-[var(--canvas-subtle)] px-4 py-3">
                 <div>
-                  <div className="text-sm text-white font-medium">{inv.email}</div>
-                  <div className="text-[11px] text-white/30">{inv.workspace_name || "—"} · {expired ? <span className="text-red-400">Expired</span> : <span className="text-green-400">Pending</span>}</div>
+                  <div className="text-sm text-[var(--ink)] font-medium">{inv.email}</div>
+                  <div className="text-[11px] text-[var(--ink-subtle)]">{inv.workspace_name || "—"} · {expired ? <span className="text-[var(--danger)]">Expired</span> : <span className="text-[var(--verified)]">Pending</span>}</div>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <button onClick={() => copyLink(inv.token)} className="p-1.5 rounded-lg text-white/30 hover:text-white hover:bg-white/5">
-                    {copied === inv.token ? <Check className="h-3.5 w-3.5 text-green-400" /> : <Copy className="h-3.5 w-3.5" />}
+                  <button onClick={() => copyLink(inv.token)} className="p-1.5 rounded-[4px] text-[var(--ink-subtle)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)]">
+                    {copied === inv.token ? <Check className="h-3.5 w-3.5 text-[var(--verified)]" strokeWidth={1.5} /> : <Copy className="h-3.5 w-3.5" strokeWidth={1.5} />}
                   </button>
-                  <button onClick={() => handleDelete(inv.id)} className="p-1.5 rounded-lg text-white/30 hover:text-red-400 hover:bg-red-400/10"><Trash2 className="h-3.5 w-3.5" /></button>
+                  <button onClick={() => handleDelete(inv.id)} className="p-1.5 rounded-[4px] text-[var(--ink-subtle)] hover:text-[var(--danger)] hover:bg-[var(--danger-soft)]"><Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} /></button>
                 </div>
               </div>
             );
