@@ -26,7 +26,8 @@ export type StepType =
   | "update_contact"  // Supabase update on a single contact
   | "send_email"      // Resend email
   | "condition"       // branches to outgoing `true` / `false` edges
-  | "delay";          // pause N seconds
+  | "delay"           // pause N seconds
+  | "archive_lookup"; // vector-search the Dante archive → {hits, context}
 
 export interface BaseStep {
   id: string;
@@ -99,6 +100,19 @@ export interface DelayStep extends BaseStep {
   };
 }
 
+// Vector-search the workspace's Dante archive. Output surfaces both
+// the raw hits (for debugging / conditional branching) and a
+// pre-formatted `context` string ready to drop into an openai step's
+// prompt — that's the Harvey-style citation pattern.
+export interface ArchiveLookupStep extends BaseStep {
+  type: "archive_lookup";
+  config: {
+    query: string;          // templated against prior step outputs
+    k?: number;             // top-K chunks to return (1..20, default 5)
+    kind?: string;          // optional ArchiveKind filter
+  };
+}
+
 // ── Trigger nodes ──────────────────────────────────────────────
 // Every graph must start from exactly one trigger node. For the
 // runner, triggers are pass-throughs — their `config` is metadata
@@ -137,7 +151,8 @@ export type WorkflowStep =
   | UpdateContactStep
   | SendEmailStep
   | ConditionStep
-  | DelayStep;
+  | DelayStep
+  | ArchiveLookupStep;
 
 // ── Graph model ────────────────────────────────────────────────
 // React Flow speaks this shape natively. Each node carries its full

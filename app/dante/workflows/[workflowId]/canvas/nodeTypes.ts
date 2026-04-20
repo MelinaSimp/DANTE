@@ -8,6 +8,7 @@ import type { LucideIcon } from "lucide-react";
 import type { StepType, WorkflowStep } from "@/lib/dante/workflow-types";
 import {
   Hand, Clock4, Webhook, Globe, Sparkles, Users, Pencil, Mail, GitBranch, Clock,
+  BookOpen,
 } from "lucide-react";
 
 export interface NodeTypeMeta {
@@ -82,6 +83,13 @@ export const NODE_TYPES: NodeTypeMeta[] = [
     icon: Clock, group: "action", accent: "ink",
     default: (id) => mk({ id, type: "delay", name: "Delay",
       config: { seconds: 5 } }),
+  },
+  {
+    type: "archive_lookup", label: "Archive lookup",
+    hint: "Vector-search the firm's archive",
+    icon: BookOpen, group: "action", accent: "accent",
+    default: (id) => mk({ id, type: "archive_lookup", name: "Archive lookup",
+      config: { query: "", k: 5 } }),
   },
 ];
 

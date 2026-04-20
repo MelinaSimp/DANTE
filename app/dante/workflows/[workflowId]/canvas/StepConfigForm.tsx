@@ -207,6 +207,45 @@ function renderBody(
         </Field>
       );
 
+    case "archive_lookup":
+      return (
+        <>
+          <Field label="Query" hint={"Vector-searched against the Dante archive. Template-safe — reference prior step output with {{steps.<id>.<field>}}."}>
+            <Textarea
+              value={(cfg.query as string) || ""}
+              onChange={(v) => setConfig("query", v)}
+              rows={3}
+              placeholder='What fee disclosures do we require for held-away accounts?'
+            />
+          </Field>
+          <Field label="Top-K" hint="1–20. Chunks returned.">
+            <Text value={String(cfg.k ?? "5")} onChange={(v) => setConfig("k", v)} placeholder="5" />
+          </Field>
+          <Field label="Kind filter (optional)" hint="Restrict to one document kind.">
+            <select
+              value={(cfg.kind as string) || ""}
+              onChange={(e) => setConfig("kind", e.target.value)}
+              className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
+            >
+              <option value="">All kinds</option>
+              <option value="form_adv">Form ADV</option>
+              <option value="ips">Investment Policy Statement</option>
+              <option value="prospectus">Prospectus</option>
+              <option value="client_agreement">Client agreement</option>
+              <option value="policy">Policy / SOP</option>
+              <option value="regulation">Regulation</option>
+              <option value="memo">Memo</option>
+              <option value="other">Other</option>
+            </select>
+          </Field>
+          <Help>
+            Downstream: pipe into an <b>OpenAI prompt</b> step and reference
+            <code className="mx-1 text-[var(--ink)]">{"{{steps.<this-id>.context}}"}</code>
+            to ground the model on cited chunks.
+          </Help>
+        </>
+      );
+
     default:
       return null;
   }

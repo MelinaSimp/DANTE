@@ -16,7 +16,8 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import {
   ArrowLeft, TrendingDown, Zap, ArrowUpRight, Flame,
-  Activity, AlertTriangle, Key, ShieldCheck,
+  Activity, AlertTriangle, Key, ShieldCheck, Archive, BookOpen,
+  FileText, Sparkles,
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -33,7 +34,7 @@ export default async function DantePage() {
   // Pull summary counts so the landing page isn't just two dead links.
   // Secrets count is wrapped in a try/catch so a missing table (pre-migration)
   // doesn't break the page — the runner already no-ops on 42P01.
-  const [{ count: criticalCount }, { count: atRiskCount }, { count: workflowCount }, { data: latestScore }, secretCountResp] = await Promise.all([
+  const [{ count: criticalCount }, { count: atRiskCount }, { count: workflowCount }, { data: latestScore }, secretCountResp, archiveCountResp] = await Promise.all([
     supabaseAdmin.from("dante_churn_scores").select("id", { count: "exact", head: true })
       .eq("workspace_id", profile.workspace_id).eq("tier", "critical"),
     supabaseAdmin.from("dante_churn_scores").select("id", { count: "exact", head: true })
@@ -45,8 +46,11 @@ export default async function DantePage() {
       .order("computed_at", { ascending: false }).limit(1).maybeSingle(),
     supabaseAdmin.from("dante_secrets").select("id", { count: "exact", head: true })
       .eq("workspace_id", profile.workspace_id),
+    supabaseAdmin.from("dante_archive_documents").select("id", { count: "exact", head: true })
+      .eq("workspace_id", profile.workspace_id).eq("status", "ready"),
   ]);
   const secretCount = secretCountResp.error ? 0 : (secretCountResp.count ?? 0);
+  const archiveCount = archiveCountResp.error ? 0 : (archiveCountResp.count ?? 0);
 
   return (
     <div className="min-h-screen bg-[var(--canvas)]">
@@ -82,7 +86,7 @@ export default async function DantePage() {
           </p>
         </div>
 
-        {/* Surface cards */}
+        {/* Surface cards — four primary pillars */}
         <div className="grid md:grid-cols-2 gap-4">
           {/* Churn */}
           <Link href="/dante/churn"
@@ -127,14 +131,61 @@ export default async function DantePage() {
             </div>
             <h2 className="text-lg font-semibold text-[var(--ink)] mb-1">Workflows</h2>
             <p className="text-sm text-[var(--ink-muted)] mb-5 leading-relaxed">
-              Chain HTTP calls, OpenAI prompts, and CRM actions into reusable
-              automations. Each step can template off the previous step&apos;s
-              output. Run them from the editor; visual node canvas is next.
+              Chain HTTP calls, OpenAI prompts, archive lookups, and CRM
+              actions into reusable automations. Start from a template or
+              build one from the visual canvas.
             </p>
             <div className="mt-auto flex items-center gap-4 text-xs">
               <span className="inline-flex items-center gap-1.5 text-[var(--ink-muted)]">
                 <Activity className="w-3.5 h-3.5" strokeWidth={1.5} />
                 <strong className="font-semibold text-[var(--ink)]">{workflowCount ?? 0}</strong> workflow{(workflowCount ?? 0) === 1 ? "" : "s"}
+              </span>
+            </div>
+          </Link>
+
+          {/* Archive */}
+          <Link href="/dante/archive"
+            className="group card-flat card-flat-hover p-6 flex flex-col">
+            <div className="flex items-start justify-between mb-4">
+              <div className="border border-[var(--rule)] bg-[var(--canvas)] rounded-[4px] p-2.5">
+                <Archive className="w-5 h-5 text-[var(--ink)]" strokeWidth={1.5} />
+              </div>
+              <ArrowUpRight className="w-4 h-4 text-[var(--ink-subtle)] group-hover:text-[var(--ink)] transition" strokeWidth={1.5} />
+            </div>
+            <h2 className="text-lg font-semibold text-[var(--ink)] mb-1">Archive</h2>
+            <p className="text-sm text-[var(--ink-muted)] mb-5 leading-relaxed">
+              The firm&apos;s document vault. Drop in Form ADVs, IPS templates,
+              client agreements, and compliance memos — every file becomes
+              searchable and citable by workflows with page-level precision.
+            </p>
+            <div className="mt-auto flex items-center gap-4 text-xs">
+              <span className="inline-flex items-center gap-1.5 text-[var(--ink-muted)]">
+                <FileText className="w-3.5 h-3.5" strokeWidth={1.5} />
+                <strong className="font-semibold text-[var(--ink)]">{archiveCount}</strong> indexed
+              </span>
+            </div>
+          </Link>
+
+          {/* Templates */}
+          <Link href="/dante/templates"
+            className="group card-flat card-flat-hover p-6 flex flex-col">
+            <div className="flex items-start justify-between mb-4">
+              <div className="border border-[var(--rule)] bg-[var(--canvas)] rounded-[4px] p-2.5">
+                <BookOpen className="w-5 h-5 text-[var(--ink)]" strokeWidth={1.5} />
+              </div>
+              <ArrowUpRight className="w-4 h-4 text-[var(--ink-subtle)] group-hover:text-[var(--ink)] transition" strokeWidth={1.5} />
+            </div>
+            <h2 className="text-lg font-semibold text-[var(--ink)] mb-1">Workflow templates</h2>
+            <p className="text-sm text-[var(--ink-muted)] mb-5 leading-relaxed">
+              Pre-built automations for the advisor&apos;s day — meeting prep,
+              follow-up drafts, quarterly-review reminders, life-event
+              scanners, and more. One click clones any of them into your
+              workflows list.
+            </p>
+            <div className="mt-auto flex items-center gap-4 text-xs">
+              <span className="inline-flex items-center gap-1.5 text-[var(--ink-muted)]">
+                <Sparkles className="w-3.5 h-3.5" strokeWidth={1.5} />
+                Advisor-specific, archive-aware
               </span>
             </div>
           </Link>

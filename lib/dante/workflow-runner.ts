@@ -28,6 +28,7 @@ import type {
   GraphNode,
 } from "./workflow-types";
 import { loadWorkspaceSecrets, redactSecrets, type SecretMap } from "./secrets";
+import { searchArchive, formatHitsForPrompt } from "./archive/search";
 
 // ── Template resolver ─────────────────────────────────────────
 
@@ -202,6 +203,36 @@ async function runDelay(cfg: { seconds: number }) {
   return { waited_seconds: seconds };
 }
 
+async function runArchiveLookup(
+  cfg: { query: string; k?: number; kind?: string },
+  workspaceId: string,
+) {
+  const query = String(cfg.query || "").trim();
+  if (!query) {
+    return { hits: [], context: "(no query provided)", citations: [] };
+  }
+  const hits = await searchArchive({
+    workspaceId,
+    query,
+    k: Number(cfg.k) || 5,
+    kindFilter: cfg.kind || undefined,
+  });
+  // `context` is the headline output — a formatted string downstream
+  // openai steps can drop straight into a prompt as
+  // {{steps.<id>.context}}. `hits` stays available for anyone who
+  // wants to branch off similarity scores or cite specific pages.
+  return {
+    hits,
+    context: formatHitsForPrompt(hits),
+    citations: hits.map((h) => ({
+      document_id: h.document_id,
+      document_title: h.document_title,
+      page: h.page_number,
+      similarity: h.similarity,
+    })),
+  };
+}
+
 // ── Graph walk ────────────────────────────────────────────────
 
 /**
@@ -239,6 +270,11 @@ async function executeNode(
     }
     case "delay":
       return runDelay(cfg as Parameters<typeof runDelay>[0]);
+    case "archive_lookup":
+      return runArchiveLookup(
+        cfg as Parameters<typeof runArchiveLookup>[0],
+        workspaceId,
+      );
     default: {
       const t = (step as { type: string }).type;
       throw new Error(`Unknown node type: ${t}`);
