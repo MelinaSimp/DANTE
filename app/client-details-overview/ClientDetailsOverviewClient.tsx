@@ -96,18 +96,6 @@ export default function ClientDetailsOverviewClient({
       .catch(reportError("ClientDetailsOverview: load agents"));
   }, [panelMode]);
 
-  // In-page section nav. Each item scrolls to an anchor inside the main
-  // content; these are the scopes a compliance officer cares about on a
-  // single client: the high-level read, source docs, call review, notes
-  // on file, and anything the rules engine flagged.
-  const sidebarNavItems = [
-    { name: "Overview", icon: FileText, anchor: "overview" },
-    { name: "Documents", icon: FileStack, anchor: "documents" },
-    { name: "Call audits", icon: Phone, anchor: "call-audits" },
-    { name: "Notes", icon: Pencil, anchor: "notes" },
-    { name: "Compliance flags", icon: ShieldAlert, anchor: "compliance-flags" },
-  ];
-
   const [view, setView] = useState<View>("select");
   const [selected, setSelected] = useState<SelectedEntity>(null);
   const [activeSection, setActiveSection] = useState("account-overview");
@@ -972,42 +960,27 @@ export default function ClientDetailsOverviewClient({
   const displayName = selected?.name ?? "Client";
 
   return (
-    <div className={panelMode ? "flex bg-[var(--canvas)] text-[var(--ink)] h-full" : "min-h-[calc(100vh-4rem)] flex bg-[var(--canvas-subtle)] text-[var(--ink)]"}>
-      {!panelMode && (
-        <div className="hidden md:flex flex-col w-52 border-r border-[var(--rule)] bg-[var(--canvas)] shrink-0 sticky top-0 self-start h-screen">
-          <div className="p-4 border-b border-[var(--rule)]">
-            <Link href="/dashboard" className="flex items-center gap-2 text-[var(--ink-subtle)] hover:text-[var(--ink)] transition text-xs mb-3">
-              <ArrowLeft className="w-3.5 h-3.5" strokeWidth={1.5} />
-              <span>Dashboard</span>
-            </Link>
-            <div className="label-section mb-1">Client</div>
-            <div className="heading-display text-lg text-[var(--ink)] truncate">{selected?.name ?? "Unassigned"}</div>
-          </div>
-          <nav className="flex-1 p-3 space-y-0.5">
-            <div className="label-section px-3 pt-2 pb-1">Sections</div>
-            {sidebarNavItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <a
-                  key={item.anchor}
-                  href={`#${item.anchor}`}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-[4px] text-sm font-medium text-[var(--ink-muted)] hover:bg-[var(--canvas-subtle)] hover:text-[var(--ink)] transition"
-                >
-                  <Icon className="w-4 h-4" strokeWidth={1.5} />
-                  <span>{item.name}</span>
-                </a>
-              );
-            })}
-          </nav>
-        </div>
-      )}
-
-      {/* Main content */}
+    <div className={panelMode ? "flex bg-[var(--canvas)] text-[var(--ink)] h-full" : "min-h-[calc(100vh-4rem)] flex bg-[var(--canvas)] text-[var(--ink)]"}>
+      {/* Main content — no left rail. The page is one vertical scroll; a
+          sidebar of anchor links to the five sections on it would be
+          redundant. Back-to-dashboard + client label live in the top bar. */}
       <div className="flex-1 overflow-auto">
         {/* Top bar */}
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--rule)] bg-[var(--canvas)] px-6 py-4">
-          <div className="flex items-center gap-2">
-            <span className="text-lg font-semibold text-[var(--ink)]">Overview on {displayName}</span>
+          <div className="flex items-center gap-3 min-w-0">
+            {!panelMode && (
+              <Link
+                href="/dashboard"
+                className="inline-flex items-center gap-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition shrink-0"
+              >
+                <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
+                Dashboard
+              </Link>
+            )}
+            {!panelMode && <span className="text-[var(--ink-subtle)]">·</span>}
+            <span className="text-lg font-semibold text-[var(--ink)] truncate">
+              {displayName}
+            </span>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-sm text-[var(--ink-muted)]">{formatTime()}</span>

@@ -22,7 +22,6 @@ import {
   CalendarClock,
   AlertTriangle,
   LogOut,
-  LayoutDashboard,
   Database,
   Loader2,
   CheckCircle2,
@@ -165,12 +164,6 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
             className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
           >
             Agent
-          </Link>
-          <Link
-            href="/reference"
-            className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
-          >
-            Reference
           </Link>
           <Link
             href="/settings"
@@ -426,15 +419,6 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
           )}
         </section>
 
-        {/* Footer — deeper links that aren't already in the header nav or stat strip. */}
-        <section className="border-t border-[var(--rule)] pt-8 grid grid-cols-1 gap-6">
-          <QuickLink
-            href="/dashboard/legacy"
-            label="Analytics"
-            icon={<LayoutDashboard className="w-4 h-4" />}
-            hint="Revenue & funnel"
-          />
-        </section>
       </div>
     </div>
   );
@@ -611,29 +595,3 @@ function DemoCustodianPrompt() {
   );
 }
 
-function QuickLink({
-  href,
-  label,
-  icon,
-  hint,
-}: {
-  href: string;
-  label: string;
-  icon: React.ReactNode;
-  hint: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="group flex items-start gap-3 p-3 -m-3 rounded-md hover:bg-[var(--canvas-subtle)] transition"
-    >
-      <span className="mt-0.5 text-[var(--ink-muted)] group-hover:text-[var(--accent)] transition">
-        {icon}
-      </span>
-      <div>
-        <div className="text-sm font-medium">{label}</div>
-        <div className="text-xs text-[var(--ink-muted)]">{hint}</div>
-      </div>
-    </Link>
-  );
-}

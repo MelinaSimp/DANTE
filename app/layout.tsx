@@ -16,7 +16,10 @@ import { OnboardingProvider } from "@/components/onboarding/OnboardingProvider";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { ToastProvider } from "@/components/ui/toast";
 import { ConfirmDialogProvider } from "@/components/ui/confirm-dialog";
-import FloatingDashboardButton from "@/components/FloatingDashboardButton";
+// FloatingDashboardButton was removed in the IA sweep — every workspace
+// page now has an inline "← Dashboard" link at the top, so the floating
+// chip was a duplicate affordance. If you need one-off back-chip for a
+// specific route, add it in that route, not globally.
 
 const fontUi = Inter({
   subsets: ["latin"],
@@ -74,7 +77,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <ErrorBoundary>
                 <main className="relative z-0 bg-white">{children}</main>
               </ErrorBoundary>
-              <FloatingDashboardButton />
               <PushNotificationManager />
             </OnboardingProvider>
           </ConfirmDialogProvider>
