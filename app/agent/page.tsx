@@ -9,9 +9,10 @@
 // splitting them into tabs forced users to hunt for which kind of
 // agent handles which kind of work. Outputs + tasks live below.
 //
-// Per-agent deep config (LLM prompt, sales, schedule, inbox, scenario,
-// data-sources, policies) still lives at /frontend/agent/[id]/* and is
-// reached via the "Configure" button on each voice/chat agent card.
+// Per-agent config (persona/rules, knowledge base) lives at
+// /agent/[id] — reached via the "Configure" button on each voice/chat
+// card. The older /frontend/agent/[id]/* surfaces (Meeting Planner,
+// scenario editors, etc.) are still linked from inside that page.
 
 "use client";
 
@@ -567,7 +568,7 @@ function UnifiedRoster({
                   {agent.status === "deployed" ? <><Circle className="h-3 w-3" strokeWidth={1.5} /> Pause</> : <><Zap className="h-3 w-3" strokeWidth={1.5} /> Deploy</>}
                 </button>
                 <div className="w-px bg-[var(--rule)]" />
-                <Link href={`/frontend/agent/${agent.id}/llm`}
+                <Link href={`/agent/${agent.id}`}
                   className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 text-xs font-medium text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition">
                   <Settings className="h-3 w-3" strokeWidth={1.5} /> Configure
                 </Link>
