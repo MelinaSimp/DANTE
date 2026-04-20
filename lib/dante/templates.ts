@@ -681,6 +681,552 @@ const beneficiaryGraph: WorkflowGraph = {
 };
 
 // ══════════════════════════════════════════════════════════════
+// 11 · New-client onboarding sequence (webhook)
+// ══════════════════════════════════════════════════════════════
+
+const onboardingGraph: WorkflowGraph = {
+  nodes: [
+    {
+      id: "trigger", type: "trigger_webhook", position: row(0),
+      data: { step: {
+        id: "trigger", type: "trigger_webhook", name: "New-client webhook",
+        config: {},
+      } },
+    },
+    {
+      id: "welcome", type: "openai", position: row(1),
+      data: { step: {
+        id: "welcome", type: "openai", name: "Personal welcome note",
+        config: {
+          model: "gpt-4o-mini",
+          system: "You write warm, personal welcome emails from a financial advisor to a newly signed client. Professional but human, 4-6 sentences.",
+          prompt:
+            "Client name: {{steps.trigger.input.client_name}}\n" +
+            "Why they signed on: {{steps.trigger.input.signing_reason}}\n\n" +
+            "Write the welcome email. End by mentioning that a planning questionnaire will arrive in a couple of days.",
+          max_tokens: 500,
+        },
+      } },
+    },
+    {
+      id: "welcomeEmail", type: "send_email", position: row(2),
+      data: { step: {
+        id: "welcomeEmail", type: "send_email", name: "Send welcome",
+        config: {
+          to: "{{steps.trigger.input.client_email}}",
+          subject: "Welcome to the practice",
+          text: "{{steps.welcome.text}}",
+        },
+      } },
+    },
+    {
+      id: "pause", type: "delay", position: row(3),
+      data: { step: {
+        id: "pause", type: "delay", name: "Pause 60s (demo)",
+        config: { seconds: 60 },
+      } },
+    },
+    {
+      id: "policy", type: "archive_lookup", position: row(4),
+      data: { step: {
+        id: "policy", type: "archive_lookup", name: "IPS + intake policy",
+        config: {
+          query: "New-client intake questionnaire items and fiduciary data-collection requirements",
+          k: 5, kind: "ips",
+        },
+      } },
+    },
+    {
+      id: "questionnaire", type: "openai", position: row(5),
+      data: { step: {
+        id: "questionnaire", type: "openai", name: "Draft intake questionnaire",
+        config: {
+          model: "gpt-4o-mini",
+          system: "You produce a tidy HTML email with a numbered list of planning questions. Cite firm policy excerpts with [1], [2] style citations.",
+          prompt:
+            "Client: {{steps.trigger.input.client_name}}\n\n" +
+            "Firm IPS / intake policy excerpts:\n{{steps.policy.context}}\n\n" +
+            "Draft the intake questionnaire email — 8-12 questions covering goals, risk tolerance, liquidity needs, legacy, and tax situation.",
+          max_tokens: 1200,
+        },
+      } },
+    },
+    {
+      id: "questionnaireEmail", type: "send_email", position: row(6),
+      data: { step: {
+        id: "questionnaireEmail", type: "send_email", name: "Send questionnaire",
+        config: {
+          to: "{{steps.trigger.input.client_email}}",
+          subject: "A few questions before our next meeting",
+          html: "{{steps.questionnaire.text}}",
+        },
+      } },
+    },
+  ],
+  edges: [
+    edge("trigger", "welcome"),
+    edge("welcome", "welcomeEmail"),
+    edge("welcomeEmail", "pause"),
+    edge("pause", "policy"),
+    edge("policy", "questionnaire"),
+    edge("questionnaire", "questionnaireEmail"),
+  ],
+};
+
+// ══════════════════════════════════════════════════════════════
+// 12 · Year-end tax-loss harvesting scan (cron, archive-aware)
+// ══════════════════════════════════════════════════════════════
+
+const taxLossGraph: WorkflowGraph = {
+  nodes: [
+    {
+      id: "trigger", type: "trigger_cron", position: row(0),
+      data: { step: {
+        id: "trigger", type: "trigger_cron", name: "December 1st annually",
+        config: { cron: "0 14 1 12 *" },
+      } },
+    },
+    {
+      id: "positions", type: "http", position: row(1),
+      data: { step: {
+        id: "positions", type: "http", name: "Pull positions from custodian",
+        config: {
+          url: "{{secrets.custodian_positions_url}}",
+          method: "GET",
+          headers: { Authorization: "Bearer {{secrets.custodian_token}}" },
+        },
+      } },
+    },
+    {
+      id: "policy", type: "archive_lookup", position: row(2),
+      data: { step: {
+        id: "policy", type: "archive_lookup", name: "Firm TLH policy",
+        config: {
+          query: "Tax-loss harvesting policy, wash-sale guardrails, and substantially-identical replacement rules",
+          k: 5, kind: "policy",
+        },
+      } },
+    },
+    {
+      id: "scan", type: "openai", position: row(3),
+      data: { step: {
+        id: "scan", type: "openai", name: "Flag harvesting opportunities",
+        config: {
+          model: "gpt-4o-mini",
+          system: "You return a strict JSON array — no prose. You apply wash-sale rules precisely as cited.",
+          prompt:
+            "Positions:\n{{steps.positions.body}}\n\n" +
+            "Firm policy:\n{{steps.policy.context}}\n\n" +
+            "Return [{ account_id, client_name, symbol, unrealized_loss_usd, replacement_suggestion, risk_notes }] for every lot with an unrealized loss > $500 that's clear of a 30-day wash window.",
+          max_tokens: 1200,
+        },
+      } },
+    },
+    {
+      id: "email", type: "send_email", position: row(4),
+      data: { step: {
+        id: "email", type: "send_email", name: "Send digest to advisor",
+        config: {
+          to: "{{secrets.advisor_email}}",
+          subject: "Tax-loss harvesting opportunities — year-end",
+          text: "Candidates flagged per firm policy:\n\n{{steps.scan.text}}",
+        },
+      } },
+    },
+  ],
+  edges: [
+    edge("trigger", "positions"),
+    edge("positions", "policy"),
+    edge("policy", "scan"),
+    edge("scan", "email"),
+  ],
+};
+
+// ══════════════════════════════════════════════════════════════
+// 13 · Post-meeting referral ask (webhook)
+// ══════════════════════════════════════════════════════════════
+
+const referralGraph: WorkflowGraph = {
+  nodes: [
+    {
+      id: "trigger", type: "trigger_webhook", position: row(0),
+      data: { step: {
+        id: "trigger", type: "trigger_webhook", name: "Post-meeting NPS webhook",
+        config: {},
+      } },
+    },
+    {
+      id: "branch", type: "condition", position: row(1),
+      data: { step: {
+        id: "branch", type: "condition", name: "Highly satisfied?",
+        config: {
+          expression: "{{steps.trigger.input.nps}} >= 9",
+          on_false: "stop",
+        },
+      } },
+    },
+    {
+      id: "draft", type: "openai", position: row(2),
+      data: { step: {
+        id: "draft", type: "openai", name: "Draft referral ask",
+        config: {
+          model: "gpt-4o-mini",
+          system: "You write tasteful, non-pushy referral-request emails from a financial advisor. Thank the client for their feedback, reference something specific from the meeting, then ask if they know one person who'd benefit from similar guidance. Keep it to 4 sentences.",
+          prompt:
+            "Client: {{steps.trigger.input.client_name}}\n" +
+            "Meeting highlight to reference: {{steps.trigger.input.meeting_highlight}}\n" +
+            "NPS score: {{steps.trigger.input.nps}}\n\n" +
+            "Draft the email.",
+          max_tokens: 400,
+        },
+      } },
+    },
+    {
+      id: "email", type: "send_email", position: row(3),
+      data: { step: {
+        id: "email", type: "send_email", name: "Queue draft to advisor",
+        config: {
+          to: "{{secrets.advisor_email}}",
+          subject: "Referral ask ready: {{steps.trigger.input.client_name}}",
+          text: "Review and send:\n\n{{steps.draft.text}}",
+        },
+      } },
+    },
+  ],
+  edges: [
+    edge("trigger", "branch"),
+    edge("branch", "draft", "true"),
+    edge("draft", "email"),
+  ],
+};
+
+// ══════════════════════════════════════════════════════════════
+// 14 · FOMC decision plain-English commentary (webhook, archive-aware)
+// ══════════════════════════════════════════════════════════════
+
+const fomcGraph: WorkflowGraph = {
+  nodes: [
+    {
+      id: "trigger", type: "trigger_webhook", position: row(0),
+      data: { step: {
+        id: "trigger", type: "trigger_webhook", name: "Fed-decision webhook",
+        config: {},
+      } },
+    },
+    {
+      id: "firmView", type: "archive_lookup", position: row(1),
+      data: { step: {
+        id: "firmView", type: "archive_lookup", name: "Firm rates + duration stance",
+        config: {
+          query: "Firm's current view on Fed policy, rate path, duration positioning, and messaging discipline",
+          k: 5, kind: "memo",
+        },
+      } },
+    },
+    {
+      id: "clients", type: "query_clients", position: row(2),
+      data: { step: {
+        id: "clients", type: "query_clients", name: "All clients",
+        config: { filter: {}, limit: 500 },
+      } },
+    },
+    {
+      id: "compose", type: "openai", position: row(3),
+      data: { step: {
+        id: "compose", type: "openai", name: "Plain-English commentary",
+        config: {
+          model: "gpt-4o-mini",
+          system: "You translate Fed decisions into plain, calm, non-predictive client commentary. Always cite firm memos by number. Never forecast.",
+          prompt:
+            "Fed decision summary: {{steps.trigger.input.decision_summary}}\n" +
+            "Clients to address:\n{{steps.clients.contacts}}\n\n" +
+            "Firm view:\n{{steps.firmView.context}}\n\n" +
+            "Return JSON: [{ id, name, email, body }] — one 5-sentence note per client that explains the decision and what (if anything) it changes for them.",
+          max_tokens: 1500,
+        },
+      } },
+    },
+    {
+      id: "email", type: "send_email", position: row(4),
+      data: { step: {
+        id: "email", type: "send_email", name: "Deliver drafts to advisor",
+        config: {
+          to: "{{secrets.advisor_email}}",
+          subject: "Fed commentary — drafts ready",
+          text: "{{steps.compose.text}}",
+        },
+      } },
+    },
+  ],
+  edges: [
+    edge("trigger", "firmView"),
+    edge("firmView", "clients"),
+    edge("clients", "compose"),
+    edge("compose", "email"),
+  ],
+};
+
+// ══════════════════════════════════════════════════════════════
+// 15 · Portfolio drift rebalance alert (webhook, archive-aware)
+// ══════════════════════════════════════════════════════════════
+
+const driftGraph: WorkflowGraph = {
+  nodes: [
+    {
+      id: "trigger", type: "trigger_webhook", position: row(0),
+      data: { step: {
+        id: "trigger", type: "trigger_webhook", name: "Drift-exceeds-threshold webhook",
+        config: {},
+      } },
+    },
+    {
+      id: "policy", type: "archive_lookup", position: row(1),
+      data: { step: {
+        id: "policy", type: "archive_lookup", name: "Rebalance policy",
+        config: {
+          query: "Rebalancing bands, trade-size minimums, tax-aware sequencing, and client-notification requirements",
+          k: 4, kind: "policy",
+        },
+      } },
+    },
+    {
+      id: "recommend", type: "openai", position: row(2),
+      data: { step: {
+        id: "recommend", type: "openai", name: "Compose rebalance plan",
+        config: {
+          model: "gpt-4o-mini",
+          system: "You produce a precise, policy-cited rebalance recommendation. No speculation. Cite policy excerpts by [1], [2], etc.",
+          prompt:
+            "Account: {{steps.trigger.input.account_id}}\n" +
+            "Client: {{steps.trigger.input.client_name}}\n" +
+            "Target allocation: {{steps.trigger.input.target_allocation}}\n" +
+            "Current drift: {{steps.trigger.input.drift_summary}}\n\n" +
+            "Firm policy:\n{{steps.policy.context}}\n\n" +
+            "Draft the rebalance plan (trades + rationale + client-facing talking points).",
+          max_tokens: 900,
+        },
+      } },
+    },
+    {
+      id: "email", type: "send_email", position: row(3),
+      data: { step: {
+        id: "email", type: "send_email", name: "Alert advisor",
+        config: {
+          to: "{{secrets.advisor_email}}",
+          subject: "Drift alert — {{steps.trigger.input.client_name}}",
+          text: "{{steps.recommend.text}}",
+        },
+      } },
+    },
+  ],
+  edges: [
+    edge("trigger", "policy"),
+    edge("policy", "recommend"),
+    edge("recommend", "email"),
+  ],
+};
+
+// ══════════════════════════════════════════════════════════════
+// 16 · Annual review prep chaser (cron)
+// ══════════════════════════════════════════════════════════════
+
+const reviewPrepGraph: WorkflowGraph = {
+  nodes: [
+    {
+      id: "trigger", type: "trigger_cron", position: row(0),
+      data: { step: {
+        id: "trigger", type: "trigger_cron", name: "Every Wednesday 10am ET",
+        config: { cron: "0 14 * * 3" },
+      } },
+    },
+    {
+      id: "clients", type: "query_clients", position: row(1),
+      data: { step: {
+        id: "clients", type: "query_clients", name: "All clients",
+        config: { filter: {}, limit: 500 },
+      } },
+    },
+    {
+      id: "policy", type: "archive_lookup", position: row(2),
+      data: { step: {
+        id: "policy", type: "archive_lookup", name: "Annual-review doc list",
+        config: {
+          query: "Documents the firm asks clients to bring to an annual review (tax return, statements, insurance, estate docs)",
+          k: 4, kind: "policy",
+        },
+      } },
+    },
+    {
+      id: "drafts", type: "openai", position: row(3),
+      data: { step: {
+        id: "drafts", type: "openai", name: "Per-client doc-request emails",
+        config: {
+          model: "gpt-4o-mini",
+          system: "You return a JSON array of short, friendly doc-request emails. Reference the firm's policy by number. Never sound bureaucratic.",
+          prompt:
+            "Today: {{steps.trigger.input.fired_at}}\n" +
+            "Assume any client whose next review falls in the next 2-3 weeks needs this note.\n\n" +
+            "Clients:\n{{steps.clients.contacts}}\n\n" +
+            "Firm review-prep policy:\n{{steps.policy.context}}\n\n" +
+            "Return [{ id, name, email, body }].",
+          max_tokens: 1500,
+        },
+      } },
+    },
+    {
+      id: "email", type: "send_email", position: row(4),
+      data: { step: {
+        id: "email", type: "send_email", name: "Send batch to advisor",
+        config: {
+          to: "{{secrets.advisor_email}}",
+          subject: "Annual review prep — doc chasers ready",
+          text: "{{steps.drafts.text}}",
+        },
+      } },
+    },
+  ],
+  edges: [
+    edge("trigger", "clients"),
+    edge("clients", "policy"),
+    edge("policy", "drafts"),
+    edge("drafts", "email"),
+  ],
+};
+
+// ══════════════════════════════════════════════════════════════
+// 17 · Form ADV annual amendment reminder (cron, archive-aware)
+// ══════════════════════════════════════════════════════════════
+
+const advGraph: WorkflowGraph = {
+  nodes: [
+    {
+      id: "trigger", type: "trigger_cron", position: row(0),
+      data: { step: {
+        id: "trigger", type: "trigger_cron", name: "February 1st annually",
+        config: { cron: "0 14 1 2 *" },
+      } },
+    },
+    {
+      id: "rules", type: "archive_lookup", position: row(1),
+      data: { step: {
+        id: "rules", type: "archive_lookup", name: "Current ADV rules",
+        config: {
+          query: "Form ADV annual updating amendment deadlines, material changes, delivery requirements",
+          k: 4, kind: "regulation",
+        },
+      } },
+    },
+    {
+      id: "current", type: "archive_lookup", position: row(2),
+      data: { step: {
+        id: "current", type: "archive_lookup", name: "Firm's existing Form ADV",
+        config: {
+          query: "Firm's most recent Form ADV filings, Part 2 brochure, and any interim amendments",
+          k: 5, kind: "form_adv",
+        },
+      } },
+    },
+    {
+      id: "checklist", type: "openai", position: row(3),
+      data: { step: {
+        id: "checklist", type: "openai", name: "Draft amendment checklist",
+        config: {
+          model: "gpt-4o-mini",
+          system: "You are a compliance analyst. You produce a clear, cited checklist. Always cite excerpts by number.",
+          prompt:
+            "Regulatory rules:\n{{steps.rules.context}}\n\n" +
+            "Firm's current Form ADV (excerpts):\n{{steps.current.context}}\n\n" +
+            "Produce: (a) the 90-day filing deadline, (b) a checklist of sections to review for material changes, (c) any language in the current ADV that looks stale vs the cited rules.",
+          max_tokens: 900,
+        },
+      } },
+    },
+    {
+      id: "email", type: "send_email", position: row(4),
+      data: { step: {
+        id: "email", type: "send_email", name: "Email compliance kickoff",
+        config: {
+          to: "{{secrets.advisor_email}}",
+          subject: "Form ADV annual amendment — kickoff checklist",
+          text: "{{steps.checklist.text}}",
+        },
+      } },
+    },
+  ],
+  edges: [
+    edge("trigger", "rules"),
+    edge("rules", "current"),
+    edge("current", "checklist"),
+    edge("checklist", "email"),
+  ],
+};
+
+// ══════════════════════════════════════════════════════════════
+// 18 · Social Security optimization windows (cron, archive-aware)
+// ══════════════════════════════════════════════════════════════
+
+const socialSecurityGraph: WorkflowGraph = {
+  nodes: [
+    {
+      id: "trigger", type: "trigger_cron", position: row(0),
+      data: { step: {
+        id: "trigger", type: "trigger_cron", name: "Quarterly — 15th Jan/Apr/Jul/Oct",
+        config: { cron: "0 14 15 1,4,7,10 *" },
+      } },
+    },
+    {
+      id: "rules", type: "archive_lookup", position: row(1),
+      data: { step: {
+        id: "rules", type: "archive_lookup", name: "Social Security playbook",
+        config: {
+          query: "Social Security claiming strategies, full retirement age by birth year, delayed retirement credits, spousal and survivor rules",
+          k: 5, kind: "memo",
+        },
+      } },
+    },
+    {
+      id: "clients", type: "query_clients", position: row(2),
+      data: { step: {
+        id: "clients", type: "query_clients", name: "All clients",
+        config: { filter: {}, limit: 500 },
+      } },
+    },
+    {
+      id: "windows", type: "openai", position: row(3),
+      data: { step: {
+        id: "windows", type: "openai", name: "Find clients in claiming windows",
+        config: {
+          model: "gpt-4o-mini",
+          system: "You return JSON only. Apply the cited rules precisely.",
+          prompt:
+            "Playbook excerpts:\n{{steps.rules.context}}\n\n" +
+            "Clients (use birth_date when present):\n{{steps.clients.contacts}}\n\n" +
+            "Return [{ id, name, email, age, next_window, decision_points }] for any client within 6 months of ages 62, 66-67 (FRA), or 70.",
+          max_tokens: 900,
+        },
+      } },
+    },
+    {
+      id: "email", type: "send_email", position: row(4),
+      data: { step: {
+        id: "email", type: "send_email", name: "Brief the advisor",
+        config: {
+          to: "{{secrets.advisor_email}}",
+          subject: "Social Security — clients approaching claiming windows",
+          text: "{{steps.windows.text}}",
+        },
+      } },
+    },
+  ],
+  edges: [
+    edge("trigger", "rules"),
+    edge("rules", "clients"),
+    edge("clients", "windows"),
+    edge("windows", "email"),
+  ],
+};
+
+// ══════════════════════════════════════════════════════════════
 // Registry
 // ══════════════════════════════════════════════════════════════
 
@@ -791,6 +1337,93 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     triggerLabel: "January 15th annually",
     requiresArchive: true,
     graph: beneficiaryGraph,
+  },
+  {
+    slug: "new-client-onboarding",
+    name: "New-client onboarding sequence",
+    description: "On sign-up, Dante sends a personal welcome, waits, pulls the firm's intake policy, and delivers a tailored planning questionnaire.",
+    category: "Client communication",
+    icon: "UserPlus",
+    accent: "verified",
+    triggerLabel: "On new-client webhook",
+    requiresArchive: true,
+    graph: onboardingGraph,
+  },
+  {
+    slug: "tax-loss-harvesting",
+    name: "Year-end tax-loss harvesting scan",
+    description: "Every December 1st, pulls positions from your custodian, applies the firm's wash-sale policy, and flags harvestable lots with replacement ideas.",
+    category: "Operations",
+    icon: "Calculator",
+    accent: "flag",
+    triggerLabel: "December 1st annually",
+    requiresArchive: true,
+    graph: taxLossGraph,
+  },
+  {
+    slug: "post-meeting-referral",
+    name: "Post-meeting referral ask",
+    description: "When a meeting rates NPS 9+, Dante drafts a tasteful, specific referral-request email for the advisor to review and send.",
+    category: "Prospecting",
+    icon: "Share2",
+    accent: "accent",
+    triggerLabel: "On post-meeting NPS webhook",
+    graph: referralGraph,
+  },
+  {
+    slug: "fomc-commentary",
+    name: "FOMC decision commentary",
+    description: "On every Fed decision webhook, Dante pulls the firm's rates stance and drafts a calm, non-predictive note for every client.",
+    category: "Client communication",
+    icon: "Landmark",
+    accent: "ink",
+    triggerLabel: "On Fed-decision webhook",
+    requiresArchive: true,
+    graph: fomcGraph,
+  },
+  {
+    slug: "portfolio-drift-alert",
+    name: "Portfolio drift rebalance alert",
+    description: "When an account breaches its drift bands, Dante cites your rebalance policy and drafts a trade plan plus client-facing talking points.",
+    category: "Operations",
+    icon: "RefreshCw",
+    accent: "flag",
+    triggerLabel: "On drift-threshold webhook",
+    requiresArchive: true,
+    graph: driftGraph,
+  },
+  {
+    slug: "annual-review-prep",
+    name: "Annual review prep chaser",
+    description: "Every Wednesday, Dante identifies clients with upcoming annual reviews and drafts friendly doc-request emails citing firm policy.",
+    category: "Client communication",
+    icon: "CalendarCheck",
+    accent: "accent",
+    triggerLabel: "Wednesdays 10am ET",
+    requiresArchive: true,
+    graph: reviewPrepGraph,
+  },
+  {
+    slug: "form-adv-amendment",
+    name: "Form ADV annual amendment",
+    description: "Every February 1st, Dante pulls current ADV rules and the firm's existing filing, then drafts a material-change checklist for compliance.",
+    category: "Compliance",
+    icon: "ScrollText",
+    accent: "flag",
+    triggerLabel: "February 1st annually",
+    requiresArchive: true,
+    graph: advGraph,
+  },
+  {
+    slug: "social-security-windows",
+    name: "Social Security claiming windows",
+    description: "Quarterly, Dante identifies clients within 6 months of ages 62, FRA, or 70, citing the firm's claiming playbook for each case.",
+    category: "Research",
+    icon: "PiggyBank",
+    accent: "verified",
+    triggerLabel: "Quarterly (15th Jan/Apr/Jul/Oct)",
+    requiresArchive: true,
+    graph: socialSecurityGraph,
   },
 ];
 

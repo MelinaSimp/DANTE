@@ -80,6 +80,12 @@ RULES
      Supported expression operators: "contains", "==", "!=", ">", "<", ">=", "<=".
    - "delay":
      config: { "seconds": 5 }  // max 60s
+   - "archive_lookup" (vector-search the firm's Archive of legal /
+     compliance docs → emits { hits, context, citations }):
+     config: { "query": "...", "k": 5, "kind": "form_adv"|"ips"|"prospectus"|"client_agreement"|"policy"|"regulation"|"memo"|"other" }
+     The emitted "context" string is pre-formatted with citation
+     numbers ([1], [2]…) ready to drop into a downstream openai
+     prompt — this is the Harvey citation pattern.
 
 3. IDs are short snake_case unique strings, e.g. "classify", "send_alert".
    Node id, data.step.id, and edge ids must all match up.
@@ -94,6 +100,16 @@ RULES
      prompt: "Classify this reply: {{steps.trigger.input.message}}"
      to:     "{{steps.find.contacts.0.email}}"
 
+   Secrets (API keys, advisor email, tokens) come from the workspace
+   vault and are referenced as {{secrets.<key>}}. Use this for any
+   durable credential the user would set once and reuse — e.g.
+   "to": "{{secrets.advisor_email}}", "Authorization": "Bearer {{secrets.custodian_token}}".
+
+   IMPORTANT: never reference a template path that won't exist at
+   runtime. If a filter value is optional, OMIT the key rather than
+   referencing a step output that may be undefined — empty strings
+   sent to typed columns (e.g. timestamptz) will make the run fail.
+
 6. Positions: lay nodes out reasonably — trigger at {x:80,y:80}, then
    each downstream node 160px below its parent. Branching conditions
    can spread left/right (x ± 240). Don't worry about pixel perfection;
@@ -104,7 +120,15 @@ RULES
    contact is added", you still need a trigger — use trigger_webhook
    with a TODO note, or trigger_manual if unclear.
 
-8. Never invent node types. Stick to the list above.
+8. Cron scheduling: the hosting platform (Vercel Hobby) only allows
+   cron expressions that fire at most ONCE per day — minute / hourly
+   crons will be rejected at deploy time. If the user asks for
+   sub-daily frequency, still generate a workflow but set it to a
+   sensible daily time (e.g. "0 13 * * *" for 9am ET) and mention in
+   the description that the user can wire an external scheduler if
+   they need more frequency.
+
+9. Never invent node types. Stick to the list above.
 
 OUTPUT ONLY THE JSON OBJECT.
 `.trim();
@@ -117,7 +141,7 @@ OUTPUT ONLY THE JSON OBJECT.
 const VALID_STEP_TYPES: StepType[] = [
   "trigger_manual", "trigger_cron", "trigger_webhook",
   "http", "openai", "query_clients", "update_contact",
-  "send_email", "condition", "delay",
+  "send_email", "condition", "delay", "archive_lookup",
 ];
 
 function isObj(v: unknown): v is Record<string, unknown> {

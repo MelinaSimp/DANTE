@@ -20,6 +20,8 @@ import {
   ArrowLeft, Sparkles, Copy, Loader2, Archive as ArchiveIcon,
   ClipboardList, MailCheck, CalendarClock, Eye, Cake, Coins,
   TrendingDown, CalendarDays, FileSpreadsheet, UserCheck, BookOpen,
+  UserPlus, Calculator, Share2, Landmark, RefreshCw, CalendarCheck,
+  ScrollText, PiggyBank,
   Zap, AlertCircle, ArrowUpRight,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -31,6 +33,8 @@ import { WORKFLOW_TEMPLATES, type WorkflowTemplate } from "@/lib/dante/templates
 const ICONS: Record<string, LucideIcon> = {
   ClipboardList, MailCheck, CalendarClock, Eye, Cake, Coins,
   TrendingDown, CalendarDays, FileSpreadsheet, UserCheck, BookOpen,
+  UserPlus, Calculator, Share2, Landmark, RefreshCw, CalendarCheck,
+  ScrollText, PiggyBank,
   Sparkles, Zap,
 };
 
