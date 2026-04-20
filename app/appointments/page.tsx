@@ -5,7 +5,7 @@ import AppointmentsClient from "./AppointmentsClient";
 
 export default async function AppointmentsPage() {
   const supabase = await createServerSupabase();
-  
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -22,10 +22,12 @@ export default async function AppointmentsPage() {
   if (profileError) {
     console.error("Profile error:", profileError);
     return (
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold mb-4">Appointments</h1>
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">Error loading profile: {profileError.message}</p>
+      <div className="bg-[var(--canvas)] min-h-screen text-[var(--ink)]">
+        <div className="max-w-4xl mx-auto px-4 py-8">
+          <h1 className="heading-display text-4xl text-[var(--ink)] mb-6">Appointments</h1>
+          <div className="card-flat p-5 border-[var(--danger)] bg-[var(--danger-soft)]">
+            <p className="text-[var(--danger)] text-sm">Error loading profile: {profileError.message}</p>
+          </div>
         </div>
       </div>
     );
@@ -33,11 +35,13 @@ export default async function AppointmentsPage() {
 
   if (!profile?.workspace_id) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold mb-4">Appointments</h1>
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <p className="text-yellow-800">No workspace found. Please contact your administrator.</p>
-          <p className="text-sm text-yellow-600 mt-2">Profile data: {JSON.stringify(profile)}</p>
+      <div className="bg-[var(--canvas)] min-h-screen text-[var(--ink)]">
+        <div className="max-w-4xl mx-auto px-4 py-8">
+          <h1 className="heading-display text-4xl text-[var(--ink)] mb-6">Appointments</h1>
+          <div className="card-flat p-5 border-[var(--flag)] bg-[var(--flag-soft)]">
+            <p className="text-[var(--ink)] text-sm">No workspace found. Please contact your administrator.</p>
+            <p className="mono text-sm text-[var(--ink-muted)] mt-2">Profile data: {JSON.stringify(profile)}</p>
+          </div>
         </div>
       </div>
     );
@@ -63,12 +67,14 @@ export default async function AppointmentsPage() {
     .order("scheduled_at", { ascending: true });
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
-      <h1 className="mb-6 text-3xl font-semibold text-white">Appointments</h1>
-      <AppointmentsClient 
-        initialAppointments={appointments || []} 
-        workspaceId={profile.workspace_id}
-      />
+    <div className="bg-[var(--canvas)] min-h-screen text-[var(--ink)]">
+      <div className="max-w-5xl mx-auto px-4 py-8">
+        <h1 className="heading-display text-4xl text-[var(--ink)] mb-6">Appointments</h1>
+        <AppointmentsClient
+          initialAppointments={appointments || []}
+          workspaceId={profile.workspace_id}
+        />
+      </div>
     </div>
   );
 }

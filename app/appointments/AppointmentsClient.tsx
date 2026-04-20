@@ -2,7 +2,6 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import AddAppointmentForm from "@/components/appointments/AddAppointmentForm";
 import ErrorMessage from "@/components/ui/error-message";
 import SuccessMessage from "@/components/ui/success-message";
@@ -37,10 +36,10 @@ export default function AppointmentsClient({ initialAppointments, workspaceId }:
   const [showAddForm, setShowAddForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading] = useState(false);
 
   const handleAppointmentAdded = (newAppointment: Appointment) => {
-    setAppointments(prev => [...prev, newAppointment].sort((a, b) => 
+    setAppointments(prev => [...prev, newAppointment].sort((a, b) =>
       new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime()
     ));
     setShowAddForm(false);
@@ -56,50 +55,53 @@ export default function AppointmentsClient({ initialAppointments, workspaceId }:
 
   const getStatusColor = (status: string) => {
     switch (status) {
+      case "pending":
+        return "bg-[var(--flag-soft)] text-[var(--flag)]";
       case "scheduled":
-        return "bg-[#3166bf]/20 text-[#3166bf]";
+        return "bg-[var(--accent-soft)] text-[var(--accent)]";
       case "confirmed":
-        return "bg-[#ebf9ef] text-[#e8f6f3]";
+        return "bg-[var(--verified-soft)] text-[var(--verified)]";
       case "completed":
-        return "bg-[#f3f4f6] text-[#151515]/70";
+        return "bg-[var(--verified-soft)] text-[var(--verified)]";
       case "cancelled":
-        return "bg-[#fef2f2] text-[#f0494a]";
+        return "bg-[var(--danger-soft)] text-[var(--danger)]";
       default:
-        return "bg-[#f3f4f6] text-[#151515]/60";
+        return "bg-[var(--canvas-subtle)] text-[var(--ink-muted)]";
     }
   };
 
   return (
-    <div className="space-y-6 text-[#151515]">
+    <div className="space-y-6 text-[var(--ink)]">
       {/* Error and Success Messages */}
       {error && (
-        <ErrorMessage 
-          message={error} 
-          onDismiss={() => setError(null)} 
+        <ErrorMessage
+          message={error}
+          onDismiss={() => setError(null)}
         />
       )}
-      
+
       {success && (
-        <SuccessMessage 
-          message={success} 
-          onDismiss={() => setSuccess(null)} 
+        <SuccessMessage
+          message={success}
+          onDismiss={() => setSuccess(null)}
         />
       )}
 
       <div className="flex justify-between items-center">
-        <h2 className="text-lg font-semibold text-[#151515]">All Appointments</h2>
-        <Button 
+        <h2 className="label-section text-[var(--ink-muted)]">All Appointments</h2>
+        <button
+          type="button"
           onClick={() => setShowAddForm(true)}
-          className="bg-[#3166bf] hover:bg-[#2a5aa8] text-white"
+          className="bg-[var(--ink)] text-[var(--canvas)] border border-[var(--ink)] px-4 py-2 rounded-[4px] text-sm font-medium hover:bg-[var(--ink)]/90"
         >
           Add Appointment
-        </Button>
+        </button>
       </div>
 
       {showAddForm && (
-        <div className="rounded-2xl border border-[#e5e7eb] bg-[#ffffff] p-6 shadow-lg">
-          <h3 className="mb-4 text-lg font-semibold text-[#151515]">Add New Appointment</h3>
-          <AddAppointmentForm 
+        <div className="card-flat p-5">
+          <h3 className="mb-4 text-lg font-semibold text-[var(--ink)]">Add New Appointment</h3>
+          <AddAppointmentForm
             workspaceId={workspaceId}
             onAppointmentAdded={handleAppointmentAdded}
             onError={handleError}
@@ -113,7 +115,7 @@ export default function AppointmentsClient({ initialAppointments, workspaceId }:
           <LoadingSpinner size="lg" text="Loading appointments..." />
         </div>
       ) : appointments.length === 0 ? (
-        <div className="rounded-2xl border border-[#e5e7eb] bg-[#ffffff] p-8 shadow-lg">
+        <div className="card-flat p-8">
           <EmptyState
             icon={CalendarDays}
             theme="light"
@@ -126,10 +128,10 @@ export default function AppointmentsClient({ initialAppointments, workspaceId }:
           />
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-[#e5e7eb] bg-[#ffffff] shadow-lg">
+        <div className="card-flat overflow-hidden p-0">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-[#151515]">
-              <thead className="border-b border-[#e5e7eb] bg-[#f3f4f6] text-xs uppercase tracking-wider text-[#151515]/60">
+            <table className="w-full text-left text-[var(--ink)]">
+              <thead className="border-b border-[var(--rule)] bg-[var(--canvas-subtle)] text-xs uppercase tracking-wider text-[var(--ink-muted)]">
                 <tr>
                   <th className="px-6 py-3">Client</th>
                   <th className="px-6 py-3">Service</th>
@@ -138,39 +140,43 @@ export default function AppointmentsClient({ initialAppointments, workspaceId }:
                   <th className="px-6 py-3">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#e5e7eb]">
+              <tbody className="divide-y divide-[var(--rule)]">
                 {appointments.map((appointment) => {
                   const contact = Array.isArray(appointment.contacts) ? appointment.contacts[0] : appointment.contacts;
                   return (
-                  <tr key={appointment.id} className="transition hover:bg-[#f3f4f6]">
+                  <tr key={appointment.id} className="transition hover:bg-[var(--canvas-subtle)]">
                     <td className="whitespace-nowrap px-6 py-4">
                       <div className="flex items-center">
-                        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#3166bf]/25 text-[#3166bf]">
+                        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--accent)]">
                           <span className="text-sm font-medium">
                             {contact?.name?.charAt(0)?.toUpperCase() ?? "?"}
                           </span>
                         </div>
                         <div className="ml-3">
-                          <div className="text-sm font-medium text-[#151515]">
+                          <div className="text-sm font-medium text-[var(--ink)]">
                             {contact?.name ?? "Unknown"}
                           </div>
-                          <div className="text-sm text-[#151515]/60">
+                          <div className="text-sm text-[var(--ink-muted)]">
                             {contact?.phone ?? "—"}
                           </div>
                         </div>
                       </div>
                     </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-[#151515]/70">
+                    <td className="whitespace-nowrap px-6 py-4 text-sm text-[var(--ink-muted)]">
                       {appointment.service_type}
                     </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-[#151515]/70">
-                      {dayjs(appointment.scheduled_at).format("MMM D, YYYY h:mm A")}
-                    </td>
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-[#151515]/70">
-                      {appointment.duration_minutes} min
+                    <td className="whitespace-nowrap px-6 py-4">
+                      <span className="mono text-sm text-[var(--ink-muted)]">
+                        {dayjs(appointment.scheduled_at).format("MMM D, YYYY h:mm A")}
+                      </span>
                     </td>
                     <td className="whitespace-nowrap px-6 py-4">
-                      <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${getStatusColor(appointment.status)}`}>
+                      <span className="mono text-sm text-[var(--ink-muted)]">
+                        {appointment.duration_minutes} min
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-6 py-4">
+                      <span className={`inline-flex rounded-[4px] px-2 py-1 text-xs font-medium ${getStatusColor(appointment.status)}`}>
                         {appointment.status}
                       </span>
                     </td>

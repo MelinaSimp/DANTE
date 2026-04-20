@@ -28,11 +28,13 @@ export default async function CallPage({
 
   if (!profile?.workspace_id) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-16 text-center text-white">
-        <h1 className="text-2xl font-semibold">No workspace</h1>
-        <p className="mt-2 text-white/60">
-          Contact your administrator to get set up.
-        </p>
+      <div className="min-h-screen bg-[var(--canvas)] text-[var(--ink)]">
+        <div className="mx-auto max-w-3xl px-4 py-16 text-center">
+          <h1 className="heading-display text-4xl text-[var(--ink)]">No workspace</h1>
+          <p className="mt-2 text-sm text-[var(--ink-muted)]">
+            Contact your administrator to get set up.
+          </p>
+        </div>
       </div>
     );
   }

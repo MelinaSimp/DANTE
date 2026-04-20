@@ -54,9 +54,9 @@ export default async function CallsPage() {
 
   if (!profile?.workspace_id) {
     return (
-      <div className="mx-auto max-w-5xl px-4 py-12 text-white">
-        <h1 className="mb-6 text-3xl font-semibold">Call Transcripts</h1>
-        <div className="rounded-2xl border border-yellow-500/40 bg-yellow-500/10 p-6 text-sm text-yellow-50">
+      <div className="mx-auto max-w-5xl px-4 py-12 text-[var(--ink)] bg-[var(--canvas)] min-h-screen">
+        <h1 className="heading-display text-4xl text-[var(--ink)] mb-6">Call Transcripts</h1>
+        <div className="rounded-[6px] border border-[var(--flag)] bg-[var(--flag-soft)] p-6 text-sm text-[var(--ink)]">
           We couldn’t find your workspace. Please contact an administrator.
         </div>
       </div>
@@ -94,17 +94,17 @@ export default async function CallsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-12 text-white">
+    <div className="mx-auto max-w-6xl px-4 py-12 text-[var(--ink)] bg-[var(--canvas)] min-h-screen">
       <div className="mb-8">
-        <h1 className="text-3xl font-semibold">Call Transcripts</h1>
-        <p className="mt-2 max-w-3xl text-sm text-white/60">
+        <h1 className="heading-display text-4xl text-[var(--ink)]">Call Transcripts</h1>
+        <p className="mt-2 max-w-3xl text-sm text-[var(--ink-muted)]">
           Review AI receptionist conversations. Each entry includes the questions asked, the caller&apos;s
           responses, and the AI follow-up. Data is grouped by the Twilio number that handled the call.
         </p>
       </div>
 
       {callLogs.length === 0 ? (
-        <div className="rounded-2xl border border-white/10 bg-black/30 p-10 text-center text-sm text-white/60">
+        <div className="card-flat p-10 text-center text-sm text-[var(--ink-muted)]">
           No receptionist calls recorded yet.
         </div>
       ) : (
@@ -121,51 +121,53 @@ export default async function CallsPage() {
             return (
               <div
                 key={log.id}
-                className="rounded-3xl border border-white/10 bg-black/35 p-6 shadow-[0_20px_60px_rgba(10,_10,_20,_0.45)] transition hover:border-[#3351ff]/40 hover:bg-black/30"
+                className="card-flat card-flat-hover p-6"
               >
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.3em] text-white/40">Caller</p>
-                    <h2 className="text-lg font-semibold">{log.from_number ?? "Unknown caller"}</h2>
-                    <p className="mt-0.5 font-mono text-xs text-white/30">{log.call_sid}</p>
+                    <p className="label-section text-[var(--ink-subtle)]">Caller</p>
+                    <h2 className="text-lg font-semibold text-[var(--ink)]">{log.from_number ?? "Unknown caller"}</h2>
+                    <p className="mt-0.5">
+                      <span className="mono text-xs text-[var(--ink-subtle)]">{log.call_sid}</span>
+                    </p>
                   </div>
-                  <div className="text-xs text-white/50">
+                  <div className="text-xs text-[var(--ink-muted)]">
                     <div>Received: {formatDate(log.created_at)}</div>
                     {duration && <div>Duration: {duration}s</div>}
                   </div>
                 </div>
 
-                <div className="mt-4 grid gap-4 text-sm text-white/70 sm:grid-cols-2">
+                <div className="mt-4 grid gap-4 text-sm text-[var(--ink-muted)] sm:grid-cols-2">
                   <div>
-                    <span className="text-xs uppercase tracking-wide text-white/40">Twilio Number</span>
-                    <div className="text-base font-medium text-white">{log.to_number ?? "—"}</div>
+                    <span className="label-section text-[var(--ink-subtle)]">Twilio Number</span>
+                    <div className="text-base font-medium text-[var(--ink)]">{log.to_number ?? "—"}</div>
                   </div>
                   <div>
-                    <span className="text-xs uppercase tracking-wide text-white/40">Caller</span>
-                    <div className="text-base font-medium text-white">
+                    <span className="label-section text-[var(--ink-subtle)]">Caller</span>
+                    <div className="text-base font-medium text-[var(--ink)]">
                       {log.from_number ?? "Unknown caller"}
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-6 space-y-4 rounded-2xl border border-white/10 bg-black/25 p-5">
-                  <p className="text-sm font-semibold text-white/80">Transcript</p>
+                <div className="mt-6 space-y-4 rounded-[6px] border border-[var(--rule)] bg-[var(--canvas-subtle)] p-5">
+                  <p className="text-sm font-semibold text-[var(--ink)]">Transcript</p>
                   {answers.length === 0 ? (
-                    <p className="text-sm text-white/50">No answers captured for this call.</p>
+                    <p className="text-sm text-[var(--ink-muted)]">No answers captured for this call.</p>
                   ) : (
                     <div className="space-y-4">
                       {answers.map((entry, idx) => (
-                        <div key={`${entry.question_id ?? idx}`} className="rounded-xl border border-white/10 bg-white/5 p-4">
-                          <div className="text-xs uppercase tracking-wide text-white/50">
+                        <div key={`${entry.question_id ?? idx}`} className="rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] p-4">
+                          <div className="label-section text-[var(--ink-subtle)]">
                             Question {idx + 1}
                           </div>
-                          <div className="mt-1 text-sm font-medium text-white">{entry.prompt ?? "—"}</div>
-                          <div className="mt-3 rounded-lg border border-white/10 bg-black/40 p-3 text-sm text-white/70">
-                            <span className="text-xs uppercase tracking-wide text-white/40">Caller</span>
+                          <div className="mt-1 text-sm font-medium text-[var(--ink)]">{entry.prompt ?? "—"}</div>
+                          <div className="mt-3 rounded-[4px] border border-[var(--rule)] bg-[var(--canvas-subtle)] p-3 text-sm text-[var(--ink-muted)]">
+                            <span className="label-section text-[var(--ink-subtle)]">Caller</span>
                             <div>{entry.answer ?? "No response"}</div>
                           </div>
                           {entry.captured_at && (
-                            <div className="mt-2 text-xs text-white/40">
+                            <div className="mt-2 text-xs text-[var(--ink-subtle)]">
                               Captured: {formatDate(entry.captured_at)}
                             </div>
                           )}
@@ -174,15 +176,15 @@ export default async function CallsPage() {
                     </div>
                   )}
 
-                  <div className="rounded-xl border border-white/10 bg-[#3351ff]/10 p-4 text-sm text-white/80">
-                    <div className="text-xs uppercase tracking-wide text-white/60">AI Follow-up</div>
+                  <div className="rounded-[6px] border border-[var(--rule)] bg-[var(--accent-soft)] p-4 text-sm text-[var(--ink)]">
+                    <div className="label-section text-[var(--accent)]">AI Follow-up</div>
                     <p className="mt-2">
                       {log.ai_response?.trim() ||
                         "The AI receptionist did not provide a follow-up response for this call."}
                     </p>
                   </div>
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-white/80">
-                    <div className="text-xs uppercase tracking-wide text-white/60">AI Analysis</div>
+                  <div className="rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] p-4 text-sm text-[var(--ink)]">
+                    <div className="label-section text-[var(--ink-subtle)]">AI Analysis</div>
                     <p className="mt-2 whitespace-pre-wrap">
                       {log.analysis?.trim() ||
                         "An AI analysis was not generated for this call. If this persists, confirm that OPENAI_API_KEY is set and the database migration for the analysis column has been applied."}
@@ -191,12 +193,12 @@ export default async function CallsPage() {
                 </div>
 
                 {events.length > 0 && (
-                  <div className="mt-6 rounded-2xl border border-white/10 bg-black/25 p-5 text-xs text-white/50">
-                    <p className="mb-3 text-sm font-semibold text-white/70">Call Status Timeline</p>
+                  <div className="mt-6 rounded-[6px] border border-[var(--rule)] bg-[var(--canvas-subtle)] p-5 text-xs text-[var(--ink-muted)]">
+                    <p className="mb-3 text-sm font-semibold text-[var(--ink)]">Call Status Timeline</p>
                     <ul className="space-y-2">
                       {events.map((event, idx) => (
                         <li key={`${event.call_sid}-${idx}`} className="flex items-start justify-between gap-4">
-                          <span className="font-medium text-white/70">
+                          <span className="font-medium text-[var(--ink)]">
                             {event.status ?? "unknown status"}
                           </span>
                           <span>{formatDate(event.created_at)}</span>
