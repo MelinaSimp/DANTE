@@ -30,7 +30,10 @@ const categories = [
   "Other",
 ];
 
-export default function KnowledgeSetupClient({ initialEntries, workspaceId }: KnowledgeSetupClientProps) {
+export default function KnowledgeSetupClient({
+  initialEntries,
+  workspaceId,
+}: KnowledgeSetupClientProps) {
   const [entries, setEntries] = useState<KnowledgeEntry[]>(initialEntries);
   const [showForm, setShowForm] = useState(false);
   const [editingEntry, setEditingEntry] = useState<KnowledgeEntry | null>(null);
@@ -67,7 +70,9 @@ export default function KnowledgeSetupClient({ initialEntries, workspaceId }: Kn
       const payload = await response.json();
 
       setEntries((prev) =>
-        editingEntry ? prev.map((item) => (item.id === editingEntry.id ? payload : item)) : [payload, ...prev]
+        editingEntry
+          ? prev.map((item) => (item.id === editingEntry.id ? payload : item))
+          : [payload, ...prev]
       );
 
       setFormData({ category: "", title: "", content: "" });
@@ -89,7 +94,12 @@ export default function KnowledgeSetupClient({ initialEntries, workspaceId }: Kn
   }
 
   async function handleDelete(id: string) {
-    const ok = await confirmDialog({ title: "Delete entry?", message: "This will permanently remove the knowledge entry.", confirmText: "Delete", variant: "danger" });
+    const ok = await confirmDialog({
+      title: "Delete entry?",
+      message: "This will permanently remove the knowledge entry.",
+      confirmText: "Delete",
+      variant: "danger",
+    });
     if (!ok) return;
 
     try {
@@ -102,29 +112,32 @@ export default function KnowledgeSetupClient({ initialEntries, workspaceId }: Kn
   }
 
   const secondaryButtonClass =
-    "inline-flex items-center justify-center rounded-full border border-white/20 bg-white/5 px-4 py-2 text-sm font-medium text-white/70 transition hover:bg-white/10 hover:text-white";
+    "inline-flex items-center justify-center rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-4 py-2 text-sm font-medium text-[var(--ink-muted)] transition hover:bg-[var(--canvas-subtle)] hover:text-[var(--ink)]";
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-black/40 p-6 shadow-[0_25px_80px_rgba(8,8,16,0.55)] sm:flex-row sm:items-start sm:justify-between">
+      <div className="card-flat flex flex-col gap-4 p-6 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-2">
-          <p className="text-sm text-white/70">
-            Configure your knowledge base so Drift answers callers accurately—combine company info,
-            hours, pricing, and FAQs into curated snippets.
+          <p className="text-sm text-[var(--ink-muted)]">
+            Configure your knowledge base so Drift answers callers accurately — combine company
+            info, hours, pricing, and FAQs into curated snippets.
           </p>
-          <p className="text-xs text-white/50">
-            Tip: Short, declarative sentences yield the most reliable responses from the AI.
+          <p className="text-xs text-[var(--ink-subtle)]">
+            Tip: short, declarative sentences yield the most reliable responses from the AI.
           </p>
         </div>
-        <Button onClick={() => setShowForm(true)} className="shrink-0">
-          Add Entry
+        <Button
+          onClick={() => setShowForm(true)}
+          className="shrink-0 rounded-[4px] bg-[var(--ink)] px-4 py-2 text-sm font-medium text-[var(--canvas)] hover:bg-[var(--ink)]/90"
+        >
+          Add entry
         </Button>
       </div>
 
       {showForm && (
-        <div className="rounded-3xl border border-white/10 bg-black/50 p-6 shadow-[0_20px_70px_rgba(8,8,16,0.45)]">
+        <div className="card-flat p-6">
           <div className="flex items-center justify-between">
-            <h3 className="text-xl font-semibold text-white">
+            <h3 className="heading-display text-2xl text-[var(--ink)]">
               {editingEntry ? "Edit knowledge entry" : "Add new knowledge entry"}
             </h3>
             <button
@@ -142,41 +155,47 @@ export default function KnowledgeSetupClient({ initialEntries, workspaceId }: Kn
 
           <form onSubmit={handleSubmit} className="mt-6 space-y-5">
             <div className="grid gap-4 sm:grid-cols-2">
-              <label className="flex flex-col gap-2 text-sm text-white/70">
-                Category
+              <label className="flex flex-col gap-1.5 text-sm text-[var(--ink)]">
+                <span className="label-section">Category</span>
                 <select
                   value={formData.category}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, category: e.target.value }))}
-                  className="rounded-xl border border-white/15 bg-black/60 px-4 py-3 text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, category: e.target.value }))
+                  }
+                  className="rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none"
                   required
                 >
                   <option value="">Select a category</option>
                   {categories.map((category) => (
-                    <option key={category} value={category} className="bg-slate-900 text-white">
+                    <option key={category} value={category}>
                       {category}
                     </option>
                   ))}
                 </select>
               </label>
 
-              <label className="flex flex-col gap-2 text-sm text-white/70">
-                Title
+              <label className="flex flex-col gap-1.5 text-sm text-[var(--ink)]">
+                <span className="label-section">Title</span>
                 <input
                   value={formData.title}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
-                  className="rounded-xl border border-white/15 bg-black/60 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, title: e.target.value }))
+                  }
+                  className="rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:border-[var(--accent)] focus:outline-none"
                   placeholder="Service hours, emergency policy, etc."
                   required
                 />
               </label>
             </div>
 
-            <label className="flex flex-col gap-2 text-sm text-white/70">
-              Content
+            <label className="flex flex-col gap-1.5 text-sm text-[var(--ink)]">
+              <span className="label-section">Content</span>
               <textarea
                 value={formData.content}
-                onChange={(e) => setFormData((prev) => ({ ...prev, content: e.target.value }))}
-                className="min-h-[160px] rounded-2xl border border-white/15 bg-black/60 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, content: e.target.value }))
+                }
+                className="min-h-[160px] rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:border-[var(--accent)] focus:outline-none"
                 placeholder="Detailed information that the AI should know..."
                 required
               />
@@ -194,7 +213,10 @@ export default function KnowledgeSetupClient({ initialEntries, workspaceId }: Kn
               >
                 Cancel
               </button>
-              <Button type="submit">
+              <Button
+                type="submit"
+                className="rounded-[4px] bg-[var(--ink)] px-4 py-2 text-sm font-medium text-[var(--canvas)] hover:bg-[var(--ink)]/90"
+              >
                 {editingEntry ? "Save changes" : "Save entry"}
               </Button>
             </div>
@@ -203,40 +225,47 @@ export default function KnowledgeSetupClient({ initialEntries, workspaceId }: Kn
       )}
 
       {Object.keys(groupedEntries).length === 0 ? (
-        <div className="rounded-3xl border border-dashed border-white/15 bg-black/20 p-12 text-center">
-          <p className="text-lg font-medium text-white/70">No knowledge entries yet</p>
-          <p className="mt-2 text-sm text-white/50">
-            Add curated snippets so Drift can answer questions about your services, pricing, and policies.
+        <div className="rounded-[6px] border border-dashed border-[var(--rule-strong)] bg-[var(--canvas-subtle)] p-12 text-center">
+          <p className="heading-display text-2xl text-[var(--ink)]">No knowledge entries yet</p>
+          <p className="mt-2 text-sm text-[var(--ink-muted)]">
+            Add curated snippets so Drift can answer questions about your services, pricing, and
+            policies.
           </p>
-          <Button onClick={() => setShowForm(true)} className="mt-6">
+          <Button
+            onClick={() => setShowForm(true)}
+            className="mt-6 rounded-[4px] bg-[var(--ink)] px-4 py-2 text-sm font-medium text-[var(--canvas)] hover:bg-[var(--ink)]/90"
+          >
             Add first entry
           </Button>
         </div>
       ) : (
         <div className="space-y-6">
           {Object.entries(groupedEntries).map(([category, categoryEntries]) => (
-            <section
-              key={category}
-              className="overflow-hidden rounded-3xl border border-white/10 bg-black/35 shadow-[0_25px_80px_rgba(8,8,16,0.55)]"
-            >
-              <header className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+            <section key={category} className="card-flat overflow-hidden">
+              <header className="flex items-center justify-between border-b border-[var(--rule)] bg-[var(--canvas-subtle)] px-6 py-4">
                 <div>
-                  <h3 className="text-xl font-semibold text-white">{category}</h3>
-                  <p className="text-xs text-white/50">{categoryEntries.length} entries</p>
+                  <h3 className="heading-display text-xl text-[var(--ink)]">{category}</h3>
+                  <p className="text-xs text-[var(--ink-muted)] mono">
+                    {categoryEntries.length} {categoryEntries.length === 1 ? "entry" : "entries"}
+                  </p>
                 </div>
-                <div className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/60">
+                <div className="inline-flex items-center gap-1 rounded-full border border-[var(--rule)] bg-[var(--canvas)] px-3 py-1 text-xs text-[var(--ink-muted)]">
                   Organized context
                 </div>
               </header>
 
-              <div className="divide-y divide-white/10">
+              <div className="divide-y divide-[var(--rule)]">
                 {categoryEntries.map((entry) => (
-                  <article key={entry.id} className="px-6 py-5 text-sm text-white/80">
+                  <article key={entry.id} className="px-6 py-5 text-sm text-[var(--ink)]">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                       <div className="max-w-3xl space-y-3">
-                        <h4 className="text-base font-semibold text-white">{entry.title}</h4>
-                        <p className="whitespace-pre-wrap text-white/70">{entry.content}</p>
-                        <p className="text-xs text-white/40">
+                        <h4 className="text-base font-semibold text-[var(--ink)]">
+                          {entry.title}
+                        </h4>
+                        <p className="whitespace-pre-wrap text-[var(--ink-muted)] prose-body">
+                          {entry.content}
+                        </p>
+                        <p className="mono text-xs text-[var(--ink-subtle)]">
                           Updated {new Date(entry.updated_at).toLocaleString()}
                         </p>
                       </div>
@@ -245,7 +274,7 @@ export default function KnowledgeSetupClient({ initialEntries, workspaceId }: Kn
                           Edit
                         </button>
                         <button
-                          className="inline-flex items-center justify-center rounded-full border border-red-500/40 bg-red-500/10 px-4 py-2 text-sm font-medium text-red-200 transition hover:bg-red-500/20"
+                          className="inline-flex items-center justify-center rounded-[4px] border border-[var(--danger)]/30 bg-[var(--danger-soft)] px-4 py-2 text-sm font-medium text-[var(--danger)] transition hover:bg-[var(--danger)] hover:text-[var(--canvas)]"
                           onClick={() => handleDelete(entry.id)}
                         >
                           Delete

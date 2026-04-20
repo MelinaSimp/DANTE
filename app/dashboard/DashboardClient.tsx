@@ -2,9 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
 import { Target, AlertTriangle, TrendingUp, Users, DollarSign, Activity, Zap, X, Check, ShieldCheck, ArrowRight } from "lucide-react";
-import { motion, Variants, AnimatePresence } from "framer-motion";
 import {
   AreaChart,
   Area,
@@ -12,18 +10,8 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  ResponsiveContainer
+  ResponsiveContainer,
 } from "recharts";
-
-const container: Variants = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.05, delayChildren: 0.1 } },
-};
-
-const item: Variants = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { duration: 0.4 } },
-};
 
 interface Alert {
   id: string;
@@ -68,30 +56,27 @@ interface DashboardProps {
   chartData?: ChartItem[];
 }
 
-function MetricCard({ label, value, sub, icon: Icon, accent = "emerald" }: {
-  label: string; value: string | number; sub: React.ReactNode;
-  icon: React.ElementType; accent?: "emerald" | "zinc" | "amber" | "rose";
+function MetricCard({
+  label,
+  value,
+  sub,
+  icon: Icon,
+}: {
+  label: string;
+  value: string | number;
+  sub: React.ReactNode;
+  icon: React.ElementType;
 }) {
-  const accentMap = {
-    emerald: { iconBg: "bg-emerald-500/10", iconColor: "text-emerald-400" },
-    zinc: { iconBg: "bg-zinc-500/10", iconColor: "text-zinc-400" },
-    amber: { iconBg: "bg-amber-500/10", iconColor: "text-amber-400" },
-    rose: { iconBg: "bg-rose-500/10", iconColor: "text-rose-400" },
-  };
-  const a = accentMap[accent];
-
   return (
-    <div className="group relative">
-      <div className="border border-zinc-700 bg-zinc-900/70 rounded-xl p-6 transition-all duration-200 hover:border-zinc-600 hover:bg-zinc-900/90 shadow-sm">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-xs font-medium uppercase tracking-tight text-zinc-600">{label}</span>
-          <div className={`p-2 rounded-lg ${a.iconBg} transition-colors duration-200`}>
-            <Icon className={`h-4 w-4 ${a.iconColor}`} strokeWidth={1.5} />
-          </div>
+    <div className="card-flat p-6">
+      <div className="flex items-center justify-between mb-3">
+        <span className="label-section">{label}</span>
+        <div className="border border-[var(--rule)] bg-[var(--canvas)] rounded-[4px] p-2">
+          <Icon className="h-4 w-4 text-[var(--ink-muted)]" strokeWidth={1.5} />
         </div>
-        <div className="text-3xl font-bold tracking-tight text-zinc-50 leading-none">{value}</div>
-        <div className="mt-3">{sub}</div>
       </div>
+      <div className="heading-display text-4xl text-[var(--ink)] leading-none">{value}</div>
+      <div className="mt-3">{sub}</div>
     </div>
   );
 }
@@ -116,220 +101,283 @@ export function DashboardClient({ metrics, alerts, revenueEngine, chartData }: D
   }
 
   return (
-    <motion.div
-      variants={container}
-      initial="hidden"
-      animate="show"
-      className="flex flex-col gap-10 pb-16 max-w-[1600px] mx-auto"
-    >
+    <div className="flex flex-col gap-10 pb-16 max-w-[1600px] mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
         <div>
           <div className="flex items-center gap-2 mb-3">
-            <span className="rounded-full px-3 py-1 text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">Live</span>
+            <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium bg-[var(--verified-soft)] text-[var(--verified)] border border-[var(--verified)]/30">
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--verified)]" />
+              Live
+            </span>
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold text-zinc-50 leading-none">Executive Summary</h1>
-          <p className="text-zinc-500 text-sm mt-2 max-w-2xl">Portfolio intelligence and revenue signals across your book of business.</p>
+          <h1 className="heading-display text-4xl md:text-5xl text-[var(--ink)] leading-tight">Executive summary</h1>
+          <p className="text-sm text-[var(--ink-muted)] mt-2 max-w-2xl">
+            Portfolio intelligence and revenue signals across your book of business.
+          </p>
         </div>
         <div className="flex gap-2">
-          <Link href="/dashboard/agents" className="group inline-flex h-9 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-900/70 px-4 text-xs font-medium text-zinc-400 transition-colors duration-200 hover:bg-zinc-800 hover:text-zinc-200 hover:border-zinc-600">
-            <ShieldCheck className="mr-2 h-4 w-4 text-zinc-500" strokeWidth={1.5} />
+          <Link
+            href="/dashboard/agents"
+            className="inline-flex h-9 items-center justify-center rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-4 text-xs font-medium text-[var(--ink-muted)] transition hover:bg-[var(--canvas-subtle)] hover:text-[var(--ink)]"
+          >
+            <ShieldCheck className="mr-2 h-4 w-4" strokeWidth={1.5} />
             Agents
           </Link>
-          <Link href="/dashboard/copilot" className="group inline-flex h-9 items-center justify-center rounded-lg bg-emerald-600 px-4 text-xs font-semibold text-white transition-colors duration-200 hover:bg-emerald-500">
+          <Link
+            href="/dashboard/copilot"
+            className="inline-flex h-9 items-center justify-center rounded-[4px] bg-[var(--ink)] px-4 text-xs font-semibold text-[var(--canvas)] transition hover:bg-[var(--ink)]/90"
+          >
             Copilot
-            <ArrowRight className="ml-2 h-4 w-4" strokeWidth={2} />
+            <ArrowRight className="ml-2 h-4 w-4" strokeWidth={1.5} />
           </Link>
         </div>
       </div>
 
-      <motion.div variants={item} className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
         <MetricCard
           label="Total AUM"
           value={metrics.aum}
-          accent="emerald"
           icon={DollarSign}
           sub={
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-zinc-500 bg-white/[0.03] ring-1 ring-white/[0.05] rounded-full px-2 py-0.5">
-              {metrics.aumChange.startsWith("No") ? metrics.aumChange : <><TrendingUp className="h-3 w-3 text-emerald-400" strokeWidth={1.5} />{metrics.aumChange}</>}
+            <span className="inline-flex items-center gap-1.5 mono text-[11px] text-[var(--ink-muted)]">
+              {metrics.aumChange.startsWith("No") ? (
+                metrics.aumChange
+              ) : (
+                <>
+                  <TrendingUp className="h-3 w-3 text-[var(--verified)]" strokeWidth={1.5} />
+                  {metrics.aumChange}
+                </>
+              )}
             </span>
           }
         />
         <MetricCard
-          label="Active Clients"
+          label="Active clients"
           value={metrics.activeClients}
-          accent="emerald"
           icon={Users}
           sub={
-            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-500 bg-zinc-500/10 ring-1 ring-zinc-500/20 rounded-full px-2 py-0.5">
+            <span className="mono text-[11px] text-[var(--ink-muted)]">
               +{metrics.prospects} in pipeline
             </span>
           }
         />
         <MetricCard
-          label="Detected Revenue"
+          label="Detected revenue"
           value={metrics.revenueOpportunities}
-          accent="emerald"
           icon={Target}
           sub={
-            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-400 bg-emerald-500/10 ring-1 ring-emerald-500/20 rounded-full px-2 py-0.5">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[var(--accent)] bg-[var(--accent-soft)] border border-[var(--accent)]/30 rounded-full px-2 py-0.5">
               Live opportunities
             </span>
           }
         />
         <MetricCard
-          label="Churn Risk"
+          label="Churn risk"
           value={metrics.churnRisk}
-          accent="emerald"
           icon={Activity}
           sub={
-            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-red-400 bg-red-500/10 ring-1 ring-red-500/20 rounded-full px-2 py-0.5">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[var(--danger)] bg-[var(--danger-soft)] border border-[var(--danger)]/30 rounded-full px-2 py-0.5">
               Needs contact
             </span>
           }
         />
-      </motion.div>
+      </div>
 
       <div className="grid gap-8 lg:grid-cols-7">
-        <motion.div variants={item} className="lg:col-span-4">
-          <div className="border border-zinc-700 bg-zinc-900/70 rounded-xl p-6 flex flex-col">
+        <div className="lg:col-span-4">
+          <div className="card-flat p-6 flex flex-col">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-lg font-semibold text-zinc-100">AUM by Client</h2>
-                <p className="text-xs text-zinc-600 mt-0.5">Point-in-time snapshot across book of business</p>
+                <h2 className="heading-display text-xl text-[var(--ink)]">AUM by client</h2>
+                <p className="text-xs text-[var(--ink-muted)] mt-0.5">
+                  Point-in-time snapshot across book of business
+                </p>
               </div>
-              <span className="text-xs font-medium text-zinc-600">Realtime</span>
+              <span className="label-section text-[var(--ink-subtle)]">Realtime</span>
             </div>
             <div className="flex-1 min-h-[280px]">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData ?? []} margin={{ top: 5, right: 20, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorAum" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#34d399" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#3166bf" stopOpacity={0.22} />
+                      <stop offset="95%" stopColor="#3166bf" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.03)" />
-                  <XAxis dataKey="name" stroke="rgba(255,255,255,0.2)" fontSize={10} tickLine={false} axisLine={false} dy={8} />
-                  <YAxis stroke="rgba(255,255,255,0.2)" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(value) => `$${value}M`} dx={-8} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.06)" />
+                  <XAxis
+                    dataKey="name"
+                    stroke="rgba(0,0,0,0.35)"
+                    fontSize={10}
+                    tickLine={false}
+                    axisLine={false}
+                    dy={8}
+                  />
+                  <YAxis
+                    stroke="rgba(0,0,0,0.35)"
+                    fontSize={10}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(value) => `$${value}M`}
+                    dx={-8}
+                  />
                   <Tooltip
-                    contentStyle={{ backgroundColor: "#0c0c0e", borderColor: "rgba(255,255,255,0.08)", borderRadius: "12px", color: "white", fontSize: "12px", boxShadow: "0 20px 60px -15px rgba(0,0,0,0.5)" }}
-                    itemStyle={{ color: "#34d399" }}
+                    contentStyle={{
+                      backgroundColor: "#ffffff",
+                      border: "1px solid rgba(0,0,0,0.1)",
+                      borderRadius: "6px",
+                      color: "#111",
+                      fontSize: "12px",
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+                    }}
+                    itemStyle={{ color: "#3166bf" }}
                     formatter={(value) => [`$${Number(value ?? 0)}M`, "AUM"]}
                   />
-                  <Area type="monotone" dataKey="aum" stroke="#34d399" fillOpacity={1} fill="url(#colorAum)" strokeWidth={1.5} activeDot={{ r: 5, fill: "#34d399", stroke: "#0c0c0e", strokeWidth: 2 }} />
+                  <Area
+                    type="monotone"
+                    dataKey="aum"
+                    stroke="#3166bf"
+                    fillOpacity={1}
+                    fill="url(#colorAum)"
+                    strokeWidth={1.5}
+                    activeDot={{ r: 4, fill: "#3166bf", stroke: "#ffffff", strokeWidth: 2 }}
+                  />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
           </div>
-        </motion.div>
+        </div>
 
-        <motion.div variants={item} className="lg:col-span-3">
-          <div className="border border-zinc-700 bg-zinc-900/70 rounded-xl p-6 flex flex-col h-full">
+        <div className="lg:col-span-3">
+          <div className="card-flat p-6 flex flex-col h-full">
             <div className="flex items-center justify-between mb-5">
               <div>
-                <h2 className="text-lg font-semibold text-zinc-100">Priority Actions</h2>
-                <p className="text-xs text-zinc-600 mt-0.5">AI-flagged items requiring review</p>
+                <h2 className="heading-display text-xl text-[var(--ink)]">Priority actions</h2>
+                <p className="text-xs text-[var(--ink-muted)] mt-0.5">
+                  AI-flagged items requiring review
+                </p>
               </div>
-              <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-400">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              <span className="flex items-center gap-1.5 text-xs font-medium text-[var(--verified)]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[var(--verified)]" />
                 Active
               </span>
             </div>
-            <div className="flex-1 overflow-y-auto flex flex-col gap-3.5 min-h-[280px] max-h-[360px] pr-1">
+            <div className="flex-1 overflow-y-auto flex flex-col gap-3 min-h-[280px] max-h-[360px] pr-1">
               {alerts.length === 0 && (
-                <div className="flex h-full items-center justify-center text-sm text-zinc-600">No pressing alerts.</div>
+                <div className="flex h-full items-center justify-center text-sm text-[var(--ink-subtle)]">
+                  No pressing alerts.
+                </div>
               )}
               {alerts.map((alert) => (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
+                <div
                   key={alert.id}
-                  className="flex flex-col gap-3 p-5 rounded-lg border border-zinc-700 bg-zinc-900/70 hover:border-zinc-600 hover:bg-zinc-900/80 transition-colors duration-200 cursor-pointer"
+                  className="flex flex-col gap-3 p-4 rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] hover:bg-[var(--canvas-subtle)] transition"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       {alert.severity === "critical" ? (
-                        <div className="p-1 bg-red-500/10 rounded-md"><AlertTriangle className="h-3.5 w-3.5 text-red-400" strokeWidth={1.5} /></div>
+                        <div className="p-1 bg-[var(--danger-soft)] rounded-[4px]">
+                          <AlertTriangle className="h-3.5 w-3.5 text-[var(--danger)]" strokeWidth={1.5} />
+                        </div>
                       ) : alert.severity === "high" ? (
-                        <div className="p-1 bg-amber-500/10 rounded-md"><TrendingUp className="h-3.5 w-3.5 text-amber-400" strokeWidth={1.5} /></div>
+                        <div className="p-1 bg-[var(--flag-soft)] rounded-[4px]">
+                          <TrendingUp className="h-3.5 w-3.5 text-[var(--flag)]" strokeWidth={1.5} />
+                        </div>
                       ) : (
-                        <div className="p-1 bg-emerald-500/10 rounded-md"><Target className="h-3.5 w-3.5 text-emerald-400" strokeWidth={1.5} /></div>
+                        <div className="p-1 bg-[var(--verified-soft)] rounded-[4px]">
+                          <Target className="h-3.5 w-3.5 text-[var(--verified)]" strokeWidth={1.5} />
+                        </div>
                       )}
-                      <span className="text-sm font-medium text-zinc-200">{alert.title}</span>
+                      <span className="text-sm font-medium text-[var(--ink)]">{alert.title}</span>
                     </div>
-                    <Badge variant={alert.severity === "critical" ? "destructive" : "secondary"} className={`text-xs font-medium ${alert.severity === "critical" ? "bg-red-500/10 text-red-400 border-red-500/30" : "bg-zinc-800 text-zinc-400 border-zinc-700"}`}>
+                    <span
+                      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium ${
+                        alert.severity === "critical"
+                          ? "bg-[var(--danger-soft)] text-[var(--danger)] border-[var(--danger)]/30"
+                          : alert.severity === "high"
+                          ? "bg-[var(--flag-soft)] text-[var(--flag)] border-[var(--flag)]/30"
+                          : "bg-[var(--canvas-subtle)] text-[var(--ink-muted)] border-[var(--rule)]"
+                      }`}
+                    >
                       {alert.severity}
-                    </Badge>
+                    </span>
                   </div>
-                  <p className="text-xs text-zinc-500 pl-6 leading-relaxed">
-                    <span className="font-medium text-zinc-400">{alert.client}: </span>
+                  <p className="text-xs text-[var(--ink-muted)] pl-6 leading-relaxed">
+                    <span className="font-medium text-[var(--ink)]">{alert.client}: </span>
                     {alert.description}
                   </p>
-                </motion.div>
+                </div>
               ))}
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
 
-      <motion.div variants={item}>
-        <div className="border border-zinc-700 bg-zinc-900/70 rounded-xl">
-          <div className="flex items-center justify-between p-6 pb-5 border-b border-zinc-700">
+      <div>
+        <div className="card-flat">
+          <div className="flex items-center justify-between p-6 pb-5 border-b border-[var(--rule)]">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-amber-500/10 rounded-lg">
-                <Zap className="h-4 w-4 text-amber-400" strokeWidth={1.5} />
+              <div className="p-2 bg-[var(--flag-soft)] rounded-[4px]">
+                <Zap className="h-4 w-4 text-[var(--flag)]" strokeWidth={1.5} />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-zinc-100">Revenue Engine</h2>
-                <p className="text-xs text-zinc-600 mt-0.5">Draft opportunities awaiting advisor action</p>
+                <h2 className="heading-display text-xl text-[var(--ink)]">Revenue engine</h2>
+                <p className="text-xs text-[var(--ink-muted)] mt-0.5">
+                  Draft opportunities awaiting advisor action
+                </p>
               </div>
             </div>
-            <Badge variant="outline" className="text-xs font-medium text-zinc-500 bg-zinc-900 border-zinc-700 rounded-full">{revenueEngine.length} drafts</Badge>
+            <span className="inline-flex items-center rounded-full border border-[var(--rule)] bg-[var(--canvas)] px-2.5 py-0.5 mono text-[11px] text-[var(--ink-muted)]">
+              {revenueEngine.length} drafts
+            </span>
           </div>
           <div className="p-6 pt-5">
             <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
               {revenueEngine.length === 0 && (
-                <div className="col-span-full py-12 text-center text-sm text-zinc-600">No draft opportunities available.</div>
+                <div className="col-span-full py-12 text-center text-sm text-[var(--ink-subtle)]">
+                  No draft opportunities available.
+                </div>
               )}
-              <AnimatePresence>
-                {revenueEngine.map((opp) => (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    key={opp.id}
-                    className="flex flex-col justify-between min-h-[200px] p-5 rounded-lg border border-zinc-700 bg-zinc-900/70 hover:border-zinc-600 hover:bg-zinc-900/90 transition-colors duration-200 overflow-hidden"
-                  >
-                    <div>
-                      <div className="flex justify-between items-start mb-3">
-                        <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-xs font-medium">{opp.type}</Badge>
-                        <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-1 rounded-full">{opp.confidence}%</span>
-                      </div>
-                      <h3 className="text-base font-semibold text-zinc-100">{opp.client}</h3>
-                      <div className="text-2xl font-bold text-zinc-50 mt-0.5">{opp.value}</div>
-                      <p className="text-xs text-zinc-500 mt-3 leading-relaxed line-clamp-2">{opp.suggestedAction}</p>
+              {revenueEngine.map((opp) => (
+                <div
+                  key={opp.id}
+                  className="flex flex-col justify-between min-h-[200px] p-5 rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] hover:bg-[var(--canvas-subtle)] transition overflow-hidden"
+                >
+                  <div>
+                    <div className="flex justify-between items-start mb-3">
+                      <span className="inline-flex items-center rounded-full border border-[var(--accent)]/30 bg-[var(--accent-soft)] px-2 py-0.5 text-[10px] font-medium text-[var(--accent)]">
+                        {opp.type}
+                      </span>
+                      <span className="inline-flex items-center rounded-full border border-[var(--verified)]/30 bg-[var(--verified-soft)] px-2 py-0.5 mono text-[11px] font-semibold text-[var(--verified)]">
+                        {opp.confidence}%
+                      </span>
                     </div>
-                    <div className="flex gap-2 mt-5">
-                      <button
-                        onClick={() => handleDismiss(opp.id)}
-                        className="flex-1 h-8 flex items-center justify-center gap-1 text-zinc-400 text-xs font-medium border border-zinc-700 rounded-md hover:text-red-400 hover:border-red-500/30 transition-colors"
-                      >
-                        <X className="h-4 w-4" strokeWidth={1.5} /> Dismiss
-                      </button>
-                      <button
-                        onClick={() => handleApprove(opp.id)}
-                        className="flex-1 h-8 flex items-center justify-center gap-1 bg-emerald-600 text-white text-xs font-medium rounded-md hover:bg-emerald-500 transition-colors"
-                      >
-                        <Check className="h-4 w-4" strokeWidth={1.5} /> Approve
-                      </button>
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
+                    <h3 className="text-base font-semibold text-[var(--ink)]">{opp.client}</h3>
+                    <div className="heading-display text-3xl text-[var(--ink)] mt-0.5">{opp.value}</div>
+                    <p className="text-xs text-[var(--ink-muted)] mt-3 leading-relaxed line-clamp-2">
+                      {opp.suggestedAction}
+                    </p>
+                  </div>
+                  <div className="flex gap-2 mt-5">
+                    <button
+                      onClick={() => handleDismiss(opp.id)}
+                      className="flex-1 h-8 flex items-center justify-center gap-1 text-[var(--ink-muted)] text-xs font-medium border border-[var(--rule)] rounded-[4px] hover:text-[var(--danger)] hover:border-[var(--danger)]/40 hover:bg-[var(--danger-soft)] transition"
+                    >
+                      <X className="h-4 w-4" strokeWidth={1.5} /> Dismiss
+                    </button>
+                    <button
+                      onClick={() => handleApprove(opp.id)}
+                      className="flex-1 h-8 flex items-center justify-center gap-1 bg-[var(--ink)] text-[var(--canvas)] text-xs font-medium rounded-[4px] hover:bg-[var(--ink)]/90 transition"
+                    >
+                      <Check className="h-4 w-4" strokeWidth={1.5} /> Approve
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 }

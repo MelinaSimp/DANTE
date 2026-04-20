@@ -36,16 +36,29 @@ function formatTime(iso: string) {
 }
 
 function actionTone(action: string): string {
-  if (action.endsWith(".deleted") || action.endsWith(".revoked") || action.endsWith(".removed")) {
-    return "bg-red-500/10 text-red-300 border-red-500/20";
+  if (
+    action.endsWith(".deleted") ||
+    action.endsWith(".revoked") ||
+    action.endsWith(".removed")
+  ) {
+    return "bg-[var(--danger-soft)] text-[var(--danger)] border-[var(--danger)]/30";
   }
-  if (action.endsWith(".created") || action.endsWith(".deployed") || action.endsWith(".connected") || action.endsWith(".enabled")) {
-    return "bg-emerald-500/10 text-emerald-300 border-emerald-500/20";
+  if (
+    action.endsWith(".created") ||
+    action.endsWith(".deployed") ||
+    action.endsWith(".connected") ||
+    action.endsWith(".enabled")
+  ) {
+    return "bg-[var(--verified-soft)] text-[var(--verified)] border-[var(--verified)]/30";
   }
-  if (action.endsWith(".updated") || action.endsWith(".role_changed") || action.endsWith(".configured")) {
-    return "bg-amber-500/10 text-amber-300 border-amber-500/20";
+  if (
+    action.endsWith(".updated") ||
+    action.endsWith(".role_changed") ||
+    action.endsWith(".configured")
+  ) {
+    return "bg-[var(--flag-soft)] text-[var(--flag)] border-[var(--flag)]/30";
   }
-  return "bg-white/5 text-white/70 border-white/15";
+  return "bg-[var(--canvas-subtle)] text-[var(--ink-muted)] border-[var(--rule)]";
 }
 
 export default function AuditLogClient({ initialLogs }: { initialLogs: AuditLogRow[] }) {
@@ -65,7 +78,7 @@ export default function AuditLogClient({ initialLogs }: { initialLogs: AuditLogR
 
   if (initialLogs.length === 0) {
     return (
-      <div className="rounded-2xl border border-white/10 bg-black/30">
+      <div className="card-flat">
         <EmptyState
           icon={ScrollText}
           title="No audit events yet"
@@ -78,61 +91,75 @@ export default function AuditLogClient({ initialLogs }: { initialLogs: AuditLogR
   return (
     <div>
       <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
+        <Search
+          className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--ink-subtle)]"
+          strokeWidth={1.5}
+        />
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Filter by action, actor, or target…"
-          className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-white/10 bg-black/40 text-sm text-white placeholder:text-white/30 focus:border-[#3351ff] focus:outline-none focus:ring-2 focus:ring-[#3351ff]/30 transition"
+          className="w-full pl-10 pr-4 py-2.5 rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:border-[var(--accent)] focus:outline-none transition"
         />
       </div>
 
       {filtered.length === 0 ? (
-        <div className="rounded-2xl border border-white/10 bg-black/30 py-12 text-center text-sm text-white/50">
+        <div className="card-flat py-12 text-center text-sm text-[var(--ink-muted)]">
           No events match &ldquo;{query}&rdquo;.
         </div>
       ) : (
-        <div className="rounded-2xl border border-white/10 bg-black/30 overflow-hidden">
+        <div className="card-flat overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-white/[0.02] text-xs uppercase tracking-wider text-white/40">
+            <thead className="bg-[var(--canvas-subtle)] border-b border-[var(--rule)]">
               <tr>
-                <th className="px-4 py-3 text-left font-medium">When</th>
-                <th className="px-4 py-3 text-left font-medium">Action</th>
-                <th className="px-4 py-3 text-left font-medium">Actor</th>
-                <th className="px-4 py-3 text-left font-medium">Target</th>
-                <th className="px-4 py-3 text-left font-medium">IP</th>
+                <th className="label-section text-left px-4 py-3">When</th>
+                <th className="label-section text-left px-4 py-3">Action</th>
+                <th className="label-section text-left px-4 py-3">Actor</th>
+                <th className="label-section text-left px-4 py-3">Target</th>
+                <th className="label-section text-left px-4 py-3">IP</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody>
               {filtered.map((log) => (
-                <tr key={log.id} className="hover:bg-white/[0.02] transition">
-                  <td className="px-4 py-3 whitespace-nowrap text-white/70">
+                <tr
+                  key={log.id}
+                  className="border-t border-[var(--rule)] hover:bg-[var(--canvas-subtle)] transition"
+                >
+                  <td className="px-4 py-3 whitespace-nowrap mono text-xs text-[var(--ink-muted)]">
                     {formatTime(log.created_at)}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${actionTone(log.action)}`}>
+                    <span
+                      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${actionTone(
+                        log.action
+                      )}`}
+                    >
                       {formatAction(log.action)}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-white/70">
-                    {log.actor_email || <span className="text-white/30">system</span>}
+                  <td className="px-4 py-3 text-[var(--ink)]">
+                    {log.actor_email || (
+                      <span className="text-[var(--ink-subtle)]">system</span>
+                    )}
                   </td>
-                  <td className="px-4 py-3 text-white/70">
+                  <td className="px-4 py-3 text-[var(--ink)]">
                     {log.target_label ? (
                       <span>
                         {log.target_label}
                         {log.target_type && (
-                          <span className="ml-1 text-white/30 text-xs">({log.target_type})</span>
+                          <span className="ml-1 text-[var(--ink-subtle)] text-xs">
+                            ({log.target_type})
+                          </span>
                         )}
                       </span>
                     ) : log.target_type ? (
-                      <span className="text-white/40">{log.target_type}</span>
+                      <span className="text-[var(--ink-muted)]">{log.target_type}</span>
                     ) : (
-                      <span className="text-white/30">—</span>
+                      <span className="text-[var(--ink-subtle)]">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-white/50 font-mono text-xs">
+                  <td className="px-4 py-3 mono text-xs text-[var(--ink-muted)]">
                     {log.ip_address || "—"}
                   </td>
                 </tr>

@@ -52,19 +52,21 @@ export default function SSOSetupClient({ workspaceId }: { workspaceId: string })
   return (
     <div className="space-y-8">
       {/* Status banner */}
-      <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-5 flex items-start gap-4">
-        <Shield className="h-5 w-5 text-amber-300 shrink-0 mt-0.5" />
-        <div className="text-sm text-amber-100/80">
-          <p className="font-medium text-amber-200">
+      <div className="rounded-[6px] border border-[var(--flag)]/30 bg-[var(--flag-soft)] p-5 flex items-start gap-4">
+        <Shield
+          className="h-5 w-5 text-[var(--flag)] shrink-0 mt-0.5"
+          strokeWidth={1.5}
+        />
+        <div className="text-sm text-[var(--ink)]">
+          <p className="font-medium text-[var(--flag)]">
             SSO is an Enterprise plan feature
           </p>
-          <p className="mt-1 text-amber-100/60">
-            You can capture your IdP configuration below at any time, but SSO
-            will not be active for sign-in until your Enterprise plan is
-            provisioned. Contact{" "}
+          <p className="mt-1 text-[var(--ink-muted)]">
+            You can capture your IdP configuration below at any time, but SSO will not be active
+            for sign-in until your Enterprise plan is provisioned. Contact{" "}
             <a
               href="mailto:sales@driftai.studio"
-              className="underline underline-offset-2 hover:text-amber-100"
+              className="text-[var(--accent)] underline underline-offset-2 hover:brightness-90"
             >
               sales@driftai.studio
             </a>{" "}
@@ -74,33 +76,45 @@ export default function SSOSetupClient({ workspaceId }: { workspaceId: string })
       </div>
 
       {/* Service Provider metadata — what the customer gives their IdP */}
-      <div className="rounded-2xl border border-white/10 bg-black/30 p-6">
-        <h2 className="text-base font-semibold">Service Provider metadata</h2>
-        <p className="mt-1 text-xs text-white/50">
-          Give these values to your identity provider when you create the
-          Drift application.
+      <div className="card-flat p-6">
+        <h2 className="heading-display text-2xl text-[var(--ink)]">Service provider metadata</h2>
+        <p className="mt-1 text-sm text-[var(--ink-muted)]">
+          Give these values to your identity provider when you create the Drift application.
         </p>
         <div className="mt-5 space-y-4">
-          <ReadOnlyField label="ACS / Callback URL" value={acsUrl} onCopy={() => copy(acsUrl, "acs")} copied={copied === "acs"} />
-          <ReadOnlyField label="Audience / Entity URI" value={audienceUri} onCopy={() => copy(audienceUri, "aud")} copied={copied === "aud"} />
-          <ReadOnlyField label="OIDC Redirect URI" value={oidcRedirectUri} onCopy={() => copy(oidcRedirectUri, "redir")} copied={copied === "redir"} />
+          <ReadOnlyField
+            label="ACS / Callback URL"
+            value={acsUrl}
+            onCopy={() => copy(acsUrl, "acs")}
+            copied={copied === "acs"}
+          />
+          <ReadOnlyField
+            label="Audience / Entity URI"
+            value={audienceUri}
+            onCopy={() => copy(audienceUri, "aud")}
+            copied={copied === "aud"}
+          />
+          <ReadOnlyField
+            label="OIDC Redirect URI"
+            value={oidcRedirectUri}
+            onCopy={() => copy(oidcRedirectUri, "redir")}
+            copied={copied === "redir"}
+          />
         </div>
       </div>
 
       {/* Protocol selector */}
       <form onSubmit={handleSave} className="space-y-6">
         <div>
-          <label className="block text-sm font-medium text-white/70 mb-2">
-            Protocol
-          </label>
+          <label className="label-section mb-2 block">Protocol</label>
           <div className="flex gap-2">
             <button
               type="button"
               onClick={() => setProtocol("saml")}
-              className={`px-4 py-2 rounded-xl border text-sm font-medium transition ${
+              className={`px-4 py-2 rounded-[4px] border text-sm font-medium transition ${
                 protocol === "saml"
-                  ? "border-[#3351ff] bg-[#3351ff]/15 text-white"
-                  : "border-white/10 bg-black/40 text-white/60 hover:text-white"
+                  ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                  : "border-[var(--rule)] bg-[var(--canvas)] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
               }`}
             >
               SAML 2.0
@@ -108,10 +122,10 @@ export default function SSOSetupClient({ workspaceId }: { workspaceId: string })
             <button
               type="button"
               onClick={() => setProtocol("oidc")}
-              className={`px-4 py-2 rounded-xl border text-sm font-medium transition ${
+              className={`px-4 py-2 rounded-[4px] border text-sm font-medium transition ${
                 protocol === "oidc"
-                  ? "border-[#3351ff] bg-[#3351ff]/15 text-white"
-                  : "border-white/10 bg-black/40 text-white/60 hover:text-white"
+                  ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]"
+                  : "border-[var(--rule)] bg-[var(--canvas)] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
               }`}
             >
               OpenID Connect
@@ -175,13 +189,13 @@ export default function SSOSetupClient({ workspaceId }: { workspaceId: string })
         <div className="flex items-center gap-3 pt-2">
           <button
             type="submit"
-            className="px-4 py-2 rounded-xl bg-[#3351ff] hover:bg-[#4a64ff] text-white text-sm font-medium transition"
+            className="px-4 py-2 rounded-[4px] bg-[var(--ink)] hover:bg-[var(--ink)]/90 text-[var(--canvas)] text-sm font-medium transition"
           >
             Save configuration
           </button>
           {saved && (
-            <span className="inline-flex items-center gap-1.5 text-xs text-emerald-300">
-              <Check className="h-3.5 w-3.5" /> Saved — sales will be in touch.
+            <span className="inline-flex items-center gap-1.5 text-xs text-[var(--verified)]">
+              <Check className="h-3.5 w-3.5" strokeWidth={1.5} /> Saved — sales will be in touch.
             </span>
           )}
         </div>
@@ -207,15 +221,15 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-white/70 mb-2">{label}</label>
+      <label className="label-section mb-1.5 block">{label}</label>
       <input
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-white/30 focus:border-[#3351ff] focus:outline-none focus:ring-2 focus:ring-[#3351ff]/30 transition"
+        className="w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:border-[var(--accent)] focus:outline-none transition"
       />
-      {help && <p className="mt-1.5 text-xs text-white/40">{help}</p>}
+      {help && <p className="mt-1.5 text-xs text-[var(--ink-subtle)]">{help}</p>}
     </div>
   );
 }
@@ -233,13 +247,13 @@ function TextareaField({
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-white/70 mb-2">{label}</label>
+      <label className="label-section mb-1.5 block">{label}</label>
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         rows={6}
-        className="w-full rounded-xl border border-white/10 bg-black/40 px-4 py-3 text-xs font-mono text-white placeholder:text-white/30 focus:border-[#3351ff] focus:outline-none focus:ring-2 focus:ring-[#3351ff]/30 transition"
+        className="w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-xs mono text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:border-[var(--accent)] focus:outline-none transition"
       />
     </div>
   );
@@ -258,16 +272,20 @@ function ReadOnlyField({
 }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-white/50 mb-1.5">{label}</label>
-      <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/40 px-3 py-2.5">
-        <code className="flex-1 text-xs font-mono text-white/80 truncate">{value}</code>
+      <label className="label-section mb-1.5 block">{label}</label>
+      <div className="flex items-center gap-2 rounded-[4px] border border-[var(--rule)] bg-[var(--canvas-subtle)] px-3 py-2.5">
+        <code className="flex-1 text-xs mono text-[var(--ink)] truncate">{value}</code>
         <button
           type="button"
           onClick={onCopy}
-          className="shrink-0 text-white/40 hover:text-white transition"
+          className="shrink-0 text-[var(--ink-subtle)] hover:text-[var(--ink)] transition"
           aria-label="Copy"
         >
-          {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+          {copied ? (
+            <Check className="h-4 w-4 text-[var(--verified)]" strokeWidth={1.5} />
+          ) : (
+            <Copy className="h-4 w-4" strokeWidth={1.5} />
+          )}
         </button>
       </div>
     </div>

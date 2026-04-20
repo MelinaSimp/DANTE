@@ -40,7 +40,7 @@ export default function SummaryTemplateSettingsClient({
         return;
       }
       setMessage({ type: "success", text: "Summary template saved." });
-    } catch (e) {
+    } catch {
       setMessage({ type: "error", text: "Failed to save" });
     } finally {
       setSaving(false);
@@ -52,17 +52,22 @@ export default function SummaryTemplateSettingsClient({
   return (
     <div className="space-y-6">
       <div>
-        <label htmlFor="template-doc" className="mb-2 block text-sm font-medium text-white/80">
+        <label
+          htmlFor="template-doc"
+          className="label-section mb-1.5 block"
+        >
           Summary template document
         </label>
-        <p className="mb-3 max-w-2xl text-sm text-white/60">
-          Choose a document whose annotations define the structure of one-page summaries. When generating a summary for a client, the AI will use this template&apos;s pages and labels but pull content from the client&apos;s document.
+        <p className="mb-3 max-w-2xl text-sm text-[var(--ink-muted)]">
+          Choose a document whose annotations define the structure of one-page summaries. When
+          generating a summary for a client, the AI will use this template&apos;s pages and labels
+          but pull content from the client&apos;s document.
         </p>
         <select
           id="template-doc"
           value={selectedId}
           onChange={(e) => setSelectedId(e.target.value)}
-          className="w-full max-w-md rounded-xl border border-white/15 bg-black/30 px-4 py-3 text-white focus:border-[#3351ff]/50 focus:outline-none focus:ring-1 focus:ring-[#3351ff]/50"
+          className="w-full max-w-md rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-4 py-2.5 text-sm text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none"
         >
           <option value="">None</option>
           {documents.map((d) => (
@@ -72,8 +77,9 @@ export default function SummaryTemplateSettingsClient({
           ))}
         </select>
         {documents.length === 0 && (
-          <p className="mt-2 text-sm text-white/50">
-            No documents in this workspace yet. Upload a PDF for a client first, then annotate it and select it here.
+          <p className="mt-2 text-sm text-[var(--ink-subtle)]">
+            No documents in this workspace yet. Upload a PDF for a client first, then annotate it
+            and select it here.
           </p>
         )}
       </div>
@@ -82,8 +88,8 @@ export default function SummaryTemplateSettingsClient({
         <p
           className={
             message.type === "success"
-              ? "text-sm text-emerald-400"
-              : "text-sm text-red-400"
+              ? "text-sm text-[var(--verified)]"
+              : "text-sm text-[var(--danger)]"
           }
         >
           {message.text}
@@ -93,7 +99,7 @@ export default function SummaryTemplateSettingsClient({
       <Button
         onClick={handleSave}
         disabled={saving || !hasChanges}
-        className="rounded-xl bg-[#3351ff] px-6 py-2.5 text-white hover:bg-[#3351ff]/90 disabled:opacity-50"
+        className="rounded-[4px] bg-[var(--ink)] px-5 py-2 text-sm font-medium text-[var(--canvas)] hover:bg-[var(--ink)]/90 disabled:opacity-50"
       >
         {saving ? "Saving…" : "Save"}
       </Button>

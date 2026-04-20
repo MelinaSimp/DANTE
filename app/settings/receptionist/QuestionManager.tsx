@@ -26,7 +26,7 @@ interface Props {
   initialSettings: Settings;
 }
 
-export default function QuestionManager({ workspaceId, initialQuestions, initialSettings }: Props) {
+export default function QuestionManager({ workspaceId: _workspaceId, initialQuestions, initialSettings }: Props) {
   const [questions, setQuestions] = useState<Question[]>(initialQuestions);
   const [settings, setSettings] = useState<Settings>(initialSettings);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -188,31 +188,47 @@ export default function QuestionManager({ workspaceId, initialQuestions, initial
     }
   }
 
+  const inputClass =
+    "mt-2 w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:border-[var(--accent)] focus:outline-none transition";
+
+  const secondaryButtonClass =
+    "inline-flex items-center gap-1 rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-1.5 text-xs font-medium text-[var(--ink-muted)] transition hover:bg-[var(--canvas-subtle)] hover:text-[var(--ink)] disabled:opacity-40 disabled:cursor-not-allowed";
+
+  const dangerButtonClass =
+    "inline-flex items-center gap-1 rounded-[4px] border border-[var(--danger)]/30 bg-[var(--danger-soft)] px-3 py-1.5 text-xs font-medium text-[var(--danger)] transition hover:bg-[var(--danger)] hover:text-[var(--canvas)]";
+
+  const primaryButtonClass =
+    "gap-2 rounded-[4px] bg-[var(--ink)] px-4 py-2 text-sm font-medium text-[var(--canvas)] hover:bg-[var(--ink)]/90";
+
   return (
-    <div className="space-y-12">
-      <section className="rounded-3xl border border-white/10 bg-black/40 p-8 shadow-xl">
-        <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-2xl font-semibold text-white">Call Flow Questions</h2>
-            <p className="text-sm text-white/60">
-              Questions are asked in the order shown. The AI receptionist will pause after each question to record the caller’s answer.
+    <div className="space-y-8">
+      <section className="card-flat p-6">
+        <header className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1">
+            <h2 className="heading-display text-2xl text-[var(--ink)]">Call flow questions</h2>
+            <p className="text-sm text-[var(--ink-muted)]">
+              Questions are asked in the order shown. The AI receptionist will pause after each question to record the caller&apos;s answer.
             </p>
           </div>
-          <Button onClick={createQuestion} disabled={loading} className="gap-2 bg-[#3351ff] hover:bg-[#4a64ff]">
-            <PlusIcon size={16} />
-            Add Question
+          <Button onClick={createQuestion} disabled={loading} className={primaryButtonClass}>
+            <PlusIcon size={16} strokeWidth={1.5} />
+            Add question
           </Button>
         </header>
 
         {error && (
-          <div className="mb-4 rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-100">{error}</div>
+          <div className="mb-4 rounded-[6px] border border-[var(--danger)]/30 bg-[var(--danger-soft)] p-3 text-sm text-[var(--danger)]">
+            {error}
+          </div>
         )}
         {success && (
-          <div className="mb-4 rounded-xl border border-green-500/40 bg-green-500/10 p-3 text-sm text-green-100">{success}</div>
+          <div className="mb-4 rounded-[6px] border border-[var(--verified)]/30 bg-[var(--verified-soft)] p-3 text-sm text-[var(--verified)]">
+            {success}
+          </div>
         )}
 
         {sortedQuestions.length === 0 ? (
-          <div className="rounded-2xl border border-white/10 bg-black/30 p-10 text-center text-sm text-white/60">
+          <div className="rounded-[6px] border border-dashed border-[var(--rule-strong)] bg-[var(--canvas-subtle)] p-10 text-center text-sm text-[var(--ink-muted)]">
             No questions yet. Add a question to start building your receptionist call flow.
           </div>
         ) : (
@@ -220,62 +236,64 @@ export default function QuestionManager({ workspaceId, initialQuestions, initial
             {sortedQuestions.map((question, idx) => (
               <div
                 key={question.id}
-                className="rounded-2xl border border-white/10 bg-black/25 p-6 shadow-inner shadow-black/40 transition hover:border-[#3351ff]/40"
+                className="rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] p-5 transition hover:border-[var(--rule-strong)]"
               >
                 <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <span className="text-xs uppercase tracking-[0.35em] text-white/40">Question {idx + 1}</span>
-                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="label-section text-[var(--ink-subtle)]">Question {idx + 1}</span>
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
                       onClick={() => reorder(question.id, "up")}
                       disabled={idx === 0}
-                      className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-white/70 transition hover:border-white/30 hover:bg-white/10 disabled:opacity-30"
+                      className={secondaryButtonClass}
                     >
-                      <ArrowUpAZIcon size={14} /> Up
+                      <ArrowUpAZIcon size={14} strokeWidth={1.5} /> Up
                     </button>
                     <button
                       onClick={() => reorder(question.id, "down")}
                       disabled={idx === sortedQuestions.length - 1}
-                      className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-white/70 transition hover:border-white/30 hover:bg-white/10 disabled:opacity-30"
+                      className={secondaryButtonClass}
                     >
-                      <ArrowDownAZIcon size={14} /> Down
+                      <ArrowDownAZIcon size={14} strokeWidth={1.5} /> Down
                     </button>
                     <button
                       onClick={() => deleteQuestion(question.id)}
-                      className="inline-flex items-center gap-1 rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-red-200 transition hover:border-red-400/60 hover:bg-red-500/20"
+                      className={dangerButtonClass}
                     >
-                      <TrashIcon size={14} /> Delete
+                      <TrashIcon size={14} strokeWidth={1.5} /> Delete
                     </button>
                   </div>
                 </div>
 
-                <label className="block text-xs font-semibold uppercase tracking-wide text-white/50">
+                <label className="label-section block text-[var(--ink-muted)]">
                   Prompt
                   <textarea
                     value={question.prompt}
                     onChange={(e) => updateQuestion(question.id, { prompt: e.target.value })}
-                    className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white shadow-inner shadow-black/40 focus:border-[#3351ff]/60 focus:outline-none focus:ring-2 focus:ring-[#3351ff]/30"
+                    className={inputClass}
                     rows={3}
                   />
                 </label>
 
-                <div className="mt-4 grid gap-4 text-sm text-white/70 sm:grid-cols-2">
-                  <label className="block text-xs font-semibold uppercase tracking-wide text-white/50">
-                    Expected Response Type
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <label className="label-section block text-[var(--ink-muted)]">
+                    Expected response type
                     <select
                       value={question.expected_response ?? "open"}
                       onChange={(e) => updateQuestion(question.id, { expected_response: e.target.value })}
-                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-2 text-sm text-white focus:border-[#3351ff]/60 focus:outline-none focus:ring-2 focus:ring-[#3351ff]/30"
+                      className={inputClass}
                     >
                       <option value="open">Open response</option>
                       <option value="number">Number (phone, amount, etc.)</option>
                       <option value="email">Email</option>
                       <option value="yes_no">Yes / No</option>
-                      <option value="datetime">Date & Time</option>
+                      <option value="datetime">Date &amp; time</option>
                     </select>
                   </label>
-                  <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-xs text-white/50">
-                    Last updated:{" "}
-                    {question.updated_at ? new Date(question.updated_at).toLocaleString() : new Date().toLocaleString()}
+                  <div className="flex items-end">
+                    <div className="w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas-subtle)] px-3 py-2 mono text-xs text-[var(--ink-subtle)]">
+                      Last updated:{" "}
+                      {question.updated_at ? new Date(question.updated_at).toLocaleString() : new Date().toLocaleString()}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -284,27 +302,27 @@ export default function QuestionManager({ workspaceId, initialQuestions, initial
         )}
       </section>
 
-      <section className="rounded-3xl border border-white/10 bg-black/40 p-8 shadow-xl">
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-2xl font-semibold text-white">Greeting & Farewell</h2>
-            <p className="text-sm text-white/60">
+      <section className="card-flat p-6">
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1">
+            <h2 className="heading-display text-2xl text-[var(--ink)]">Greeting &amp; farewell</h2>
+            <p className="text-sm text-[var(--ink-muted)]">
               These messages are spoken before the first question and after all questions are complete.
             </p>
           </div>
           <Button
             onClick={saveSettings}
             disabled={savingSettings}
-            className="gap-2 bg-[#3351ff] hover:bg-[#4a64ff]"
+            className={primaryButtonClass}
           >
-            <SaveIcon size={16} />
-            {savingSettings ? "Saving…" : "Save Messages"}
+            <SaveIcon size={16} strokeWidth={1.5} />
+            {savingSettings ? "Saving…" : "Save messages"}
           </Button>
         </div>
 
         <div className="grid gap-6">
-          <label className="block text-xs font-semibold uppercase tracking-wide text-white/50">
-            Twilio Phone Number
+          <label className="label-section block text-[var(--ink-muted)]">
+            Twilio phone number
             <input
               type="tel"
               placeholder="+15551234567"
@@ -315,29 +333,29 @@ export default function QuestionManager({ workspaceId, initialQuestions, initial
                   twilio_phone_number: e.target.value,
                 }))
               }
-              className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white focus:border-[#3351ff]/60 focus:outline-none focus:ring-2 focus:ring-[#3351ff]/30"
+              className={inputClass}
             />
-            <span className="mt-1 block text-[11px] text-white/40">
+            <span className="mt-1.5 block text-[11px] text-[var(--ink-subtle)] normal-case tracking-normal">
               Enter the exact Twilio number (E.164 format) you pointed at this webhook. Example: +15551234567
             </span>
           </label>
 
-          <label className="block text-xs font-semibold uppercase tracking-wide text-white/50">
+          <label className="label-section block text-[var(--ink-muted)]">
             Greeting (played when the call is answered)
             <textarea
               value={settings.greeting}
               onChange={(e) => setSettings((prev) => ({ ...prev, greeting: e.target.value }))}
-              className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white focus:border-[#3351ff]/60 focus:outline-none focus:ring-2 focus:ring-[#3351ff]/30"
+              className={inputClass}
               rows={3}
             />
           </label>
 
-          <label className="block text-xs font-semibold uppercase tracking-wide text-white/50">
+          <label className="label-section block text-[var(--ink-muted)]">
             Farewell (played after the final question and AI response)
             <textarea
               value={settings.farewell}
               onChange={(e) => setSettings((prev) => ({ ...prev, farewell: e.target.value }))}
-              className="mt-2 w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white focus:border-[#3351ff]/60 focus:outline-none focus:ring-2 focus:ring-[#3351ff]/30"
+              className={inputClass}
               rows={3}
             />
           </label>
@@ -346,4 +364,3 @@ export default function QuestionManager({ workspaceId, initialQuestions, initial
     </div>
   );
 }
-
