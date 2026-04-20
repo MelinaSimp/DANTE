@@ -35,7 +35,7 @@ export default async function ClientDetailsOverviewPage({
   const initialContactId = params.contactId ?? null;
 
   return (
-    <div className="min-h-screen bg-[#f5f5f7]">
+    <div className="min-h-screen bg-[var(--canvas)]">
       <ClientDetailsOverviewClient
         initialContacts={contacts}
         initialContactId={initialContactId}

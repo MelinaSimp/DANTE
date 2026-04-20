@@ -14,16 +14,13 @@ import {
   FileStack,
   UserPlus,
   Pencil,
-  Bot,
-  Calendar,
   FileText,
-  CalendarClock,
   Phone,
-  Mail,
   Download,
   Share2,
   Archive,
   Inbox,
+  ShieldAlert,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { formatPhoneToE164 } from "@/lib/validation";
@@ -45,8 +42,6 @@ const DocumentSummaryChat = dynamic(
   { ssr: false, loading: () => <div className="flex items-center justify-center p-4 text-[var(--ink-subtle)] text-sm">Loading…</div> }
 );
 import ConfirmationModal from "@/components/frontend/ConfirmationModal";
-import { useFeatures } from "@/hooks/useFeatures";
-import type { FeatureId } from "@/lib/features";
 import { reportError } from "@/lib/report-error";
 
 type Contact = { id: string; name: string; phone?: string; email?: string };
@@ -101,20 +96,22 @@ export default function ClientDetailsOverviewClient({
       .catch(reportError("ClientDetailsOverview: load agents"));
   }, [panelMode]);
 
-  const { features } = useFeatures();
-
+  // In-page section nav. Each item scrolls to an anchor inside the main
+  // content; these are the scopes a compliance officer cares about on a
+  // single client: the high-level read, source docs, call review, notes
+  // on file, and anything the rules engine flagged.
   const sidebarNavItems = [
-    { name: "Agents", icon: Bot, href: "/frontend", active: false },
-    { name: "Calendar", icon: Calendar, href: agentId ? `/frontend/agent/${agentId}/schedule` : "#", active: false, featureId: "calendar" as FeatureId },
-    { name: "Client Details", icon: FileText, href: "/client-details-overview", active: true, featureId: "client_details" as FeatureId },
-    { name: "Meeting Planner", icon: CalendarClock, href: agentId ? `/frontend/agent/${agentId}/llm` : "#", active: false, featureId: "meeting_planner" as FeatureId },
-    { name: "Sales", icon: Phone, href: agentId ? `/frontend/agent/${agentId}/sales` : "#", active: false, featureId: "sales" as FeatureId },
-    { name: "Emailing", icon: Mail, href: agentId ? `/frontend/agent/${agentId}/emailing` : "#", active: false, featureId: "emailing" as FeatureId },
+    { name: "Overview", icon: FileText, anchor: "overview" },
+    { name: "Documents", icon: FileStack, anchor: "documents" },
+    { name: "Call audits", icon: Phone, anchor: "call-audits" },
+    { name: "Notes", icon: Pencil, anchor: "notes" },
+    { name: "Compliance flags", icon: ShieldAlert, anchor: "compliance-flags" },
   ];
 
   const [view, setView] = useState<View>("select");
   const [selected, setSelected] = useState<SelectedEntity>(null);
   const [activeSection, setActiveSection] = useState("account-overview");
+  const [clientSearchQuery, setClientSearchQuery] = useState("");
   const [actionsOpen, setActionsOpen] = useState(false);
   const [document, setDocument] = useState<{
     id: string;
@@ -675,86 +672,117 @@ export default function ClientDetailsOverviewClient({
     <div className={`relative ${className}`}>{children}</div>
   );
 
-  // ——— Selection screen (household vs client bars) ———
+  // ——— Clients list (Harvey-style dense table) ———
   if (view === "select") {
+    const query = clientSearchQuery.trim().toLowerCase();
+    const filteredContacts = query
+      ? contacts.filter(
+          (c) =>
+            c.name.toLowerCase().includes(query) ||
+            (c.phone ?? "").toLowerCase().includes(query) ||
+            (c.email ?? "").toLowerCase().includes(query)
+        )
+      : contacts;
+
     return (
-      <div className={panelMode ? "bg-[var(--canvas)] text-[var(--ink)]" : "min-h-[calc(100vh-4rem)] bg-[var(--canvas-subtle)] text-[var(--ink)]"}>
-        <div className={panelMode ? "mx-auto max-w-2xl px-6 py-8" : "mx-auto max-w-2xl px-6 py-12"}>
-          {!panelMode && (
+      <div className={panelMode ? "bg-[var(--canvas)] text-[var(--ink)]" : "min-h-[calc(100vh-4rem)] bg-[var(--canvas)] text-[var(--ink)]"}>
+        <div className={panelMode ? "mx-auto max-w-6xl px-6 py-8" : "mx-auto max-w-6xl px-6 md:px-10 py-12"}>
+          {/* Editorial header */}
+          <div className="mb-8 flex items-end justify-between gap-4">
+            <div>
+              <div className="label-section mb-2">Workspace</div>
+              <h1 className="heading-display text-4xl md:text-5xl text-[var(--ink)]">Clients</h1>
+              <p className="prose-body text-[var(--ink-muted)] mt-2">
+                {contacts.length} {contacts.length === 1 ? "household" : "households"} on file. Click a row to open.
+              </p>
+            </div>
             <button
               type="button"
-              onClick={() => router.back()}
-              className="mb-6 flex items-center gap-2 text-sm font-medium text-[var(--ink-muted)] hover:text-[var(--ink)] transition-colors"
+              onClick={() => { setShowAddClient(true); setAddClientError(null); }}
+              className="inline-flex items-center gap-2 rounded-[4px] bg-[var(--ink)] px-4 py-2 text-sm font-medium text-[var(--canvas)] hover:bg-[var(--ink)]/90 transition"
             >
-              <ArrowLeft className="h-4 w-4" />
-              Back
+              <UserPlus className="h-4 w-4" strokeWidth={1.5} />
+              Add client
             </button>
-          )}
-
-          <div className="relative">
-            <p className="text-center text-sm text-[var(--ink-muted)]">{formatTime()}</p>
-            <h1 className="mt-2 text-center text-2xl font-bold text-[var(--ink)]">
-              Prepare a report for a client?
-            </h1>
           </div>
 
-          <div className="mt-10 space-y-4 relative">
-            <div className="flex items-center justify-between gap-4">
-              <p className="text-sm text-[var(--ink-muted)]">Select a client</p>
-              <button
-                type="button"
-                onClick={() => { setShowAddClient(true); setAddClientError(null); }}
-                className="flex items-center gap-2 rounded-full border border-[var(--rule)] bg-[var(--canvas)] px-4 py-2 text-sm font-medium text-[var(--ink)] transition hover:border-[var(--accent)]/40 hover:bg-[var(--canvas-subtle)]"
-              >
-                <UserPlus className="h-4 w-4" />
-                Add client
-              </button>
-            </div>
+          {/* Search */}
+          <div className="mb-4">
+            <input
+              type="text"
+              value={clientSearchQuery}
+              onChange={(e) => setClientSearchQuery(e.target.value)}
+              placeholder="Search by name, phone, or email…"
+              className="w-full max-w-sm rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:border-[var(--accent)] focus:outline-none transition"
+            />
+          </div>
 
-            {/* Client cards — rounder, no halo; click to select, Edit/Delete on right */}
-            {contacts.length === 0 ? (
-              <p className="text-center text-sm text-[var(--ink-muted)] py-4">No contacts yet. Click &quot;Add client&quot; to add one.</p>
-            ) : (
-              contacts.map((client) => (
+          {/* Dense table */}
+          {contacts.length === 0 ? (
+            <div className="border-t border-b border-[var(--rule)] py-16 text-center">
+              <p className="text-sm text-[var(--ink-muted)] italic">
+                No clients yet. Click &ldquo;Add client&rdquo; to add your first household.
+              </p>
+            </div>
+          ) : filteredContacts.length === 0 ? (
+            <div className="border-t border-b border-[var(--rule)] py-10 text-center">
+              <p className="text-sm text-[var(--ink-muted)] italic">
+                No clients match &ldquo;{clientSearchQuery}&rdquo;.
+              </p>
+            </div>
+          ) : (
+            <div className="border-t border-b border-[var(--rule)]">
+              {/* Column header row */}
+              <div className="grid grid-cols-[1.5fr_1fr_1.5fr_auto] gap-4 px-4 py-2.5 border-b border-[var(--rule)] bg-[var(--canvas-subtle)]">
+                <div className="label-section">Name</div>
+                <div className="label-section">Phone</div>
+                <div className="label-section">Email</div>
+                <div className="label-section w-20 text-right">Actions</div>
+              </div>
+              {filteredContacts.map((client) => (
                 <div
                   key={client.id}
-                  className="flex w-full items-center justify-between gap-2 rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] px-5 py-4 transition hover:border-[var(--accent)]/40 hover:bg-[var(--canvas-subtle)]"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => handleSelectClient(client)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      handleSelectClient(client);
+                    }
+                  }}
+                  className="group grid grid-cols-[1.5fr_1fr_1.5fr_auto] gap-4 px-4 py-3 border-b border-[var(--rule)] last:border-b-0 cursor-pointer transition hover:bg-[var(--canvas-subtle)] focus:bg-[var(--canvas-subtle)] focus:outline-none"
                 >
-                  <button
-                    type="button"
-                    onClick={() => handleSelectClient(client)}
-                    className="flex flex-1 min-w-0 items-center justify-between gap-3 text-left"
-                  >
-                    <span className="text-lg font-semibold text-[var(--ink)] truncate">{client.name}</span>
-                    {client.phone && (
-                      <span className="rounded-full bg-[var(--accent-soft)] px-3 py-1 text-sm text-[var(--accent)] shrink-0">
-                        {client.phone}
-                      </span>
-                    )}
-                  </button>
-                  <div className="flex items-center gap-1 shrink-0">
+                  <div className="text-[15px] font-medium text-[var(--ink)] truncate">{client.name}</div>
+                  <div className="text-sm mono text-[var(--ink-muted)] truncate">
+                    {client.phone || <span className="text-[var(--ink-subtle)]">—</span>}
+                  </div>
+                  <div className="text-sm text-[var(--ink-muted)] truncate">
+                    {client.email || <span className="text-[var(--ink-subtle)]">—</span>}
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0 w-20 justify-end" onClick={(e) => e.stopPropagation()}>
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); openEditModal(client); }}
-                      className="p-2 rounded-[4px] text-[var(--ink-muted)] hover:bg-[var(--canvas-subtle)] hover:text-[var(--ink)]"
+                      className="p-1.5 rounded-[4px] text-[var(--ink-subtle)] hover:bg-[var(--canvas)] hover:text-[var(--ink)] opacity-0 group-hover:opacity-100 transition"
                       title="Edit client"
                     >
-                      <Pencil className="h-4 w-4" />
+                      <Pencil className="h-3.5 w-3.5" strokeWidth={1.5} />
                     </button>
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); handleDeleteClient(client); }}
                       disabled={deletingContactId === client.id}
-                      className="p-2 rounded-[4px] text-[var(--ink-muted)] hover:bg-[var(--danger-soft)] hover:text-[var(--danger)] disabled:opacity-50"
+                      className="p-1.5 rounded-[4px] text-[var(--ink-subtle)] hover:bg-[var(--danger-soft)] hover:text-[var(--danger)] disabled:opacity-30 opacity-0 group-hover:opacity-100 transition"
                       title="Delete client"
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
                     </button>
                   </div>
                 </div>
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          )}
 
           {/* Add client modal */}
           {showAddClient && (
@@ -946,27 +974,28 @@ export default function ClientDetailsOverviewClient({
   return (
     <div className={panelMode ? "flex bg-[var(--canvas)] text-[var(--ink)] h-full" : "min-h-[calc(100vh-4rem)] flex bg-[var(--canvas-subtle)] text-[var(--ink)]"}>
       {!panelMode && (
-        <div className="hidden md:flex flex-col w-48 border-r border-[var(--rule)] bg-[var(--canvas)] shrink-0">
-          <div className="p-4 border-b border-[var(--rule)] flex items-center gap-2">
-            <Link href="/frontend" className="flex items-center gap-2">
-              <img src="/brand/logo-circle.png" alt="Drift" className="w-7 h-7 rounded-full object-cover" />
-              <span className="text-sm font-semibold text-[var(--ink)]">Drift</span>
+        <div className="hidden md:flex flex-col w-52 border-r border-[var(--rule)] bg-[var(--canvas)] shrink-0 sticky top-0 self-start h-screen">
+          <div className="p-4 border-b border-[var(--rule)]">
+            <Link href="/dashboard" className="flex items-center gap-2 text-[var(--ink-subtle)] hover:text-[var(--ink)] transition text-xs mb-3">
+              <ArrowLeft className="w-3.5 h-3.5" strokeWidth={1.5} />
+              <span>Dashboard</span>
             </Link>
+            <div className="label-section mb-1">Client</div>
+            <div className="heading-display text-lg text-[var(--ink)] truncate">{selected?.name ?? "Unassigned"}</div>
           </div>
-          <nav className="flex-1 p-3 space-y-1">
-            {sidebarNavItems.filter((item) => !item.featureId || features.includes(item.featureId)).map((item) => {
+          <nav className="flex-1 p-3 space-y-0.5">
+            <div className="label-section px-3 pt-2 pb-1">Sections</div>
+            {sidebarNavItems.map((item) => {
               const Icon = item.icon;
               return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center gap-2.5 px-3 py-2 rounded-[4px] text-sm font-medium transition-all duration-200 ${
-                    item.active ? "bg-[var(--canvas-subtle)] text-[var(--ink)]" : "text-[var(--ink-muted)] hover:bg-[var(--canvas-subtle)] hover:text-[var(--ink)]"
-                  }`}
+                <a
+                  key={item.anchor}
+                  href={`#${item.anchor}`}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-[4px] text-sm font-medium text-[var(--ink-muted)] hover:bg-[var(--canvas-subtle)] hover:text-[var(--ink)] transition"
                 >
-                  <Icon className="w-4 h-4" />
+                  <Icon className="w-4 h-4" strokeWidth={1.5} />
                   <span>{item.name}</span>
-                </Link>
+                </a>
               );
             })}
           </nav>
@@ -1043,22 +1072,27 @@ export default function ClientDetailsOverviewClient({
           </div>
         </div>
 
-        {/* Content card */}
-        <div className="mx-6 my-6 max-w-4xl">
-          <div className="rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] p-6">
-            <p className="text-sm text-[var(--ink-muted)]">{formatTime()}</p>
-            <h2 className="mt-1 flex items-center gap-2 text-xl font-bold text-[var(--ink)]">
-              <span className="text-[var(--accent)]">V</span>
-              Here&apos;s an overview on {displayName}.
-            </h2>
-            <p className="mt-3 text-[var(--ink)]">
+        {/* Content */}
+        <div className="mx-6 my-8 max-w-4xl space-y-10">
+          {/* Overview section */}
+          <section id="overview" className="scroll-mt-24">
+            <div className="label-section mb-2">Overview</div>
+            <h2 className="heading-display text-3xl text-[var(--ink)] mb-3">{displayName}</h2>
+            <p className="prose-body text-[var(--ink-muted)]">
               {document
-                ? `${displayName} has a document on file and ${templates.length} template${templates.length !== 1 ? "s" : ""} available.`
-                : `No documents uploaded yet for ${displayName}. Upload documents to get started.`}
+                ? `${templates.length} template${templates.length !== 1 ? "s" : ""} available, one primary document on file.`
+                : `No documents uploaded yet. Upload a PDF below to start building templates.`}
             </p>
+          </section>
 
+          {/* Documents section — combines templates and uploads */}
+          <section id="documents" className="scroll-mt-24">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="label-section">Documents</span>
+              <FileStack className="w-3.5 h-3.5 text-[var(--ink-muted)]" strokeWidth={1.5} />
+            </div>
             {activeSection === "account-overview" && (
-              <div className="mt-8 space-y-8">
+              <div className="space-y-8">
                 {/* Templates at top */}
                 <div className="rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] p-4">
                   <h3 className="text-sm font-semibold uppercase tracking-wider text-[var(--ink-muted)] mb-3">Templates</h3>
@@ -1502,11 +1536,35 @@ export default function ClientDetailsOverviewClient({
                   </div>
                 )}
                 </div>
+              </div>
+            )}
+          </section>
 
+          {/* Call audits — placeholder. Real audits open via note chips below. */}
+          <section id="call-audits" className="scroll-mt-24">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="label-section">Call audits</span>
+              <Phone className="w-3.5 h-3.5 text-[var(--ink-muted)]" strokeWidth={1.5} />
+            </div>
+            <div className="rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] p-4">
+              <p className="text-sm text-[var(--ink-muted)]">
+                Audits appear alongside each call-generated note below. Open a note with the &ldquo;Call recording&rdquo; chip to see citation-grounded summary segments.
+              </p>
+            </div>
+          </section>
+
+          {/* Notes section */}
+          <section id="notes" className="scroll-mt-24">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="label-section">Notes</span>
+              <Pencil className="w-3.5 h-3.5 text-[var(--ink-muted)]" strokeWidth={1.5} />
+            </div>
+            {activeSection === "account-overview" && (
+              <div>
                 {/* Notes — hand-written + AI-generated call summaries */}
                 <div className="rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] p-4">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="label-section">Notes</h3>
+                    <h3 className="label-section">All notes</h3>
                     {selected?.type === "client" && (
                       <Link
                         href={`/call?contactId=${selected.id}`}
@@ -1605,9 +1663,20 @@ export default function ClientDetailsOverviewClient({
                 </div>
               </div>
             )}
+          </section>
 
-
-          </div>
+          {/* Compliance flags — placeholder. Rule-engine hits will land here. */}
+          <section id="compliance-flags" className="scroll-mt-24">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="label-section">Compliance flags</span>
+              <ShieldAlert className="w-3.5 h-3.5 text-[var(--flag)]" strokeWidth={1.5} />
+            </div>
+            <div className="rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] p-4">
+              <p className="text-sm text-[var(--ink-muted)]">
+                No flags on this client. Rule-based triggers (RMD due, age-band transitions, suitability drift, stale review) surface here once they fire.
+              </p>
+            </div>
+          </section>
         </div>
       </div>
 

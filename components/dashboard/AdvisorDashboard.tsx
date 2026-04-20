@@ -23,7 +23,6 @@ import {
   AlertTriangle,
   LogOut,
   LayoutDashboard,
-  FileText,
   Database,
   Loader2,
   CheckCircle2,
@@ -150,10 +149,28 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
             Calls
           </Link>
           <Link
-            href="/dashboard/agents"
+            href="/calendar"
             className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
           >
-            Agents
+            Calendar
+          </Link>
+          <Link
+            href="/email"
+            className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
+          >
+            Email
+          </Link>
+          <Link
+            href="/agent"
+            className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
+          >
+            Agent
+          </Link>
+          <Link
+            href="/reference"
+            className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
+          >
+            Reference
           </Link>
           <Link
             href="/settings"
@@ -410,13 +427,7 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
         </section>
 
         {/* Footer — deeper links that aren't already in the header nav or stat strip. */}
-        <section className="border-t border-[var(--rule)] pt-8 grid grid-cols-2 md:grid-cols-2 gap-6">
-          <QuickLink
-            href="/reference"
-            label="Reference"
-            icon={<FileText className="w-4 h-4" />}
-            hint="IRS / SEC / FINRA sources"
-          />
+        <section className="border-t border-[var(--rule)] pt-8 grid grid-cols-1 gap-6">
           <QuickLink
             href="/dashboard/legacy"
             label="Analytics"
