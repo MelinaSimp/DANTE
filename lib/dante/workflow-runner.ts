@@ -1,20 +1,23 @@
 // lib/dante/workflow-runner.ts
 //
-// Dante workflow runtime — the sequential step executor. Takes a
-// WorkflowDefinition + optional input, walks its steps one by one,
-// passes each step's output into the shared context so later steps
-// can template off it, and returns a structured log.
+// Dante workflow runtime — DAG executor.
 //
-// Design notes:
-//   • Linear execution for v1 — no branching beyond `condition` step.
-//     Phase 2 adds a true DAG + parallel execution; the log shape is
-//     already DAG-friendly (each entry is keyed by step id).
-//   • Template syntax is {{steps.<id>.<path>}} or {{input.<path>}}.
-//     We only substitute strings; non-string config values pass
-//     through untouched. That keeps simple JSON bodies usable.
-//   • All external calls (HTTP, OpenAI, Resend) happen server-side
-//     with the service-role Supabase client — this must never be
-//     called from a browser.
+// Phase 1 was a linear step list. Phase 2 walks a graph: start from
+// the trigger node, execute each reachable node once, and choose
+// outgoing edges based on node type:
+//
+//   • condition nodes — emit on the "true" handle if the expression
+//     evaluates true, on "false" otherwise.
+//   • everything else — follow all outgoing edges (which is usually
+//     just one; multiple outgoing edges from a plain action is a
+//     valid way to fan-out, though we execute them sequentially).
+//
+// Execution order is topo-sorted within each reachable subgraph, so a
+// node with multiple incoming edges only fires after all its parents
+// have run. Parallel execution is a phase-3 flag.
+//
+// Triggers are pass-throughs: the run's `input` is exposed at
+// {{steps.<trigger_id>.input}} so downstream nodes can pick it up.
 
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import type {
@@ -22,6 +25,7 @@ import type {
   WorkflowStep,
   StepLogEntry,
   WorkflowRunResult,
+  GraphNode,
 } from "./workflow-types";
 
 // ── Template resolver ─────────────────────────────────────────
@@ -58,12 +62,10 @@ function resolveTemplate(value: unknown, ctx: Ctx): unknown {
 }
 
 // ── Condition mini-evaluator ──────────────────────────────────
-// Not a general expression language — just enough to be useful:
 //   "<left> contains <right>"
 //   "<left> == <right>"  / "<left> != <right>"
 //   "<left> > <num>"     / "<left> < <num>"
-// Strings should be quoted with ' or ". Everything else is treated
-// as a number if parseable, else string.
+// Strings quoted with ' or ". Numbers parsed when possible.
 
 function evaluateCondition(expr: string): boolean {
   const contains = expr.match(/^(.+?)\s+contains\s+(.+)$/i);
@@ -84,7 +86,6 @@ function evaluateCondition(expr: string): boolean {
       case "<=": return Number(lv) <= Number(rv);
     }
   }
-  // Fallback: truthy check on the resolved string.
   return Boolean(expr && expr !== "false" && expr !== "0");
 }
 
@@ -99,11 +100,13 @@ function coerce(s: string): string | number {
 }
 
 // ── Step runners ──────────────────────────────────────────────
+// These take the pre-resolved config (templates already substituted
+// in) rather than the raw step, so the dispatch below can do one
+// resolveTemplate() pass per node.
 
-async function runHttp(step: Extract<WorkflowStep, { type: "http" }>, ctx: Ctx) {
-  const cfg = resolveTemplate(step.config, ctx) as {
-    url: string; method?: string; headers?: Record<string, string>; body?: unknown;
-  };
+async function runHttp(cfg: {
+  url: string; method?: string; headers?: Record<string, string>; body?: unknown;
+}) {
   const res = await fetch(cfg.url, {
     method: cfg.method || "GET",
     headers: { "Content-Type": "application/json", ...(cfg.headers || {}) },
@@ -117,10 +120,9 @@ async function runHttp(step: Extract<WorkflowStep, { type: "http" }>, ctx: Ctx) 
   return { status: res.status, ok: res.ok, body: json ?? text };
 }
 
-async function runOpenAI(step: Extract<WorkflowStep, { type: "openai" }>, ctx: Ctx) {
-  const cfg = resolveTemplate(step.config, ctx) as {
-    model?: string; system?: string; prompt: string; max_tokens?: number;
-  };
+async function runOpenAI(cfg: {
+  model?: string; system?: string; prompt: string; max_tokens?: number;
+}) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
   const messages: Array<{ role: string; content: string }> = [];
@@ -135,7 +137,7 @@ async function runOpenAI(step: Extract<WorkflowStep, { type: "openai" }>, ctx: C
     body: JSON.stringify({
       model: cfg.model || "gpt-4o-mini",
       messages,
-      max_tokens: cfg.max_tokens || 800,
+      max_tokens: Number(cfg.max_tokens) || 800,
     }),
   });
   if (!res.ok) throw new Error(`OpenAI ${res.status}: ${await res.text()}`);
@@ -145,34 +147,24 @@ async function runOpenAI(step: Extract<WorkflowStep, { type: "openai" }>, ctx: C
 }
 
 async function runQueryClients(
-  step: Extract<WorkflowStep, { type: "query_clients" }>,
-  ctx: Ctx,
+  cfg: { filter?: Record<string, string>; limit?: number },
   workspaceId: string
 ) {
-  const cfg = resolveTemplate(step.config, ctx) as {
-    filter?: Record<string, string>; limit?: number;
-  };
   let q = supabaseAdmin
     .from("contacts")
     .select("id, name, email, phone, created_at")
     .eq("workspace_id", workspaceId);
-  for (const [k, v] of Object.entries(cfg.filter || {})) {
-    q = q.eq(k, v);
-  }
-  q = q.limit(Math.min(cfg.limit ?? 50, 500));
+  for (const [k, v] of Object.entries(cfg.filter || {})) q = q.eq(k, v);
+  q = q.limit(Math.min(Number(cfg.limit) || 25, 500));
   const { data, error } = await q;
   if (error) throw new Error(error.message);
   return { contacts: data || [], count: data?.length ?? 0 };
 }
 
 async function runUpdateContact(
-  step: Extract<WorkflowStep, { type: "update_contact" }>,
-  ctx: Ctx,
+  cfg: { contact_id: string; patch: Record<string, unknown> },
   workspaceId: string
 ) {
-  const cfg = resolveTemplate(step.config, ctx) as {
-    contact_id: string; patch: Record<string, unknown>;
-  };
   const { data, error } = await supabaseAdmin
     .from("contacts")
     .update(cfg.patch)
@@ -184,25 +176,17 @@ async function runUpdateContact(
   return { contact: data };
 }
 
-async function runSendEmail(step: Extract<WorkflowStep, { type: "send_email" }>, ctx: Ctx) {
-  const cfg = resolveTemplate(step.config, ctx) as {
-    to: string; subject: string; html?: string; text?: string;
-  };
+async function runSendEmail(cfg: {
+  to: string; subject: string; html?: string; text?: string;
+}) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) throw new Error("RESEND_API_KEY not configured");
   const from = process.env.RESEND_FROM_EMAIL || "noreply@driftai.studio";
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      from,
-      to: cfg.to,
-      subject: cfg.subject,
-      html: cfg.html,
-      text: cfg.text,
+      from, to: cfg.to, subject: cfg.subject, html: cfg.html, text: cfg.text,
     }),
   });
   const json = await res.json();
@@ -210,16 +194,93 @@ async function runSendEmail(step: Extract<WorkflowStep, { type: "send_email" }>,
   return { email_id: json.id, to: cfg.to };
 }
 
-async function runCondition(step: Extract<WorkflowStep, { type: "condition" }>, ctx: Ctx) {
-  const resolved = resolveTemplate(step.config.expression, ctx) as string;
-  const passed = evaluateCondition(resolved);
-  return { expression: resolved, passed };
-}
-
-async function runDelay(step: Extract<WorkflowStep, { type: "delay" }>) {
-  const seconds = Math.min(60, Math.max(0, step.config.seconds || 0));
+async function runDelay(cfg: { seconds: number }) {
+  const seconds = Math.min(60, Math.max(0, Number(cfg.seconds) || 0));
   await new Promise((r) => setTimeout(r, seconds * 1000));
   return { waited_seconds: seconds };
+}
+
+// ── Graph walk ────────────────────────────────────────────────
+
+/**
+ * Single dispatch point — given a node and a resolved context, produce
+ * the node's output. Triggers pass the run input straight through.
+ */
+async function executeNode(
+  step: WorkflowStep,
+  ctx: Ctx,
+  workspaceId: string
+): Promise<unknown> {
+  const cfg = resolveTemplate(step.config, ctx) as Record<string, unknown>;
+
+  switch (step.type) {
+    case "trigger_manual":
+    case "trigger_cron":
+    case "trigger_webhook":
+      // Triggers expose the run input so downstream can template off
+      // {{steps.<trigger_id>.input.<field>}}.
+      return { input: ctx.input };
+    case "http":
+      return runHttp(cfg as Parameters<typeof runHttp>[0]);
+    case "openai":
+      return runOpenAI(cfg as Parameters<typeof runOpenAI>[0]);
+    case "query_clients":
+      return runQueryClients(cfg as Parameters<typeof runQueryClients>[0], workspaceId);
+    case "update_contact":
+      return runUpdateContact(cfg as Parameters<typeof runUpdateContact>[0], workspaceId);
+    case "send_email":
+      return runSendEmail(cfg as Parameters<typeof runSendEmail>[0]);
+    case "condition": {
+      const expr = String(cfg.expression ?? "");
+      const passed = evaluateCondition(expr);
+      return { expression: expr, passed };
+    }
+    case "delay":
+      return runDelay(cfg as Parameters<typeof runDelay>[0]);
+    default: {
+      const t = (step as { type: string }).type;
+      throw new Error(`Unknown node type: ${t}`);
+    }
+  }
+}
+
+/**
+ * Pick the outgoing node ids we should visit after `nodeId` runs.
+ * Condition nodes use the sourceHandle to branch; everything else
+ * follows every outgoing edge.
+ */
+function nextNodeIds(
+  nodeId: string,
+  nodeType: WorkflowStep["type"],
+  output: unknown,
+  edges: WorkflowDefinition["graph"]["edges"]
+): string[] {
+  const outgoing = edges.filter((e) => e.source === nodeId);
+
+  if (nodeType === "condition") {
+    const passed = (output as { passed: boolean })?.passed === true;
+    const handle: "true" | "false" = passed ? "true" : "false";
+    return outgoing
+      .filter((e) => (e.sourceHandle || "true") === handle)
+      .map((e) => e.target);
+  }
+
+  return outgoing.map((e) => e.target);
+}
+
+/**
+ * Find the trigger node. If multiple triggers exist (shouldn't
+ * happen, but be robust), prefer trigger_manual > webhook > cron
+ * for a manual run, and fall back to the first trigger we see.
+ */
+function findTrigger(nodes: GraphNode[]): GraphNode | null {
+  const triggers = nodes.filter((n) => n.type.startsWith("trigger_"));
+  if (triggers.length === 0) return null;
+  return (
+    triggers.find((n) => n.type === "trigger_manual") ||
+    triggers.find((n) => n.type === "trigger_webhook") ||
+    triggers[0]
+  );
 }
 
 // ── Main ──────────────────────────────────────────────────────
@@ -231,26 +292,44 @@ export async function runWorkflow(
   const ctx: Ctx = { input, steps: {} };
   const log: StepLogEntry[] = [];
 
-  for (const step of workflow.steps) {
-    const started_at = new Date().toISOString();
-    try {
-      let output: unknown;
-      switch (step.type) {
-        case "http":           output = await runHttp(step, ctx); break;
-        case "openai":         output = await runOpenAI(step, ctx); break;
-        case "query_clients":  output = await runQueryClients(step, ctx, workflow.workspace_id); break;
-        case "update_contact": output = await runUpdateContact(step, ctx, workflow.workspace_id); break;
-        case "send_email":     output = await runSendEmail(step, ctx); break;
-        case "condition":      output = await runCondition(step, ctx); break;
-        case "delay":          output = await runDelay(step); break;
-        default: {
-          // Should be unreachable. Kept for runtime safety if the DB
-          // ever holds a step type the runner hasn't learned yet.
-          const t = (step as { type: string }).type;
-          throw new Error(`Unknown step type: ${t}`);
-        }
-      }
+  const { nodes, edges } = workflow.graph;
+  if (nodes.length === 0) {
+    return { status: "success", log, output: {} };
+  }
 
+  const nodeById = new Map(nodes.map((n) => [n.id, n]));
+  const trigger = findTrigger(nodes);
+  if (!trigger) {
+    return {
+      status: "error",
+      log,
+      output: {},
+      error: "No trigger node in graph. Add a trigger to start the workflow.",
+    };
+  }
+
+  // Fire-once BFS from the trigger. Each node runs the first time
+  // it's dequeued; convergent nodes (multiple parents) fire once as
+  // soon as any parent reaches them. True wait-for-all-parents
+  // semantics is a phase-3 upgrade and rarely useful in practice —
+  // n8n's own default is "whoever gets here first wins".
+  const queue: string[] = [trigger.id];
+  const fired = new Set<string>();
+
+  while (queue.length > 0) {
+    const id = queue.shift()!;
+    if (fired.has(id)) continue;
+    const node = nodeById.get(id);
+    if (!node) continue;
+    fired.add(id);
+
+    const step = node.data.step;
+    const started_at = new Date().toISOString();
+    let output: unknown;
+    let errored = false;
+
+    try {
+      output = await executeNode(step, ctx, workflow.workspace_id);
       ctx.steps[step.id] = output;
       log.push({
         step_id: step.id,
@@ -261,16 +340,8 @@ export async function runWorkflow(
         finished_at: new Date().toISOString(),
         output,
       });
-
-      // Condition step can short-circuit the run if it evaluates false.
-      if (
-        step.type === "condition" &&
-        (output as { passed: boolean }).passed === false &&
-        step.config.on_false === "stop"
-      ) {
-        return { status: "success", log, output: ctx.steps };
-      }
     } catch (err) {
+      errored = true;
       const message = err instanceof Error ? err.message : String(err);
       log.push({
         step_id: step.id,
@@ -281,9 +352,18 @@ export async function runWorkflow(
         finished_at: new Date().toISOString(),
         error: message,
       });
-      if (step.on_error === "continue") continue;
-      return { status: "error", log, output: ctx.steps, error: message };
+      if (step.on_error !== "continue") {
+        return { status: "error", log, output: ctx.steps, error: message };
+      }
+      // on_error === "continue": fall through and still walk children
+      // so the rest of the graph can make progress.
+      ctx.steps[step.id] = { error: message };
     }
+
+    const nexts = errored
+      ? edges.filter((e) => e.source === id).map((e) => e.target)
+      : nextNodeIds(id, step.type, output, edges);
+    for (const n of nexts) if (!fired.has(n)) queue.push(n);
   }
 
   return { status: "success", log, output: ctx.steps };

@@ -41,6 +41,19 @@ export async function POST(request: Request) {
   const name = (body.name as string)?.trim();
   if (!name) return NextResponse.json({ error: "Name required" }, { status: 400 });
 
+  // Default graph seeds a single manual trigger so the canvas isn't
+  // empty when the editor loads. Callers (notably the AI generator)
+  // can pass their own `graph` to override.
+  const defaultGraph = {
+    nodes: [{
+      id: "trigger",
+      type: "trigger_manual",
+      position: { x: 80, y: 80 },
+      data: { step: { id: "trigger", type: "trigger_manual", name: "Manual trigger", config: {} } },
+    }],
+    edges: [],
+  };
+
   const { data, error } = await supabaseAdmin
     .from("dante_workflows")
     .insert({
@@ -50,6 +63,7 @@ export async function POST(request: Request) {
       description: body.description ?? null,
       trigger: body.trigger ?? { type: "manual" },
       steps: body.steps ?? [],
+      graph: body.graph ?? defaultGraph,
     })
     .select()
     .single();

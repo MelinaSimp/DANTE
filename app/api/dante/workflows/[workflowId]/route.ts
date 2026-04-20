@@ -64,6 +64,9 @@ export async function PUT(
   if (typeof body.enabled === "boolean") patch.enabled = body.enabled;
   if (body.trigger !== undefined) patch.trigger = body.trigger;
   if (Array.isArray(body.steps)) patch.steps = body.steps;
+  // Phase-2 graph shape { nodes, edges, viewport? }. Writes here,
+  // reads always via definitionFromRow() which tolerates either.
+  if (body.graph && typeof body.graph === "object") patch.graph = body.graph;
 
   const { data, error } = await supabaseAdmin
     .from("dante_workflows")

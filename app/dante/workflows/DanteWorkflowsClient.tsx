@@ -2,16 +2,19 @@
 
 // app/dante/workflows/DanteWorkflowsClient.tsx
 //
-// Workflow list view. Click "New workflow" to create a blank workflow
-// then push into the editor. Each row shows last-run status + an
-// Open button to edit/run it.
+// Workflow list view. The primary creation path is "Generate with
+// Dante" — a prompt box that POSTs to /api/dante/workflows/generate
+// and pushes the user straight into the editor with the generated
+// canvas already loaded. "Start blank" is the secondary option.
+//
+// Each row below shows last-run status + an Open button.
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft, Plus, Loader2, Play, Zap, AlertCircle,
-  CheckCircle2, Circle, Trash2,
+  CheckCircle2, Circle, Trash2, Sparkles, ArrowRight,
 } from "lucide-react";
 
 interface WorkflowRow {
@@ -24,6 +27,14 @@ interface WorkflowRow {
   updated_at: string;
 }
 
+// Tiny starter-pack of prompts — click one to prefill the box. Helps
+// users who stare at the empty textarea not knowing what to ask for.
+const EXAMPLE_PROMPTS = [
+  "Every morning at 9am, query all contacts added in the last 24h and email me a summary.",
+  "When a webhook fires, use GPT-4o-mini to classify the message as urgent or not, then email me only if it's urgent.",
+  "Daily at 8am, find contacts with no recent activity and draft a re-engagement email for each.",
+];
+
 export default function DanteWorkflowsClient() {
   const router = useRouter();
   const [rows, setRows] = useState<WorkflowRow[]>([]);
@@ -31,6 +42,10 @@ export default function DanteWorkflowsClient() {
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // AI generator state
+  const [prompt, setPrompt] = useState("");
+  const [generating, setGenerating] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -57,14 +72,14 @@ export default function DanteWorkflowsClient() {
     };
   }, []);
 
-  const create = async () => {
+  const createBlank = async () => {
     setCreating(true); setError(null);
     try {
       const res = await fetch("/api/dante/workflows", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "Untitled workflow", steps: [] }),
+        body: JSON.stringify({ name: "Untitled workflow" }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed");
@@ -72,6 +87,25 @@ export default function DanteWorkflowsClient() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Create failed");
       setCreating(false);
+    }
+  };
+
+  const generate = async () => {
+    if (!prompt.trim()) return;
+    setGenerating(true); setError(null);
+    try {
+      const res = await fetch("/api/dante/workflows/generate", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Generation failed");
+      router.push(`/dante/workflows/${json.workflow.id}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Generation failed");
+      setGenerating(false);
     }
   };
 
@@ -107,22 +141,14 @@ export default function DanteWorkflowsClient() {
         </Link>
       </div>
 
-      <div className="px-6 md:px-8 py-8 max-w-[1200px] mx-auto">
-        <div className="flex items-start justify-between mb-8 flex-wrap gap-4">
-          <div>
-            <div className="label-section mb-2">Dante · Workflows</div>
-            <h1 className="heading-display text-4xl text-[var(--ink)] mb-2">Workflows</h1>
-            <p className="text-sm text-[var(--ink-muted)] max-w-2xl">
-              Chain HTTP calls, OpenAI prompts, and CRM actions into reusable
-              automations. Run them manually from the editor — triggered
-              workflows (cron + webhook) are on the phase-2 roadmap.
-            </p>
-          </div>
-          <button onClick={create} disabled={creating}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-[4px] bg-[var(--ink)] hover:opacity-90 text-[var(--canvas)] text-sm font-semibold transition disabled:opacity-50">
-            {creating ? <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} /> : <Plus className="h-4 w-4" strokeWidth={1.5} />}
-            New workflow
-          </button>
+      <div className="px-6 md:px-8 py-8 max-w-[1100px] mx-auto">
+        <div className="mb-8">
+          <div className="label-section mb-2">Dante · Workflows</div>
+          <h1 className="heading-display text-4xl text-[var(--ink)] mb-2">Workflows</h1>
+          <p className="text-sm text-[var(--ink-muted)] max-w-2xl">
+            Chain HTTP calls, LLM prompts, and CRM actions into reusable
+            automations. Triggered by schedule, webhook, or manual run.
+          </p>
         </div>
 
         {error && (
@@ -130,6 +156,79 @@ export default function DanteWorkflowsClient() {
             {error}
           </div>
         )}
+
+        {/* ── Generate with Dante ───────────────────────────── */}
+        <section className="card-flat p-6 mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="border border-[var(--rule)] bg-[var(--accent-soft)] text-[var(--accent)] rounded-[4px] p-1.5">
+              <Sparkles className="w-3.5 h-3.5" strokeWidth={1.5} />
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-[var(--ink)]">Generate with Dante</div>
+              <div className="text-[11px] text-[var(--ink-subtle)]">
+                Describe what you want and Dante builds the workflow. Tweak it on the canvas after.
+              </div>
+            </div>
+          </div>
+
+          <textarea
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            rows={3}
+            placeholder="Every morning at 9am, query all new contacts from the last day and email me a summary."
+            className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-3 py-2.5 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)] resize-y mb-3"
+            onKeyDown={(e) => {
+              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); generate(); }
+            }}
+          />
+
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            {EXAMPLE_PROMPTS.map((ex, i) => (
+              <button
+                key={i}
+                onClick={() => setPrompt(ex)}
+                className="text-[11px] text-[var(--ink-muted)] bg-[var(--canvas-subtle)] border border-[var(--rule)] rounded-full px-2.5 py-1 hover:bg-[var(--canvas)] hover:text-[var(--ink)] transition"
+              >
+                {ex.slice(0, 52)}{ex.length > 52 ? "…" : ""}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-[11px] text-[var(--ink-subtle)]">
+              <kbd className="mono border border-[var(--rule)] rounded px-1 py-0.5">⌘</kbd>
+              {" + "}
+              <kbd className="mono border border-[var(--rule)] rounded px-1 py-0.5">Enter</kbd>
+              {" to generate"}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={createBlank}
+                disabled={creating || generating}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-[4px] border border-[var(--rule)] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] text-sm font-medium transition disabled:opacity-50"
+              >
+                {creating
+                  ? <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
+                  : <Plus className="h-4 w-4" strokeWidth={1.5} />}
+                Start blank
+              </button>
+              <button
+                onClick={generate}
+                disabled={generating || !prompt.trim()}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-[4px] bg-[var(--ink)] hover:opacity-90 text-[var(--canvas)] text-sm font-semibold transition disabled:opacity-50"
+              >
+                {generating
+                  ? <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
+                  : <Sparkles className="h-4 w-4" strokeWidth={1.5} />}
+                Generate
+                {!generating && <ArrowRight className="w-3.5 h-3.5 opacity-60" strokeWidth={1.5} />}
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* ── List ──────────────────────────────────────────── */}
+        <div className="label-section mb-3">Your workflows</div>
 
         {loading ? (
           <div className="card-flat p-12 text-center">
@@ -139,14 +238,9 @@ export default function DanteWorkflowsClient() {
           <div className="card-flat p-12 text-center">
             <Zap className="h-10 w-10 text-[var(--ink-subtle)] mx-auto mb-3" strokeWidth={1.5} />
             <p className="text-[var(--ink-muted)] mb-1">No workflows yet</p>
-            <p className="text-xs text-[var(--ink-subtle)] mb-4">
-              Create one to wire up HTTP calls, LLM prompts, and CRM actions.
+            <p className="text-xs text-[var(--ink-subtle)]">
+              Describe one above, or start from a blank canvas.
             </p>
-            <button onClick={create} disabled={creating}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-[4px] bg-[var(--ink)] hover:opacity-90 text-[var(--canvas)] text-sm font-semibold transition disabled:opacity-50">
-              {creating ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.5} /> : <Plus className="w-4 h-4" strokeWidth={1.5} />}
-              New workflow
-            </button>
           </div>
         ) : (
           <div className="space-y-2">

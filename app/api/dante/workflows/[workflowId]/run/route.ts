@@ -9,7 +9,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { runWorkflow } from "@/lib/dante/workflow-runner";
-import type { WorkflowDefinition } from "@/lib/dante/workflow-types";
+import { definitionFromRow } from "@/lib/dante/workflow-types";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60; // Vercel hobby limit
@@ -54,15 +54,7 @@ export async function POST(
   const runId = run?.id;
 
   try {
-    const definition: WorkflowDefinition = {
-      id: wf.id,
-      workspace_id: wf.workspace_id,
-      name: wf.name,
-      description: wf.description,
-      enabled: wf.enabled,
-      trigger: wf.trigger,
-      steps: wf.steps || [],
-    };
+    const definition = definitionFromRow(wf);
     const result = await runWorkflow(definition, input);
 
     await supabaseAdmin.from("dante_workflow_runs").update({

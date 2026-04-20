@@ -26,6 +26,7 @@
     "@sentry/nextjs": "^10.48.0",
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.57.4",
+    "@xyflow/react": "^12.10.2",
     "alawmulaw": "^6.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

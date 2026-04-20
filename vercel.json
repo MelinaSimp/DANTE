@@ -17,6 +17,10 @@
     {
       "path": "/api/autonomous-agents/cron",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/dante/cron/tick",
+      "schedule": "* * * * *"
     }
   ]
 }
