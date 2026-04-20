@@ -157,8 +157,17 @@ async function runQueryClients(
     .from("contacts")
     .select("id, name, email, phone, created_at")
     .eq("workspace_id", workspaceId);
-  for (const [k, v] of Object.entries(cfg.filter || {})) q = q.eq(k, v);
-  q = q.limit(Math.min(Number(cfg.limit) || 25, 500));
+  // Skip empty filter values. resolveTemplate() turns unresolved
+  // `{{steps.x.y}}` references into empty strings, and Postgres rejects
+  // `WHERE created_at = ''` with a 22007 "invalid timestamp" error.
+  // Treating "", null, and undefined as "don't filter" is the right
+  // default anyway — a user who didn't supply a value meant "any".
+  for (const [k, v] of Object.entries(cfg.filter || {})) {
+    if (v === "" || v === null || v === undefined) continue;
+    q = q.eq(k, v);
+  }
+  const limit = Math.min(Math.max(Number(cfg.limit) || 25, 1), 500);
+  q = q.limit(limit);
   const { data, error } = await q;
   if (error) throw new Error(error.message);
   return { contacts: data || [], count: data?.length ?? 0 };
