@@ -151,7 +151,7 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
             Calls
           </Link>
           <Link
-            href="/agents"
+            href="/dashboard/agents"
             className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
           >
             Agents
@@ -419,7 +419,7 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
             hint="Records, notes, documents"
           />
           <QuickLink
-            href="/agents"
+            href="/dashboard/agents"
             label="Agents"
             icon={<LayoutDashboard className="w-4 h-4" />}
             hint="Build & deploy"
