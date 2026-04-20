@@ -20,11 +20,11 @@
     },
     {
       "path": "/api/dante/cron/tick",
-      "schedule": "* * * * *"
+      "schedule": "0 0 * * *"
     },
     {
       "path": "/api/dante/queue/tick",
-      "schedule": "* * * * *"
+      "schedule": "0 0 * * *"
     }
   ]
 }
