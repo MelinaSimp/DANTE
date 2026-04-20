@@ -1,15 +1,11 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { useParams, usePathname, useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  Bot,
-  Calendar,
   FileText,
-  CalendarClock,
   Phone,
-  Mail,
   Plus,
   X,
   Trash2,
@@ -20,11 +16,9 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
-  Inbox,
+  ArrowLeft,
 } from "lucide-react";
 import { useFeatures } from "@/hooks/useFeatures";
-import type { FeatureId } from "@/lib/features";
-import MobileNav from "@/components/frontend/MobileNav";
 
 interface CallLogEntry {
   id: string;
@@ -58,7 +52,6 @@ function storageKey(agentId: string, key: string) {
 export default function SalesPage() {
   const router = useRouter();
   const params = useParams();
-  const pathname = usePathname();
   const agentId = (params?.agentId as string) || "";
 
   const [salesScript, setSalesScript] = useState("");
@@ -76,96 +69,9 @@ export default function SalesPage() {
 
   useEffect(() => {
     if (!featuresLoading && features.length > 0 && !features.includes("sales")) {
-      router.replace("/frontend");
+      router.replace("/agent");
     }
   }, [features, featuresLoading, router]);
-
-  const sidebarItems = [
-    {
-      name: "Agents",
-      icon: Bot,
-      href: "/frontend",
-      active:
-        pathname === "/frontend" ||
-        (pathname?.startsWith("/frontend/agent") &&
-          !pathname.includes("/schedule") &&
-          !pathname.includes("/llm") &&
-          !pathname.includes("/inbox") &&
-          !pathname.includes("/sales") &&
-          !pathname.includes("/emailing")),
-    },
-    {
-      name: "Calendar",
-      icon: Calendar,
-      href: `/frontend/agent/${agentId}/schedule`,
-      active: pathname?.includes("/schedule"),
-      featureId: "calendar" as FeatureId,
-    },
-    {
-      name: "Client Details",
-      icon: FileText,
-      href: "/client-details-overview",
-      active: pathname === "/client-details-overview",
-      featureId: "client_details" as FeatureId,
-    },
-    {
-      name: "Meeting Planner",
-      icon: CalendarClock,
-      href: `/frontend/agent/${agentId}/llm`,
-      active: pathname?.includes("/llm"),
-      featureId: "meeting_planner" as FeatureId,
-    },
-    {
-      name: "Sales",
-      icon: PhoneCall,
-      href: `/frontend/agent/${agentId}/sales`,
-      active: pathname?.includes("/sales"),
-      featureId: "sales" as FeatureId,
-    },
-    {
-      name: "Emailing",
-      icon: Mail,
-      href: `/frontend/agent/${agentId}/emailing`,
-      active: pathname?.includes("/emailing"),
-      featureId: "emailing" as FeatureId,
-    },
-    {
-      name: "Inbox",
-      icon: Inbox,
-      href: `/frontend/agent/${agentId}/inbox`,
-      active: pathname?.includes("/inbox"),
-      featureId: "inbox" as FeatureId,
-    },
-  ];
-
-  useEffect(() => {
-    const html = document.documentElement;
-    const body = document.body;
-    const main = document.querySelector("main");
-
-    const originalHtmlBg = html.style.background;
-    const originalBodyBg = body.style.background;
-    const originalBodyColor = body.style.color;
-    const originalMainBg = main
-      ? (main as HTMLElement).style.background
-      : null;
-
-    html.style.setProperty("background", "#f5f5f7", "important");
-    body.style.setProperty("background", "#f5f5f7", "important");
-    body.style.setProperty("color", "#111827", "important");
-    if (main) {
-      (main as HTMLElement).style.setProperty("background", "#f5f5f7", "important");
-    }
-
-    return () => {
-      html.style.setProperty("background", originalHtmlBg, "important");
-      body.style.setProperty("background", originalBodyBg, "important");
-      body.style.setProperty("color", originalBodyColor, "important");
-      if (main && originalMainBg !== null) {
-        (main as HTMLElement).style.setProperty("background", originalMainBg, "important");
-      }
-    };
-  }, []);
 
   useEffect(() => {
     if (!agentId) return;
@@ -326,49 +232,31 @@ export default function SalesPage() {
     return `${m}:${s.toString().padStart(2, "0")}`;
   };
 
-  const mobileNavItems = sidebarItems
-    .filter((item) => !item.featureId || features.includes(item.featureId))
-    .map(({ name, icon, href, active }) => ({ name, icon, href, active }));
-
   return (
-    <div className="min-h-screen bg-[#f5f5f7] flex flex-col md:flex-row" style={{ background: "#f5f5f7" }}>
-      <MobileNav items={mobileNavItems} backHref="/frontend" backLabel="Agents" />
-      {/* Left Sidebar */}
-      <div className="hidden md:flex flex-col w-48 border-r border-gray-200 bg-white shrink-0">
-        <div className="p-4 border-b border-gray-200 flex items-center gap-2">
-          <Link href="/frontend" className="flex items-center gap-2">
-            <img
-              src="/brand/logo-circle.png"
-              alt="Drift"
-              className="w-7 h-7 rounded-full object-cover"
-            />
-            <span className="text-sm font-semibold text-gray-900">Drift</span>
+    <div className="min-h-screen bg-[var(--canvas)] text-[var(--ink)]">
+      {/* Harvey top bar */}
+      <div className="sticky top-0 z-10 border-b border-[var(--rule)] bg-[var(--canvas)]/95 backdrop-blur">
+        <div className="max-w-7xl mx-auto px-6 md:px-10 py-4 flex items-center gap-3">
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
+          >
+            <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
+            Dashboard
           </Link>
+          <span className="text-[var(--ink-subtle)]">·</span>
+          <Link
+            href="/agent"
+            className="text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
+          >
+            Agent
+          </Link>
+          <span className="text-[var(--ink-subtle)]">·</span>
+          <span className="text-sm text-[var(--ink)]">Sales</span>
         </div>
-        <nav className="flex-1 p-3 space-y-1">
-          {sidebarItems.filter((item) => !item.featureId || features.includes(item.featureId)).map((item) => {
-            const Icon = item.icon;
-            const isActive = item.active;
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
-                  isActive
-                    ? "bg-gray-100 text-black"
-                    : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                <span>{item.name}</span>
-              </Link>
-            );
-          })}
-        </nav>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 px-8 py-8 overflow-y-auto">
+      <div className="px-8 py-8 overflow-y-auto">
         <div className="max-w-7xl mx-auto">
           <div className="mb-8">
             <h1 className="text-3xl font-semibold text-gray-900 mb-1">Sales</h1>

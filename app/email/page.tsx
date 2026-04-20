@@ -1,17 +1,24 @@
 // app/email/page.tsx
 //
-// Workspace-level entry point for outbound email. Most RIAs run one
-// agent, so we auto-redirect to that agent's emailing view. If a
-// workspace has multiple agents, we show a short picker. The full
-// composer / template / history UI still lives under
-// /frontend/agent/[id]/emailing for now — moving that interface
-// wholesale is a separate task; this route exists so "Email" can live
-// on the dashboard nav without forcing users through an agent picker.
+// Workspace-level email composer. Replaces the old per-agent
+// /frontend/agent/[id]/emailing route, which dragged a frontend-orb
+// sidebar onto every email view. Now: one workspace URL, Harvey shell,
+// no leaked agent-selector rail.
+//
+// We still need an agentId on the client — the LLM rewrite endpoint
+// scopes by agent, and recent-sent is keyed by agent so different
+// agents don't bleed email history. We pick the workspace's first agent
+// server-side. Zero-agent workspaces see a CTA to create one instead of
+// a broken composer; multi-agent is fine because the picked agent only
+// changes which recent-sent log is shown and which LLM prompt context
+// is used for drafting, not anything a user will notice day-to-day.
+// Moving to a proper agent picker in the top bar is future work.
 
 import { createServerSupabase } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Mail } from "lucide-react";
+import EmailClient from "./EmailClient";
 
 export const dynamic = "force-dynamic";
 
@@ -30,24 +37,17 @@ export default async function EmailPage() {
 
   if (!profile?.workspace_id) redirect("/join");
 
-  // Fetch this workspace's agents. We're just using this to decide
-  // whether to redirect (single agent) or render a small picker
-  // (multi-agent). The record shape doesn't matter beyond id+name.
   const { data: agents } = await supabase
     .from("agents")
-    .select("id, name")
+    .select("id")
     .eq("workspace_id", profile.workspace_id)
     .order("created_at", { ascending: true });
 
   const list = agents ?? [];
 
-  // Typical path — one agent, skip the picker.
-  if (list.length === 1) {
-    redirect(`/frontend/agent/${list[0].id}/emailing`);
-  }
-
-  // Zero-agent state: tell the user where to create one instead of
-  // dumping them on a broken composer.
+  // Zero-agent: same Harvey CTA as the other workspace-level entries.
+  // Keeps the user from landing on a composer that silently can't
+  // personalize or call the LLM endpoint.
   if (list.length === 0) {
     return (
       <div className="bg-[var(--canvas)] min-h-screen text-[var(--ink)]">
@@ -60,9 +60,12 @@ export default async function EmailPage() {
             Dashboard
           </Link>
           <div className="label-section mb-2">Workspace</div>
-          <h1 className="heading-display text-4xl md:text-5xl text-[var(--ink)] mb-3">Email</h1>
+          <h1 className="heading-display text-4xl md:text-5xl text-[var(--ink)] mb-3">
+            Email
+          </h1>
           <p className="prose-body text-[var(--ink-muted)] mb-8">
-            Outbound email runs through a Drift agent. You don&rsquo;t have one yet.
+            Outbound email runs through a Drift agent. You don&rsquo;t have
+            one yet.
           </p>
           <Link
             href="/dashboard/agents"
@@ -76,37 +79,5 @@ export default async function EmailPage() {
     );
   }
 
-  // Multi-agent workspaces — small Harvey picker, then route through.
-  return (
-    <div className="bg-[var(--canvas)] min-h-screen text-[var(--ink)]">
-      <div className="max-w-3xl mx-auto px-6 md:px-10 py-10">
-        <Link
-          href="/dashboard"
-          className="inline-flex items-center gap-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition mb-6"
-        >
-          <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
-          Dashboard
-        </Link>
-        <div className="label-section mb-2">Workspace</div>
-        <h1 className="heading-display text-4xl md:text-5xl text-[var(--ink)] mb-3">Email</h1>
-        <p className="prose-body text-[var(--ink-muted)] mb-8">
-          Pick an agent to send mail from.
-        </p>
-        <div className="border-t border-b border-[var(--rule)]">
-          {list.map((a) => (
-            <Link
-              key={a.id}
-              href={`/frontend/agent/${a.id}/emailing`}
-              className="flex items-center justify-between gap-4 px-4 py-4 border-b border-[var(--rule)] last:border-b-0 transition hover:bg-[var(--canvas-subtle)]"
-            >
-              <span className="text-[15px] font-medium text-[var(--ink)]">
-                {a.name}
-              </span>
-              <span className="text-sm text-[var(--ink-muted)]">Open →</span>
-            </Link>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+  return <EmailClient agentId={list[0].id} />;
 }

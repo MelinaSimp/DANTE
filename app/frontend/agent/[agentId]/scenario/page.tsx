@@ -327,7 +327,7 @@ export default function ScenarioVisualizationPage() {
         <div className="flex-shrink-0 px-8 py-4 border-b-2 border-black bg-white">
           <div className="flex items-center justify-between mb-3 relative">
             <button
-              onClick={() => router.push(`/frontend/agent/${agentId}`)}
+              onClick={() => router.push("/agent")}
               className="text-gray-400 hover:text-black transition-colors text-sm"
             >
               ← Back

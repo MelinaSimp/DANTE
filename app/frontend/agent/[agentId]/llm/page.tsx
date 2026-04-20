@@ -3,15 +3,13 @@
 
 import { useState, useEffect, useRef, FormEvent } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { Send, Loader2, FileText, X, Download, Plus, Search, Trash2, Menu, MessageSquare, ArrowLeft, Save, Upload, CalendarPlus, Bell, Clock, CheckCircle2, CalendarClock, Bot, Calendar, BarChart3, Mail, Phone, Inbox } from "lucide-react";
+import { Send, Loader2, FileText, X, Download, Plus, Search, Trash2, Menu, MessageSquare, ArrowLeft, Save, Upload, CalendarPlus, Bell, Clock, CheckCircle2, BarChart3, CalendarClock, Mail } from "lucide-react";
 import Link from "next/link";
 import { ChatListSkeleton, MessageSkeleton } from "@/components/ui/skeleton";
 import { Tooltip } from "@/components/ui/tooltip";
 import { EmptyState } from "@/components/ui/empty-state";
 import ConfirmationModal from "@/components/frontend/ConfirmationModal";
-import MobileNav from "@/components/frontend/MobileNav";
 import { useFeatures } from "@/hooks/useFeatures";
-import type { FeatureId } from "@/lib/features";
 
 // Max file size: 20MB
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
@@ -112,7 +110,7 @@ export default function FrontendLLMPage() {
 
   useEffect(() => {
     if (!featuresLoading && features.length > 0 && !features.includes("meeting_planner")) {
-      router.replace("/frontend");
+      router.replace("/agent");
     }
   }, [features, featuresLoading, router]);
 
@@ -121,45 +119,8 @@ export default function FrontendLLMPage() {
     setTimeout(() => setToast(null), type === "error" ? 5000 : 3000);
   };
 
-  // Sidebar navigation items
-  const pathname = typeof window !== "undefined" ? window.location.pathname : "";
-  const sidebarNavItems = [
-    { name: "Agents", icon: Bot, href: "/frontend", active: pathname === "/frontend" || (pathname?.startsWith("/frontend/agent") && !pathname.includes("/schedule") && !pathname.includes("/llm") && !pathname.includes("/inbox") && !pathname.includes("/sales") && !pathname.includes("/emailing")) },
-    { name: "Calendar", icon: Calendar, href: `/frontend/agent/${agentId}/schedule`, active: pathname?.includes("/schedule"), featureId: "calendar" as FeatureId },
-    { name: "Client Details", icon: FileText, href: "/client-details-overview", active: pathname === "/client-details-overview", featureId: "client_details" as FeatureId },
-    { name: "Meeting Planner", icon: CalendarClock, href: `/frontend/agent/${agentId}/llm`, active: pathname?.includes("/llm"), featureId: "meeting_planner" as FeatureId },
-    { name: "Sales", icon: Phone, href: `/frontend/agent/${agentId}/sales`, active: pathname?.includes("/sales"), featureId: "sales" as FeatureId },
-    { name: "Emailing", icon: Mail, href: `/frontend/agent/${agentId}/emailing`, active: pathname?.includes("/emailing"), featureId: "emailing" as FeatureId },
-    { name: "Inbox", icon: Inbox, href: `/frontend/agent/${agentId}/inbox`, active: pathname?.includes("/inbox"), featureId: "inbox" as FeatureId },
-  ];
-
-  useEffect(() => {
-    // Override global dark theme styles for Apple-style light theme
-    const html = document.documentElement;
-    const body = document.body;
-    const main = document.querySelector('main');
-    
-    const originalHtmlBg = html.style.background;
-    const originalBodyBg = body.style.background;
-    const originalBodyColor = body.style.color;
-    const originalMainBg = main ? (main as HTMLElement).style.background : null;
-    
-    html.style.setProperty('background', '#f5f5f7', 'important');
-    body.style.setProperty('background', '#f5f5f7', 'important');
-    body.style.setProperty('color', '#111827', 'important');
-    if (main) {
-      (main as HTMLElement).style.setProperty('background', '#f5f5f7', 'important');
-    }
-
-    return () => {
-      html.style.setProperty('background', originalHtmlBg, 'important');
-      body.style.setProperty('background', originalBodyBg, 'important');
-      body.style.setProperty('color', originalBodyColor, 'important');
-      if (main && originalMainBg !== null) {
-        (main as HTMLElement).style.setProperty('background', originalMainBg, 'important');
-      }
-    };
-  }, []);
+  // Sidebar shell stripped — the orb layout is gone. Workspace nav is
+  // the dashboard header; this page is reached via /agent or deep link.
 
   useEffect(() => {
     loadChats();
@@ -864,13 +825,8 @@ export default function FrontendLLMPage() {
     chat.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const mobileNavItems = sidebarNavItems
-    .filter((item) => !item.featureId || features.includes(item.featureId))
-    .map(({ name, icon, href, active }) => ({ name, icon, href, active }));
-
   return (
     <div className="flex flex-col md:flex-row h-screen bg-[#f5f5f7]" style={{ background: '#f5f5f7' }}>
-      <MobileNav items={mobileNavItems} backHref="/frontend" backLabel="Agents" />
       {/* Toast Notification */}
       {toast && (
         <div className={`fixed top-4 right-4 z-[100] max-w-sm w-full animate-in slide-in-from-right pointer-events-auto rounded-2xl shadow-lg border p-4 flex items-start gap-3 ${
@@ -887,33 +843,6 @@ export default function FrontendLLMPage() {
           </button>
         </div>
       )}
-
-      {/* Main Navigation Sidebar */}
-      <div className="hidden md:flex flex-col w-48 border-r border-gray-200 bg-white shrink-0">
-        <div className="p-4 border-b border-gray-200 flex items-center gap-2">
-          <Link href="/frontend" className="flex items-center gap-2">
-            <img src="/brand/logo-circle.png" alt="Drift" className="w-7 h-7 rounded-full object-cover" />
-            <span className="text-sm font-semibold text-gray-900">Drift</span>
-          </Link>
-        </div>
-        <nav className="flex-1 p-3 space-y-1">
-          {sidebarNavItems.filter((item) => !item.featureId || features.includes(item.featureId)).map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
-                  item.active ? "bg-gray-100 text-black" : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                <span>{item.name}</span>
-              </Link>
-            );
-          })}
-        </nav>
-      </div>
 
       {/* Mobile Sidebar Toggle */}
       <button
@@ -971,7 +900,7 @@ export default function FrontendLLMPage() {
         {/* Header - Polished */}
         <div className="p-4 border-b border-gray-200/40 bg-white/50 backdrop-blur-sm flex items-center gap-2">
           <button
-            onClick={() => router.push(`/frontend/agent/${agentId}`)}
+            onClick={() => router.push("/agent")}
             className="md:hidden p-2 hover:bg-gray-100 rounded-xl transition-colors"
             aria-label="Back"
           >

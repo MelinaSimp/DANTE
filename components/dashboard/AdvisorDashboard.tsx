@@ -25,6 +25,9 @@ import {
   Database,
   Loader2,
   CheckCircle2,
+  Sparkles,
+  X,
+  Check,
 } from "lucide-react";
 
 type Meeting = {
@@ -384,6 +387,14 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
           )}
         </section>
 
+        {/* Agent outputs — pending recommendations/insights from the
+            autonomous roster. Click the card to jump to where the advice
+            lives; Approve/Dismiss acts inline. Outputs with a
+            scheduled_for date in the past are filtered client-side ("if a
+            selected date for a recommendation is passed, the
+            recommendation should fall from the dashboard"). */}
+        <AgentOutputsSection />
+
         {/* Flagged */}
         <section className="mb-16">
           <div className="flex items-center justify-between mb-6">
@@ -595,3 +606,191 @@ function DemoCustodianPrompt() {
   );
 }
 
+/* ---------------- Agent outputs ---------------- */
+
+type AgentOutput = {
+  id: string;
+  agent_id: string;
+  title: string;
+  type: string;
+  summary: string;
+  review_status: string;
+  linked_client: string | null;
+  scheduled_for: string | null;
+  created_at: string;
+  wm_agent_definitions?: { name: string; icon: string } | null;
+};
+
+// Type → where the advice lives. Insights/alerts surface compliance
+// issues; recommendations/reports are usually follow-up moves the
+// advisor takes in notes. Everything links to the client overview
+// scoped by name (the existing routing pattern).
+function outputHref(o: AgentOutput): string | null {
+  if (!o.linked_client) return null;
+  const contact = encodeURIComponent(o.linked_client);
+  const hash =
+    o.type === "insight" || o.type === "alert"
+      ? "#compliance-flags"
+      : "#notes";
+  return `/client-details-overview?contact=${contact}${hash}`;
+}
+
+function outputKicker(o: AgentOutput): string {
+  if (o.type === "insight") return "Insight";
+  if (o.type === "alert") return "Alert";
+  if (o.type === "recommendation") return "Recommendation";
+  if (o.type === "report") return "Report";
+  return o.type;
+}
+
+function AgentOutputsSection() {
+  const [outputs, setOutputs] = useState<AgentOutput[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await fetch(
+          "/api/autonomous-agents/outputs?reviewStatus=PENDING",
+          { credentials: "include" }
+        );
+        if (!res.ok) {
+          if (!cancelled) setLoading(false);
+          return;
+        }
+        const json = (await res.json()) as AgentOutput[];
+        if (cancelled) return;
+        // Filter out recommendations whose scheduled_for date has passed
+        // ("If a selected date for a recommendation is passed, the
+        // recommendation should fall from the dashboard").
+        const now = Date.now();
+        const fresh = (Array.isArray(json) ? json : []).filter((o) => {
+          if (!o.scheduled_for) return true;
+          return new Date(o.scheduled_for).getTime() >= now;
+        });
+        setOutputs(fresh);
+      } catch {
+        /* swallow — section just stays empty */
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function review(id: string, review_status: "APPROVED" | "DISMISSED") {
+    // Optimistic drop — the output leaves the pending list either way.
+    setOutputs((prev) => prev.filter((o) => o.id !== id));
+    try {
+      await fetch(`/api/autonomous-agents/outputs/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ review_status }),
+      });
+    } catch {
+      /* silent — worst case the card reappears on next load */
+    }
+  }
+
+  if (loading) return null;
+  if (outputs.length === 0) return null;
+
+  return (
+    <section className="mb-16">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2">
+          <span className="label-section">From your agents</span>
+          <Sparkles className="w-3.5 h-3.5 text-[var(--accent)]" />
+        </div>
+        <Link
+          href="/agent"
+          className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)]"
+        >
+          Manage →
+        </Link>
+      </div>
+      <ul className="divide-y divide-[var(--rule)] border-t border-b border-[var(--rule)]">
+        {outputs.map((o) => {
+          const href = outputHref(o);
+          return (
+            <li key={o.id} className="py-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline gap-2 mb-1 flex-wrap">
+                    <span className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)]">
+                      {outputKicker(o)}
+                    </span>
+                    {o.wm_agent_definitions?.name && (
+                      <>
+                        <span className="text-[var(--ink-subtle)]">·</span>
+                        <span className="text-xs text-[var(--ink-muted)]">
+                          {o.wm_agent_definitions.name}
+                        </span>
+                      </>
+                    )}
+                    {o.linked_client && (
+                      <>
+                        <span className="text-[var(--ink-subtle)]">·</span>
+                        <span className="text-xs text-[var(--ink-muted)]">
+                          {o.linked_client}
+                        </span>
+                      </>
+                    )}
+                    {o.scheduled_for && (
+                      <span className="text-[10px] mono text-[var(--ink-subtle)] ml-auto">
+                        by {formatRelativeDate(o.scheduled_for)}
+                      </span>
+                    )}
+                  </div>
+                  {href ? (
+                    <Link
+                      href={href}
+                      className="block group"
+                    >
+                      <div className="text-[15px] font-medium text-[var(--ink)] group-hover:underline mb-0.5">
+                        {o.title}
+                      </div>
+                      <div className="text-sm text-[var(--ink-muted)] line-clamp-2">
+                        {o.summary}
+                      </div>
+                    </Link>
+                  ) : (
+                    <>
+                      <div className="text-[15px] font-medium text-[var(--ink)] mb-0.5">
+                        {o.title}
+                      </div>
+                      <div className="text-sm text-[var(--ink-muted)] line-clamp-2">
+                        {o.summary}
+                      </div>
+                    </>
+                  )}
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={() => review(o.id, "APPROVED")}
+                    title="Approve"
+                    className="p-1.5 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--verified)] hover:bg-[var(--verified-soft)] transition"
+                  >
+                    <Check className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  </button>
+                  <button
+                    onClick={() => review(o.id, "DISMISSED")}
+                    title="Dismiss"
+                    className="p-1.5 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--danger)] hover:bg-[var(--danger-soft)] transition"
+                  >
+                    <X className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  </button>
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
