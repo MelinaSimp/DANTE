@@ -20,10 +20,36 @@ export default async function AgentsPage() {
 
   if (!profile?.workspace_id) {
     return (
-      <div className="mx-auto max-w-4xl px-4 py-12 text-white">
-        <h1 className="mb-6 text-3xl font-semibold">Agent Builder</h1>
-        <div className="rounded-2xl border border-yellow-500/40 bg-yellow-500/10 p-6 text-yellow-50">
-          <p>No workspace found. Please contact your administrator.</p>
+      <div
+        className="min-h-screen"
+        style={{ background: "var(--canvas)" }}
+      >
+        <div className="mx-auto max-w-3xl px-8 py-16">
+          <div
+            className="label-section mb-4"
+            style={{ color: "var(--ink-muted)" }}
+          >
+            Agents
+          </div>
+          <h1
+            className="heading-display mb-8"
+            style={{ fontSize: 44, color: "var(--ink)" }}
+          >
+            Agent Builder
+          </h1>
+          <div
+            className="px-6 py-5"
+            style={{
+              background: "var(--danger-soft)",
+              border: "1px solid var(--danger)",
+              borderRadius: "var(--r-card)",
+              color: "var(--danger)",
+              fontSize: 14,
+              lineHeight: 1.55,
+            }}
+          >
+            No workspace found. Please contact your administrator.
+          </div>
         </div>
       </div>
     );
@@ -43,15 +69,3 @@ export default async function AgentsPage() {
     />
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-

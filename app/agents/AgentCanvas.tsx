@@ -1,7 +1,19 @@
 "use client";
 
+// Agent flow canvas — renders scenarios + steps + branches as a vertical
+// stack inside a single flat card. Harvey-ized Apr 2026: the
+// glassmorphism "desert background" card and purple/blue branch pills
+// are gone. Steps read like editable document rows; branches render as
+// plain rules with mono tags. One accent color only.
+
 import { useState, useEffect } from "react";
-import { Plus, MessageCircle, Code as CodeIcon, ArrowRight, ChevronRight, Upload, CheckCircle, XCircle, Trash2, Database } from "lucide-react";
+import {
+  Plus,
+  ChevronRight,
+  Trash2,
+  Database,
+  CornerDownRight,
+} from "lucide-react";
 import StepEditor from "./StepEditor";
 import { toast } from "@/components/ui/toast";
 import { confirmDialog } from "@/components/ui/confirm-dialog";
@@ -20,7 +32,6 @@ interface Step {
   code?: string;
   ai_message?: string;
   sort_order: number;
-  // Q/A specific fields
   qa_query?: string;
   qa_data_source_ids?: string[];
   qa_fallback_message?: string;
@@ -44,9 +55,12 @@ export default function AgentCanvas({ agentId, workspaceId }: AgentCanvasProps) 
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const [selectedScenario, setSelectedScenario] = useState<Scenario | null>(null);
   const [allSteps, setAllSteps] = useState<Record<string, Step[]>>({});
-  const [allBranches, setAllBranches] = useState<Record<string, Record<string, StepBranch[]>>>({});
+  const [allBranches, setAllBranches] = useState<
+    Record<string, Record<string, StepBranch[]>>
+  >({});
   const [selectedStep, setSelectedStep] = useState<Step | null>(null);
-  const [selectedStepScenario, setSelectedStepScenario] = useState<Scenario | null>(null);
+  const [selectedStepScenario, setSelectedStepScenario] =
+    useState<Scenario | null>(null);
   const [showStepEditor, setShowStepEditor] = useState(false);
 
   useEffect(() => {
@@ -88,10 +102,11 @@ export default function AgentCanvas({ agentId, workspaceId }: AgentCanvasProps) 
           const steps = await response.json();
           stepsMap[scenario.id] = steps || [];
 
-          // Load branches for each step
           const scenarioBranches: Record<string, StepBranch[]> = {};
           for (const step of steps) {
-            const branchesResponse = await fetch(`/api/steps/${step.id}/branches`);
+            const branchesResponse = await fetch(
+              `/api/steps/${step.id}/branches`
+            );
             if (branchesResponse.ok) {
               const branchesData = await branchesResponse.json();
               scenarioBranches[step.id] = branchesData || [];
@@ -150,7 +165,8 @@ export default function AgentCanvas({ agentId, workspaceId }: AgentCanvasProps) 
   const handleDeleteStep = async (stepId: string, scenarioId: string) => {
     const ok = await confirmDialog({
       title: "Delete step?",
-      message: "Are you sure you want to delete this step? This action cannot be undone.",
+      message:
+        "Are you sure you want to delete this step? This action cannot be undone.",
       confirmText: "Delete",
       variant: "danger",
     });
@@ -164,7 +180,6 @@ export default function AgentCanvas({ agentId, workspaceId }: AgentCanvasProps) 
 
       if (response.ok) {
         await loadAllSteps();
-        // Clear selection if this was the selected step
         if (selectedStep?.id === stepId) {
           setSelectedStep(null);
           setSelectedStepScenario(null);
@@ -182,15 +197,18 @@ export default function AgentCanvas({ agentId, workspaceId }: AgentCanvasProps) 
 
   const getStepById = (stepId: string, scenarioId: string): Step | null => {
     const steps = allSteps[scenarioId] || [];
-    return steps.find(s => s.id === stepId) || null;
+    return steps.find((s) => s.id === stepId) || null;
   };
 
   const getStepIndex = (stepId: string, scenarioId: string): number => {
     const steps = allSteps[scenarioId] || [];
-    return steps.findIndex(s => s.id === stepId);
+    return steps.findIndex((s) => s.id === stepId);
   };
 
-  const getTargetStepName = (branch: StepBranch, currentScenarioId: string): string => {
+  const getTargetStepName = (
+    branch: StepBranch,
+    currentScenarioId: string
+  ): string => {
     if (branch.next_step_id) {
       const targetStep = getStepById(branch.next_step_id, currentScenarioId);
       if (targetStep) {
@@ -199,7 +217,9 @@ export default function AgentCanvas({ agentId, workspaceId }: AgentCanvasProps) 
       }
     }
     if (branch.next_scenario_id) {
-      const targetScenario = scenarios.find(s => s.id === branch.next_scenario_id);
+      const targetScenario = scenarios.find(
+        (s) => s.id === branch.next_scenario_id
+      );
       if (targetScenario) {
         return targetScenario.name;
       }
@@ -216,7 +236,7 @@ export default function AgentCanvas({ agentId, workspaceId }: AgentCanvasProps) 
       case "code":
         return "Code";
       case "api_call":
-        return "API Call";
+        return "API call";
       case "condition":
         return "Condition";
       case "qa":
@@ -227,221 +247,328 @@ export default function AgentCanvas({ agentId, workspaceId }: AgentCanvasProps) 
   };
 
   return (
-    <div className="h-full flex flex-col bg-[#1a1612]">
-      {/* Fullscreen Content - Consolidated in one box with desert background */}
-      <div 
-        className="flex-1 overflow-y-auto p-6 relative"
-        style={{ background: '#000000' }}
-      >
+    <div
+      className="h-full flex flex-col"
+      style={{ background: "var(--canvas-subtle)" }}
+    >
+      <div className="flex-1 overflow-y-auto px-8 py-8">
         {scenarios.length === 0 ? (
           <div className="flex items-center justify-center h-full">
-            <div className="text-center">
-              <p className="text-white/60 mb-4 text-sm">No scenarios yet. Create a scenario to start building your flow.</p>
+            <div
+              className="text-center max-w-md px-8 py-12 card-flat"
+              style={{ background: "var(--canvas)" }}
+            >
+              <div
+                className="label-section mb-2"
+                style={{ color: "var(--ink-subtle)" }}
+              >
+                Empty flow
+              </div>
+              <h3
+                className="heading-display mb-3"
+                style={{ fontSize: 26, color: "var(--ink)" }}
+              >
+                No scenarios yet.
+              </h3>
+              <p
+                className="text-sm mb-6"
+                style={{ color: "var(--ink-muted)", lineHeight: 1.55 }}
+              >
+                A scenario groups the steps for one kind of conversation —
+                intake, follow-up, escalation. Start with one.
+              </p>
               <button
                 onClick={handleCreateScenario}
-                className="px-6 py-3 rounded-lg bg-[#3351ff] hover:bg-[#4a64ff] text-white text-sm font-medium transition"
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm transition"
+                style={{
+                  background: "var(--ink)",
+                  color: "var(--canvas)",
+                  borderRadius: "var(--r-input)",
+                  fontWeight: 500,
+                }}
               >
-                Create Scenario
+                <Plus className="h-3.5 w-3.5" />
+                New scenario
               </button>
             </div>
           </div>
         ) : (
-          <div className="max-w-6xl mx-auto">
-            {/* Consolidated Box with all content - semi-transparent to show background */}
-            <div className="rounded-xl border border-white/20 bg-black/50 backdrop-blur-md p-6">
-              {/* Scenario Title and Add Step in same box */}
-              <div className="flex items-center justify-between mb-6 pb-4 border-b border-white/10">
+          <div className="max-w-4xl mx-auto">
+            <div
+              className="card-flat overflow-hidden"
+              style={{ background: "var(--canvas)" }}
+            >
+              {/* Scenario title + add step */}
+              <div
+                className="flex items-center justify-between px-6 py-4"
+                style={{ borderBottom: "1px solid var(--rule)" }}
+              >
                 <div>
-                  <h2 className="text-sm font-medium text-white/90">Scenario: {selectedScenario?.name || "Select a scenario"}</h2>
+                  <div
+                    className="label-section mb-0.5"
+                    style={{ color: "var(--ink-subtle)" }}
+                  >
+                    Scenario
+                  </div>
+                  <h2
+                    className="heading-display"
+                    style={{ fontSize: 20, color: "var(--ink)" }}
+                  >
+                    {selectedScenario?.name || "Select a scenario"}
+                  </h2>
                   {selectedScenario?.description && (
-                    <p className="text-xs text-white/60 mt-1">{selectedScenario.description}</p>
+                    <p
+                      className="text-xs mt-1"
+                      style={{ color: "var(--ink-muted)" }}
+                    >
+                      {selectedScenario.description}
+                    </p>
                   )}
                 </div>
                 {selectedScenario && (
                   <button
                     onClick={() => handleCreateStep(selectedScenario.id)}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#3351ff] hover:bg-[#4a64ff] text-white text-xs font-medium transition"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs transition"
+                    style={{
+                      background: "var(--ink)",
+                      color: "var(--canvas)",
+                      borderRadius: "var(--r-input)",
+                      fontWeight: 500,
+                    }}
                   >
                     <Plus className="h-3 w-3" />
-                    Add Step
+                    Add step
                   </button>
                 )}
               </div>
 
-              {/* Display All Scenarios - Consolidated Format */}
-              {scenarios.map((scenario, scenarioIdx) => {
-                const steps = allSteps[scenario.id] || [];
-                const branches = allBranches[scenario.id] || {};
+              <div className="px-6 py-6 space-y-10">
+                {scenarios.map((scenario, scenarioIdx) => {
+                  const steps = allSteps[scenario.id] || [];
+                  const branches = allBranches[scenario.id] || {};
 
-                if (steps.length === 0) return null;
+                  if (steps.length === 0) return null;
 
-                return (
-                  <div key={scenario.id} className="mb-8">
-                    {/* Scenario Title - Smaller font */}
-                    <h3 className="text-xs font-medium text-white/70 mb-4">
-                      Scenario {scenarioIdx + 1}: "{scenario.name}" Inquiry
-                    </h3>
+                  return (
+                    <div key={scenario.id}>
+                      <div
+                        className="label-section mb-4"
+                        style={{ color: "var(--ink-subtle)" }}
+                      >
+                        Scenario {scenarioIdx + 1} · {scenario.name}
+                      </div>
 
-                  {/* Steps in this Scenario */}
-                  <div className="space-y-8">
-                    {steps.map((step, stepIdx) => {
-                      const stepBranches = branches[step.id] || [];
+                      <ol className="space-y-0">
+                        {steps.map((step, stepIdx) => {
+                          const stepBranches = branches[step.id] || [];
 
-                      return (
-                        <div key={step.id} className="relative group">
-                          {/* Step Content - GigaAI Format */}
-                          <div
-                            onClick={() => {
-                              setSelectedStep(step);
-                              setSelectedStepScenario(scenario);
-                              setShowStepEditor(true);
-                            }}
-                            className="cursor-pointer hover:opacity-80 transition"
-                          >
-                            {/* Step Label - Smaller font */}
-                            <div className="mb-2 flex items-center justify-between">
-                              <span className="text-[10px] font-medium text-white/40 uppercase tracking-wide">
-                                {getStepTypeLabel(step)}
-                              </span>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation(); // Prevent opening editor
-                                  handleDeleteStep(step.id, scenario.id);
+                          return (
+                            <li key={step.id} className="relative">
+                              <div
+                                onClick={() => {
+                                  setSelectedStep(step);
+                                  setSelectedStepScenario(scenario);
+                                  setShowStepEditor(true);
                                 }}
-                                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/20 rounded transition text-red-400/70 hover:text-red-400"
-                                title="Delete step"
+                                className="group cursor-pointer py-4"
+                                style={{
+                                  borderTop:
+                                    stepIdx === 0
+                                      ? undefined
+                                      : "1px solid var(--rule)",
+                                }}
                               >
-                                <Trash2 className="h-3 w-3" />
-                              </button>
-                            </div>
+                                <div className="flex items-start gap-4">
+                                  {/* Step index */}
+                                  <div
+                                    className="mono flex-shrink-0 w-8 text-right"
+                                    style={{
+                                      fontSize: 11,
+                                      color: "var(--ink-subtle)",
+                                      paddingTop: 2,
+                                    }}
+                                  >
+                                    {String(stepIdx + 1).padStart(2, "0")}
+                                  </div>
 
-                            {/* Step Content - Smaller font */}
-                            <div className="flex items-start gap-4">
-                              {/* Message Content */}
-                              <div className="flex-1 min-w-0">
-                                {step.type === "say" && step.ai_message && (
-                                  <p className="text-xs text-white/80 leading-relaxed">
-                                    "{step.ai_message}"
-                                  </p>
-                                )}
-                                {step.type === "code" && step.code && (
-                                  <pre className="text-[10px] text-white/70 font-mono bg-black/60 p-2 rounded border border-white/10 overflow-x-auto">
-                                    {step.code.substring(0, 200)}
-                                    {step.code.length > 200 && "..."}
-                                  </pre>
-                                )}
-                                {step.type === "gather" && (
-                                  <p className="text-xs text-white/80 leading-relaxed">
-                                    Gather user input...
-                                  </p>
-                                )}
-                                {step.type === "qa" && (
-                                  <div className="space-y-2">
-                                    <p className="text-xs text-white/80 leading-relaxed">
-                                      {step.qa_query 
-                                        ? `Query: "${step.qa_query}"`
-                                        : "Use previous GATHER input"}
-                                    </p>
-                                    <div className="flex items-center gap-2 text-[10px] text-white/60">
-                                      <Database className="h-3 w-3" />
-                                      <span>
-                                        {step.qa_data_source_ids && step.qa_data_source_ids.length > 0
-                                          ? `${step.qa_data_source_ids.length} data source(s)`
-                                          : "All data sources"}
+                                  {/* Content */}
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span
+                                        className="label-section"
+                                        style={{ color: "var(--ink-muted)" }}
+                                      >
+                                        {getStepTypeLabel(step)}
                                       </span>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDeleteStep(step.id, scenario.id);
+                                        }}
+                                        className="opacity-0 group-hover:opacity-100 p-1 transition"
+                                        style={{ color: "var(--ink-subtle)" }}
+                                        title="Delete step"
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </button>
                                     </div>
-                                    {step.qa_fallback_message && (
-                                      <p className="text-[10px] text-white/50 italic">
-                                        Fallback: {step.qa_fallback_message}
+
+                                    {step.type === "say" && step.ai_message && (
+                                      <p
+                                        className="text-sm"
+                                        style={{
+                                          color: "var(--ink)",
+                                          lineHeight: 1.55,
+                                        }}
+                                      >
+                                        &ldquo;{step.ai_message}&rdquo;
                                       </p>
                                     )}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
+                                    {step.type === "code" && step.code && (
+                                      <pre
+                                        className="mono overflow-x-auto px-3 py-2"
+                                        style={{
+                                          fontSize: 11,
+                                          background: "var(--canvas-subtle)",
+                                          border: "1px solid var(--rule)",
+                                          borderRadius: "var(--r-input)",
+                                          color: "var(--ink)",
+                                          lineHeight: 1.5,
+                                        }}
+                                      >
+                                        {step.code.substring(0, 200)}
+                                        {step.code.length > 200 && "…"}
+                                      </pre>
+                                    )}
+                                    {step.type === "gather" && (
+                                      <p
+                                        className="text-sm"
+                                        style={{ color: "var(--ink-muted)" }}
+                                      >
+                                        Gather user input…
+                                      </p>
+                                    )}
+                                    {step.type === "qa" && (
+                                      <div className="space-y-1.5">
+                                        <p
+                                          className="text-sm"
+                                          style={{
+                                            color: "var(--ink)",
+                                            lineHeight: 1.55,
+                                          }}
+                                        >
+                                          {step.qa_query
+                                            ? `Query: "${step.qa_query}"`
+                                            : "Use previous Gather input"}
+                                        </p>
+                                        <div
+                                          className="flex items-center gap-1.5 mono"
+                                          style={{
+                                            fontSize: 11,
+                                            color: "var(--ink-muted)",
+                                          }}
+                                        >
+                                          <Database className="h-3 w-3" />
+                                          <span>
+                                            {step.qa_data_source_ids &&
+                                            step.qa_data_source_ids.length > 0
+                                              ? `${step.qa_data_source_ids.length} data source(s)`
+                                              : "All data sources"}
+                                          </span>
+                                        </div>
+                                        {step.qa_fallback_message && (
+                                          <p
+                                            className="text-xs italic"
+                                            style={{
+                                              color: "var(--ink-subtle)",
+                                            }}
+                                          >
+                                            Fallback: {step.qa_fallback_message}
+                                          </p>
+                                        )}
+                                      </div>
+                                    )}
 
-                            {/* Branching Logic - Smaller font */}
-                            {stepBranches.length > 0 && (
-                              <div className="mt-4 space-y-2 pl-0">
-                                {stepBranches.map((branch) => {
-                                  const targetName = getTargetStepName(branch, scenario.id);
-                                  
-                                  return (
-                                    <div key={branch.id} className="flex items-center gap-1.5 flex-wrap text-[10px]">
-                                      <span className="text-white/60">{branch.condition}</span>
-                                      {branch.condition_tag && (
-                                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono ${
-                                          branch.condition_tag.startsWith('@') 
-                                            ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' 
-                                            : branch.condition_tag.includes('verify') || branch.condition_tag.includes('check')
-                                            ? 'bg-green-500/20 text-green-300 border border-green-500/30'
-                                            : 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
-                                        }`}>
-                                          {branch.condition_tag}
-                                        </span>
+                                    {/* Branches */}
+                                    {stepBranches.length > 0 && (
+                                      <div className="mt-3 space-y-1.5">
+                                        {stepBranches.map((branch) => {
+                                          const targetName = getTargetStepName(
+                                            branch,
+                                            scenario.id
+                                          );
+                                          return (
+                                            <div
+                                              key={branch.id}
+                                              className="flex items-center gap-2 flex-wrap text-xs"
+                                              style={{
+                                                color: "var(--ink-muted)",
+                                              }}
+                                            >
+                                              <CornerDownRight
+                                                className="h-3 w-3 flex-shrink-0"
+                                                style={{
+                                                  color: "var(--ink-subtle)",
+                                                }}
+                                              />
+                                              <span>{branch.condition}</span>
+                                              {branch.condition_tag && (
+                                                <span
+                                                  className="chip-citation"
+                                                  style={{ fontSize: 10 }}
+                                                >
+                                                  {branch.condition_tag}
+                                                </span>
+                                              )}
+                                              <ChevronRight
+                                                className="h-3 w-3 flex-shrink-0"
+                                                style={{
+                                                  color: "var(--ink-subtle)",
+                                                }}
+                                              />
+                                              <span
+                                                style={{
+                                                  color: "var(--ink)",
+                                                  fontWeight: 500,
+                                                }}
+                                              >
+                                                {targetName}
+                                              </span>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+
+                                    {/* Default flow */}
+                                    {stepBranches.length === 0 &&
+                                      stepIdx < steps.length - 1 && (
+                                        <div
+                                          className="mt-3 flex items-center gap-1.5 text-xs"
+                                          style={{ color: "var(--ink-subtle)" }}
+                                        >
+                                          <CornerDownRight className="h-3 w-3" />
+                                          <span>
+                                            proceed to step {stepIdx + 2}
+                                          </span>
+                                        </div>
                                       )}
-                                      <ChevronRight className="h-3 w-3 text-white/50 flex-shrink-0" />
-                                      <span className="text-white/60 font-medium">proceed to</span>
-                                      <span className="text-white/70 font-semibold">{targetName}</span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-
-                            {/* Special Actions - Smaller font */}
-                            {stepBranches.length === 0 && step.type === "say" && step.ai_message?.includes("upload") && (
-                              <div className="mt-4 space-y-2 pl-0">
-                                <div className="flex items-center gap-1.5 text-[10px]">
-                                  <span className="text-white/60">Upload is successful:</span>
-                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-green-500/20 text-green-300 border border-green-500/30">
-                                    verify_identity_check
-                                  </span>
-                                  <ChevronRight className="h-3 w-3 text-white/50" />
-                                  <span className="text-white/60 font-medium">proceed to</span>
-                                  <span className="text-white/70 font-semibold">Compliance Checks</span>
-                                </div>
-                                <div className="flex items-center gap-1.5 text-[10px]">
-                                  <span className="text-white/60">Upload fails: retry up to 2 times</span>
-                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                                    @info_not_provided
-                                  </span>
-                                  <span className="text-white/60">if still fails, proceed to</span>
-                                  <span className="text-white/70 font-semibold">Escalation</span>
+                                  </div>
                                 </div>
                               </div>
-                            )}
-
-                            {/* Default flow - Smaller font */}
-                            {stepBranches.length === 0 && stepIdx < steps.length - 1 && step.type !== "say" && (
-                              <div className="mt-4 pl-0">
-                                <div className="flex items-center gap-1.5 text-[10px] text-white/40">
-                                  <ChevronRight className="h-3 w-3" />
-                                  <span>proceed to step {stepIdx + 2}</span>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Connection Line to Next Step */}
-                          {stepIdx < steps.length - 1 && (
-                            <div className="flex justify-start my-4 pl-0">
-                              <div className="w-0.5 h-6 bg-white/10" />
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
+                            </li>
+                          );
+                        })}
+                      </ol>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Step Editor Sidebar */}
       {showStepEditor && selectedStep && selectedStepScenario && (
         <StepEditor
           step={selectedStep}

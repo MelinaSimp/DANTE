@@ -1,5 +1,11 @@
 "use client";
 
+// Right-side step editor drawer — tabs for code / input schema / callable
+// functions / APIs / global variables / branches. Harvey-ized Apr 2026:
+// white canvas, 1px left rule, tokenized inputs and tabs. Monospace
+// textareas for code, everything else is Inter. Purple accent removed —
+// active tab underline is ink, citation-style chip for tags.
+
 import { useState, useEffect } from "react";
 import { X, Code, FileText, Zap, Globe, Plus, Trash2 } from "lucide-react";
 
@@ -31,13 +37,13 @@ interface StepEditorProps {
 }
 
 export default function StepEditor({ step, onClose, onSave }: StepEditorProps) {
-  const [activeTab, setActiveTab] = useState<"code" | "input" | "functions" | "apis" | "globals" | "branches">("code");
+  const [activeTab, setActiveTab] = useState<
+    "code" | "input" | "functions" | "apis" | "globals" | "branches"
+  >("code");
   const [name, setName] = useState(step.name);
   const [code, setCode] = useState(step.code || "");
   const [aiMessage, setAiMessage] = useState(step.ai_message || "");
   const [branches, setBranches] = useState<StepBranch[]>([]);
-  const [allSteps, setAllSteps] = useState<any[]>([]);
-  const [allScenarios, setAllScenarios] = useState<any[]>([]);
 
   useEffect(() => {
     setName(step.name);
@@ -80,9 +86,12 @@ export default function StepEditor({ step, onClose, onSave }: StepEditorProps) {
 
   const handleDeleteBranch = async (branchId: string) => {
     try {
-      const response = await fetch(`/api/steps/${step.id}/branches/${branchId}`, {
-        method: "DELETE",
-      });
+      const response = await fetch(
+        `/api/steps/${step.id}/branches/${branchId}`,
+        {
+          method: "DELETE",
+        }
+      );
 
       if (response.ok) {
         await loadBranches();
@@ -92,13 +101,19 @@ export default function StepEditor({ step, onClose, onSave }: StepEditorProps) {
     }
   };
 
-  const handleUpdateBranch = async (branchId: string, updates: Partial<StepBranch>) => {
+  const handleUpdateBranch = async (
+    branchId: string,
+    updates: Partial<StepBranch>
+  ) => {
     try {
-      const response = await fetch(`/api/steps/${step.id}/branches/${branchId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates),
-      });
+      const response = await fetch(
+        `/api/steps/${step.id}/branches/${branchId}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(updates),
+        }
+      );
 
       if (response.ok) {
         await loadBranches();
@@ -117,31 +132,74 @@ export default function StepEditor({ step, onClose, onSave }: StepEditorProps) {
     await onSave(updates);
   };
 
+  const inputStyle: React.CSSProperties = {
+    background: "var(--canvas)",
+    border: "1px solid var(--rule)",
+    borderRadius: "var(--r-input)",
+    color: "var(--ink)",
+  };
+
   return (
-    <div className="fixed right-0 top-0 h-full w-1/2 border-l border-white/10 bg-black/40 backdrop-blur shadow-2xl z-50 flex flex-col">
+    <div
+      className="fixed right-0 top-0 h-full w-full max-w-xl z-50 flex flex-col"
+      style={{
+        background: "var(--canvas)",
+        borderLeft: "1px solid var(--rule)",
+        color: "var(--ink)",
+      }}
+    >
       {/* Header */}
-      <div className="border-b border-white/10 px-6 py-4">
-        <div className="flex items-center justify-between mb-2">
-          <div>
-            <h2 className="text-xl font-semibold text-white">{name}</h2>
-            <p className="text-sm text-white/60 mt-1">
+      <div
+        className="px-6 py-4"
+        style={{ borderBottom: "1px solid var(--rule)" }}
+      >
+        <div className="flex items-start justify-between mb-1">
+          <div className="min-w-0">
+            <div
+              className="label-section mb-1"
+              style={{ color: "var(--ink-subtle)" }}
+            >
+              Step · {step.type}
+            </div>
+            <h2
+              className="heading-display truncate"
+              style={{ fontSize: 24, color: "var(--ink)" }}
+            >
+              {name || "Untitled step"}
+            </h2>
+            <p
+              className="text-xs mt-1"
+              style={{ color: "var(--ink-muted)", lineHeight: 1.5 }}
+            >
               {step.type === "code"
-                ? "Loads a user's profile from your API and stores name + tier for later steps."
-                : "Configure the AI message for this step."}
+                ? "Executable block — loads values into the agent store and emits an assistant message."
+                : step.type === "say"
+                ? "Configure the message the agent will speak at this step."
+                : "Configure this step."}
             </p>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-white/5 rounded-full transition"
+            className="p-1.5 transition"
+            style={{ color: "var(--ink-muted)", borderRadius: "var(--r-input)" }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "var(--canvas-subtle)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+            }}
           >
-            <X className="h-5 w-5 text-white/60" />
+            <X className="h-4 w-4" />
           </button>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-white/10 px-6">
-        <div className="flex gap-1">
+      <div
+        className="px-6"
+        style={{ borderBottom: "1px solid var(--rule)" }}
+      >
+        <div className="flex gap-5 overflow-x-auto">
           {step.type === "code" && (
             <>
               <TabButton
@@ -152,13 +210,13 @@ export default function StepEditor({ step, onClose, onSave }: StepEditorProps) {
               />
               <TabButton
                 icon={FileText}
-                label="Input Schema"
+                label="Input schema"
                 active={activeTab === "input"}
                 onClick={() => setActiveTab("input")}
               />
               <TabButton
                 icon={Zap}
-                label="Callable functions"
+                label="Functions"
                 active={activeTab === "functions"}
                 onClick={() => setActiveTab("functions")}
               />
@@ -170,7 +228,7 @@ export default function StepEditor({ step, onClose, onSave }: StepEditorProps) {
               />
               <TabButton
                 icon={Globe}
-                label="Global Variables"
+                label="Globals"
                 active={activeTab === "globals"}
                 onClick={() => setActiveTab("globals")}
               />
@@ -186,37 +244,43 @@ export default function StepEditor({ step, onClose, onSave }: StepEditorProps) {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto px-6 py-5">
         {step.type === "code" && activeTab === "code" && (
-          <div>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-white/70 mb-2">
-                Step Name
-              </label>
+          <div className="space-y-4">
+            <div>
+              <div
+                className="label-section mb-1.5"
+                style={{ color: "var(--ink-muted)" }}
+              >
+                Step name
+              </div>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg border border-white/10 bg-black/40 text-white focus:outline-none focus:border-[#3351ff]"
+                className="w-full px-3 py-2 text-sm outline-none"
+                style={inputStyle}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-white/70 mb-2">
+              <div
+                className="label-section mb-1.5"
+                style={{ color: "var(--ink-muted)" }}
+              >
                 Code
-              </label>
+              </div>
               <textarea
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                className="w-full h-96 font-mono text-sm px-4 py-3 rounded-lg border border-white/10 bg-black/40 text-white focus:outline-none focus:border-[#3351ff] resize-none"
+                className="w-full h-96 mono text-xs px-3 py-3 outline-none resize-none"
+                style={{ ...inputStyle, lineHeight: 1.55 }}
                 placeholder={`# Loads a user's profile and updates global store
 store_updates = {}
 assistant_message = ""
 
 try:
-  # API result
   result = await get_user_profile(user_id)
-  
   if not result.get("success"):
     assistant_message = "Failed to load profile."
   else:
@@ -231,128 +295,184 @@ except Exception as e:
         )}
 
         {step.type === "say" && (
-          <div>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-white/70 mb-2">
-                Step Name
-              </label>
+          <div className="space-y-4">
+            <div>
+              <div
+                className="label-section mb-1.5"
+                style={{ color: "var(--ink-muted)" }}
+              >
+                Step name
+              </div>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg border border-white/10 bg-black/40 text-white focus:outline-none focus:border-[#3351ff]"
+                className="w-full px-3 py-2 text-sm outline-none"
+                style={inputStyle}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-white/70 mb-2">
-                AI Message
-              </label>
+              <div
+                className="label-section mb-1.5"
+                style={{ color: "var(--ink-muted)" }}
+              >
+                AI message
+              </div>
               <textarea
                 value={aiMessage}
                 onChange={(e) => setAiMessage(e.target.value)}
-                rows={6}
-                className="w-full px-4 py-3 rounded-lg border border-white/10 bg-black/40 text-white focus:outline-none focus:border-[#3351ff] resize-none"
-                placeholder="Welcome! We're excited to get you started with your new account. May I confirm your full name and date of birth to begin?"
+                rows={8}
+                className="w-full px-3 py-3 text-sm outline-none resize-none"
+                style={{ ...inputStyle, lineHeight: 1.55 }}
+                placeholder="Welcome! May I confirm your full name and date of birth to begin?"
               />
             </div>
           </div>
         )}
 
         {activeTab === "input" && (
-          <div className="text-white/60">
-            <p>Input schema configuration coming soon...</p>
-          </div>
+          <EmptyTab message="Input schema configuration coming soon." />
         )}
-
         {activeTab === "functions" && (
-          <div className="text-white/60">
-            <p>Callable functions configuration coming soon...</p>
-          </div>
+          <EmptyTab message="Callable functions configuration coming soon." />
         )}
-
         {activeTab === "apis" && (
-          <div className="text-white/60">
-            <p>API configuration coming soon...</p>
-          </div>
+          <EmptyTab message="API configuration coming soon." />
         )}
-
         {activeTab === "globals" && (
-          <div className="text-white/60">
-            <p>Global variables configuration coming soon...</p>
-          </div>
+          <EmptyTab message="Global variables configuration coming soon." />
         )}
 
         {activeTab === "branches" && (
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-white">Branching Logic</h3>
+              <div
+                className="label-section"
+                style={{ color: "var(--ink-muted)" }}
+              >
+                Branching logic
+              </div>
               <button
                 onClick={handleCreateBranch}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#3351ff] hover:bg-[#4a64ff] text-white text-sm font-medium transition"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs transition"
+                style={{
+                  background: "var(--ink)",
+                  color: "var(--canvas)",
+                  borderRadius: "var(--r-input)",
+                  fontWeight: 500,
+                }}
               >
-                <Plus className="h-4 w-4" />
-                Add Branch
+                <Plus className="h-3 w-3" />
+                Add branch
               </button>
             </div>
 
             {branches.length === 0 ? (
-              <div className="text-center py-8 text-white/60">
-                <p>No branches yet. Add a branch to create if-then logic.</p>
+              <div
+                className="text-center py-10 text-xs"
+                style={{ color: "var(--ink-subtle)" }}
+              >
+                No branches yet. Add a branch to create if-then logic.
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {branches.map((branch) => (
-                  <div key={branch.id} className="rounded-lg border border-white/10 bg-black/40 p-4">
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-xs font-medium text-white/60 mb-1.5">If condition:</label>
-                        <input
-                          type="text"
-                          value={branch.condition}
-                          onChange={(e) => handleUpdateBranch(branch.id, { condition: e.target.value })}
-                          className="w-full px-3 py-2 rounded-lg border border-white/10 bg-black/40 text-white text-sm focus:outline-none focus:border-[#3351ff]"
-                          placeholder="Customer provides info"
-                        />
+                  <div
+                    key={branch.id}
+                    className="card-flat p-4 space-y-3"
+                    style={{ background: "var(--canvas)" }}
+                  >
+                    <div>
+                      <div
+                        className="label-section mb-1.5"
+                        style={{ color: "var(--ink-muted)" }}
+                      >
+                        If condition
                       </div>
+                      <input
+                        type="text"
+                        value={branch.condition}
+                        onChange={(e) =>
+                          handleUpdateBranch(branch.id, {
+                            condition: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 text-sm outline-none"
+                        style={inputStyle}
+                        placeholder="Customer provides info"
+                      />
+                    </div>
 
-                      <div>
-                        <label className="block text-xs font-medium text-white/60 mb-1.5">Condition tag:</label>
-                        <input
-                          type="text"
-                          value={branch.condition_tag || ""}
-                          onChange={(e) => handleUpdateBranch(branch.id, { condition_tag: e.target.value })}
-                          className="w-full px-3 py-2 rounded-lg border border-white/10 bg-black/40 text-white text-sm font-mono focus:outline-none focus:border-[#3351ff]"
-                          placeholder="@info_confirmed"
-                        />
+                    <div>
+                      <div
+                        className="label-section mb-1.5"
+                        style={{ color: "var(--ink-muted)" }}
+                      >
+                        Condition tag
                       </div>
+                      <input
+                        type="text"
+                        value={branch.condition_tag || ""}
+                        onChange={(e) =>
+                          handleUpdateBranch(branch.id, {
+                            condition_tag: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 text-sm mono outline-none"
+                        style={inputStyle}
+                        placeholder="@info_confirmed"
+                      />
+                    </div>
 
-                      <div>
-                        <label className="block text-xs font-medium text-white/60 mb-1.5">Then proceed to:</label>
-                        <select
-                          value={branch.next_step_id || branch.next_scenario_id || ""}
-                          onChange={(e) => {
-                            if (e.target.value.startsWith("step_")) {
-                              handleUpdateBranch(branch.id, { next_step_id: e.target.value.replace("step_", ""), next_scenario_id: undefined });
-                            } else if (e.target.value.startsWith("scenario_")) {
-                              handleUpdateBranch(branch.id, { next_scenario_id: e.target.value.replace("scenario_", ""), next_step_id: undefined });
-                            }
-                          }}
-                          className="w-full px-3 py-2 rounded-lg border border-white/10 bg-black/40 text-white text-sm focus:outline-none focus:border-[#3351ff]"
-                        >
-                          <option value="">Select next step or scenario...</option>
-                          {/* We'd need to load all steps and scenarios here */}
-                        </select>
+                    <div>
+                      <div
+                        className="label-section mb-1.5"
+                        style={{ color: "var(--ink-muted)" }}
+                      >
+                        Then proceed to
                       </div>
+                      <select
+                        value={
+                          branch.next_step_id || branch.next_scenario_id || ""
+                        }
+                        onChange={(e) => {
+                          if (e.target.value.startsWith("step_")) {
+                            handleUpdateBranch(branch.id, {
+                              next_step_id: e.target.value.replace("step_", ""),
+                              next_scenario_id: undefined,
+                            });
+                          } else if (e.target.value.startsWith("scenario_")) {
+                            handleUpdateBranch(branch.id, {
+                              next_scenario_id: e.target.value.replace(
+                                "scenario_",
+                                ""
+                              ),
+                              next_step_id: undefined,
+                            });
+                          }
+                        }}
+                        className="w-full px-3 py-2 text-sm outline-none"
+                        style={inputStyle}
+                      >
+                        <option value="">Select next step or scenario…</option>
+                      </select>
+                    </div>
 
-                      <div className="flex justify-end">
-                        <button
-                          onClick={() => handleDeleteBranch(branch.id)}
-                          className="px-3 py-1.5 rounded-lg border border-red-500/30 bg-red-500/10 text-red-400 text-sm hover:bg-red-500/20 transition"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => handleDeleteBranch(branch.id)}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs transition"
+                        style={{
+                          background: "var(--danger-soft)",
+                          color: "var(--danger)",
+                          border: "1px solid var(--danger)",
+                          borderRadius: "var(--r-input)",
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        Delete
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -363,16 +483,31 @@ except Exception as e:
       </div>
 
       {/* Footer */}
-      <div className="border-t border-white/10 px-6 py-4 flex items-center justify-end gap-3">
+      <div
+        className="px-6 py-3 flex items-center justify-end gap-2"
+        style={{ borderTop: "1px solid var(--rule)" }}
+      >
         <button
           onClick={onClose}
-          className="px-4 py-2 rounded-lg border border-white/10 bg-black/40 text-white hover:bg-black/60 transition"
+          className="px-3 py-1.5 text-xs transition"
+          style={{
+            background: "var(--canvas)",
+            color: "var(--ink)",
+            border: "1px solid var(--rule)",
+            borderRadius: "var(--r-input)",
+          }}
         >
           Cancel
         </button>
         <button
           onClick={handleSave}
-          className="px-4 py-2 rounded-lg bg-[#3351ff] hover:bg-[#4a64ff] text-white font-medium transition"
+          className="px-3 py-1.5 text-xs transition"
+          style={{
+            background: "var(--ink)",
+            color: "var(--canvas)",
+            borderRadius: "var(--r-input)",
+            fontWeight: 500,
+          }}
         >
           Save
         </button>
@@ -395,16 +530,27 @@ function TabButton({
   return (
     <button
       onClick={onClick}
-      className={`px-4 py-2 text-sm font-medium transition flex items-center gap-2 ${
-        active
-          ? "text-white border-b-2 border-[#3351ff]"
-          : "text-white/60 hover:text-white"
-      }`}
+      className="py-3 text-xs flex items-center gap-1.5 whitespace-nowrap transition"
+      style={{
+        color: active ? "var(--ink)" : "var(--ink-muted)",
+        fontWeight: active ? 500 : 400,
+        borderBottom: active ? "2px solid var(--ink)" : "2px solid transparent",
+        marginBottom: -1,
+      }}
     >
-      <Icon className="h-4 w-4" />
+      <Icon className="h-3.5 w-3.5" />
       {label}
     </button>
   );
 }
 
-
+function EmptyTab({ message }: { message: string }) {
+  return (
+    <div
+      className="text-center py-10 text-xs"
+      style={{ color: "var(--ink-subtle)" }}
+    >
+      {message}
+    </div>
+  );
+}

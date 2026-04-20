@@ -1,16 +1,42 @@
 "use client";
 
+// Create-agent modal — name + modality picker + optional training docs.
+// Harvey-ized Apr 2026: white card on a subtle scrim, editorial heading,
+// pill-style segmented modality buttons (filled for active), dashed
+// 1px upload well. No gradient avatar, no purple accent.
+
 import { useState } from "react";
-import { X, MessageSquare, Phone, Layers, Upload, FileText, Folder, Image, Music, Play } from "lucide-react";
+import {
+  X,
+  MessageSquare,
+  Phone,
+  Layers,
+  FileText,
+  Folder,
+  Image as ImageIcon,
+  Music,
+  Play,
+  Upload,
+  Bot,
+} from "lucide-react";
 
 interface CreateAgentModalProps {
   onClose: () => void;
-  onCreate: (data: { name: string; modality: "chat" | "voice" | "multi-modal"; description?: string }) => void;
+  onCreate: (data: {
+    name: string;
+    modality: "chat" | "voice" | "multi-modal";
+    description?: string;
+  }) => void;
 }
 
-export default function CreateAgentModal({ onClose, onCreate }: CreateAgentModalProps) {
+export default function CreateAgentModal({
+  onClose,
+  onCreate,
+}: CreateAgentModalProps) {
   const [name, setName] = useState("");
-  const [modality, setModality] = useState<"chat" | "voice" | "multi-modal">("chat");
+  const [modality, setModality] = useState<"chat" | "voice" | "multi-modal">(
+    "chat"
+  );
   const [files, setFiles] = useState<File[]>([]);
   const [nameError, setNameError] = useState<string | null>(null);
 
@@ -46,27 +72,71 @@ export default function CreateAgentModal({ onClose, onCreate }: CreateAgentModal
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className="relative w-full max-w-2xl rounded-2xl border border-white/10 bg-[#1a1612]/95 backdrop-blur p-8 shadow-2xl">
-        <button
-          onClick={onClose}
-          className="absolute right-4 top-4 p-2 hover:bg-white/5 rounded-full transition"
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      style={{ background: "rgba(21, 21, 21, 0.35)" }}
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-xl card-flat"
+        style={{ background: "var(--canvas)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div
+          className="flex items-start justify-between px-6 py-5"
+          style={{ borderBottom: "1px solid var(--rule)" }}
         >
-          <X className="h-5 w-5 text-white/60" />
-        </button>
-
-        <div className="mb-6">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-500 via-purple-500 to-blue-500 flex items-center justify-center">
+          <div className="flex items-center gap-3">
+            <div
+              className="w-9 h-9 flex items-center justify-center"
+              style={{
+                border: "1px solid var(--rule)",
+                borderRadius: "var(--r-card)",
+                background: "var(--canvas-subtle)",
+                color: "var(--ink-muted)",
+              }}
+            >
+              <Bot className="h-4 w-4" />
             </div>
-            <h2 className="text-2xl font-semibold text-white">Create new agent</h2>
+            <div>
+              <div
+                className="label-section mb-0.5"
+                style={{ color: "var(--ink-subtle)" }}
+              >
+                New agent
+              </div>
+              <h2
+                className="heading-display"
+                style={{ fontSize: 24, color: "var(--ink)" }}
+              >
+                Create agent
+              </h2>
+            </div>
           </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 transition"
+            style={{ color: "var(--ink-muted)", borderRadius: "var(--r-input)" }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "var(--canvas-subtle)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+            }}
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5">
           {/* Agent Name */}
           <div>
-            <label htmlFor="agent-name" className="block text-sm font-medium text-white/70 mb-2">
+            <label
+              htmlFor="agent-name"
+              className="label-section block mb-1.5"
+              style={{ color: "var(--ink-muted)" }}
+            >
               Agent name
             </label>
             <input
@@ -80,82 +150,79 @@ export default function CreateAgentModal({ onClose, onCreate }: CreateAgentModal
               placeholder="e.g. Front Desk Receptionist"
               autoFocus
               maxLength={60}
-              className={`w-full rounded-2xl border bg-black/40 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:outline-none focus:ring-2 transition ${
-                nameError
-                  ? "border-red-500/50 focus:border-red-500 focus:ring-red-500/30"
-                  : "border-white/15 focus:border-[#3351ff] focus:ring-[#3351ff]/30"
-              }`}
+              className="w-full px-3 py-2 text-sm outline-none"
+              style={{
+                background: "var(--canvas)",
+                border: `1px solid ${
+                  nameError ? "var(--danger)" : "var(--rule)"
+                }`,
+                borderRadius: "var(--r-input)",
+                color: "var(--ink)",
+              }}
             />
             {nameError && (
-              <p className="mt-2 text-xs text-red-400">{nameError}</p>
+              <p
+                className="mt-1.5 text-xs"
+                style={{ color: "var(--danger)" }}
+              >
+                {nameError}
+              </p>
             )}
           </div>
 
-          {/* Modality Selection - GigaAI Style */}
+          {/* Modality */}
           <div>
-            <label className="block text-sm font-medium text-white/70 mb-3">
-              Select Agent Type
-            </label>
+            <div
+              className="label-section mb-2"
+              style={{ color: "var(--ink-muted)" }}
+            >
+              Agent type
+            </div>
             <div className="flex gap-2">
-              <button
-                type="button"
+              <ModalityButton
+                icon={MessageSquare}
+                label="Chat"
+                active={modality === "chat"}
                 onClick={() => setModality("chat")}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl transition ${
-                  modality === "chat"
-                    ? "bg-[rgba(139,90,60,0.3)] border border-white/10"
-                    : "bg-black/40 border border-white/10 hover:bg-black/50"
-                }`}
-              >
-                <MessageSquare className={`h-4 w-4 ${modality === "chat" ? "text-orange-400" : "text-white/60"}`} />
-                <div className={`text-sm font-medium ${modality === "chat" ? "text-white" : "text-white/60"}`}>
-                  Chat
-                </div>
-              </button>
-
-              <button
-                type="button"
+              />
+              <ModalityButton
+                icon={Phone}
+                label="Voice"
+                active={modality === "voice"}
                 onClick={() => setModality("voice")}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl transition ${
-                  modality === "voice"
-                    ? "bg-[rgba(139,90,60,0.3)] border border-white/10"
-                    : "bg-black/40 border border-white/10 hover:bg-black/50"
-                }`}
-              >
-                <Phone className={`h-4 w-4 ${modality === "voice" ? "text-white" : "text-white/60"}`} />
-                <div className={`text-sm font-medium ${modality === "voice" ? "text-white" : "text-white/60"}`}>
-                  Voice
-                </div>
-              </button>
-
-              <button
-                type="button"
+              />
+              <ModalityButton
+                icon={Layers}
+                label="Multi-modal"
+                active={modality === "multi-modal"}
                 onClick={() => setModality("multi-modal")}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl transition ${
-                  modality === "multi-modal"
-                    ? "bg-[rgba(139,90,60,0.3)] border border-white/10"
-                    : "bg-black/40 border border-white/10 hover:bg-black/50"
-                }`}
-              >
-                <Layers className={`h-4 w-4 ${modality === "multi-modal" ? "text-white" : "text-white/60"}`} />
-                <div className={`text-sm font-medium ${modality === "multi-modal" ? "text-white" : "text-white/60"}`}>
-                  Multi-modal
-                </div>
-              </button>
+              />
             </div>
           </div>
 
-          {/* Training Documents - GigaAI Style */}
+          {/* Training docs */}
           <div>
-            <label className="block text-sm font-medium text-white/70 mb-2">
-              Add training documents
-            </label>
-            <p className="text-xs text-white/50 mb-3">
-              Attach files to give your agent business context
+            <div
+              className="label-section mb-1.5"
+              style={{ color: "var(--ink-muted)" }}
+            >
+              Training documents
+            </div>
+            <p
+              className="text-xs mb-2"
+              style={{ color: "var(--ink-subtle)" }}
+            >
+              Attach files to give your agent business context.
             </p>
             <div
               onDrop={handleDrop}
               onDragOver={handleDragOver}
-              className="border-2 border-dashed border-white/20 rounded-xl p-8 text-center hover:border-white/30 transition bg-black/20"
+              className="px-6 py-8 text-center"
+              style={{
+                border: "1px dashed var(--rule-strong)",
+                borderRadius: "var(--r-card)",
+                background: "var(--canvas-subtle)",
+              }}
             >
               <input
                 type="file"
@@ -164,27 +231,62 @@ export default function CreateAgentModal({ onClose, onCreate }: CreateAgentModal
                 onChange={handleFileUpload}
                 className="hidden"
               />
-              <label htmlFor="file-upload" className="cursor-pointer flex flex-col items-center">
-                {/* File Type Icons - GigaAI Style */}
-                <div className="flex items-center justify-center gap-4 mb-4">
-                  <Folder className="h-6 w-6 text-white/40" />
-                  <div className="w-0.5 h-6 bg-white/20" />
-                  <FileText className="h-6 w-6 text-white/40" />
-                  <Image className="h-6 w-6 text-white/40" />
-                  <Music className="h-6 w-6 text-white/40" />
-                  <Play className="h-6 w-6 text-white/40" />
+              <label
+                htmlFor="file-upload"
+                className="cursor-pointer flex flex-col items-center"
+              >
+                <div className="flex items-center justify-center gap-4 mb-3">
+                  <Folder
+                    className="h-5 w-5"
+                    style={{ color: "var(--ink-subtle)" }}
+                  />
+                  <div
+                    style={{
+                      width: 1,
+                      height: 20,
+                      background: "var(--rule)",
+                    }}
+                  />
+                  <FileText
+                    className="h-5 w-5"
+                    style={{ color: "var(--ink-subtle)" }}
+                  />
+                  <ImageIcon
+                    className="h-5 w-5"
+                    style={{ color: "var(--ink-subtle)" }}
+                  />
+                  <Music
+                    className="h-5 w-5"
+                    style={{ color: "var(--ink-subtle)" }}
+                  />
+                  <Play
+                    className="h-5 w-5"
+                    style={{ color: "var(--ink-subtle)" }}
+                  />
                 </div>
-                <p className="text-sm text-white/60 mb-1">
+                <span
+                  className="inline-flex items-center gap-1.5 text-xs"
+                  style={{ color: "var(--ink-muted)" }}
+                >
+                  <Upload className="h-3 w-3" />
                   Drag files here or click to browse
-                </p>
+                </span>
               </label>
             </div>
+
             {files.length > 0 && (
-              <div className="mt-3 space-y-2">
+              <div className="mt-3 space-y-1.5">
                 {files.map((file, idx) => (
-                  <div key={idx} className="flex items-center gap-2 text-sm text-white/70">
-                    <FileText className="h-4 w-4" />
-                    <span>{file.name}</span>
+                  <div
+                    key={idx}
+                    className="flex items-center gap-2 text-xs"
+                    style={{ color: "var(--ink)" }}
+                  >
+                    <FileText
+                      className="h-3.5 w-3.5"
+                      style={{ color: "var(--ink-muted)" }}
+                    />
+                    <span className="mono truncate">{file.name}</span>
                   </div>
                 ))}
               </div>
@@ -192,17 +294,31 @@ export default function CreateAgentModal({ onClose, onCreate }: CreateAgentModal
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-end gap-3 pt-4">
+          <div
+            className="flex items-center justify-end gap-2 pt-1"
+          >
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-2 rounded-2xl border border-white/10 bg-black/40 text-white hover:bg-black/60 transition"
+              className="px-3 py-1.5 text-xs transition"
+              style={{
+                background: "var(--canvas)",
+                color: "var(--ink)",
+                border: "1px solid var(--rule)",
+                borderRadius: "var(--r-input)",
+              }}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-6 py-2 rounded-2xl bg-[#3351ff] hover:bg-[#4a64ff] text-white font-medium transition"
+              className="px-3 py-1.5 text-xs transition"
+              style={{
+                background: "var(--ink)",
+                color: "var(--canvas)",
+                borderRadius: "var(--r-input)",
+                fontWeight: 500,
+              }}
             >
               Create agent
             </button>
@@ -210,5 +326,35 @@ export default function CreateAgentModal({ onClose, onCreate }: CreateAgentModal
         </form>
       </div>
     </div>
+  );
+}
+
+function ModalityButton({
+  icon: Icon,
+  label,
+  active,
+  onClick,
+}: {
+  icon: any;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center gap-1.5 px-3 py-2 text-xs transition"
+      style={{
+        background: active ? "var(--ink)" : "var(--canvas)",
+        color: active ? "var(--canvas)" : "var(--ink-muted)",
+        border: `1px solid ${active ? "var(--ink)" : "var(--rule)"}`,
+        borderRadius: "var(--r-input)",
+        fontWeight: active ? 500 : 400,
+      }}
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {label}
+    </button>
   );
 }
