@@ -15,16 +15,26 @@ import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { deleteDocument } from "@/lib/dante/archive/pipeline";
+import { resolveArchiveAccess } from "@/lib/dante/archive/guard";
 
 export const dynamic = "force-dynamic";
 
-async function getCallerWorkspace(): Promise<string | null> {
+async function requireArchiveAccess() {
   const supabase = await createServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data: profile } = await supabase
-    .from("profiles").select("workspace_id").eq("id", user.id).maybeSingle();
-  return profile?.workspace_id || null;
+  const access = await resolveArchiveAccess(supabase);
+  if (access.reason === "unauthenticated") {
+    return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+  }
+  if (access.reason === "no_workspace") {
+    return { error: NextResponse.json({ error: "No workspace" }, { status: 403 }) };
+  }
+  if (!access.allowed) {
+    return { error: NextResponse.json(
+      { error: "Only the workspace owner can manage the archive." },
+      { status: 403 },
+    ) };
+  }
+  return { workspaceId: access.workspaceId! };
 }
 
 export async function GET(
@@ -32,12 +42,12 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const workspaceId = await getCallerWorkspace();
-  if (!workspaceId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await requireArchiveAccess();
+  if ("error" in ctx) return ctx.error;
 
   const { data: doc, error } = await supabaseAdmin
     .from("dante_archive_documents").select("*")
-    .eq("id", id).eq("workspace_id", workspaceId).maybeSingle();
+    .eq("id", id).eq("workspace_id", ctx.workspaceId).maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!doc) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -69,11 +79,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const workspaceId = await getCallerWorkspace();
-  if (!workspaceId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const ctx = await requireArchiveAccess();
+  if ("error" in ctx) return ctx.error;
 
   try {
-    await deleteDocument(workspaceId, id);
+    await deleteDocument(ctx.workspaceId, id);
     return NextResponse.json({ ok: true });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Delete failed";

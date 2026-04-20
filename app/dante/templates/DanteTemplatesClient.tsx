@@ -70,9 +70,10 @@ const CATEGORY_ORDER: WorkflowTemplate["category"][] = [
 
 interface Props {
   archiveReady: number;
+  canManageArchive: boolean;
 }
 
-export default function DanteTemplatesClient({ archiveReady }: Props) {
+export default function DanteTemplatesClient({ archiveReady, canManageArchive }: Props) {
   const router = useRouter();
   const [cloningSlug, setCloningSlug] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -151,26 +152,33 @@ export default function DanteTemplatesClient({ archiveReady }: Props) {
           </div>
         </div>
 
-        {/* Archive warning — advisory, doesn't block */}
+        {/* Archive warning — advisory, doesn't block. Copy + CTA vary
+            based on who's looking: the owner gets a link to the vault,
+            a member gets told to route through their owner (the
+            archive is owner-only by design). */}
         {archiveReady === 0 && (
           <div className="mb-8 card-flat p-4 flex items-start gap-3 border-[var(--flag-soft)] bg-[var(--flag-soft)]/50">
             <AlertCircle className="w-4 h-4 text-[var(--flag)] mt-0.5 shrink-0" strokeWidth={1.5} />
             <div className="flex-1 text-sm">
               <div className="font-semibold text-[var(--ink)] mb-0.5">
-                Your archive is empty.
+                {canManageArchive ? "Your archive is empty." : "The firm archive is empty."}
               </div>
               <p className="text-[var(--ink-muted)] leading-relaxed">
                 Templates marked <em>needs archive</em> will still run, but
                 their <code className="text-[var(--ink)]">archive_lookup</code> steps
                 will return empty context — downstream prompts get nothing
-                to cite. Upload some firm documents first and the same
-                templates become far more useful.
+                to cite.{" "}
+                {canManageArchive
+                  ? "Upload some firm documents first and the same templates become far more useful."
+                  : "Ask your workspace owner to upload the firm's core documents (IPS, policies, compliance memos) before running these."}
               </p>
-              <Link href="/dante/archive"
-                className="mt-2 inline-flex items-center gap-1 text-[var(--accent)] hover:underline">
-                Go to archive
-                <ArrowUpRight className="w-3 h-3" strokeWidth={1.5} />
-              </Link>
+              {canManageArchive && (
+                <Link href="/dante/archive"
+                  className="mt-2 inline-flex items-center gap-1 text-[var(--accent)] hover:underline">
+                  Go to archive
+                  <ArrowUpRight className="w-3 h-3" strokeWidth={1.5} />
+                </Link>
+              )}
             </div>
           </div>
         )}

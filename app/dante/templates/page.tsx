@@ -7,6 +7,8 @@
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { isOwner } from "@/lib/rbac";
+import { hasSuperadminAccess } from "@/lib/superadmin";
 import DanteTemplatesClient from "./DanteTemplatesClient";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +19,7 @@ export default async function DanteTemplatesPage() {
   if (!user) redirect("/auth");
 
   const { data: profile } = await supabase.from("profiles")
-    .select("workspace_id").eq("id", user.id).maybeSingle();
+    .select("workspace_id, role, is_superadmin").eq("id", user.id).maybeSingle();
   if (!profile?.workspace_id) redirect("/dashboard");
 
   // Surface the archive-ready count so we can show a "needs archive"
@@ -28,5 +30,12 @@ export default async function DanteTemplatesPage() {
     .eq("workspace_id", profile.workspace_id).eq("status", "ready");
   const archiveReady = archiveCountResp.error ? 0 : (archiveCountResp.count ?? 0);
 
-  return <DanteTemplatesClient archiveReady={archiveReady} />;
+  // The Archive itself is owner-only; we pass the flag down so the
+  // empty-archive warning can either link to the archive page (for
+  // owners) or tell a member to ask their owner (everyone else).
+  const canManageArchive =
+    isOwner(profile.role) ||
+    hasSuperadminAccess(user.email, profile.is_superadmin);
+
+  return <DanteTemplatesClient archiveReady={archiveReady} canManageArchive={canManageArchive} />;
 }

@@ -11,24 +11,26 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { resolveArchiveAccess } from "@/lib/dante/archive/guard";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   const supabase = await createServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const { data: profile } = await supabase
-    .from("profiles").select("workspace_id").eq("id", user.id).maybeSingle();
-  if (!profile?.workspace_id) {
-    return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  const access = await resolveArchiveAccess(supabase);
+  if (access.reason === "unauthenticated") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (access.reason === "no_workspace") return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  if (!access.allowed) {
+    return NextResponse.json(
+      { error: "Only the workspace owner can view the archive." },
+      { status: 403 },
+    );
   }
 
   const { data, error } = await supabaseAdmin
     .from("dante_archive_documents")
     .select("id, title, kind, tags, mime_type, byte_size, page_count, source_url, status, error, created_at, updated_at")
-    .eq("workspace_id", profile.workspace_id)
+    .eq("workspace_id", access.workspaceId!)
     .order("created_at", { ascending: false });
 
   if (error) {

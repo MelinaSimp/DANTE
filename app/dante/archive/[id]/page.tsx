@@ -6,6 +6,7 @@
 
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { resolveArchiveAccess } from "@/lib/dante/archive/guard";
 import DanteDocDetailClient from "./DanteDocDetailClient";
 
 export const dynamic = "force-dynamic";
@@ -15,12 +16,11 @@ export default async function Page(
 ) {
   const { id } = await params;
   const supabase = await createServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/auth");
-
-  const { data: profile } = await supabase.from("profiles")
-    .select("workspace_id").eq("id", user.id).maybeSingle();
-  if (!profile?.workspace_id) redirect("/dashboard");
+  const access = await resolveArchiveAccess(supabase);
+  if (access.reason === "unauthenticated") redirect("/auth");
+  if (access.reason === "no_workspace") redirect("/dashboard");
+  // Owner-only — see the main archive page for the rationale.
+  if (!access.allowed) redirect("/dante");
 
   return <DanteDocDetailClient documentId={id} />;
 }

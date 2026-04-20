@@ -14,6 +14,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { isOwner } from "@/lib/rbac";
+import { hasSuperadminAccess } from "@/lib/superadmin";
 import {
   ArrowLeft, TrendingDown, Zap, ArrowUpRight, Flame,
   Activity, AlertTriangle, Key, ShieldCheck, Archive, BookOpen,
@@ -28,8 +30,16 @@ export default async function DantePage() {
   if (!user) redirect("/auth");
 
   const { data: profile } = await supabase.from("profiles")
-    .select("workspace_id").eq("id", user.id).maybeSingle();
+    .select("workspace_id, role, is_superadmin").eq("id", user.id).maybeSingle();
   if (!profile?.workspace_id) redirect("/dashboard");
+
+  // The Archive tile is owner-only (legal/compliance documents — see
+  // lib/dante/archive/guard.ts for the full rationale). Members and
+  // admins don't even see it in nav; templates that reference the
+  // archive still work for them because the runner uses service-role.
+  const canSeeArchive =
+    isOwner(profile.role) ||
+    hasSuperadminAccess(user.email, profile.is_superadmin);
 
   // Pull summary counts so the landing page isn't just two dead links.
   // Secrets count is wrapped in a try/catch so a missing table (pre-migration)
@@ -143,28 +153,36 @@ export default async function DantePage() {
             </div>
           </Link>
 
-          {/* Archive */}
-          <Link href="/dante/archive"
-            className="group card-flat card-flat-hover p-6 flex flex-col">
-            <div className="flex items-start justify-between mb-4">
-              <div className="border border-[var(--rule)] bg-[var(--canvas)] rounded-[4px] p-2.5">
-                <Archive className="w-5 h-5 text-[var(--ink)]" strokeWidth={1.5} />
+          {/* Archive — owner/superadmin only */}
+          {canSeeArchive && (
+            <Link href="/dante/archive"
+              className="group card-flat card-flat-hover p-6 flex flex-col">
+              <div className="flex items-start justify-between mb-4">
+                <div className="border border-[var(--rule)] bg-[var(--canvas)] rounded-[4px] p-2.5">
+                  <Archive className="w-5 h-5 text-[var(--ink)]" strokeWidth={1.5} />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[3px] bg-[var(--verified-soft)] text-[var(--verified)] text-[10px] font-medium">
+                    <ShieldCheck className="w-2.5 h-2.5" strokeWidth={1.5} />
+                    owner-only
+                  </span>
+                  <ArrowUpRight className="w-4 h-4 text-[var(--ink-subtle)] group-hover:text-[var(--ink)] transition" strokeWidth={1.5} />
+                </div>
               </div>
-              <ArrowUpRight className="w-4 h-4 text-[var(--ink-subtle)] group-hover:text-[var(--ink)] transition" strokeWidth={1.5} />
-            </div>
-            <h2 className="text-lg font-semibold text-[var(--ink)] mb-1">Archive</h2>
-            <p className="text-sm text-[var(--ink-muted)] mb-5 leading-relaxed">
-              The firm&apos;s document vault. Drop in Form ADVs, IPS templates,
-              client agreements, and compliance memos — every file becomes
-              searchable and citable by workflows with page-level precision.
-            </p>
-            <div className="mt-auto flex items-center gap-4 text-xs">
-              <span className="inline-flex items-center gap-1.5 text-[var(--ink-muted)]">
-                <FileText className="w-3.5 h-3.5" strokeWidth={1.5} />
-                <strong className="font-semibold text-[var(--ink)]">{archiveCount}</strong> indexed
-              </span>
-            </div>
-          </Link>
+              <h2 className="text-lg font-semibold text-[var(--ink)] mb-1">Archive</h2>
+              <p className="text-sm text-[var(--ink-muted)] mb-5 leading-relaxed">
+                The firm&apos;s document vault. Drop in Form ADVs, IPS templates,
+                client agreements, and compliance memos — every file becomes
+                searchable and citable by workflows with page-level precision.
+              </p>
+              <div className="mt-auto flex items-center gap-4 text-xs">
+                <span className="inline-flex items-center gap-1.5 text-[var(--ink-muted)]">
+                  <FileText className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  <strong className="font-semibold text-[var(--ink)]">{archiveCount}</strong> indexed
+                </span>
+              </div>
+            </Link>
+          )}
 
           {/* Templates */}
           <Link href="/dante/templates"

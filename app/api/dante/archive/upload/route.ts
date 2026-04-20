@@ -18,6 +18,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { ingestDocument } from "@/lib/dante/archive/pipeline";
 import { SUPPORTED_MIME_TYPES } from "@/lib/dante/archive/extract";
+import { resolveArchiveAccess } from "@/lib/dante/archive/guard";
 import type { ArchiveKind } from "@/lib/dante/archive/types";
 
 export const dynamic = "force-dynamic";
@@ -30,13 +31,14 @@ const VALID_KINDS = new Set<ArchiveKind>([
 
 export async function POST(request: Request) {
   const supabase = await createServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const { data: profile } = await supabase
-    .from("profiles").select("workspace_id").eq("id", user.id).maybeSingle();
-  if (!profile?.workspace_id) {
-    return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  const access = await resolveArchiveAccess(supabase);
+  if (access.reason === "unauthenticated") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (access.reason === "no_workspace") return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  if (!access.allowed) {
+    return NextResponse.json(
+      { error: "Only the workspace owner can manage the archive." },
+      { status: 403 },
+    );
   }
 
   let form: FormData;
@@ -68,8 +70,8 @@ export async function POST(request: Request) {
   try {
     const buffer = await file.arrayBuffer();
     const result = await ingestDocument({
-      workspaceId: profile.workspace_id,
-      uploadedBy: user.id,
+      workspaceId: access.workspaceId!,
+      uploadedBy: access.userId!,
       title,
       kind,
       tags,

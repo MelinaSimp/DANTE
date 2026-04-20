@@ -10,19 +10,21 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { searchArchive } from "@/lib/dante/archive/search";
+import { resolveArchiveAccess } from "@/lib/dante/archive/guard";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 export async function POST(request: Request) {
   const supabase = await createServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const { data: profile } = await supabase
-    .from("profiles").select("workspace_id").eq("id", user.id).maybeSingle();
-  if (!profile?.workspace_id) {
-    return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  const access = await resolveArchiveAccess(supabase);
+  if (access.reason === "unauthenticated") return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (access.reason === "no_workspace") return NextResponse.json({ error: "No workspace" }, { status: 403 });
+  if (!access.allowed) {
+    return NextResponse.json(
+      { error: "Only the workspace owner can search the archive." },
+      { status: 403 },
+    );
   }
 
   const body = await request.json().catch(() => ({}));
@@ -31,7 +33,7 @@ export async function POST(request: Request) {
 
   try {
     const hits = await searchArchive({
-      workspaceId: profile.workspace_id,
+      workspaceId: access.workspaceId!,
       query,
       k: Number(body.k) || 8,
       kindFilter: body.kind ? String(body.kind) : undefined,
