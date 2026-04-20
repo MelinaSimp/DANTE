@@ -25,14 +25,9 @@ const HIDDEN_PREFIXES = [
   "/join",
   "/select",
   "/status",
-  "/test-superadmin",
-  "/debug-admin",
   "/call",
   "/compiled",
   "/frontend",
-  "/gigaai",
-  "/railway-logs",
-  "/railway-test",
 ];
 
 export default function FloatingDashboardButton() {

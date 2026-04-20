@@ -95,8 +95,10 @@ export async function middleware(req: NextRequest) {
   // Protected routes that require authentication
   // Note: /agents is a top-level redirect to /dashboard/agents (legacy
   // URL support) — it does not need auth gating here because the
-  // redirect target already does.
-  const protectedRoutes = ["/app", "/admin", "/frontend", "/home", "/select", "/superadmin", "/schedule", "/client-details-overview", "/gigaai", "/dashboard", "/settings", "/contacts", "/calls", "/appointments"];
+  // redirect target already does. /gigaai has no page.tsx; its
+  // components are imported by /app backend panels but the URL itself
+  // 404s, so no auth gate needed.
+  const protectedRoutes = ["/app", "/admin", "/frontend", "/home", "/select", "/superadmin", "/schedule", "/client-details-overview", "/dashboard", "/settings", "/contacts", "/calls", "/appointments"];
   const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
 
   // Check authentication for protected routes
