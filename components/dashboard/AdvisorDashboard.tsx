@@ -172,6 +172,12 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
             Agent
           </Link>
           <Link
+            href="/dante"
+            className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
+          >
+            Dante
+          </Link>
+          <Link
             href="/settings"
             className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
           >
