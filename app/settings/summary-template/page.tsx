@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -19,10 +21,16 @@ export default async function SummaryTemplateSettingsPage() {
 
   if (!profile?.workspace_id) {
     return (
-      <div className="mx-auto max-w-3xl px-4 py-12 text-white">
-        <h1 className="text-3xl font-semibold">Summary template</h1>
-        <div className="mt-6 rounded-2xl border border-yellow-500/40 bg-yellow-500/10 p-5 text-sm text-yellow-200">
-          No workspace found. Please contact your administrator.
+      <div className="min-h-screen bg-[var(--canvas)] text-[var(--ink)]">
+        <div className="mx-auto max-w-3xl px-8 py-8">
+          <h1 className="heading-display text-4xl text-[var(--ink)] mb-1">
+            Summary template
+          </h1>
+          <div className="card-flat p-5 border-[var(--flag)]/30 bg-[var(--flag-soft)] mt-6">
+            <p className="text-sm text-[var(--flag)]">
+              No workspace found. Please contact your administrator.
+            </p>
+          </div>
         </div>
       </div>
     );
@@ -58,24 +66,40 @@ export default async function SummaryTemplateSettingsPage() {
   );
 
   return (
-    <div className="relative mx-auto max-w-5xl px-4 py-12 text-white">
-      <div className="absolute inset-0 -z-10 opacity-35">
-        <div className="absolute left-20 top-28 h-72 w-72 rounded-full bg-gradient-to-br from-[#3351ff]/35 via-transparent to-transparent blur-[140px]" />
-        <div className="absolute bottom-12 right-24 h-[22rem] w-[22rem] rounded-full bg-gradient-to-tr from-[#1b3b6f]/40 via-transparent to-transparent blur-[170px]" />
+    <div className="min-h-screen bg-[var(--canvas)] text-[var(--ink)]">
+      <div className="border-b border-[var(--rule)] bg-[var(--canvas)] px-6 py-4">
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="heading-display text-xl text-[var(--ink)]">Drift</span>
+            <span className="label-section text-[var(--ink-muted)]">Summary template</span>
+          </div>
+          <Link
+            href="/settings"
+            className="inline-flex items-center gap-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
+          >
+            <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
+            Back to settings
+          </Link>
+        </div>
       </div>
 
-      <div className="mb-10 space-y-3">
-        <p className="text-xs uppercase tracking-[0.4em] text-white/40">Documents</p>
-        <h1 className="text-4xl font-semibold tracking-tight">Summary template</h1>
-        <p className="max-w-2xl text-sm text-white/60">
-          Pick a document whose annotations define which pages and sections the AI uses when generating one-page summaries for client documents.
-        </p>
-      </div>
+      <div className="mx-auto max-w-5xl px-8 py-8">
+        <div className="mb-6">
+          <div className="label-section mb-2">Documents</div>
+          <h1 className="heading-display text-4xl text-[var(--ink)] mb-1">
+            Summary template
+          </h1>
+          <p className="text-sm text-[var(--ink-muted)] max-w-2xl">
+            Pick a document whose annotations define which pages and sections
+            the AI uses when generating one-page summaries for client documents.
+          </p>
+        </div>
 
-      <SummaryTemplateSettingsClient
-        initialTemplateId={settings?.summary_template_document_id ?? null}
-        documents={documents}
-      />
+        <SummaryTemplateSettingsClient
+          initialTemplateId={settings?.summary_template_document_id ?? null}
+          documents={documents}
+        />
+      </div>
     </div>
   );
 }

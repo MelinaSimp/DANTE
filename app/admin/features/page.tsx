@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { hasSuperadminAccess } from "@/lib/superadmin";
-import { Shield } from "lucide-react";
 import WorkspaceFeatureManager from "@/components/admin/WorkspaceFeatureManager";
 
 export const dynamic = "force-dynamic";
@@ -22,11 +21,11 @@ export default async function FeaturesPage() {
   return (
     <div className="px-8 py-8 max-w-5xl mx-auto">
       <div className="mb-8">
-        <div className="flex items-center gap-3 mb-1">
-          <Shield className="h-6 w-6 text-purple-500" />
-          <h1 className="text-3xl font-bold text-white">Feature Management</h1>
-        </div>
-        <p className="text-white/40 text-sm ml-9">Toggle features and set plan status per workspace</p>
+        <div className="label-section mb-2">Admin</div>
+        <h1 className="heading-display text-4xl text-[var(--ink)] mb-1">Feature management</h1>
+        <p className="text-[var(--ink-muted)] text-sm">
+          Toggle features and set plan status per workspace.
+        </p>
       </div>
       <WorkspaceFeatureManager />
     </div>

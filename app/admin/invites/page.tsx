@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { UserPlus, Building2, Trash2, Loader2, Copy, Check, Mail } from "lucide-react";
+import { Building2, Trash2, Loader2, Copy, Check, Mail } from "lucide-react";
 
 interface Workspace {
   id: string;
@@ -33,11 +33,13 @@ export default function InvitesPage() {
     Promise.all([
       fetch("/api/admin/workspace-features", { credentials: "include" }).then((r) => r.json()),
       fetch("/api/admin/invites", { credentials: "include" }).then((r) => r.json()),
-    ]).then(([wsData, invData]) => {
-      setWorkspaces(wsData.workspaces || []);
-      setInvites(invData.invites || []);
-      setLoading(false);
-    }).catch(() => setLoading(false));
+    ])
+      .then(([wsData, invData]) => {
+        setWorkspaces(wsData.workspaces || []);
+        setInvites(invData.invites || []);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   }, []);
 
   const showToast = (type: "success" | "error", msg: string) => {
@@ -70,7 +72,10 @@ export default function InvitesPage() {
 
   const handleDelete = async (id: string) => {
     try {
-      const res = await fetch(`/api/admin/invites?id=${id}`, { method: "DELETE", credentials: "include" });
+      const res = await fetch(`/api/admin/invites?id=${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
       if (!res.ok) throw new Error("Failed to delete");
       setInvites((prev) => prev.filter((inv) => inv.id !== id));
     } catch (err: any) {
@@ -87,12 +92,16 @@ export default function InvitesPage() {
 
   const isExpired = (expiresAt: string) => new Date(expiresAt) < new Date();
 
-  const wsName = (companyId: string) => workspaces.find((w) => w.id === companyId)?.name || "Unknown";
+  const wsName = (companyId: string) =>
+    workspaces.find((w) => w.id === companyId)?.name || "Unknown";
+
+  const inputClass =
+    "w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none focus:border-[var(--accent)] transition";
 
   if (loading) {
     return (
       <div className="px-8 py-8 max-w-5xl mx-auto flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="h-6 w-6 text-purple-500 animate-spin" />
+        <Loader2 className="h-6 w-6 text-[var(--ink-subtle)] animate-spin" strokeWidth={1.5} />
       </div>
     );
   }
@@ -100,25 +109,33 @@ export default function InvitesPage() {
   return (
     <div className="px-8 py-8 max-w-5xl mx-auto">
       {toast && (
-        <div className={`fixed top-6 right-6 z-50 px-5 py-3 rounded-xl text-sm font-medium shadow-lg ${toast.type === "success" ? "bg-green-500/90 text-white" : "bg-red-500/90 text-white"}`}>
+        <div
+          className="fixed top-6 right-6 z-50 px-4 py-3 rounded-[4px] text-sm font-medium card-flat"
+          style={{
+            background:
+              toast.type === "success" ? "var(--verified-soft)" : "var(--danger-soft)",
+            borderColor: toast.type === "success" ? "var(--verified)" : "var(--danger)",
+            color: toast.type === "success" ? "var(--verified)" : "var(--danger)",
+          }}
+        >
           {toast.msg}
         </div>
       )}
 
       <div className="mb-8">
-        <div className="flex items-center gap-3 mb-1">
-          <UserPlus className="h-6 w-6 text-purple-500" />
-          <h1 className="text-3xl font-bold text-white">Manage Invites</h1>
-        </div>
-        <p className="text-white/40 text-sm ml-9">Create and manage workspace invitations</p>
+        <div className="label-section mb-2">Admin</div>
+        <h1 className="heading-display text-4xl text-[var(--ink)] mb-1">Manage invites</h1>
+        <p className="text-[var(--ink-muted)] text-sm">
+          Create and manage workspace invitations.
+        </p>
       </div>
 
-      <div className="mb-8 rounded-2xl border border-purple-500/20 bg-black p-6">
-        <h2 className="text-lg font-semibold text-white mb-5">Send Invitation</h2>
+      <div className="mb-8 card-flat p-5">
+        <h2 className="text-base font-medium text-[var(--ink)] mb-5">Send invitation</h2>
         <form onSubmit={handleSendInvite} className="grid grid-cols-1 gap-5 md:grid-cols-3">
           <div>
-            <label htmlFor="email" className="mb-1.5 block text-xs font-medium text-white/50 uppercase tracking-wider">
-              Email Address
+            <label htmlFor="email" className="label-section mb-1.5 block">
+              Email address
             </label>
             <input
               type="email"
@@ -126,12 +143,12 @@ export default function InvitesPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full rounded-xl border border-purple-500/20 bg-white/5 px-4 py-2.5 text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-purple-500/40 focus:border-purple-500/40 transition"
+              className={inputClass}
               placeholder="user@example.com"
             />
           </div>
           <div>
-            <label htmlFor="workspace" className="mb-1.5 block text-xs font-medium text-white/50 uppercase tracking-wider">
+            <label htmlFor="workspace" className="label-section mb-1.5 block">
               Workspace
             </label>
             <select
@@ -139,11 +156,13 @@ export default function InvitesPage() {
               value={workspaceId}
               onChange={(e) => setWorkspaceId(e.target.value)}
               required
-              className="w-full rounded-xl border border-purple-500/20 bg-white/5 px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500/40 focus:border-purple-500/40 transition"
+              className={inputClass}
             >
               <option value="">Select a workspace</option>
               {workspaces.map((ws) => (
-                <option key={ws.id} value={ws.id}>{ws.name}</option>
+                <option key={ws.id} value={ws.id}>
+                  {ws.name}
+                </option>
               ))}
             </select>
           </div>
@@ -151,61 +170,97 @@ export default function InvitesPage() {
             <button
               type="submit"
               disabled={sending}
-              className="w-full rounded-xl bg-purple-500 px-6 py-2.5 text-sm font-semibold text-black hover:bg-purple-400 transition-all shadow-lg shadow-purple-500/20 disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-40 transition flex items-center justify-center gap-2"
             >
-              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
-              {sending ? "Sending..." : "Send Invitation"}
+              {sending ? (
+                <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
+              ) : (
+                <Mail className="h-4 w-4" strokeWidth={1.5} />
+              )}
+              {sending ? "Sending..." : "Send invitation"}
             </button>
           </div>
         </form>
       </div>
 
-      <div className="rounded-2xl border border-purple-500/20 bg-black overflow-hidden">
-        <div className="px-6 py-5 border-b border-purple-500/10">
-          <h2 className="text-lg font-semibold text-white">Pending Invites</h2>
+      <div className="card-flat overflow-hidden">
+        <div className="px-5 py-4 border-b border-[var(--rule)]">
+          <h2 className="text-base font-medium text-[var(--ink)]">Pending invites</h2>
         </div>
         {invites.length === 0 ? (
           <div className="py-16 text-center">
-            <Building2 className="h-8 w-8 text-white/10 mx-auto mb-3" />
-            <p className="text-white/40 text-sm">No invites sent yet</p>
+            <Building2
+              className="h-8 w-8 text-[var(--ink-subtle)] mx-auto mb-3"
+              strokeWidth={1.5}
+            />
+            <p className="text-[var(--ink-muted)] text-sm">No invites sent yet</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="border-b border-purple-500/10">
-                <tr className="text-left text-white/40 text-xs uppercase tracking-wider">
-                  <th className="py-4 px-6 font-medium">Email</th>
-                  <th className="py-4 px-4 font-medium">Workspace</th>
-                  <th className="py-4 px-4 font-medium">Token</th>
-                  <th className="py-4 px-4 font-medium">Status</th>
-                  <th className="py-4 px-4 font-medium">Created</th>
-                  <th className="py-4 px-4 font-medium w-20"></th>
+              <thead className="border-b border-[var(--rule)]">
+                <tr>
+                  <th className="label-section text-left px-4 py-2">Email</th>
+                  <th className="label-section text-left px-4 py-2">Workspace</th>
+                  <th className="label-section text-left px-4 py-2">Token</th>
+                  <th className="label-section text-left px-4 py-2">Status</th>
+                  <th className="label-section text-left px-4 py-2">Created</th>
+                  <th className="label-section text-left px-4 py-2 w-20"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-purple-500/5">
+              <tbody>
                 {invites.map((inv) => {
                   const expired = isExpired(inv.expires_at);
                   return (
-                    <tr key={inv.id} className="hover:bg-white/[0.02] transition-colors">
-                      <td className="py-4 px-6 font-medium text-white">{inv.email}</td>
-                      <td className="py-4 px-4 text-white/50">{wsName(inv.company_id)}</td>
-                      <td className="py-4 px-4">
+                    <tr
+                      key={inv.id}
+                      className="border-b border-[var(--rule)] hover:bg-[var(--canvas-subtle)] transition-colors"
+                    >
+                      <td className="py-3 px-4 font-medium text-[var(--ink)]">{inv.email}</td>
+                      <td className="py-3 px-4 text-[var(--ink-muted)]">
+                        {wsName(inv.company_id)}
+                      </td>
+                      <td className="py-3 px-4">
                         <div className="flex items-center gap-2">
-                          <code className="text-xs text-purple-400/80 bg-purple-500/10 px-2 py-0.5 rounded">{inv.token}</code>
-                          <button onClick={() => handleCopy(inv.token, inv.id)} className="text-white/30 hover:text-white transition-colors">
-                            {copiedId === inv.id ? <Check className="h-3.5 w-3.5 text-green-400" /> : <Copy className="h-3.5 w-3.5" />}
+                          <code className="text-xs text-[var(--accent)] bg-[var(--accent-soft)] px-2 py-0.5 rounded-[4px] mono">
+                            {inv.token}
+                          </code>
+                          <button
+                            onClick={() => handleCopy(inv.token, inv.id)}
+                            className="text-[var(--ink-subtle)] hover:text-[var(--ink)] transition-colors"
+                          >
+                            {copiedId === inv.id ? (
+                              <Check
+                                className="h-3.5 w-3.5"
+                                strokeWidth={1.5}
+                                style={{ color: "var(--verified)" }}
+                              />
+                            ) : (
+                              <Copy className="h-3.5 w-3.5" strokeWidth={1.5} />
+                            )}
                           </button>
                         </div>
                       </td>
-                      <td className="py-4 px-4">
-                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${expired ? "bg-red-500/10 text-red-400" : "bg-green-500/10 text-green-400"}`}>
+                      <td className="py-3 px-4">
+                        <span
+                          className="inline-block px-2 py-0.5 rounded-[4px] text-xs font-medium"
+                          style={{
+                            background: expired ? "var(--danger-soft)" : "var(--verified-soft)",
+                            color: expired ? "var(--danger)" : "var(--verified)",
+                          }}
+                        >
                           {expired ? "Expired" : "Pending"}
                         </span>
                       </td>
-                      <td className="py-4 px-4 text-white/30 text-xs">{new Date(inv.created_at).toLocaleDateString()}</td>
-                      <td className="py-4 px-4">
-                        <button onClick={() => handleDelete(inv.id)} className="text-white/20 hover:text-red-400 transition-colors">
-                          <Trash2 className="h-4 w-4" />
+                      <td className="py-3 px-4 text-[var(--ink-subtle)] text-xs mono">
+                        {new Date(inv.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="py-3 px-4">
+                        <button
+                          onClick={() => handleDelete(inv.id)}
+                          className="text-[var(--ink-subtle)] hover:text-[var(--danger)] transition-colors"
+                        >
+                          <Trash2 className="h-4 w-4" strokeWidth={1.5} />
                         </button>
                       </td>
                     </tr>

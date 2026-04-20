@@ -129,28 +129,12 @@ export default function DashboardPage() {
     }
   };
 
-  useEffect(() => {
-    const html = document.documentElement;
-    const body = document.body;
-    const main = document.querySelector("main");
-    html.style.setProperty("background", "#000000", "important");
-    body.style.setProperty("background", "#000000", "important");
-    body.style.setProperty("color", "#fafafa", "important");
-    if (main) (main as HTMLElement).style.setProperty("background", "#000000", "important");
-    return () => {
-      html.style.removeProperty("background");
-      body.style.removeProperty("background");
-      body.style.removeProperty("color");
-      if (main) (main as HTMLElement).style.removeProperty("background");
-    };
-  }, []);
-
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="min-h-screen bg-[var(--canvas)] text-[var(--ink)] flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-zinc-700 border-t-zinc-300 rounded-full animate-spin" />
-          <span className="text-sm text-zinc-500">Loading dashboard...</span>
+          <div className="w-6 h-6 border border-[var(--rule)] border-t-[var(--ink)] rounded-full animate-spin" />
+          <span className="text-sm text-[var(--ink-muted)]">Loading dashboard...</span>
         </div>
       </div>
     );
@@ -158,12 +142,12 @@ export default function DashboardPage() {
 
   if (error || !data) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="min-h-screen bg-[var(--canvas)] text-[var(--ink)] flex items-center justify-center">
         <div className="text-center">
-          <p className="text-zinc-400 mb-4">{error || "Something went wrong"}</p>
+          <p className="text-[var(--ink-muted)] mb-4">{error || "Something went wrong"}</p>
           <button
             onClick={() => { setLoading(true); fetchDashboard(); }}
-            className="text-sm text-blue-400 hover:underline"
+            className="text-sm text-[var(--accent)] hover:underline"
           >
             Retry
           </button>
@@ -173,23 +157,23 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black">
+    <div className="bg-[var(--canvas)] min-h-screen text-[var(--ink)]">
       {/* Top bar */}
-      <div className="sticky top-0 z-20 flex items-center justify-between px-6 md:px-8 py-4 bg-black/80 backdrop-blur-md border-b border-zinc-800/50">
+      <div className="sticky top-0 z-20 flex items-center justify-between px-6 md:px-8 py-4 bg-[var(--canvas)] border-b border-[var(--rule)]">
         <div className="flex items-center gap-3">
           <img
             src="/brand/logo-circle.png"
             alt="Drift"
             className="w-6 h-6 rounded-full object-cover"
           />
-          <span className="text-sm font-semibold text-zinc-100">Drift</span>
-          <span className="text-xs text-zinc-600">/</span>
-          <span className="text-xs text-zinc-400">Dashboard</span>
+          <span className="text-sm font-semibold text-[var(--ink)]">Drift</span>
+          <span className="text-xs text-[var(--ink-subtle)]">/</span>
+          <span className="text-xs text-[var(--ink-muted)]">Dashboard</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           <Link
             href="/dashboard/agents"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition text-sm font-medium"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-[6px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition text-sm font-medium"
           >
             <Bot className="w-4 h-4" />
             <span className="hidden sm:inline">Agents</span>
@@ -197,14 +181,14 @@ export default function DashboardPage() {
           <button
             onClick={() => fetchDashboard(true)}
             disabled={refreshing}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition text-sm font-medium disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-[6px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition text-sm font-medium disabled:opacity-50"
           >
             <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
             <span className="hidden sm:inline">Refresh</span>
           </button>
           <Link
             href="/select"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition text-sm font-medium"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-[6px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition text-sm font-medium"
           >
             <ArrowLeft className="w-4 h-4" />
             <span className="hidden sm:inline">Hub</span>

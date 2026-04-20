@@ -32,28 +32,30 @@ type LocalAppointment = Appointment & { localTime: dayjs.Dayjs };
 const HOURS = Array.from({ length: 24 }, (_, i) => i); // 12am – 11pm (full day)
 const HOUR_HEIGHT = 60; // px per hour
 
+// Appointment blocks keep colored hues for visual differentiation, but at
+// Harvey-compatible low saturation: -50 fill, -500 accent border, -800/-900 text.
 const CLIENT_COLORS = [
-  { bg: "bg-blue-100", border: "border-blue-400", text: "text-blue-900", dot: "bg-blue-500", check: "text-blue-500 border-blue-500 bg-blue-50" },
-  { bg: "bg-green-100", border: "border-green-400", text: "text-green-900", dot: "bg-green-500", check: "text-green-500 border-green-500 bg-green-50" },
-  { bg: "bg-purple-100", border: "border-purple-400", text: "text-purple-900", dot: "bg-purple-500", check: "text-purple-500 border-purple-500 bg-purple-50" },
-  { bg: "bg-amber-100", border: "border-amber-400", text: "text-amber-900", dot: "bg-amber-500", check: "text-amber-500 border-amber-500 bg-amber-50" },
-  { bg: "bg-rose-100", border: "border-rose-400", text: "text-rose-900", dot: "bg-rose-500", check: "text-rose-500 border-rose-500 bg-rose-50" },
-  { bg: "bg-cyan-100", border: "border-cyan-400", text: "text-cyan-900", dot: "bg-cyan-500", check: "text-cyan-500 border-cyan-500 bg-cyan-50" },
-  { bg: "bg-indigo-100", border: "border-indigo-400", text: "text-indigo-900", dot: "bg-indigo-500", check: "text-indigo-500 border-indigo-500 bg-indigo-50" },
-  { bg: "bg-teal-100", border: "border-teal-400", text: "text-teal-900", dot: "bg-teal-500", check: "text-teal-500 border-teal-500 bg-teal-50" },
+  { bg: "bg-blue-50", border: "border-blue-500", text: "text-blue-900", dot: "bg-blue-500", check: "text-blue-600 border-blue-500 bg-blue-50" },
+  { bg: "bg-green-50", border: "border-green-500", text: "text-green-900", dot: "bg-green-500", check: "text-green-600 border-green-500 bg-green-50" },
+  { bg: "bg-purple-50", border: "border-purple-500", text: "text-purple-900", dot: "bg-purple-500", check: "text-purple-600 border-purple-500 bg-purple-50" },
+  { bg: "bg-amber-50", border: "border-amber-500", text: "text-amber-900", dot: "bg-amber-500", check: "text-amber-600 border-amber-500 bg-amber-50" },
+  { bg: "bg-rose-50", border: "border-rose-500", text: "text-rose-900", dot: "bg-rose-500", check: "text-rose-600 border-rose-500 bg-rose-50" },
+  { bg: "bg-cyan-50", border: "border-cyan-500", text: "text-cyan-900", dot: "bg-cyan-500", check: "text-cyan-600 border-cyan-500 bg-cyan-50" },
+  { bg: "bg-indigo-50", border: "border-indigo-500", text: "text-indigo-900", dot: "bg-indigo-500", check: "text-indigo-600 border-indigo-500 bg-indigo-50" },
+  { bg: "bg-teal-50", border: "border-teal-500", text: "text-teal-900", dot: "bg-teal-500", check: "text-teal-600 border-teal-500 bg-teal-50" },
 ];
 
 const SLOT_TYPE_COLORS = [
-  { bg: "bg-green-50", border: "border-green-400", text: "text-green-700", dot: "bg-green-500" },
-  { bg: "bg-blue-50", border: "border-blue-400", text: "text-blue-700", dot: "bg-blue-500" },
-  { bg: "bg-purple-50", border: "border-purple-400", text: "text-purple-700", dot: "bg-purple-500" },
-  { bg: "bg-amber-50", border: "border-amber-400", text: "text-amber-700", dot: "bg-amber-500" },
-  { bg: "bg-rose-50", border: "border-rose-400", text: "text-rose-700", dot: "bg-rose-500" },
-  { bg: "bg-cyan-50", border: "border-cyan-400", text: "text-cyan-700", dot: "bg-cyan-500" },
-  { bg: "bg-indigo-50", border: "border-indigo-400", text: "text-indigo-700", dot: "bg-indigo-500" },
-  { bg: "bg-teal-50", border: "border-teal-400", text: "text-teal-700", dot: "bg-teal-500" },
-  { bg: "bg-orange-50", border: "border-orange-400", text: "text-orange-700", dot: "bg-orange-500" },
-  { bg: "bg-lime-50", border: "border-lime-400", text: "text-lime-700", dot: "bg-lime-500" },
+  { bg: "bg-green-50", border: "border-green-500", text: "text-green-800", dot: "bg-green-500" },
+  { bg: "bg-blue-50", border: "border-blue-500", text: "text-blue-800", dot: "bg-blue-500" },
+  { bg: "bg-purple-50", border: "border-purple-500", text: "text-purple-800", dot: "bg-purple-500" },
+  { bg: "bg-amber-50", border: "border-amber-500", text: "text-amber-800", dot: "bg-amber-500" },
+  { bg: "bg-rose-50", border: "border-rose-500", text: "text-rose-800", dot: "bg-rose-500" },
+  { bg: "bg-cyan-50", border: "border-cyan-500", text: "text-cyan-800", dot: "bg-cyan-500" },
+  { bg: "bg-indigo-50", border: "border-indigo-500", text: "text-indigo-800", dot: "bg-indigo-500" },
+  { bg: "bg-teal-50", border: "border-teal-500", text: "text-teal-800", dot: "bg-teal-500" },
+  { bg: "bg-orange-50", border: "border-orange-500", text: "text-orange-800", dot: "bg-orange-500" },
+  { bg: "bg-lime-50", border: "border-lime-500", text: "text-lime-800", dot: "bg-lime-500" },
 ];
 
 function getSlotTypeColor(slotType: string, allTypes: string[]) {
@@ -453,47 +455,74 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
   );
 
   return (
-    <div className="flex flex-col h-full bg-white text-gray-900 rounded-2xl overflow-hidden border border-gray-200 relative">
+    <div className="flex flex-col h-full bg-[var(--canvas)] text-[var(--ink)] rounded-[6px] overflow-hidden border border-[var(--rule)] relative">
       {/* Toast */}
       {toast && (
-        <div className={`absolute top-3 right-3 z-50 max-w-xs rounded-xl shadow-lg border px-4 py-3 flex items-center gap-2 text-sm font-medium animate-in slide-in-from-top ${
-          toast.type === "error" ? "bg-red-50 border-red-200 text-red-700" : "bg-green-50 border-green-200 text-green-700"
-        }`}>
+        <div
+          className={`absolute top-3 right-3 z-50 max-w-xs rounded-[6px] border px-4 py-3 flex items-center gap-2 text-sm font-medium ${
+            toast.type === "error"
+              ? "bg-[var(--danger-soft)] border-[var(--rule)] text-[var(--danger)]"
+              : "bg-[var(--verified-soft)] border-[var(--rule)] text-[var(--verified)]"
+          }`}
+        >
           <span>{toast.message}</span>
           <button onClick={() => setToast(null)} className="ml-1 opacity-60 hover:opacity-100">
-            <X className="h-3.5 w-3.5" />
+            <X className="h-3.5 w-3.5" strokeWidth={1.5} />
           </button>
         </div>
       )}
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--rule)] bg-[var(--canvas)]">
         <div className="flex items-center gap-3">
-          <button onClick={goToday} className="px-3 py-1.5 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+          <button
+            onClick={goToday}
+            className="px-3 py-1.5 text-sm font-medium border border-[var(--rule-strong)] rounded-[4px] hover:bg-[var(--canvas-subtle)] transition"
+          >
             Today
           </button>
-          <button onClick={goPrev} className="p-1.5 rounded-full hover:bg-gray-100 transition">
-            <ChevronLeft className="h-4 w-4" />
+          <button onClick={goPrev} className="p-1.5 rounded-[4px] hover:bg-[var(--canvas-subtle)] transition">
+            <ChevronLeft className="h-4 w-4" strokeWidth={1.5} />
           </button>
-          <button onClick={goNext} className="p-1.5 rounded-full hover:bg-gray-100 transition">
-            <ChevronRight className="h-4 w-4" />
+          <button onClick={goNext} className="p-1.5 rounded-[4px] hover:bg-[var(--canvas-subtle)] transition">
+            <ChevronRight className="h-4 w-4" strokeWidth={1.5} />
           </button>
-          <h2 className="text-lg font-semibold text-gray-900 ml-1">{headerLabel}</h2>
+          <h2 className="text-lg font-semibold text-[var(--ink)] ml-1">{headerLabel}</h2>
         </div>
           <div className="flex items-center gap-2">
-          <div className="flex rounded-lg border border-gray-300 overflow-hidden">
-            <button onClick={() => setViewMode("week")} className={`px-3 py-1.5 text-xs font-medium transition ${viewMode === "week" ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
+          <div className="flex rounded-[4px] border border-[var(--rule-strong)] overflow-hidden">
+            <button
+              onClick={() => setViewMode("week")}
+              className={`px-3 py-1.5 text-xs font-medium transition ${
+                viewMode === "week"
+                  ? "bg-[var(--ink)] text-[var(--canvas)]"
+                  : "bg-[var(--canvas)] text-[var(--ink-muted)] hover:bg-[var(--canvas-subtle)]"
+              }`}
+            >
               Week
             </button>
-            <button onClick={() => setViewMode("month")} className={`px-3 py-1.5 text-xs font-medium transition ${viewMode === "month" ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
+            <button
+              onClick={() => setViewMode("month")}
+              className={`px-3 py-1.5 text-xs font-medium transition ${
+                viewMode === "month"
+                  ? "bg-[var(--ink)] text-[var(--canvas)]"
+                  : "bg-[var(--canvas)] text-[var(--ink-muted)] hover:bg-[var(--canvas-subtle)]"
+              }`}
+            >
               Month
             </button>
           </div>
-          <button onClick={() => setShowSlotModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-green-300 text-green-700 bg-green-50 text-sm font-medium hover:bg-green-100 transition shadow-sm">
-            <Plus className="h-4 w-4" />
+          <button
+            onClick={() => setShowSlotModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] border border-[var(--rule-strong)] text-[var(--ink)] bg-[var(--canvas)] text-sm font-medium hover:bg-[var(--canvas-subtle)] transition"
+          >
+            <Plus className="h-4 w-4" strokeWidth={1.5} />
             Open Slot
           </button>
-          <button onClick={() => setShowCreateModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-600 text-white text-sm font-medium hover:bg-cyan-700 transition shadow-sm">
-            <Plus className="h-4 w-4" />
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="flex items-center gap-1.5 bg-[var(--ink)] text-[var(--canvas)] px-4 py-2 rounded-[4px] text-sm font-medium hover:opacity-90 transition"
+          >
+            <Plus className="h-4 w-4" strokeWidth={1.5} />
             Create
           </button>
         </div>
@@ -503,17 +532,21 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
       <div className="flex flex-1 min-h-0">
         {/* Mini Calendar Sidebar (week view only) */}
         {viewMode === "week" && (
-          <div className="w-52 border-r border-gray-200 p-3 shrink-0 hidden lg:block">
+          <div className="w-52 border-r border-[var(--rule)] p-3 shrink-0 hidden lg:block bg-[var(--canvas)]">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-gray-700">{monthDate.format("MMMM YYYY")}</span>
+              <span className="label-section text-[var(--ink)]">{monthDate.format("MMMM YYYY")}</span>
               <div className="flex gap-0.5">
-                <button onClick={() => setMonthDate(monthDate.subtract(1, "month"))} className="p-0.5 rounded hover:bg-gray-100"><ChevronLeft className="h-3 w-3" /></button>
-                <button onClick={() => setMonthDate(monthDate.add(1, "month"))} className="p-0.5 rounded hover:bg-gray-100"><ChevronRight className="h-3 w-3" /></button>
+                <button onClick={() => setMonthDate(monthDate.subtract(1, "month"))} className="p-0.5 rounded-[4px] hover:bg-[var(--canvas-subtle)]">
+                  <ChevronLeft className="h-3 w-3" strokeWidth={1.5} />
+                </button>
+                <button onClick={() => setMonthDate(monthDate.add(1, "month"))} className="p-0.5 rounded-[4px] hover:bg-[var(--canvas-subtle)]">
+                  <ChevronRight className="h-3 w-3" strokeWidth={1.5} />
+                </button>
               </div>
             </div>
             <div className="grid grid-cols-7 gap-0 text-center">
               {["S","M","T","W","T","F","S"].map((d, i) => (
-                <div key={i} className="text-[10px] font-medium text-gray-400 py-1">{d}</div>
+                <div key={i} className="mono text-[10px] text-[var(--ink-subtle)] py-1">{d}</div>
               ))}
               {miniCalDays.map((day, i) => {
                 const isToday = day.isSame(today, "day");
@@ -523,66 +556,70 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                 <button
                     key={i}
                     onClick={() => { setWeekStart(day.startOf("week")); }}
-                    className={`text-[11px] py-1 rounded-full transition ${
-                      isToday ? "bg-black text-white font-bold" :
-                      !isCurrentMonth ? "text-gray-300" :
-                      "text-gray-700 hover:bg-gray-100"
+                    className={`mono text-[11px] py-1 rounded-full transition ${
+                      isToday
+                        ? "bg-[var(--ink)] text-[var(--canvas)] font-semibold"
+                        : !isCurrentMonth
+                        ? "text-[var(--ink-subtle)]"
+                        : "text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
                     }`}
                   >
                     {day.date()}
-                    {hasAppt && !isToday && <span className="block w-1 h-1 bg-blue-500 rounded-full mx-auto -mt-0.5" />}
+                    {hasAppt && !isToday && (
+                      <span className="block w-1 h-1 bg-[var(--accent)] rounded-full mx-auto -mt-0.5" />
+                    )}
                 </button>
                 );
               })}
             </div>
 
             {/* My Clients — filter */}
-            <div className="mt-5 pt-4 border-t border-gray-200">
+            <div className="mt-5 pt-4 border-t border-[var(--rule)]">
               <div className="flex items-center justify-between mb-2">
                 <button
                   onClick={() => setClientsExpanded(!clientsExpanded)}
-                  className="flex items-center gap-1 text-xs font-semibold text-gray-700 hover:text-gray-900"
+                  className="flex items-center gap-1 label-section text-[var(--ink)] hover:text-[var(--ink)]"
                 >
                   <span>My Clients</span>
-                  {clientsExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                  {clientsExpanded ? <ChevronUp className="h-3 w-3" strokeWidth={1.5} /> : <ChevronDown className="h-3 w-3" strokeWidth={1.5} />}
                 </button>
                 <button
                   onClick={() => setShowAddClient(!showAddClient)}
-                  className="p-0.5 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700"
+                  className="p-0.5 rounded-[4px] hover:bg-[var(--canvas-subtle)] text-[var(--ink-muted)] hover:text-[var(--ink)]"
                   title="Add client"
                 >
-                  <Plus className="h-3.5 w-3.5" />
+                  <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
                 </button>
               </div>
 
               {/* Add client form */}
               {showAddClient && (
-                <div className="mb-2 p-2 rounded-lg border border-gray-200 bg-gray-50 space-y-1.5">
+                <div className="mb-2 p-2 rounded-[6px] border border-[var(--rule)] bg-[var(--canvas-subtle)] space-y-1.5">
                   <input
                     type="text"
                     value={newClientName}
                     onChange={(e) => setNewClientName(e.target.value)}
                     placeholder="Name"
-                    className="w-full rounded-lg border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-gray-400"
+                    className="w-full rounded-[4px] border border-[var(--rule-strong)] bg-[var(--canvas)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
                   />
                   <input
                     type="tel"
                     value={newClientPhone}
                     onChange={(e) => setNewClientPhone(e.target.value)}
                     placeholder="Phone (+1...)"
-                    className="w-full rounded-lg border border-gray-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-gray-400"
+                    className="w-full rounded-[4px] border border-[var(--rule-strong)] bg-[var(--canvas)] px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
                   />
                   <div className="flex gap-1">
                     <button
                       onClick={handleAddClient}
                       disabled={addingClient || !newClientName.trim() || !newClientPhone.trim()}
-                      className="flex-1 py-1 rounded-lg bg-cyan-600 text-white text-[10px] font-medium hover:bg-cyan-700 disabled:opacity-50 transition"
+                      className="flex-1 py-1 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-[10px] font-medium hover:opacity-90 disabled:opacity-50 transition"
                     >
                       {addingClient ? "Adding..." : "Add"}
                     </button>
                     <button
                       onClick={() => { setShowAddClient(false); setNewClientName(""); setNewClientPhone(""); }}
-                      className="px-2 py-1 rounded-lg border border-gray-300 text-[10px] text-gray-600 hover:bg-gray-100 transition"
+                      className="px-2 py-1 rounded-[4px] border border-[var(--rule-strong)] text-[10px] text-[var(--ink-muted)] hover:bg-[var(--canvas)] transition"
                     >
                       Cancel
                     </button>
@@ -607,18 +644,24 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                         <button
                           key={client.id}
                           onClick={() => toggleClient(client.id)}
-                          className="flex items-center gap-2 w-full px-1 py-1 rounded-lg hover:bg-gray-50 transition text-left group"
+                          className="flex items-center gap-2 w-full px-1 py-1 rounded-[4px] hover:bg-[var(--canvas-subtle)] transition text-left group"
                         >
-                          <div className={`w-4 h-4 rounded flex items-center justify-center border-2 transition ${
-                            isVisible ? color.check : "border-gray-300 bg-white"
-                          }`}>
-                            {isVisible && <Check className="h-3 w-3" />}
+                          <div
+                            className={`w-4 h-4 rounded-[3px] flex items-center justify-center border-2 transition ${
+                              isVisible ? color.check : "border-[var(--rule-strong)] bg-[var(--canvas)]"
+                            }`}
+                          >
+                            {isVisible && <Check className="h-3 w-3" strokeWidth={1.5} />}
                           </div>
-                          <span className={`text-xs font-medium truncate flex-1 ${isVisible ? "text-gray-800" : "text-gray-400"}`}>
+                          <span
+                            className={`text-xs font-medium truncate flex-1 ${
+                              isVisible ? "text-[var(--ink)]" : "text-[var(--ink-subtle)]"
+                            }`}
+                          >
                             {client.name}
                           </span>
                           {apptCount > 0 && (
-                            <span className="text-[10px] text-gray-400">{apptCount}</span>
+                            <span className="mono text-[10px] text-[var(--ink-subtle)]">{apptCount}</span>
                           )}
                         </button>
                       );
@@ -635,18 +678,31 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
         {viewMode === "week" ? (
           <div className="flex-1 flex flex-col min-h-0">
             {/* Day headers */}
-            <div className="grid grid-cols-[56px_repeat(7,1fr)] border-b border-gray-200 bg-white sticky top-0 z-10">
-              <div className="border-r border-gray-100" />
+            <div className="grid grid-cols-[56px_repeat(7,1fr)] border-b border-[var(--rule)] bg-[var(--canvas)] sticky top-0 z-10">
+              <div className="border-r border-[var(--rule)]" />
               {weekDays.map((day, i) => {
                 const isToday = day.isSame(today, "day");
                 return (
-                  <div key={i} className={`text-center py-2 border-r border-gray-100 ${i === 6 ? "border-r-0" : ""}`}>
-                    <div className={`text-[11px] font-medium uppercase ${isToday ? "text-blue-600" : "text-gray-500"}`}>
+                  <div
+                    key={i}
+                    className={`text-center py-2 border-r border-[var(--rule)] ${i === 6 ? "border-r-0" : ""} ${
+                      isToday ? "bg-[var(--accent-soft)]" : ""
+                    }`}
+                  >
+                    <div
+                      className={`mono text-[11px] uppercase ${
+                        isToday ? "text-[var(--accent)]" : "text-[var(--ink-subtle)]"
+                      }`}
+                    >
                       {day.format("ddd")}
                     </div>
-                    <div className={`text-xl font-medium mt-0.5 ${
-                      isToday ? "bg-blue-600 text-white w-9 h-9 rounded-full flex items-center justify-center mx-auto" : "text-gray-900"
-                    }`}>
+                    <div
+                      className={`text-xl font-medium mt-0.5 ${
+                        isToday
+                          ? "bg-[var(--accent)] text-[var(--canvas)] w-9 h-9 rounded-full flex items-center justify-center mx-auto"
+                          : "text-[var(--ink)]"
+                      }`}
+                    >
                       {day.date()}
                     </div>
                   </div>
@@ -658,10 +714,10 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
             <div ref={gridRef} className="flex-1 overflow-y-auto">
               <div className="grid grid-cols-[56px_repeat(7,1fr)] relative" style={{ minHeight: HOURS.length * HOUR_HEIGHT }}>
                 {/* Hour labels */}
-                <div className="border-r border-gray-100">
+                <div className="border-r border-[var(--rule)]">
                   {HOURS.map((hour) => (
                     <div key={hour} className="relative" style={{ height: HOUR_HEIGHT }}>
-                      <span className="absolute -top-2 right-2 text-[10px] text-gray-400 font-medium">
+                      <span className="mono absolute -top-2 right-2 text-[10px] text-[var(--ink-subtle)]">
                     {hour === 0 ? "12 AM" : hour < 12 ? `${hour} AM` : hour === 12 ? "12 PM" : `${hour - 12} PM`}
                   </span>
                 </div>
@@ -672,11 +728,17 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                 {weekDays.map((day, dayIdx) => {
                   const dayAppts = getAppointmentsForDay(day);
                   const daySlots = getSlotsForDay(day);
+                  const isToday = day.isSame(today, "day");
                 return (
-                    <div key={dayIdx} className={`relative border-r border-gray-100 ${dayIdx === 6 ? "border-r-0" : ""}`}>
+                    <div
+                      key={dayIdx}
+                      className={`relative border-r border-[var(--rule)] ${dayIdx === 6 ? "border-r-0" : ""} ${
+                        isToday ? "bg-[var(--accent-soft)]" : ""
+                      }`}
+                    >
                       {/* Hour lines */}
                       {HOURS.map((hour) => (
-                        <div key={hour} className="border-b border-gray-100" style={{ height: HOUR_HEIGHT }} />
+                        <div key={hour} className="border-b border-[var(--rule)]" style={{ height: HOUR_HEIGHT }} />
                       ))}
 
                       {/* Availability slots (color-coded by type) */}
@@ -692,16 +754,16 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                       return (
                         <div
                             key={slot.id}
-                            className={`absolute left-0 right-0 ${typeColor.bg} border-l-[3px] ${typeColor.border} opacity-70 group/slot`}
+                            className={`absolute left-0 right-0 ${typeColor.bg} border-l-[3px] ${typeColor.border} opacity-80 group/slot`}
                             style={{ top: topOffset, height }}
                           >
                             <div className="flex items-center justify-between px-1.5 py-0.5">
-                              <span className={`text-[10px] ${typeColor.text} font-medium truncate`}>{slot.slot_type || "Open"}</span>
+                              <span className={`mono text-[10px] ${typeColor.text} font-medium truncate`}>{slot.slot_type || "Open"}</span>
                               <button
                                 onClick={() => deleteAvailabilitySlot(slot.id)}
-                                className={`opacity-0 group-hover/slot:opacity-100 p-0.5 rounded hover:bg-white/50 ${typeColor.text} transition shrink-0`}
+                                className={`opacity-0 group-hover/slot:opacity-100 p-0.5 rounded-[3px] hover:bg-[var(--canvas)]/60 ${typeColor.text} transition shrink-0`}
                               >
-                                <X className="h-2.5 w-2.5" />
+                                <X className="h-2.5 w-2.5" strokeWidth={1.5} />
                               </button>
                             </div>
                           </div>
@@ -721,12 +783,12 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                           <button
                             key={appt.id}
                             onClick={() => setSelectedAppointment(appt)}
-                            className={`absolute left-0.5 right-0.5 rounded-lg border-l-[3px] px-1.5 py-0.5 text-left overflow-hidden cursor-pointer hover:opacity-90 transition-opacity ${eventColorClass(appt.contacts.id, uniqueClients)}`}
+                            className={`absolute left-0.5 right-0.5 rounded-[4px] border-l-[3px] px-1.5 py-0.5 text-left overflow-hidden cursor-pointer hover:opacity-90 transition-opacity ${eventColorClass(appt.contacts.id, uniqueClients)}`}
                             style={{ top: topOffset, height }}
                           >
-                            <div className="text-[11px] font-semibold truncate">{appt.service_type}</div>
-                            {height > 30 && <div className="text-[10px] opacity-70 truncate">{appt.contacts.name}</div>}
-                            {height > 44 && <div className="text-[10px] opacity-60">{appt.localTime.format("h:mm A")}</div>}
+                            <div className="text-[11px] font-semibold truncate">{appt.contacts.name}</div>
+                            {height > 30 && <div className="text-[10px] opacity-80 truncate">{appt.service_type}</div>}
+                            {height > 44 && <div className="mono text-[10px] opacity-70">{appt.localTime.format("h:mm A")}</div>}
                           </button>
                         );
                       })}
@@ -740,8 +802,8 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                         return (
                           <div className="absolute left-0 right-0 z-10 pointer-events-none" style={{ top }}>
                             <div className="flex items-center">
-                              <div className="w-2.5 h-2.5 rounded-full bg-red-500 -ml-1" />
-                              <div className="flex-1 h-[2px] bg-red-500" />
+                              <div className="w-2.5 h-2.5 rounded-full bg-[var(--danger)] -ml-1" />
+                              <div className="flex-1 h-[2px] bg-[var(--danger)]" />
                             </div>
                           </div>
                         );
@@ -754,36 +816,52 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
           </div>
         ) : (
           /* Month View */
-          <div className="flex-1 flex flex-col min-h-0 p-4">
+          <div className="flex-1 flex flex-col min-h-0 p-4 bg-[var(--canvas)]">
             <div className="grid grid-cols-7 gap-0 mb-1">
               {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d) => (
-                <div key={d} className="text-center text-xs font-semibold text-gray-500 py-2">{d}</div>
+                <div key={d} className="label-section text-center text-[var(--ink-muted)] py-2">{d}</div>
               ))}
             </div>
-            <div className="grid grid-cols-7 flex-1 border border-gray-200 rounded-xl overflow-hidden">
+            <div className="grid grid-cols-7 flex-1 border border-[var(--rule)] rounded-[6px] overflow-hidden">
               {monthWeeks.flat().map((day, i) => {
                 const isToday = day.isSame(today, "day");
                 const isCurrentMonth = day.month() === monthDate.month();
                 const dayAppts = getAppointmentsForDay(day);
                 return (
-                  <div key={i} className={`border-b border-r border-gray-100 p-1 min-h-[80px] ${!isCurrentMonth ? "bg-gray-50" : "bg-white"}`}>
-                    <div className={`text-xs font-medium mb-1 text-center ${
-                      isToday ? "bg-black text-white w-6 h-6 rounded-full flex items-center justify-center mx-auto" :
-                      !isCurrentMonth ? "text-gray-300" : "text-gray-700"
-                    }`}>
+                  <div
+                    key={i}
+                    className={`border-b border-r border-[var(--rule)] p-1 min-h-[80px] ${
+                      isToday
+                        ? "bg-[var(--accent-soft)]"
+                        : !isCurrentMonth
+                        ? "bg-[var(--canvas-subtle)]"
+                        : "bg-[var(--canvas)]"
+                    }`}
+                  >
+                    <div
+                      className={`mono text-xs font-medium mb-1 text-center ${
+                        isToday
+                          ? "bg-[var(--accent)] text-[var(--canvas)] w-6 h-6 rounded-full flex items-center justify-center mx-auto"
+                          : !isCurrentMonth
+                          ? "text-[var(--ink-subtle)]"
+                          : "text-[var(--ink)]"
+                      }`}
+                    >
                       {day.date()}
                     </div>
                     {dayAppts.slice(0, 2).map((appt, ai) => (
                       <button
                         key={appt.id}
                         onClick={() => setSelectedAppointment(appt)}
-                        className={`w-full text-left text-[10px] px-1 py-0.5 rounded truncate mb-0.5 ${eventColorClass(appt.contacts.id, uniqueClients)} hover:opacity-80`}
+                        className={`w-full text-left text-[10px] px-1 py-0.5 rounded-[3px] truncate mb-0.5 border-l-[2px] ${eventColorClass(appt.contacts.id, uniqueClients)} hover:opacity-80`}
                       >
-                        {appt.localTime.format("h:mma")} {appt.service_type}
+                        <span className="mono">{appt.localTime.format("h:mma")}</span> {appt.service_type}
                       </button>
                     ))}
                     {dayAppts.length > 2 && (
-                      <div className="text-[10px] text-gray-400 text-center">+{dayAppts.length - 2} more</div>
+                      <div className="mono text-[10px] text-[var(--ink-subtle)] text-center">
+                        +{dayAppts.length - 2} more
+                      </div>
                     )}
                   </div>
                 );
@@ -795,45 +873,83 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
 
       {/* ─── Create Appointment Modal ─── */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+        <div className="fixed inset-0 bg-[var(--ink)]/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-[var(--canvas)] border border-[var(--rule)] rounded-[6px] p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-semibold text-gray-900">New Appointment</h3>
-              <button onClick={() => setShowCreateModal(false)} className="p-1.5 rounded-full hover:bg-gray-100 transition">
-                <X className="h-5 w-5 text-gray-500" />
+              <h3 className="text-lg font-semibold text-[var(--ink)]">New Appointment</h3>
+              <button onClick={() => setShowCreateModal(false)} className="p-1.5 rounded-[4px] hover:bg-[var(--canvas-subtle)] transition">
+                <X className="h-5 w-5 text-[var(--ink-muted)]" strokeWidth={1.5} />
                   </button>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
-                <input type="text" value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="Client name" className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+                <label className="block label-section text-[var(--ink-muted)] mb-1">Name *</label>
+                <input
+                  type="text"
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
+                  placeholder="Client name"
+                  className="w-full rounded-[4px] border border-[var(--rule-strong)] bg-[var(--canvas)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Phone *</label>
-                  <input type="tel" value={formPhone} onChange={(e) => setFormPhone(e.target.value)} placeholder="+1..." className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+                  <label className="block label-section text-[var(--ink-muted)] mb-1">Phone *</label>
+                  <input
+                    type="tel"
+                    value={formPhone}
+                    onChange={(e) => setFormPhone(e.target.value)}
+                    placeholder="+1..."
+                    className="w-full rounded-[4px] border border-[var(--rule-strong)] bg-[var(--canvas)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                  />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
-                  <input type="email" value={formEmail} onChange={(e) => setFormEmail(e.target.value)} placeholder="email@..." className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+                  <label className="block label-section text-[var(--ink-muted)] mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={formEmail}
+                    onChange={(e) => setFormEmail(e.target.value)}
+                    placeholder="email@..."
+                    className="w-full rounded-[4px] border border-[var(--rule-strong)] bg-[var(--canvas)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                  />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Description *</label>
-                <input type="text" value={formDescription} onChange={(e) => setFormDescription(e.target.value)} placeholder="Meeting type or topic" className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+                <label className="block label-section text-[var(--ink-muted)] mb-1">Description *</label>
+                <input
+                  type="text"
+                  value={formDescription}
+                  onChange={(e) => setFormDescription(e.target.value)}
+                  placeholder="Meeting type or topic"
+                  className="w-full rounded-[4px] border border-[var(--rule-strong)] bg-[var(--canvas)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                />
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Date</label>
-                  <input type="date" value={formDate} onChange={(e) => setFormDate(e.target.value)} className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+                  <label className="block label-section text-[var(--ink-muted)] mb-1">Date</label>
+                  <input
+                    type="date"
+                    value={formDate}
+                    onChange={(e) => setFormDate(e.target.value)}
+                    className="w-full rounded-[4px] border border-[var(--rule-strong)] bg-[var(--canvas)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                  />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Time</label>
-                  <input type="time" value={formTime} onChange={(e) => setFormTime(e.target.value)} className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+                  <label className="block label-section text-[var(--ink-muted)] mb-1">Time</label>
+                  <input
+                    type="time"
+                    value={formTime}
+                    onChange={(e) => setFormTime(e.target.value)}
+                    className="w-full rounded-[4px] border border-[var(--rule-strong)] bg-[var(--canvas)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                  />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Duration</label>
-                  <select value={formDuration} onChange={(e) => setFormDuration(e.target.value)} className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
+                  <label className="block label-section text-[var(--ink-muted)] mb-1">Duration</label>
+                  <select
+                    value={formDuration}
+                    onChange={(e) => setFormDuration(e.target.value)}
+                    className="w-full rounded-[4px] border border-[var(--rule-strong)] bg-[var(--canvas)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                  >
                     <option value="15">15 min</option>
                     <option value="30">30 min</option>
                     <option value="45">45 min</option>
@@ -845,14 +961,18 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
               </div>
               {/* Reminder */}
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-2">Reminders</label>
+                <label className="block label-section text-[var(--ink-muted)] mb-2">Reminders</label>
                 <div className="flex flex-wrap gap-2">
                   {[{ label: "Immediately", value: "immediate" }, { label: "1 Day Before", value: "1day" }, { label: "5 Hours Before", value: "5hours" }, { label: "1 Hour Before", value: "1hour" }].map((opt) => (
                     <button
                       key={opt.value}
                       type="button"
                       onClick={() => setFormReminderTiming((prev) => prev.includes(opt.value) ? prev.filter((v) => v !== opt.value) : [...prev, opt.value])}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition ${formReminderTiming.includes(opt.value) ? "bg-cyan-600 text-white border-cyan-600" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}
+                      className={`px-2.5 py-1 rounded-[4px] text-xs font-medium border transition ${
+                        formReminderTiming.includes(opt.value)
+                          ? "bg-[var(--ink)] text-[var(--canvas)] border-[var(--ink)]"
+                          : "bg-[var(--canvas)] text-[var(--ink-muted)] border-[var(--rule-strong)] hover:bg-[var(--canvas-subtle)]"
+                      }`}
                     >
                       {opt.label}
                     </button>
@@ -860,12 +980,21 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                 </div>
                 <div className="mt-2">
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={formReminderChannels.email} onChange={(e) => setFormReminderChannels({ ...formReminderChannels, email: e.target.checked })} className="rounded border-gray-300" />
-                    <span className="text-xs text-gray-600">Email reminder</span>
+                    <input
+                      type="checkbox"
+                      checked={formReminderChannels.email}
+                      onChange={(e) => setFormReminderChannels({ ...formReminderChannels, email: e.target.checked })}
+                      className="rounded border-[var(--rule-strong)]"
+                    />
+                    <span className="text-xs text-[var(--ink-muted)]">Email reminder</span>
                   </label>
                 </div>
               </div>
-              <button onClick={handleCreateAppointment} disabled={creating} className="w-full py-2.5 rounded-xl bg-cyan-600 text-white text-sm font-semibold hover:bg-cyan-700 disabled:opacity-50 transition">
+              <button
+                onClick={handleCreateAppointment}
+                disabled={creating}
+                className="w-full py-2.5 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition"
+              >
                 {creating ? "Creating..." : "Create Appointment"}
               </button>
             </div>
@@ -875,25 +1004,28 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
 
       {/* ─── Add Open Slot Modal ─── */}
       {showSlotModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 max-w-sm w-full shadow-2xl">
+        <div className="fixed inset-0 bg-[var(--ink)]/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-[var(--canvas)] border border-[var(--rule)] rounded-[6px] p-6 max-w-sm w-full">
             <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-semibold text-gray-900">Add Open Slot</h3>
-              <button onClick={() => setShowSlotModal(false)} className="p-1.5 rounded-full hover:bg-gray-100 transition">
-                <X className="h-5 w-5 text-gray-500" />
+              <h3 className="text-lg font-semibold text-[var(--ink)]">Add Open Slot</h3>
+              <button onClick={() => setShowSlotModal(false)} className="p-1.5 rounded-[4px] hover:bg-[var(--canvas-subtle)] transition">
+                <X className="h-5 w-5 text-[var(--ink-muted)]" strokeWidth={1.5} />
               </button>
             </div>
             <div className="space-y-4">
               {/* Slot Type Selector */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-medium text-gray-600">Slot Type</label>
-                  <button onClick={() => setShowTypeManager(!showTypeManager)} className="text-[10px] text-gray-400 hover:text-gray-600 transition">
+                  <label className="block label-section text-[var(--ink-muted)]">Slot Type</label>
+                  <button
+                    onClick={() => setShowTypeManager(!showTypeManager)}
+                    className="text-[10px] text-[var(--ink-subtle)] hover:text-[var(--ink)] transition"
+                  >
                     {showTypeManager ? "Done" : "Manage Types"}
                   </button>
                 </div>
                 {showTypeManager ? (
-                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 space-y-2">
+                  <div className="rounded-[6px] border border-[var(--rule)] bg-[var(--canvas-subtle)] p-3 space-y-2">
                     <div className="flex gap-2">
                       <input
                         type="text"
@@ -901,24 +1033,31 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                         onChange={(e) => setNewTypeName(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && addSlotType()}
                         placeholder="New type name..."
-                        className="flex-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-black/10"
+                        className="flex-1 rounded-[4px] border border-[var(--rule-strong)] bg-[var(--canvas)] px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                       />
-                      <button onClick={addSlotType} disabled={!newTypeName.trim()} className="px-2.5 py-1.5 rounded-lg bg-cyan-600 text-white text-xs font-medium hover:bg-cyan-700 disabled:opacity-40 transition">
-                        <Plus className="h-3 w-3" />
+                      <button
+                        onClick={addSlotType}
+                        disabled={!newTypeName.trim()}
+                        className="px-2.5 py-1.5 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-xs font-medium hover:opacity-90 disabled:opacity-40 transition"
+                      >
+                        <Plus className="h-3 w-3" strokeWidth={1.5} />
                       </button>
                     </div>
                     <div className="space-y-1 max-h-32 overflow-y-auto">
                       {slotTypes.map((type) => {
                         const tc = getSlotTypeColor(type, slotTypes);
                         return (
-                          <div key={type} className="flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-white transition">
+                          <div key={type} className="flex items-center justify-between px-2 py-1.5 rounded-[4px] hover:bg-[var(--canvas)] transition">
                             <div className="flex items-center gap-2">
                               <div className={`w-2.5 h-2.5 rounded-full ${tc.dot}`} />
-                              <span className="text-xs text-gray-700">{type}</span>
+                              <span className="text-xs text-[var(--ink)]">{type}</span>
                             </div>
                             {type !== "General" && (
-                              <button onClick={() => removeSlotType(type)} className="p-0.5 rounded hover:bg-gray-200 text-gray-400 hover:text-red-500 transition">
-                                <X className="h-3 w-3" />
+                              <button
+                                onClick={() => removeSlotType(type)}
+                                className="p-0.5 rounded-[3px] hover:bg-[var(--canvas-subtle)] text-[var(--ink-subtle)] hover:text-[var(--danger)] transition"
+                              >
+                                <X className="h-3 w-3" strokeWidth={1.5} />
                               </button>
                             )}
                         </div>
@@ -935,10 +1074,10 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                         <button
                           key={type}
                           onClick={() => setSlotType(type)}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] text-xs font-medium border transition-all ${
                             selected
-                              ? `${tc.bg} ${tc.border} ${tc.text} ring-1 ring-offset-1 ring-gray-300`
-                              : "bg-white border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700"
+                              ? `${tc.bg} ${tc.border} ${tc.text}`
+                              : "bg-[var(--canvas)] border-[var(--rule)] text-[var(--ink-muted)] hover:border-[var(--rule-strong)] hover:text-[var(--ink)]"
                           }`}
                         >
                           <div className={`w-2 h-2 rounded-full ${tc.dot}`} />
@@ -951,20 +1090,39 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Date</label>
-                <input type="date" value={slotDate} onChange={(e) => setSlotDate(e.target.value)} className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/10" />
+                <label className="block label-section text-[var(--ink-muted)] mb-1">Date</label>
+                <input
+                  type="date"
+                  value={slotDate}
+                  onChange={(e) => setSlotDate(e.target.value)}
+                  className="w-full rounded-[4px] border border-[var(--rule-strong)] bg-[var(--canvas)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Start Time</label>
-                  <input type="time" value={slotStartTime} onChange={(e) => setSlotStartTime(e.target.value)} className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/10" />
+                  <label className="block label-section text-[var(--ink-muted)] mb-1">Start Time</label>
+                  <input
+                    type="time"
+                    value={slotStartTime}
+                    onChange={(e) => setSlotStartTime(e.target.value)}
+                    className="w-full rounded-[4px] border border-[var(--rule-strong)] bg-[var(--canvas)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                  />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">End Time</label>
-                  <input type="time" value={slotEndTime} onChange={(e) => setSlotEndTime(e.target.value)} className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/10" />
+                  <label className="block label-section text-[var(--ink-muted)] mb-1">End Time</label>
+                  <input
+                    type="time"
+                    value={slotEndTime}
+                    onChange={(e) => setSlotEndTime(e.target.value)}
+                    className="w-full rounded-[4px] border border-[var(--rule-strong)] bg-[var(--canvas)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                  />
                 </div>
               </div>
-              <button onClick={createAvailabilitySlot} disabled={creatingSlot} className="w-full py-2.5 rounded-xl bg-cyan-600 text-white text-sm font-semibold hover:bg-cyan-700 disabled:opacity-50 transition">
+              <button
+                onClick={createAvailabilitySlot}
+                disabled={creatingSlot}
+                className="w-full py-2.5 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition"
+              >
                 {creatingSlot ? "Creating..." : "Add Open Slot"}
               </button>
             </div>
@@ -974,22 +1132,38 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
 
       {/* ─── Appointment Details Modal ─── */}
       {selectedAppointment && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-gray-200 p-6 max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+        <div className="fixed inset-0 bg-[var(--ink)]/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-[var(--canvas)] border border-[var(--rule)] rounded-[6px] p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-semibold text-gray-900">Appointment Details</h3>
+              <h3 className="text-lg font-semibold text-[var(--ink)]">Appointment Details</h3>
               <div className="flex items-center gap-1">
                 {!editingAppointment ? (
-                  <button onClick={startEditingAppointment} className="p-1.5 rounded-full hover:bg-gray-100 transition" title="Edit">
-                    <Pencil className="h-4 w-4 text-gray-500" />
+                  <button
+                    onClick={startEditingAppointment}
+                    className="p-1.5 rounded-[4px] hover:bg-[var(--canvas-subtle)] transition"
+                    title="Edit"
+                  >
+                    <Pencil className="h-4 w-4 text-[var(--ink-muted)]" strokeWidth={1.5} />
                   </button>
                 ) : (
-                  <button onClick={handleSaveAppointment} disabled={savingAppointment} className="p-1.5 rounded-full hover:bg-green-50 transition text-green-600" title="Save">
-                    {savingAppointment ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                  <button
+                    onClick={handleSaveAppointment}
+                    disabled={savingAppointment}
+                    className="p-1.5 rounded-[4px] hover:bg-[var(--verified-soft)] transition text-[var(--verified)]"
+                    title="Save"
+                  >
+                    {savingAppointment ? (
+                      <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
+                    ) : (
+                      <Check className="h-4 w-4" strokeWidth={1.5} />
+                    )}
                   </button>
                 )}
-                <button onClick={() => { setSelectedAppointment(null); setEditingAppointment(false); }} className="p-1.5 rounded-full hover:bg-gray-100 transition">
-                  <X className="h-5 w-5 text-gray-500" />
+                <button
+                  onClick={() => { setSelectedAppointment(null); setEditingAppointment(false); }}
+                  className="p-1.5 rounded-[4px] hover:bg-[var(--canvas-subtle)] transition"
+                >
+                  <X className="h-5 w-5 text-[var(--ink-muted)]" strokeWidth={1.5} />
                 </button>
               </div>
             </div>
@@ -998,103 +1172,138 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
               {/* Contact Info */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2 text-sm">
-                  <User className="h-4 w-4 text-gray-400" />
-                  <span className="font-medium">{selectedAppointment.contacts.name}</span>
+                  <User className="h-4 w-4 text-[var(--ink-subtle)]" strokeWidth={1.5} />
+                  <span className="font-medium text-[var(--ink)]">{selectedAppointment.contacts.name}</span>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Phone className="h-4 w-4 text-gray-400" />
-                  <span>{selectedAppointment.contacts.phone}</span>
+                <div className="flex items-center gap-2 text-sm text-[var(--ink-muted)]">
+                  <Phone className="h-4 w-4 text-[var(--ink-subtle)]" strokeWidth={1.5} />
+                  <span className="mono">{selectedAppointment.contacts.phone}</span>
                 </div>
                 {selectedAppointment.contacts.email && (
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Mail className="h-4 w-4 text-gray-400" />
+                  <div className="flex items-center gap-2 text-sm text-[var(--ink-muted)]">
+                    <Mail className="h-4 w-4 text-[var(--ink-subtle)]" strokeWidth={1.5} />
                     <span>{selectedAppointment.contacts.email}</span>
                   </div>
                 )}
           </div>
-          
-              <div className="border-t border-gray-200 pt-4 space-y-3">
+
+              <div className="border-t border-[var(--rule)] pt-4 space-y-3">
                 {/* Date & Time */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Date & Time</label>
+                  <label className="block label-section text-[var(--ink-muted)] mb-1">Date & Time</label>
                   {editingAppointment ? (
-                    <input type="datetime-local" value={editFields.scheduled_at} onChange={(e) => setEditFields({ ...editFields, scheduled_at: e.target.value })} className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+                    <input
+                      type="datetime-local"
+                      value={editFields.scheduled_at}
+                      onChange={(e) => setEditFields({ ...editFields, scheduled_at: e.target.value })}
+                      className="w-full rounded-[4px] border border-[var(--rule-strong)] bg-[var(--canvas)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                    />
                   ) : (
-                    <div className="text-sm">
-                      <div className="flex items-center gap-2"><Calendar className="h-4 w-4 text-gray-400" />{dayjs(selectedAppointment.scheduled_at).format("dddd, MMMM D, YYYY")}</div>
-                      <div className="flex items-center gap-2 text-gray-500 ml-6"><Clock className="h-4 w-4 text-gray-400" />{dayjs(selectedAppointment.scheduled_at).format("h:mm A")}</div>
+                    <div className="text-sm text-[var(--ink)]">
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-[var(--ink-subtle)]" strokeWidth={1.5} />
+                        {dayjs(selectedAppointment.scheduled_at).format("dddd, MMMM D, YYYY")}
+                      </div>
+                      <div className="flex items-center gap-2 text-[var(--ink-muted)] ml-6">
+                        <Clock className="h-4 w-4 text-[var(--ink-subtle)]" strokeWidth={1.5} />
+                        <span className="mono">{dayjs(selectedAppointment.scheduled_at).format("h:mm A")}</span>
+                      </div>
                     </div>
                   )}
                 </div>
                 {/* Duration */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Duration</label>
+                  <label className="block label-section text-[var(--ink-muted)] mb-1">Duration</label>
                   {editingAppointment ? (
-                    <select value={editFields.duration_minutes} onChange={(e) => setEditFields({ ...editFields, duration_minutes: Number(e.target.value) })} className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300">
+                    <select
+                      value={editFields.duration_minutes}
+                      onChange={(e) => setEditFields({ ...editFields, duration_minutes: Number(e.target.value) })}
+                      className="w-full rounded-[4px] border border-[var(--rule-strong)] bg-[var(--canvas)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                    >
                       <option value={15}>15 min</option><option value={30}>30 min</option><option value={45}>45 min</option><option value={60}>1 hr</option><option value={90}>1.5 hr</option><option value={120}>2 hr</option>
                     </select>
                   ) : (
-                    <div className="text-sm text-gray-700">{selectedAppointment.duration_minutes} minutes</div>
+                    <div className="text-sm text-[var(--ink)]">{selectedAppointment.duration_minutes} minutes</div>
                   )}
                 </div>
                 {/* Service Type */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Service</label>
+                  <label className="block label-section text-[var(--ink-muted)] mb-1">Service</label>
                   {editingAppointment ? (
-                    <input type="text" value={editFields.service_type} onChange={(e) => setEditFields({ ...editFields, service_type: e.target.value })} className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300" />
+                    <input
+                      type="text"
+                      value={editFields.service_type}
+                      onChange={(e) => setEditFields({ ...editFields, service_type: e.target.value })}
+                      className="w-full rounded-[4px] border border-[var(--rule-strong)] bg-[var(--canvas)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                    />
                   ) : (
-                    <div className="text-sm text-gray-700">{selectedAppointment.service_type}</div>
+                    <div className="text-sm text-[var(--ink)]">{selectedAppointment.service_type}</div>
                   )}
                 </div>
                 {/* Status */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
-                  <span className={`inline-block px-2 py-0.5 text-xs rounded-full font-medium ${
-                    selectedAppointment.status === "confirmed" ? "bg-green-50 text-green-700" :
-                    selectedAppointment.status === "pending" ? "bg-yellow-50 text-yellow-700" :
-                    "bg-gray-100 text-gray-700"
-                  }`}>{selectedAppointment.status}</span>
+                  <label className="block label-section text-[var(--ink-muted)] mb-1">Status</label>
+                  <span
+                    className={`inline-block px-2 py-0.5 text-xs rounded-[3px] font-medium border ${
+                      selectedAppointment.status === "confirmed"
+                        ? "bg-[var(--verified-soft)] text-[var(--verified)] border-[var(--rule)]"
+                        : selectedAppointment.status === "pending"
+                        ? "bg-[var(--flag-soft)] text-[var(--flag)] border-[var(--rule)]"
+                        : "bg-[var(--canvas-subtle)] text-[var(--ink-muted)] border-[var(--rule)]"
+                    }`}
+                  >
+                    {selectedAppointment.status}
+                  </span>
                 </div>
                 {/* Notes */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Notes</label>
+                  <label className="block label-section text-[var(--ink-muted)] mb-1">Notes</label>
                   {editingAppointment ? (
-                    <textarea value={editFields.notes} onChange={(e) => setEditFields({ ...editFields, notes: e.target.value })} rows={3} className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-300 resize-none" placeholder="Add notes..." />
+                    <textarea
+                      value={editFields.notes}
+                      onChange={(e) => setEditFields({ ...editFields, notes: e.target.value })}
+                      rows={3}
+                      className="w-full rounded-[4px] border border-[var(--rule-strong)] bg-[var(--canvas)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-none"
+                      placeholder="Add notes..."
+                    />
                   ) : selectedAppointment.notes ? (
-                    <div className="text-sm text-gray-600">{selectedAppointment.notes}</div>
+                    <div className="text-sm text-[var(--ink-muted)]">{selectedAppointment.notes}</div>
                   ) : (
-                    <div className="text-sm text-gray-400 italic">No notes</div>
+                    <div className="text-sm text-[var(--ink-subtle)] italic">No notes</div>
                   )}
                 </div>
               </div>
 
               {/* Call Record & AI Overview */}
               {loadingCallRecord ? (
-                <div className="border-t border-gray-200 pt-4 flex items-center gap-2 text-xs text-gray-400">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading call data...
+                <div className="border-t border-[var(--rule)] pt-4 flex items-center gap-2 text-xs text-[var(--ink-subtle)]">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} /> Loading call data...
                 </div>
               ) : callRecord ? (
-                <div className="border-t border-gray-200 pt-4 space-y-3">
-                  <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                    <Mic className="h-4 w-4 text-cyan-500" /> Call Recording
+                <div className="border-t border-[var(--rule)] pt-4 space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-medium text-[var(--ink)]">
+                    <Mic className="h-4 w-4 text-[var(--accent)]" strokeWidth={1.5} /> Call Recording
                   </div>
                   {callRecord.recording_url ? (
-                    <audio controls className="w-full h-8 rounded-lg" src={callRecord.recording_url} />
+                    <audio controls className="w-full h-8 rounded-[4px]" src={callRecord.recording_url} />
                   ) : (
-                    <p className="text-xs text-gray-400 italic">No recording available</p>
+                    <p className="text-xs text-[var(--ink-subtle)] italic">No recording available</p>
                   )}
 
                   {callRecord.transcript && (
                     <div>
-                      <button onClick={() => setShowTranscript(!showTranscript)} className="flex items-center gap-1.5 text-xs text-cyan-600 hover:text-cyan-700 font-medium">
-                        <MessageSquare className="h-3.5 w-3.5" />
+                      <button
+                        onClick={() => setShowTranscript(!showTranscript)}
+                        className="flex items-center gap-1.5 text-xs text-[var(--accent)] hover:opacity-80 font-medium"
+                      >
+                        <MessageSquare className="h-3.5 w-3.5" strokeWidth={1.5} />
                         {showTranscript ? "Hide Transcript" : "View Transcript"}
                       </button>
                       {showTranscript && (
-                        <div className="mt-2 max-h-48 overflow-y-auto bg-gray-50 rounded-xl p-3 border border-gray-200 text-xs text-gray-600 space-y-1.5">
+                        <div className="mt-2 max-h-48 overflow-y-auto bg-[var(--canvas-subtle)] rounded-[4px] p-3 border border-[var(--rule)] text-xs text-[var(--ink-muted)] space-y-1.5">
                           {Array.isArray(callRecord.transcript) ? callRecord.transcript.map((entry: any, i: number) => (
                             <div key={i}>
-                              <span className="font-semibold text-gray-800">{entry.role === "assistant" ? "AI" : "Caller"}:</span>{" "}
+                              <span className="font-semibold text-[var(--ink)]">{entry.role === "assistant" ? "AI" : "Caller"}:</span>{" "}
                               {entry.content || entry.message || entry.text}
                             </div>
                           )) : (
@@ -1107,21 +1316,29 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
 
                   {callRecord.summary ? (
                     <div>
-                      <div className="flex items-center gap-1.5 text-xs font-medium text-gray-700 mb-1">
-                        <Sparkles className="h-3.5 w-3.5 text-cyan-500" /> AI Overview
+                      <div className="flex items-center gap-1.5 text-xs font-medium text-[var(--ink)] mb-1">
+                        <Sparkles className="h-3.5 w-3.5 text-[var(--accent)]" strokeWidth={1.5} /> AI Overview
                       </div>
-                      <p className="text-xs text-gray-600 bg-gray-50 rounded-xl p-3 border border-gray-200">{callRecord.summary}</p>
+                      <p className="text-xs text-[var(--ink-muted)] bg-[var(--canvas-subtle)] rounded-[4px] p-3 border border-[var(--rule)]">{callRecord.summary}</p>
                     </div>
                   ) : aiOverview ? (
                     <div>
-                      <div className="flex items-center gap-1.5 text-xs font-medium text-gray-700 mb-1">
-                        <Sparkles className="h-3.5 w-3.5 text-cyan-500" /> AI Overview
+                      <div className="flex items-center gap-1.5 text-xs font-medium text-[var(--ink)] mb-1">
+                        <Sparkles className="h-3.5 w-3.5 text-[var(--accent)]" strokeWidth={1.5} /> AI Overview
                       </div>
-                      <p className="text-xs text-gray-600 bg-gray-50 rounded-xl p-3 border border-gray-200">{aiOverview}</p>
+                      <p className="text-xs text-[var(--ink-muted)] bg-[var(--canvas-subtle)] rounded-[4px] p-3 border border-[var(--rule)]">{aiOverview}</p>
                     </div>
                   ) : callRecord.transcript ? (
-                    <button onClick={generateAiOverview} disabled={loadingAiOverview} className="flex items-center gap-1.5 text-xs text-cyan-600 hover:text-cyan-700 font-medium disabled:opacity-50">
-                      {loadingAiOverview ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                    <button
+                      onClick={generateAiOverview}
+                      disabled={loadingAiOverview}
+                      className="flex items-center gap-1.5 text-xs text-[var(--accent)] hover:opacity-80 font-medium disabled:opacity-50"
+                    >
+                      {loadingAiOverview ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
+                      ) : (
+                        <Sparkles className="h-3.5 w-3.5" strokeWidth={1.5} />
+                      )}
                       Generate AI Overview
                     </button>
                   ) : null}
@@ -1129,11 +1346,17 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
               ) : null}
 
               {/* Reminders */}
-              <div className="border-t border-gray-200 pt-4">
-                <label className="block text-xs font-medium text-gray-500 mb-2">Email Reminder</label>
+              <div className="border-t border-[var(--rule)] pt-4">
+                <label className="block label-section text-[var(--ink-muted)] mb-2">Email Reminder</label>
                 <label className="flex items-center gap-2 cursor-pointer mb-3">
-                  <input type="checkbox" checked={appointmentReminderChannels.email} onChange={(e) => setAppointmentReminderChannels({ ...appointmentReminderChannels, email: e.target.checked })} disabled={!selectedAppointment.contacts.email} className="rounded border-gray-300 disabled:opacity-50" />
-                  <span className={`text-xs ${!selectedAppointment.contacts.email ? "text-gray-400" : "text-gray-600"}`}>
+                  <input
+                    type="checkbox"
+                    checked={appointmentReminderChannels.email}
+                    onChange={(e) => setAppointmentReminderChannels({ ...appointmentReminderChannels, email: e.target.checked })}
+                    disabled={!selectedAppointment.contacts.email}
+                    className="rounded border-[var(--rule-strong)] disabled:opacity-50"
+                  />
+                  <span className={`text-xs ${!selectedAppointment.contacts.email ? "text-[var(--ink-subtle)]" : "text-[var(--ink-muted)]"}`}>
                     Email {!selectedAppointment.contacts.email && "(no email provided)"}
                   </span>
                 </label>
@@ -1143,13 +1366,21 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                       key={opt.value}
                       type="button"
                       onClick={() => setAppointmentReminderTiming((prev) => prev.includes(opt.value) ? prev.filter((v) => v !== opt.value) : [...prev, opt.value])}
-                      className={`px-2 py-1 rounded-lg text-[11px] font-medium border transition ${appointmentReminderTiming.includes(opt.value) ? "bg-cyan-600 text-white border-cyan-600" : "bg-white text-gray-500 border-gray-300 hover:bg-gray-50"}`}
+                      className={`px-2 py-1 rounded-[4px] text-[11px] font-medium border transition ${
+                        appointmentReminderTiming.includes(opt.value)
+                          ? "bg-[var(--ink)] text-[var(--canvas)] border-[var(--ink)]"
+                          : "bg-[var(--canvas)] text-[var(--ink-muted)] border-[var(--rule-strong)] hover:bg-[var(--canvas-subtle)]"
+                      }`}
                     >
                       {opt.label}
                     </button>
                   ))}
                 </div>
-                <button onClick={handleSaveReminders} disabled={savingReminders || loadingReminders} className="w-full py-2 rounded-xl bg-cyan-600 text-white text-xs font-semibold hover:bg-cyan-700 disabled:opacity-50 transition">
+                <button
+                  onClick={handleSaveReminders}
+                  disabled={savingReminders || loadingReminders}
+                  className="w-full py-2 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-xs font-semibold hover:opacity-90 disabled:opacity-50 transition"
+                >
                   {savingReminders ? "Saving..." : "Save Reminders"}
                 </button>
               </div>

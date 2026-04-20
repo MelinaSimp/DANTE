@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { isWorkspaceAdmin } from "@/lib/rbac";
@@ -28,16 +29,18 @@ export default async function AuditLogPage() {
 
   if (!isAdmin) {
     return (
-      <div className="min-h-screen bg-[#242423] text-white flex items-center justify-center px-6">
+      <div className="min-h-screen bg-[var(--canvas)] text-[var(--ink)] flex items-center justify-center px-6">
         <div className="max-w-md text-center">
-          <h1 className="text-2xl font-semibold mb-3">Admins only</h1>
-          <p className="text-white/60 mb-6">
+          <h1 className="heading-display text-3xl text-[var(--ink)] mb-3">
+            Admins only
+          </h1>
+          <p className="text-sm text-[var(--ink-muted)] mb-6">
             Audit logs are only available to workspace admins and owners. Ask
             your workspace owner for access.
           </p>
           <Link
             href="/settings"
-            className="px-4 py-2 rounded-xl bg-[#3351ff] hover:bg-[#4a64ff] text-white text-sm font-medium transition"
+            className="inline-flex items-center gap-1.5 bg-[var(--ink)] text-[var(--canvas)] px-4 py-2 rounded-[4px] text-sm font-medium hover:bg-[var(--ink)]/90 transition"
           >
             Back to settings
           </Link>
@@ -56,24 +59,30 @@ export default async function AuditLogPage() {
     .limit(100);
 
   return (
-    <div className="min-h-screen bg-[#242423] text-white">
-      <div className="max-w-5xl mx-auto px-6 py-12">
-        <Link
-          href="/settings"
-          className="inline-flex items-center gap-2 text-sm font-medium text-white/40 hover:text-white/70 transition mb-6"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
-          Back to settings
-        </Link>
-        <div className="mb-8">
-          <h1 className="text-3xl font-semibold">Audit log</h1>
-          <p className="text-white/50 text-sm mt-2">
-            Sensitive events in your workspace — who did what and when. Retained
-            indefinitely. Only workspace admins and owners can view this page.
-          </p>
+    <div className="min-h-screen bg-[var(--canvas)] text-[var(--ink)]">
+      <div className="border-b border-[var(--rule)] bg-[var(--canvas)] px-6 py-4">
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="heading-display text-xl text-[var(--ink)]">Drift</span>
+            <span className="label-section text-[var(--ink-muted)]">Audit log</span>
+          </div>
+          <Link
+            href="/settings"
+            className="inline-flex items-center gap-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
+          >
+            <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
+            Back to settings
+          </Link>
         </div>
+      </div>
+      <div className="max-w-5xl mx-auto px-8 py-8">
+        <h1 className="heading-display text-4xl text-[var(--ink)] mb-1">
+          Audit log
+        </h1>
+        <p className="text-sm text-[var(--ink-muted)] mb-6">
+          Sensitive events in your workspace — who did what and when. Retained
+          indefinitely. Only workspace admins and owners can view this page.
+        </p>
         <AuditLogClient initialLogs={logs ?? []} />
       </div>
     </div>
