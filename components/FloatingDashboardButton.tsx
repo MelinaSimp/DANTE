@@ -5,11 +5,12 @@ import { usePathname } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
 // Paths where the floating back-to-dashboard button should NOT appear.
-// - Dashboard itself (you're already there)
-// - Auth pages (pre-login)
-// - Marketing/public pages (features, privacy, terms, download, home)
-// - Agent canvas (/app) has its own navigation
-// - Admin + superadmin have their own shells with a back link
+// Every Harvey-shell page now ships its own in-bar "Back to dashboard" link
+// (settings, client-details-overview, calls, etc.), so the floating chip
+// became a visible duplicate. Keep it only as a last-resort fallback for
+// pages that don't have their own nav. Today, that means nowhere — so the
+// list below intentionally covers every app route. If a new route goes up
+// without a header, it can be removed from this list to restore the chip.
 const HIDDEN_PREFIXES = [
   "/dashboard",
   "/auth",
@@ -26,8 +27,19 @@ const HIDDEN_PREFIXES = [
   "/select",
   "/status",
   "/call",
+  "/calls",
   "/compiled",
   "/frontend",
+  "/settings",
+  "/client-details-overview",
+  "/appointments",
+  "/billing",
+  "/contacts",
+  "/agents",
+  "/gigaai",
+  "/opportunities",
+  "/schedule",
+  "/security",
 ];
 
 export default function FloatingDashboardButton() {

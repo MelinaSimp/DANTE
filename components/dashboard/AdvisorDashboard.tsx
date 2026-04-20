@@ -23,7 +23,6 @@ import {
   AlertTriangle,
   LogOut,
   LayoutDashboard,
-  Users,
   FileText,
   Database,
   Loader2,
@@ -410,20 +409,8 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
           )}
         </section>
 
-        {/* Quick links — subtle footer nav. Harvey's pattern of "explore more" */}
-        <section className="border-t border-[var(--rule)] pt-8 grid grid-cols-2 md:grid-cols-4 gap-6">
-          <QuickLink
-            href="/client-details-overview"
-            label="Clients"
-            icon={<Users className="w-4 h-4" />}
-            hint="Records, notes, documents"
-          />
-          <QuickLink
-            href="/dashboard/agents"
-            label="Agents"
-            icon={<LayoutDashboard className="w-4 h-4" />}
-            hint="Build & deploy"
-          />
+        {/* Footer — deeper links that aren't already in the header nav or stat strip. */}
+        <section className="border-t border-[var(--rule)] pt-8 grid grid-cols-2 md:grid-cols-2 gap-6">
           <QuickLink
             href="/reference"
             label="Reference"
