@@ -38,11 +38,11 @@ import DocumentExtractionPanel from "@/components/documents/DocumentExtractionPa
 
 const PdfViewerWithAnnotations = dynamic(
   () => import("@/components/documents/PdfViewerWithAnnotations"),
-  { ssr: false, loading: () => <div className="flex items-center justify-center h-full text-zinc-400 text-sm">Loading PDF viewer…</div> }
+  { ssr: false, loading: () => <div className="flex items-center justify-center h-full text-[var(--ink-subtle)] text-sm">Loading PDF viewer…</div> }
 );
 const DocumentSummaryChat = dynamic(
   () => import("@/components/documents/DocumentSummaryChat"),
-  { ssr: false, loading: () => <div className="flex items-center justify-center p-4 text-zinc-400 text-sm">Loading…</div> }
+  { ssr: false, loading: () => <div className="flex items-center justify-center p-4 text-[var(--ink-subtle)] text-sm">Loading…</div> }
 );
 import ConfirmationModal from "@/components/frontend/ConfirmationModal";
 import { useFeatures } from "@/hooks/useFeatures";
@@ -670,24 +670,21 @@ export default function ClientDetailsOverviewClient({
     }
   };
 
-  // Pink/blue halo component (matches frontend)
-  const IconHalo = ({ children, className = "", shape = "circle" }: { children: React.ReactNode; className?: string; shape?: "circle" | "square" }) => (
-    <div className={`relative ${className}`}>
-      <div className={`absolute inset-0 bg-gradient-to-br from-purple-400 via-pink-500 to-blue-500 blur-sm opacity-50 ${shape === "square" ? "rounded-sm" : "rounded-full"}`} aria-hidden />
-      <div className="relative">{children}</div>
-    </div>
+  // Flat icon wrapper — no halo, keeps the same props shape for callers
+  const IconHalo = ({ children, className = "" }: { children: React.ReactNode; className?: string; shape?: "circle" | "square" }) => (
+    <div className={`relative ${className}`}>{children}</div>
   );
 
   // ——— Selection screen (household vs client bars) ———
   if (view === "select") {
     return (
-      <div className={panelMode ? "bg-white text-[#151515]" : "min-h-[calc(100vh-4rem)] bg-[#f5f5f7] text-[#151515]"}>
+      <div className={panelMode ? "bg-[var(--canvas)] text-[var(--ink)]" : "min-h-[calc(100vh-4rem)] bg-[var(--canvas-subtle)] text-[var(--ink)]"}>
         <div className={panelMode ? "mx-auto max-w-2xl px-6 py-8" : "mx-auto max-w-2xl px-6 py-12"}>
           {!panelMode && (
             <button
               type="button"
               onClick={() => router.back()}
-              className="mb-6 flex items-center gap-2 text-sm font-medium text-[#6b7280] hover:text-[#151515] transition-colors"
+              className="mb-6 flex items-center gap-2 text-sm font-medium text-[var(--ink-muted)] hover:text-[var(--ink)] transition-colors"
             >
               <ArrowLeft className="h-4 w-4" />
               Back
@@ -695,20 +692,19 @@ export default function ClientDetailsOverviewClient({
           )}
 
           <div className="relative">
-            <div className="absolute -inset-4 bg-gradient-to-br from-purple-400/20 via-pink-500/20 to-blue-500/20 rounded-3xl blur-2xl -z-10" aria-hidden />
-            <p className="text-center text-sm text-[#151515]/60">{formatTime()}</p>
-            <h1 className="mt-2 text-center text-2xl font-bold text-[#151515]">
+            <p className="text-center text-sm text-[var(--ink-muted)]">{formatTime()}</p>
+            <h1 className="mt-2 text-center text-2xl font-bold text-[var(--ink)]">
               Prepare a report for a client?
             </h1>
           </div>
 
           <div className="mt-10 space-y-4 relative">
             <div className="flex items-center justify-between gap-4">
-              <p className="text-sm text-[#6b7280]">Select a client</p>
+              <p className="text-sm text-[var(--ink-muted)]">Select a client</p>
               <button
                 type="button"
                 onClick={() => { setShowAddClient(true); setAddClientError(null); }}
-                className="flex items-center gap-2 rounded-full border border-[#e5e7eb] bg-[#ffffff] px-4 py-2 text-sm font-medium text-[#151515] shadow-sm transition hover:border-[#3166bf]/40 hover:bg-[#fafafa]"
+                className="flex items-center gap-2 rounded-full border border-[var(--rule)] bg-[var(--canvas)] px-4 py-2 text-sm font-medium text-[var(--ink)] transition hover:border-[var(--accent)]/40 hover:bg-[var(--canvas-subtle)]"
               >
                 <UserPlus className="h-4 w-4" />
                 Add client
@@ -717,21 +713,21 @@ export default function ClientDetailsOverviewClient({
 
             {/* Client cards — rounder, no halo; click to select, Edit/Delete on right */}
             {contacts.length === 0 ? (
-              <p className="text-center text-sm text-[#6b7280] py-4">No contacts yet. Click &quot;Add client&quot; to add one.</p>
+              <p className="text-center text-sm text-[var(--ink-muted)] py-4">No contacts yet. Click &quot;Add client&quot; to add one.</p>
             ) : (
               contacts.map((client) => (
                 <div
                   key={client.id}
-                  className="flex w-full items-center justify-between gap-2 rounded-2xl border border-[#e5e7eb] bg-[#ffffff] px-5 py-4 shadow-sm transition hover:border-[#3166bf]/40 hover:bg-[#fafafa]"
+                  className="flex w-full items-center justify-between gap-2 rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] px-5 py-4 transition hover:border-[var(--accent)]/40 hover:bg-[var(--canvas-subtle)]"
                 >
                   <button
                     type="button"
                     onClick={() => handleSelectClient(client)}
                     className="flex flex-1 min-w-0 items-center justify-between gap-3 text-left"
                   >
-                    <span className="text-lg font-semibold text-[#151515] truncate">{client.name}</span>
+                    <span className="text-lg font-semibold text-[var(--ink)] truncate">{client.name}</span>
                     {client.phone && (
-                      <span className="rounded-full bg-[#eff6ff] px-3 py-1 text-sm text-[#2563eb] shrink-0">
+                      <span className="rounded-full bg-[var(--accent-soft)] px-3 py-1 text-sm text-[var(--accent)] shrink-0">
                         {client.phone}
                       </span>
                     )}
@@ -740,7 +736,7 @@ export default function ClientDetailsOverviewClient({
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); openEditModal(client); }}
-                      className="p-2 rounded-xl text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#151515]"
+                      className="p-2 rounded-[4px] text-[var(--ink-muted)] hover:bg-[var(--canvas-subtle)] hover:text-[var(--ink)]"
                       title="Edit client"
                     >
                       <Pencil className="h-4 w-4" />
@@ -749,7 +745,7 @@ export default function ClientDetailsOverviewClient({
                       type="button"
                       onClick={(e) => { e.stopPropagation(); handleDeleteClient(client); }}
                       disabled={deletingContactId === client.id}
-                      className="p-2 rounded-xl text-[#6b7280] hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                      className="p-2 rounded-[4px] text-[var(--ink-muted)] hover:bg-[var(--danger-soft)] hover:text-[var(--danger)] disabled:opacity-50"
                       title="Delete client"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -763,74 +759,74 @@ export default function ClientDetailsOverviewClient({
           {/* Add client modal */}
           {showAddClient && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => !addClientLoading && setShowAddClient(false)}>
-              <div className="bg-[#ffffff] rounded-2xl shadow-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+              <div className="bg-[var(--canvas)] rounded-[6px] max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-semibold text-[#151515]">Add client</h2>
-                  <button type="button" onClick={() => !addClientLoading && setShowAddClient(false)} className="p-1 rounded-xl hover:bg-[#f3f4f6]">
-                    <X className="h-5 w-5 text-[#6b7280]" />
+                  <h2 className="text-xl font-semibold text-[var(--ink)]">Add client</h2>
+                  <button type="button" onClick={() => !addClientLoading && setShowAddClient(false)} className="p-1 rounded-[4px] hover:bg-[var(--canvas-subtle)]">
+                    <X className="h-5 w-5 text-[var(--ink-muted)]" />
                   </button>
                 </div>
-                <p className="text-sm text-[#6b7280] mb-4">All fields are required. Phone can include country code (e.g. +1 216 509 9657).</p>
+                <p className="text-sm text-[var(--ink-muted)] mb-4">All fields are required. Phone can include country code (e.g. +1 216 509 9657).</p>
                 <form onSubmit={handleAddClientSubmit} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-[#374151] mb-1">First name</label>
+                    <label className="block text-sm font-medium text-[var(--ink)] mb-1">First name</label>
                     <input
                       type="text"
                       value={addClientFirstName}
                       onChange={(e) => setAddClientFirstName(e.target.value)}
-                      className="w-full rounded-xl border border-[#e5e7eb] bg-[#ffffff] px-4 py-2.5 text-[#151515] placeholder:text-[#9ca3af] focus:border-[#3166bf] focus:outline-none focus:ring-1 focus:ring-[#3166bf]"
+                      className="w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-4 py-2.5 text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
                       placeholder="Jane"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-[#374151] mb-1">Last name</label>
+                    <label className="block text-sm font-medium text-[var(--ink)] mb-1">Last name</label>
                     <input
                       type="text"
                       value={addClientLastName}
                       onChange={(e) => setAddClientLastName(e.target.value)}
-                      className="w-full rounded-xl border border-[#e5e7eb] bg-[#ffffff] px-4 py-2.5 text-[#151515] placeholder:text-[#9ca3af] focus:border-[#3166bf] focus:outline-none focus:ring-1 focus:ring-[#3166bf]"
+                      className="w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-4 py-2.5 text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
                       placeholder="Doe"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-[#374151] mb-1">Phone number</label>
+                    <label className="block text-sm font-medium text-[var(--ink)] mb-1">Phone number</label>
                     <input
                       type="tel"
                       value={addClientPhone}
                       onChange={(e) => setAddClientPhone(e.target.value)}
-                      className="w-full rounded-xl border border-[#e5e7eb] bg-[#ffffff] px-4 py-2.5 text-[#151515] placeholder:text-[#9ca3af] focus:border-[#3166bf] focus:outline-none focus:ring-1 focus:ring-[#3166bf]"
+                      className="w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-4 py-2.5 text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
                       placeholder="+1 216 509 9657"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-[#374151] mb-1">Email</label>
+                    <label className="block text-sm font-medium text-[var(--ink)] mb-1">Email</label>
                     <input
                       type="email"
                       value={addClientEmail}
                       onChange={(e) => setAddClientEmail(e.target.value)}
-                      className="w-full rounded-xl border border-[#e5e7eb] bg-[#ffffff] px-4 py-2.5 text-[#151515] placeholder:text-[#9ca3af] focus:border-[#3166bf] focus:outline-none focus:ring-1 focus:ring-[#3166bf]"
+                      className="w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-4 py-2.5 text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
                       placeholder="jane@example.com"
                       required
                     />
                   </div>
                   {addClientError && (
-                    <p className="text-sm text-red-600">{addClientError}</p>
+                    <p className="text-sm text-[var(--danger)]">{addClientError}</p>
                   )}
                   <div className="flex gap-3 pt-2">
                     <button
                       type="button"
                       onClick={() => !addClientLoading && setShowAddClient(false)}
-                      className="flex-1 rounded-xl border border-[#e5e7eb] bg-[#f9fafb] px-4 py-2.5 text-sm font-medium text-[#374151] hover:bg-[#f3f4f6]"
+                      className="flex-1 rounded-[4px] border border-[var(--rule)] bg-[var(--canvas-subtle)] px-4 py-2.5 text-sm font-medium text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
                       disabled={addClientLoading}
-                      className="flex-1 rounded-xl bg-[#3166bf] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#2563eb] disabled:opacity-60"
+                      className="flex-1 rounded-[4px] bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-[var(--canvas)] hover:bg-[var(--accent)]/90 disabled:opacity-60"
                     >
                       {addClientLoading ? "Adding…" : "Add client"}
                     </button>
@@ -843,70 +839,70 @@ export default function ClientDetailsOverviewClient({
           {/* Edit client modal */}
           {editingContact && (
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => !editLoading && setEditingContact(null)}>
-              <div className="bg-[#ffffff] rounded-2xl shadow-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+              <div className="bg-[var(--canvas)] rounded-[6px] max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-semibold text-[#151515]">Edit client</h2>
-                  <button type="button" onClick={() => !editLoading && setEditingContact(null)} className="p-1 rounded-xl hover:bg-[#f3f4f6]">
-                    <X className="h-5 w-5 text-[#6b7280]" />
+                  <h2 className="text-xl font-semibold text-[var(--ink)]">Edit client</h2>
+                  <button type="button" onClick={() => !editLoading && setEditingContact(null)} className="p-1 rounded-[4px] hover:bg-[var(--canvas-subtle)]">
+                    <X className="h-5 w-5 text-[var(--ink-muted)]" />
                   </button>
                 </div>
-                <p className="text-sm text-[#6b7280] mb-4">Update client details. All fields are required.</p>
+                <p className="text-sm text-[var(--ink-muted)] mb-4">Update client details. All fields are required.</p>
                 <form onSubmit={handleEditSubmit} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-[#374151] mb-1">First name</label>
+                    <label className="block text-sm font-medium text-[var(--ink)] mb-1">First name</label>
                     <input
                       type="text"
                       value={editFirstName}
                       onChange={(e) => setEditFirstName(e.target.value)}
-                      className="w-full rounded-xl border border-[#e5e7eb] bg-[#ffffff] px-4 py-2.5 text-[#151515] focus:border-[#3166bf] focus:outline-none focus:ring-1 focus:ring-[#3166bf]"
+                      className="w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-4 py-2.5 text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-[#374151] mb-1">Last name</label>
+                    <label className="block text-sm font-medium text-[var(--ink)] mb-1">Last name</label>
                     <input
                       type="text"
                       value={editLastName}
                       onChange={(e) => setEditLastName(e.target.value)}
-                      className="w-full rounded-xl border border-[#e5e7eb] bg-[#ffffff] px-4 py-2.5 text-[#151515] focus:border-[#3166bf] focus:outline-none focus:ring-1 focus:ring-[#3166bf]"
+                      className="w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-4 py-2.5 text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-[#374151] mb-1">Phone number</label>
+                    <label className="block text-sm font-medium text-[var(--ink)] mb-1">Phone number</label>
                     <input
                       type="tel"
                       value={editPhone}
                       onChange={(e) => setEditPhone(e.target.value)}
-                      className="w-full rounded-xl border border-[#e5e7eb] bg-[#ffffff] px-4 py-2.5 text-[#151515] focus:border-[#3166bf] focus:outline-none focus:ring-1 focus:ring-[#3166bf]"
+                      className="w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-4 py-2.5 text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-[#374151] mb-1">Email</label>
+                    <label className="block text-sm font-medium text-[var(--ink)] mb-1">Email</label>
                     <input
                       type="email"
                       value={editEmail}
                       onChange={(e) => setEditEmail(e.target.value)}
-                      className="w-full rounded-xl border border-[#e5e7eb] bg-[#ffffff] px-4 py-2.5 text-[#151515] focus:border-[#3166bf] focus:outline-none focus:ring-1 focus:ring-[#3166bf]"
+                      className="w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-4 py-2.5 text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
                       required
                     />
                   </div>
                   {editError && (
-                    <p className="text-sm text-red-600">{editError}</p>
+                    <p className="text-sm text-[var(--danger)]">{editError}</p>
                   )}
                   <div className="flex gap-3 pt-2">
                     <button
                       type="button"
                       onClick={() => !editLoading && setEditingContact(null)}
-                      className="flex-1 rounded-xl border border-[#e5e7eb] bg-[#f9fafb] px-4 py-2.5 text-sm font-medium text-[#374151] hover:bg-[#f3f4f6]"
+                      className="flex-1 rounded-[4px] border border-[var(--rule)] bg-[var(--canvas-subtle)] px-4 py-2.5 text-sm font-medium text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
                       disabled={editLoading}
-                      className="flex-1 rounded-xl bg-[#3166bf] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#2563eb] disabled:opacity-60"
+                      className="flex-1 rounded-[4px] bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-[var(--canvas)] hover:bg-[var(--accent)]/90 disabled:opacity-60"
                     >
                       {editLoading ? "Saving…" : "Save changes"}
                     </button>
@@ -930,11 +926,11 @@ export default function ClientDetailsOverviewClient({
 
           {/* Toast (for select view) */}
           {toastMsg && (
-            <div className={`fixed top-4 right-4 z-[100] max-w-sm w-full rounded-2xl shadow-lg border p-4 flex items-start gap-3 ${
-              toastMsg.type === "error" ? "bg-red-500/95 border-red-400 text-white" : "bg-green-500/95 border-green-400 text-white"
+            <div className={`fixed top-4 right-4 z-[100] max-w-sm w-full rounded-[6px] border p-4 flex items-start gap-3 ${
+              toastMsg.type === "error" ? "bg-[var(--danger)] border-[var(--danger)]/30 text-[var(--canvas)]" : "bg-[var(--verified)] border-[var(--verified)]/30 text-[var(--canvas)]"
             }`}>
               <span className="text-sm font-medium flex-1">{toastMsg.message}</span>
-              <button onClick={() => setToastMsg(null)} className="flex-shrink-0 hover:bg-white/20 rounded p-1">
+              <button onClick={() => setToastMsg(null)} className="flex-shrink-0 hover:bg-[var(--canvas)]/20 rounded p-1">
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -948,13 +944,13 @@ export default function ClientDetailsOverviewClient({
   const displayName = selected?.name ?? "Client";
 
   return (
-    <div className={panelMode ? "flex bg-white text-[#151515] h-full" : "min-h-[calc(100vh-4rem)] flex bg-[#f5f5f7] text-[#151515]"}>
+    <div className={panelMode ? "flex bg-[var(--canvas)] text-[var(--ink)] h-full" : "min-h-[calc(100vh-4rem)] flex bg-[var(--canvas-subtle)] text-[var(--ink)]"}>
       {!panelMode && (
-        <div className="hidden md:flex flex-col w-48 border-r border-gray-200 bg-white shrink-0">
-          <div className="p-4 border-b border-gray-200 flex items-center gap-2">
+        <div className="hidden md:flex flex-col w-48 border-r border-[var(--rule)] bg-[var(--canvas)] shrink-0">
+          <div className="p-4 border-b border-[var(--rule)] flex items-center gap-2">
             <Link href="/frontend" className="flex items-center gap-2">
               <img src="/brand/logo-circle.png" alt="Drift" className="w-7 h-7 rounded-full object-cover" />
-              <span className="text-sm font-semibold text-gray-900">Drift</span>
+              <span className="text-sm font-semibold text-[var(--ink)]">Drift</span>
             </Link>
           </div>
           <nav className="flex-1 p-3 space-y-1">
@@ -964,8 +960,8 @@ export default function ClientDetailsOverviewClient({
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
-                    item.active ? "bg-gray-100 text-black" : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+                  className={`flex items-center gap-2.5 px-3 py-2 rounded-[4px] text-sm font-medium transition-all duration-200 ${
+                    item.active ? "bg-[var(--canvas-subtle)] text-[var(--ink)]" : "text-[var(--ink-muted)] hover:bg-[var(--canvas-subtle)] hover:text-[var(--ink)]"
                   }`}
                 >
                   <Icon className="w-4 h-4" />
@@ -980,22 +976,22 @@ export default function ClientDetailsOverviewClient({
       {/* Main content */}
       <div className="flex-1 overflow-auto">
         {/* Top bar */}
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#e5e7eb] bg-[#ffffff] px-6 py-4">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--rule)] bg-[var(--canvas)] px-6 py-4">
           <div className="flex items-center gap-2">
-            <span className="text-lg font-semibold text-[#151515]">Overview on {displayName}</span>
+            <span className="text-lg font-semibold text-[var(--ink)]">Overview on {displayName}</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-[#6b7280]">{formatTime()}</span>
+            <span className="text-sm text-[var(--ink-muted)]">{formatTime()}</span>
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setActionsOpen(!actionsOpen)}
-                className="flex items-center gap-1.5 rounded-xl border border-[#e5e7eb] bg-[#f9fafb] px-3 py-2 text-sm font-medium text-[#151515] hover:bg-[#f3f4f6]"
+                className="flex items-center gap-1.5 rounded-[4px] border border-[var(--rule)] bg-[var(--canvas-subtle)] px-3 py-2 text-sm font-medium text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
               >
                 Actions <ChevronDown className={`h-4 w-4 transition-transform ${actionsOpen ? "rotate-180" : ""}`} />
               </button>
               {actionsOpen && (
-                <div className="absolute right-0 top-full mt-1 w-48 rounded-xl border border-[#e5e7eb] bg-white shadow-lg z-20 py-1" onMouseLeave={() => setActionsOpen(false)}>
+                <div className="absolute right-0 top-full mt-1 w-48 rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] z-20 py-1" onMouseLeave={() => setActionsOpen(false)}>
                   <button
                     onClick={() => {
                       if (selected?.type === "client") {
@@ -1008,7 +1004,7 @@ export default function ClientDetailsOverviewClient({
                       }
                       setActionsOpen(false);
                     }}
-                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-[#374151] hover:bg-[#f3f4f6]"
+                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
                   >
                     <Download className="h-4 w-4" /> Export Data
                   </button>
@@ -1019,7 +1015,7 @@ export default function ClientDetailsOverviewClient({
                       }
                       setActionsOpen(false);
                     }}
-                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-[#374151] hover:bg-[#f3f4f6]"
+                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
                   >
                     <Share2 className="h-4 w-4" /> Copy Link
                   </button>
@@ -1030,7 +1026,7 @@ export default function ClientDetailsOverviewClient({
               <button
                 type="button"
                 onClick={handleGoBack}
-                className="rounded-xl p-2 text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#151515]"
+                className="rounded-[4px] p-2 text-[var(--ink-muted)] hover:bg-[var(--canvas-subtle)] hover:text-[var(--ink)]"
                 aria-label="Back to clients"
               >
                 <ArrowLeft className="h-5 w-5" />
@@ -1038,7 +1034,7 @@ export default function ClientDetailsOverviewClient({
             ) : (
               <Link
                 href="/client-details-overview"
-                className="rounded-xl p-2 text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#151515]"
+                className="rounded-[4px] p-2 text-[var(--ink-muted)] hover:bg-[var(--canvas-subtle)] hover:text-[var(--ink)]"
                 aria-label="Close"
               >
                 <X className="h-5 w-5" />
@@ -1049,13 +1045,13 @@ export default function ClientDetailsOverviewClient({
 
         {/* Content card */}
         <div className="mx-6 my-6 max-w-4xl">
-          <div className="rounded-2xl border border-[#e5e7eb] bg-[#ffffff] p-6 shadow-sm">
-            <p className="text-sm text-[#6b7280]">{formatTime()}</p>
-            <h2 className="mt-1 flex items-center gap-2 text-xl font-bold text-[#151515]">
-              <span className="text-[#3166bf]">V</span>
+          <div className="rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] p-6">
+            <p className="text-sm text-[var(--ink-muted)]">{formatTime()}</p>
+            <h2 className="mt-1 flex items-center gap-2 text-xl font-bold text-[var(--ink)]">
+              <span className="text-[var(--accent)]">V</span>
               Here&apos;s an overview on {displayName}.
             </h2>
-            <p className="mt-3 text-[#374151]">
+            <p className="mt-3 text-[var(--ink)]">
               {document
                 ? `${displayName} has a document on file and ${templates.length} template${templates.length !== 1 ? "s" : ""} available.`
                 : `No documents uploaded yet for ${displayName}. Upload documents to get started.`}
@@ -1064,32 +1060,32 @@ export default function ClientDetailsOverviewClient({
             {activeSection === "account-overview" && (
               <div className="mt-8 space-y-8">
                 {/* Templates at top */}
-                <div className="rounded-xl border border-[#e5e7eb] bg-white p-4">
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-[#6b7280] mb-3">Templates</h3>
+                <div className="rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] p-4">
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-[var(--ink-muted)] mb-3">Templates</h3>
                   {selected?.type !== "client" ? (
-                    <p className="text-sm text-[#6b7280]">Select a client to view and use templates.</p>
+                    <p className="text-sm text-[var(--ink-muted)]">Select a client to view and use templates.</p>
                   ) : templates.length > 0 ? (
                     <div className="space-y-2">
                       {templates.map((t) => (
                         <div
                           key={t.id}
-                          className={`rounded-xl border p-2 text-sm cursor-pointer transition ${
+                          className={`rounded-[4px] border p-2 text-sm cursor-pointer transition ${
                             selectedTemplate?.id === t.id
-                              ? "border-black bg-gray-50"
-                              : "border-[#e5e7eb] bg-[#f9fafb] hover:bg-[#f3f4f6]"
+                              ? "border-[var(--ink)] bg-[var(--canvas-subtle)]"
+                              : "border-[var(--rule)] bg-[var(--canvas-subtle)] hover:bg-[var(--canvas-subtle)]"
                           }`}
                           onClick={() => setSelectedTemplate(selectedTemplate?.id === t.id ? null : t)}
                         >
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2 min-w-0">
-                              <FileStack className="h-4 w-4 shrink-0 text-[#6b7280]" />
-                              <span className="font-medium text-[#374151] truncate">{t.name}</span>
+                              <FileStack className="h-4 w-4 shrink-0 text-[var(--ink-muted)]" />
+                              <span className="font-medium text-[var(--ink)] truncate">{t.name}</span>
                             </div>
                             <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                               <button
                                 type="button"
                                 onClick={() => openEditTemplateModal(t)}
-                                className="rounded p-1 text-[#6b7280] hover:bg-[#e5e7eb] hover:text-[#374151]"
+                                className="rounded p-1 text-[var(--ink-muted)] hover:bg-[var(--canvas-subtle)] hover:text-[var(--ink)]"
                                 title="Edit template"
                               >
                                 <Pencil className="h-4 w-4" />
@@ -1097,7 +1093,7 @@ export default function ClientDetailsOverviewClient({
                               <button
                                 type="button"
                                 onClick={() => handleDeleteTemplate(t)}
-                                className="rounded p-1 text-[#6b7280] hover:bg-red-50 hover:text-red-600"
+                                className="rounded p-1 text-[var(--ink-muted)] hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
                                 title="Delete template"
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -1111,7 +1107,7 @@ export default function ClientDetailsOverviewClient({
                                 e.stopPropagation();
                                 setUseTemplateMode(true);
                               }}
-                              className="mt-2 w-full rounded-xl bg-black px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800"
+                              className="mt-2 w-full rounded-[4px] bg-[var(--ink)] px-3 py-1.5 text-xs font-medium text-[var(--canvas)] hover:bg-[var(--ink)]/90"
                             >
                               Use this template
                             </button>
@@ -1120,32 +1116,32 @@ export default function ClientDetailsOverviewClient({
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-[#6b7280]">No templates yet. Upload a document below, add annotations, then save as a template.</p>
+                    <p className="text-sm text-[var(--ink-muted)]">No templates yet. Upload a document below, add annotations, then save as a template.</p>
                   )}
                 </div>
 
                 {/* Document upload / viewer + annotations + generate */}
                 <div className="mt-8">
                 {selected?.type !== "client" ? (
-                  <div className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] p-8 text-center">
-                    <p className="text-[#6b7280]">Select a client to view and annotate documents.</p>
+                  <div className="rounded-[4px] border border-[var(--rule)] bg-[var(--canvas-subtle)] p-8 text-center">
+                    <p className="text-[var(--ink-muted)]">Select a client to view and annotate documents.</p>
                   </div>
                 ) : !document ? (
-                  <div className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] p-8">
-                    <p className="text-[#6b7280] mb-4">Upload a PDF for {selected.name}. One primary document per client.</p>
+                  <div className="rounded-[4px] border border-[var(--rule)] bg-[var(--canvas-subtle)] p-8">
+                    <p className="text-[var(--ink-muted)] mb-4">Upload a PDF for {selected.name}. One primary document per client.</p>
                     {uploadError && (
-                      <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                      <div className="mb-4 rounded-[4px] border border-[var(--danger)]/30 bg-[var(--danger-soft)] p-3 text-sm text-[var(--danger)]">
                         {uploadError}
                         <button
                           type="button"
                           onClick={() => setUploadError(null)}
-                          className="ml-2 text-red-500 hover:text-red-700"
+                          className="ml-2 text-[var(--danger)] hover:text-[var(--danger)]"
                         >
                           ×
                         </button>
                       </div>
                     )}
-                    <label className="inline-flex items-center gap-2 rounded-xl bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 cursor-pointer disabled:opacity-50">
+                    <label className="inline-flex items-center gap-2 rounded-[4px] bg-[var(--ink)] px-4 py-2 text-sm font-medium text-[var(--canvas)] hover:bg-[var(--ink)]/90 cursor-pointer disabled:opacity-50">
                       <Upload className="h-4 w-4" />
                       {uploading ? "Uploading…" : "Upload PDF"}
                       <input
@@ -1158,42 +1154,42 @@ export default function ClientDetailsOverviewClient({
                     </label>
                   </div>
                 ) : useTemplateMode && selectedTemplate ? (
-                  <div className="rounded-xl border border-[#e5e7eb] bg-white overflow-hidden">
-                    <div className="flex items-center justify-between px-4 py-2 border-b border-[#e5e7eb] bg-[#f9fafb]">
+                  <div className="rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--rule)] bg-[var(--canvas-subtle)]">
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
                           onClick={() => { setUseTemplateMode(false); setDocumentToAnalyzeUrl(null); setDocumentToAnalyzeFileName(null); setShowAnalyzePdfPreview(false); }}
-                          className="rounded p-1 text-[#6b7280] hover:bg-[#e5e7eb] hover:text-[#374151]"
+                          className="rounded p-1 text-[var(--ink-muted)] hover:bg-[var(--canvas-subtle)] hover:text-[var(--ink)]"
                           aria-label="Back"
                         >
                           <ArrowLeft className="h-4 w-4" />
                         </button>
-                        <span className="text-sm font-medium text-[#374151]">
+                        <span className="text-sm font-medium text-[var(--ink)]">
                           Using template: {selectedTemplate.name}
                         </span>
                       </div>
                     </div>
                     <div className="p-4 space-y-4 min-h-[500px] flex flex-col">
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-wider text-[#6b7280] mb-2">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-muted)] mb-2">
                           Document to analyze
                         </p>
-                        <p className="text-sm text-[#6b7280] mb-2">
+                        <p className="text-sm text-[var(--ink-muted)] mb-2">
                           Upload a PDF to analyze using this template. This is separate from the client&apos;s main document.
                         </p>
                         {documentToAnalyzeUrl ? (
                           <>
-                            <p className="text-sm text-green-700 mb-2">Document ready for generation.</p>
+                            <p className="text-sm text-[var(--verified)] mb-2">Document ready for generation.</p>
                             {documentToAnalyzeFileName && (
-                              <p className="text-sm text-[#374151] mb-2 truncate" title={documentToAnalyzeFileName}>{documentToAnalyzeFileName}</p>
+                              <p className="text-sm text-[var(--ink)] mb-2 truncate" title={documentToAnalyzeFileName}>{documentToAnalyzeFileName}</p>
                             )}
                             <div className="flex flex-wrap items-center gap-2 mb-2">
                               <a
                                 href={documentToAnalyzeUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 rounded-xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb]"
+                                className="inline-flex items-center gap-2 rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-4 py-2 text-sm font-medium text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
                               >
                                 <FileStack className="h-4 w-4" />
                                 View PDF (new tab)
@@ -1201,13 +1197,13 @@ export default function ClientDetailsOverviewClient({
                               <button
                                 type="button"
                                 onClick={() => setShowAnalyzePdfPreview((v) => !v)}
-                                className="inline-flex items-center gap-2 rounded-xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb]"
+                                className="inline-flex items-center gap-2 rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-4 py-2 text-sm font-medium text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
                               >
                                 {showAnalyzePdfPreview ? "Hide preview" : "Preview in app"}
                               </button>
                             </div>
                             {showAnalyzePdfPreview && (
-                              <div className="rounded-xl border border-[#e5e7eb] bg-[#f9fafb] overflow-hidden mb-2" style={{ height: "420px" }}>
+                              <div className="rounded-[4px] border border-[var(--rule)] bg-[var(--canvas-subtle)] overflow-hidden mb-2" style={{ height: "420px" }}>
                                 <iframe
                                   src={documentToAnalyzeUrl}
                                   title={documentToAnalyzeFileName || "Document to analyze"}
@@ -1217,7 +1213,7 @@ export default function ClientDetailsOverviewClient({
                             )}
                           </>
                         ) : null}
-                        <label className="inline-flex items-center gap-2 rounded-xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb] cursor-pointer disabled:opacity-50">
+                        <label className="inline-flex items-center gap-2 rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-4 py-2 text-sm font-medium text-[var(--ink)] hover:bg-[var(--canvas-subtle)] cursor-pointer disabled:opacity-50">
                           <Upload className="h-4 w-4" />
                           {uploadingToAnalyze ? "Uploading…" : "Upload PDF to analyze"}
                           <input
@@ -1248,7 +1244,7 @@ export default function ClientDetailsOverviewClient({
                           />
                         </label>
                       </div>
-                      <div className="flex-1 min-h-0 flex flex-col border-t border-[#e5e7eb] pt-4">
+                      <div className="flex-1 min-h-0 flex flex-col border-t border-[var(--rule)] pt-4">
                         <DocumentSummaryChat
                           contactId={selected.id}
                           clientName={selected.name}
@@ -1262,21 +1258,21 @@ export default function ClientDetailsOverviewClient({
                     </div>
                   </div>
                 ) : editingTemplateAnnotations && templateDocForEdit ? (
-                  <div className="rounded-xl border border-[#e5e7eb] bg-white overflow-hidden">
-                    <div className="flex items-center justify-between px-4 py-2 border-b border-[#e5e7eb] bg-gray-50">
-                      <span className="text-sm font-medium text-black">
+                  <div className="rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--rule)] bg-[var(--canvas-subtle)]">
+                      <span className="text-sm font-medium text-[var(--ink)]">
                         Editing annotations for template: {editingTemplateAnnotations.name}
                       </span>
                       <button
                         type="button"
                         onClick={handleDoneEditingTemplateAnnotations}
-                        className="rounded-xl bg-black px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800"
+                        className="rounded-[4px] bg-[var(--ink)] px-3 py-1.5 text-xs font-medium text-[var(--canvas)] hover:bg-[var(--ink)]/90"
                       >
                         Done
                       </button>
                     </div>
                     <div className="flex h-[600px]">
-                      <div className="flex-1 min-w-0 border-r border-[#e5e7eb]">
+                      <div className="flex-1 min-w-0 border-r border-[var(--rule)]">
                         <PdfViewerWithAnnotations
                           documentId={templateDocForEdit.id}
                           fileUrl={templateDocForEdit.url}
@@ -1285,12 +1281,12 @@ export default function ClientDetailsOverviewClient({
                           onAnnotationsChange={setTemplateAnnotationsForEdit}
                         />
                       </div>
-                      <div className="w-[280px] shrink-0 flex flex-col bg-[#f9fafb] p-4 overflow-y-auto">
-                        <p className="text-xs font-semibold uppercase tracking-wider text-[#6b7280] mb-2">
+                      <div className="w-[280px] shrink-0 flex flex-col bg-[var(--canvas-subtle)] p-4 overflow-y-auto">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-muted)] mb-2">
                           Annotations & comments
                         </p>
                         {templateAnnotationsForEdit.length === 0 ? (
-                          <p className="text-sm text-[#6b7280]">
+                          <p className="text-sm text-[var(--ink-muted)]">
                             Draw a box or highlight on the PDF, then add a comment.
                           </p>
                         ) : (
@@ -1298,7 +1294,7 @@ export default function ClientDetailsOverviewClient({
                             .sort((a, b) => (a.page_number - b.page_number) || ((a.created_at || "").localeCompare(b.created_at || "")))
                             .map((ann) => (
                               <div key={ann.id} className="mb-2 group relative">
-                                <div className="rounded-xl px-3 py-2 text-sm bg-black text-white">
+                                <div className="rounded-[4px] px-3 py-2 text-sm bg-[var(--ink)] text-[var(--canvas)]">
                                   <div className="flex items-center justify-between text-xs opacity-90">
                                     <span>Page {ann.page_number}</span>
                                     <button
@@ -1312,7 +1308,7 @@ export default function ClientDetailsOverviewClient({
                                           console.error("Delete annotation error:", err);
                                         }
                                       }}
-                                      className="opacity-0 group-hover:opacity-100 transition-opacity rounded-full p-0.5 hover:bg-white/20"
+                                      className="opacity-0 group-hover:opacity-100 transition-opacity rounded-full p-0.5 hover:bg-[var(--canvas)]/20"
                                       title="Delete annotation"
                                     >
                                       <Trash2 className="h-3 w-3" />
@@ -1327,25 +1323,25 @@ export default function ClientDetailsOverviewClient({
                     </div>
                   </div>
                 ) : (
-                  <div className="rounded-xl border border-[#e5e7eb] bg-white overflow-hidden">
+                  <div className="rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] overflow-hidden">
                     {editingTemplateAnnotations && editingTemplateAnnotations.document_id === document.id && (
-                      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 bg-gray-50">
-                        <span className="text-sm font-medium text-black">
+                      <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--rule)] bg-[var(--canvas-subtle)]">
+                        <span className="text-sm font-medium text-[var(--ink)]">
                           Editing annotations for template: {editingTemplateAnnotations.name}
                         </span>
                         <button
                           type="button"
                           onClick={handleDoneEditingTemplateAnnotations}
-                          className="rounded-xl bg-black px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800"
+                          className="rounded-[4px] bg-[var(--ink)] px-3 py-1.5 text-xs font-medium text-[var(--canvas)] hover:bg-[var(--ink)]/90"
                         >
                           Done
                         </button>
                       </div>
                     )}
-                    <div className="flex items-center justify-between px-4 py-2 border-b border-[#e5e7eb] bg-[#f9fafb]">
-                      <span className="text-sm font-medium text-[#374151]">{document.file_name}</span>
+                    <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--rule)] bg-[var(--canvas-subtle)]">
+                      <span className="text-sm font-medium text-[var(--ink)]">{document.file_name}</span>
                       <div className="flex items-center gap-2">
-                        <label className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-[#6b7280] hover:bg-[#e5e7eb] cursor-pointer">
+                        <label className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-[var(--ink-muted)] hover:bg-[var(--canvas-subtle)] cursor-pointer">
                           <Upload className="h-3 w-3" />
                           Replace
                           <input
@@ -1360,7 +1356,7 @@ export default function ClientDetailsOverviewClient({
                           type="button"
                           onClick={handleDeleteDocument}
                           disabled={deleting}
-                          className="flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+                          className="flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-[var(--danger)] hover:bg-[var(--danger-soft)] disabled:opacity-50"
                         >
                           <Trash2 className="h-3 w-3" />
                           Delete
@@ -1368,7 +1364,7 @@ export default function ClientDetailsOverviewClient({
                       </div>
                     </div>
                     <div className="flex h-[600px]">
-                      <div className="flex-1 min-w-0 border-r border-[#e5e7eb]">
+                      <div className="flex-1 min-w-0 border-r border-[var(--rule)]">
                         <PdfViewerWithAnnotations
                           documentId={document.id}
                           fileUrl={document.url}
@@ -1382,18 +1378,18 @@ export default function ClientDetailsOverviewClient({
                           }
                         />
                       </div>
-                      <div className="w-[380px] shrink-0 flex flex-col bg-[#f9fafb]">
+                      <div className="w-[380px] shrink-0 flex flex-col bg-[var(--canvas-subtle)]">
                         <div className="flex-1 overflow-y-auto p-4 space-y-3">
                           {/* Structured extraction (1099-B / DIV / R).
                               Wired to lib/documents for M1.5 "end-to-end
                               real use". Collapsible so it doesn't crowd
                               the annotations panel when unused. */}
                           <DocumentExtractionPanel documentId={document.id} />
-                          <p className="text-xs font-semibold uppercase tracking-wider text-[#6b7280]">
+                          <p className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-muted)]">
                             Annotations & comments
                           </p>
                           {annotations.length === 0 ? (
-                            <p className="text-sm text-[#6b7280]">
+                            <p className="text-sm text-[var(--ink-muted)]">
                               Draw a box or highlight on the PDF, then add a comment to mark tables or sections.
                             </p>
                           ) : (
@@ -1404,7 +1400,7 @@ export default function ClientDetailsOverviewClient({
                                   key={ann.id}
                                   className="flex justify-end group"
                                 >
-                                  <div className="max-w-[90%] rounded-xl px-3 py-2 text-sm bg-black text-white">
+                                  <div className="max-w-[90%] rounded-[4px] px-3 py-2 text-sm bg-[var(--ink)] text-[var(--canvas)]">
                                     <div className="flex items-center gap-2 text-xs opacity-90">
                                       <Check className="h-3.5 w-3.5 shrink-0" />
                                       <span className="flex-1">Saved · Page {ann.page_number}</span>
@@ -1419,7 +1415,7 @@ export default function ClientDetailsOverviewClient({
                                             console.error("Delete annotation error:", err);
                                           }
                                         }}
-                                        className="opacity-0 group-hover:opacity-100 transition-opacity rounded-full p-0.5 hover:bg-white/20"
+                                        className="opacity-0 group-hover:opacity-100 transition-opacity rounded-full p-0.5 hover:bg-[var(--canvas)]/20"
                                         title="Delete annotation"
                                       >
                                         <Trash2 className="h-3 w-3" />
@@ -1433,10 +1429,10 @@ export default function ClientDetailsOverviewClient({
                               ))
                           )}
                         </div>
-                        <div className="border-t border-[#e5e7eb] p-4 bg-white">
+                        <div className="border-t border-[var(--rule)] p-4 bg-[var(--canvas)]">
                           {annotations.length > 0 && !templateAskDismissed && !savedTemplateName && (
-                            <div className="mb-4 rounded-xl border border-gray-300 bg-gray-50 p-3">
-                              <p className="text-sm text-black mb-3">
+                            <div className="mb-4 rounded-[4px] border border-[var(--rule-strong)] bg-[var(--canvas-subtle)] p-3">
+                              <p className="text-sm text-[var(--ink)] mb-3">
                                 Do you want to save this annotated document as a template? You can use it later to generate summaries from other documents with the same structure.
                               </p>
                               {!showTemplateNameInput ? (
@@ -1444,14 +1440,14 @@ export default function ClientDetailsOverviewClient({
                                   <button
                                     type="button"
                                     onClick={() => setShowTemplateNameInput(true)}
-                                    className="rounded-xl bg-black px-3 py-2 text-sm font-medium text-white hover:bg-gray-800"
+                                    className="rounded-[4px] bg-[var(--ink)] px-3 py-2 text-sm font-medium text-[var(--canvas)] hover:bg-[var(--ink)]/90"
                                   >
                                     Save as template
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => setTemplateAskDismissed(true)}
-                                    className="rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb]"
+                                    className="rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm font-medium text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
                                   >
                                     Not now
                                   </button>
@@ -1463,7 +1459,7 @@ export default function ClientDetailsOverviewClient({
                                     value={templateName}
                                     onChange={(e) => setTemplateName(e.target.value)}
                                     placeholder="Template name"
-                                    className="rounded-xl border border-[#e5e7eb] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    className="rounded-[4px] border border-[var(--rule)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                                     disabled={savingTemplate}
                                   />
                                   <div className="flex gap-2">
@@ -1471,7 +1467,7 @@ export default function ClientDetailsOverviewClient({
                                       type="button"
                                       onClick={handleSaveAsTemplate}
                                       disabled={savingTemplate || !templateName.trim()}
-                                      className="rounded-xl bg-black px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+                                      className="rounded-[4px] bg-[var(--ink)] px-3 py-2 text-sm font-medium text-[var(--canvas)] hover:bg-[var(--ink)]/90 disabled:opacity-50"
                                     >
                                       {savingTemplate ? "Saving…" : "Confirm"}
                                     </button>
@@ -1479,7 +1475,7 @@ export default function ClientDetailsOverviewClient({
                                       type="button"
                                       onClick={() => { setShowTemplateNameInput(false); setTemplateName(""); }}
                                       disabled={savingTemplate}
-                                      className="rounded-xl border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb] disabled:opacity-50"
+                                      className="rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm font-medium text-[var(--ink)] hover:bg-[var(--canvas-subtle)] disabled:opacity-50"
                                     >
                                       Cancel
                                     </button>
@@ -1489,9 +1485,9 @@ export default function ClientDetailsOverviewClient({
                             </div>
                           )}
                           {savedTemplateName && (
-                            <p className="text-sm text-green-700 mb-3">Saved as template &quot;{savedTemplateName}&quot;</p>
+                            <p className="text-sm text-[var(--verified)] mb-3">Saved as template &quot;{savedTemplateName}&quot;</p>
                           )}
-                          <p className="text-xs font-semibold uppercase tracking-wider text-[#6b7280] mb-3">
+                          <p className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-muted)] mb-3">
                             Generate
                           </p>
                           <DocumentSummaryChat
@@ -1508,7 +1504,7 @@ export default function ClientDetailsOverviewClient({
                 </div>
 
                 {/* Notes — hand-written + AI-generated call summaries */}
-                <div className="rounded-xl border border-[#e5e7eb] bg-white p-4">
+                <div className="rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] p-4">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="label-section">Notes</h3>
                     {selected?.type === "client" && (
@@ -1618,50 +1614,50 @@ export default function ClientDetailsOverviewClient({
       {/* Edit template modal */}
       {editingTemplate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => !editTemplateLoading && setEditingTemplate(null)}>
-          <div className="bg-[#ffffff] rounded-2xl shadow-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-[var(--canvas)] rounded-[6px] max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-[#151515]">Edit template</h2>
-              <button type="button" onClick={() => !editTemplateLoading && setEditingTemplate(null)} className="p-1 rounded-xl hover:bg-[#f3f4f6]">
-                <X className="h-5 w-5 text-[#6b7280]" />
+              <h2 className="text-xl font-semibold text-[var(--ink)]">Edit template</h2>
+              <button type="button" onClick={() => !editTemplateLoading && setEditingTemplate(null)} className="p-1 rounded-[4px] hover:bg-[var(--canvas-subtle)]">
+                <X className="h-5 w-5 text-[var(--ink-muted)]" />
               </button>
             </div>
-            <p className="text-sm text-[#6b7280] mb-4">Change the template name or edit its annotations.</p>
+            <p className="text-sm text-[var(--ink-muted)] mb-4">Change the template name or edit its annotations.</p>
             <form onSubmit={handleEditTemplateSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-[#374151] mb-1">Template name</label>
+                <label className="block text-sm font-medium text-[var(--ink)] mb-1">Template name</label>
                 <input
                   type="text"
                   value={editTemplateName}
                   onChange={(e) => setEditTemplateName(e.target.value)}
-                  className="w-full rounded-xl border border-[#e5e7eb] bg-[#ffffff] px-4 py-2.5 text-[#151515] focus:border-[#3166bf] focus:outline-none focus:ring-1 focus:ring-[#3166bf]"
+                  className="w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-4 py-2.5 text-[var(--ink)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
                   required
                 />
               </div>
-              <div className="pt-2 border-t border-[#e5e7eb]">
-                <p className="text-xs text-[#6b7280] mb-2">Annotations (highlights, tables, comments) define what the template extracts from documents.</p>
+              <div className="pt-2 border-t border-[var(--rule)]">
+                <p className="text-xs text-[var(--ink-muted)] mb-2">Annotations (highlights, tables, comments) define what the template extracts from documents.</p>
                 <button
                   type="button"
                   onClick={() => editingTemplate && openEditTemplateAnnotations(editingTemplate)}
-                  className="w-full rounded-xl border border-black bg-white px-4 py-2.5 text-sm font-medium text-black hover:bg-gray-50"
+                  className="w-full rounded-[4px] border border-[var(--ink)] bg-[var(--canvas)] px-4 py-2.5 text-sm font-medium text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
                 >
                   Edit annotations in PDF
                 </button>
               </div>
               {editTemplateError && (
-                <p className="text-sm text-red-600">{editTemplateError}</p>
+                <p className="text-sm text-[var(--danger)]">{editTemplateError}</p>
               )}
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => !editTemplateLoading && setEditingTemplate(null)}
-                  className="flex-1 rounded-xl border border-[#e5e7eb] bg-[#f9fafb] px-4 py-2.5 text-sm font-medium text-[#374151] hover:bg-[#f3f4f6]"
+                  className="flex-1 rounded-[4px] border border-[var(--rule)] bg-[var(--canvas-subtle)] px-4 py-2.5 text-sm font-medium text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={editTemplateLoading}
-                  className="flex-1 rounded-xl bg-[#3166bf] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#2563eb] disabled:opacity-60"
+                  className="flex-1 rounded-[4px] bg-[var(--accent)] px-4 py-2.5 text-sm font-medium text-[var(--canvas)] hover:bg-[var(--accent)]/90 disabled:opacity-60"
                 >
                   {editTemplateLoading ? "Saving…" : "Save changes"}
                 </button>
@@ -1686,14 +1682,14 @@ export default function ClientDetailsOverviewClient({
       {/* Call audit modal — opens when user clicks "View audit" on a call note */}
       {auditOpen && (
         auditLoading ? (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-            <div className="rounded-2xl border border-[#e5e7eb] bg-white px-6 py-5 text-sm text-[#151515]/70 shadow-2xl">
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60">
+            <div className="rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] px-6 py-5 text-sm text-[var(--ink-muted)]">
               Loading audit…
             </div>
           </div>
         ) : auditError ? (
           <div
-            className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60"
             onClick={() => {
               setAuditOpen(false);
               setAuditError(null);
@@ -1701,13 +1697,13 @@ export default function ClientDetailsOverviewClient({
             }}
           >
             <div
-              className="rounded-2xl border border-[#e5e7eb] bg-white px-6 py-5 shadow-2xl max-w-md w-full"
+              className="rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] px-6 py-5 max-w-md w-full"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-sm font-semibold text-[#151515] mb-2">
+              <h3 className="text-sm font-semibold text-[var(--ink)] mb-2">
                 Couldn&rsquo;t load audit
               </h3>
-              <p className="text-sm text-[#151515]/70 mb-4">{auditError}</p>
+              <p className="text-sm text-[var(--ink-muted)] mb-4">{auditError}</p>
               <button
                 type="button"
                 onClick={() => {
@@ -1715,7 +1711,7 @@ export default function ClientDetailsOverviewClient({
                   setAuditError(null);
                   setAuditData(null);
                 }}
-                className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs font-medium text-[#151515] hover:border-[#3166bf] hover:text-[#3166bf]"
+                className="rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-1.5 text-xs font-medium text-[var(--ink)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
               >
                 Close
               </button>
@@ -1743,11 +1739,11 @@ export default function ClientDetailsOverviewClient({
 
       {/* Toast Notification */}
       {toastMsg && (
-        <div className={`fixed top-4 right-4 z-[100] max-w-sm w-full rounded-2xl shadow-lg border p-4 flex items-start gap-3 ${
-          toastMsg.type === "error" ? "bg-red-500/95 border-red-400 text-white" : "bg-green-500/95 border-green-400 text-white"
+        <div className={`fixed top-4 right-4 z-[100] max-w-sm w-full rounded-[6px] border p-4 flex items-start gap-3 ${
+          toastMsg.type === "error" ? "bg-[var(--danger)] border-[var(--danger)]/30 text-[var(--canvas)]" : "bg-[var(--verified)] border-[var(--verified)]/30 text-[var(--canvas)]"
         }`}>
           <span className="text-sm font-medium flex-1">{toastMsg.message}</span>
-          <button onClick={() => setToastMsg(null)} className="flex-shrink-0 hover:bg-white/20 rounded p-1">
+          <button onClick={() => setToastMsg(null)} className="flex-shrink-0 hover:bg-[var(--canvas)]/20 rounded p-1">
             <X className="h-4 w-4" />
           </button>
         </div>
