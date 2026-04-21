@@ -675,6 +675,19 @@ export default function ClientDetailsOverviewClient({
     return (
       <div className={panelMode ? "bg-[var(--canvas)] text-[var(--ink)]" : "min-h-[calc(100vh-4rem)] bg-[var(--canvas)] text-[var(--ink)]"}>
         <div className={panelMode ? "mx-auto max-w-6xl px-6 py-8" : "mx-auto max-w-6xl px-6 md:px-10 py-12"}>
+          {/* Back to dashboard — only in standalone (non-panel) mode.
+              Panel mode is embedded inside other surfaces that already have
+              their own navigation. */}
+          {!panelMode && (
+            <Link
+              href="/dashboard"
+              className="mb-6 inline-flex items-center gap-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
+            >
+              <ArrowLeft className="h-4 w-4" strokeWidth={1.5} />
+              Dashboard
+            </Link>
+          )}
+
           {/* Editorial header */}
           <div className="mb-8 flex items-end justify-between gap-4">
             <div>

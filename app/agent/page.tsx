@@ -25,11 +25,13 @@ import {
   CheckCircle2, XCircle, Circle, Layers, Radio,
   Settings, Loader2, Users, DollarSign, AlertTriangle,
   CheckCircle, Play, Sparkles, ThumbsUp, X, Clock,
-  Lightbulb, FileText, Bell, Plus, Trash2,
+  Lightbulb, FileText, Bell, Trash2,
 } from "lucide-react";
-import CreateAutonomousAgentModal, {
-  type CreatedAgent,
-} from "@/components/agents/CreateAutonomousAgentModal";
+// Autonomous-agent creation moved to Dante — the roster on this page is
+// read-only (run / configure / delete). Everything workflow-like gets
+// authored in the Dante canvas or cloned from a template. If you're
+// reading this and wondering where "Create autonomous agent" went:
+// /dante/templates or /dante → "Generate with Dante".
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -176,8 +178,6 @@ export default function AgentsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Create-agent modal for customer-defined autonomous agents
-  const [createAgentOpen, setCreateAgentOpen] = useState(false);
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null);
 
   // ── CRM data fetch ────────────────────────────────────────
@@ -300,11 +300,6 @@ export default function AgentsPage() {
     } catch {}
   };
 
-  const handleAgentCreated = (agent: CreatedAgent) => {
-    // Prepend so the new custom agent shows up first
-    setAutoAgents((prev) => [{ ...agent, is_custom: true }, ...prev]);
-  };
-
   const handleDeleteAgent = async (agent: AutoAgent) => {
     if (!agent.is_custom) return;
     if (!confirm(`Delete custom agent "${agent.name}"? This can't be undone.`))
@@ -398,11 +393,11 @@ export default function AgentsPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => setCreateAgentOpen(true)}
+            <Link href="/dante"
               className="flex items-center gap-2 px-4 py-2.5 rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] hover:border-[var(--rule-strong)] hover:bg-[var(--canvas-subtle)] text-[var(--ink)] text-sm font-semibold transition">
-              <Plus className="h-4 w-4" strokeWidth={1.5} />
-              Create autonomous agent
-            </button>
+              <Sparkles className="h-4 w-4" strokeWidth={1.5} />
+              Build in Dante
+            </Link>
             <button onClick={runAll} disabled={runningAll}
               className="flex items-center gap-2 px-4 py-2.5 rounded-[4px] bg-[var(--ink)] hover:opacity-90 text-[var(--canvas)] text-sm font-semibold transition disabled:opacity-50">
               {runningAll ? <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} /> : <Play className="h-4 w-4" strokeWidth={1.5} />}
@@ -481,11 +476,6 @@ export default function AgentsPage() {
         )}
       </div>
 
-      <CreateAutonomousAgentModal
-        open={createAgentOpen}
-        onClose={() => setCreateAgentOpen(false)}
-        onCreated={handleAgentCreated}
-      />
     </div>
   );
 }
@@ -514,7 +504,8 @@ function UnifiedRoster({
         <Bot className="h-10 w-10 text-[var(--ink-subtle)] mx-auto mb-3" strokeWidth={1.5} />
         <p className="text-[var(--ink-muted)] mb-1">No agents yet</p>
         <p className="text-xs text-[var(--ink-subtle)]">
-          Create a voice agent in the Backend, or an autonomous agent from the button above.
+          Voice agents live in the Backend. Autonomous workflows are authored in{" "}
+          <Link href="/dante" className="underline underline-offset-2 hover:text-[var(--ink)]">Dante</Link>.
         </p>
       </div>
     );
