@@ -9,7 +9,6 @@ import { ChatListSkeleton, MessageSkeleton } from "@/components/ui/skeleton";
 import { Tooltip } from "@/components/ui/tooltip";
 import { EmptyState } from "@/components/ui/empty-state";
 import ConfirmationModal from "@/components/frontend/ConfirmationModal";
-import { useFeatures } from "@/hooks/useFeatures";
 
 // Max file size: 20MB
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
@@ -106,13 +105,6 @@ export default function FrontendLLMPage() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const meetingPdfInputRef = useRef<HTMLInputElement>(null);
-  const { features, loading: featuresLoading } = useFeatures();
-
-  useEffect(() => {
-    if (!featuresLoading && features.length > 0 && !features.includes("meeting_planner")) {
-      router.replace("/agent");
-    }
-  }, [features, featuresLoading, router]);
 
   const showToast = (type: "success" | "error", message: string) => {
     setToast({ type, message });

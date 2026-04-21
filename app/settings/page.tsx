@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
 import { isWorkspaceAdmin } from "@/lib/rbac";
 import SettingsOrbClient from "./SettingsOrbClient";
 
@@ -30,25 +29,11 @@ export default async function SettingsPage() {
     .eq("workspace_id", profile.workspace_id)
     .order("created_at", { ascending: false });
 
-  let auditLogs: any[] = [];
-  if (isAdmin) {
-    const { data } = await supabaseAdmin
-      .from("audit_logs")
-      .select(
-        "id, actor_id, actor_email, action, target_type, target_id, target_label, metadata, ip_address, created_at"
-      )
-      .eq("workspace_id", profile.workspace_id)
-      .order("created_at", { ascending: false })
-      .limit(100);
-    auditLogs = data ?? [];
-  }
-
   return (
     <SettingsOrbClient
       isAdmin={isAdmin}
       workspaceId={profile.workspace_id}
       initialKnowledgeEntries={knowledgeEntries ?? []}
-      initialAuditLogs={auditLogs}
     />
   );
 }

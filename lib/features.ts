@@ -1,51 +1,79 @@
+// Workspace feature entitlements.
+//
+// Superadmin toggles these per workspace on /admin/features. Each
+// workspace row has `enabled_features text[]`; when the array is
+// null/empty we default to "all features enabled" so existing
+// customers don't silently lose access when we add entries here.
+//
+// Product minimums (contacts, clients, appointments, schedule, basic
+// dashboard) are NOT in this list — they're the always-on bundle that
+// comes with any paid plan. Don't add them unless you're prepared to
+// actually gate the routes.
+
 export const FEATURE_DEFINITIONS = {
-  voice_agent: {
-    id: "voice_agent",
-    name: "Voice Agent",
-    description: "AI-powered voice call handling and scheduling",
+  dante: {
+    id: "dante",
+    name: "Dante",
+    description:
+      "Natural-language workflow generator, templates library, and workflow runtime.",
   },
-  calendar: {
-    id: "calendar",
-    name: "Calendar",
-    description: "Schedule management with availability slots",
+  archive: {
+    id: "archive",
+    name: "Archive",
+    description:
+      "Citation-grounded document store. Powers archive_lookup in workflows and source-pinned answers.",
   },
-  client_details: {
-    id: "client_details",
-    name: "Client Details",
-    description: "Client management, document upload, annotations, and AI summaries",
+  grounded_summaries: {
+    id: "grounded_summaries",
+    name: "Grounded summaries",
+    description:
+      "Verified-claim call summaries with source citations and the verified-% dashboard signal.",
   },
-  meeting_planner: {
-    id: "meeting_planner",
-    name: "Meeting Planner",
-    description: "AI meeting analysis, next steps extraction, and reminders",
+  compliance_scanner: {
+    id: "compliance_scanner",
+    name: "Compliance scanner",
+    description:
+      "Automatic rule checks on summaries and notes. Populates the Awaiting review queue.",
   },
-  sales: {
-    id: "sales",
-    name: "Sales",
-    description: "Outbound sales calling with script management",
+  ai_receptionist: {
+    id: "ai_receptionist",
+    name: "AI Receptionist",
+    description:
+      "Twilio-powered inbound voice handler with configurable question flows.",
   },
-  emailing: {
-    id: "emailing",
-    name: "Emailing",
-    description: "AI-assisted email composition with templates",
+  custom_summary_template: {
+    id: "custom_summary_template",
+    name: "Custom summary template",
+    description:
+      "Per-workspace prompt customization for call and meeting summaries.",
   },
-  inbox: {
-    id: "inbox",
-    name: "Inbox",
-    description: "Conversation inbox for managing voice and chat interactions",
-  },
-  automations: {
-    id: "automations",
-    name: "Automations",
-    description: "Built-in multi-channel automations and workflows",
+  knowledge_base: {
+    id: "knowledge_base",
+    name: "Knowledge base",
+    description:
+      "Workspace-wide context the receptionist and summarizer use when answering.",
   },
 } as const;
 
 export type FeatureId = keyof typeof FEATURE_DEFINITIONS;
 
-export const ALL_FEATURE_IDS: FeatureId[] = Object.keys(FEATURE_DEFINITIONS) as FeatureId[];
+export const ALL_FEATURE_IDS: FeatureId[] = Object.keys(
+  FEATURE_DEFINITIONS
+) as FeatureId[];
 
-export function getEnabledFeatures(enabledFeatures?: string[] | null): FeatureId[] {
-  if (!enabledFeatures || enabledFeatures.length === 0) return ALL_FEATURE_IDS;
+/**
+ * Resolves the effective feature set for a workspace.
+ *
+ * - null / undefined → all features (grandfather existing workspaces
+ *   that predate a given feature being added to the catalog).
+ * - [] (explicit empty array) → nothing enabled. The superadmin
+ *   chose to disable all features; respect that rather than
+ *   accidentally re-opening everything.
+ * - Unknown feature IDs (stale catalog entries) are dropped.
+ */
+export function getEnabledFeatures(
+  enabledFeatures?: string[] | null
+): FeatureId[] {
+  if (enabledFeatures == null) return ALL_FEATURE_IDS;
   return enabledFeatures.filter((f) => f in FEATURE_DEFINITIONS) as FeatureId[];
 }

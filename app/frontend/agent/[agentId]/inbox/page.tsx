@@ -2,14 +2,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import Link from "next/link";
 import {
   Inbox, Search, MessageSquare, Phone, CheckCircle, XCircle,
   AlertCircle, HelpCircle, Trash2, ArrowLeft,
 } from "lucide-react";
-import { useFeatures } from "@/hooks/useFeatures";
 import { confirmDialog } from "@/components/ui/confirm-dialog";
 
 interface Conversation {
@@ -31,16 +30,8 @@ interface Conversation {
 }
 
 export default function InboxPage() {
-  const router = useRouter();
   const params = useParams();
   const agentId = (params?.agentId ?? "") as string;
-  const { features, loading: featuresLoading } = useFeatures();
-
-  useEffect(() => {
-    if (!featuresLoading && features.length > 0 && !features.includes("inbox")) {
-      router.replace("/agent");
-    }
-  }, [features, featuresLoading, router]);
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);

@@ -5,35 +5,27 @@ import Link from "next/link";
 import {
   BookOpen,
   CreditCard,
-  ScrollText,
   Download,
-  Shield,
   ArrowLeft,
 } from "lucide-react";
 
 const KnowledgeSetupClient = lazy(() => import("./knowledge/KnowledgeSetupClient"));
-const AuditLogClient = lazy(() => import("./audit-log/AuditLogClient"));
-const SSOSetupClient = lazy(() => import("./sso/SSOSetupClient"));
 
 import BillingCard from "./BillingCard";
 import ExportDataCard from "./ExportDataCard";
 
-type PanelId = "knowledge" | "billing" | "audit" | "export" | "sso";
+type PanelId = "knowledge" | "billing" | "export";
 
 const PANEL_TITLES: Record<PanelId, string> = {
   knowledge: "Knowledge base",
   billing: "Billing & subscription",
-  audit: "Audit log",
   export: "Export data",
-  sso: "Single sign-on",
 };
 
 const PANEL_SUBTITLES: Record<PanelId, string> = {
   knowledge: "Context Drift uses when it answers your callers.",
   billing: "Manage subscription, payment methods, and invoices.",
-  audit: "Sensitive events in your workspace — who did what and when.",
   export: "Download all workspace records as a single JSON file.",
-  sso: "Configure SAML 2.0 or OpenID Connect for your workspace.",
 };
 
 interface NavItem {
@@ -47,9 +39,7 @@ interface NavItem {
 const ALL_NAV_ITEMS: NavItem[] = [
   { name: "Knowledge", icon: BookOpen, panelId: "knowledge", group: "Workspace" },
   { name: "Billing", icon: CreditCard, panelId: "billing", group: "Workspace" },
-  { name: "Audit log", icon: ScrollText, panelId: "audit", adminOnly: true, group: "Administration" },
   { name: "Export", icon: Download, panelId: "export", adminOnly: true, group: "Administration" },
-  { name: "SSO", icon: Shield, panelId: "sso", adminOnly: true, group: "Administration" },
 ];
 
 function PanelLoader() {
@@ -64,14 +54,12 @@ interface Props {
   isAdmin: boolean;
   workspaceId: string;
   initialKnowledgeEntries: any[];
-  initialAuditLogs: any[];
 }
 
 export default function SettingsOrbClient({
   isAdmin,
   workspaceId,
   initialKnowledgeEntries,
-  initialAuditLogs,
 }: Props) {
   const [activePanel, setActivePanel] = useState<PanelId>("knowledge");
 
@@ -100,12 +88,8 @@ export default function SettingsOrbClient({
         );
       case "billing":
         return <BillingCard />;
-      case "audit":
-        return <AuditLogClient initialLogs={initialAuditLogs} />;
       case "export":
         return <ExportDataCard />;
-      case "sso":
-        return <SSOSetupClient workspaceId={workspaceId} />;
       default:
         return null;
     }

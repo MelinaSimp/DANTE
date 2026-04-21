@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
   FileText,
@@ -18,8 +18,6 @@ import {
   ChevronUp,
   ArrowLeft,
 } from "lucide-react";
-import { useFeatures } from "@/hooks/useFeatures";
-
 interface CallLogEntry {
   id: string;
   phoneNumber: string;
@@ -50,7 +48,6 @@ function storageKey(agentId: string, key: string) {
 }
 
 export default function SalesPage() {
-  const router = useRouter();
   const params = useParams();
   const agentId = (params?.agentId as string) || "";
 
@@ -65,13 +62,6 @@ export default function SalesPage() {
   const [callError, setCallError] = useState<string | null>(null);
   const [expandedCallId, setExpandedCallId] = useState<string | null>(null);
   const stopRef = useRef(false);
-  const { features, loading: featuresLoading } = useFeatures();
-
-  useEffect(() => {
-    if (!featuresLoading && features.length > 0 && !features.includes("sales")) {
-      router.replace("/agent");
-    }
-  }, [features, featuresLoading, router]);
 
   useEffect(() => {
     if (!agentId) return;

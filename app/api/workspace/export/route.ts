@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { logAudit } from "@/lib/audit";
 import { reportError } from "@/lib/report-error";
 import { can } from "@/lib/rbac";
 
@@ -113,20 +112,6 @@ export async function GET(req: NextRequest) {
       tables: data,
       ...(Object.keys(errors).length > 0 ? { warnings: errors } : {}),
     };
-
-    await logAudit({
-      workspaceId,
-      actorId: user.id,
-      actorEmail: user.email ?? null,
-      action: "workspace.data_exported",
-      targetType: "workspace",
-      targetId: workspaceId,
-      metadata: {
-        tables_exported: Object.keys(data).length,
-        rows_exported: Object.values(data).reduce((n, rows) => n + rows.length, 0),
-      },
-      request: req,
-    });
 
     const body = JSON.stringify(payload, null, 2);
     const filename = `drift-export-${workspaceId}-${new Date().toISOString().slice(0, 10)}.json`;

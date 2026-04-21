@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { hasSuperadminAccess } from "@/lib/superadmin";
-import { logAudit } from "@/lib/audit";
 import { getAppUrl } from "@/lib/app-url";
 import { recordEmailUsage } from "@/lib/usage/track";
 import crypto from "crypto";
@@ -67,18 +66,6 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  await logAudit({
-    workspaceId,
-    actorId: user.id,
-    actorEmail: user.email ?? null,
-    action: "workspace.member_invited",
-    targetType: "invite",
-    targetId: invite?.id ?? null,
-    targetLabel: email,
-    metadata: { expires_at: expiresAt },
-    request: req,
-  });
-
   const appUrl = getAppUrl();
   const signupUrl = `${appUrl}/auth/signup?token=${token}`;
 
@@ -127,27 +114,8 @@ export async function DELETE(req: NextRequest) {
   const id = searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id is required" }, { status: 400 });
 
-  const { data: existing } = await supabaseAdmin
-    .from("invites")
-    .select("company_id, email")
-    .eq("id", id)
-    .maybeSingle();
-
   const { error } = await supabaseAdmin.from("invites").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-  if (existing?.company_id) {
-    await logAudit({
-      workspaceId: existing.company_id,
-      actorId: user.id,
-      actorEmail: user.email ?? null,
-      action: "workspace.member_removed",
-      targetType: "invite",
-      targetId: id,
-      targetLabel: existing.email ?? null,
-      request: req,
-    });
-  }
 
   return NextResponse.json({ ok: true });
 }
