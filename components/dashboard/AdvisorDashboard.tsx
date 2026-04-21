@@ -6,7 +6,14 @@
 //   • Today            — next calendar items with "prep" links
 //   • Awaiting review  — compliance flags + drafts pending sign-off
 //   • Recent           — latest call recordings with audit chips
-//   • Flagged          — RMDs / age-band triggers / client watchlist
+//   • Needs attention  — relationship signals (clients going quiet, etc.)
+//
+// The earlier "Flagged" section advertised RMD / age-band / suitability
+// kinds that didn't exist — only the "stale" signal was real. Rather
+// than ship three empty compliance promises we can't honour, the
+// section now reflects what it actually does: surface relationships at
+// risk. Real compliance flags will come back under their own section
+// once custodian data is wired.
 //
 // The custodian/AUM integration was removed: a real Schwab/Fidelity/
 // Altruist integration is weeks of OAuth + approval work per provider,
@@ -46,9 +53,13 @@ type CallNote = {
   has_audit: boolean;
 };
 
+// The dashboard only surfaces one flag kind today — "stale", meaning a
+// client we haven't touched in 60 days. RMD / age-band / suitability
+// would require custodian data (DOB, account_type, balance) that Drift
+// doesn't have yet. Added back when that data lands.
 type Flag = {
   id: string;
-  kind: "rmd" | "age-band" | "suitability" | "stale";
+  kind: "stale";
   client: string;
   detail: string;
   dueAt?: string | null;
@@ -395,15 +406,17 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
             recommendation should fall from the dashboard"). */}
         <AgentOutputsSection />
 
-        {/* Flagged */}
+        {/* Needs attention — clients going quiet. Not compliance; this
+            is a relationship-at-risk signal ("no activity in 60 days").
+            Kept honest: one real signal instead of four advertised ones. */}
         <section className="mb-16">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
-              <span className="label-section">Flagged</span>
+              <span className="label-section">Needs attention</span>
               <AlertTriangle className="w-3.5 h-3.5 text-[var(--flag)]" />
             </div>
             <span className="text-xs text-[var(--ink-subtle)]">
-              Rule-based client watchlist
+              Clients going quiet
             </span>
           </div>
           {data.flagged.length === 0 ? (
@@ -412,7 +425,7 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
             <ul className="divide-y divide-[var(--rule)] border-t border-b border-[var(--rule)]">
               {data.flagged.map((f) => (
                 <li key={f.id} className="py-4 flex items-start gap-4">
-                  <span className="chip-flag mt-0.5 shrink-0">{f.kind}</span>
+                  <span className="chip-flag mt-0.5 shrink-0">quiet</span>
                   <div className="flex-1">
                     <div className="text-[15px] font-medium">{f.client}</div>
                     <div className="text-sm text-[var(--ink-muted)]">

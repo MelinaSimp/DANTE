@@ -3,7 +3,7 @@
 //   • today           — appointments in the next ~24h
 //   • awaitingReview  — compliance flags in pending status
 //   • recentCalls     — last ~8 call recordings with audit availability
-//   • flagged         — rule-based client watchlist (RMDs, age bands)
+//   • flagged         — "needs attention" list: clients going quiet
 //   • stats           — top-of-page stat strip numbers
 //
 // Everything is workspace-scoped. Legacy /api/dashboard is preserved
@@ -17,9 +17,14 @@ import { getWorkspaceFeatures } from "@/lib/features/server";
 
 export const dynamic = "force-dynamic";
 
+// Single "quiet client" signal — no activity in 60 days. The earlier
+// multi-kind union (rmd/age-band/suitability) was aspirational; nothing
+// wrote those kinds and exposing them silently promised surveillance
+// the product couldn't deliver. Re-expand when real custodian data
+// (DOB, account_type, balance) is wired.
 type Flag = {
   id: string;
-  kind: "rmd" | "age-band" | "suitability" | "stale";
+  kind: "stale";
   client: string;
   detail: string;
   dueAt?: string | null;

@@ -87,6 +87,24 @@ async function ensureUserWorkspace(user: any, supabase: any): Promise<string | n
   return redeemedWorkspaceId;
 }
 
+// Decides where a just-authenticated user should land.
+//
+//   • no workspace yet  → /join (redeem a code)
+//   • workspace, not yet onboarded  → /onboarding (first-run wizard)
+//   • workspace, onboarded  → /dashboard
+//
+// Existing workspaces were grandfathered with a backfilled onboarded_at
+// so this only catches genuinely new signups.
+async function resolveLandingRoute(workspaceId: string | null): Promise<string> {
+  if (!workspaceId) return "/join";
+  const { data: ws } = await supabaseAdmin
+    .from("workspaces")
+    .select("onboarded_at")
+    .eq("id", workspaceId)
+    .maybeSingle();
+  return ws?.onboarded_at ? "/dashboard" : "/onboarding";
+}
+
 export async function GET(req: Request) {
   const requestUrl = new URL(req.url);
   const code = requestUrl.searchParams.get("code");
@@ -103,10 +121,7 @@ export async function GET(req: Request) {
     
     if (data.session && data.user) {
       const workspaceId = await ensureUserWorkspace(data.user, supabase);
-
-      // New users without a workspace (or with an invalid/missing code)
-      // go to /join to redeem one. Everyone else lands on /dashboard.
-      const target = workspaceId ? "/dashboard" : "/join";
+      const target = await resolveLandingRoute(workspaceId);
       return NextResponse.redirect(new URL(target, requestUrl.origin));
     }
   }
@@ -118,7 +133,7 @@ export async function GET(req: Request) {
 
   if (user) {
     const workspaceId = await ensureUserWorkspace(user, supabase);
-    const target = workspaceId ? "/dashboard" : "/join";
+    const target = await resolveLandingRoute(workspaceId);
     return NextResponse.redirect(new URL(target, requestUrl.origin));
   }
 
