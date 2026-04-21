@@ -46,6 +46,8 @@ export async function GET(req: NextRequest) {
       service_type,
       status,
       notes,
+      caller_name,
+      caller_phone,
       contacts (
         id,
         name,

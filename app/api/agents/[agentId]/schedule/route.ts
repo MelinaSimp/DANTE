@@ -83,8 +83,23 @@ export async function POST(
       return NextResponse.json({ error: "Invalid phone number format" }, { status: 400 });
     }
 
-    // Find or create contact
-    let contactId: string;
+    // Try to match the caller to an existing contact. If we find one,
+    // the appointment attaches to that contact; if we don't, we
+    // deliberately leave contact_id NULL and stash the heard name on
+    // the appointment itself. See migration
+    // 20260421000000_appointments_unknown_callers.sql for the
+    // reasoning — briefly: auto-creating contacts for every cold
+    // caller polluted the Contacts list, so we now require an
+    // explicit "Promote to client" action from the advisor.
+    //
+    // We also no longer overwrite an existing contact's name/email
+    // when a phone match succeeds. Twilio's ASR mishears names and
+    // email addresses constantly ("Justin" → "Justice", "j@gmail"
+    // → "jay at g mail"), and silently corrupting manually-entered
+    // client data on every call is worse than ignoring the spoken
+    // values. If the advisor wants to update a contact's name or
+    // email they can edit it directly on the client record.
+    let contactId: string | null = null;
     const { data: existingContact } = await supabaseAdmin
       .from("contacts")
       .select("id")
@@ -94,36 +109,6 @@ export async function POST(
 
     if (existingContact) {
       contactId = existingContact.id;
-      // Update contact name and email if provided
-      const updateData: any = {};
-      if (contactName) updateData.name = contactName;
-      if (contactEmail) updateData.email = contactEmail;
-      if (Object.keys(updateData).length > 0) {
-        await supabaseAdmin
-          .from("contacts")
-          .update(updateData)
-          .eq("id", contactId);
-      }
-    } else {
-      // Create new contact
-      const { data: newContact, error: contactError } = await supabaseAdmin
-        .from("contacts")
-        .insert({
-          workspace_id: workspaceId,
-          name: contactName,
-          phone: normalizedPhone,
-          email: contactEmail || null,
-        })
-        .select("id")
-        .single();
-
-      if (contactError || !newContact) {
-        return NextResponse.json(
-          { error: "Failed to create contact" },
-          { status: 500 }
-        );
-      }
-      contactId = newContact.id;
     }
 
     const scheduledAtUtc = naiveLocalIsoToUtcIso(String(scheduledAt));
@@ -153,12 +138,19 @@ export async function POST(
       );
     }
 
-    // Create appointment
+    // Create appointment. When contact_id is null we stash the heard
+    // name + normalised phone on the appointment itself so the UI has
+    // something to show ("Unknown · +1 555… (said: John)"). If the
+    // advisor later promotes this caller to a contact, these fields
+    // get cleared and contact_id gets backfilled — see
+    // /api/appointments/[id]/promote.
     const { data: appointment, error: appointmentError } = await supabaseAdmin
       .from("appointments")
       .insert({
         workspace_id: workspaceId,
         contact_id: contactId,
+        caller_name: contactId ? null : (contactName || null),
+        caller_phone: contactId ? null : normalizedPhone,
         scheduled_at: scheduledAtUtc,
         duration_minutes: durationMinutes,
         service_type: serviceType,
@@ -172,6 +164,8 @@ export async function POST(
         service_type,
         status,
         notes,
+        caller_name,
+        caller_phone,
         contacts (
           id,
           name,

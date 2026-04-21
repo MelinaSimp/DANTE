@@ -13,12 +13,39 @@ interface Appointment {
   service_type: string;
   status: string;
   notes?: string;
+  // contacts is null when an AI-booked call came from a phone number we
+  // didn't recognize. In that case the raw heard name + normalized phone
+  // are stashed on the appointment itself (caller_name / caller_phone)
+  // so we can still render something meaningful in the UI.
   contacts: {
     id: string;
     name: string;
     phone: string;
     email?: string;
-  };
+  } | null;
+  caller_name?: string | null;
+  caller_phone?: string | null;
+}
+
+// Stable synthetic id for an unknown caller, so filter toggles + color
+// buckets treat "all the appointments from +15551234567" as one client.
+const UNKNOWN_PREFIX = "__unknown__:";
+function unknownClientKey(phone: string | null | undefined): string {
+  return `${UNKNOWN_PREFIX}${phone ?? "nophone"}`;
+}
+function apptClientId(a: Appointment): string {
+  return a.contacts?.id ?? unknownClientKey(a.caller_phone);
+}
+function apptClientName(a: Appointment): string {
+  if (a.contacts?.name) return a.contacts.name;
+  const heard = a.caller_name?.trim();
+  return heard ? `Unknown · ${heard}` : "Unknown caller";
+}
+function apptClientPhone(a: Appointment): string {
+  return a.contacts?.phone ?? a.caller_phone ?? "";
+}
+function apptClientEmail(a: Appointment): string | undefined {
+  return a.contacts?.email ?? undefined;
 }
 
 interface ScheduleClientProps {
@@ -96,6 +123,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
   const [editingAppointment, setEditingAppointment] = useState(false);
   const [editFields, setEditFields] = useState({ service_type: "", notes: "", scheduled_at: "", duration_minutes: 30 });
   const [savingAppointment, setSavingAppointment] = useState(false);
+  const [promotingUnknown, setPromotingUnknown] = useState(false);
 
   // Call record & AI overview for selected appointment
   const [callRecord, setCallRecord] = useState<{ recording_url?: string; transcript?: any; summary?: string } | null>(null);
@@ -264,9 +292,16 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
     return { ...a, localTime: parsed };
   });
 
-  // Unique clients for the filter sidebar
+  // Unique clients for the filter sidebar. Unknown callers get grouped
+  // by phone so "3 calls from +15551234567" collapse into one row rather
+  // than polluting the sidebar with a row per appointment.
   const uniqueClients = Array.from(
-    new Map(allNormalized.map((a) => [a.contacts.id, a.contacts])).values()
+    new Map(
+      allNormalized.map((a) => {
+        const id = apptClientId(a);
+        return [id, { id, name: apptClientName(a) }];
+      })
+    ).values()
   );
 
   const toggleClient = (clientId: string) => {
@@ -279,7 +314,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
   };
 
   // Filtered appointments (exclude hidden clients)
-  const normalizedAppointments = allNormalized.filter((a) => !hiddenClients.has(a.contacts.id));
+  const normalizedAppointments = allNormalized.filter((a) => !hiddenClients.has(apptClientId(a)));
 
   // Fetch reminders and call record when appointment is selected
   useEffect(() => {
@@ -319,7 +354,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          message: `Provide a brief professional summary of this call between the AI agent and ${selectedAppointment.contacts.name}. Include key topics discussed, decisions made, and any follow-up items.\n\nTranscript:\n${JSON.stringify(callRecord.transcript)}`,
+          message: `Provide a brief professional summary of this call between the AI agent and ${apptClientName(selectedAppointment)}. Include key topics discussed, decisions made, and any follow-up items.\n\nTranscript:\n${JSON.stringify(callRecord.transcript)}`,
           history: [],
         }),
       });
@@ -367,6 +402,71 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
       console.error("Failed to save appointment:", err);
     } finally {
       setSavingAppointment(false);
+    }
+  };
+
+  // Promote an "unknown caller" appointment (and all siblings from the
+  // same phone) into a real contact. Server-side: insert one contacts
+  // row, then backfill contact_id on every appointment whose
+  // caller_phone matches. UI: optimistically swap the local state so the
+  // detail drawer redraws as a normal contact without a round-trip.
+  const handlePromoteToClient = async (appt: Appointment) => {
+    if (!appt.caller_phone) {
+      showToast("No phone number captured for this call", "error");
+      return;
+    }
+    setPromotingUnknown(true);
+    try {
+      const response = await fetch(`/api/appointments/${appt.id}/promote`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: appt.caller_name || "Caller",
+          phone: appt.caller_phone,
+        }),
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to save as client");
+      }
+      const { contact, updatedIds } = await response.json();
+      setAppointments((prev) =>
+        prev.map((a) =>
+          updatedIds.includes(a.id)
+            ? {
+                ...a,
+                contacts: {
+                  id: contact.id,
+                  name: contact.name,
+                  phone: contact.phone,
+                  email: contact.email,
+                },
+                caller_name: null,
+                caller_phone: null,
+              }
+            : a
+        )
+      );
+      setSelectedAppointment((prev) =>
+        prev && updatedIds.includes(prev.id)
+          ? {
+              ...prev,
+              contacts: {
+                id: contact.id,
+                name: contact.name,
+                phone: contact.phone,
+                email: contact.email,
+              },
+              caller_name: null,
+              caller_phone: null,
+            }
+          : prev
+      );
+      showToast("Saved as client");
+    } catch (err: any) {
+      showToast(err.message || "Failed to save as client", "error");
+    } finally {
+      setPromotingUnknown(false);
     }
   };
 
@@ -641,7 +741,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                       const colorIdx = getClientColorIndex(client.id, clientList);
                       const color = CLIENT_COLORS[colorIdx];
                       const isVisible = !hiddenClients.has(client.id);
-                      const apptCount = allNormalized.filter((a) => a.contacts.id === client.id).length;
+                      const apptCount = allNormalized.filter((a) => apptClientId(a) === client.id).length;
                       return (
                         <button
                           key={client.id}
@@ -785,10 +885,10 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                           <button
                             key={appt.id}
                             onClick={() => setSelectedAppointment(appt)}
-                            className={`absolute left-0.5 right-0.5 rounded-[4px] border-l-[3px] px-1.5 py-0.5 text-left overflow-hidden cursor-pointer hover:opacity-90 transition-opacity ${eventColorClass(appt.contacts.id, uniqueClients)}`}
+                            className={`absolute left-0.5 right-0.5 rounded-[4px] border-l-[3px] px-1.5 py-0.5 text-left overflow-hidden cursor-pointer hover:opacity-90 transition-opacity ${eventColorClass(apptClientId(appt), uniqueClients)}`}
                             style={{ top: topOffset, height }}
                           >
-                            <div className="text-[11px] font-semibold truncate">{appt.contacts.name}</div>
+                            <div className="text-[11px] font-semibold truncate">{apptClientName(appt)}</div>
                             {height > 30 && <div className="text-[10px] opacity-80 truncate">{appt.service_type}</div>}
                             {height > 44 && <div className="mono text-[10px] opacity-70">{appt.localTime.format("h:mm A")}</div>}
                           </button>
@@ -855,7 +955,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                       <button
                         key={appt.id}
                         onClick={() => setSelectedAppointment(appt)}
-                        className={`w-full text-left text-[10px] px-1 py-0.5 rounded-[3px] truncate mb-0.5 border-l-[2px] ${eventColorClass(appt.contacts.id, uniqueClients)} hover:opacity-80`}
+                        className={`w-full text-left text-[10px] px-1 py-0.5 rounded-[3px] truncate mb-0.5 border-l-[2px] ${eventColorClass(apptClientId(appt), uniqueClients)} hover:opacity-80`}
                       >
                         <span className="mono">{appt.localTime.format("h:mma")}</span> {appt.service_type}
                       </button>
@@ -1171,21 +1271,78 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
             </div>
 
             <div className="space-y-4">
-              {/* Contact Info */}
+              {/* Contact Info. When contacts is null this is an AI-booked
+                  call from an unrecognized number — show "Unknown caller"
+                  with the heard name as muted sub-text, plus whatever
+                  phone we captured. */}
               <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm">
-                  <User className="h-4 w-4 text-[var(--ink-subtle)]" strokeWidth={1.5} />
-                  <span className="font-medium text-[var(--ink)]">{selectedAppointment.contacts.name}</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-[var(--ink-muted)]">
-                  <Phone className="h-4 w-4 text-[var(--ink-subtle)]" strokeWidth={1.5} />
-                  <span className="mono">{selectedAppointment.contacts.phone}</span>
-                </div>
-                {selectedAppointment.contacts.email && (
-                  <div className="flex items-center gap-2 text-sm text-[var(--ink-muted)]">
-                    <Mail className="h-4 w-4 text-[var(--ink-subtle)]" strokeWidth={1.5} />
-                    <span>{selectedAppointment.contacts.email}</span>
-                  </div>
+                {selectedAppointment.contacts ? (
+                  <>
+                    <div className="flex items-center gap-2 text-sm">
+                      <User className="h-4 w-4 text-[var(--ink-subtle)]" strokeWidth={1.5} />
+                      <span className="font-medium text-[var(--ink)]">{selectedAppointment.contacts.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-[var(--ink-muted)]">
+                      <Phone className="h-4 w-4 text-[var(--ink-subtle)]" strokeWidth={1.5} />
+                      <span className="mono">{selectedAppointment.contacts.phone}</span>
+                    </div>
+                    {selectedAppointment.contacts.email && (
+                      <div className="flex items-center gap-2 text-sm text-[var(--ink-muted)]">
+                        <Mail className="h-4 w-4 text-[var(--ink-subtle)]" strokeWidth={1.5} />
+                        <span>{selectedAppointment.contacts.email}</span>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2 text-sm">
+                      <User className="h-4 w-4 text-[var(--ink-subtle)]" strokeWidth={1.5} />
+                      <span className="font-medium text-[var(--ink)]">Unknown caller</span>
+                    </div>
+                    {selectedAppointment.caller_name && (
+                      <div className="ml-6 text-xs text-[var(--ink-subtle)]">
+                        Heard as &ldquo;{selectedAppointment.caller_name}&rdquo;
+                      </div>
+                    )}
+                    {selectedAppointment.caller_phone && (
+                      <div className="flex items-center gap-2 text-sm text-[var(--ink-muted)]">
+                        <Phone className="h-4 w-4 text-[var(--ink-subtle)]" strokeWidth={1.5} />
+                        <span className="mono">{selectedAppointment.caller_phone}</span>
+                      </div>
+                    )}
+                    {/* "This is the 3rd call from this number" — gives
+                        the advisor signal that a repeat unknown caller
+                        may actually be worth promoting to a client. */}
+                    {(() => {
+                      const siblings = appointments.filter(
+                        (a) =>
+                          !a.contacts &&
+                          a.caller_phone &&
+                          a.caller_phone === selectedAppointment.caller_phone &&
+                          a.id !== selectedAppointment.id
+                      );
+                      if (siblings.length === 0) return null;
+                      return (
+                        <div className="ml-6 text-[11px] text-[var(--ink-subtle)]">
+                          {siblings.length === 1
+                            ? "1 other appointment from this number"
+                            : `${siblings.length} other appointments from this number`}
+                        </div>
+                      );
+                    })()}
+                    <button
+                      onClick={() => handlePromoteToClient(selectedAppointment)}
+                      disabled={promotingUnknown}
+                      className="mt-1 inline-flex items-center gap-1.5 rounded-[4px] border border-[var(--rule-strong)] bg-[var(--canvas)] px-2 py-1 text-[11px] font-medium text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition disabled:opacity-50"
+                    >
+                      {promotingUnknown ? (
+                        <Loader2 className="h-3 w-3 animate-spin" strokeWidth={1.5} />
+                      ) : (
+                        <Plus className="h-3 w-3" strokeWidth={1.5} />
+                      )}
+                      Save as client
+                    </button>
+                  </>
                 )}
           </div>
 
@@ -1355,11 +1512,11 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                     type="checkbox"
                     checked={appointmentReminderChannels.email}
                     onChange={(e) => setAppointmentReminderChannels({ ...appointmentReminderChannels, email: e.target.checked })}
-                    disabled={!selectedAppointment.contacts.email}
+                    disabled={!selectedAppointment.contacts?.email}
                     className="rounded border-[var(--rule-strong)] disabled:opacity-50"
                   />
-                  <span className={`text-xs ${!selectedAppointment.contacts.email ? "text-[var(--ink-subtle)]" : "text-[var(--ink-muted)]"}`}>
-                    Email {!selectedAppointment.contacts.email && "(no email provided)"}
+                  <span className={`text-xs ${!selectedAppointment.contacts?.email ? "text-[var(--ink-subtle)]" : "text-[var(--ink-muted)]"}`}>
+                    Email {!selectedAppointment.contacts?.email && "(no email provided)"}
                   </span>
                 </label>
                 <div className="flex flex-wrap gap-1.5 mb-3">

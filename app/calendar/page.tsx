@@ -52,6 +52,8 @@ export default async function CalendarPage() {
       service_type,
       status,
       notes,
+      caller_name,
+      caller_phone,
       contacts (
         id,
         name,

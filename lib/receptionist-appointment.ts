@@ -170,6 +170,15 @@ Return ONLY the JSON object.
   }
 }
 
+// Resolve an existing contact for an AI-booked appointment.
+//
+// Unlike before, this no longer creates a contact when there's no
+// match — unknown callers are allowed to exist as "orphan" appointments
+// with contact_id NULL. The advisor promotes them to real clients on
+// demand from the schedule UI. This keeps the Contacts list clean of
+// every cold caller the AI ever spoke to.
+//
+// Returns `contactId: undefined` when nothing matched (not an error).
 async function resolveContactId(params: {
   workspaceId: string;
   plan: AppointmentPlan;
@@ -178,7 +187,6 @@ async function resolveContactId(params: {
   const { workspaceId, plan, fallbackFromNumber } = params;
   const appointment = plan.appointment || {};
   const contactId = appointment.contact_id;
-  const contactName = appointment.contact_name;
   const contactPhone = normalizePhoneNumber(appointment.contact_phone ?? undefined);
   const contactEmail = appointment.contact_email;
 
@@ -221,28 +229,8 @@ async function resolveContactId(params: {
     }
   }
 
-  const name = contactName || "Caller";
-  const phoneForCreate = possiblePhones[0] ?? null;
-
-  const { data, error } = await supabaseAdmin
-    .from("contacts")
-    .insert({
-      workspace_id: workspaceId,
-      name,
-      phone: phoneForCreate,
-      email: contactEmail ?? null,
-    })
-    .select("id")
-    .single();
-
-  if (error || !data?.id) {
-    return {
-      status: "error",
-      error: error?.message || "Unable to create a contact for this appointment.",
-    };
-  }
-
-  return { status: "ok", contactId: data.id };
+  // No match — let the caller proceed as an unknown appointment.
+  return { status: "ok", contactId: undefined };
 }
 
 export async function createAppointmentFromSuggestion(params: {
@@ -272,18 +260,27 @@ export async function createAppointmentFromSuggestion(params: {
     fallbackFromNumber,
   });
 
-  if (contactResult.status === "error" || !contactResult.contactId) {
+  if (contactResult.status === "error") {
     return { created: false, reason: contactResult.error };
   }
 
-  const appointmentPayload = {
+  // Stash heard name + phone on the row itself when we couldn't match
+  // an existing contact. UI renders these as "Unknown · <heard name>".
+  const normalizedCallerPhone = normalizePhoneNumber(
+    appointment.contact_phone ?? fallbackFromNumber ?? null
+  );
+  const heardCallerName = appointment.contact_name?.trim() || null;
+
+  const appointmentPayload: Record<string, any> = {
     workspace_id: workspaceId,
-    contact_id: contactResult.contactId,
+    contact_id: contactResult.contactId ?? null,
     scheduled_at: appointment.scheduled_at,
     duration_minutes: appointment.duration_minutes ?? 60,
     service_type: appointment.service_type ?? null,
     status: appointment.status ?? "scheduled",
     notes: appointment.notes || notesContext || null,
+    caller_name: contactResult.contactId ? null : heardCallerName,
+    caller_phone: contactResult.contactId ? null : normalizedCallerPhone,
   };
   const normalizedForNotes = normalizePhoneNumber(
     appointment.contact_phone ?? fallbackFromNumber ?? null

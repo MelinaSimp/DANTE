@@ -38,6 +38,8 @@ export async function GET(
       service_type,
       status,
       notes,
+      caller_name,
+      caller_phone,
       contacts (
         id,
         name,
@@ -90,8 +92,9 @@ export async function PUT(
     }
   }
 
-  // Update contact if name, phone, or email changed
-  if (name || normalizedPhone || email !== undefined) {
+  // Update contact if name, phone, or email changed. Skip for unknown-
+  // caller rows (contact_id is null — there's nothing to update).
+  if (appointment.contact_id && (name || normalizedPhone || email !== undefined)) {
     const contactUpdates: Record<string, any> = {};
     if (name) contactUpdates.name = name;
     if (normalizedPhone) contactUpdates.phone = normalizedPhone;

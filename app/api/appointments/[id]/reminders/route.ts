@@ -40,7 +40,9 @@ export async function PATCH(
       return NextResponse.json({ error: "No workspace found" }, { status: 400 });
     }
 
-    // Get appointment with contact info
+    // Get appointment with contact info. contacts is null for unknown
+    // callers — we fall back to caller_name/caller_phone below so
+    // reminders still go out using what we heard on the call.
     const { data: appointment, error: appointmentError } = await supabaseAdmin
       .from("appointments")
       .select(`
@@ -48,6 +50,8 @@ export async function PATCH(
         scheduled_at,
         duration_minutes,
         service_type,
+        caller_name,
+        caller_phone,
         contacts (
           id,
           name,
@@ -95,10 +99,14 @@ export async function PATCH(
       .eq("workspace_id", profile.workspace_id)
       .eq("metadata->>appointment_id", appointmentId);
 
-    // Generate AI message for SMS reminder
+    // Generate AI message for SMS reminder. For unknown callers fall
+    // back to the heard name + phone we stashed on the appointment.
     const contact = Array.isArray(appointment.contacts) ? appointment.contacts[0] : appointment.contacts;
+    const effectiveName = contact?.name ?? (appointment as any).caller_name ?? "Customer";
+    const effectivePhone: string | null = contact?.phone ?? (appointment as any).caller_phone ?? null;
+    const effectiveEmail: string | null = contact?.email ?? null;
     const aiMessage = await generateAppointmentReminderMessage({
-      name: contact?.name ?? "Customer",
+      name: effectiveName,
       description: appointment.service_type,
       scheduledAt: appointment.scheduled_at,
       durationMinutes: appointment.duration_minutes,
@@ -134,28 +142,29 @@ export async function PATCH(
       
       // For immediate, send right away (only if appointment is in the future)
       if (value === "immediate" && appointmentDate > new Date()) {
-        // Send SMS if enabled
-        if (reminderChannels.sms) {
+        // Send SMS if enabled. Skip if we have no phone to send to
+        // (unknown caller with no captured number — rare but possible).
+        if (reminderChannels.sms && effectivePhone) {
           try {
             await sendAppointmentSMS(
-              contact?.phone,
+              effectivePhone,
               aiMessage,
               profile.workspace_id
             );
             immediateSent = true;
-            console.log(`[Appointment Reminders] Immediate SMS sent to ${contact?.phone}`);
+            console.log(`[Appointment Reminders] Immediate SMS sent to ${effectivePhone}`);
           } catch (err: any) {
             console.error("[Appointment Reminders] Failed to send immediate SMS:", err);
           }
         }
         
         // Send Email if enabled and email is provided
-        if (reminderChannels.email && contact?.email) {
+        if (reminderChannels.email && effectiveEmail) {
           try {
             await sendAppointmentEmail(
-              contact?.email,
+              effectiveEmail,
               {
-                name: contact?.name ?? "Customer",
+                name: effectiveName,
                 description: appointment.service_type,
                 scheduledAt: appointment.scheduled_at,
                 durationMinutes: appointment.duration_minutes,
@@ -163,7 +172,7 @@ export async function PATCH(
               profile.workspace_id
             );
             immediateSent = true;
-            console.log(`[Appointment Reminders] Immediate email sent to ${contact?.email}`);
+            console.log(`[Appointment Reminders] Immediate email sent to ${effectiveEmail}`);
           } catch (err: any) {
             console.error("[Appointment Reminders] Failed to send immediate email:", err);
           }
@@ -178,7 +187,7 @@ export async function PATCH(
               .insert({
                 workspace_id: profile.workspace_id,
                 agent_id: agent.id,
-                phone_number: contact?.phone,
+                phone_number: effectivePhone,
                 message: aiMessage,
                 scheduled_at: reminderDate.toISOString(),
                 status: "pending",
@@ -197,16 +206,16 @@ export async function PATCH(
           }
           
           // Schedule Email if enabled and email is provided
-          if (reminderChannels.email && contact?.email) {
+          if (reminderChannels.email && effectiveEmail) {
             const { error: emailScheduleError } = await supabaseAdmin
               .from("scheduled_emails")
               .insert({
                 workspace_id: profile.workspace_id,
                 agent_id: agent.id,
-                to_email: contact?.email,
+                to_email: effectiveEmail,
                 subject: `Appointment Reminder: ${appointment.service_type}`,
                 html_content: generateEmailContent({
-                  name: contact?.name ?? "Customer",
+                  name: effectiveName,
                   description: appointment.service_type,
                   scheduledAt: appointment.scheduled_at,
                   durationMinutes: appointment.duration_minutes,

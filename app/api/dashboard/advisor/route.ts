@@ -79,7 +79,7 @@ export async function GET() {
     wid
       ? supabaseAdmin
           .from("appointments")
-          .select("id, contact_id, scheduled_at, service_type, status")
+          .select("id, contact_id, caller_name, caller_phone, scheduled_at, service_type, status")
           .eq("workspace_id", wid)
           .gte("scheduled_at", now.toISOString())
           .lte("scheduled_at", endOfToday.toISOString())
@@ -128,15 +128,25 @@ export async function GET() {
   const contactMap = new Map<string, string>();
   for (const c of empty<any>(contacts)) contactMap.set(c.id, c.name);
 
-  // Today's appointments
+  // Today's appointments. For unknown-caller rows (contact_id null) we
+  // prefer the heard name so the dashboard shows "Unknown · Bob" rather
+  // than a bare "Unknown" — gives the advisor enough context to decide
+  // whether to promote the caller.
   const today = empty<any>(appts)
     .filter((a) => a.status !== "cancelled")
-    .map((a) => ({
-      id: a.id,
-      contactName: contactMap.get(a.contact_id) || "Unknown",
-      scheduledAt: a.scheduled_at,
-      serviceType: a.service_type || "Meeting",
-    }));
+    .map((a) => {
+      const fromContact = a.contact_id ? contactMap.get(a.contact_id) : null;
+      const heardName = typeof a.caller_name === "string" ? a.caller_name.trim() : "";
+      const contactName =
+        fromContact ||
+        (heardName ? `Unknown · ${heardName}` : "Unknown caller");
+      return {
+        id: a.id,
+        contactName,
+        scheduledAt: a.scheduled_at,
+        serviceType: a.service_type || "Meeting",
+      };
+    });
 
   // Recent calls — cross-reference notes with recordings for audit availability
   const recordingByNote = new Map<string, string>();

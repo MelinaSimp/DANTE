@@ -42,10 +42,13 @@ export default function SchedulePage() {
                 service_type,
                 status,
                 notes,
+                caller_name,
+                caller_phone,
                 contacts (
                   id,
                   name,
-                  phone
+                  phone,
+                  email
                 )
               `)
               .eq("workspace_id", profile.workspace_id)

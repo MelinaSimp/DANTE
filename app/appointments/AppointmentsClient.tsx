@@ -23,7 +23,11 @@ interface Appointment {
   service_type: string;
   status: string;
   notes: string;
-  contacts: Contact | Contact[];
+  // Nullable: AI-booked calls from unrecognized numbers leave contacts
+  // unset and stash what we heard on the row itself.
+  contacts: Contact | Contact[] | null;
+  caller_name?: string | null;
+  caller_phone?: string | null;
 }
 
 interface AppointmentsClientProps {
@@ -143,21 +147,26 @@ export default function AppointmentsClient({ initialAppointments, workspaceId }:
               <tbody className="divide-y divide-[var(--rule)]">
                 {appointments.map((appointment) => {
                   const contact = Array.isArray(appointment.contacts) ? appointment.contacts[0] : appointment.contacts;
+                  // Unknown-caller fallback: we didn't match a contact,
+                  // but we captured the heard name + phone on the appt.
+                  const displayName = contact?.name ?? (appointment.caller_name?.trim() ? `Unknown · ${appointment.caller_name}` : "Unknown caller");
+                  const displayPhone = contact?.phone ?? appointment.caller_phone ?? "—";
+                  const avatarChar = contact?.name?.charAt(0)?.toUpperCase() ?? "?";
                   return (
                   <tr key={appointment.id} className="transition hover:bg-[var(--canvas-subtle)]">
                     <td className="whitespace-nowrap px-6 py-4">
                       <div className="flex items-center">
-                        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--accent)]">
+                        <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ${contact ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "bg-[var(--canvas-subtle)] text-[var(--ink-subtle)]"}`}>
                           <span className="text-sm font-medium">
-                            {contact?.name?.charAt(0)?.toUpperCase() ?? "?"}
+                            {avatarChar}
                           </span>
                         </div>
                         <div className="ml-3">
-                          <div className="text-sm font-medium text-[var(--ink)]">
-                            {contact?.name ?? "Unknown"}
+                          <div className={`text-sm font-medium ${contact ? "text-[var(--ink)]" : "text-[var(--ink-muted)] italic"}`}>
+                            {displayName}
                           </div>
                           <div className="text-sm text-[var(--ink-muted)]">
-                            {contact?.phone ?? "—"}
+                            {displayPhone}
                           </div>
                         </div>
                       </div>
