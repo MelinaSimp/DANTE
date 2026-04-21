@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { Phone, CalendarCheck, UserRound, ClipboardList, ChevronRight, FileText } from "lucide-react";
+import { CalendarCheck, UserRound, ClipboardList, ChevronRight, FileText } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 interface QuickAction {
@@ -13,12 +13,6 @@ interface QuickAction {
 }
 
 const quickActions: QuickAction[] = [
-  {
-    href: "/calls",
-    title: "Review today's calls",
-    description: "See transcripts and follow-ups",
-    icon: Phone,
-  },
   {
     href: "/appointments",
     title: "Check upcoming schedule",

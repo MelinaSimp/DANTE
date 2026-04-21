@@ -148,12 +148,6 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
             Clients
           </Link>
           <Link
-            href="/calls"
-            className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
-          >
-            Calls
-          </Link>
-          <Link
             href="/calendar"
             className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
           >
@@ -264,7 +258,6 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
           <StatCell
             label="Calls · 7d"
             value={data.stats.calls7d.toString()}
-            href="/calls"
           />
           <StatCell
             label="Documents"
@@ -363,12 +356,6 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
               <span className="label-section">Recent calls</span>
               <FileCheck2 className="w-3.5 h-3.5 text-[var(--ink-muted)]" />
             </div>
-            <Link
-              href="/calls"
-              className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)]"
-            >
-              All calls →
-            </Link>
           </div>
           {data.recentCalls.length === 0 ? (
             <EmptyNote>No call recordings yet.</EmptyNote>

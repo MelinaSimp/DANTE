@@ -27,7 +27,6 @@ const HIDDEN_PREFIXES = [
   "/select",
   "/status",
   "/call",
-  "/calls",
   "/compiled",
   "/frontend",
   "/settings",

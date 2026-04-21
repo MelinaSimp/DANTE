@@ -14,7 +14,6 @@ interface HeaderClientProps {
 
 const navLinks = [
   { href: "/agents", label: "Agents" },
-  { href: "/calls", label: "Calls" },
   { href: "/contacts", label: "Contacts" },
   { href: "/client-details-overview", label: "Clients" },
   { href: "/appointments", label: "Appointments" },
