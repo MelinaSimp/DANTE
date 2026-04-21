@@ -18,7 +18,7 @@ import {
   Sparkles,
 } from "lucide-react";
 
-type Category = "service" | "restaurant";
+type Category = "financial_advisor" | "real_estate" | "restaurant" | "other";
 
 interface SeedEntry {
   id: string;
@@ -34,20 +34,164 @@ interface Props {
   category: Category;
 }
 
-// Pre-written knowledge entries tailored to the workspace's category.
-// These are intentionally vague placeholders — the content is a template
-// the user rewrites. We're giving them a starting shape, not the final
-// answer. Empty knowledge bases teach the AI receptionist nothing, so
-// shipping *some* text beats shipping none even if the user skips.
+// Pre-written knowledge entries tailored to the workspace's vertical.
+// Advisor + real estate get industry-specific templates because (a)
+// they're the target audiences, and (b) the AI receptionist needs
+// vertical context to not say something dumb or regulatorily risky
+// (fee-only vs. dual-registered, broker vs. agent, etc.).
+//
+// Everything is placeholder text the user rewrites. Shipping *some*
+// text beats shipping none even if they skip — the alternative is an
+// empty knowledge base and an AI that makes things up.
 function seedsFor(category: Category, firmName: string): SeedEntry[] {
-  const nm = firmName || "our company";
+  const nm = firmName || "our firm";
+
+  if (category === "financial_advisor") {
+    return [
+      {
+        id: "about",
+        category: "Company Info",
+        title: `About ${nm}`,
+        content: `Describe ${nm} in a paragraph: who you serve, your specialty (retirement, business owners, high-net-worth, etc.), and what makes you different. The AI uses this to frame the conversation when a prospect calls in.`,
+        included: true,
+      },
+      {
+        id: "registration",
+        category: "Company Info",
+        title: "What kind of firm we are",
+        content:
+          "State this plainly: RIA (fee-only fiduciary), dual-registered, or broker-dealer rep. The AI should never guess — it matters for suitability and for what it's allowed to say on a recorded line.",
+        included: true,
+      },
+      {
+        id: "services",
+        category: "Services",
+        title: "What we do",
+        content:
+          "Bullet the services you offer: financial planning, investment management, retirement income, tax planning, estate, insurance review, etc. Keep each one a sentence. The AI will answer 'do you do X?' from this list.",
+        included: true,
+      },
+      {
+        id: "fit",
+        category: "Services",
+        title: "Who we work with",
+        content:
+          "Typical client profile: minimum AUM or planning fee, states you're licensed in, life stages you focus on. This helps the AI gracefully decline prospects who aren't a fit instead of booking a meeting that wastes everyone's time.",
+        included: true,
+      },
+      {
+        id: "fees",
+        category: "Pricing",
+        title: "How we charge",
+        content:
+          "Fee structure in plain language — AUM %, flat planning fee, hourly, commission, or some mix. If you'd rather discuss fees on the intro call, say so here so the AI defers to you instead of improvising a number.",
+        included: true,
+      },
+      {
+        id: "intake",
+        category: "Scheduling Rules",
+        title: "How to book an intro call",
+        content:
+          "What happens between 'I'd like to talk' and a meeting: calendar link, what you ask callers to prepare, typical intro-call length, and whether the intro is free. The AI will quote this word-for-word.",
+        included: true,
+      },
+      {
+        id: "hours",
+        category: "Hours & Coverage",
+        title: "Hours & callback policy",
+        content:
+          "Office hours (time zone!), when you typically return calls, and the after-hours path. Markets move — say explicitly whether urgent trade questions have a different path than routine questions.",
+        included: true,
+      },
+      {
+        id: "compliance",
+        category: "Emergency Procedures",
+        title: "What the AI should never do",
+        content:
+          "A short do-not list: don't give specific investment advice on a recorded line, don't promise returns, don't discuss other clients, don't confirm someone is a client without verifying identity. Add anything your compliance officer insists on.",
+        included: true,
+      },
+    ];
+  }
+
+  if (category === "real_estate") {
+    return [
+      {
+        id: "about",
+        category: "Company Info",
+        title: `About ${nm}`,
+        content: `One paragraph on ${nm}: brokerage, region, team size, and what sets you apart (local specialty, luxury, first-time buyers, investors, etc.). The AI uses this to set context for callers.`,
+        included: true,
+      },
+      {
+        id: "license",
+        category: "Company Info",
+        title: "Licensing & brokerage",
+        content:
+          "State your license jurisdiction, brokerage affiliation, and your role (agent, broker, team lead). The AI should not guess — in some states it matters legally what a caller is promised over the phone.",
+        included: true,
+      },
+      {
+        id: "services",
+        category: "Services",
+        title: "What we help with",
+        content:
+          "Buy-side, list-side, investment properties, relocation, new construction, rentals — list what you do and, just as important, what you don't (referral to a partner when it's out of scope).",
+        included: true,
+      },
+      {
+        id: "area",
+        category: "Services",
+        title: "Service area",
+        content:
+          "Cities, neighborhoods, or zip codes you cover. What's your out-of-area policy — do you refer, co-list, or decline? The AI will use this to qualify leads before eating your calendar.",
+        included: true,
+      },
+      {
+        id: "pricing",
+        category: "Pricing",
+        title: "Commission & pricing",
+        content:
+          "Typical commission structure and what's included (photography, staging, marketing budget, virtual tours). If you prefer to discuss on a call, say so — the AI will defer.",
+        included: true,
+      },
+      {
+        id: "showings",
+        category: "Scheduling Rules",
+        title: "Booking showings & consultations",
+        content:
+          "How callers book: intro call vs. showing, calendar link, how much notice you need, whether pre-qualification is required before showings. The AI will quote the exact steps.",
+        included: true,
+      },
+      {
+        id: "hours",
+        category: "Hours & Coverage",
+        title: "Availability & response time",
+        content:
+          "When you take calls, typical response window, and what happens after hours or on weekends. Real estate moves fast — be explicit about urgent-offer paths vs. routine inquiries.",
+        included: true,
+      },
+      {
+        id: "qualification",
+        category: "FAQs",
+        title: "Pre-qualification policy",
+        content:
+          "Do you require pre-approval letters before showings? Minimum price range? How do you handle buyers who aren't ready? Specifics here keep the AI from booking lookie-loos.",
+        included: false,
+      },
+    ];
+  }
+
   if (category === "restaurant") {
+    // Grandfathered path — if any pre-existing workspace came in under
+    // this category, keep serving them reasonable content instead of
+    // dumping them to the generic "other" template.
     return [
       {
         id: "about",
         category: "Company Info",
         title: "About us",
-        content: `${nm} is a restaurant — add a short description here: cuisine type, vibe, neighborhood, anything distinctive.`,
+        content: `${nm} — add a short description: cuisine, vibe, neighborhood, anything distinctive.`,
         included: true,
       },
       {
@@ -63,7 +207,7 @@ function seedsFor(category: Category, firmName: string): SeedEntry[] {
         category: "Scheduling Rules",
         title: "Reservations",
         content:
-          "We accept reservations up to 30 days in advance. Parties of 8+ go through our events team. Same-day reservations are honored when available.",
+          "How far in advance you take reservations, party-size thresholds for the events team, same-day policy.",
         included: true,
       },
       {
@@ -71,28 +215,21 @@ function seedsFor(category: Category, firmName: string): SeedEntry[] {
         category: "Services",
         title: "Menu highlights & dietary options",
         content:
-          "List signature dishes, vegetarian/vegan/gluten-free options, and anything you're often asked about (kids menu, corkage, tasting menu, etc.).",
+          "Signature dishes, vegetarian/vegan/gluten-free options, anything you're often asked about.",
         included: true,
-      },
-      {
-        id: "location",
-        category: "FAQs",
-        title: "Location & parking",
-        content:
-          "Address, nearest transit stop, parking situation (valet, street, nearby garage), and accessibility notes.",
-        included: false,
       },
     ];
   }
 
-  // Default: service-based company. Written generically so it fits a
-  // financial advisor, agency, clinic, law firm, consultancy — anyone.
+  // Fallback: generic service-business template. Kept intentionally
+  // broad so it still makes sense for "other" signups and legacy
+  // "service" values.
   return [
     {
       id: "about",
       category: "Company Info",
       title: `About ${nm}`,
-      content: `One paragraph about what ${nm} does, who you serve, and what makes you different. The AI receptionist will use this to set context when someone calls in.`,
+      content: `One paragraph about what ${nm} does, who you serve, and what makes you different. The AI receptionist uses this to frame calls.`,
       included: true,
     },
     {
@@ -100,7 +237,7 @@ function seedsFor(category: Category, firmName: string): SeedEntry[] {
       category: "Services",
       title: "What we do",
       content:
-        "Bullet list of the services you offer. Keep each one short — a sentence is plenty. The AI will read from this when callers ask 'do you do X?'",
+        "Short bullet list of your services. The AI will answer 'do you do X?' directly from this.",
       included: true,
     },
     {
@@ -108,15 +245,15 @@ function seedsFor(category: Category, firmName: string): SeedEntry[] {
       category: "Hours & Coverage",
       title: "Hours & availability",
       content:
-        "Office hours, time zone, and what happens after hours (voicemail, callback window, emergency path). Be specific — the AI will quote you.",
+        "Hours, time zone, and after-hours policy (voicemail, callback window, emergency path).",
       included: true,
     },
     {
       id: "scheduling",
       category: "Scheduling Rules",
-      title: "How to book with us",
+      title: "How to book",
       content:
-        "Describe your intake: intro call vs. consult, typical duration, any prep work you ask for, and where the calendar link lives.",
+        "Your intake flow: intro call vs. consult, typical duration, prep, calendar link.",
       included: true,
     },
     {
@@ -124,15 +261,7 @@ function seedsFor(category: Category, firmName: string): SeedEntry[] {
       category: "Pricing",
       title: "How we charge",
       content:
-        "Fee structure, whether the intro call is free, typical engagement size. If you'd rather not share publicly, say so — the AI will defer to you instead of guessing.",
-      included: false,
-    },
-    {
-      id: "faq",
-      category: "FAQs",
-      title: "Common questions",
-      content:
-        "Two or three questions you answer on every intro call. (Do you work remotely? What states are you licensed in? Who's a good fit?)",
+        "Fee structure or 'we discuss on the intro call' — say one or the other so the AI doesn't improvise.",
       included: false,
     },
   ];

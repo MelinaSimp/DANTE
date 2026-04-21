@@ -227,7 +227,9 @@ export async function GET() {
   const features = await getWorkspaceFeatures(wid);
 
   return NextResponse.json({
-    advisorName: profile.full_name || user.email?.split("@")[0] || "Advisor",
+    // Display name for the greeting — vertical-neutral fallback ("there")
+    // so a real-estate agent doesn't get addressed as "Advisor" by default.
+    advisorName: profile.full_name || user.email?.split("@")[0] || "there",
     workspaceName,
     isSuperadmin: hasSuperadminAccess(user.email, profile.is_superadmin),
     features,

@@ -8,10 +8,17 @@ import { Button } from "@/components/ui/button";
 
 type Step = "signin" | "signup";
 
+// Target verticals. Financial advisors are the primary audience;
+// real estate is the near-term expansion. "Other" stays as a soft
+// escape hatch so we don't block signups from adjacent industries,
+// but everything onboarding/dashboard-wise is tuned for the first two.
 const COMPANY_OPTIONS = [
-  { value: "service", label: "Service-based company" },
-  { value: "restaurant", label: "Restaurant" },
-];
+  { value: "financial_advisor", label: "Financial advisor" },
+  { value: "real_estate", label: "Real estate" },
+  { value: "other", label: "Other" },
+] as const;
+
+type CompanyCategory = (typeof COMPANY_OPTIONS)[number]["value"];
 
 export default function AuthForm() {
   const [step, setStep] = useState<Step>("signin");
@@ -19,7 +26,7 @@ export default function AuthForm() {
   const [pwd, setPwd] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [companyType, setCompanyType] = useState<"service" | "restaurant" | "">("");
+  const [companyType, setCompanyType] = useState<CompanyCategory | "">("");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -169,7 +176,7 @@ export default function AuthForm() {
                       name="company-type"
                       value={value}
                       checked={companyType === value}
-                      onChange={() => setCompanyType(value as "service" | "restaurant")}
+                      onChange={() => setCompanyType(value)}
                       className="hidden"
                     />
                     {label}

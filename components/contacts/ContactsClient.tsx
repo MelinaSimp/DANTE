@@ -5,11 +5,12 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase/client";
 import AddContactForm from "./AddContactForm";
+import ContactImporter from "./ContactImporter";
 import AnalyzeContactAI from "@/components/ai/AnalyzeContactAI";
 import AddTaskForm from "@/components/tasks/AddTaskForm";
 import TaskItem from "@/components/tasks/TaskItem";
 import AddNoteForm from "@/components/notes/AddNoteForm";
-import { FileText, Mic } from "lucide-react";
+import { FileText, Mic, Upload } from "lucide-react";
 import { confirmDialog } from "@/components/ui/confirm-dialog";
 
 interface Contact {
@@ -44,6 +45,7 @@ interface Task {
 export default function ContactsClient({ initialContacts, workspaceId }: ContactsClientProps) {
   const [contacts, setContacts] = useState<Contact[]>(initialContacts);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showImporter, setShowImporter] = useState(false);
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -57,6 +59,22 @@ export default function ContactsClient({ initialContacts, workspaceId }: Contact
     ));
     setShowAddForm(false);
     setError(null);
+  };
+
+  // Pull the latest contacts for this workspace after a bulk import.
+  // The importer API inserts directly; the client has no way to know
+  // what rows came back without a refetch.
+  const refetchContacts = async () => {
+    const { data, error: fetchErr } = await supabase
+      .from("contacts")
+      .select("id, name, phone, email, notes, created_at")
+      .eq("workspace_id", workspaceId)
+      .order("name", { ascending: true });
+    if (fetchErr) {
+      console.error("Failed to refetch contacts after import:", fetchErr);
+      return;
+    }
+    setContacts((data as Contact[]) || []);
   };
 
   const handleContactUpdated = (updatedContact: Contact) => {
@@ -145,6 +163,13 @@ export default function ContactsClient({ initialContacts, workspaceId }: Contact
             <Mic className="h-4 w-4" />
             Start Call
           </Link>
+          <button
+            onClick={() => setShowImporter(true)}
+            className="inline-flex items-center gap-2 rounded-full border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#151515] shadow-sm transition hover:border-[#3166bf] hover:text-[#3166bf]"
+          >
+            <Upload className="h-4 w-4" />
+            Import CSV
+          </button>
           <Button
             onClick={() => setShowAddForm(true)}
             className="rounded-full bg-[#3166bf] px-5 py-2 text-white shadow-lg transition hover:bg-[#2a5aa8]"
@@ -153,6 +178,13 @@ export default function ContactsClient({ initialContacts, workspaceId }: Contact
           </Button>
         </div>
       </div>
+
+      {showImporter && (
+        <ContactImporter
+          onClose={() => setShowImporter(false)}
+          onImported={refetchContacts}
+        />
+      )}
 
       {showAddForm && (
         <div className="rounded-2xl border border-[#e5e7eb] bg-[#ffffff] p-6 shadow-lg">

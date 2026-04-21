@@ -29,7 +29,18 @@ export default async function SignupPage({
 
     if (!first_name) throw new Error("First name is required.");
     if (!last_name) throw new Error("Last name is required.");
-    if (!company_category || !["service", "restaurant"].includes(company_category)) {
+    // Primary audience is financial advisors with real-estate as the
+    // near-term expansion. "other" is a soft escape hatch so we don't
+    // block adjacent industries, and the legacy service/restaurant
+    // values stay accepted so old invite-token redemptions still work.
+    const allowedCategories = [
+      "financial_advisor",
+      "real_estate",
+      "other",
+      "service",
+      "restaurant",
+    ];
+    if (!company_category || !allowedCategories.includes(company_category)) {
       throw new Error("Company type is required.");
     }
 
@@ -227,8 +238,9 @@ export default async function SignupPage({
                 <option value="" disabled>
                   Company type…
                 </option>
-                <option value="service">Service-based company</option>
-                <option value="restaurant">Restaurant</option>
+                <option value="financial_advisor">Financial advisor</option>
+                <option value="real_estate">Real estate</option>
+                <option value="other">Other</option>
               </select>
 
               <button
