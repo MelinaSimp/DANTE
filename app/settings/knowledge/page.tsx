@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { requireFeature } from "@/lib/features/server";
 import KnowledgeSetupClient from "./KnowledgeSetupClient";
 
 export default async function KnowledgeSetupPage() {
@@ -18,6 +19,8 @@ export default async function KnowledgeSetupPage() {
     .select("workspace_id")
     .eq("id", user.id)
     .maybeSingle();
+
+  await requireFeature(profile?.workspace_id, "knowledge_base");
 
   if (!profile?.workspace_id) {
     return (

@@ -13,6 +13,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { hasSuperadminAccess } from "@/lib/superadmin";
+import { getWorkspaceFeatures } from "@/lib/features/server";
 
 export const dynamic = "force-dynamic";
 
@@ -218,10 +219,13 @@ export async function GET() {
     }
   }
 
+  const features = await getWorkspaceFeatures(wid);
+
   return NextResponse.json({
     advisorName: profile.full_name || user.email?.split("@")[0] || "Advisor",
     workspaceName,
     isSuperadmin: hasSuperadminAccess(user.email, profile.is_superadmin),
+    features,
     today,
     awaitingReview,
     recentCalls,

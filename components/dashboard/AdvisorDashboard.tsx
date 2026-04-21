@@ -60,6 +60,10 @@ type DashboardData = {
   // Only true when the logged-in user is a platform superadmin
   // (per hasSuperadminAccess). Used to reveal the Admin nav item.
   isSuperadmin?: boolean;
+  // Subset of FeatureId — what this workspace is entitled to. Links and
+  // sections missing from this list are hidden from the dashboard so the
+  // customer never sees something they can't actually use.
+  features: string[];
   today: Meeting[];
   awaitingReview: number;
   recentCalls: CallNote[];
@@ -152,12 +156,14 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
           >
             Agent
           </Link>
-          <Link
-            href="/dante"
-            className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
-          >
-            Dante
-          </Link>
+          {data.features.includes("dante") && (
+            <Link
+              href="/dante"
+              className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
+            >
+              Dante
+            </Link>
+          )}
           <Link
             href="/settings"
             className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
@@ -202,116 +208,140 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
             {greeting}, {firstName}.
           </h1>
           <p className="prose-body text-[var(--ink-muted)] max-w-2xl">
-            {data.today.length > 0
-              ? `You have ${data.today.length} meeting${
-                  data.today.length === 1 ? "" : "s"
-                } today. ${
-                  data.awaitingReview > 0
-                    ? `${data.awaitingReview} item${
-                        data.awaitingReview === 1 ? "" : "s"
-                      } need${data.awaitingReview === 1 ? "s" : ""} your review.`
-                    : "Nothing awaiting your review."
-                }`
-              : data.awaitingReview > 0
-              ? `No meetings today. ${data.awaitingReview} item${
-                  data.awaitingReview === 1 ? "" : "s"
-                } need${data.awaitingReview === 1 ? "s" : ""} your review.`
-              : "No meetings today, nothing awaiting review. A quiet one."}
+            {(() => {
+              const hasCompliance = data.features.includes("compliance_scanner");
+              const meetings = data.today.length;
+              const review = hasCompliance ? data.awaitingReview : 0;
+              if (meetings > 0 && review > 0) {
+                return `You have ${meetings} meeting${meetings === 1 ? "" : "s"} today. ${review} item${review === 1 ? "" : "s"} need${review === 1 ? "s" : ""} your review.`;
+              }
+              if (meetings > 0) {
+                return `You have ${meetings} meeting${meetings === 1 ? "" : "s"} today.${hasCompliance ? " Nothing awaiting your review." : ""}`;
+              }
+              if (review > 0) {
+                return `No meetings today. ${review} item${review === 1 ? "" : "s"} need${review === 1 ? "s" : ""} your review.`;
+              }
+              return hasCompliance
+                ? "No meetings today, nothing awaiting review. A quiet one."
+                : "No meetings today. A quiet one.";
+            })()}
           </p>
         </div>
 
-        {/* Stat strip — stripped down, no giant cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-[var(--rule)] mb-12 rounded-md overflow-hidden border border-[var(--rule)]">
-          <StatCell
-            label="Clients"
-            value={data.stats.clients.toString()}
-            href="/client-details-overview"
-          />
-          <StatCell
-            label="Calls · 7d"
-            value={data.stats.calls7d.toString()}
-          />
-          <StatCell
-            label="Documents"
-            value={data.stats.documents.toString()}
-            href="/client-details-overview"
-          />
-          <StatCell
-            label="Verified"
-            value={
-              data.stats.verifiedPct !== null
-                ? `${data.stats.verifiedPct}%`
-                : "—"
-            }
-            hint="citation-grounded"
-          />
-        </div>
+        {/* Stat strip — stripped down, no giant cards. Verified % is
+            only meaningful when the grounded_summaries feature is on;
+            otherwise we drop the column and reflow 4→3. */}
+        {(() => {
+          const showVerified = data.features.includes("grounded_summaries");
+          const cols = showVerified ? "md:grid-cols-4" : "md:grid-cols-3";
+          return (
+            <div
+              className={`grid grid-cols-2 ${cols} gap-px bg-[var(--rule)] mb-12 rounded-md overflow-hidden border border-[var(--rule)]`}
+            >
+              <StatCell
+                label="Clients"
+                value={data.stats.clients.toString()}
+                href="/client-details-overview"
+              />
+              <StatCell
+                label="Calls · 7d"
+                value={data.stats.calls7d.toString()}
+              />
+              <StatCell
+                label="Documents"
+                value={data.stats.documents.toString()}
+                href="/client-details-overview"
+              />
+              {showVerified && (
+                <StatCell
+                  label="Verified"
+                  value={
+                    data.stats.verifiedPct !== null
+                      ? `${data.stats.verifiedPct}%`
+                      : "—"
+                  }
+                  hint="citation-grounded"
+                />
+              )}
+            </div>
+          );
+        })()}
 
-        {/* Two-column: Today / Awaiting */}
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-10 mb-16">
-          <DashSection
-            label="Today"
-            icon={<CalendarClock className="w-3.5 h-3.5" />}
-          >
-            {data.today.length === 0 ? (
-              <EmptyNote>No meetings scheduled.</EmptyNote>
-            ) : (
-              <ul className="divide-y divide-[var(--rule)] border-t border-b border-[var(--rule)]">
-                {data.today.map((m) => (
-                  <li key={m.id} className="py-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="text-[15px] font-medium mb-0.5">
-                          {m.contactName}
+        {/* Today / Awaiting — second column collapses when the
+            compliance_scanner feature is off; Today then spans full
+            width so the dashboard doesn't look half-empty. */}
+        {(() => {
+          const hasCompliance = data.features.includes("compliance_scanner");
+          const gridCols = hasCompliance ? "md:grid-cols-2" : "md:grid-cols-1";
+          return (
+            <section className={`grid grid-cols-1 ${gridCols} gap-10 mb-16`}>
+              <DashSection
+                label="Today"
+                icon={<CalendarClock className="w-3.5 h-3.5" />}
+              >
+                {data.today.length === 0 ? (
+                  <EmptyNote>No meetings scheduled.</EmptyNote>
+                ) : (
+                  <ul className="divide-y divide-[var(--rule)] border-t border-b border-[var(--rule)]">
+                    {data.today.map((m) => (
+                      <li key={m.id} className="py-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <div className="text-[15px] font-medium mb-0.5">
+                              {m.contactName}
+                            </div>
+                            <div className="text-xs text-[var(--ink-muted)] mono">
+                              {formatTimeOnly(m.scheduledAt)} · {m.serviceType}
+                            </div>
+                          </div>
+                          <Link
+                            href={`/client-details-overview?contact=${encodeURIComponent(
+                              m.contactName
+                            )}`}
+                            className="inline-flex items-center gap-1 text-xs text-[var(--accent)] hover:underline"
+                          >
+                            Prep
+                            <ArrowUpRight className="w-3 h-3" />
+                          </Link>
                         </div>
-                        <div className="text-xs text-[var(--ink-muted)] mono">
-                          {formatTimeOnly(m.scheduledAt)} · {m.serviceType}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </DashSection>
+
+              {hasCompliance && (
+                <DashSection
+                  label="Awaiting your review"
+                  icon={<ShieldCheck className="w-3.5 h-3.5" />}
+                >
+                  {data.awaitingReview === 0 ? (
+                    <EmptyNote>Queue is clear.</EmptyNote>
+                  ) : (
+                    <div className="py-4 border-t border-b border-[var(--rule)]">
+                      <div className="flex items-baseline gap-3">
+                        <div className="heading-display text-4xl">
+                          {data.awaitingReview}
+                        </div>
+                        <div className="text-sm text-[var(--ink-muted)]">
+                          item{data.awaitingReview === 1 ? "" : "s"} pending
+                          compliance review
                         </div>
                       </div>
                       <Link
-                        href={`/client-details-overview?contact=${encodeURIComponent(
-                          m.contactName
-                        )}`}
-                        className="inline-flex items-center gap-1 text-xs text-[var(--accent)] hover:underline"
+                        href="/compliance/queue"
+                        className="mt-3 inline-flex items-center gap-1 text-xs text-[var(--accent)] hover:underline"
                       >
-                        Prep
+                        Open queue
                         <ArrowUpRight className="w-3 h-3" />
                       </Link>
                     </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </DashSection>
-
-          <DashSection
-            label="Awaiting your review"
-            icon={<ShieldCheck className="w-3.5 h-3.5" />}
-          >
-            {data.awaitingReview === 0 ? (
-              <EmptyNote>Queue is clear.</EmptyNote>
-            ) : (
-              <div className="py-4 border-t border-b border-[var(--rule)]">
-                <div className="flex items-baseline gap-3">
-                  <div className="heading-display text-4xl">
-                    {data.awaitingReview}
-                  </div>
-                  <div className="text-sm text-[var(--ink-muted)]">
-                    item{data.awaitingReview === 1 ? "" : "s"} pending
-                    compliance review
-                  </div>
-                </div>
-                <Link
-                  href="/compliance/queue"
-                  className="mt-3 inline-flex items-center gap-1 text-xs text-[var(--accent)] hover:underline"
-                >
-                  Open queue
-                  <ArrowUpRight className="w-3 h-3" />
-                </Link>
-              </div>
-            )}
-          </DashSection>
-        </section>
+                  )}
+                </DashSection>
+              )}
+            </section>
+          );
+        })()}
 
         {/* Recent calls */}
         <section className="mb-16">

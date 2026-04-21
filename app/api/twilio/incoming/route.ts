@@ -4,6 +4,7 @@ import { xmlEscape, xmlEscapeAttr } from "@/lib/xml";
 import { normalizePhone } from "@/lib/phone";
 import { generateSpeechTwiml } from "@/lib/elevenlabs/twiml";
 import { validateTwilioRequest } from "@/lib/twilio-validate";
+import { getEnabledFeatures } from "@/lib/features";
 
 export const dynamic = "force-dynamic";
 const DEBUG = process.env.DEBUG_VOICE === "true";
@@ -216,16 +217,20 @@ async function handleIncoming(req: NextRequest): Promise<NextResponse> {
       });
     }
 
-    // Check if workspace has voice_agent feature enabled
+    // Runtime entitlement gate: AI Receptionist is a paid feature.
+    // This is the "honest business" stop — if a workspace's Receptionist
+    // entitlement is revoked, inbound calls stop being answered by the
+    // agent. Uses the central `getEnabledFeatures` helper so null
+    // (grandfathered) stays all-on and `[]` correctly means "none".
     if (agent.workspace_id) {
       const { data: ws } = await supabaseAdmin
         .from("workspaces")
         .select("enabled_features")
         .eq("id", agent.workspace_id)
         .maybeSingle();
-      const features: string[] | null = ws?.enabled_features;
-      if (features && features.length > 0 && !features.includes("voice_agent")) {
-        const disabledTwiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Say>Voice services are not enabled for this account.</Say><Hangup/></Response>`;
+      const features = getEnabledFeatures(ws?.enabled_features);
+      if (!features.includes("ai_receptionist")) {
+        const disabledTwiml = `<?xml version="1.0" encoding="UTF-8"?><Response><Say>The AI receptionist is not enabled for this account.</Say><Hangup/></Response>`;
         return new NextResponse(disabledTwiml, { status: 200, headers: { "Content-Type": "text/xml; charset=utf-8" } });
       }
     }

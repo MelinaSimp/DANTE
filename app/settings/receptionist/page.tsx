@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { requireFeature } from "@/lib/features/server";
 import QuestionManager from "./QuestionManager";
 
 export default async function ReceptionistSettingsPage() {
@@ -18,6 +19,8 @@ export default async function ReceptionistSettingsPage() {
     .select("workspace_id")
     .eq("id", user.id)
     .maybeSingle();
+
+  await requireFeature(profile?.workspace_id, "ai_receptionist");
 
   if (!profile?.workspace_id) {
     return (

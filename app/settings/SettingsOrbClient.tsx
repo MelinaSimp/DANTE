@@ -33,11 +33,14 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
   panelId: PanelId;
   adminOnly?: boolean;
+  // Feature ID this panel requires. Panels without a feature are
+  // always-on (billing, export) — core workspace surfaces.
+  feature?: string;
   group: "Workspace" | "Administration";
 }
 
 const ALL_NAV_ITEMS: NavItem[] = [
-  { name: "Knowledge", icon: BookOpen, panelId: "knowledge", group: "Workspace" },
+  { name: "Knowledge", icon: BookOpen, panelId: "knowledge", feature: "knowledge_base", group: "Workspace" },
   { name: "Billing", icon: CreditCard, panelId: "billing", group: "Workspace" },
   { name: "Export", icon: Download, panelId: "export", adminOnly: true, group: "Administration" },
 ];
@@ -54,22 +57,32 @@ interface Props {
   isAdmin: boolean;
   workspaceId: string;
   initialKnowledgeEntries: any[];
+  features: string[];
 }
 
 export default function SettingsOrbClient({
   isAdmin,
   workspaceId,
   initialKnowledgeEntries,
+  features,
 }: Props) {
-  const [activePanel, setActivePanel] = useState<PanelId>("knowledge");
+  // Pick a sensible default: first entitled + visible panel. If the
+  // workspace has no Knowledge entitlement we fall through to Billing,
+  // which is always-on.
+  const navItems = ALL_NAV_ITEMS.filter(
+    (item) =>
+      (!item.adminOnly || isAdmin) &&
+      (!item.feature || features.includes(item.feature)),
+  );
+
+  const defaultPanel: PanelId = navItems[0]?.panelId ?? "billing";
+  const [activePanel, setActivePanel] = useState<PanelId>(defaultPanel);
 
   useEffect(() => {
     document.documentElement.style.setProperty("background", "var(--canvas)");
     document.body.style.background = "var(--canvas)";
     document.body.style.color = "var(--ink)";
   }, []);
-
-  const navItems = ALL_NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin);
 
   const groupedNav = navItems.reduce<Record<string, NavItem[]>>((acc, item) => {
     if (!acc[item.group]) acc[item.group] = [];

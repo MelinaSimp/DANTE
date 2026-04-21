@@ -180,6 +180,11 @@ export default function AgentsPage() {
 
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null);
 
+  // Workspace feature entitlements — used to hide the Dante CTA + footer
+  // link when the workspace isn't paying for Dante.
+  const [features, setFeatures] = useState<string[]>([]);
+  const hasDante = features.includes("dante");
+
   // ── CRM data fetch ────────────────────────────────────────
 
   const fetchCRM = useCallback(async () => {
@@ -234,7 +239,13 @@ export default function AgentsPage() {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push("/auth"); return; }
-      await Promise.all([fetchCRM(), fetchAuto()]);
+      // Load features in parallel with the rest — cheap endpoint, and
+      // the Dante CTA shouldn't flicker in then out on load.
+      const featuresPromise = fetch("/api/me/features", { credentials: "include" })
+        .then((r) => (r.ok ? r.json() : { features: [] }))
+        .then((j) => setFeatures(Array.isArray(j.features) ? j.features : []))
+        .catch(() => setFeatures([]));
+      await Promise.all([fetchCRM(), fetchAuto(), featuresPromise]);
     })();
   }, [fetchCRM, fetchAuto, router]);
 
@@ -393,11 +404,13 @@ export default function AgentsPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Link href="/dante"
-              className="flex items-center gap-2 px-4 py-2.5 rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] hover:border-[var(--rule-strong)] hover:bg-[var(--canvas-subtle)] text-[var(--ink)] text-sm font-semibold transition">
-              <Sparkles className="h-4 w-4" strokeWidth={1.5} />
-              Build in Dante
-            </Link>
+            {hasDante && (
+              <Link href="/dante"
+                className="flex items-center gap-2 px-4 py-2.5 rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] hover:border-[var(--rule-strong)] hover:bg-[var(--canvas-subtle)] text-[var(--ink)] text-sm font-semibold transition">
+                <Sparkles className="h-4 w-4" strokeWidth={1.5} />
+                Build in Dante
+              </Link>
+            )}
             <button onClick={runAll} disabled={runningAll}
               className="flex items-center gap-2 px-4 py-2.5 rounded-[4px] bg-[var(--ink)] hover:opacity-90 text-[var(--canvas)] text-sm font-semibold transition disabled:opacity-50">
               {runningAll ? <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} /> : <Play className="h-4 w-4" strokeWidth={1.5} />}
@@ -438,6 +451,7 @@ export default function AgentsPage() {
           runningAll={runningAll}
           runningAgent={runningAgent}
           deletingAgentId={deletingAgentId}
+          hasDante={hasDante}
         />
 
         {/* Outputs + tasks */}
@@ -487,7 +501,7 @@ export default function AgentsPage() {
 
 function UnifiedRoster({
   crmAgents, autoAgents, onToggleCRM, onRunAuto, onDeleteAuto,
-  runningAll, runningAgent, deletingAgentId,
+  runningAll, runningAgent, deletingAgentId, hasDante,
 }: {
   crmAgents: CRMAgent[];
   autoAgents: AutoAgent[];
@@ -497,6 +511,7 @@ function UnifiedRoster({
   runningAll: boolean;
   runningAgent: string | null;
   deletingAgentId: string | null;
+  hasDante: boolean;
 }) {
   if (crmAgents.length === 0 && autoAgents.length === 0) {
     return (
@@ -504,8 +519,14 @@ function UnifiedRoster({
         <Bot className="h-10 w-10 text-[var(--ink-subtle)] mx-auto mb-3" strokeWidth={1.5} />
         <p className="text-[var(--ink-muted)] mb-1">No agents yet</p>
         <p className="text-xs text-[var(--ink-subtle)]">
-          Voice agents live in the Backend. Autonomous workflows are authored in{" "}
-          <Link href="/dante" className="underline underline-offset-2 hover:text-[var(--ink)]">Dante</Link>.
+          {hasDante ? (
+            <>
+              Voice agents live in the Backend. Autonomous workflows are authored in{" "}
+              <Link href="/dante" className="underline underline-offset-2 hover:text-[var(--ink)]">Dante</Link>.
+            </>
+          ) : (
+            <>Voice agents live in the Backend.</>
+          )}
         </p>
       </div>
     );

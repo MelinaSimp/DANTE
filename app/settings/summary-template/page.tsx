@@ -3,6 +3,7 @@ import { ArrowLeft } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { requireFeature } from "@/lib/features/server";
 import SummaryTemplateSettingsClient from "./SummaryTemplateSettingsClient";
 
 export default async function SummaryTemplateSettingsPage() {
@@ -18,6 +19,8 @@ export default async function SummaryTemplateSettingsPage() {
     .select("workspace_id")
     .eq("id", user.id)
     .maybeSingle();
+
+  await requireFeature(profile?.workspace_id, "custom_summary_template");
 
   if (!profile?.workspace_id) {
     return (
