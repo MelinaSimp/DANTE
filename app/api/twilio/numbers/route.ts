@@ -88,7 +88,7 @@ export async function GET(request: Request) {
   // UI we list everything and let the user make the call.
   const { data: agents } = await supabase
     .from("agents")
-    .select("id, name, phone_number, status, is_specialist")
+    .select("id, name, phone_number, status, is_specialist, human_fallback_number")
     .eq("workspace_id", profile.workspace_id)
     .order("name", { ascending: true });
 
@@ -180,6 +180,7 @@ export async function GET(request: Request) {
       status: a.status,
       isSpecialist: a.is_specialist,
       phoneNumber: a.phone_number,
+      humanFallbackNumber: a.human_fallback_number || null,
     })),
     webhookUrls,
   });

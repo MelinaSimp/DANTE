@@ -4,6 +4,8 @@ import { AgentExecutor, ConversationContext } from "@/lib/agent-executor/executo
 import { xmlEscape, xmlEscapeAttr } from "@/lib/xml";
 import { generateSpeechTwiml } from "@/lib/elevenlabs/twiml";
 import { validateTwilioRequest } from "@/lib/twilio-validate";
+import { isHumanTransferRequest } from "@/lib/voice/transfer-intent";
+import { normalizePhone } from "@/lib/phone";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 10;
@@ -98,13 +100,15 @@ export async function POST(req: NextRequest) {
 
     // Load agent to get voice configuration
     let agentVoiceId: string | null = null;
+    let humanFallbackNumber: string | null = null;
     if (conversation?.agent_id) {
       const { data: agent } = await supabaseAdmin
         .from("agents")
-        .select("elevenlabs_voice_id")
+        .select("elevenlabs_voice_id, human_fallback_number")
         .eq("id", conversation.agent_id)
         .single();
       agentVoiceId = agent?.elevenlabs_voice_id || null;
+      humanFallbackNumber = agent?.human_fallback_number || null;
     }
 
     if (!conversation) {
@@ -312,6 +316,84 @@ export async function POST(req: NextRequest) {
       content: speechResult,
       timestamp: new Date().toISOString(),
     });
+
+    // ───────────────────────────────────────────────────────────────
+    // Warm transfer to a human.
+    //
+    // If the caller clearly asked for a person AND the agent has a
+    // fallback number configured, cut out of the LLM loop here and
+    // bridge the call. Twilio <Dial> is a terminal TwiML verb — after
+    // this point the call is the receptionist's. We mark the
+    // conversation "completed" so Drift's UI doesn't think it's still
+    // running, and we annotate the transcript so the summary knows
+    // why we handed off.
+    //
+    // If the intent fires but no fallback is configured, we just fall
+    // through to the normal executor — better to keep trying to help
+    // than to tell the caller "sorry, nobody's here."
+    // ───────────────────────────────────────────────────────────────
+    if (humanFallbackNumber && isHumanTransferRequest(speechResult)) {
+      const fallback = normalizePhone(humanFallbackNumber) || humanFallbackNumber;
+      if (DEBUG)
+        console.log("[Twilio Response] Human-transfer intent matched. Dialing:", fallback);
+
+      const handoffMessage = "One moment — connecting you now.";
+      const handoffSpeech = await generateSpeechTwiml(
+        handoffMessage,
+        agentVoiceId,
+        baseUrl,
+      );
+
+      transcript.push({
+        role: "assistant",
+        content: handoffMessage,
+        timestamp: new Date().toISOString(),
+      });
+      transcript.push({
+        role: "system",
+        content: `Caller asked for a human; transferred to ${fallback}.`,
+        timestamp: new Date().toISOString(),
+      });
+
+      try {
+        await supabaseAdmin
+          .from("conversations")
+          .update({
+            transcript,
+            status: "completed",
+            conversation_state: {
+              ...(conversation.conversation_state || {}),
+              transferredToHuman: true,
+              transferredAt: new Date().toISOString(),
+            },
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", conversationId);
+      } catch (err) {
+        console.error("[Twilio Response] Failed to mark conversation transferred:", err);
+      }
+
+      // Use the Twilio-owned destination number as callerId so the
+      // receptionist's phone always accepts the call (arbitrary
+      // pass-through caller IDs get blocked). The original caller's
+      // number is still visible in Twilio's call log.
+      const callerId = xmlEscapeAttr(to || "");
+      const dialNumber = xmlEscape(fallback);
+      const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  ${handoffSpeech}
+  <Dial timeout="25"${callerId ? ` callerId="${callerId}"` : ""}>
+    <Number>${dialNumber}</Number>
+  </Dial>
+  <Say>We weren't able to reach anyone. Please try again later.</Say>
+  <Hangup/>
+</Response>`;
+
+      return new NextResponse(twiml, {
+        status: 200,
+        headers: { "Content-Type": "text/xml; charset=utf-8" },
+      });
+    }
 
     // Reset empty response count since we got a valid response
     const conversationState = conversation.conversation_state || {};

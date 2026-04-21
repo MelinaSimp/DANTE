@@ -27,6 +27,10 @@ import {
   Loader2,
   RefreshCw,
   ExternalLink,
+  UserRound,
+  ChevronDown,
+  ChevronRight,
+  Forward,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { confirmDialog } from "@/components/ui/confirm-dialog";
@@ -37,6 +41,7 @@ interface AgentRef {
   status: string | null;
   isSpecialist: boolean | null;
   phoneNumber: string | null;
+  humanFallbackNumber: string | null;
 }
 
 interface NumberRow {
@@ -426,6 +431,7 @@ function ConnectedView({
                 key={n.sid}
                 number={n}
                 agents={assignableAgents}
+                allAgents={data.agents}
                 onChange={onChange}
               />
             ))}
@@ -435,16 +441,141 @@ function ConnectedView({
         {assignableAgents.length === 0 && data.numbers.length > 0 && (
           <div className="mt-4 rounded-[4px] border border-[var(--rule)] bg-[var(--canvas-subtle)] p-3 text-xs text-[var(--ink-muted)]">
             You don't have any non-specialist agents yet. Create one from{" "}
-            <a
-              href="/agents"
-              className="text-[var(--accent)] hover:underline"
-            >
+            <a href="/agents" className="text-[var(--accent)] hover:underline">
               Agents
             </a>{" "}
             before assigning a number.
           </div>
         )}
       </div>
+
+      <ForwardingGuide />
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// "Use your existing business number" — plain-language explainer
+// for the common case where a customer already has a line (Verizon,
+// AT&T, RingCentral, whatever) and doesn't want to switch numbers.
+// Call forwarding is the easy button: Twilio number answers, Drift
+// picks up, caller sees/uses their existing business number.
+// ──────────────────────────────────────────────────────────────
+
+function ForwardingGuide() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="card-flat p-6">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-start gap-3 text-left"
+      >
+        <Forward
+          className="w-4 h-4 text-[var(--ink-muted)] mt-1 shrink-0"
+          strokeWidth={1.5}
+        />
+        <div className="flex-1">
+          <div className="label-section mb-1">Keeping your existing number</div>
+          <h3 className="heading-display text-xl text-[var(--ink)]">
+            Already have a business line?
+          </h3>
+          <p className="text-sm text-[var(--ink-muted)] mt-1">
+            You don't have to move it. Buy a Twilio number, set your existing
+            line to forward to it, and Drift answers every call.
+          </p>
+        </div>
+        {open ? (
+          <ChevronDown
+            className="w-4 h-4 text-[var(--ink-subtle)] mt-1.5"
+            strokeWidth={1.5}
+          />
+        ) : (
+          <ChevronRight
+            className="w-4 h-4 text-[var(--ink-subtle)] mt-1.5"
+            strokeWidth={1.5}
+          />
+        )}
+      </button>
+
+      {open && (
+        <div className="mt-5 pt-5 border-t border-[var(--rule)] space-y-4 text-sm text-[var(--ink)]">
+          <div>
+            <div className="font-medium mb-1">The three steps</div>
+            <ol className="list-decimal ml-5 space-y-1.5 text-[var(--ink-muted)]">
+              <li>
+                Buy a Twilio number in the{" "}
+                <a
+                  href="https://console.twilio.com/us1/develop/phone-numbers/manage/search"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[var(--accent)] hover:underline"
+                >
+                  Twilio Console
+                </a>
+                . Any number works — it's just a destination for forwarded
+                calls. Your customers never see it.
+              </li>
+              <li>
+                Assign it to an agent above and paste the webhook URLs into
+                Twilio.
+              </li>
+              <li>
+                Set your existing business line to forward incoming calls to
+                the Twilio number (instructions below per carrier).
+              </li>
+            </ol>
+          </div>
+
+          <CarrierSteps
+            name="Google Voice"
+            steps={[
+              "Open voice.google.com → Settings → Calls.",
+              "Toggle on Forwarding and add your Twilio number.",
+            ]}
+          />
+          <CarrierSteps
+            name="RingCentral"
+            steps={[
+              "Admin Portal → Users → pick the line → Phones & Numbers.",
+              "Call Forwarding → Add destination → paste your Twilio number.",
+              "Set rules: Always or Only when unanswered, as you prefer.",
+            ]}
+          />
+          <CarrierSteps
+            name="OpenPhone"
+            steps={[
+              "Settings → pick the number → Call forwarding.",
+              "Add a forwarding destination with your Twilio number.",
+            ]}
+          />
+          <CarrierSteps
+            name="Verizon / AT&T / T-Mobile landline or mobile"
+            steps={[
+              "On the line's handset, dial *72 followed by your Twilio number (e.g. *72 5551234567).",
+              "Wait for two short beeps, then hang up. Forwarding is on.",
+              "To turn it off later, dial *73.",
+            ]}
+          />
+          <div className="rounded-[4px] border border-[var(--rule)] bg-[var(--canvas-subtle)] p-3 text-xs text-[var(--ink-muted)]">
+            Not sure? Search your carrier's help docs for "conditional call
+            forwarding" or "busy/no-answer forwarding" — most business phone
+            systems support it under one of those names.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CarrierSteps({ name, steps }: { name: string; steps: string[] }) {
+  return (
+    <div>
+      <div className="font-medium text-[var(--ink)]">{name}</div>
+      <ol className="list-decimal ml-5 space-y-0.5 text-[var(--ink-muted)] text-xs mt-1">
+        {steps.map((s, i) => (
+          <li key={i}>{s}</li>
+        ))}
+      </ol>
     </div>
   );
 }
@@ -452,14 +583,23 @@ function ConnectedView({
 function NumberRowItem({
   number,
   agents,
+  allAgents,
   onChange,
 }: {
   number: NumberRow;
   agents: AgentRef[];
+  allAgents: AgentRef[];
   onChange: () => void;
 }) {
   const [saving, setSaving] = useState(false);
   const currentAgentId = number.attachedAgent?.id ?? "";
+
+  // Look up the full agent record (with humanFallbackNumber) from the
+  // workspace-wide agent list so the child fallback form can preload
+  // the currently-saved value.
+  const attachedAgentFull = number.attachedAgent
+    ? allAgents.find((a) => a.id === number.attachedAgent!.id) || null
+    : null;
 
   async function handleAssign(agentId: string) {
     setSaving(true);
@@ -506,62 +646,174 @@ function NumberRowItem({
   }
 
   return (
-    <div className="py-3 flex items-center gap-4">
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <Phone
-            className="w-3.5 h-3.5 text-[var(--ink-subtle)]"
-            strokeWidth={1.5}
-          />
-          <span className="text-sm font-medium text-[var(--ink)] font-mono">
-            {number.phoneNumber}
-          </span>
-          {number.friendlyName && number.friendlyName !== number.phoneNumber && (
-            <span className="text-xs text-[var(--ink-muted)] truncate">
-              · {number.friendlyName}
+    <div className="py-3">
+      <div className="flex items-center gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <Phone
+              className="w-3.5 h-3.5 text-[var(--ink-subtle)]"
+              strokeWidth={1.5}
+            />
+            <span className="text-sm font-medium text-[var(--ink)] font-mono">
+              {number.phoneNumber}
             </span>
-          )}
+            {number.friendlyName &&
+              number.friendlyName !== number.phoneNumber && (
+                <span className="text-xs text-[var(--ink-muted)] truncate">
+                  · {number.friendlyName}
+                </span>
+              )}
+          </div>
+          <div className="flex items-center gap-3 mt-1 text-xs text-[var(--ink-muted)]">
+            <CapabilityPills caps={number.capabilities} />
+            {number.webhookReady ? (
+              <span className="inline-flex items-center gap-1 text-[#10b981]">
+                <CheckCircle2 className="w-3 h-3" strokeWidth={1.5} />
+                Webhooks set
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-[#f59e0b]">
+                <AlertCircle className="w-3 h-3" strokeWidth={1.5} />
+                Webhooks not set
+              </span>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-3 mt-1 text-xs text-[var(--ink-muted)]">
-          <CapabilityPills caps={number.capabilities} />
-          {number.webhookReady ? (
-            <span className="inline-flex items-center gap-1 text-[#10b981]">
-              <CheckCircle2 className="w-3 h-3" strokeWidth={1.5} />
-              Webhooks set
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 text-[#f59e0b]">
-              <AlertCircle className="w-3 h-3" strokeWidth={1.5} />
-              Webhooks not set
-            </span>
-          )}
+
+        <div className="shrink-0">
+          <select
+            value={currentAgentId}
+            onChange={(e) => handleAssign(e.target.value)}
+            disabled={saving || agents.length === 0}
+            className="px-3 py-1.5 text-sm bg-white border border-[var(--rule)] rounded-[4px] text-[var(--ink)] outline-none focus:border-[var(--accent)] disabled:opacity-50 min-w-[180px]"
+          >
+            <option value="">Unassigned</option>
+            {/* Include the currently-attached agent even if they're
+                archived or specialist — otherwise the dropdown can't
+                represent the actual state. */}
+            {number.attachedAgent &&
+              !agents.some((a) => a.id === number.attachedAgent!.id) && (
+                <option value={number.attachedAgent.id}>
+                  {number.attachedAgent.name}
+                </option>
+              )}
+            {agents.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
-      <div className="shrink-0">
-        <select
-          value={currentAgentId}
-          onChange={(e) => handleAssign(e.target.value)}
-          disabled={saving || agents.length === 0}
-          className="px-3 py-1.5 text-sm bg-white border border-[var(--rule)] rounded-[4px] text-[var(--ink)] outline-none focus:border-[var(--accent)] disabled:opacity-50 min-w-[180px]"
-        >
-          <option value="">Unassigned</option>
-          {/* Include the currently-attached agent even if they're
-              archived or specialist — otherwise the dropdown can't
-              represent the actual state. */}
-          {number.attachedAgent &&
-            !agents.some((a) => a.id === number.attachedAgent!.id) && (
-              <option value={number.attachedAgent.id}>
-                {number.attachedAgent.name}
-              </option>
+      {/* Per-agent human-fallback config. Only surfaces once a number
+          is actually attached to an agent — no agent means no place
+          to hang the fallback number. */}
+      {attachedAgentFull && (
+        <HumanFallbackForm
+          key={attachedAgentFull.id}
+          agent={attachedAgentFull}
+          onSaved={onChange}
+        />
+      )}
+    </div>
+  );
+}
+
+function HumanFallbackForm({
+  agent,
+  onSaved,
+}: {
+  agent: AgentRef;
+  onSaved: () => void;
+}) {
+  const [expanded, setExpanded] = useState(!!agent.humanFallbackNumber);
+  const [value, setValue] = useState(agent.humanFallbackNumber || "");
+  const [saving, setSaving] = useState(false);
+  const dirty = (agent.humanFallbackNumber || "") !== value.trim();
+  const hasNumber = !!agent.humanFallbackNumber;
+
+  async function save(phone: string | null) {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/agents/fallback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ agent_id: agent.id, phone_number: phone }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || "Failed to save.");
+      toast.success(
+        phone === null ? "Fallback removed." : "Fallback saved.",
+      );
+      onSaved();
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to save.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mt-2 ml-5 pl-4 border-l-2 border-[var(--rule)]">
+      <button
+        onClick={() => setExpanded((e) => !e)}
+        className="flex items-center gap-2 text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
+      >
+        {expanded ? (
+          <ChevronDown className="w-3 h-3" strokeWidth={1.5} />
+        ) : (
+          <ChevronRight className="w-3 h-3" strokeWidth={1.5} />
+        )}
+        <UserRound className="w-3 h-3" strokeWidth={1.5} />
+        <span>
+          Transfer to a human
+          {hasNumber && (
+            <span className="ml-2 font-mono text-[var(--ink)]">
+              → {agent.humanFallbackNumber}
+            </span>
+          )}
+        </span>
+      </button>
+
+      {expanded && (
+        <div className="mt-2 space-y-2">
+          <p className="text-xs text-[var(--ink-muted)] leading-relaxed">
+            When the caller asks for a real person ("talk to someone,"
+            "representative," etc.), Drift bridges the call here. Leave blank
+            to have Drift keep trying to help.
+          </p>
+          <div className="flex items-center gap-2">
+            <input
+              type="tel"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder="+1 555 123 4567"
+              className="flex-1 px-3 py-1.5 text-sm bg-white border border-[var(--rule)] rounded-[4px] text-[var(--ink)] outline-none focus:border-[var(--accent)] font-mono"
+            />
+            <button
+              onClick={() => save(value.trim() || null)}
+              disabled={saving || !dirty}
+              className="px-3 py-1.5 text-xs font-medium bg-[var(--ink)] text-[var(--canvas)] rounded-[4px] hover:bg-[var(--ink)]/90 transition disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Save"}
+            </button>
+            {hasNumber && (
+              <button
+                onClick={() => {
+                  setValue("");
+                  save(null);
+                }}
+                disabled={saving}
+                className="text-xs text-[#ef4444] hover:underline disabled:opacity-50"
+              >
+                Clear
+              </button>
             )}
-          {agents.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name}
-            </option>
-          ))}
-        </select>
-      </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
