@@ -18,7 +18,7 @@ import { isOwner } from "@/lib/rbac";
 import { hasSuperadminAccess } from "@/lib/superadmin";
 import {
   ArrowLeft, TrendingDown, Zap, ArrowUpRight, Flame,
-  Activity, AlertTriangle, Key, ShieldCheck, Archive, BookOpen,
+  Activity, AlertTriangle, Key, ShieldCheck, Vault, BookOpen,
   FileText, Sparkles,
 } from "lucide-react";
 
@@ -159,7 +159,7 @@ export default async function DantePage() {
               className="group card-flat card-flat-hover p-6 flex flex-col">
               <div className="flex items-start justify-between mb-4">
                 <div className="border border-[var(--rule)] bg-[var(--canvas)] rounded-[4px] p-2.5">
-                  <Archive className="w-5 h-5 text-[var(--ink)]" strokeWidth={1.5} />
+                  <Vault className="w-5 h-5 text-[var(--ink)]" strokeWidth={1.5} />
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[3px] bg-[var(--verified-soft)] text-[var(--verified)] text-[10px] font-medium">
