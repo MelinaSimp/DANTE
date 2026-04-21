@@ -5,6 +5,7 @@ import { normalizePhone } from "@/lib/phone";
 import { generateSpeechTwiml } from "@/lib/elevenlabs/twiml";
 import { validateTwilioRequest } from "@/lib/twilio-validate";
 import { getEnabledFeatures } from "@/lib/features";
+import { decorateGreetingWithDisclosure } from "@/lib/voice/disclosure";
 
 export const dynamic = "force-dynamic";
 const DEBUG = process.env.DEBUG_VOICE === "true";
@@ -411,6 +412,26 @@ async function handleIncoming(req: NextRequest): Promise<NextResponse> {
     if (!greeting || greeting.trim().length === 0) {
       greeting = "Hello! How can I help you today?";
       if (DEBUG) console.log("[Twilio] Using default greeting (no scenario/step message)");
+    }
+
+    // Prepend the workspace's call-recording disclosure. Two-party-
+    // consent states (CA/FL/IL/MD/MA/MT/NV/NH/PA/WA/CT) require the
+    // caller to know the call is being captured before they speak, and
+    // we transcribe every call. Workspaces can override the exact
+    // wording via workspaces.recording_disclosure; default applies
+    // otherwise. This runs unconditionally — there's no legitimate
+    // voice-AI flow where we'd want to skip it.
+    {
+      const { data: workspace } = await supabaseAdmin
+        .from("workspaces")
+        .select("recording_disclosure")
+        .eq("id", agent.workspace_id)
+        .maybeSingle();
+      greeting = decorateGreetingWithDisclosure(
+        greeting,
+        workspace?.recording_disclosure ?? null,
+      );
+      if (DEBUG) console.log("[Twilio] Greeting with disclosure:", greeting.substring(0, 160));
     }
 
     // The response endpoint is called automatically by Twilio's <Gather> action

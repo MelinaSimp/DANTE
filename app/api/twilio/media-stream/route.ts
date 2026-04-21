@@ -13,6 +13,8 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { normalizePhone } from "@/lib/phone";
 import { generateSpeechTwiml } from "@/lib/elevenlabs/twiml";
 import { validateTwilioRequest } from "@/lib/twilio-validate";
+import { xmlEscape } from "@/lib/xml";
+import { DEFAULT_RECORDING_DISCLOSURE } from "@/lib/voice/disclosure";
 
 export const dynamic = "force-dynamic";
 const DEBUG = process.env.DEBUG_VOICE === "true";
@@ -278,15 +280,35 @@ async function handleMediaStream(req: NextRequest) {
     }
     
     let twiml: string;
-    
+
+    // Fetch the workspace's recording disclosure (or fall back to the
+    // default). Spoken before either the Media Streams connect or the
+    // fallback <Say> so every voice entry point gets disclosed.
+    // Two-party-consent states require the caller to hear this before
+    // any transcription begins.
+    const { data: workspace } = await supabaseAdmin
+      .from("workspaces")
+      .select("recording_disclosure")
+      .eq("id", agent.workspace_id)
+      .maybeSingle();
+    const disclosureText = (
+      workspace?.recording_disclosure?.trim() || DEFAULT_RECORDING_DISCLOSURE
+    ).trim();
+    const disclosureSay = `<Say voice="alice">${xmlEscape(disclosureText)}</Say>`;
+
     if (useMediaStreams) {
       // Use <Connect><Stream> for BIDIRECTIONAL audio. <Start><Stream> is receive-only.
       // Twilio: "The url does not support query string parameters." Use <Parameter> instead.
       const mediaStreamUrl = `${railwayUrl}/media-stream`;
       const convIdEscaped = conversation.id.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
 
+      // Disclosure plays first, then the Railway WebSocket takes over
+      // for the bidirectional conversation. Railway's own greeting
+      // comes after the disclosure, which is the order the caller
+      // expects ("heads up, then hello").
       twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
+  ${disclosureSay}
   <Connect>
     <Stream url="${mediaStreamUrl}">
       <Parameter name="conversationId" value="${convIdEscaped}" />
@@ -304,6 +326,7 @@ async function handleMediaStream(req: NextRequest) {
       
       twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
+  ${disclosureSay}
   <Say>Hello! How can I help you today?</Say>
   <Pause length="1"/>
   <Gather input="speech" method="POST" speechTimeout="auto" language="en-US" action="${responseUrl.replace(/&/g, "&amp;")}">

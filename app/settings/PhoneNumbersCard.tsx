@@ -31,6 +31,7 @@ import {
   ChevronDown,
   ChevronRight,
   Forward,
+  ShieldCheck,
 } from "lucide-react";
 import { toast } from "@/components/ui/toast";
 import { confirmDialog } from "@/components/ui/confirm-dialog";
@@ -449,7 +450,182 @@ function ConnectedView({
         )}
       </div>
 
+      <RecordingDisclosureCard />
+
       <ForwardingGuide />
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// Call-recording disclosure editor.
+//
+// Drift stores a transcript of every voice call; the disclosure is
+// spoken at the very start of the call so the caller has knowledge
+// of the capture before they say anything. Two-party-consent states
+// (CA, FL, IL, MD, MA, MT, NV, NH, PA, WA, CT) require this, and
+// broker-dealer / financial-advisor compliance desks typically have
+// approved wording they prefer. We default to a safe generic line
+// and let workspaces override.
+// ──────────────────────────────────────────────────────────────
+
+function RecordingDisclosureCard() {
+  const [loaded, setLoaded] = useState(false);
+  const [defaultText, setDefaultText] = useState("");
+  const [draft, setDraft] = useState("");
+  // `stored` is what's currently in the DB (null means "using default").
+  // `draft` is what's in the textarea right now.
+  const [stored, setStored] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/workspaces/recording-disclosure", {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (cancelled) return;
+        setDefaultText(json.default || "");
+        setStored(json.disclosure ?? null);
+        setDraft(json.disclosure ?? "");
+      } finally {
+        if (!cancelled) setLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const usingDefault = stored === null;
+  const trimmed = draft.trim();
+  const dirty = (stored ?? "") !== trimmed;
+
+  async function save(value: string | null) {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/workspaces/recording-disclosure", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ disclosure: value }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json.error || "Couldn't save disclosure.");
+        return;
+      }
+      setStored(json.disclosure ?? null);
+      setDraft(json.disclosure ?? "");
+      toast.success(
+        json.disclosure === null
+          ? "Reverted to the default disclosure."
+          : "Disclosure updated.",
+      );
+    } catch (e: any) {
+      toast.error(e?.message || "Couldn't save disclosure.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="card-flat p-6">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-start gap-3 text-left"
+      >
+        <ShieldCheck
+          className="w-4 h-4 text-[var(--ink-muted)] mt-1 shrink-0"
+          strokeWidth={1.5}
+        />
+        <div className="flex-1">
+          <div className="label-section mb-1">Compliance</div>
+          <h3 className="heading-display text-xl text-[var(--ink)]">
+            Call recording disclosure
+          </h3>
+          <p className="text-sm text-[var(--ink-muted)] mt-1">
+            Spoken at the very start of every voice call so callers know the
+            conversation is transcribed. Required for two-party-consent
+            states.
+          </p>
+        </div>
+        {open ? (
+          <ChevronDown
+            className="w-4 h-4 text-[var(--ink-subtle)] mt-1.5"
+            strokeWidth={1.5}
+          />
+        ) : (
+          <ChevronRight
+            className="w-4 h-4 text-[var(--ink-subtle)] mt-1.5"
+            strokeWidth={1.5}
+          />
+        )}
+      </button>
+
+      {open && (
+        <div className="mt-4 pl-7 space-y-3">
+          <div className="rounded-[4px] border border-[var(--rule)] bg-[var(--canvas-subtle)] p-3 text-xs text-[var(--ink-muted)]">
+            <span className="text-[var(--ink-subtle)]">Default:</span>{" "}
+            <span className="text-[var(--ink-muted)]">
+              {loaded ? defaultText : "Loading…"}
+            </span>
+          </div>
+
+          <div>
+            <label
+              htmlFor="recording-disclosure"
+              className="block text-xs font-medium text-[var(--ink-muted)] mb-1"
+            >
+              Custom wording{" "}
+              <span className="text-[var(--ink-subtle)] font-normal">
+                (leave empty to use the default)
+              </span>
+            </label>
+            <textarea
+              id="recording-disclosure"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              rows={3}
+              maxLength={600}
+              placeholder={defaultText}
+              disabled={!loaded || saving}
+              className="w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+            />
+            <div className="flex items-center justify-between mt-1 text-xs text-[var(--ink-subtle)]">
+              <span>{draft.length}/600</span>
+              <span>
+                {usingDefault
+                  ? "Currently using the default."
+                  : "Custom wording is active."}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => save(trimmed.length === 0 ? null : trimmed)}
+              disabled={!loaded || saving || !dirty}
+              className="inline-flex items-center gap-2 rounded-[4px] bg-[var(--ink)] px-3 py-1.5 text-xs font-medium text-[var(--canvas)] hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {saving && <Loader2 className="w-3 h-3 animate-spin" />}
+              Save
+            </button>
+            {!usingDefault && (
+              <button
+                onClick={() => save(null)}
+                disabled={!loaded || saving}
+                className="inline-flex items-center gap-2 rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-1.5 text-xs font-medium text-[var(--ink-muted)] hover:bg-[var(--canvas-subtle)] disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Revert to default
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
