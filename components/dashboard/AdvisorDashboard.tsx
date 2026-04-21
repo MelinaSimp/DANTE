@@ -25,6 +25,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
+import { pickGreeting, pickSubtitle } from "@/lib/dashboard/greetings";
 import {
   ArrowUpRight,
   ShieldCheck,
@@ -117,13 +118,22 @@ function formatRelativeDate(iso: string) {
 
 export default function AdvisorDashboard({ data }: { data: DashboardData }) {
   const router = useRouter();
-  const hour = new Date().getHours();
-  const greeting =
-    hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
   const firstName = useMemo(
     () => data.advisorName.split(" ")[0] || "there",
     [data.advisorName]
+  );
+
+  // Greeting + subtitle rotate from pools in lib/dashboard/greetings
+  // seeded on (firstName, today's date). Same copy all day, fresh
+  // tomorrow. useMemo so the hash doesn't recompute on every render.
+  const greeting = useMemo(() => pickGreeting(firstName), [firstName]);
+  const hasCompliance = data.features.includes("compliance_scanner");
+  const meetings = data.today.length;
+  const review = hasCompliance ? data.awaitingReview : 0;
+  const subtitle = useMemo(
+    () => pickSubtitle(firstName, meetings, review),
+    [firstName, meetings, review],
   );
 
   return (
@@ -219,23 +229,7 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
             {greeting}, {firstName}.
           </h1>
           <p className="prose-body text-[var(--ink-muted)] max-w-2xl">
-            {(() => {
-              const hasCompliance = data.features.includes("compliance_scanner");
-              const meetings = data.today.length;
-              const review = hasCompliance ? data.awaitingReview : 0;
-              if (meetings > 0 && review > 0) {
-                return `You have ${meetings} meeting${meetings === 1 ? "" : "s"} today. ${review} item${review === 1 ? "" : "s"} need${review === 1 ? "s" : ""} your review.`;
-              }
-              if (meetings > 0) {
-                return `You have ${meetings} meeting${meetings === 1 ? "" : "s"} today.${hasCompliance ? " Nothing awaiting your review." : ""}`;
-              }
-              if (review > 0) {
-                return `No meetings today. ${review} item${review === 1 ? "" : "s"} need${review === 1 ? "s" : ""} your review.`;
-              }
-              return hasCompliance
-                ? "No meetings today, nothing awaiting review. A quiet one."
-                : "No meetings today. A quiet one.";
-            })()}
+            {subtitle}
           </p>
         </div>
 
