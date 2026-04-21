@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { createServerSupabase } from "@/lib/supabase/server";
 import twilio from "twilio";
 import { normalizePhone } from "@/lib/phone";
+import { decryptSecret } from "@/lib/crypto/secrets";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -62,7 +63,8 @@ export async function POST(
 
     if (twilioCreds?.account_sid && twilioCreds?.auth_token) {
       accountSid = twilioCreds.account_sid;
-      authToken = twilioCreds.auth_token;
+      // auth_token encrypted at rest; decryptSecret handles legacy plaintext too.
+      authToken = decryptSecret(twilioCreds.auth_token);
     } else {
       // Fallback to environment variables
       accountSid = process.env.TWILIO_ACCOUNT_SID || process.env.TWILIO_MASTER_ACCOUNT_SID || null;

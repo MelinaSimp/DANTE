@@ -7,6 +7,7 @@
 
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { decryptSecret } from "@/lib/crypto/secrets";
 
 const DEBUG = process.env.DEBUG_VOICE === "true";
 
@@ -2616,7 +2617,9 @@ Answer:`;
       
       if (twilioCreds?.account_sid && twilioCreds?.auth_token) {
         accountSid = twilioCreds.account_sid;
-        authToken = twilioCreds.auth_token;
+        // auth_token is AES-256-GCM encrypted at rest; decryptSecret
+        // transparently handles both encrypted and legacy-plaintext rows.
+        authToken = decryptSecret(twilioCreds.auth_token);
       } else {
         // Fallback to environment variables
         accountSid = process.env.TWILIO_ACCOUNT_SID || null;

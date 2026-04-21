@@ -6,6 +6,7 @@ import twilio from "twilio";
 import { Resend } from "resend";
 import { emitEvent } from "@/lib/automations";
 import { logChurnEvent } from "@/lib/dante/churn-events";
+import { decryptSecret } from "@/lib/crypto/secrets";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -517,7 +518,8 @@ export async function sendAppointmentSMS(
 
   if (twilioCreds?.account_sid && twilioCreds?.auth_token) {
     accountSid = twilioCreds.account_sid;
-    authToken = twilioCreds.auth_token;
+    // auth_token encrypted at rest; decryptSecret handles legacy plaintext too.
+    authToken = decryptSecret(twilioCreds.auth_token);
   } else {
     // Fallback to environment variables
     accountSid = process.env.TWILIO_ACCOUNT_SID || process.env.TWILIO_MASTER_ACCOUNT_SID || null;

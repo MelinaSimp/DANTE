@@ -11,6 +11,7 @@ import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import twilio from "twilio";
 import { naiveLocalIsoToUtcIso, appDayRangeUtcIso, appWallClockToUtcMs, getAppTimezone } from "@/lib/app-timezone";
 import dayjs from "dayjs";
+import { decryptSecret } from "@/lib/crypto/secrets";
 
 export const dynamic = "force-dynamic";
 
@@ -434,7 +435,8 @@ async function sendAppointmentSMS(
 
   if (twilioCreds?.account_sid && twilioCreds?.auth_token) {
     accountSid = twilioCreds.account_sid;
-    authToken = twilioCreds.auth_token;
+    // auth_token encrypted at rest; decryptSecret handles legacy plaintext too.
+    authToken = decryptSecret(twilioCreds.auth_token);
   } else {
     // Fallback to environment variables
     accountSid = process.env.TWILIO_ACCOUNT_SID || process.env.TWILIO_MASTER_ACCOUNT_SID || null;

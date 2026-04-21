@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import twilio from "twilio";
 import { recordSmsUsage } from "@/lib/usage/track";
+import { decryptSecret } from "@/lib/crypto/secrets";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60; // 60 seconds for batch processing
@@ -62,7 +63,8 @@ export async function GET(req: NextRequest) {
         
         if (twilioCreds?.account_sid && twilioCreds?.auth_token) {
           accountSid = twilioCreds.account_sid;
-          authToken = twilioCreds.auth_token;
+          // auth_token encrypted at rest; decryptSecret handles legacy plaintext too.
+          authToken = decryptSecret(twilioCreds.auth_token);
         } else {
           // Fallback to environment variables
           accountSid = process.env.TWILIO_ACCOUNT_SID || null;

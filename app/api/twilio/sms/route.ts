@@ -4,6 +4,7 @@ import { normalizePhone } from "@/lib/phone";
 import { AgentExecutor, ConversationContext } from "@/lib/agent-executor/executor";
 import twilio from "twilio";
 import { validateTwilioRequest } from "@/lib/twilio-validate";
+import { decryptSecret } from "@/lib/crypto/secrets";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -271,7 +272,9 @@ export async function POST(req: NextRequest) {
 
     if (twilioCreds?.account_sid && twilioCreds?.auth_token) {
       accountSid = twilioCreds.account_sid;
-      authToken = twilioCreds.auth_token;
+      // auth_token encrypted at rest; decryptSecret handles both
+      // encrypted and legacy-plaintext rows transparently.
+      authToken = decryptSecret(twilioCreds.auth_token);
       console.log("[Twilio SMS] Using credentials from database");
     } else {
       // Fallback to environment variables

@@ -13,6 +13,7 @@ import twilio from "twilio";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { isWorkspaceAdmin } from "@/lib/rbac";
+import { encryptSecret } from "@/lib/crypto/secrets";
 
 export const dynamic = "force-dynamic";
 
@@ -99,14 +100,26 @@ export async function POST(request: Request) {
 
   // Persist via admin client so we don't depend on row-level policies
   // being in place for `twilio_credentials`. The workspace_id we write
-  // is the caller's own, enforced above.
+  // is the caller's own, enforced above. Auth token is encrypted at
+  // rest (AES-256-GCM, key in DRIFT_SECRET_KEY) — see lib/crypto/secrets.
+  let encryptedToken: string;
+  try {
+    encryptedToken = encryptSecret(authToken);
+  } catch (err) {
+    console.error("[twilio/verify] encrypt failed:", err);
+    return NextResponse.json(
+      { error: "Server isn't configured for secret encryption. Contact support." },
+      { status: 500 },
+    );
+  }
+
   const { error: upsertErr } = await supabaseAdmin
     .from("twilio_credentials")
     .upsert(
       {
         workspace_id: profile.workspace_id,
         account_sid: accountSid,
-        auth_token: authToken,
+        auth_token: encryptedToken,
       },
       { onConflict: "workspace_id" },
     );
