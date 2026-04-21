@@ -1,8 +1,11 @@
 // app/auth/callback/route.ts
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
-async function ensureUserWorkspace(user: any, supabase: any) {
+// Returns the workspace_id the user should land in, or null if they
+// still need to redeem a code on /join.
+async function ensureUserWorkspace(user: any, supabase: any): Promise<string | null> {
   const userId = user.id;
   const userEmail = user.email || "user@example.com";
   const meta = user.user_metadata || {};
@@ -11,6 +14,10 @@ async function ensureUserWorkspace(user: any, supabase: any) {
   const companyName = typeof meta.company_name === "string" ? meta.company_name.trim() : "";
   const companyCategory =
     typeof meta.company_category === "string" ? meta.company_category.trim() : null;
+  const pendingCode =
+    typeof meta.pending_workspace_code === "string"
+      ? meta.pending_workspace_code.trim().toUpperCase()
+      : "";
   const computedFullName = `${firstName} ${lastName}`.trim() || userEmail.split("@")[0];
 
   const { data: existingProfile } = await supabase
@@ -30,7 +37,7 @@ async function ensureUserWorkspace(user: any, supabase: any) {
     if (lastName) update.last_name = lastName;
     if (companyCategory) update.company_category = companyCategory;
     await supabase.from("profiles").upsert(update);
-    
+
     // Update workspace name if company name is provided
     if (companyName) {
       await supabase
@@ -38,21 +45,46 @@ async function ensureUserWorkspace(user: any, supabase: any) {
         .update({ name: companyName })
         .eq("id", existingProfile.workspace_id);
     }
-    return;
+    return existingProfile.workspace_id;
   }
 
-  // No workspace yet: only superadmin creates workspaces (admin API). Users join via invite code on /join.
+  // No workspace yet. If the user supplied a pending workspace code on
+  // signup (stashed in user_metadata by /auth), redeem it now so they
+  // land straight in the right workspace instead of bouncing through
+  // /join.
+  let redeemedWorkspaceId: string | null = null;
+  if (pendingCode) {
+    const { data: workspace } = await supabaseAdmin
+      .from("workspaces")
+      .select("id")
+      .eq("invite_code", pendingCode)
+      .maybeSingle();
+    if (workspace?.id) {
+      redeemedWorkspaceId = workspace.id;
+      // Clear the stashed code — it's single-use per signup.
+      try {
+        await supabaseAdmin.auth.admin.updateUserById(userId, {
+          user_metadata: { ...meta, pending_workspace_code: null },
+        });
+      } catch {
+        // Non-fatal: the code just lingers in metadata, no harm done.
+      }
+    }
+  }
+
   const pendingProfile: Record<string, any> = {
     id: userId,
     full_name: computedFullName,
     role: "member",
     is_superadmin: false,
-    workspace_id: null,
+    workspace_id: redeemedWorkspaceId,
   };
   if (firstName) pendingProfile.first_name = firstName;
   if (lastName) pendingProfile.last_name = lastName;
   if (companyCategory) pendingProfile.company_category = companyCategory;
   await supabase.from("profiles").upsert(pendingProfile);
+
+  return redeemedWorkspaceId;
 }
 
 export async function GET(req: Request) {
@@ -70,12 +102,12 @@ export async function GET(req: Request) {
     }
     
     if (data.session && data.user) {
-      await ensureUserWorkspace(data.user, supabase);
+      const workspaceId = await ensureUserWorkspace(data.user, supabase);
 
-      // Send users straight to the dashboard (the "sharp core").
-      // The /select hub is still reachable for multi-role workspaces
-      // but isn't the landing page anymore.
-      return NextResponse.redirect(new URL("/dashboard", requestUrl.origin));
+      // New users without a workspace (or with an invalid/missing code)
+      // go to /join to redeem one. Everyone else lands on /dashboard.
+      const target = workspaceId ? "/dashboard" : "/join";
+      return NextResponse.redirect(new URL(target, requestUrl.origin));
     }
   }
 
@@ -85,9 +117,9 @@ export async function GET(req: Request) {
   } = await supabase.auth.getUser();
 
   if (user) {
-    await ensureUserWorkspace(user, supabase);
-
-    return NextResponse.redirect(new URL("/dashboard", requestUrl.origin));
+    const workspaceId = await ensureUserWorkspace(user, supabase);
+    const target = workspaceId ? "/dashboard" : "/join";
+    return NextResponse.redirect(new URL(target, requestUrl.origin));
   }
 
   // No user found, redirect to auth page

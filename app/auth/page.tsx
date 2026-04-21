@@ -15,6 +15,7 @@ export default function AuthPage() {
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [workspaceCode, setWorkspaceCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -57,6 +58,12 @@ export default function AuthPage() {
           setLoading(false);
           return;
         }
+        const normalizedCode = workspaceCode.trim().toUpperCase();
+        if (!normalizedCode) {
+          setError("Workspace code is required. Ask your admin for the code.");
+          setLoading(false);
+          return;
+        }
 
         const { error: signUpError, data } = await supabase.auth.signUp({
           email,
@@ -66,6 +73,7 @@ export default function AuthPage() {
             data: {
               first_name: firstName.trim(),
               last_name: lastName.trim(),
+              pending_workspace_code: normalizedCode,
             },
           },
         });
@@ -76,7 +84,7 @@ export default function AuthPage() {
           window.location.href = "/auth/callback";
         } else {
           setMessage(
-            "Check your email to confirm, then sign in. You'll need a workspace invite code from your admin — use Join workspace after login."
+            "Check your email to confirm your account. Your workspace code is saved — you'll be dropped straight into the workspace after confirming."
           );
         }
       } else {
@@ -188,7 +196,7 @@ export default function AuthPage() {
                 style={{ color: "var(--ink-muted)" }}
               >
                 {isSignUp
-                  ? "Use your workspace invite code after sign-up to join."
+                  ? "Enter your workspace code from your admin to join."
                   : "Sign in to continue."}
               </p>
             </div>
@@ -233,6 +241,32 @@ export default function AuthPage() {
                 required
                 minLength={8}
               />
+
+              {isSignUp && (
+                <div>
+                  <input
+                    type="text"
+                    value={workspaceCode}
+                    onChange={(e) =>
+                      setWorkspaceCode(e.target.value.toUpperCase())
+                    }
+                    style={{ ...inputStyle, letterSpacing: "0.08em" }}
+                    className="mono"
+                    placeholder="Workspace code (e.g. DRIFT-XXXXXX)"
+                    required={isSignUp}
+                    autoCapitalize="characters"
+                    spellCheck={false}
+                  />
+                  <p
+                    className="mt-1.5 text-[11px] leading-relaxed"
+                    style={{ color: "var(--ink-subtle)" }}
+                  >
+                    Ask your firm admin for the code — format{" "}
+                    <span className="mono">DRIFT-XXXXXX</span>. It drops
+                    you straight into the right workspace.
+                  </p>
+                </div>
+              )}
 
               {!isSignUp && (
                 <div className="flex items-center pt-1">
