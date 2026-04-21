@@ -17,7 +17,7 @@ import Link from "next/link";
 import {
   ArrowLeft, RefreshCw, AlertTriangle, TrendingDown, Activity,
   ShieldCheck, ChevronDown, ChevronUp, Phone, Mail, Loader2,
-  Flame,
+  Flame, Info,
 } from "lucide-react";
 
 type Tier = "healthy" | "watch" | "at_risk" | "critical";
@@ -51,6 +51,52 @@ const TIER_STYLE: Record<Tier, { label: string; bg: string; fg: string; dot: str
 };
 
 const TIER_ORDER: Tier[] = ["critical", "at_risk", "watch", "healthy"];
+
+// Plain-language explanation for each churn signal, keyed by the
+// `key` field on ChurnSignal. Weights live in lib/dante/churn.ts
+// (WEIGHTS) — the percentages below mirror those so the tooltip
+// doesn't drift when the weights change, but keep them in sync if
+// you retune.
+//
+// Writing guide: one sentence describes what the signal measures,
+// one sentence describes what a "bad" value looks like. No "this
+// signal is computed by…" implementation talk — advisors want to
+// know why a number is there, not how the sausage is made.
+const SIGNAL_EXPLANATIONS: Record<
+  string,
+  { what: string; bad: string; weight: string }
+> = {
+  recency: {
+    what: "How long it's been since you last touched this client on any channel — call, email, meeting, or SMS.",
+    bad: "Climbs as the gap widens. A 120-day silence maxes this out.",
+    weight: "25% of the score",
+  },
+  attendance: {
+    what: "How reliably the client shows up when you schedule something.",
+    bad: "No-shows and last-minute cancellations push this up. Clients who keep every meeting score zero here.",
+    weight: "15% of the score",
+  },
+  engagement: {
+    what: "How often you've actually been in touch in the last 90 days.",
+    bad: "A client with two touches in a quarter reads as disengaged; a dozen reads as active.",
+    weight: "15% of the score",
+  },
+  sentiment: {
+    what: "Concern phrases Drift caught in recent call summaries — pricing pushback, confusion, frustration, that kind of thing.",
+    bad: "Each flagged phrase from a recent call adds points. Calls without any concerning language are neutral.",
+    weight: "10% of the score",
+  },
+  trajectory: {
+    what: "Whether the time between your touches is getting longer or holding steady.",
+    bad: "Widening gaps score worse than a stable cadence, even if the total touch count looks fine. Needs ~6 past touches before it has anything to say.",
+    weight: "10% of the score",
+  },
+  events: {
+    what: "A rolled-up engagement delta from the event log — opens, replies, meeting confirmations, SMS responses, weighted by how recent they are.",
+    bad: "A string of silences pulls this up; a burst of recent engagement pulls it down. Decays on a 30-day half-life so old activity fades.",
+    weight: "25% of the score",
+  },
+};
 
 export default function DanteChurnClient() {
   const [rows, setRows] = useState<ChurnRow[]>([]);
@@ -264,25 +310,36 @@ export default function DanteChurnClient() {
                     <div className="border-t border-[var(--rule)] bg-[var(--canvas-subtle)] px-5 py-5">
                       <div className="label-section mb-3">Signal breakdown</div>
                       <div className="space-y-3">
-                        {row.signals.map((s) => (
-                          <div key={s.key}>
-                            <div className="flex items-center justify-between mb-1 text-xs">
-                              <span className="text-[var(--ink)] font-medium">{s.label}</span>
-                              <span className="text-[var(--ink-muted)]">
-                                {formatRaw(s.raw)} · +{Math.round(s.contribution * 100)}pt
-                              </span>
+                        {row.signals.map((s) => {
+                          const explanation = SIGNAL_EXPLANATIONS[s.key];
+                          return (
+                            <div key={s.key}>
+                              <div className="flex items-center justify-between mb-1 text-xs">
+                                <span className="flex items-center gap-1.5 text-[var(--ink)] font-medium">
+                                  {s.label}
+                                  {explanation && (
+                                    <SignalInfo
+                                      label={s.label}
+                                      explanation={explanation}
+                                    />
+                                  )}
+                                </span>
+                                <span className="text-[var(--ink-muted)]">
+                                  {formatRaw(s.raw)} · +{Math.round(s.contribution * 100)}pt
+                                </span>
+                              </div>
+                              <div className="h-1.5 rounded-full bg-[var(--canvas-muted)] overflow-hidden">
+                                <div
+                                  className="h-full bg-[var(--ink)]"
+                                  style={{ width: `${Math.round(s.normalized * 100)}%` }}
+                                />
+                              </div>
+                              {s.detail && (
+                                <p className="text-[11px] text-[var(--ink-subtle)] mt-1">{s.detail}</p>
+                              )}
                             </div>
-                            <div className="h-1.5 rounded-full bg-[var(--canvas-muted)] overflow-hidden">
-                              <div
-                                className="h-full bg-[var(--ink)]"
-                                style={{ width: `${Math.round(s.normalized * 100)}%` }}
-                              />
-                            </div>
-                            {s.detail && (
-                              <p className="text-[11px] text-[var(--ink-subtle)] mt-1">{s.detail}</p>
-                            )}
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                       <div className="flex items-center gap-2 mt-5 pt-4 border-t border-[var(--rule)]">
                         <Link
@@ -313,4 +370,54 @@ function topSignals(signals: Signal[], n: number): Signal[] {
 function formatRaw(v: Signal["raw"]): string {
   if (v === null || v === undefined) return "—";
   return String(v);
+}
+
+// Info affordance next to each signal label. The icon is visible at
+// rest (low-contrast); hover or focus reveals a popover that explains
+// what the signal measures, what a bad value looks like, and how much
+// weight it carries in the overall score.
+//
+// Implemented with CSS :hover/:focus-within rather than a state-held
+// tooltip because the breakdown panel already lives inside an
+// expanded row — we don't want a second layer of click-to-reveal.
+function SignalInfo({
+  label,
+  explanation,
+}: {
+  label: string;
+  explanation: { what: string; bad: string; weight: string };
+}) {
+  return (
+    <span className="relative inline-flex group">
+      <button
+        type="button"
+        aria-label={`About "${label}"`}
+        className="text-[var(--ink-subtle)] hover:text-[var(--ink-muted)] focus:text-[var(--ink-muted)] focus:outline-none"
+        tabIndex={0}
+      >
+        <Info className="h-3 w-3" strokeWidth={1.5} />
+      </button>
+      <span
+        role="tooltip"
+        className="
+          pointer-events-none absolute left-0 top-full mt-2 z-20
+          w-72 rounded-md border border-[var(--rule)] bg-[var(--canvas)]
+          p-3 shadow-lg
+          opacity-0 translate-y-1 transition
+          group-hover:opacity-100 group-hover:translate-y-0
+          group-focus-within:opacity-100 group-focus-within:translate-y-0
+        "
+      >
+        <span className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--ink-subtle)] mb-1.5">
+          {explanation.weight}
+        </span>
+        <span className="block text-xs text-[var(--ink)] leading-relaxed mb-1.5">
+          {explanation.what}
+        </span>
+        <span className="block text-[11px] text-[var(--ink-muted)] leading-relaxed">
+          {explanation.bad}
+        </span>
+      </span>
+    </span>
+  );
 }
