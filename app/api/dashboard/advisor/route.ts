@@ -194,57 +194,6 @@ export async function GET() {
     awaitingReview = (taskCount || 0) + (flagCount || 0);
   }
 
-  // Custodian AUM — sum of the latest balance per account. We take
-  // the most recent as_of per account (each daily snapshot is a full
-  // value, not a delta). If all connections for this workspace use the
-  // mock driver we label the number as Demo data in the UI so a CCO
-  // doesn't mistake fixtures for a real book.
-  let aumTotal: number | null = null;
-  let aumAsOf: string | null = null;
-  let aumIsDemo = false;
-  let aumAccountCount = 0;
-  if (wid) {
-    const [{ data: connections }, { data: balances }] = await Promise.all([
-      supabaseAdmin
-        .from("custodian_connections")
-        .select("provider, status")
-        .eq("workspace_id", wid),
-      supabaseAdmin
-        .from("custodian_balances")
-        .select("account_id, as_of, total_value")
-        .eq("workspace_id", wid)
-        .order("as_of", { ascending: false })
-        .limit(500),
-    ]);
-
-    if (connections && connections.length > 0) {
-      aumIsDemo = connections.every((c: any) => c.provider === "mock");
-    }
-
-    if (balances && balances.length > 0) {
-      // Keep only the newest balance per account.
-      const latestByAccount = new Map<
-        string,
-        { as_of: string; total_value: number }
-      >();
-      for (const b of balances as any[]) {
-        const prev = latestByAccount.get(b.account_id);
-        if (!prev || String(b.as_of) > String(prev.as_of)) {
-          latestByAccount.set(b.account_id, {
-            as_of: String(b.as_of),
-            total_value: Number(b.total_value) || 0,
-          });
-        }
-      }
-      aumAccountCount = latestByAccount.size;
-      aumTotal = 0;
-      for (const v of latestByAccount.values()) {
-        aumTotal += v.total_value;
-        if (!aumAsOf || v.as_of > aumAsOf) aumAsOf = v.as_of;
-      }
-    }
-  }
-
   // Verified % across recent recordings (real signal from grounded summaries)
   let verifiedPct: number | null = null;
   if (wid) {
@@ -282,10 +231,6 @@ export async function GET() {
       calls7d: (calls7d as any)?.count || 0,
       documents: (documents as any)?.count || 0,
       verifiedPct,
-      aumTotal,
-      aumAsOf,
-      aumIsDemo,
-      aumAccountCount,
     },
   });
 }
