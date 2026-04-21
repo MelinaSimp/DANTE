@@ -625,7 +625,7 @@ function StepDone({
         />
         <DoneItem
           label="Wire up a phone number"
-          detail="Voice needs a provisioned number. Email support@driftai.studio to get one connected — self-serve Twilio setup is on the roadmap."
+          detail="Connect your Twilio account and point a number at an agent under Settings → Phone numbers. Drift uses your Twilio so you own the numbers and the bill."
         />
       </div>
 
