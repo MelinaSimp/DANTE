@@ -22,9 +22,11 @@ export default function InvitesAPanel() {
       fetch("/api/admin/workspace-features", { credentials: "include" }).then(r => r.json()),
       fetch("/api/admin/invites", { credentials: "include" }).then(r => r.json()),
     ]).then(([wsList, invList]) => {
-      setWorkspaces(Array.isArray(wsList) ? wsList.map((w: any) => ({ id: w.id, name: w.name })) : []);
-      setInvites(Array.isArray(invList) ? invList : []);
-      if (Array.isArray(wsList) && wsList.length > 0) setWsId(wsList[0].id);
+      const ws = Array.isArray(wsList) ? wsList.map((w: any) => ({ id: w.id, name: w.name })) : [];
+      setWorkspaces(ws);
+      const invs = Array.isArray(invList?.invites) ? invList.invites : [];
+      setInvites(invs);
+      if (ws.length > 0) setWsId(ws[0].id);
     }).catch(reportError("InvitesAPanel: load")).finally(() => setLoading(false));
   }, []);
 
@@ -33,7 +35,7 @@ export default function InvitesAPanel() {
   const handleSend = async () => {
     if (!email.trim() || !wsId) return; setSending(true);
     try {
-      const r = await fetch("/api/admin/invites", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ email: email.trim(), workspace_id: wsId }) });
+      const r = await fetch("/api/admin/invites", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ email: email.trim(), workspaceId: wsId }) });
       const d = await r.json();
       if (r.ok && d.invite) { setInvites(p => [d.invite, ...p]); setEmail(""); setToast({ type: "success", msg: "Invite sent" }); }
       else setToast({ type: "error", msg: d.error || "Failed" });

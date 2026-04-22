@@ -38,7 +38,35 @@ export async function GET() {
     .order("created_at", { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ invites: invites || [] });
+
+  // invites.company_id is a legacy pointer at workspaces.id. Enrich with
+  // workspace name so the UI can render each row without a second fetch.
+  const companyIds = Array.from(
+    new Set((invites || []).map((i) => i.company_id).filter(Boolean))
+  );
+  const nameById = new Map<string, string>();
+  if (companyIds.length > 0) {
+    const { data: wss } = await supabaseAdmin
+      .from("workspaces")
+      .select("id, name")
+      .in("id", companyIds);
+    for (const w of wss || []) nameById.set(w.id, w.name);
+  }
+
+  // Invites are deleted on consumption (see app/auth/signup/page.tsx),
+  // so any row still here is either pending or expired.
+  const shaped = (invites || []).map((inv) => ({
+    id: inv.id,
+    token: inv.token,
+    email: inv.email,
+    workspace_id: inv.company_id,
+    workspace_name: inv.company_id ? nameById.get(inv.company_id) ?? null : null,
+    expires_at: inv.expires_at,
+    created_at: inv.created_at,
+    used: false,
+  }));
+
+  return NextResponse.json({ invites: shaped });
 }
 
 export async function POST(req: NextRequest) {
@@ -65,6 +93,24 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Enrich the echoed row with workspace_name so the UI list doesn't
+  // have to refetch just to render the new entry.
+  const { data: ws } = await supabaseAdmin
+    .from("workspaces")
+    .select("name")
+    .eq("id", workspaceId)
+    .maybeSingle();
+  const shapedInvite = {
+    id: invite.id,
+    token: invite.token,
+    email: invite.email,
+    workspace_id: invite.company_id,
+    workspace_name: ws?.name ?? null,
+    expires_at: invite.expires_at,
+    created_at: invite.created_at,
+    used: false,
+  };
 
   const appUrl = getAppUrl();
   const signupUrl = `${appUrl}/auth/signup?token=${token}`;
@@ -103,7 +149,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ invite, signupUrl });
+  return NextResponse.json({ invite: shapedInvite, signupUrl });
 }
 
 export async function DELETE(req: NextRequest) {
