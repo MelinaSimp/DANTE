@@ -49,7 +49,7 @@ import "@xyflow/react/dist/style.css";
 import {
   ArrowLeft, Save, Loader2, Play, Trash2, AlertCircle,
   CheckCircle2, Power, X, Plus, Copy, ChevronDown, ChevronUp,
-  Sparkles, History, Clock,
+  Sparkles, History, Clock, FlaskConical, BarChart3,
 } from "lucide-react";
 
 import type {
@@ -186,6 +186,8 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
+  const [dryRunning, setDryRunning] = useState(false);
+  const [isDryRun, setIsDryRun] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [runLog, setRunLog] = useState<StepLogEntry[] | null>(null);
@@ -381,7 +383,51 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
       setError(e instanceof Error ? e.message : "Run failed");
       setRunStatus("error");
       setLogOpen(true);
-    } finally { setRunning(false); }
+    } finally { setRunning(false); setIsDryRun(false); }
+  }, [workflow.id, name, description, enabled, nodes, edges]);
+
+  // Test run — simulate=true. Save the canvas first (so the server
+  // evaluates what you see), then hit /dry-run. Destructive nodes
+  // return a "would_have" stub; read-only ones produce real numbers.
+  // No run row is persisted.
+  const dryRun = useCallback(async () => {
+    setDryRunning(true);
+    setError(null);
+    setRunLog(null);
+    setRunStatus(null);
+    setIsDryRun(true);
+    try {
+      const graph = flowToGraph(nodes, edges);
+      const triggerNode = graph.nodes.find((n) => isTriggerType(n.type));
+      const triggerTag =
+        triggerNode?.type === "trigger_cron"    ? { type: "cron" }
+        : triggerNode?.type === "trigger_webhook" ? { type: "webhook" }
+        : { type: "manual" };
+      await fetch(`/api/dante/workflows/${workflow.id}`, {
+        method: "PUT", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, description, enabled, trigger: triggerTag, graph }),
+      });
+
+      setLogOpen(true);
+      setRunStatus("running");
+      const res = await fetch(`/api/dante/workflows/${workflow.id}/dry-run`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ input: {} }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Dry-run failed");
+      setRunLog(json.log || []);
+      setRunStatus(json.status === "error" ? "error" : "success");
+      if (json.status === "error" && json.error) setError(json.error);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Dry-run failed");
+      setRunStatus("error");
+      setLogOpen(true);
+    } finally {
+      setDryRunning(false);
+    }
   }, [workflow.id, name, description, enabled, nodes, edges]);
 
   // ── Run history ───────────────────────────────────────────
@@ -527,12 +573,31 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
             <History className="w-4 h-4" strokeWidth={1.5} />
             <span className="hidden sm:inline">History</span>
           </button>
+          <Link
+            href={`/dante/workflows/${workflow.id}/impact`}
+            title="See what this workflow has touched"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-[4px] border border-[var(--rule)] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] text-sm font-medium transition"
+          >
+            <BarChart3 className="w-4 h-4" strokeWidth={1.5} />
+            <span className="hidden sm:inline">Impact</span>
+          </Link>
           <button onClick={save} disabled={saving}
             className="flex items-center gap-1.5 px-3 py-2 rounded-[4px] border border-[var(--rule)] text-[var(--ink)] hover:bg-[var(--canvas-subtle)] text-sm font-medium transition disabled:opacity-50">
             {saving ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.5} /> : <Save className="w-4 h-4" strokeWidth={1.5} />}
             Save
           </button>
-          <button onClick={run} disabled={running || nodes.length === 0}
+          <button
+            onClick={dryRun}
+            disabled={dryRunning || running || nodes.length === 0}
+            title="Run with side effects mocked — no emails sent, no records changed"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-[4px] border border-[var(--rule)] text-[var(--ink)] hover:bg-[var(--canvas-subtle)] text-sm font-medium transition disabled:opacity-50"
+          >
+            {dryRunning
+              ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.5} />
+              : <FlaskConical className="w-4 h-4" strokeWidth={1.5} />}
+            Test
+          </button>
+          <button onClick={run} disabled={running || dryRunning || nodes.length === 0}
             className="flex items-center gap-1.5 px-3 py-2 rounded-[4px] bg-[var(--ink)] hover:opacity-90 text-[var(--canvas)] text-sm font-semibold transition disabled:opacity-50">
             {running ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.5} /> : <Play className="w-4 h-4" strokeWidth={1.5} />}
             Run
@@ -615,7 +680,13 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
                 className="flex items-center justify-between px-5 py-2.5 border-b border-[var(--rule)] hover:bg-[var(--canvas-subtle)]"
               >
                 <div className="flex items-center gap-2">
-                  <span className="label-section">Last run</span>
+                  <span className="label-section">{isDryRun ? "Test run" : "Last run"}</span>
+                  {isDryRun && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full border border-[var(--rule)] text-[var(--ink-muted)] bg-[var(--canvas-subtle)]">
+                      <FlaskConical className="w-2.5 h-2.5" strokeWidth={1.5} />
+                      simulated
+                    </span>
+                  )}
                   {runStatus && (
                     <span className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-full border border-[var(--rule)] ${
                       runStatus === "success" ? "text-[var(--verified)] bg-[var(--verified-soft)]"

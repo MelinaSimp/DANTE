@@ -36,6 +36,13 @@ type Ctx = {
   input: Record<string, unknown>;
   steps: Record<string, unknown>;
   secrets: SecretMap;
+  // When true, side-effect runners (http non-GET, send_email,
+  // update_contact) skip the real call and return a "simulated"
+  // payload describing what they *would* have done. Read-only work
+  // (query_clients, archive_lookup, openai, condition, delay) still
+  // executes so the advisor sees real numbers and actual draft
+  // content. This is the "Test run" button in the editor.
+  simulate?: boolean;
 };
 
 function getPath(obj: unknown, path: string): unknown {
@@ -262,16 +269,62 @@ async function executeNode(
       // Triggers expose the run input so downstream can template off
       // {{steps.<trigger_id>.input.<field>}}.
       return { input: ctx.input };
-    case "http":
-      return runHttp(cfg as Parameters<typeof runHttp>[0]);
+    case "http": {
+      const httpCfg = cfg as Parameters<typeof runHttp>[0];
+      // GETs are safe to run in simulate mode (read-only); other
+      // methods might mutate external state, so we stub those.
+      if (ctx.simulate && httpCfg.method && httpCfg.method.toUpperCase() !== "GET") {
+        return {
+          simulated: true,
+          would_have: {
+            action: "http",
+            method: httpCfg.method,
+            url: httpCfg.url,
+          },
+        };
+      }
+      return runHttp(httpCfg);
+    }
     case "openai":
       return runOpenAI(cfg as Parameters<typeof runOpenAI>[0]);
     case "query_clients":
       return runQueryClients(cfg as Parameters<typeof runQueryClients>[0], workspaceId);
-    case "update_contact":
-      return runUpdateContact(cfg as Parameters<typeof runUpdateContact>[0], workspaceId);
-    case "send_email":
-      return runSendEmail(cfg as Parameters<typeof runSendEmail>[0]);
+    case "update_contact": {
+      const upCfg = cfg as Parameters<typeof runUpdateContact>[0];
+      if (ctx.simulate) {
+        return {
+          simulated: true,
+          would_have: {
+            action: "update_contact",
+            contact_id: upCfg.contact_id,
+            patch: upCfg.patch,
+          },
+        };
+      }
+      return runUpdateContact(upCfg, workspaceId);
+    }
+    case "send_email": {
+      const emailCfg = cfg as Parameters<typeof runSendEmail>[0];
+      if (ctx.simulate) {
+        return {
+          simulated: true,
+          would_have: {
+            action: "send_email",
+            to: emailCfg.to,
+            subject: emailCfg.subject,
+            // Don't inflate the log with full HTML — keep a short
+            // preview so the advisor can eyeball "is the draft good?"
+            text_preview:
+              typeof emailCfg.text === "string"
+                ? emailCfg.text.slice(0, 400)
+                : typeof emailCfg.html === "string"
+                ? emailCfg.html.slice(0, 400)
+                : "",
+          },
+        };
+      }
+      return runSendEmail(emailCfg);
+    }
     case "condition": {
       const expr = String(cfg.expression ?? "");
       const passed = evaluateCondition(expr);
@@ -334,13 +387,14 @@ function findTrigger(nodes: GraphNode[]): GraphNode | null {
 
 export async function runWorkflow(
   workflow: WorkflowDefinition,
-  input: Record<string, unknown> = {}
+  input: Record<string, unknown> = {},
+  options: { simulate?: boolean } = {}
 ): Promise<WorkflowRunResult> {
   // Load the workspace secret vault once up front. Templates can
   // reference them as {{secrets.foo}}; the resolver treats them like
   // any other namespace, and we redact raw values from the log below.
   const secrets = await loadWorkspaceSecrets(workflow.workspace_id);
-  const ctx: Ctx = { input, steps: {}, secrets };
+  const ctx: Ctx = { input, steps: {}, secrets, simulate: !!options.simulate };
   const log: StepLogEntry[] = [];
 
   const { nodes, edges } = workflow.graph;
