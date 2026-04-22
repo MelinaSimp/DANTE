@@ -11,6 +11,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { recordLlmUsage } from "@/lib/usage/track";
 import { summarizeCall } from "@/lib/calls/summarize";
+import { classifyCallSentiment } from "@/lib/calls/sentiment";
 import { scanForCompliance } from "@/lib/compliance/scan";
 import {
   retrieveReferences,
@@ -255,6 +256,16 @@ export async function POST(req: NextRequest) {
     return fail(recordingId, 500, `Failed to save note: ${noteErr.message}`);
   }
 
+  // Sentiment classification — feeds Dante's sentiment signal directly
+  // (see lib/dante/churn.ts). Non-fatal: if the classifier fails the
+  // row stays with null sentiment and Dante falls back to keywords.
+  const sentiment = await classifyCallSentiment({
+    summary,
+    contactName,
+    anthropicKey,
+    openaiKey,
+  });
+
   await supabaseAdmin
     .from("call_recordings")
     .update({
@@ -265,6 +276,8 @@ export async function POST(req: NextRequest) {
       completed_at: new Date().toISOString(),
       duration_seconds:
         durationSeconds ?? (Math.round(whisperDuration || 0) || null),
+      sentiment_score: sentiment?.score ?? null,
+      sentiment_label: sentiment?.label ?? null,
     })
     .eq("id", recordingId);
 
@@ -332,6 +345,29 @@ export async function POST(req: NextRequest) {
           status: "pending" as const,
         }))
       );
+
+      // Dante churn signal — a "block"-severity compliance flag on a
+      // client's call summary is a real churn risk (advisor misstep,
+      // regulatory exposure, erosion of trust). Fires one event per
+      // flag; the events pipeline's 30-day half-life decays them
+      // naturally so a single hit won't permanently tank the score.
+      if (rec.contact_id) {
+        const blocks = fresh.filter((f) => f.severity === "block");
+        for (const f of blocks) {
+          logChurnEvent({
+            workspace_id: rec.workspace_id,
+            contact_id: rec.contact_id,
+            event_type: "compliance_flag_high",
+            source: "calls",
+            source_id: recordingId,
+            metadata: {
+              rule_id: f.rule_id,
+              layer: f.layer,
+              message: f.message?.slice(0, 200),
+            },
+          });
+        }
+      }
     }
   } catch (e) {
     // Non-fatal: summary is saved, flags are best-effort. Log for

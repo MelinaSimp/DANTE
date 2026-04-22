@@ -104,21 +104,58 @@ function engagementNorm(touchesLast90: number): number {
   return 1 - touchesLast90 / 8;
 }
 
-// Crude keyword sentiment over call summaries. We're not doing NLP
-// here — just flagging known red-flag phrases. Good enough for v1;
-// phase 2 replaces this with an LLM sentiment pass.
+// Sentiment over recent call summaries. Phase 2: prefer the stored
+// LLM-classified sentiment_score (signed [-1,+1]; populated by
+// lib/calls/sentiment.ts in both the manual and inbound-audit flows).
+// Rows without a stored score (older calls, or calls where the
+// classifier failed) fall back to the v1 keyword heuristic.
 const NEGATIVE_TOKENS = [
   "frustrat", "angry", "upset", "disappoint", "concern", "confus",
   "unhappy", "complain", "wrong", "error", "problem", "issue",
   "cancel", "leave", "switch", "competitor", "not satisfied",
 ];
 
-function sentimentNorm(summaries: string[]): { norm: number; hits: string[] } {
-  if (summaries.length === 0) return { norm: 0.35, hits: [] };
+type CallForSentiment = {
+  summary: string | null;
+  sentiment_score: number | null;
+};
+
+function sentimentNorm(calls: CallForSentiment[]): {
+  norm: number;
+  hits: string[];
+  detail: string | null;
+} {
+  if (calls.length === 0) return { norm: 0.35, hits: [], detail: null };
+
+  // Prefer stored scores — average across calls that have one. Map the
+  // signed [-1, +1] range to our [0, 1] at-risk scale: +1 → 0.0 (best),
+  //  0 → 0.5, -1 → 1.0 (worst).
+  const scored = calls
+    .map((c) => c.sentiment_score)
+    .filter((s): s is number => typeof s === "number");
+  if (scored.length > 0) {
+    const avg = scored.reduce((a, b) => a + b, 0) / scored.length;
+    const norm = Math.min(1, Math.max(0, (1 - avg) / 2));
+    return {
+      norm,
+      hits: [],
+      detail: `LLM sentiment avg ${avg.toFixed(2)} over ${scored.length} call${scored.length === 1 ? "" : "s"}`,
+    };
+  }
+
+  // Fallback: keyword scan over summaries (legacy rows, or classifier misses).
+  const summaries = calls
+    .map((c) => c.summary)
+    .filter((s): s is string => !!s);
+  if (summaries.length === 0) return { norm: 0.35, hits: [], detail: null };
   const joined = summaries.join(" ").toLowerCase();
   const hits = NEGATIVE_TOKENS.filter((tok) => joined.includes(tok));
   // 0 hits → 0.10, 3 hits → 0.70, 5+ → 1.00
-  return { norm: Math.min(1, hits.length / 5), hits };
+  return {
+    norm: Math.min(1, hits.length / 5),
+    hits,
+    detail: hits.length ? `Flagged: ${hits.slice(0, 3).join(", ")}` : null,
+  };
 }
 
 // Trajectory: are the gaps between touches getting longer? Compare
@@ -212,7 +249,7 @@ export async function recomputeChurnForWorkspace(
         .limit(50),
       supabaseAdmin
         .from("call_recordings")
-        .select("created_at, summary, duration_seconds, status")
+        .select("created_at, summary, duration_seconds, status, sentiment_score, sentiment_label")
         .eq("contact_id", contact.id)
         .eq("workspace_id", workspaceId)
         .order("created_at", { ascending: false })
@@ -249,9 +286,16 @@ export async function recomputeChurnForWorkspace(
     const cutoff90 = now - 90 * DAY_MS;
     const touchesLast90 = touchDates.filter((d) => d.getTime() >= cutoff90).length;
 
-    // Sentiment — concat call summaries.
-    const summaries = calls.map((c) => c.summary).filter((s): s is string => !!s);
-    const sentiment = sentimentNorm(summaries);
+    // Sentiment — prefer stored LLM scores, fall back to keyword hits.
+    const callsForSentiment: CallForSentiment[] = calls.map((c) => ({
+      summary: c.summary ?? null,
+      sentiment_score:
+        typeof c.sentiment_score === "number" ? c.sentiment_score : null,
+    }));
+    const sentiment = sentimentNorm(callsForSentiment);
+    const hasScoredCalls = callsForSentiment.some(
+      (c) => c.sentiment_score !== null
+    );
 
     // Trajectory.
     const traj = trajectoryNorm(touchDates);
@@ -287,15 +331,25 @@ export async function recomputeChurnForWorkspace(
         contribution: engagementNorm(touchesLast90) * WEIGHTS.engagement,
         detail: `${touchesLast90} interactions in 90d`,
       },
-      {
-        key: "sentiment",
-        label: "Call sentiment signal",
-        raw: sentiment.hits.length === 0 ? (summaries.length ? "neutral" : "no calls") : `${sentiment.hits.length} flag(s)`,
-        normalized: sentiment.norm,
-        weight: WEIGHTS.sentiment,
-        contribution: sentiment.norm * WEIGHTS.sentiment,
-        detail: sentiment.hits.length ? `Flagged: ${sentiment.hits.slice(0, 3).join(", ")}` : undefined,
-      },
+      (() => {
+        const hasCalls = callsForSentiment.length > 0;
+        const raw = hasScoredCalls
+          ? "LLM-scored"
+          : sentiment.hits.length > 0
+          ? `${sentiment.hits.length} flag(s)`
+          : hasCalls
+          ? "neutral"
+          : "no calls";
+        return {
+          key: "sentiment",
+          label: "Call sentiment signal",
+          raw,
+          normalized: sentiment.norm,
+          weight: WEIGHTS.sentiment,
+          contribution: sentiment.norm * WEIGHTS.sentiment,
+          detail: sentiment.detail ?? undefined,
+        };
+      })(),
       {
         key: "trajectory",
         label: "Contact gap trajectory",

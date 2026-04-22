@@ -14,6 +14,7 @@ import { recordVoiceUsage } from "@/lib/usage/track";
 import { logChurnEvent } from "@/lib/dante/churn-events";
 import { normalizePhone } from "@/lib/phone";
 import { summarizeCall, type TranscriptSegment } from "@/lib/calls/summarize";
+import { classifyCallSentiment } from "@/lib/calls/sentiment";
 import { scanForCompliance } from "@/lib/compliance/scan";
 import { retrieveReferences, formatReferenceContext } from "@/lib/references/retrieve";
 import dayjs from "dayjs";
@@ -842,6 +843,15 @@ async function kickoffInboundAudit(args: {
         return;
       }
 
+      // Sentiment classification — feeds Dante's sentiment signal.
+      // Non-fatal: null score means Dante falls back to keyword heuristic.
+      const sentiment = await classifyCallSentiment({
+        summary,
+        contactName,
+        anthropicKey,
+        openaiKey,
+      });
+
       await supabaseAdmin
         .from("call_recordings")
         .update({
@@ -850,6 +860,8 @@ async function kickoffInboundAudit(args: {
           summary_structured: structured ?? null,
           note_id: noteRow.id,
           completed_at: new Date().toISOString(),
+          sentiment_score: sentiment?.score ?? null,
+          sentiment_label: sentiment?.label ?? null,
         })
         .eq("id", recordingId);
 
@@ -876,6 +888,24 @@ async function kickoffInboundAudit(args: {
               status: "pending" as const,
             }))
           );
+
+          // Fire a Dante churn event per "block"-severity flag so the
+          // risk surfaces in the churn score, not just the compliance UI.
+          const blocks = scan.flags.filter((f) => f.severity === "block");
+          for (const f of blocks) {
+            logChurnEvent({
+              workspace_id: workspaceId,
+              contact_id: contactId,
+              event_type: "compliance_flag_high",
+              source: "vapi",
+              source_id: recordingId,
+              metadata: {
+                rule_id: f.rule_id,
+                layer: f.layer,
+                message: f.message?.slice(0, 200),
+              },
+            });
+          }
         }
       } catch (e) {
         console.error("[VAPI Audit] compliance scan failed:", e);

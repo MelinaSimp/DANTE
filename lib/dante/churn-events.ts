@@ -42,6 +42,7 @@ export type ChurnEventType =
   | "appointment_cancelled"
   | "agent_interaction_negative"
   | "email_bounced"
+  | "compliance_flag_high"     // HIGH-severity compliance flag on a call
   | "stale_contact_30d"        // synthesised: no activity for 30d
   | "stale_contact_90d";
 
@@ -62,6 +63,7 @@ const EVENT_DEFAULTS: Record<ChurnEventType, { signal: number; weight: number }>
   appointment_cancelled:       { signal: -0.3, weight: 1.0 },
   agent_interaction_negative:  { signal: -0.6, weight: 1.2 },
   email_bounced:               { signal: -0.4, weight: 0.6 },
+  compliance_flag_high:        { signal: -0.7, weight: 1.5 },
   stale_contact_30d:           { signal: -0.3, weight: 0.8 },
   stale_contact_90d:           { signal: -0.7, weight: 1.5 },
 };
