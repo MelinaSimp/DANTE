@@ -17,10 +17,10 @@
 //     as an emphasized label, not a link.
 //
 // The animation uses framer-motion (already a dep). Total duration
-// ~800ms with ease-out — slow enough to read as a deliberate threshold
-// crossing rather than a flicker, fast enough that it doesn't feel
-// laggy. If the advisor clicks mid-animation we ignore the click
-// (guarded by the `opening` flag) so double-clicks don't double-navigate.
+// ~1.2s with ease-out — ceremonial pacing that makes the threshold
+// crossing feel heavy and intentional. If the advisor clicks
+// mid-animation we ignore the click (guarded by the `opening` flag)
+// so double-clicks don't double-navigate.
 
 "use client";
 
@@ -92,10 +92,10 @@ export default function DanteGateLink({
     router.prefetch(href);
     // Kick navigation slightly before the overlay peak so the page
     // render happens while the gate is still growing — cuts perceived
-    // latency vs. waiting the full 800ms then navigating.
+    // latency vs. waiting the full 1.2s then navigating.
     window.setTimeout(() => {
       router.push(href);
-    }, 680);
+    }, 1020);
   };
 
   const content = (
@@ -139,7 +139,7 @@ export default function DanteGateLink({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.35, ease: "easeOut" }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
             className="fixed inset-0 z-[200] flex items-center justify-center pointer-events-none bg-[var(--canvas)]/85 backdrop-blur-sm"
             aria-hidden="true"
           >
@@ -149,7 +149,7 @@ export default function DanteGateLink({
               initial={{ scale: 0.3, opacity: 0 }}
               animate={{ scale: 1.6, opacity: 1 }}
               exit={{ scale: 2.4, opacity: 0 }}
-              transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+              transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
               className="w-48 h-48 object-contain"
             />
           </motion.div>
