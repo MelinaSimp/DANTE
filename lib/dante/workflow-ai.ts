@@ -24,6 +24,9 @@ import type {
   WorkflowGraph,
   WorkflowStep,
 } from "./workflow-types";
+import type { BookSummary } from "./book-summary";
+import { renderBookSummaryText } from "./book-summary";
+import type { WorkflowProposal } from "./workflow-proposals";
 
 export interface GeneratedWorkflow {
   name: string;
@@ -231,11 +234,43 @@ function humanize(type: StepType): string {
 
 // ── OpenAI call ───────────────────────────────────────────────
 
-export async function generateWorkflow(userPrompt: string): Promise<GeneratedWorkflow> {
+/**
+ * Generate a workflow graph from a user prompt, optionally enriched
+ * with a chosen proposal and book summary from the two-phase flow.
+ *
+ * Backwards-compatible: passing a string still works.
+ *
+ * When `proposal` is provided (from /api/dante/workflows/propose),
+ * we hand the model a much more specific spec than the raw advisor
+ * prompt — which is what the proposal was designed for. When
+ * `bookSummary` is provided, we add a compact workspace-context
+ * preamble so the model picks filter values that actually match the
+ * advisor's data (e.g. segment size, existing workflows to avoid
+ * duplicating).
+ */
+export async function generateWorkflow(
+  input:
+    | string
+    | {
+        prompt: string;
+        proposal?: WorkflowProposal;
+        bookSummary?: BookSummary;
+      }
+): Promise<GeneratedWorkflow> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
-  const prompt = userPrompt.trim();
+
+  const prompt = (typeof input === "string" ? input : input.prompt).trim();
   if (!prompt) throw new Error("Prompt required");
+  const proposal = typeof input === "string" ? undefined : input.proposal;
+  const bookSummary =
+    typeof input === "string" ? undefined : input.bookSummary;
+
+  // Build the user message. If a proposal exists, the proposal's
+  // enriched_prompt IS the spec we want the model to implement — the
+  // raw advisor prompt is preserved for provenance but takes a back
+  // seat.
+  const userMessage = buildUserMessage(prompt, proposal, bookSummary);
 
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -250,7 +285,7 @@ export async function generateWorkflow(userPrompt: string): Promise<GeneratedWor
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: prompt },
+        { role: "user", content: userMessage },
       ],
     }),
   });
@@ -265,4 +300,35 @@ export async function generateWorkflow(userPrompt: string): Promise<GeneratedWor
   catch { throw new Error("OpenAI returned invalid JSON"); }
 
   return validate(parsed);
+}
+
+function buildUserMessage(
+  prompt: string,
+  proposal: WorkflowProposal | undefined,
+  bookSummary: BookSummary | undefined
+): string {
+  const parts: string[] = [];
+
+  if (bookSummary) {
+    parts.push(
+      `WORKSPACE CONTEXT\n${renderBookSummaryText(bookSummary)}\n\nUse this to pick realistic filter values and avoid duplicating any existing workflow listed above.`
+    );
+  }
+
+  if (proposal) {
+    parts.push(
+      `ADVISOR'S ORIGINAL PROMPT\n"""\n${prompt}\n"""`
+    );
+    parts.push(
+      `CHOSEN PROPOSAL\nTitle: ${proposal.title}\nDescription: ${proposal.description}\nTrigger: ${proposal.trigger.type} (${proposal.trigger.detail})\nNode sketch: ${proposal.node_sketch.join(" → ")}\nProjected volume: ${
+        proposal.projected_volume.estimate === null
+          ? "unknown"
+          : `~${proposal.projected_volume.estimate} ${proposal.projected_volume.unit}`
+      } — ${proposal.projected_volume.reasoning}\n\nBUILD SPEC (implement this exactly)\n${proposal.enriched_prompt}`
+    );
+  } else {
+    parts.push(prompt);
+  }
+
+  return parts.join("\n\n");
 }

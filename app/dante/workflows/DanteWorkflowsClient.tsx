@@ -16,6 +16,8 @@ import DanteGateLink from "@/components/dante/DanteGateLink";
 import {
   ArrowLeft, Plus, Loader2, Play, Zap, AlertCircle,
   CheckCircle2, Circle, Trash2, Sparkles, ArrowRight,
+  Clock, Webhook, MousePointerClick, Users, TrendingUp,
+  ChevronRight,
 } from "lucide-react";
 
 interface WorkflowRow {
@@ -26,6 +28,34 @@ interface WorkflowRow {
   last_run_at: string | null;
   last_run_status: string | null;
   updated_at: string;
+}
+
+// Proposal types mirror lib/dante/workflow-proposals.ts — kept local
+// to avoid a server-only import trail.
+interface WorkflowProposal {
+  id: string;
+  title: string;
+  description: string;
+  trigger: {
+    type: "manual" | "cron" | "webhook";
+    detail: string;
+  };
+  projected_volume: {
+    estimate: number | null;
+    unit: string;
+    reasoning: string;
+  };
+  expected_impact: string;
+  node_sketch: string[];
+  rationale: string;
+  enriched_prompt: string;
+}
+
+interface BookSummary {
+  workspace_id: string;
+  counts: { contacts: number };
+  segments: { stale_60d: number; new_30d: number; active_30d: number };
+  [key: string]: unknown;
 }
 
 // Tiny starter-pack of prompts — click one to prefill the box. Helps
@@ -44,9 +74,15 @@ export default function DanteWorkflowsClient() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // AI generator state
+  // Two-phase generator state.
+  // Phase 1: user types prompt → POST /propose → proposals show up
+  // Phase 2: user clicks a proposal card → POST /materialize → editor
   const [prompt, setPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [proposals, setProposals] = useState<WorkflowProposal[] | null>(null);
+  const [bookSummary, setBookSummary] = useState<BookSummary | null>(null);
+  const [proposalPrompt, setProposalPrompt] = useState<string>("");
+  const [materializingId, setMaterializingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -94,20 +130,53 @@ export default function DanteWorkflowsClient() {
   const generate = async () => {
     if (!prompt.trim()) return;
     setGenerating(true); setError(null);
+    setProposals(null);
     try {
-      const res = await fetch("/api/dante/workflows/generate", {
+      const res = await fetch("/api/dante/workflows/propose", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Generation failed");
-      router.push(`/dante/workflows/${json.workflow.id}`);
+      if (!res.ok) throw new Error(json.error || "Proposal generation failed");
+      setProposals(json.proposals || []);
+      setBookSummary(json.book_summary || null);
+      setProposalPrompt(json.prompt || prompt);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Generation failed");
+    } finally {
       setGenerating(false);
     }
+  };
+
+  const materialize = async (proposal: WorkflowProposal) => {
+    if (materializingId) return;
+    setMaterializingId(proposal.id); setError(null);
+    try {
+      const res = await fetch("/api/dante/workflows/materialize", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: proposalPrompt,
+          proposal,
+          book_summary: bookSummary,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Materialize failed");
+      router.push(`/dante/workflows/${json.workflow.id}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Materialize failed");
+      setMaterializingId(null);
+    }
+  };
+
+  const discardProposals = () => {
+    setProposals(null);
+    setBookSummary(null);
+    setProposalPrompt("");
   };
 
   const remove = async (id: string) => {
@@ -227,6 +296,116 @@ export default function DanteWorkflowsClient() {
             </div>
           </div>
         </section>
+
+        {/* ── Proposals ────────────────────────────────────── */}
+        {proposals && proposals.length > 0 && (
+          <section className="mb-8">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="label-section mb-1">Pick one — Dante grounded these in your book</div>
+                <div className="text-[11px] text-[var(--ink-subtle)]">
+                  {bookSummary ? (
+                    <>
+                      Based on {bookSummary.counts.contacts} contact{bookSummary.counts.contacts === 1 ? "" : "s"}
+                      {typeof bookSummary.segments?.stale_60d === "number" && (
+                        <> · {bookSummary.segments.stale_60d} stale · {bookSummary.segments.active_30d} active</>
+                      )}
+                    </>
+                  ) : null}
+                </div>
+              </div>
+              <button
+                onClick={discardProposals}
+                className="text-[11px] text-[var(--ink-muted)] hover:text-[var(--ink)] underline underline-offset-2"
+              >
+                Discard and start over
+              </button>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-3">
+              {proposals.map((p) => {
+                const isMaterializing = materializingId === p.id;
+                const anyMaterializing = materializingId !== null;
+                const TriggerIcon =
+                  p.trigger.type === "cron" ? Clock
+                    : p.trigger.type === "webhook" ? Webhook
+                    : MousePointerClick;
+                return (
+                  <div
+                    key={p.id}
+                    className="card-flat p-5 flex flex-col gap-3 hover:border-[var(--rule-strong)] transition"
+                  >
+                    <div className="flex items-start gap-2">
+                      <div className="border border-[var(--rule)] bg-[var(--canvas)] rounded-[4px] p-1.5 shrink-0">
+                        <TriggerIcon className="w-3.5 h-3.5 text-[var(--ink)]" strokeWidth={1.5} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-sm font-semibold text-[var(--ink)] leading-tight mb-1">
+                          {p.title}
+                        </h3>
+                        <div className="text-[11px] text-[var(--ink-subtle)] truncate">
+                          {p.trigger.detail || p.trigger.type}
+                        </div>
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-[var(--ink-muted)] leading-relaxed">
+                      {p.description}
+                    </p>
+
+                    <div className="border-t border-[var(--rule)] pt-3 space-y-2">
+                      <div className="flex items-center gap-1.5 text-[11px]">
+                        <Users className="w-3 h-3 text-[var(--ink-subtle)]" strokeWidth={1.5} />
+                        <span className="text-[var(--ink)] font-medium">
+                          {p.projected_volume.estimate === null
+                            ? "Volume unknown"
+                            : `~${p.projected_volume.estimate} ${p.projected_volume.unit}`}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-[var(--ink-subtle)] leading-relaxed pl-[18px]">
+                        {p.projected_volume.reasoning}
+                      </div>
+                    </div>
+
+                    {p.expected_impact && (
+                      <div className="flex items-start gap-1.5 text-[11px] text-[var(--ink-muted)]">
+                        <TrendingUp className="w-3 h-3 text-[var(--ink-subtle)] mt-0.5 shrink-0" strokeWidth={1.5} />
+                        <span>{p.expected_impact}</span>
+                      </div>
+                    )}
+
+                    {p.node_sketch.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {p.node_sketch.map((n, i) => (
+                          <span
+                            key={i}
+                            className="mono text-[10px] text-[var(--ink-muted)] bg-[var(--canvas-subtle)] border border-[var(--rule)] rounded-full px-2 py-0.5"
+                          >
+                            {n}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    <button
+                      onClick={() => materialize(p)}
+                      disabled={anyMaterializing}
+                      className="mt-auto flex items-center justify-center gap-1.5 px-3 py-2 rounded-[4px] bg-[var(--ink)] hover:opacity-90 text-[var(--canvas)] text-xs font-semibold transition disabled:opacity-50"
+                    >
+                      {isMaterializing ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
+                      ) : (
+                        <Sparkles className="h-3.5 w-3.5" strokeWidth={1.5} />
+                      )}
+                      {isMaterializing ? "Building…" : "Build this"}
+                      {!isMaterializing && <ChevronRight className="w-3 h-3 opacity-70" strokeWidth={1.5} />}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         {/* ── List ──────────────────────────────────────────── */}
         <div className="label-section mb-3">Your workflows</div>
