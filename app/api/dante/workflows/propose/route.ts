@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { buildBookSummary } from "@/lib/dante/book-summary";
 import { proposeWorkflows } from "@/lib/dante/workflow-proposals";
+import { requireActiveBilling } from "@/lib/billing/gate";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -34,6 +35,9 @@ export async function POST(req: NextRequest) {
   if (!profile?.workspace_id) {
     return NextResponse.json({ error: "No workspace" }, { status: 400 });
   }
+
+  const gate = await requireActiveBilling(profile.workspace_id);
+  if (!gate.ok) return gate.response;
 
   const body = await req.json().catch(() => ({}));
   const prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";

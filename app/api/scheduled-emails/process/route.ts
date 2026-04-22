@@ -51,10 +51,41 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ processed: 0, failed: 0 });
     }
 
+    // Filter out emails whose workspace is no longer in good standing.
+    // Past_due/canceled workspaces shouldn't keep sending on our dime.
+    const workspaceIds = Array.from(
+      new Set(pendingEmails.map((e) => e.workspace_id).filter(Boolean))
+    );
+    const activeWorkspaces = new Set<string>();
+    if (workspaceIds.length > 0) {
+      const { data: wsRows } = await supabaseAdmin
+        .from("workspaces")
+        .select("id, plan_status")
+        .in("id", workspaceIds);
+      for (const w of wsRows ?? []) {
+        if (w.plan_status === "active" || w.plan_status === "trialing") {
+          activeWorkspaces.add(w.id);
+        }
+      }
+    }
+
     let processed = 0;
     let failed = 0;
+    let skippedBilling = 0;
 
     for (const email of pendingEmails) {
+      if (email.workspace_id && !activeWorkspaces.has(email.workspace_id)) {
+        await supabaseAdmin
+          .from("scheduled_emails")
+          .update({
+            status: "failed",
+            error_message: "Workspace billing not active",
+            error_code: "billing_inactive",
+          })
+          .eq("id", email.id);
+        skippedBilling++;
+        continue;
+      }
       try {
         const { error: sendError } = await resend.emails.send({
           from: fromEmail,
@@ -110,7 +141,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ processed, failed });
+    return NextResponse.json({ processed, failed, skipped_billing: skippedBilling });
   } catch (error: any) {
     console.error("[Scheduled Emails] Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });

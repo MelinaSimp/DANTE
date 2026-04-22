@@ -17,6 +17,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { runWorkflow } from "@/lib/dante/workflow-runner";
 import { definitionFromRow } from "@/lib/dante/workflow-types";
+import { requireActiveBilling } from "@/lib/billing/gate";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -52,6 +53,11 @@ export async function POST(
   if (!wf) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+
+  // Dry-run still spends model tokens (openai nodes, etc.) so it must
+  // respect the gate even though it doesn't persist anything.
+  const gate = await requireActiveBilling(profile.workspace_id);
+  if (!gate.ok) return gate.response;
 
   const body = await request.json().catch(() => ({}));
   const input =

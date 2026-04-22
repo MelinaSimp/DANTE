@@ -45,11 +45,40 @@ export async function GET(req: NextRequest) {
     if (!pendingSMS || pendingSMS.length === 0) {
       return NextResponse.json({ processed: 0, failed: 0 });
     }
-    
+
+    const workspaceIds = Array.from(
+      new Set(pendingSMS.map((s) => s.workspace_id).filter(Boolean))
+    );
+    const activeWorkspaces = new Set<string>();
+    if (workspaceIds.length > 0) {
+      const { data: wsRows } = await supabaseAdmin
+        .from("workspaces")
+        .select("id, plan_status")
+        .in("id", workspaceIds);
+      for (const w of wsRows ?? []) {
+        if (w.plan_status === "active" || w.plan_status === "trialing") {
+          activeWorkspaces.add(w.id);
+        }
+      }
+    }
+
     let processed = 0;
     let failed = 0;
-    
+    let skippedBilling = 0;
+
     for (const sms of pendingSMS) {
+      if (sms.workspace_id && !activeWorkspaces.has(sms.workspace_id)) {
+        await supabaseAdmin
+          .from("scheduled_sms")
+          .update({
+            status: "failed",
+            error_message: "Workspace billing not active",
+            error_code: "billing_inactive",
+          })
+          .eq("id", sms.id);
+        skippedBilling++;
+        continue;
+      }
       try {
         // Get Twilio credentials
         const { data: twilioCreds } = await supabaseAdmin
@@ -137,7 +166,7 @@ export async function GET(req: NextRequest) {
       }
     }
     
-    return NextResponse.json({ processed, failed });
+    return NextResponse.json({ processed, failed, skipped_billing: skippedBilling });
   } catch (error: any) {
     console.error("[Scheduled SMS] Error processing scheduled SMS:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });

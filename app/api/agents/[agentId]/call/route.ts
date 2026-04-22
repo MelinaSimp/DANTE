@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { createOutboundCall, getCall } from "@/lib/vapi/client";
+import { requireActiveBilling } from "@/lib/billing/gate";
 
 export const dynamic = "force-dynamic";
 
@@ -20,13 +21,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ age
 
   const { data: agent, error: agentError } = await supabaseAdmin
     .from("agents")
-    .select("id, vapi_assistant_id, vapi_phone_number_id, llm_instructions, name")
+    .select("id, vapi_assistant_id, vapi_phone_number_id, llm_instructions, name, workspace_id")
     .eq("id", agentId)
     .single();
 
   if (agentError || !agent) {
     return NextResponse.json({ error: "Agent not found" }, { status: 404 });
   }
+
+  const gate = await requireActiveBilling(agent.workspace_id);
+  if (!gate.ok) return gate.response;
 
   if (!agent.vapi_assistant_id || !agent.vapi_phone_number_id) {
     return NextResponse.json({

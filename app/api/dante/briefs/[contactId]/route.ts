@@ -16,6 +16,7 @@ import {
   generateBriefForContact,
   getCachedBrief,
 } from "@/lib/dante/briefs";
+import { requireActiveBilling } from "@/lib/billing/gate";
 
 export const dynamic = "force-dynamic";
 
@@ -77,6 +78,11 @@ export async function GET(
   });
   if (cached) return NextResponse.json({ brief: cached, fresh: false });
 
+  // Cache miss → about to spend model tokens. Gate before generation so
+  // a past_due or capped workspace doesn't rack up charges.
+  const gate = await requireActiveBilling(auth.workspace_id);
+  if (!gate.ok) return gate.response;
+
   const brief = await generateBriefForContact({
     workspace_id: auth.workspace_id,
     contact_id: contactId,
@@ -103,6 +109,9 @@ export async function POST(
   if (!(await assertContactInWorkspace(contactId, auth.workspace_id))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+
+  const gate = await requireActiveBilling(auth.workspace_id);
+  if (!gate.ok) return gate.response;
 
   const brief = await generateBriefForContact({
     workspace_id: auth.workspace_id,

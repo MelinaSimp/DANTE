@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { requireActiveBilling } from "@/lib/billing/gate";
 
 export async function POST(req: NextRequest) {
   try {
@@ -45,6 +46,9 @@ export async function POST(req: NextRequest) {
     if (!profile?.workspace_id) {
       return NextResponse.json({ error: "No workspace found" }, { status: 400 });
     }
+
+    const gate = await requireActiveBilling(profile.workspace_id);
+    if (!gate.ok) return gate.response;
 
     // Get the first agent in this workspace (for the required agent_id FK)
     const { data: agent } = await supabaseAdmin

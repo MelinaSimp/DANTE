@@ -68,6 +68,54 @@ export async function POST(req: NextRequest) {
         break;
       }
 
+      case "invoice.payment_failed": {
+        // Stripe usually also sends customer.subscription.updated with
+        // status=past_due after retries, but not always (and the
+        // timing is flaky). Trip past_due here so the billing gate
+        // catches the failure on the next request.
+        const invoice = event.data.object as any;
+        const customerId = invoice.customer;
+        if (customerId) {
+          const { data: workspace } = await supabaseAdmin
+            .from("workspaces")
+            .select("id")
+            .eq("stripe_customer_id", customerId)
+            .maybeSingle();
+          if (workspace) {
+            await supabaseAdmin
+              .from("workspaces")
+              .update({ plan_status: "past_due" })
+              .eq("id", workspace.id);
+            console.log(`[Stripe] Workspace ${workspace.id} payment failed → past_due`);
+          }
+        }
+        break;
+      }
+
+      case "invoice.payment_succeeded": {
+        // Recovery path: a previously past_due workspace caught up.
+        // We don't flip inactive→active here (that's subscription
+        // .updated's job) — only bump past_due back to active so the
+        // gate unblocks immediately on retry.
+        const invoice = event.data.object as any;
+        const customerId = invoice.customer;
+        if (customerId) {
+          const { data: workspace } = await supabaseAdmin
+            .from("workspaces")
+            .select("id, plan_status")
+            .eq("stripe_customer_id", customerId)
+            .maybeSingle();
+          if (workspace && workspace.plan_status === "past_due") {
+            await supabaseAdmin
+              .from("workspaces")
+              .update({ plan_status: "active" })
+              .eq("id", workspace.id);
+            console.log(`[Stripe] Workspace ${workspace.id} payment recovered → active`);
+          }
+        }
+        break;
+      }
+
       case "customer.subscription.deleted": {
         const subscription = event.data.object as any;
         const customerId = subscription.customer;

@@ -21,6 +21,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { runWorkflow } from "@/lib/dante/workflow-runner";
 import { definitionFromRow } from "@/lib/dante/workflow-types";
 import { enqueueRun, kickQueueWorker } from "@/lib/dante/run-executor";
+import { requireActiveBilling } from "@/lib/billing/gate";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60; // Vercel hobby limit
@@ -45,6 +46,9 @@ export async function POST(
     .eq("workspace_id", profile.workspace_id)
     .maybeSingle();
   if (!wf) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const gate = await requireActiveBilling(profile.workspace_id);
+  if (!gate.ok) return gate.response;
 
   const body = await request.json().catch(() => ({}));
   const input = (body.input && typeof body.input === "object") ? body.input : {};
