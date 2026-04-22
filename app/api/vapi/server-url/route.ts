@@ -7,14 +7,24 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { after } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { naiveLocalIsoToUtcIso, appDayRangeUtcIso, appWallClockToUtcMs, getAppTimezone } from "@/lib/app-timezone";
 import { recordVoiceUsage } from "@/lib/usage/track";
 import { logChurnEvent } from "@/lib/dante/churn-events";
 import { normalizePhone } from "@/lib/phone";
+import { summarizeCall, type TranscriptSegment } from "@/lib/calls/summarize";
+import { scanForCompliance } from "@/lib/compliance/scan";
+import { retrieveReferences, formatReferenceContext } from "@/lib/references/retrieve";
 import dayjs from "dayjs";
 
 export const dynamic = "force-dynamic";
+// Inbound end-of-call-report kicks off a summarizer + compliance pass
+// for calls where we matched the caller to a known contact. The LLM
+// work runs under `after()` (post-response), but its deadline is
+// bounded by this route's maxDuration. Summarization usually completes
+// in 5–20s — 300s gives generous headroom for cold starts + retries.
+export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   try {
@@ -590,12 +600,16 @@ async function handleEndOfCallReport(message: any) {
     }
 
     // Dante churn signal — log an agent_interaction event if we can
-    // resolve the caller phone to a contact in this workspace.
+    // resolve the caller phone to a contact in this workspace. Also
+    // the trigger point for the inbound call audit pipeline: once we
+    // know we have a real client on the other end, we summarize the
+    // transcript, file a "📞 Call with …" note, and surface the whole
+    // thing on the client's detail page under CALL AUDITS.
     if (workspaceId && callerPhone) {
       const normalized = normalizePhone(callerPhone) || callerPhone;
       const { data: matchedContact } = await supabaseAdmin
         .from("contacts")
-        .select("id")
+        .select("id, name")
         .eq("workspace_id", workspaceId)
         .eq("phone", normalized)
         .maybeSingle();
@@ -618,6 +632,21 @@ async function handleEndOfCallReport(message: any) {
             agent_id: agentId,
           },
         });
+
+        // Kick off the audit pipeline. Only for matched contacts with
+        // at least some transcript — short/empty hang-ups produce no
+        // useful summary and would just clutter the notes list.
+        if (transcript.length > 0) {
+          await kickoffInboundAudit({
+            workspaceId,
+            contactId: matchedContact.id,
+            contactName: matchedContact.name || "Client",
+            vapiCallId: call.id,
+            durationSeconds,
+            messages: artifact?.messages || [],
+            callStartedAt: call.startedAt || null,
+          });
+        }
       }
     }
   } catch (err) {
@@ -625,6 +654,245 @@ async function handleEndOfCallReport(message: any) {
   }
 
   return NextResponse.json({ ok: true });
+}
+
+// ─── Inbound Call Audit Pipeline ─────────────────────────────
+//
+// When an inbound receptionist call ends and we matched the caller to a
+// real contact, we generate the same citation-grounded audit that the
+// manual "Record call" button produces — just sourced from VAPI's
+// transcript artifact instead of a browser-recorded audio blob.
+//
+// Two phases:
+//
+//   Phase 1 (synchronous, before webhook response):
+//     - Build whisper-style segments from VAPI's message array.
+//     - Insert a call_recordings row in status='summarizing' so the
+//       "Processing…" state shows up on the client's detail page
+//       immediately, before the LLM finishes.
+//
+//   Phase 2 (async, via `after()` so VAPI gets a fast 200):
+//     - Run summarizeCall (same code path as manual recordings).
+//     - Scan for compliance flags.
+//     - Write the 📞 note + link it back to the recording.
+//     - Flip status to 'done' (or 'error' on failure).
+
+type VapiMessage = {
+  role?: string;
+  message?: string;
+  content?: string;
+  time?: number;
+  secondsFromStart?: number;
+  duration?: number;
+};
+
+// Convert VAPI's per-turn message list into whisper-style segments
+// ({ id, start, end, text }) so the grounded summarizer can cite them.
+// Agent/client turns are tagged in the text; the summarizer and the
+// audit UI both treat these as opaque quoted evidence.
+function buildSegmentsFromMessages(
+  messages: VapiMessage[],
+  callStartedAt: string | null
+): TranscriptSegment[] {
+  const callStartMs = callStartedAt ? new Date(callStartedAt).getTime() : 0;
+  const segments: TranscriptSegment[] = [];
+  let idx = 0;
+  for (const m of messages) {
+    const role = m.role;
+    if (role !== "user" && role !== "bot" && role !== "assistant") continue;
+    const raw = (m.message || m.content || "").trim();
+    if (!raw) continue;
+    const label = role === "bot" || role === "assistant" ? "Agent" : "Client";
+    const startSec =
+      typeof m.secondsFromStart === "number"
+        ? m.secondsFromStart
+        : typeof m.time === "number" && callStartMs
+        ? Math.max(0, (m.time - callStartMs) / 1000)
+        : idx * 5;
+    // Duration: VAPI reports it in ms when available. Fall back to a
+    // rough estimate so citation highlighting has something to span
+    // visually even when the artifact is sparse.
+    const durationSec =
+      typeof m.duration === "number" ? m.duration / 1000 : Math.max(1, raw.length / 20);
+    segments.push({
+      id: idx,
+      start: Math.max(0, startSec),
+      end: Math.max(startSec, startSec + durationSec),
+      text: `${label}: ${raw}`,
+    });
+    idx++;
+  }
+  return segments;
+}
+
+async function kickoffInboundAudit(args: {
+  workspaceId: string;
+  contactId: string;
+  contactName: string;
+  vapiCallId: string;
+  durationSeconds: number;
+  messages: VapiMessage[];
+  callStartedAt: string | null;
+}) {
+  const { workspaceId, contactId, contactName, vapiCallId, durationSeconds, messages, callStartedAt } = args;
+
+  const segments = buildSegmentsFromMessages(messages, callStartedAt);
+  if (segments.length === 0) return;
+  const transcriptText = segments.map((s) => s.text).join("\n");
+
+  // Guard against duplicate audits on webhook retries. VAPI will retry
+  // end-of-call-report on 5xx; if the previous attempt already inserted
+  // a row for this call_id, skip Phase 1 entirely.
+  const { data: existing } = await supabaseAdmin
+    .from("call_recordings")
+    .select("id")
+    .eq("workspace_id", workspaceId)
+    .eq("external_call_id", vapiCallId)
+    .maybeSingle();
+  if (existing?.id) {
+    console.log(`[VAPI Audit] Skipping — audit already exists for call ${vapiCallId}`);
+    return;
+  }
+
+  const { data: rec, error: recErr } = await supabaseAdmin
+    .from("call_recordings")
+    .insert({
+      workspace_id: workspaceId,
+      contact_id: contactId,
+      user_id: null, // inbound rows have no originating user (see migration)
+      source: "inbound_vapi",
+      storage_path: null,
+      status: "summarizing",
+      transcript: transcriptText,
+      transcript_segments: segments,
+      duration_seconds: durationSeconds || null,
+      external_call_id: vapiCallId,
+    })
+    .select("id")
+    .single();
+
+  if (recErr || !rec) {
+    console.error("[VAPI Audit] Failed to insert call_recordings row:", recErr);
+    return;
+  }
+
+  const recordingId = rec.id;
+
+  // Phase 2 — LLM work after the response is sent to VAPI so they get
+  // a fast 200 and don't retry. `after()` respects the route's
+  // maxDuration; we budgeted 300s at the top of the file.
+  after(async () => {
+    const openaiKey = process.env.OPENAI_API_KEY;
+    const anthropicKey = process.env.ANTHROPIC_API_KEY;
+    if (!openaiKey && !anthropicKey) {
+      await supabaseAdmin
+        .from("call_recordings")
+        .update({ status: "error", error: "No LLM key configured" })
+        .eq("id", recordingId);
+      return;
+    }
+
+    try {
+      // Reference retrieval — regulatory fact grounding. Failures here
+      // are non-fatal; the summary just runs without the extra context.
+      let referenceContext = "";
+      try {
+        const chunks = await retrieveReferences(transcriptText);
+        if (chunks.length > 0) referenceContext = formatReferenceContext(chunks);
+      } catch (e) {
+        console.error("[VAPI Audit] reference retrieval failed:", e);
+      }
+
+      const { structured, markdown: summary } = await summarizeCall({
+        segments,
+        transcript: transcriptText,
+        contactName,
+        openaiKey,
+        anthropicKey,
+        referenceContext,
+      });
+
+      // Compose the note body. "Inbound" marker distinguishes these
+      // from advisor-recorded calls in the notes timeline.
+      const when = new Date().toLocaleString("en-US", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+      const durationMin = durationSeconds > 0 ? Math.round(durationSeconds / 60) : null;
+      const header = `📞 Call with ${contactName} — ${when}${
+        durationMin ? ` (~${durationMin} min)` : ""
+      } · Inbound`;
+      const noteBody = `${header}\n\n${summary}\n\n---\n\nFULL TRANSCRIPT\n${transcriptText}`;
+
+      const { data: noteRow, error: noteErr } = await supabaseAdmin
+        .from("notes")
+        .insert({
+          workspace_id: workspaceId,
+          contact_id: contactId,
+          body: noteBody,
+        })
+        .select("id")
+        .single();
+
+      if (noteErr) {
+        await supabaseAdmin
+          .from("call_recordings")
+          .update({ status: "error", error: `note insert failed: ${noteErr.message}` })
+          .eq("id", recordingId);
+        return;
+      }
+
+      await supabaseAdmin
+        .from("call_recordings")
+        .update({
+          status: "done",
+          summary,
+          summary_structured: structured ?? null,
+          note_id: noteRow.id,
+          completed_at: new Date().toISOString(),
+        })
+        .eq("id", recordingId);
+
+      // Compliance auto-scan on the generated summary — same pipeline
+      // as manual recordings so FINRA/Reg BI flags surface identically.
+      try {
+        const scan = await scanForCompliance({
+          text: summary,
+          contextLabel: `Inbound call summary for ${contactName}`,
+          anthropicKey,
+        });
+        if (scan.flags.length > 0) {
+          await supabaseAdmin.from("compliance_flags").insert(
+            scan.flags.map((f) => ({
+              workspace_id: workspaceId,
+              source_type: "call_summary",
+              source_id: recordingId,
+              scanned_text: summary,
+              layer: f.layer,
+              rule_id: f.rule_id,
+              severity: f.severity,
+              message: f.message,
+              citation_refs: f.citations,
+              status: "pending" as const,
+            }))
+          );
+        }
+      } catch (e) {
+        console.error("[VAPI Audit] compliance scan failed:", e);
+      }
+
+      console.log(`[VAPI Audit] Completed audit ${recordingId} for ${contactName}`);
+    } catch (e: any) {
+      console.error("[VAPI Audit] Pipeline failed:", e);
+      await supabaseAdmin
+        .from("call_recordings")
+        .update({
+          status: "error",
+          error: e?.message?.slice(0, 500) || "Summarization failed",
+        })
+        .eq("id", recordingId);
+    }
+  });
 }
 
 // ─── Status Update ───────────────────────────────────────────
