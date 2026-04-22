@@ -26,6 +26,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { pickGreeting, pickSubtitle } from "@/lib/dashboard/greetings";
+import DanteGateLink from "@/components/dante/DanteGateLink";
 import {
   ArrowUpRight,
   ShieldCheck,
@@ -178,12 +179,12 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
             Agent
           </Link>
           {data.features.includes("dante") && (
-            <Link
-              href="/dante"
-              className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
-            >
-              Dante
-            </Link>
+            // Dante gets a distinct visual treatment: the double-gate
+            // mark + passing-through animation make entering Dante feel
+            // like crossing a threshold instead of clicking a nav link.
+            // Every other nav item here is plain text — that's the
+            // point. Dante is meant to stand out.
+            <DanteGateLink variant="nav-primary" />
           )}
           <Link
             href="/settings"

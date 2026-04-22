@@ -14,6 +14,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import DanteGateLink from "@/components/dante/DanteGateLink";
 import {
   ArrowLeft, Plus, Trash2, Loader2, Key, ShieldCheck,
   AlertCircle, Check,
@@ -118,7 +119,7 @@ export default function DanteSecretsClient() {
           <span className="text-xs text-[var(--ink-subtle)]">/</span>
           <Link href="/dashboard" className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] transition">Dashboard</Link>
           <span className="text-xs text-[var(--ink-subtle)]">/</span>
-          <Link href="/dante" className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] transition">Dante</Link>
+          <DanteGateLink variant="breadcrumb" />
           <span className="text-xs text-[var(--ink-subtle)]">/</span>
           <span className="text-xs text-[var(--ink)]">Secrets</span>
         </div>

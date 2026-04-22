@@ -18,6 +18,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import DanteGateLink from "@/components/dante/DanteGateLink";
 import {
   ArrowLeft, Upload, Loader2, Trash2, FileText, Search,
   AlertCircle, Archive, Tag, ExternalLink, ChevronRight,
@@ -207,7 +208,7 @@ export default function DanteArchiveClient() {
           <span className="text-xs text-[var(--ink-subtle)]">/</span>
           <Link href="/dashboard" className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] transition">Dashboard</Link>
           <span className="text-xs text-[var(--ink-subtle)]">/</span>
-          <Link href="/dante" className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] transition">Dante</Link>
+          <DanteGateLink variant="breadcrumb" />
           <span className="text-xs text-[var(--ink-subtle)]">/</span>
           <span className="text-xs text-[var(--ink)]">Archive</span>
         </div>

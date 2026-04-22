@@ -12,6 +12,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import DanteGateLink from "@/components/dante/DanteGateLink";
 import {
   ArrowLeft, Plus, Loader2, Play, Zap, AlertCircle,
   CheckCircle2, Circle, Trash2, Sparkles, ArrowRight,
@@ -131,7 +132,7 @@ export default function DanteWorkflowsClient() {
           <img src="/brand/logo-circle.png" alt="Drift" className="w-6 h-6 rounded-full object-cover" />
           <span className="text-sm font-semibold text-[var(--ink)]">Drift</span>
           <span className="text-xs text-[var(--ink-subtle)]">/</span>
-          <Link href="/dante" className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] transition">Dante</Link>
+          <DanteGateLink variant="breadcrumb" />
           <span className="text-xs text-[var(--ink-subtle)]">/</span>
           <span className="text-xs text-[var(--ink)]">Workflows</span>
         </div>

@@ -27,6 +27,7 @@ import {
   useState, useCallback, useMemo, useEffect,
 } from "react";
 import Link from "next/link";
+import DanteGateLink from "@/components/dante/DanteGateLink";
 import {
   ReactFlow,
   Background,
@@ -494,7 +495,7 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
           <img src="/brand/logo-circle.png" alt="Drift" className="w-6 h-6 rounded-full object-cover" />
           <span className="text-sm font-semibold text-[var(--ink)]">Drift</span>
           <span className="text-xs text-[var(--ink-subtle)]">/</span>
-          <Link href="/dante" className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)]">Dante</Link>
+          <DanteGateLink variant="breadcrumb" />
           <span className="text-xs text-[var(--ink-subtle)]">/</span>
           <Link href="/dante/workflows" className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)]">Workflows</Link>
           <span className="text-xs text-[var(--ink-subtle)]">/</span>

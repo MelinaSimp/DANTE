@@ -12,6 +12,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import DanteGateLink from "@/components/dante/DanteGateLink";
 import {
   ArrowLeft, Loader2, FileText, Tag, ExternalLink, Copy,
   CheckCircle2, AlertCircle, Archive,
@@ -97,7 +98,7 @@ export default function DanteDocDetailClient({ documentId }: { documentId: strin
           <img src="/brand/logo-circle.png" alt="Drift" className="w-6 h-6 rounded-full object-cover" />
           <span className="text-sm font-semibold text-[var(--ink)]">Drift</span>
           <span className="text-xs text-[var(--ink-subtle)]">/</span>
-          <Link href="/dante" className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] transition">Dante</Link>
+          <DanteGateLink variant="breadcrumb" />
           <span className="text-xs text-[var(--ink-subtle)]">/</span>
           <Link href="/dante/archive" className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] transition">Archive</Link>
           <span className="text-xs text-[var(--ink-subtle)]">/</span>

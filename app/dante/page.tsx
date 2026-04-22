@@ -11,6 +11,7 @@
 //     node canvas ships in phase 2 on top of the same engine.
 
 import Link from "next/link";
+import DanteGateLink from "@/components/dante/DanteGateLink";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -72,7 +73,8 @@ export default async function DantePage() {
           <span className="text-xs text-[var(--ink-subtle)]">/</span>
           <Link href="/dashboard" className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] transition">Dashboard</Link>
           <span className="text-xs text-[var(--ink-subtle)]">/</span>
-          <span className="text-xs text-[var(--ink)]">Dante</span>
+          {/* "You are here" — static gate mark, not a link. */}
+          <DanteGateLink variant="breadcrumb-static" />
         </div>
         <Link href="/dashboard" className="flex items-center gap-1.5 px-3 py-2 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition text-sm font-medium">
           <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
