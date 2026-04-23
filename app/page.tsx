@@ -12,7 +12,7 @@ export default async function Home() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) redirect("/auth");
+  if (!user) redirect("/download");
 
   // Mirror the branching in /auth/callback so any path landing on "/"
   // (e.g. the invite-token signup that ends with redirect("/"), or a

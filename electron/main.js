@@ -30,7 +30,12 @@ autoUpdater.on("update-downloaded", (info) => {
       if (result.response === 0) autoUpdater.quitAndInstall();
     });
 });
-const APP_URL = isDev ? "http://localhost:3000" : "https://driftai.studio";
+// Desktop app boots into /dashboard: middleware bounces unauthed users
+// to /auth for sign-in; signed-in users land straight in the app. The
+// public /download page never shows inside an installed desktop app.
+const APP_URL = isDev
+  ? "http://localhost:3000/dashboard"
+  : "https://driftai.studio/dashboard";
 
 const ALLOWED_HOSTS = ["driftai.studio", "localhost", "127.0.0.1", "vercel.app"];
 

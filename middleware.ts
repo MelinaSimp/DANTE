@@ -108,8 +108,10 @@ export async function middleware(req: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      // User is not signed in - redirect to auth
-      return NextResponse.redirect(new URL("/auth", req.url));
+      // Anonymous hits on the root go to the public download/marketing
+      // page; hits on protected app routes go to /auth for sign-in.
+      const target = pathname === "/" ? "/download" : "/auth";
+      return NextResponse.redirect(new URL(target, req.url));
     }
 
     // For root path, let the page component handle the redirect
