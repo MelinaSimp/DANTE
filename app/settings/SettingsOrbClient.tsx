@@ -3,7 +3,6 @@
 import { useState, useEffect, lazy, Suspense } from "react";
 import Link from "next/link";
 import {
-  BookOpen,
   CreditCard,
   Download,
   Phone,
@@ -13,17 +12,15 @@ import {
   ArrowUpRight,
 } from "lucide-react";
 
-const KnowledgeSetupClient = lazy(() => import("./knowledge/KnowledgeSetupClient"));
 const PhoneNumbersCard = lazy(() => import("./PhoneNumbersCard"));
 const ZoomCard = lazy(() => import("./ZoomCard"));
 
 import BillingCard from "./BillingCard";
 import ExportDataCard from "./ExportDataCard";
 
-type PanelId = "knowledge" | "phone_numbers" | "zoom" | "billing" | "export";
+type PanelId = "phone_numbers" | "zoom" | "billing" | "export";
 
 const PANEL_TITLES: Record<PanelId, string> = {
-  knowledge: "Knowledge base",
   phone_numbers: "Phone numbers",
   zoom: "Zoom integration",
   billing: "Billing & subscription",
@@ -31,7 +28,6 @@ const PANEL_TITLES: Record<PanelId, string> = {
 };
 
 const PANEL_SUBTITLES: Record<PanelId, string> = {
-  knowledge: "Context Drift uses when it answers your callers.",
   phone_numbers:
     "Connect your Twilio account and route numbers to agents.",
   zoom:
@@ -52,7 +48,6 @@ interface NavItem {
 }
 
 const ALL_NAV_ITEMS: NavItem[] = [
-  { name: "Knowledge", icon: BookOpen, panelId: "knowledge", feature: "knowledge_base", group: "Workspace" },
   { name: "Phone numbers", icon: Phone, panelId: "phone_numbers", feature: "ai_receptionist", adminOnly: true, group: "Workspace" },
   { name: "Zoom", icon: Video, panelId: "zoom", group: "Workspace" },
   { name: "Billing", icon: CreditCard, panelId: "billing", group: "Workspace" },
@@ -70,14 +65,12 @@ function PanelLoader() {
 interface Props {
   isAdmin: boolean;
   workspaceId: string;
-  initialKnowledgeEntries: any[];
   features: string[];
 }
 
 export default function SettingsOrbClient({
   isAdmin,
   workspaceId,
-  initialKnowledgeEntries,
   features,
 }: Props) {
   // Pick a sensible default: first entitled + visible panel. If the
@@ -89,7 +82,7 @@ export default function SettingsOrbClient({
       (!item.feature || features.includes(item.feature)),
   );
 
-  const defaultPanel: PanelId = navItems[0]?.panelId ?? "billing";
+  const defaultPanel: PanelId = (navItems[0]?.panelId as PanelId) ?? "billing";
   const [activePanel, setActivePanel] = useState<PanelId>(defaultPanel);
 
   useEffect(() => {
@@ -106,13 +99,6 @@ export default function SettingsOrbClient({
 
   const renderPanel = () => {
     switch (activePanel) {
-      case "knowledge":
-        return (
-          <KnowledgeSetupClient
-            initialEntries={initialKnowledgeEntries}
-            workspaceId={workspaceId}
-          />
-        );
       case "phone_numbers":
         return <PhoneNumbersCard />;
       case "zoom":
