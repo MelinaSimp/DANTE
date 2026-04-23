@@ -117,6 +117,23 @@ function cleanJsonBlob(s: string): string {
   return (fence ? fence[1] : s).trim();
 }
 
+// "Substantive" = alphabetic tokens of length ≥ 2. Strips emoji,
+// punctuation, and one-letter tokens so a transcript of "😊 🙌 Bye 🙌"
+// scores 1, not 4. Used to short-circuit the LLM when there's nothing
+// to actually summarize.
+export function countSubstantiveWords(
+  segments: TranscriptSegment[],
+  transcript: string
+): number {
+  const body =
+    segments.length > 0 ? segments.map((s) => s.text).join(" ") : transcript;
+  const matches = body.match(/[A-Za-z]{2,}/g);
+  return matches ? matches.length : 0;
+}
+
+/** Under this many words, we skip the LLM and emit an honest stub. */
+const SHORT_TRANSCRIPT_WORD_THRESHOLD = 10;
+
 // Verification pass: reject claims that cite no segments or cite IDs that
 // don't exist. This is the grounding gate — same logic the eval measures.
 export function verifyStructured(
@@ -196,10 +213,15 @@ export function renderSummaryMarkdown(s: StructuredSummary): string {
       ...s.follow_ups.map((f) => `- ${f.text}${citeStr(f.cite_segments)}`)
     );
   }
-  lines.push(
-    "",
-    `*Verified: ${s.verified_count} / ${s.total_claims} claims grounded in the transcript.*`
-  );
+  // Only show the verification footer when there was something to verify.
+  // Empty-claim summaries (short transcripts, model skips) shouldn't
+  // brag "0 / 0 grounded" — it's noise.
+  if (s.total_claims > 0) {
+    lines.push(
+      "",
+      `*Verified: ${s.verified_count} / ${s.total_claims} claims grounded in the transcript.*`
+    );
+  }
   return lines.join("\n");
 }
 
@@ -214,6 +236,37 @@ export async function summarizeCall(
     anthropicKey,
     referenceContext,
   } = input;
+
+  // Short-circuit before we spend tokens on a transcript that has
+  // nothing to summarize. On empty/trivial audio the LLM happily
+  // fabricates ("The call was brief and casual...") with zero
+  // citations, which then renders as "0 / 0 grounded" — worse than
+  // useless. Emit an honest stub instead.
+  const wordCount = countSubstantiveWords(segments, transcript);
+  if (wordCount < SHORT_TRANSCRIPT_WORD_THRESHOLD) {
+    const tldr =
+      wordCount === 0
+        ? "No speech detected in this recording."
+        : `Transcript too short to audit — ${wordCount} ${
+            wordCount === 1 ? "word" : "words"
+          } of content.`;
+    const structured: StructuredSummary = {
+      tldr,
+      key_points: [],
+      action_items: [],
+      follow_ups: [],
+      verified_count: 0,
+      total_claims: 0,
+    };
+    return {
+      structured,
+      rawResponse: "",
+      model: "none",
+      inputTokens: 0,
+      outputTokens: 0,
+      markdown: renderSummaryMarkdown(structured),
+    };
+  }
 
   const prompt = buildSummaryPrompt(
     segments,
