@@ -31,6 +31,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dayjs": "^1.11.18",
+    "electron-updater": "^6.8.3",
     "form-data": "^4.0.5",
     "framer-motion": "^12.38.0",
     "html2canvas": "^1.4.1",
@@ -81,15 +82,32 @@
       "public/brand/**/*",
       "package.json"
     ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "MelinaSimp",
+        "repo": "drift-crm"
+      }
+    ],
     "mac": {
       "category": "public.app-category.business",
-      "target": "dmg",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
       "icon": "public/brand/logo-circle.png",
-      "darkModeSupport": true
+      "darkModeSupport": true,
+      "artifactName": "Drift-AI-mac-${arch}.${ext}"
     },
     "win": {
       "target": "nsis",
-      "icon": "public/brand/logo-circle.png"
+      "icon": "public/brand/logo-circle.png",
+      "artifactName": "Drift-AI-Setup.${ext}"
     },
     "linux": {
       "target": "AppImage",

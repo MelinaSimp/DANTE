@@ -1,7 +1,31 @@
 const { app, BrowserWindow, shell, Tray, Menu, nativeImage, dialog } = require("electron");
 const path = require("path");
+const { autoUpdater } = require("electron-updater");
 
 const isDev = process.env.NODE_ENV === "development";
+
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
+autoUpdater.on("error", (err) => console.error("[Drift updater]", err?.message || err));
+autoUpdater.on("update-available", (info) =>
+  console.log("[Drift updater] update available:", info?.version)
+);
+autoUpdater.on("update-downloaded", (info) => {
+  console.log("[Drift updater] downloaded:", info?.version);
+  dialog
+    .showMessageBox({
+      type: "info",
+      buttons: ["Restart now", "Later"],
+      defaultId: 0,
+      cancelId: 1,
+      title: "Update ready",
+      message: `Drift ${info?.version || ""} has been downloaded.`,
+      detail: "Restart the app to apply the update.",
+    })
+    .then((result) => {
+      if (result.response === 0) autoUpdater.quitAndInstall();
+    });
+});
 const APP_URL = isDev ? "http://localhost:3000" : "https://driftai.studio";
 
 const ALLOWED_HOSTS = ["driftai.studio", "localhost", "127.0.0.1", "vercel.app"];
@@ -94,6 +118,14 @@ app.whenReady().then(() => {
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+  if (!isDev) {
+    autoUpdater.checkForUpdates().catch((e) =>
+      console.error("[Drift updater] initial check failed:", e?.message || e)
+    );
+    setInterval(() => {
+      autoUpdater.checkForUpdates().catch(() => {});
+    }, 4 * 60 * 60 * 1000);
+  }
 });
 
 app.on("window-all-closed", () => {

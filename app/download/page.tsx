@@ -1,48 +1,51 @@
 import { Metadata } from "next";
 import Link from "next/link";
-import { Apple, Monitor, Smartphone, Tablet, Info, Check } from "lucide-react";
+import { Apple, Monitor, Info, Check } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Download Drift AI Desktop App",
-  description: "Download the native desktop app for macOS, Windows, iOS, and Android",
+  description: "Download the native desktop app for macOS and Windows",
 };
+
+const RELEASE_BASE =
+  "https://github.com/MelinaSimp/drift-crm/releases/latest/download";
 
 type Platform = {
   name: string;
   icon: typeof Apple;
-  href: string;
-  descriptor: string;
   blurb: string;
+  downloads: { label: string; href: string; descriptor: string }[];
 };
 
 const PLATFORMS: Platform[] = [
   {
     name: "macOS",
     icon: Apple,
-    href: "/downloads/Drift-AI-1.0.0.dmg",
-    descriptor: ".dmg installer",
     blurb: "Native desktop app for macOS 10.13 or later.",
+    downloads: [
+      {
+        label: "Apple Silicon",
+        href: `${RELEASE_BASE}/Drift-AI-mac-arm64.dmg`,
+        descriptor: "M1, M2, M3, M4",
+      },
+      {
+        label: "Intel",
+        href: `${RELEASE_BASE}/Drift-AI-mac-x64.dmg`,
+        descriptor: "Intel-based Macs",
+      },
+    ],
   },
   {
     name: "Windows",
     icon: Monitor,
-    href: "/downloads/Drift-AI-Setup-1.0.0.exe",
-    descriptor: ".exe installer",
     blurb: "Native desktop app for Windows 10 and later.",
-  },
-  {
-    name: "iOS",
-    icon: Smartphone,
-    href: "/downloads/Drift-AI-1.0.0.AppImage",
-    descriptor: "App Store",
-    blurb: "Drift on the go for iPhone and iPad.",
-  },
-  {
-    name: "Android",
-    icon: Tablet,
-    href: "/downloads/Drift-AI-1.0.0.AppImage",
-    descriptor: "Google Play",
-    blurb: "Drift for Android phones and tablets.",
+    downloads: [
+      {
+        label: "Windows",
+        href: `${RELEASE_BASE}/Drift-AI-Setup.exe`,
+        descriptor: ".exe installer",
+      },
+    ],
   },
 ];
 
@@ -71,11 +74,11 @@ export default function DownloadPage() {
         <p className="label-section text-[var(--ink-subtle)]">Download</p>
         <h1 className="heading-display text-5xl mt-3">Download Drift AI</h1>
         <p className="mt-4 text-[var(--ink-muted)] text-base max-w-2xl">
-          Native apps for macOS, Windows, iOS, and Android. Sign in with your
-          workspace to pick up where you left off.
+          Native desktop apps for macOS and Windows. Sign in with your workspace
+          to pick up where you left off.
         </p>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mt-12">
+        <div className="grid md:grid-cols-2 gap-4 mt-12">
           {PLATFORMS.map((p) => {
             const Icon = p.icon;
             return (
@@ -87,16 +90,18 @@ export default function DownloadPage() {
                 <p className="mt-2 text-sm text-[var(--ink-muted)] flex-1">
                   {p.blurb}
                 </p>
-                <p className="mt-3 text-xs text-[var(--ink-subtle)] mono">
-                  {p.descriptor}
-                </p>
-                <a
-                  href={p.href}
-                  download
-                  className="mt-5 inline-flex items-center justify-center bg-[var(--ink)] text-[var(--canvas)] px-4 py-2 rounded-[4px] text-sm font-medium hover:opacity-90 transition"
-                >
-                  Download
-                </a>
+                <div className="mt-5 space-y-2">
+                  {p.downloads.map((d) => (
+                    <a
+                      key={d.label}
+                      href={d.href}
+                      className="flex items-center justify-between gap-3 bg-[var(--ink)] text-[var(--canvas)] px-4 py-2.5 rounded-[4px] text-sm font-medium hover:opacity-90 transition"
+                    >
+                      <span>Download — {d.label}</span>
+                      <span className="text-xs opacity-70 mono">{d.descriptor}</span>
+                    </a>
+                  ))}
+                </div>
               </div>
             );
           })}
@@ -114,37 +119,31 @@ export default function DownloadPage() {
             </li>
             <li className="flex items-start gap-2">
               <Check className="w-4 h-4 text-[var(--accent)] mt-0.5 shrink-0" strokeWidth={1.5} />
-              <span>macOS 10.13+ / Windows 10+ / iOS 15+ / Android 10+</span>
+              <span>macOS 10.13+ / Windows 10+</span>
             </li>
             <li className="flex items-start gap-2">
               <Check className="w-4 h-4 text-[var(--accent)] mt-0.5 shrink-0" strokeWidth={1.5} />
-              <span>100MB free disk space</span>
+              <span>200 MB free disk space</span>
             </li>
             <li className="flex items-start gap-2">
               <Check className="w-4 h-4 text-[var(--accent)] mt-0.5 shrink-0" strokeWidth={1.5} />
-              <span>Latest version automatically connects to our servers</span>
+              <span>Automatic updates — the app checks on launch and every 4 hours</span>
             </li>
           </ul>
         </div>
 
         <div className="mt-6 card-flat p-6">
-          <h3 className="label-section text-[var(--ink)]">Installation Instructions</h3>
+          <h3 className="label-section text-[var(--ink)]">Installation</h3>
           <div className="mt-4 space-y-3 text-sm text-[var(--ink-muted)]">
             <div>
               <strong className="text-[var(--ink)] font-medium">macOS:</strong>{" "}
-              Open the .dmg file, drag Drift AI to your Applications folder.
+              Open the .dmg, drag Drift AI to Applications. First launch: right-click
+              the app and choose Open to bypass the unsigned-developer warning.
             </div>
             <div>
               <strong className="text-[var(--ink)] font-medium">Windows:</strong>{" "}
-              Run the .exe installer and follow the setup wizard.
-            </div>
-            <div>
-              <strong className="text-[var(--ink)] font-medium">iOS:</strong>{" "}
-              Install from the App Store and sign in with your workspace email.
-            </div>
-            <div>
-              <strong className="text-[var(--ink)] font-medium">Android:</strong>{" "}
-              Install from Google Play and sign in with your workspace email.
+              Run the .exe. If SmartScreen warns you, click "More info" → "Run
+              anyway" — the installer isn't code-signed yet.
             </div>
           </div>
         </div>
