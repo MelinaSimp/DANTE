@@ -1,6 +1,6 @@
 {
   "name": "drift-ai",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Drift AI — Customer Relationship Management",
   "author": "Drift AI",
   "private": true,
@@ -101,18 +101,18 @@
           ]
         }
       ],
-      "icon": "public/brand/logo-circle.png",
+      "icon": "public/brand/Drift.icns",
       "darkModeSupport": true,
       "artifactName": "Drift-AI-mac-${arch}.${ext}"
     },
     "win": {
       "target": "nsis",
-      "icon": "public/brand/logo-circle.png",
+      "icon": "public/brand/Drift.ico",
       "artifactName": "Drift-AI-Setup.${ext}"
     },
     "linux": {
       "target": "AppImage",
-      "icon": "public/brand/logo-circle.png"
+      "icon": "public/brand/Drift.icns"
     }
   }
 }
