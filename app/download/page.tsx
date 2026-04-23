@@ -7,8 +7,7 @@ export const metadata: Metadata = {
   description: "Download the native desktop app for macOS and Windows",
 };
 
-const RELEASE_BASE =
-  "https://github.com/MelinaSimp/drift-crm/releases/latest/download";
+const RELEASE_BASE = "/api/desktop-download";
 
 type Platform = {
   name: string;

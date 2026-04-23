@@ -6,6 +6,10 @@ const isDev = process.env.NODE_ENV === "development";
 
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
+autoUpdater.setFeedURL({
+  provider: "generic",
+  url: "https://driftai.studio/api/desktop-download",
+});
 autoUpdater.on("error", (err) => console.error("[Drift updater]", err?.message || err));
 autoUpdater.on("update-available", (info) =>
   console.log("[Drift updater] update available:", info?.version)
