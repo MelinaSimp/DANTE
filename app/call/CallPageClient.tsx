@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Search } from "lucide-react";
 import CallRecorder from "@/components/call/CallRecorder";
+import ZoomLauncher from "@/components/call/ZoomLauncher";
 
 type Contact = {
   id: string;
@@ -119,7 +120,17 @@ export default function CallPageClient({
             )}
           </>
         ) : (
-          <CallRecorder contact={picked} />
+          <div className="space-y-4">
+            <CallRecorder contact={picked} />
+            <div className="flex items-center gap-3 py-1">
+              <div className="flex-1 border-t border-[var(--rule)]" />
+              <span className="text-xs text-[var(--ink-subtle)] uppercase tracking-wide">
+                or
+              </span>
+              <div className="flex-1 border-t border-[var(--rule)]" />
+            </div>
+            <ZoomLauncher contact={picked} />
+          </div>
         )}
       </div>
     </div>

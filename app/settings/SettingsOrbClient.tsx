@@ -7,20 +7,23 @@ import {
   CreditCard,
   Download,
   Phone,
+  Video,
   ArrowLeft,
 } from "lucide-react";
 
 const KnowledgeSetupClient = lazy(() => import("./knowledge/KnowledgeSetupClient"));
 const PhoneNumbersCard = lazy(() => import("./PhoneNumbersCard"));
+const ZoomCard = lazy(() => import("./ZoomCard"));
 
 import BillingCard from "./BillingCard";
 import ExportDataCard from "./ExportDataCard";
 
-type PanelId = "knowledge" | "phone_numbers" | "billing" | "export";
+type PanelId = "knowledge" | "phone_numbers" | "zoom" | "billing" | "export";
 
 const PANEL_TITLES: Record<PanelId, string> = {
   knowledge: "Knowledge base",
   phone_numbers: "Phone numbers",
+  zoom: "Zoom integration",
   billing: "Billing & subscription",
   export: "Export data",
 };
@@ -29,6 +32,8 @@ const PANEL_SUBTITLES: Record<PanelId, string> = {
   knowledge: "Context Drift uses when it answers your callers.",
   phone_numbers:
     "Connect your Twilio account and route numbers to agents.",
+  zoom:
+    "Launch cloud-recorded client meetings that auto-transcribe into the client's timeline.",
   billing: "Manage subscription, payment methods, and invoices.",
   export: "Download all workspace records as a single JSON file.",
 };
@@ -47,6 +52,7 @@ interface NavItem {
 const ALL_NAV_ITEMS: NavItem[] = [
   { name: "Knowledge", icon: BookOpen, panelId: "knowledge", feature: "knowledge_base", group: "Workspace" },
   { name: "Phone numbers", icon: Phone, panelId: "phone_numbers", feature: "ai_receptionist", adminOnly: true, group: "Workspace" },
+  { name: "Zoom", icon: Video, panelId: "zoom", group: "Workspace" },
   { name: "Billing", icon: CreditCard, panelId: "billing", group: "Workspace" },
   { name: "Export", icon: Download, panelId: "export", adminOnly: true, group: "Administration" },
 ];
@@ -107,6 +113,8 @@ export default function SettingsOrbClient({
         );
       case "phone_numbers":
         return <PhoneNumbersCard />;
+      case "zoom":
+        return <ZoomCard isAdmin={isAdmin} workspaceId={workspaceId} />;
       case "billing":
         return <BillingCard />;
       case "export":
