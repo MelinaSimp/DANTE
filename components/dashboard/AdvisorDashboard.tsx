@@ -128,11 +128,13 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
   // Greeting + subtitle rotate from pools in lib/dashboard/greetings
   // seeded on (firstName, today's date). Same copy all day, fresh
   // tomorrow. useMemo so the hash doesn't recompute on every render.
-  const greeting = useMemo(() => pickGreeting(firstName), [firstName]);
-  // Some greetings already end in their own punctuation ("Long day?",
-  // "Not done yet?"). Appending ", Adharsh." to those yields "Long
-  // day?, Adharsh." — swap the comma for a space in that case.
-  const greetingSeparator = /[?!.]$/.test(greeting) ? " " : ", ";
+  const rawGreeting = useMemo(() => pickGreeting(firstName), [firstName]);
+  // Some greetings are questions ("Long day?", "Not done yet?"). Move
+  // that trailing punctuation to the end of the whole phrase so we say
+  // "Long day, Adharsh?" instead of "Long day? Adharsh."
+  const trailingMatch = rawGreeting.match(/[?!]+$/);
+  const greeting = trailingMatch ? rawGreeting.slice(0, -trailingMatch[0].length) : rawGreeting;
+  const greetingTerminator = trailingMatch ? trailingMatch[0] : ".";
   const hasCompliance = data.features.includes("compliance_scanner");
   const meetings = data.today.length;
   const review = hasCompliance ? data.awaitingReview : 0;
@@ -231,7 +233,7 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
             })}
           </div>
           <h1 className="heading-display text-5xl md:text-6xl mb-3">
-            {greeting}{greetingSeparator}{firstName}.
+            {greeting}, {firstName}{greetingTerminator}
           </h1>
           <p className="prose-body text-[var(--ink-muted)] max-w-2xl">
             {subtitle}
