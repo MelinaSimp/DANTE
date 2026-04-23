@@ -86,7 +86,8 @@
       {
         "provider": "github",
         "owner": "MelinaSimp",
-        "repo": "drift-crm"
+        "repo": "drift-crm",
+        "releaseType": "release"
       }
     ],
     "mac": {
