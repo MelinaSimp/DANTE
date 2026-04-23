@@ -21,6 +21,9 @@ import {
   Info,
   CheckCircle2,
   XCircle,
+  TrendingUp,
+  TrendingDown,
+  Minus,
 } from "lucide-react";
 
 type Segment = {
@@ -44,6 +47,18 @@ export type StructuredSummary = {
   follow_ups: Claim[];
   verified_count: number;
   total_claims: number;
+};
+
+export type EngagementTopic = {
+  topic: string;
+  interest: "high" | "medium" | "low";
+  evidence: string;
+  segment_ids: number[];
+};
+
+export type Engagement = {
+  overall_interest: number;
+  topics: EngagementTopic[];
 };
 
 export type ComplianceFlag = {
@@ -150,6 +165,116 @@ function ClaimRow({
   );
 }
 
+function EngagementPanel({
+  engagement,
+  segments,
+  onHighlight,
+  highlighted,
+}: {
+  engagement: Engagement;
+  segments: Segment[];
+  onHighlight: (ids: number[] | null) => void;
+  highlighted: number[] | null;
+}) {
+  const overallLabel =
+    engagement.overall_interest >= 70
+      ? "High"
+      : engagement.overall_interest >= 40
+      ? "Mixed"
+      : "Low";
+  const overallColor =
+    engagement.overall_interest >= 70
+      ? "var(--verified, #1a8a4a)"
+      : engagement.overall_interest >= 40
+      ? "var(--ink-muted)"
+      : "var(--danger, #b42318)";
+
+  return (
+    <div>
+      <div className="flex items-baseline justify-between mb-2">
+        <h3 className="label-section">Engagement</h3>
+        <span className="text-xs mono" style={{ color: overallColor }}>
+          {overallLabel} · {engagement.overall_interest}/100
+        </span>
+      </div>
+      <ul className="space-y-2">
+        {engagement.topics.map((t, i) => {
+          const isActive =
+            highlighted !== null &&
+            t.segment_ids.some((id) => highlighted.includes(id));
+          const Icon =
+            t.interest === "high"
+              ? TrendingUp
+              : t.interest === "low"
+              ? TrendingDown
+              : Minus;
+          const iconColor =
+            t.interest === "high"
+              ? "var(--verified, #1a8a4a)"
+              : t.interest === "low"
+              ? "var(--danger, #b42318)"
+              : "var(--ink-muted)";
+          return (
+            <li
+              key={i}
+              onMouseEnter={() => onHighlight(t.segment_ids)}
+              onMouseLeave={() => onHighlight(null)}
+              className="border p-3 text-sm transition cursor-default"
+              style={{
+                borderColor: isActive ? "var(--accent)" : "var(--rule)",
+                background: isActive ? "var(--accent-soft)" : "var(--canvas)",
+                borderRadius: "var(--r-card)",
+              }}
+            >
+              <div className="flex items-start gap-2">
+                <Icon
+                  className="h-4 w-4 mt-0.5 flex-shrink-0"
+                  style={{ color: iconColor }}
+                />
+                <div className="flex-1 min-w-0">
+                  <div
+                    className="prose-body font-medium"
+                    style={{ color: "var(--ink)" }}
+                  >
+                    {t.topic}
+                  </div>
+                  <div
+                    className="text-xs mt-1 italic"
+                    style={{ color: "var(--ink-muted)" }}
+                  >
+                    {t.evidence}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    <span
+                      className="text-[10px] mono uppercase tracking-wider"
+                      style={{ color: iconColor }}
+                    >
+                      {t.interest} interest
+                    </span>
+                    {t.segment_ids.map((id) => {
+                      const seg = segments.find((s) => s.id === id);
+                      return (
+                        <span
+                          key={id}
+                          title={seg?.text}
+                          className="chip-citation inline-flex items-center gap-1"
+                        >
+                          <Clock className="h-2.5 w-2.5" />
+                          {seg ? formatTime(seg.start) : `#${id}`}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 export default function CallAuditView({
   open,
   onClose,
@@ -158,6 +283,7 @@ export default function CallAuditView({
   transcript,
   segments,
   structured,
+  engagement,
   flags,
   onFlagAction,
   onDownloadAudit,
@@ -169,6 +295,7 @@ export default function CallAuditView({
   transcript: string;
   segments: Segment[];
   structured: StructuredSummary | null;
+  engagement?: Engagement | null;
   flags?: ComplianceFlag[];
   onFlagAction?: (
     flagId: string,
@@ -517,6 +644,15 @@ export default function CallAuditView({
                       {structured!.tldr}
                     </p>
                   </div>
+                )}
+
+                {engagement && engagement.topics.length > 0 && (
+                  <EngagementPanel
+                    engagement={engagement}
+                    segments={segments}
+                    onHighlight={setHighlighted}
+                    highlighted={highlighted}
+                  />
                 )}
 
                 {structured!.key_points.length > 0 && (

@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
   const query = supabase
     .from("call_recordings")
     .select(
-      "id, contact_id, transcript, transcript_segments, summary_structured, summary, created_at, completed_at, note_id"
+      "id, contact_id, transcript, transcript_segments, summary_structured, summary, engagement, created_at, completed_at, note_id"
     );
 
   const { data, error } = recordingId

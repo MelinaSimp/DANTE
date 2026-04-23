@@ -13,6 +13,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { recordLlmUsage } from "@/lib/usage/track";
 import { summarizeCall } from "@/lib/calls/summarize";
 import { classifyCallSentiment } from "@/lib/calls/sentiment";
+import { analyzeEngagement } from "@/lib/calls/engagement";
 import { scanForCompliance } from "@/lib/compliance/scan";
 import {
   retrieveReferences,
@@ -217,6 +218,17 @@ export async function processRecording(opts: {
     openaiKey,
   });
 
+  // Topic-level engagement analysis — gauges per-topic client interest
+  // so Dante can flag "advisor pitched X, client was checked out" as a
+  // product-specific churn signal. Non-fatal if it fails.
+  const engagement = await analyzeEngagement({
+    segments,
+    transcript,
+    contactName,
+    anthropicKey,
+    openaiKey,
+  });
+
   await supabaseAdmin
     .from("call_recordings")
     .update({
@@ -229,8 +241,36 @@ export async function processRecording(opts: {
         durationSeconds ?? (Math.round(whisperDuration || 0) || null),
       sentiment_score: sentiment?.score ?? null,
       sentiment_label: sentiment?.label ?? null,
+      engagement: engagement
+        ? {
+            overall_interest: engagement.overall_interest,
+            topics: engagement.topics,
+          }
+        : null,
     })
     .eq("id", recordingId);
+
+  // Per-topic churn events — one event per topic so Dante can track
+  // decay + surface "low interest on X" in the timeline. Medium-interest
+  // topics are noise for churn signals; skip them.
+  if (engagement && rec.contact_id) {
+    for (const t of engagement.topics) {
+      if (t.interest === "medium") continue;
+      logChurnEvent({
+        workspace_id: rec.workspace_id,
+        contact_id: rec.contact_id,
+        event_type:
+          t.interest === "high" ? "topic_high_interest" : "topic_low_interest",
+        source: "calls",
+        source_id: recordingId,
+        metadata: {
+          topic: t.topic.slice(0, 120),
+          evidence: t.evidence.slice(0, 200),
+          segment_ids: t.segment_ids.slice(0, 8),
+        },
+      });
+    }
+  }
 
   if (rec.contact_id) {
     const totalSeconds = Math.round(durationSeconds ?? whisperDuration ?? 0);

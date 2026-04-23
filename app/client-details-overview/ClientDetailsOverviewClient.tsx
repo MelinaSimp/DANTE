@@ -133,6 +133,15 @@ export default function ClientDetailsOverviewClient({
       | null;
     summary_structured: StructuredSummary | null;
     summary: string | null;
+    engagement: {
+      overall_interest: number;
+      topics: Array<{
+        topic: string;
+        interest: "high" | "medium" | "low";
+        evidence: string;
+        segment_ids: number[];
+      }>;
+    } | null;
     created_at: string;
     note_id: string | null;
   };
@@ -1786,6 +1795,7 @@ export default function ClientDetailsOverviewClient({
             transcript={auditData.transcript || ""}
             segments={auditData.transcript_segments || []}
             structured={auditData.summary_structured}
+            engagement={auditData.engagement}
             flags={auditFlags}
             onFlagAction={handleFlagAction}
           />
