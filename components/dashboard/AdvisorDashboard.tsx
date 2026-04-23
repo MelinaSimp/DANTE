@@ -129,6 +129,10 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
   // seeded on (firstName, today's date). Same copy all day, fresh
   // tomorrow. useMemo so the hash doesn't recompute on every render.
   const greeting = useMemo(() => pickGreeting(firstName), [firstName]);
+  // Some greetings already end in their own punctuation ("Long day?",
+  // "Not done yet?"). Appending ", Adharsh." to those yields "Long
+  // day?, Adharsh." — swap the comma for a space in that case.
+  const greetingSeparator = /[?!.]$/.test(greeting) ? " " : ", ";
   const hasCompliance = data.features.includes("compliance_scanner");
   const meetings = data.today.length;
   const review = hasCompliance ? data.awaitingReview : 0;
@@ -227,7 +231,7 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
             })}
           </div>
           <h1 className="heading-display text-5xl md:text-6xl mb-3">
-            {greeting}, {firstName}.
+            {greeting}{greetingSeparator}{firstName}.
           </h1>
           <p className="prose-body text-[var(--ink-muted)] max-w-2xl">
             {subtitle}
