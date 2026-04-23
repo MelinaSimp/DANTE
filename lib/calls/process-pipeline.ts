@@ -23,6 +23,19 @@ import { logChurnEvent } from "@/lib/dante/churn-events";
 
 const MAX_UPLOAD_BYTES = 24 * 1024 * 1024; // Whisper API limit is 25 MB
 
+// Drop Unicode pictographs + modifier sequences + isolated modifiers.
+// Covers 🖐️, 😊, regional-indicator pairs, skin-tone modifiers, ZWJ
+// sequences, and the VS16 selector Whisper sometimes emits on its own.
+function stripEmojis(text: string): string {
+  return text
+    .replace(/\p{Extended_Pictographic}(?:\u200d\p{Extended_Pictographic})*[\uFE0E\uFE0F]?/gu, "")
+    .replace(/[\u{1F3FB}-\u{1F3FF}]/gu, "")
+    .replace(/[\uFE0E\uFE0F]/g, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/ +\n/g, "\n")
+    .trim();
+}
+
 export type PipelineResult = {
   ok: true;
   recordingId: string;
@@ -122,14 +135,18 @@ export async function processRecording(opts: {
       return fail(recordingId, 502, `Whisper error: ${text.slice(0, 300)}`);
     }
     const data = await resp.json();
-    transcript = (data.text || "").trim();
+    // Whisper-1 hallucinates emojis on quiet/short segments ("😊 🖐️ Bye"
+    // etc.) — they're decoder artifacts, not real content. Strip them
+    // before the text hits the DB so every downstream surface (note
+    // body, audit transcript, eval scoring) stays clean.
+    transcript = stripEmojis((data.text || "").trim());
     whisperDuration = typeof data.duration === "number" ? data.duration : null;
     segments = Array.isArray(data.segments)
       ? data.segments.map((s: any) => ({
           id: typeof s.id === "number" ? s.id : 0,
           start: typeof s.start === "number" ? s.start : 0,
           end: typeof s.end === "number" ? s.end : 0,
-          text: typeof s.text === "string" ? s.text.trim() : "",
+          text: typeof s.text === "string" ? stripEmojis(s.text.trim()) : "",
         }))
       : [];
   } catch (e: any) {

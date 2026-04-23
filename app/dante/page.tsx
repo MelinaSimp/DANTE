@@ -12,6 +12,7 @@
 
 import Link from "next/link";
 import DanteGateLink from "@/components/dante/DanteGateLink";
+import { DriftMark } from "@/components/dante/DriftMark";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -20,7 +21,7 @@ import { hasSuperadminAccess } from "@/lib/superadmin";
 import {
   ArrowLeft, TrendingDown, Zap, ArrowUpRight, Flame,
   Activity, AlertTriangle, Key, ShieldCheck, Vault, BookOpen,
-  FileText, Sparkles,
+  FileText,
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -204,7 +205,7 @@ export default async function DantePage() {
             </p>
             <div className="mt-auto flex items-center gap-4 text-xs">
               <span className="inline-flex items-center gap-1.5 text-[var(--ink-muted)]">
-                <Sparkles className="w-3.5 h-3.5" strokeWidth={1.5} />
+                <DriftMark className="w-3.5 h-3.5" />
                 Advisor-specific, archive-aware
               </span>
             </div>

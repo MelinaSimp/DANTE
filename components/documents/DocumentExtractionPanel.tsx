@@ -171,7 +171,7 @@ export default function DocumentExtractionPanel({
         )}
         <FileText
           className="h-3.5 w-3.5"
-          style={{ color: "var(--accent)" }}
+          style={{ color: "var(--ink)" }}
         />
         <span
           className="label-section flex-1"

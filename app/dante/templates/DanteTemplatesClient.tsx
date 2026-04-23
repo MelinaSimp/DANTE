@@ -17,13 +17,14 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import DanteGateLink from "@/components/dante/DanteGateLink";
+import { DriftMark } from "@/components/dante/DriftMark";
 import {
-  ArrowLeft, Sparkles, Copy, Loader2, Archive as ArchiveIcon,
+  ArrowLeft, Copy, Loader2, Archive as ArchiveIcon,
   ClipboardList, MailCheck, CalendarClock, Eye, Cake, Coins,
   TrendingDown, CalendarDays, FileSpreadsheet, UserCheck, BookOpen,
   UserPlus, Calculator, Share2, Landmark, RefreshCw, CalendarCheck,
   ScrollText, PiggyBank,
-  Zap, AlertCircle, ArrowUpRight,
+  Sparkles, Zap, AlertCircle, ArrowUpRight,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { WORKFLOW_TEMPLATES, type WorkflowTemplate } from "@/lib/dante/templates";
@@ -147,7 +148,7 @@ export default function DanteTemplatesClient({ archiveReady, canManageArchive }:
 
           <div className="mt-5 flex items-center gap-4 text-xs text-[var(--ink-muted)]">
             <span className="inline-flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5" strokeWidth={1.5} />
+              <DriftMark className="w-3.5 h-3.5" />
               <strong className="font-semibold text-[var(--ink)]">{WORKFLOW_TEMPLATES.length}</strong> templates
             </span>
             <span className="inline-flex items-center gap-1.5">

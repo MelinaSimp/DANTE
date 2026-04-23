@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import dayjs from "dayjs";
 import { Plus, X, Calendar, Clock, User, Phone, FileText, Mail, Pencil, Check, Loader2, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Mic, MessageSquare, Sparkles } from "lucide-react";
 import { reportError } from "@/lib/report-error";
+import DatePicker from "@/components/ui/DatePicker";
 
 interface Appointment {
   id: string;
@@ -1029,12 +1030,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block label-section text-[var(--ink-muted)] mb-1">Date</label>
-                  <input
-                    type="date"
-                    value={formDate}
-                    onChange={(e) => setFormDate(e.target.value)}
-                    className="w-full rounded-[4px] border border-[var(--rule-strong)] bg-[var(--canvas)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-                  />
+                  <DatePicker value={formDate} onChange={setFormDate} />
                 </div>
                 <div>
                   <label className="block label-section text-[var(--ink-muted)] mb-1">Time</label>
@@ -1193,12 +1189,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
 
               <div>
                 <label className="block label-section text-[var(--ink-muted)] mb-1">Date</label>
-                <input
-                  type="date"
-                  value={slotDate}
-                  onChange={(e) => setSlotDate(e.target.value)}
-                  className="w-full rounded-[4px] border border-[var(--rule-strong)] bg-[var(--canvas)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
-                />
+                <DatePicker value={slotDate} onChange={setSlotDate} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

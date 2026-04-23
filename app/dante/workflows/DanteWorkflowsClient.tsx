@@ -13,9 +13,10 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import DanteGateLink from "@/components/dante/DanteGateLink";
+import { DriftMark } from "@/components/dante/DriftMark";
 import {
   ArrowLeft, Plus, Loader2, Play, Zap, AlertCircle,
-  CheckCircle2, Circle, Trash2, Sparkles, ArrowRight,
+  CheckCircle2, Circle, Trash2, ArrowRight,
   Clock, Webhook, MousePointerClick, Users, TrendingUp,
   ChevronRight,
 } from "lucide-react";
@@ -230,8 +231,8 @@ export default function DanteWorkflowsClient() {
         {/* ── Generate with Dante ───────────────────────────── */}
         <section className="card-flat p-6 mb-8">
           <div className="flex items-center gap-2 mb-4">
-            <div className="border border-[var(--rule)] bg-[var(--accent-soft)] text-[var(--accent)] rounded-[4px] p-1.5">
-              <Sparkles className="w-3.5 h-3.5" strokeWidth={1.5} />
+            <div className="border border-[var(--rule)] bg-[var(--canvas)] rounded-[4px] p-1.5">
+              <DriftMark className="w-3.5 h-3.5" />
             </div>
             <div>
               <div className="text-sm font-semibold text-[var(--ink)]">Generate with Dante</div>
@@ -289,7 +290,7 @@ export default function DanteWorkflowsClient() {
               >
                 {generating
                   ? <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
-                  : <Sparkles className="h-4 w-4" strokeWidth={1.5} />}
+                  : <DriftMark className="h-4 w-4" />}
                 Generate
                 {!generating && <ArrowRight className="w-3.5 h-3.5 opacity-60" strokeWidth={1.5} />}
               </button>
@@ -395,7 +396,7 @@ export default function DanteWorkflowsClient() {
                       {isMaterializing ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
                       ) : (
-                        <Sparkles className="h-3.5 w-3.5" strokeWidth={1.5} />
+                        <DriftMark className="h-3.5 w-3.5" />
                       )}
                       {isMaterializing ? "Building…" : "Build this"}
                       {!isMaterializing && <ChevronRight className="w-3 h-3 opacity-70" strokeWidth={1.5} />}

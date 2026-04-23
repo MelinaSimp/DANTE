@@ -123,6 +123,7 @@ export default function ClientDetailsOverviewClient({
   // Notes list for the selected client (hand-written + AI call-recording notes)
   const [clientNotes, setClientNotes] = useState<ClientNote[]>([]);
   const [notesLoading, setNotesLoading] = useState(false);
+  const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
   // Audit view state — opens when the user clicks "View audit" on a call note.
   type AuditData = {
     id: string;
@@ -1145,7 +1146,14 @@ export default function ClientDetailsOverviewClient({
                       ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-[var(--ink-muted)]">No templates yet. Upload a document below, add annotations, then save as a template.</p>
+                    <div className="text-sm text-[var(--ink-muted)] space-y-2">
+                      <p>No templates yet. Templates let you extract the same fields from any document with matching structure.</p>
+                      <ol className="list-decimal list-inside space-y-0.5 text-xs">
+                        <li>Upload a PDF below</li>
+                        <li>Highlight, comment on, or mark tables in the parts you want</li>
+                        <li>Hit <span className="font-medium text-[var(--ink)]">Save as template</span> and give it a name</li>
+                      </ol>
+                    </div>
                   )}
                 </div>
 
@@ -1488,7 +1496,7 @@ export default function ClientDetailsOverviewClient({
                                     value={templateName}
                                     onChange={(e) => setTemplateName(e.target.value)}
                                     placeholder="Template name"
-                                    className="rounded-[4px] border border-[var(--rule)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                                    className="rounded-[4px] border border-[var(--rule)] px-3 py-2 text-sm focus:outline-none focus:border-[var(--ink)]"
                                     disabled={savingTemplate}
                                   />
                                   <div className="flex gap-2">
@@ -1597,6 +1605,28 @@ export default function ClientDetailsOverviewClient({
                         <ul className="space-y-2">
                           {clientNotes.map((n) => {
                             const isCallNote = n.body.startsWith("📞 Call with");
+                            const expanded = expandedNotes.has(n.id);
+                            const toggleExpanded = () => {
+                              setExpandedNotes((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(n.id)) next.delete(n.id);
+                                else next.add(n.id);
+                                return next;
+                              });
+                            };
+                            // For call notes, show just the header + summary
+                            // until the user expands. Splits on the transcript
+                            // divider so the noisy raw transcript doesn't drown
+                            // the useful summary.
+                            let preview = n.body;
+                            let hasMore = false;
+                            if (isCallNote) {
+                              const markerIdx = n.body.indexOf("FULL TRANSCRIPT");
+                              if (markerIdx > 0) {
+                                preview = n.body.slice(0, markerIdx).replace(/\n+---\n*$/, "").trimEnd();
+                                hasMore = true;
+                              }
+                            }
                             return (
                               <li
                                 key={n.id}
@@ -1626,19 +1656,19 @@ export default function ClientDetailsOverviewClient({
                                         onClick={() => openAuditForNote(n.id)}
                                         className="inline-flex items-center gap-1 border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider transition"
                                         style={{
-                                          borderColor: "var(--accent)",
-                                          color: "var(--accent)",
+                                          borderColor: "var(--ink)",
+                                          color: "var(--ink)",
                                           background: "var(--canvas)",
                                           borderRadius: "var(--r-chip)",
                                           letterSpacing: "0.08em",
                                         }}
                                         onMouseEnter={(e) => {
-                                          e.currentTarget.style.background = "var(--accent)";
+                                          e.currentTarget.style.background = "var(--ink)";
                                           e.currentTarget.style.color = "var(--canvas)";
                                         }}
                                         onMouseLeave={(e) => {
                                           e.currentTarget.style.background = "var(--canvas)";
-                                          e.currentTarget.style.color = "var(--accent)";
+                                          e.currentTarget.style.color = "var(--ink)";
                                         }}
                                         title="See which transcript segments each claim came from"
                                       >
@@ -1647,7 +1677,21 @@ export default function ClientDetailsOverviewClient({
                                     )}
                                   </div>
                                 </div>
-                                <div>{n.body}</div>
+                                <div>{isCallNote && hasMore && !expanded ? preview : n.body}</div>
+                                {isCallNote && hasMore && (
+                                  <button
+                                    type="button"
+                                    onClick={toggleExpanded}
+                                    className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium transition"
+                                    style={{
+                                      color: "var(--ink-muted)",
+                                    }}
+                                    onMouseEnter={(e) => { e.currentTarget.style.color = "var(--ink)"; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.color = "var(--ink-muted)"; }}
+                                  >
+                                    {expanded ? "▲ Hide transcript" : "▼ Show full transcript"}
+                                  </button>
+                                )}
                               </li>
                             );
                           })}

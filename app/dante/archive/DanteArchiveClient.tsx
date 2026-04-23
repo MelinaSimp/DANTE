@@ -19,10 +19,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import DanteGateLink from "@/components/dante/DanteGateLink";
+import { DriftMark } from "@/components/dante/DriftMark";
 import {
   ArrowLeft, Upload, Loader2, Trash2, FileText, Search,
   AlertCircle, Archive, Tag, ExternalLink, ChevronRight,
-  CheckCircle2, Sparkles,
+  CheckCircle2,
 } from "lucide-react";
 import { ARCHIVE_KIND_LABELS, type ArchiveKind, type ArchiveSearchHit } from "@/lib/dante/archive/types";
 
@@ -359,7 +360,7 @@ export default function DanteArchiveClient() {
             type="submit" disabled={!q.trim() || searching}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-xs font-medium hover:opacity-90 transition disabled:opacity-40"
           >
-            {searching ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" strokeWidth={1.5} />}
+            {searching ? <Loader2 className="w-3 h-3 animate-spin" /> : <DriftMark className="w-3 h-3" />}
             Search
           </button>
         </form>

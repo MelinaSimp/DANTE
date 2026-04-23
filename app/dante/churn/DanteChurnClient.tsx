@@ -20,11 +20,12 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import DanteGateLink from "@/components/dante/DanteGateLink";
+import { DriftMark } from "@/components/dante/DriftMark";
 import {
   ArrowLeft, RefreshCw, AlertTriangle, TrendingDown, Activity,
   ShieldCheck, ChevronDown, ChevronUp, Phone, Mail, Loader2,
   Flame, MessageSquare, CalendarClock, PhoneCall, TrendingUp,
-  Lightbulb, Sparkles,
+  Lightbulb,
 } from "lucide-react";
 
 type RiskLevel = "healthy" | "watch" | "act_now" | "critical";
@@ -185,7 +186,7 @@ export default function DanteChurnClient() {
             disabled={ranking}
             className="flex items-center gap-1.5 px-3 py-2 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition text-sm font-medium disabled:opacity-50"
           >
-            <Sparkles className={`w-4 h-4 ${ranking ? "animate-pulse" : ""}`} strokeWidth={1.5} />
+            <DriftMark className={`w-4 h-4 ${ranking ? "animate-pulse" : ""}`} />
             {ranking ? "Ranking…" : "Rank my book"}
           </button>
           <Link href="/dante" className="flex items-center gap-1.5 px-3 py-2 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition text-sm font-medium">
@@ -271,7 +272,7 @@ export default function DanteChurnClient() {
             >
               {ranking
                 ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.5} />
-                : <Sparkles className="w-4 h-4" strokeWidth={1.5} />}
+                : <DriftMark className="w-4 h-4" />}
               {ranking ? "Ranking…" : "Rank my book"}
             </button>
           </div>

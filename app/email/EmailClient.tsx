@@ -553,27 +553,14 @@ export default function EmailClient({ agentId }: { agentId: string }) {
                       Ask AI to help
                     </button>
                   ) : (
-                    <div className="rounded-[4px] border border-[var(--rule)] bg-[var(--canvas-subtle)] p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Sparkles className="w-4 h-4 text-[var(--ink-muted)]" strokeWidth={1.5} />
-                          <span className="text-sm font-medium text-[var(--ink)]">
-                            AI Assistant
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => {
-                            setShowAiHelper(false);
-                            setAiPrompt("");
-                            setAiResponse("");
-                          }}
-                          className="p-1 hover:bg-[var(--canvas)] rounded-[4px] transition"
-                          aria-label="Close AI helper"
-                        >
-                          <X className="w-3.5 h-3.5 text-[var(--ink-subtle)]" strokeWidth={1.5} />
-                        </button>
-                      </div>
-                      <div className="flex gap-2">
+                    <div className="space-y-2">
+                      <div
+                        className="group relative flex items-center gap-2 rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] pl-3 pr-1.5 py-1.5 transition focus-within:border-[var(--ink)]"
+                      >
+                        <Sparkles
+                          className="w-4 h-4 shrink-0 text-[var(--ink-muted)] group-focus-within:text-[var(--ink)] transition"
+                          strokeWidth={1.5}
+                        />
                         <input
                           type="text"
                           value={aiPrompt}
@@ -584,13 +571,18 @@ export default function EmailClient({ agentId }: { agentId: string }) {
                               handleAskAi();
                             }
                           }}
-                          placeholder='e.g., "Make it more professional"'
-                          className="flex-1 rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:border-[var(--accent)] focus:outline-none transition"
+                          placeholder={
+                            body.trim()
+                              ? "Tell the AI how to refine this draft…"
+                              : "Tell the AI what this email is about…"
+                          }
+                          className="flex-1 bg-transparent text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none"
                         />
                         <button
                           onClick={handleAskAi}
                           disabled={loadingAi || !aiPrompt.trim()}
-                          className="inline-flex items-center gap-1.5 rounded-[4px] bg-[var(--ink)] px-3 py-2 text-sm font-medium text-[var(--canvas)] hover:bg-[var(--ink)]/90 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                          className="inline-flex items-center justify-center w-7 h-7 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] hover:bg-[var(--ink)]/90 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                          aria-label="Send prompt"
                         >
                           {loadingAi ? (
                             <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.5} />
@@ -598,19 +590,55 @@ export default function EmailClient({ agentId }: { agentId: string }) {
                             <Send className="w-3.5 h-3.5" strokeWidth={1.5} />
                           )}
                         </button>
+                        <button
+                          onClick={() => {
+                            setShowAiHelper(false);
+                            setAiPrompt("");
+                            setAiResponse("");
+                          }}
+                          className="inline-flex items-center justify-center w-7 h-7 rounded-[4px] text-[var(--ink-subtle)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition"
+                          aria-label="Close AI helper"
+                        >
+                          <X className="w-3.5 h-3.5" strokeWidth={1.5} />
+                        </button>
                       </div>
+                      {body.trim() && !aiResponse && !loadingAi && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {["Make it shorter", "More professional", "More friendly", "Fix grammar"].map((p) => (
+                            <button
+                              key={p}
+                              type="button"
+                              onClick={() => {
+                                setAiPrompt(p);
+                                setTimeout(() => handleAskAi(), 0);
+                              }}
+                              className="text-[11px] text-[var(--ink-muted)] hover:text-[var(--ink)] border border-[var(--rule)] hover:border-[var(--ink)] rounded-[4px] px-2 py-1 transition"
+                            >
+                              {p}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                       {aiResponse && (
                         <div className="space-y-2">
-                          <div className="rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2.5 text-sm text-[var(--ink)] leading-relaxed whitespace-pre-wrap max-h-64 overflow-y-auto">
+                          <div className="rounded-[4px] border border-[var(--rule)] bg-[var(--canvas-subtle)] px-3 py-2.5 text-sm text-[var(--ink)] leading-relaxed whitespace-pre-wrap max-h-64 overflow-y-auto">
                             {aiResponse}
                           </div>
-                          <button
-                            onClick={handleApplyAiSuggestion}
-                            className="inline-flex items-center gap-1.5 rounded-[4px] bg-[var(--ink)] px-3 py-1.5 text-xs font-medium text-[var(--canvas)] hover:bg-[var(--ink)]/90 transition"
-                          >
-                            <Sparkles className="w-3 h-3" strokeWidth={1.5} />
-                            Apply to email body
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={handleApplyAiSuggestion}
+                              className="inline-flex items-center gap-1.5 rounded-[4px] bg-[var(--ink)] px-3 py-1.5 text-xs font-medium text-[var(--canvas)] hover:bg-[var(--ink)]/90 transition"
+                            >
+                              <Sparkles className="w-3 h-3" strokeWidth={1.5} />
+                              Apply to email body
+                            </button>
+                            <button
+                              onClick={() => setAiResponse("")}
+                              className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
+                            >
+                              Discard
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>

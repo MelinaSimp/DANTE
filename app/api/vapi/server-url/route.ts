@@ -692,6 +692,19 @@ type VapiMessage = {
 // ({ id, start, end, text }) so the grounded summarizer can cite them.
 // Agent/client turns are tagged in the text; the summarizer and the
 // audit UI both treat these as opaque quoted evidence.
+// Whisper / VAPI transcribers occasionally emit emoji decoder artifacts
+// ("😊 🖐️ Bye") on noisy-but-empty audio. Keep 📞 (our own header
+// marker), drop everything else — they're never real transcript content.
+function stripTranscriberEmojis(text: string): string {
+  return text
+    .replace(/\p{Extended_Pictographic}(?:\u200d\p{Extended_Pictographic})*[\uFE0E\uFE0F]?/gu, "")
+    .replace(/[\u{1F3FB}-\u{1F3FF}]/gu, "")
+    .replace(/[\uFE0E\uFE0F]/g, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/ +\n/g, "\n")
+    .trim();
+}
+
 function buildSegmentsFromMessages(
   messages: VapiMessage[],
   callStartedAt: string | null
@@ -702,7 +715,7 @@ function buildSegmentsFromMessages(
   for (const m of messages) {
     const role = m.role;
     if (role !== "user" && role !== "bot" && role !== "assistant") continue;
-    const raw = (m.message || m.content || "").trim();
+    const raw = stripTranscriberEmojis((m.message || m.content || "").trim());
     if (!raw) continue;
     const label = role === "bot" || role === "assistant" ? "Agent" : "Client";
     const startSec =
