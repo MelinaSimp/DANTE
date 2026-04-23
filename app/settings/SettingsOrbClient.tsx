@@ -9,6 +9,8 @@ import {
   Phone,
   Video,
   ArrowLeft,
+  Bot,
+  ArrowUpRight,
 } from "lucide-react";
 
 const KnowledgeSetupClient = lazy(() => import("./knowledge/KnowledgeSetupClient"));
@@ -166,6 +168,29 @@ export default function SettingsOrbClient({
                     </button>
                   );
                 })}
+                {/* External links sit under Workspace — they leave the
+                    orb rather than opening a panel. Kept as Links so
+                    they behave like the rest of the app nav. */}
+                {group === "Workspace" && features.includes("ai_receptionist") && (
+                  <>
+                    <Link
+                      href="/agent"
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-[4px] transition text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
+                    >
+                      <Bot className="w-4 h-4" strokeWidth={1.5} />
+                      <span className="flex-1 text-left">Voice AI config</span>
+                      <ArrowUpRight className="w-3 h-3 text-[var(--ink-subtle)]" strokeWidth={1.5} />
+                    </Link>
+                    <Link
+                      href="/settings/receptionist"
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-[4px] transition text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
+                    >
+                      <Phone className="w-4 h-4" strokeWidth={1.5} />
+                      <span className="flex-1 text-left">Receptionist questions</span>
+                      <ArrowUpRight className="w-3 h-3 text-[var(--ink-subtle)]" strokeWidth={1.5} />
+                    </Link>
+                  </>
+                )}
               </nav>
             </div>
           ))}

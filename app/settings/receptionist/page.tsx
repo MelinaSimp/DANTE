@@ -1,6 +1,6 @@
 // app/settings/receptionist/page.tsx
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Bot, ArrowUpRight } from "lucide-react";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { requireFeature } from "@/lib/features/server";
@@ -51,6 +51,22 @@ export default async function ReceptionistSettingsPage() {
     .eq("workspace_id", profile.workspace_id)
     .maybeSingle();
 
+  // Deep-link to the first voice agent's config page so the "Voice AI
+  // config" callout below lands users in the editor in one click. If
+  // there's no voice agent yet, we still send them to /agent where
+  // they can create one.
+  const { data: firstVoiceAgent } = await supabase
+    .from("agents")
+    .select("id")
+    .eq("workspace_id", profile.workspace_id)
+    .in("modality", ["voice", "multi-modal"])
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  const agentConfigHref = firstVoiceAgent?.id
+    ? `/agent/${firstVoiceAgent.id}`
+    : "/agent";
+
   return (
     <div className="min-h-screen bg-[var(--canvas)] text-[var(--ink)]">
       <div className="border-b border-[var(--rule)] bg-[var(--canvas)] px-6 py-4">
@@ -77,6 +93,34 @@ export default async function ReceptionistSettingsPage() {
           Customize the questions your AI receptionist asks callers and the
           default greeting/farewell used on every call.
         </p>
+
+        {/* Voice AI config callout — the deep controls (persona,
+            knowledge base, voice selection, opening line) live on the
+            per-agent page. We link there prominently so users don't
+            assume this page is the only place to edit the agent. */}
+        <Link
+          href={agentConfigHref}
+          className="card-flat mb-6 p-4 flex items-start gap-3 hover:border-[var(--ink)] transition group"
+        >
+          <div className="bg-[var(--canvas-subtle)] rounded-[4px] p-2.5 shrink-0">
+            <Bot className="w-5 h-5 text-[var(--ink)]" strokeWidth={1.5} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-0.5">
+              <h3 className="text-[15px] font-semibold text-[var(--ink)]">
+                Voice AI config
+              </h3>
+              <ArrowUpRight
+                className="w-4 h-4 text-[var(--ink-subtle)] group-hover:text-[var(--ink)] transition"
+                strokeWidth={1.5}
+              />
+            </div>
+            <p className="text-sm text-[var(--ink-muted)] leading-relaxed">
+              Persona &amp; system prompt, opening line, voice selection,
+              and the knowledge base the agent can quote from on calls.
+            </p>
+          </div>
+        </Link>
 
         <QuestionManager
           workspaceId={profile.workspace_id}

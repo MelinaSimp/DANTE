@@ -166,10 +166,14 @@ Keep responses short and natural for voice (1-3 sentences).`;
     },
   ];
 
-  // Build first message (greeting)
+  // Build first message (greeting). Precedence:
+  //   1. agents.first_message — explicit override from the CRM
+  //   2. First step's ai_message of the first scenario
+  //   3. Generic `Hello! This is {name}…` fallback
   let firstMessage = `Hello! This is ${agent.name}. How can I help you today?`;
-  if (scenarios && scenarios.length > 0) {
-    // Try to get first step's message
+  if (agent.first_message && agent.first_message.trim()) {
+    firstMessage = agent.first_message.trim();
+  } else if (scenarios && scenarios.length > 0) {
     const { data: firstStep } = await supabaseAdmin
       .from("steps")
       .select("ai_message")

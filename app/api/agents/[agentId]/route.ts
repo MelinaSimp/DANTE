@@ -86,6 +86,7 @@ export async function PUT(
   if (body.parent_agent_id !== undefined) updates.parent_agent_id = body.parent_agent_id;
   if (body.routing_keywords !== undefined) updates.routing_keywords = body.routing_keywords;
   if (body.llm_instructions !== undefined) updates.llm_instructions = body.llm_instructions;
+  if (body.first_message !== undefined) updates.first_message = body.first_message;
   if (body.voice_provider !== undefined) updates.voice_provider = body.voice_provider;
   if (body.vapi_assistant_id !== undefined) updates.vapi_assistant_id = body.vapi_assistant_id;
   if (body.vapi_phone_number_id !== undefined) updates.vapi_phone_number_id = body.vapi_phone_number_id;

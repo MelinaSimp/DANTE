@@ -42,12 +42,18 @@ interface Agent {
   name: string;
   description: string | null;
   llm_instructions: string | null;
+  first_message: string | null;
   modality: string | null;
   status: string | null;
   voice_provider: string | null;
   vapi_assistant_id: string | null;
   elevenlabs_voice_id: string | null;
   phone_number: string | null;
+}
+
+interface Voice {
+  voice_id: string;
+  name: string;
 }
 
 interface DataSource {
@@ -84,10 +90,41 @@ export default function AgentConfigClient({
   const [name, setName] = useState(agent.name);
   const [description, setDescription] = useState(agent.description ?? "");
   const [instructions, setInstructions] = useState(agent.llm_instructions ?? "");
+  const [firstMessage, setFirstMessage] = useState(agent.first_message ?? "");
+  const [voiceId, setVoiceId] = useState(agent.elevenlabs_voice_id ?? "");
   const [savingAgent, setSavingAgent] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [syncState, setSyncState] = useState<"idle" | "syncing" | "synced" | "error">("idle");
   const [syncError, setSyncError] = useState<string | null>(null);
+
+  // Voice list — fetched once on mount. If the endpoint fails (no API
+  // key, network), we fall back to a free-text voice ID field so the
+  // feature still works.
+  const [voices, setVoices] = useState<Voice[] | null>(null);
+  const [voicesError, setVoicesError] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/elevenlabs/voices", { credentials: "include" })
+      .then(async (r) => {
+        const j = await r.json().catch(() => ({}));
+        if (cancelled) return;
+        if (!r.ok) {
+          setVoicesError(j?.error || "Couldn't load voice list");
+          setVoices([]);
+          return;
+        }
+        setVoices((j?.voices as Voice[]) || []);
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setVoicesError(e?.message || "Couldn't load voice list");
+          setVoices([]);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Knowledge base state
   const [dataSources, setDataSources] = useState<DataSource[]>(initialDataSources);
@@ -100,7 +137,9 @@ export default function AgentConfigClient({
   const dirty =
     name !== agent.name ||
     description !== (agent.description ?? "") ||
-    instructions !== (agent.llm_instructions ?? "");
+    instructions !== (agent.llm_instructions ?? "") ||
+    firstMessage !== (agent.first_message ?? "") ||
+    voiceId !== (agent.elevenlabs_voice_id ?? "");
 
   const isDeployedVapi =
     agent.status === "deployed" && agent.voice_provider === "vapi";
@@ -146,6 +185,8 @@ export default function AgentConfigClient({
           name: name.trim() || agent.name,
           description: description.trim() || null,
           llm_instructions: instructions.trim() || null,
+          first_message: firstMessage.trim() || null,
+          elevenlabs_voice_id: voiceId.trim() || null,
         }),
       });
       if (!r.ok) throw new Error((await r.json()).error || "Save failed");
@@ -177,7 +218,7 @@ export default function AgentConfigClient({
     } finally {
       setSavingAgent(false);
     }
-  }, [agent.id, agent.name, description, instructions, isDeployedVapi, name]);
+  }, [agent.id, agent.name, description, instructions, firstMessage, voiceId, isDeployedVapi, name]);
 
   const addText = async () => {
     if (!textDraft.trim()) return;
@@ -384,6 +425,79 @@ export default function AgentConfigClient({
             Tip: reference your company by its real name. The agent will say it
             verbatim — if you leave an old name in here, callers will hear it.
           </p>
+        </section>
+
+        {/* First message */}
+        <section className="card-flat p-6">
+          <div className="mb-4">
+            <div className="label-section mb-1">Opening line</div>
+            <h2 className="text-base font-semibold text-[var(--ink)]">
+              What the caller hears first
+            </h2>
+            <p className="text-xs text-[var(--ink-muted)] mt-1 max-w-xl">
+              Spoken verbatim as soon as the call connects. Leave blank to use
+              the default greeting (<span className="mono">Hello! This is {agent.name}. How can I help you today?</span>).
+            </p>
+          </div>
+          <textarea
+            value={firstMessage}
+            onChange={(e) => setFirstMessage(e.target.value)}
+            rows={2}
+            placeholder={`Hi, this is ${agent.name} at Acme Wealth. How can I help?`}
+            className="w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none focus:border-[var(--rule-strong)] resize-y"
+          />
+        </section>
+
+        {/* Voice */}
+        <section className="card-flat p-6">
+          <div className="mb-4">
+            <div className="label-section mb-1">Voice</div>
+            <h2 className="text-base font-semibold text-[var(--ink)]">
+              How the agent sounds
+            </h2>
+            <p className="text-xs text-[var(--ink-muted)] mt-1 max-w-xl">
+              Pick from your ElevenLabs voices. Change it here and the next
+              call uses the new voice — no redeploy needed.
+            </p>
+          </div>
+          {voices === null ? (
+            <div className="inline-flex items-center gap-2 text-xs text-[var(--ink-muted)]">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.5} />
+              Loading voices…
+            </div>
+          ) : voices.length === 0 ? (
+            <div className="space-y-3">
+              {voicesError && (
+                <div className="inline-flex items-start gap-2 text-xs text-[var(--danger)]">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" strokeWidth={1.5} />
+                  <span>{voicesError}</span>
+                </div>
+              )}
+              <input
+                value={voiceId}
+                onChange={(e) => setVoiceId(e.target.value)}
+                placeholder="ElevenLabs voice ID (e.g. 21m00Tcm4TlvDq8ikWAM)"
+                className="w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none focus:border-[var(--rule-strong)] mono"
+              />
+              <p className="text-[11px] text-[var(--ink-subtle)]">
+                Voice list couldn't load — paste the voice ID directly. You
+                can find it in your ElevenLabs dashboard.
+              </p>
+            </div>
+          ) : (
+            <select
+              value={voiceId}
+              onChange={(e) => setVoiceId(e.target.value)}
+              className="w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
+            >
+              <option value="">— Use VAPI default voice —</option>
+              {voices.map((v) => (
+                <option key={v.voice_id} value={v.voice_id}>
+                  {v.name}
+                </option>
+              ))}
+            </select>
+          )}
         </section>
 
         {/* Save strip */}
