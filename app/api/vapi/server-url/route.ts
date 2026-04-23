@@ -15,6 +15,7 @@ import { logChurnEvent } from "@/lib/dante/churn-events";
 import { normalizePhone } from "@/lib/phone";
 import { summarizeCall, type TranscriptSegment } from "@/lib/calls/summarize";
 import { classifyCallSentiment } from "@/lib/calls/sentiment";
+import { analyzeEngagement } from "@/lib/calls/engagement";
 import { scanForCompliance } from "@/lib/compliance/scan";
 import { retrieveReferences, formatReferenceContext } from "@/lib/references/retrieve";
 import dayjs from "dayjs";
@@ -852,6 +853,17 @@ async function kickoffInboundAudit(args: {
         openaiKey,
       });
 
+      // Per-topic engagement — same module the recorded-call pipeline
+      // uses. Vapi segments are prefixed with "Client:" / "Agent:" so
+      // the analyzer's role-attribution prompt works without changes.
+      const engagement = await analyzeEngagement({
+        segments,
+        transcript: transcriptText,
+        contactName,
+        anthropicKey,
+        openaiKey,
+      });
+
       await supabaseAdmin
         .from("call_recordings")
         .update({
@@ -862,8 +874,37 @@ async function kickoffInboundAudit(args: {
           completed_at: new Date().toISOString(),
           sentiment_score: sentiment?.score ?? null,
           sentiment_label: sentiment?.label ?? null,
+          engagement: engagement
+            ? {
+                overall_interest: engagement.overall_interest,
+                topics: engagement.topics,
+              }
+            : null,
         })
         .eq("id", recordingId);
+
+      // Fire Dante churn events for non-medium topics so per-topic
+      // interest on inbound calls decays alongside recorded-call signals.
+      if (engagement) {
+        for (const t of engagement.topics) {
+          if (t.interest === "medium") continue;
+          logChurnEvent({
+            workspace_id: workspaceId,
+            contact_id: contactId,
+            event_type:
+              t.interest === "high"
+                ? "topic_high_interest"
+                : "topic_low_interest",
+            source: "vapi_inbound",
+            source_id: recordingId,
+            metadata: {
+              topic: t.topic.slice(0, 120),
+              evidence: t.evidence.slice(0, 200),
+              segment_ids: t.segment_ids.slice(0, 8),
+            },
+          });
+        }
+      }
 
       // Compliance auto-scan on the generated summary — same pipeline
       // as manual recordings so FINRA/Reg BI flags surface identically.
