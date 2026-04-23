@@ -1,5 +1,4 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { upsertSettings } from "@/lib/receptionist";
 
 export interface AssistantAction {
   name: string;
@@ -133,7 +132,7 @@ export const assistantActions: AssistantAction[] = [
   },
   {
     name: "get_call_details",
-    description: "Fetch a specific receptionist call log and status timeline.",
+    description: "Fetch a specific receptionist call log.",
     schema: {
       call_id: "string (required)",
     },
@@ -155,23 +154,7 @@ export const assistantActions: AssistantAction[] = [
         return { status: "error", error: error?.message || "Call not found." };
       }
 
-      const { data: statusEvents, error: statusError } = await supabase
-        .from("receptionist_call_status_events")
-        .select("status, call_duration, created_at")
-        .eq("call_sid", data.call_sid)
-        .order("created_at", { ascending: true });
-
-      if (statusError) {
-        return { status: "error", error: statusError.message };
-      }
-
-      return {
-        status: "ok",
-        data: {
-          ...data,
-          status_events: statusEvents ?? [],
-        },
-      };
+      return { status: "ok", data };
     },
   },
   {
@@ -389,174 +372,6 @@ export const assistantActions: AssistantAction[] = [
 
       if (error) return { status: "error", error: error.message };
       return { status: "ok", data };
-    },
-  },
-  {
-    name: "list_receptionist_questions",
-    description: "List AI receptionist questions in the configured order.",
-    schema: {},
-    execute: async ({ supabase, workspaceId }) => {
-      const { data, error } = await supabase
-        .from("receptionist_questions")
-        .select("id, prompt, expected_response, sort_order, updated_at")
-        .eq("workspace_id", workspaceId)
-        .order("sort_order", { ascending: true });
-
-      if (error) return { status: "error", error: error.message };
-      return { status: "ok", data };
-    },
-  },
-  {
-    name: "create_receptionist_question",
-    description: "Add a new receptionist question to the end of the list.",
-    schema: {
-      prompt: "string (required)",
-      expected_response: "string (optional)",
-    },
-    execute: async ({ supabase, workspaceId, args }) => {
-      const prompt = String(args.prompt || "").trim();
-      if (!prompt) return { status: "error", error: "prompt is required." };
-
-      const { data: existing } = await supabase
-        .from("receptionist_questions")
-        .select("sort_order")
-        .eq("workspace_id", workspaceId)
-        .order("sort_order", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      const nextOrder = (existing?.sort_order ?? 0) + 1;
-
-      const { data, error } = await supabase
-        .from("receptionist_questions")
-        .insert({
-          workspace_id: workspaceId,
-          prompt,
-          expected_response: args.expected_response ? String(args.expected_response).trim() : null,
-          sort_order: nextOrder,
-        })
-        .select("id, prompt, expected_response, sort_order, created_at")
-        .single();
-
-      if (error) return { status: "error", error: error.message };
-      return { status: "ok", data };
-    },
-  },
-  {
-    name: "update_receptionist_question",
-    description: "Update an existing receptionist question.",
-    schema: {
-      question_id: "string (required)",
-      prompt: "string (optional)",
-      expected_response: "string (optional)",
-      sort_order: "number (optional)",
-    },
-    execute: async ({ supabase, workspaceId, args }) => {
-      const id = String(args.question_id || "").trim();
-      if (!id) return { status: "error", error: "question_id is required." };
-
-      if (!(await ensureWorkspace(supabase, workspaceId, "receptionist_questions", id))) {
-        return { status: "error", error: "Question not found in this workspace." };
-      }
-
-      const updates: Record<string, any> = {};
-      if (args.prompt !== undefined) updates.prompt = String(args.prompt).trim();
-      if (args.expected_response !== undefined) {
-        updates.expected_response =
-          args.expected_response === null ? null : String(args.expected_response).trim();
-      }
-      if (args.sort_order !== undefined) updates.sort_order = Number(args.sort_order);
-
-      if (Object.keys(updates).length === 0) {
-        return { status: "error", error: "No update fields provided." };
-      }
-
-      const { data, error } = await supabase
-        .from("receptionist_questions")
-        .update(updates)
-        .eq("id", id)
-        .eq("workspace_id", workspaceId)
-        .select("id, prompt, expected_response, sort_order, updated_at")
-        .single();
-
-      if (error) return { status: "error", error: error.message };
-      return { status: "ok", data };
-    },
-  },
-  {
-    name: "delete_receptionist_question",
-    description: "Delete a receptionist question.",
-    schema: {
-      question_id: "string (required)",
-    },
-    execute: async ({ supabase, workspaceId, args }) => {
-      const id = String(args.question_id || "").trim();
-      if (!id) return { status: "error", error: "question_id is required." };
-
-      if (!(await ensureWorkspace(supabase, workspaceId, "receptionist_questions", id))) {
-        return { status: "error", error: "Question not found in this workspace." };
-      }
-
-      const { error } = await supabase
-        .from("receptionist_questions")
-        .delete()
-        .eq("id", id)
-        .eq("workspace_id", workspaceId);
-
-      if (error) return { status: "error", error: error.message };
-      return { status: "ok", data: { deleted: id } };
-    },
-  },
-  {
-    name: "get_receptionist_settings",
-    description: "Retrieve the AI receptionist greeting, farewell, and phone number.",
-    schema: {},
-    execute: async ({ supabase, workspaceId }) => {
-      const { data, error } = await supabase
-        .from("receptionist_settings")
-        .select("workspace_id, greeting, farewell, twilio_phone_number, updated_at")
-        .eq("workspace_id", workspaceId)
-        .maybeSingle();
-
-      if (error) return { status: "error", error: error.message };
-
-      return {
-        status: "ok",
-        data: data ?? {
-          workspace_id: workspaceId,
-          greeting: null,
-          farewell: null,
-          twilio_phone_number: null,
-        },
-      };
-    },
-  },
-  {
-    name: "update_receptionist_settings",
-    description: "Update greeting, farewell, or the Twilio phone number for the receptionist.",
-    schema: {
-      greeting: "string (optional)",
-      farewell: "string (optional)",
-      twilio_phone_number: "string (optional in E.164 format)",
-    },
-    execute: async ({ workspaceId, args }) => {
-      const updates: Record<string, any> = {};
-      if (args.greeting !== undefined) updates.greeting = String(args.greeting);
-      if (args.farewell !== undefined) updates.farewell = String(args.farewell);
-      if (args.twilio_phone_number !== undefined) {
-        updates.twilio_phone_number = String(args.twilio_phone_number);
-      }
-
-      if (Object.keys(updates).length === 0) {
-        return { status: "error", error: "No update fields provided." };
-      }
-
-      try {
-        const settings = await upsertSettings(workspaceId, updates);
-        return { status: "ok", data: settings };
-      } catch (error: any) {
-        return { status: "error", error: error?.message || "Failed to update settings." };
-      }
     },
   },
   {

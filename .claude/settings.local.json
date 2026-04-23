@@ -50,7 +50,8 @@
       "Bash(PATH=/opt/homebrew/bin:$PATH timeout 300 npm run build)",
       "Bash(PATH=/opt/homebrew/bin:$PATH npm run build)",
       "Bash(ls *.md)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(git revert *)"
     ]
   }
 }
