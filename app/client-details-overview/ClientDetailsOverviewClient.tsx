@@ -41,6 +41,10 @@ const DocumentSummaryChat = dynamic(
   () => import("@/components/documents/DocumentSummaryChat"),
   { ssr: false, loading: () => <div className="flex items-center justify-center p-4 text-[var(--ink-subtle)] text-sm">Loading…</div> }
 );
+const ContactImporter = dynamic(
+  () => import("@/components/contacts/ContactImporter"),
+  { ssr: false }
+);
 import ConfirmationModal from "@/components/frontend/ConfirmationModal";
 import { reportError } from "@/lib/report-error";
 
@@ -217,6 +221,8 @@ export default function ClientDetailsOverviewClient({
   const [contacts, setContacts] = useState<Contact[]>(initialContacts);
   // Add client modal
   const [showAddClient, setShowAddClient] = useState(false);
+  // CSV importer modal
+  const [showImporter, setShowImporter] = useState(false);
   const [addClientFirstName, setAddClientFirstName] = useState("");
   const [addClientLastName, setAddClientLastName] = useState("");
   const [addClientPhone, setAddClientPhone] = useState("");
@@ -707,14 +713,24 @@ export default function ClientDetailsOverviewClient({
                 {contacts.length} {contacts.length === 1 ? "household" : "households"} on file. Click a row to open.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => { setShowAddClient(true); setAddClientError(null); }}
-              className="inline-flex items-center gap-2 rounded-[4px] bg-[var(--ink)] px-4 py-2 text-sm font-medium text-[var(--canvas)] hover:bg-[var(--ink)]/90 transition"
-            >
-              <UserPlus className="h-4 w-4" strokeWidth={1.5} />
-              Add client
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowImporter(true)}
+                className="inline-flex items-center gap-2 rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-4 py-2 text-sm font-medium text-[var(--ink-muted)] hover:bg-[var(--canvas-subtle)] hover:text-[var(--ink)] transition"
+              >
+                <Upload className="h-4 w-4" strokeWidth={1.5} />
+                Import CSV
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowAddClient(true); setAddClientError(null); }}
+                className="inline-flex items-center gap-2 rounded-[4px] bg-[var(--ink)] px-4 py-2 text-sm font-medium text-[var(--canvas)] hover:bg-[var(--ink)]/90 transition"
+              >
+                <UserPlus className="h-4 w-4" strokeWidth={1.5} />
+                Add client
+              </button>
+            </div>
           </div>
 
           {/* Search */}
@@ -793,6 +809,24 @@ export default function ClientDetailsOverviewClient({
                 </div>
               ))}
             </div>
+          )}
+
+          {/* CSV importer modal */}
+          {showImporter && (
+            <ContactImporter
+              onClose={() => setShowImporter(false)}
+              onImported={async () => {
+                try {
+                  const res = await fetch("/api/contacts");
+                  if (res.ok) {
+                    const rows = await res.json();
+                    setContacts(rows);
+                  }
+                } catch {
+                  // Non-fatal — user can refresh the page.
+                }
+              }}
+            />
           )}
 
           {/* Add client modal */}
