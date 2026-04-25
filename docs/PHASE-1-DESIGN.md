@@ -1,8 +1,11 @@
-# Dante Phase 1 — Design Doc
+# Dante Phases 1–3 — Design Doc
 
-**Status:** Draft · 2026-04-25
-**Scope:** `dante_memory` store, `agent` workflow node, MCP tool scaffolding
-**Out of scope (later phases):** Wealthbox MCP server (Phase 2), Gmail/Calendar OAuth (Phase 2), vault citations in email drafts (Phase 2), Harvey-style authoring UI (Phase 3), skills registry (Phase 3)
+**Status:** All three phases shipped · 2026-04-25
+**Phase 1 scope (shipped):** `dante_memory` store, `agent` workflow node, MCP tool scaffolding
+**Phase 2 scope (shipped):** Wealthbox MCP server, Google OAuth (Gmail + Calendar), vault citations
+**Phase 3 scope (shipped):** Skills registry with versioned auto-approve gating
+
+A polish pass remains: agent-node authoring UI, skill editor UI, push-notification subscriptions for Calendar (we poll today), and column-level encryption of stored OAuth tokens.
 
 The goal of Phase 1 is to land the *substrate* the rest of the roadmap rides on:
 

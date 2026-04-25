@@ -10,19 +10,22 @@ import {
   ArrowLeft,
   Bot,
   ArrowUpRight,
+  Mail,
 } from "lucide-react";
 
 const PhoneNumbersCard = lazy(() => import("./PhoneNumbersCard"));
 const ZoomCard = lazy(() => import("./ZoomCard"));
+const GoogleCard = lazy(() => import("./GoogleCard"));
 
 import BillingCard from "./BillingCard";
 import ExportDataCard from "./ExportDataCard";
 
-type PanelId = "phone_numbers" | "zoom" | "billing" | "export";
+type PanelId = "phone_numbers" | "zoom" | "google" | "billing" | "export";
 
 const PANEL_TITLES: Record<PanelId, string> = {
   phone_numbers: "Phone numbers",
   zoom: "Zoom integration",
+  google: "Google integration",
   billing: "Billing & subscription",
   export: "Export data",
 };
@@ -32,6 +35,8 @@ const PANEL_SUBTITLES: Record<PanelId, string> = {
     "Connect your Twilio account and route numbers to agents.",
   zoom:
     "Launch cloud-recorded client meetings that auto-transcribe into the client's timeline.",
+  google:
+    "Connect Gmail and Google Calendar so Dante has context on client conversations and meetings.",
   billing: "Manage subscription, payment methods, and invoices.",
   export: "Download all workspace records as a single JSON file.",
 };
@@ -50,6 +55,7 @@ interface NavItem {
 const ALL_NAV_ITEMS: NavItem[] = [
   { name: "Phone numbers", icon: Phone, panelId: "phone_numbers", feature: "ai_receptionist", adminOnly: true, group: "Workspace" },
   { name: "Zoom", icon: Video, panelId: "zoom", group: "Workspace" },
+  { name: "Google", icon: Mail, panelId: "google", group: "Workspace" },
   { name: "Billing", icon: CreditCard, panelId: "billing", group: "Workspace" },
   { name: "Export", icon: Download, panelId: "export", adminOnly: true, group: "Administration" },
 ];
@@ -103,6 +109,8 @@ export default function SettingsOrbClient({
         return <PhoneNumbersCard />;
       case "zoom":
         return <ZoomCard isAdmin={isAdmin} workspaceId={workspaceId} />;
+      case "google":
+        return <GoogleCard />;
       case "billing":
         return <BillingCard />;
       case "export":
