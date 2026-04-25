@@ -45,7 +45,12 @@ function clientCreds() {
 }
 
 function appUrl() {
-  return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  // Trim and strip trailing slashes defensively — Vercel's env editor
+  // has historically preserved trailing whitespace on paste, and a
+  // single stray space here breaks every OAuth flow with an opaque
+  // "invalid_request" from Google. Better to normalize than debug.
+  const raw = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  return raw.trim().replace(/\/+$/, "");
 }
 
 function redirectUri() {

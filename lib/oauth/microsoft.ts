@@ -43,7 +43,9 @@ function clientCreds() {
 }
 
 function appUrl() {
-  return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  // See lib/oauth/google.ts for why we defensively trim.
+  const raw = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  return raw.trim().replace(/\/+$/, "");
 }
 function redirectUri() {
   return `${appUrl()}/api/oauth/microsoft/callback`;
