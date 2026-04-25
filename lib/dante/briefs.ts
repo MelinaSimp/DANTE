@@ -29,7 +29,13 @@ import { fetchRecentEvents } from "./churn-events";
 
 export type RiskLevel = "healthy" | "watch" | "act_now" | "critical";
 
-export type SourceTable = "note" | "appointment" | "call" | "churn_event";
+export type SourceTable =
+  | "note"
+  | "appointment"
+  | "call"
+  | "churn_event"
+  | "email"     // customer_emails — synced via Gmail OAuth (Phase 2)
+  | "meeting";  // calendar_events — synced via Google Calendar (Phase 2)
 
 export interface BriefReason {
   /** Plain-English reason, e.g. "Last 3 appointments were no-shows". */
@@ -62,6 +68,8 @@ export interface Brief {
 const RECENT_NOTES_LIMIT = 20;
 const RECENT_APPTS_LIMIT = 20;
 const RECENT_CALLS_LIMIT = 20;
+const RECENT_EMAILS_LIMIT = 15;     // skim recent client correspondence
+const RECENT_MEETINGS_LIMIT = 15;   // past + upcoming meetings
 const RECENT_EVENTS_DAYS = 180;
 
 /** Reasons with source IDs we didn't provide are dropped. If fewer
@@ -93,46 +101,79 @@ export async function generateBriefForContact(args: {
   const { workspace_id, contact_id, anthropicKey, openaiKey } = args;
 
   // ── Pull contact + signal rows ─────────────────────────────
-  const [{ data: contact }, notesRes, apptsRes, callsRes, events] =
-    await Promise.all([
-      supabaseAdmin
-        .from("contacts")
-        .select("id, name, email, phone, created_at")
-        .eq("id", contact_id)
-        .eq("workspace_id", workspace_id)
-        .maybeSingle(),
-      supabaseAdmin
-        .from("notes")
-        .select("id, body, created_at")
-        .eq("contact_id", contact_id)
-        .eq("workspace_id", workspace_id)
-        .order("created_at", { ascending: false })
-        .limit(RECENT_NOTES_LIMIT),
-      supabaseAdmin
-        .from("appointments")
-        .select("id, scheduled_at, status, created_at")
-        .eq("contact_id", contact_id)
-        .eq("workspace_id", workspace_id)
-        .order("scheduled_at", { ascending: false })
-        .limit(RECENT_APPTS_LIMIT),
-      supabaseAdmin
-        .from("call_recordings")
-        .select("id, created_at, summary, duration_seconds, sentiment_score, sentiment_label")
-        .eq("contact_id", contact_id)
-        .eq("workspace_id", workspace_id)
-        .order("created_at", { ascending: false })
-        .limit(RECENT_CALLS_LIMIT),
-      fetchRecentEvents(workspace_id, {
-        lookbackDays: RECENT_EVENTS_DAYS,
-        contactIds: [contact_id],
-      }),
-    ]);
+  const [
+    { data: contact },
+    notesRes,
+    apptsRes,
+    callsRes,
+    emailsRes,
+    meetingsRes,
+    events,
+  ] = await Promise.all([
+    supabaseAdmin
+      .from("contacts")
+      .select("id, name, email, phone, created_at")
+      .eq("id", contact_id)
+      .eq("workspace_id", workspace_id)
+      .maybeSingle(),
+    supabaseAdmin
+      .from("notes")
+      .select("id, body, created_at")
+      .eq("contact_id", contact_id)
+      .eq("workspace_id", workspace_id)
+      .order("created_at", { ascending: false })
+      .limit(RECENT_NOTES_LIMIT),
+    supabaseAdmin
+      .from("appointments")
+      .select("id, scheduled_at, status, created_at")
+      .eq("contact_id", contact_id)
+      .eq("workspace_id", workspace_id)
+      .order("scheduled_at", { ascending: false })
+      .limit(RECENT_APPTS_LIMIT),
+    supabaseAdmin
+      .from("call_recordings")
+      .select("id, created_at, summary, duration_seconds, sentiment_score, sentiment_label")
+      .eq("contact_id", contact_id)
+      .eq("workspace_id", workspace_id)
+      .order("created_at", { ascending: false })
+      .limit(RECENT_CALLS_LIMIT),
+    // Recent client correspondence. Soft-fail if the migration
+    // hasn't run yet — older workspaces will get an empty array
+    // and the brief still works on the legacy signal set.
+    supabaseAdmin
+      .from("customer_emails")
+      .select("id, direction, subject, snippet, received_at")
+      .eq("contact_id", contact_id)
+      .eq("workspace_id", workspace_id)
+      .order("received_at", { ascending: false })
+      .limit(RECENT_EMAILS_LIMIT),
+    // Past + upcoming meetings — both are signal. A long gap
+    // before the next scheduled meeting is a stronger predictor
+    // than no recent calls.
+    supabaseAdmin
+      .from("calendar_events")
+      .select("id, summary, start_at, end_at, status")
+      .eq("contact_id", contact_id)
+      .eq("workspace_id", workspace_id)
+      .gte("start_at", new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString())
+      .order("start_at", { ascending: false })
+      .limit(RECENT_MEETINGS_LIMIT),
+    fetchRecentEvents(workspace_id, {
+      lookbackDays: RECENT_EVENTS_DAYS,
+      contactIds: [contact_id],
+    }),
+  ]);
 
   if (!contact) return null;
 
   const notes = notesRes.data ?? [];
   const appts = apptsRes.data ?? [];
   const calls = callsRes.data ?? [];
+  // emailsRes / meetingsRes can return 42P01 (table missing) on
+  // workspaces where the Phase 2 SQL hasn't been applied yet.
+  // Treat any error as "no data" rather than failing the brief.
+  const emails = (emailsRes.error ? [] : emailsRes.data) ?? [];
+  const meetings = (meetingsRes.error ? [] : meetingsRes.data) ?? [];
 
   // Build the grounded source set and the prompt context in one pass.
   const sources = new Set<string>();
@@ -141,6 +182,8 @@ export async function generateBriefForContact(args: {
     notes,
     appts,
     calls,
+    emails,
+    meetings,
     events,
     sources,
   });
@@ -262,12 +305,14 @@ interface BuildContextArgs {
   notes: Array<{ id: string; body: string | null; created_at: string }>;
   appts: Array<{ id: string; scheduled_at: string | null; status: string | null; created_at: string }>;
   calls: Array<{ id: string; created_at: string; summary: string | null; duration_seconds: number | null; sentiment_score: number | null; sentiment_label: string | null }>;
+  emails: Array<{ id: string; direction: string; subject: string | null; snippet: string | null; received_at: string }>;
+  meetings: Array<{ id: string; summary: string | null; start_at: string; end_at: string; status: string | null }>;
   events: Array<{ contact_id: string; event_type: string; signal: number; weight: number; created_at: string }>;
   sources: Set<string>;
 }
 
 function buildContext(args: BuildContextArgs): string {
-  const { contact, notes, appts, calls, events, sources } = args;
+  const { contact, notes, appts, calls, emails, meetings, events, sources } = args;
   const lines: string[] = [];
 
   lines.push(`CONTACT`);
@@ -314,6 +359,34 @@ function buildContext(args: BuildContextArgs): string {
     lines.push("");
   }
 
+  if (emails.length > 0) {
+    lines.push(`EMAILS (most recent first; direction relative to advisor)`);
+    for (const e of emails) {
+      sources.add(`email:${e.id}`);
+      const when = e.received_at.slice(0, 10);
+      const subj = (e.subject || "(no subject)").trim().replace(/\s+/g, " ").slice(0, 120);
+      const snip = (e.snippet || "").trim().replace(/\s+/g, " ").slice(0, EXCERPT_CAP);
+      lines.push(`  email:${e.id} — ${when} — ${e.direction} — ${subj}`);
+      if (snip) lines.push(`    snippet: ${snip}`);
+    }
+    lines.push("");
+  }
+
+  if (meetings.length > 0) {
+    const now = Date.now();
+    lines.push(`MEETINGS (calendar events linked to this contact)`);
+    for (const m of meetings) {
+      sources.add(`meeting:${m.id}`);
+      const startMs = new Date(m.start_at).getTime();
+      const when = m.start_at.slice(0, 10);
+      const tag = startMs < now ? "past" : "upcoming";
+      const subj = (m.summary || "(no title)").trim().replace(/\s+/g, " ").slice(0, 120);
+      const status = m.status ? ` — status: ${m.status}` : "";
+      lines.push(`  meeting:${m.id} — ${when} — ${tag} — ${subj}${status}`);
+    }
+    lines.push("");
+  }
+
   if (events.length > 0) {
     lines.push(`CHURN EVENTS (last ${RECENT_EVENTS_DAYS} days, signed signal × weight)`);
     for (const e of events) {
@@ -338,7 +411,7 @@ function buildPrompt(context: string): string {
   return `You are a financial advisor's assistant. You read a single client's recent activity log and write a short, actionable brief for your advisor.
 
 RULES (strict):
-1. Every "reason" in your output MUST cite exactly one source row by ID. The valid IDs are the tokens like "note:<uuid>", "appointment:<uuid>", "call:<uuid>", or "churn_event:<synth>" that appear verbatim in the ACTIVITY LOG below. DO NOT invent IDs.
+1. Every "reason" in your output MUST cite exactly one source row by ID. The valid IDs are the tokens like "note:<uuid>", "appointment:<uuid>", "call:<uuid>", "email:<uuid>", "meeting:<uuid>", or "churn_event:<synth>" that appear verbatim in the ACTIVITY LOG below. DO NOT invent IDs.
 2. Prefer 3 reasons. Never exceed 5. Each reason must be one clear sentence.
 3. Risk level must be one of: "healthy", "watch", "act_now", "critical".
    - "healthy": recent engagement, positive signals, nothing to act on
@@ -359,7 +432,7 @@ SCHEMA:
   "reasons": [
     {
       "text": string,                              // one sentence
-      "source_table": "note" | "appointment" | "call" | "churn_event",
+      "source_table": "note" | "appointment" | "call" | "email" | "meeting" | "churn_event",
       "source_id": string,                         // id from the ACTIVITY LOG, verbatim
       "source_excerpt": string                     // optional, ≤200 chars quote
     }
