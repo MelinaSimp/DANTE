@@ -27,7 +27,8 @@ export type StepType =
   | "send_email"      // Resend email
   | "condition"       // branches to outgoing `true` / `false` edges
   | "delay"           // pause N seconds
-  | "archive_lookup"; // vector-search the Dante archive → {hits, context}
+  | "archive_lookup"  // vector-search the Dante archive → {hits, context}
+  | "agent";          // model-driven loop; picks tools itself
 
 export interface BaseStep {
   id: string;
@@ -100,6 +101,53 @@ export interface DelayStep extends BaseStep {
   };
 }
 
+// Agent-loop node. Inside one node the model loops
+//   (observe → tool_call → observe)
+// until it returns a final answer or hits max_steps. Tools are
+// adapters over executors that already exist in this file
+// (query_clients, send_email, etc.) plus the dante_memory store.
+//
+// This is the antidote to "Dante feels too scripted" — workflows
+// stop being fixed DAGs and start letting the model pick the next
+// move within a bounded budget.
+//
+// Each tool call inside the loop emits its own StepLogEntry with
+// step_id `<agent-id>:<n>` so the run-timeline UI shows the full
+// reasoning trace, not a black box.
+export type AgentToolName =
+  | "memory.search"
+  | "memory.write"
+  | "archive.search"
+  | "clients.query"
+  | "clients.update"
+  | "email.send"
+  | "http.fetch";
+
+export interface AgentStep extends BaseStep {
+  type: "agent";
+  config: {
+    model?: string;            // default gpt-4o
+    system?: string;           // role/persona prompt
+    objective: string;         // what to accomplish; templated
+    /**
+     * Which tool surfaces this agent may use. Whitelist — empty
+     * array means the agent can only emit a final message with no
+     * tool calls (rarely useful, but valid).
+     *
+     * Phase 2 will accept `{ mcp: "<server_name>" }` entries here
+     * to delegate to MCP servers; Phase 1 keeps it to the built-ins.
+     */
+    tools: AgentToolName[];
+    max_steps?: number;        // default 8, hard cap 20
+    /**
+     * Optional structured output. If set, the agent's final message
+     * must validate against this JSON Schema, and the parsed object
+     * is what shows up in {{steps.<id>.output}}.
+     */
+    output_schema?: object;
+  };
+}
+
 // Vector-search the workspace's Dante archive. Output surfaces both
 // the raw hits (for debugging / conditional branching) and a
 // pre-formatted `context` string ready to drop into an openai step's
@@ -152,7 +200,8 @@ export type WorkflowStep =
   | SendEmailStep
   | ConditionStep
   | DelayStep
-  | ArchiveLookupStep;
+  | ArchiveLookupStep
+  | AgentStep;
 
 // ── Graph model ────────────────────────────────────────────────
 // React Flow speaks this shape natively. Each node carries its full

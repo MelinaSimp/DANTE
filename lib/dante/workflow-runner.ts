@@ -29,6 +29,7 @@ import type {
 } from "./workflow-types";
 import { loadWorkspaceSecrets, redactSecrets, type SecretMap } from "./secrets";
 import { searchArchive, formatHitsForPrompt } from "./archive/search";
+import { runAgent } from "./agent";
 
 // ── Template resolver ─────────────────────────────────────────
 
@@ -258,7 +259,9 @@ async function runArchiveLookup(
 async function executeNode(
   step: WorkflowStep,
   ctx: Ctx,
-  workspaceId: string
+  workspaceId: string,
+  log: StepLogEntry[],
+  runId: string,
 ): Promise<unknown> {
   const cfg = resolveTemplate(step.config, ctx) as Record<string, unknown>;
 
@@ -337,6 +340,28 @@ async function executeNode(
         cfg as Parameters<typeof runArchiveLookup>[0],
         workspaceId,
       );
+    case "agent": {
+      // The agent loop appends per-tool-call sub-entries directly to
+      // the log array so the run timeline shows each tool the model
+      // chose. The wrapping "agent" entry (added by the main loop
+      // below) summarizes the final answer. Templates resolve against
+      // the current step output already, so the resolved cfg is what
+      // the loop sees as objective/system.
+      const agentStep = { ...step, config: cfg } as Parameters<typeof runAgent>[0]["step"];
+      const result = await runAgent({
+        step: agentStep,
+        workspaceId,
+        simulate: !!ctx.simulate,
+        runId,
+        log,
+      });
+      return {
+        text: result.text,
+        output: result.output,
+        steps_taken: result.steps_taken,
+        truncated: result.truncated,
+      };
+    }
     default: {
       const t = (step as { type: string }).type;
       throw new Error(`Unknown node type: ${t}`);
@@ -388,8 +413,12 @@ function findTrigger(nodes: GraphNode[]): GraphNode | null {
 export async function runWorkflow(
   workflow: WorkflowDefinition,
   input: Record<string, unknown> = {},
-  options: { simulate?: boolean } = {}
+  options: { simulate?: boolean; runId?: string } = {}
 ): Promise<WorkflowRunResult> {
+  // Synthesize a run id if the caller didn't supply one. The agent
+  // node uses this as the source_id when it writes to dante_memory
+  // (so memories can be traced back to the run that produced them).
+  const runId = options.runId || `run_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   // Load the workspace secret vault once up front. Templates can
   // reference them as {{secrets.foo}}; the resolver treats them like
   // any other namespace, and we redact raw values from the log below.
@@ -434,7 +463,7 @@ export async function runWorkflow(
     let errored = false;
 
     try {
-      output = await executeNode(step, ctx, workflow.workspace_id);
+      output = await executeNode(step, ctx, workflow.workspace_id, log, runId);
       ctx.steps[step.id] = output;
       log.push({
         step_id: step.id,
