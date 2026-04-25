@@ -118,10 +118,16 @@ export type AgentToolName =
   | "memory.search"
   | "memory.write"
   | "archive.search"
+  | "vault.cite"        // archive.search formatted for inline email citations
   | "clients.query"
   | "clients.update"
   | "email.send"
-  | "http.fetch";
+  | "http.fetch"
+  | "skill.run";        // invoke a named skill (Phase 3)
+
+export type AgentToolEntry =
+  | AgentToolName
+  | { mcp: string };    // expand into the named MCP server's tool catalog
 
 export interface AgentStep extends BaseStep {
   type: "agent";
@@ -134,10 +140,12 @@ export interface AgentStep extends BaseStep {
      * array means the agent can only emit a final message with no
      * tool calls (rarely useful, but valid).
      *
-     * Phase 2 will accept `{ mcp: "<server_name>" }` entries here
-     * to delegate to MCP servers; Phase 1 keeps it to the built-ins.
+     * Built-in names (memory.search, clients.query, ...) expand to
+     * the adapters in lib/dante/agent.ts. `{ mcp: "<server>" }`
+     * entries expand to whatever tools that server publishes via
+     * its tools/list response — see lib/mcp/registry.ts.
      */
-    tools: AgentToolName[];
+    tools: AgentToolEntry[];
     max_steps?: number;        // default 8, hard cap 20
     /**
      * Optional structured output. If set, the agent's final message

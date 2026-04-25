@@ -26,10 +26,13 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { searchMemory, formatMemoryHitsForPrompt } from "@/lib/dante/memory/search";
 import { remember } from "@/lib/dante/memory/write";
 import { searchArchive, formatHitsForPrompt } from "@/lib/dante/archive/search";
+import { expandMcpTools, callMcpTool, parseMcpToolName } from "@/lib/mcp/registry";
+import { runSkill } from "@/lib/dante/skills";
 import type { MemoryKind } from "@/lib/dante/memory/types";
 import type {
   AgentStep,
   AgentToolName,
+  AgentToolEntry,
   StepLogEntry,
 } from "./workflow-types";
 
@@ -177,6 +180,38 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
       },
     },
   },
+  "vault.cite": {
+    type: "function",
+    function: {
+      name: "vault_cite",
+      description:
+        "Search the workspace's document vault and return citation-ready snippets you can quote inline in an email or memo. Returns an array of { marker, quote, source, page } objects — drop the marker into your draft and footnote `source` at the bottom.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string" },
+          k: { type: "number", description: "Number of citations to return (1-10, default 3)." },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  "skill.run": {
+    type: "function",
+    function: {
+      name: "skill_run",
+      description:
+        "Invoke a named workspace skill (a stored agent recipe with a fixed tool set and prompt). Use for higher-level moves that have a registered skill, e.g. `draft_review_meeting_recap`. Returns whatever the skill returns.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Skill name." },
+          input: { type: "object", description: "Skill-specific input args.", additionalProperties: true },
+        },
+        required: ["name"],
+      },
+    },
+  },
 };
 
 // Inverse map: function-name string → AgentToolName. The OpenAI API
@@ -186,10 +221,12 @@ const NAME_TO_TOOL: Record<string, AgentToolName> = {
   memory_search: "memory.search",
   memory_write: "memory.write",
   archive_search: "archive.search",
+  vault_cite: "vault.cite",
   clients_query: "clients.query",
   clients_update: "clients.update",
   email_send: "email.send",
   http_fetch: "http.fetch",
+  skill_run: "skill.run",
 };
 
 // ── Tool executor adapters ────────────────────────────────────
@@ -204,12 +241,18 @@ interface AgentToolCtx {
   budgetUsed: Record<AgentToolName, number>;
   /** Run id (for source_id when the agent writes to memory). */
   runId: string;
+  /** Caller-supplied log array, for skill.run to append sub-entries. */
+  log: StepLogEntry[];
+  /** Step id of the calling agent — used as a prefix for skill sub-runs. */
+  parentStepId: string;
 }
 
 const PER_TOOL_BUDGET: Partial<Record<AgentToolName, number>> = {
   "email.send": 3,
   "http.fetch": 10,
   "memory.write": 20,
+  "skill.run": 5,        // skills can be expensive; 5 is generous
+  "vault.cite": 10,
 };
 
 async function dispatchTool(
@@ -351,6 +394,45 @@ async function dispatchTool(
       }
       return { status: res.status, ok: res.ok, body: parsed };
     }
+    case "vault.cite": {
+      // Wraps archive.search but reformats hits so the model can drop
+      // them straight into a draft. Markers like [v1], [v2] are stable
+      // within a single tool call so the model can reference them in
+      // the email body without re-listing the source.
+      const hits = await searchArchive({
+        workspaceId: ctx.workspaceId,
+        query: String(args.query || ""),
+        k: Math.min(Math.max(Number(args.k) || 3, 1), 10),
+      });
+      return {
+        citations: hits.map((h, i) => ({
+          marker: `[v${i + 1}]`,
+          quote: h.content.trim().slice(0, 400),
+          source: h.document_title,
+          page: h.page_number,
+          document_id: h.document_id,
+        })),
+      };
+    }
+    case "skill.run": {
+      const skillName = String(args.name || "");
+      const skillInput = (args.input as Record<string, unknown>) || {};
+      if (!skillName) return { error: "skill.run: missing name" };
+      try {
+        const result = await runSkill({
+          workspaceId: ctx.workspaceId,
+          name: skillName,
+          input: skillInput,
+          simulate: ctx.simulate,
+          runId: ctx.runId,
+          log: ctx.log,
+          parentStepId: ctx.parentStepId,
+        });
+        return result;
+      } catch (err) {
+        return { error: err instanceof Error ? err.message : "skill error" };
+      }
+    }
   }
 }
 
@@ -397,8 +479,22 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
   if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
 
   const cfg = input.step.config;
-  const allowedTools = new Set<AgentToolName>(cfg.tools || []);
-  const tools: ToolDef[] = (cfg.tools || []).map((t) => TOOL_DEFS[t]).filter(Boolean);
+  const entries: AgentToolEntry[] = cfg.tools || [];
+
+  // Split built-ins from MCP entries. Built-ins use TOOL_DEFS; MCP
+  // entries get expanded via the registry so each server's catalog
+  // shows up as one OpenAI tool def per published tool.
+  const builtinNames: AgentToolName[] = [];
+  const mcpServers: string[] = [];
+  for (const e of entries) {
+    if (typeof e === "string") builtinNames.push(e);
+    else if (e && typeof e === "object" && "mcp" in e) mcpServers.push(e.mcp);
+  }
+
+  const allowedTools = new Set<AgentToolName>(builtinNames);
+  const builtinDefs: ToolDef[] = builtinNames.map((t) => TOOL_DEFS[t]).filter(Boolean);
+  const mcpDefs = await expandMcpTools(input.workspaceId, mcpServers);
+  const tools: ToolDef[] = [...builtinDefs, ...mcpDefs];
 
   const maxSteps = Math.min(Math.max(Number(cfg.max_steps) || 8, 1), HARD_MAX_STEPS);
   const model = cfg.model || "gpt-4o";
@@ -422,14 +518,18 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
     workspaceId: input.workspaceId,
     simulate: input.simulate,
     runId: input.runId,
+    log: input.log,
+    parentStepId: input.step.id,
     budgetUsed: {
       "memory.search": 0,
       "memory.write": 0,
       "archive.search": 0,
+      "vault.cite": 0,
       "clients.query": 0,
       "clients.update": 0,
       "email.send": 0,
       "http.fetch": 0,
+      "skill.run": 0,
     },
   };
 
@@ -494,11 +594,13 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       let errored = false;
       let errorMessage = "";
 
-      if (!toolName || !allowedTools.has(toolName)) {
-        toolOutput = { error: `Tool not whitelisted: ${call.function.name}` };
-        errored = true;
-        errorMessage = `Tool not whitelisted: ${call.function.name}`;
-      } else {
+      // Three dispatch paths:
+      //   1. Built-in tool name in our whitelist → dispatchTool
+      //   2. MCP-namespaced name (mcp__server__tool) and the server
+      //      was in the configured MCP entries → callMcpTool
+      //   3. Anything else → reject as not whitelisted
+      const mcpParsed = parseMcpToolName(call.function.name);
+      if (toolName && allowedTools.has(toolName)) {
         try {
           toolOutput = await dispatchTool(toolName, parsedArgs, ctx);
         } catch (err) {
@@ -506,6 +608,23 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
           errorMessage = err instanceof Error ? err.message : String(err);
           toolOutput = { error: errorMessage };
         }
+      } else if (mcpParsed && mcpServers.includes(mcpParsed.server)) {
+        try {
+          toolOutput = await callMcpTool(
+            input.workspaceId,
+            mcpParsed.server,
+            mcpParsed.tool,
+            parsedArgs,
+          );
+        } catch (err) {
+          errored = true;
+          errorMessage = err instanceof Error ? err.message : String(err);
+          toolOutput = { error: errorMessage };
+        }
+      } else {
+        toolOutput = { error: `Tool not whitelisted: ${call.function.name}` };
+        errored = true;
+        errorMessage = `Tool not whitelisted: ${call.function.name}`;
       }
 
       input.log.push({
