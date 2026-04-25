@@ -37,6 +37,14 @@
     {
       "path": "/api/integrations/calendar/sync",
       "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/integrations/outlook/sync",
+      "schedule": "0 */4 * * *"
+    },
+    {
+      "path": "/api/integrations/microsoft-calendar/sync",
+      "schedule": "0 */6 * * *"
     }
   ]
 }

@@ -16,6 +16,7 @@
 
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import crypto from "node:crypto";
+import { encrypt, decrypt } from "./crypto";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
@@ -186,10 +187,10 @@ export async function persistCredential(input: {
         user_id: input.userId,
         provider: "google",
         scopes: input.tokens.scope.split(" "),
-        access_token: input.tokens.access_token,
+        access_token: encrypt(input.tokens.access_token),
         // Google only emits refresh_token on the first consent.
         // Preserve the existing one if this refresh response omits it.
-        ...(input.tokens.refresh_token ? { refresh_token: input.tokens.refresh_token } : {}),
+        ...(input.tokens.refresh_token ? { refresh_token: encrypt(input.tokens.refresh_token) } : {}),
         expires_at: expiresAt.toISOString(),
         provider_subject: input.userInfo.sub,
         provider_email: input.userInfo.email,
@@ -218,15 +219,17 @@ export async function getValidAccessToken(workspaceId: string, userId: string): 
 
   const expiresAt = data.expires_at ? new Date(data.expires_at as string).getTime() : 0;
   const fresh = expiresAt - Date.now() > 60_000;
-  if (fresh) return data.access_token as string;
+  if (fresh) return decrypt(data.access_token as string);
 
   if (!data.refresh_token) throw new Error("Google credential expired with no refresh_token");
-  const refreshed = await refreshAccessToken(data.refresh_token as string);
+  const refreshed = await refreshAccessToken(decrypt(data.refresh_token as string));
   const newExpires = new Date(Date.now() + (refreshed.expires_in - 60) * 1000);
   await supabaseAdmin
     .from("oauth_credentials")
     .update({
-      access_token: refreshed.access_token,
+      access_token: encrypt(refreshed.access_token),
+      // Lazily migrate any pre-encryption row to the encrypted shape.
+      refresh_token: encrypt(decrypt(data.refresh_token as string)),
       expires_at: newExpires.toISOString(),
     })
     .eq("workspace_id", workspaceId)
