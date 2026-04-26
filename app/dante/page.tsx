@@ -109,25 +109,14 @@ export default async function DantePage() {
         </Link>
       </div>
 
-      <div className="px-6 md:px-8 py-10 max-w-[1100px] mx-auto">
-        {/* Hero — replaced four-card grid with chat-first surface */}
-        <div className="mb-8">
-          <div className="label-section mb-3">Dante</div>
-          <h1 className="heading-display text-4xl md:text-5xl text-[var(--ink)] mb-3">
-            What can I help you find?
-          </h1>
-          <p className="text-sm text-[var(--ink-muted)] max-w-2xl leading-relaxed">
-            Ask anything about your clients, your archive, or your workspace —
-            Dante reads memory, vault documents, and CRM rows to answer with
-            grounded citations. Use the surfaces below for bulk views.
-          </p>
-        </div>
-
+      <div className="px-6 md:px-8 py-16 md:py-20 max-w-[1100px] mx-auto">
+        {/* Centered chat hero — Harvey-style. AskDante owns the
+            wordmark + scope row + input + history collapsible. */}
         <AskDante />
 
         {/* ── Surfaces strip — demoted from the hero ─────────────── */}
-        <div className="mt-12 pt-8 border-t border-[var(--rule)]">
-          <div className="label-section mb-4">Surfaces</div>
+        <div className="mt-16 pt-8 border-t border-[var(--rule)]">
+          <div className="label-section mb-4 text-center">Surfaces</div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <SurfaceLink
               href="/dante/churn"
