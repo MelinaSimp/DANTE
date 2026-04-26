@@ -69,9 +69,11 @@ export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as {
     chat_id?: string;
     message?: string;
+    deep?: boolean;
   };
   const message = (body.message || "").trim();
   if (!message) return jsonError(400, "message required");
+  const deep = body.deep === true;
 
   // Resolve chat — create or verify ownership of existing.
   let chatId = body.chat_id;
@@ -127,15 +129,23 @@ export async function POST(req: NextRequest) {
     ? `Previous turns in this conversation:\n\n${priorTranscript}\n\n---\n\nLatest user message: ${message}`
     : message;
 
+  // Deep research bumps the agent's tool-call budget and nudges the
+  // system prompt toward iterative refinement — the model is told to
+  // re-search with narrower queries when initial results are thin
+  // rather than answering with what it has after one shot.
+  const deepNote = deep
+    ? "\n\nDEEP RESEARCH MODE: take more time. If a tool call returns thin results, refine the query and try again. Cross-check across memory and the vault before writing the final answer. Aim for thoroughness over speed."
+    : "";
+
   const step: AgentStep = {
     id: `chat:${chatId}`,
     type: "agent",
-    name: "Ask Dante",
+    name: deep ? "Ask Dante (deep)" : "Ask Dante",
     config: {
       objective,
       tools: DEFAULT_TOOLS,
-      max_steps: 10,
-      system: SYSTEM_PROMPT,
+      max_steps: deep ? 20 : 10,
+      system: SYSTEM_PROMPT + deepNote,
     },
   };
 

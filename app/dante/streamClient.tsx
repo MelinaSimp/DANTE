@@ -51,7 +51,7 @@ export function initialStreamState(): StreamState {
 }
 
 interface ConsumeInput {
-  body: { message: string; chat_id?: string };
+  body: { message: string; chat_id?: string; deep?: boolean };
   signal?: AbortSignal;
   onUpdate: (state: StreamState) => void;
 }
