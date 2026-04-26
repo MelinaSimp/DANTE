@@ -450,11 +450,12 @@ export default function AskDante() {
         </div>
       )}
 
-      {/* Pinned input bar in expanded mode */}
+      {/* Pinned input bar in expanded mode — compact, no toolbar */}
       {inExpandedMode && (
         <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-[var(--canvas)] via-[var(--canvas)] to-transparent pt-6 pb-4 z-30">
           <div className="max-w-[760px] mx-auto px-6 md:px-8">
             <InputBar
+              compact
               input={input}
               setInput={setInput}
               onKeyDown={onKeyDown}
@@ -510,9 +511,47 @@ interface InputBarProps {
   customizing: boolean;
   textareaRef: React.RefObject<HTMLTextAreaElement | null>;
   rows: number;
+  /** When true, the toolbar (Prompts/Customize/Deep research) is
+   *  hidden and the input shrinks to just textarea + send. Used in
+   *  expanded mode where the chat is the focus and toolbar choices
+   *  feel like noise. */
+  compact?: boolean;
 }
 
 function InputBar(p: InputBarProps) {
+  // Compact: textarea with the send button overlaid in the bottom-
+  // right corner, no divider, no toolbar. Reads as a single unit.
+  if (p.compact) {
+    return (
+      <div className="relative rounded-[12px] border border-[var(--rule)] bg-[var(--canvas-subtle)] shadow-sm">
+        <textarea
+          ref={p.textareaRef}
+          value={p.input}
+          onChange={(e) => p.setInput(e.target.value)}
+          onKeyDown={p.onKeyDown}
+          placeholder="Ask Dante anything…"
+          disabled={p.streaming}
+          rows={p.rows}
+          className="w-full resize-none bg-transparent pl-5 pr-14 py-4 text-base text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none disabled:opacity-60"
+        />
+        <button
+          onClick={p.submit}
+          disabled={!p.input.trim() || p.streaming}
+          className="absolute bottom-2.5 right-2.5 inline-flex items-center justify-center w-8 h-8 rounded-[6px] bg-black text-white hover:bg-black/85 disabled:opacity-30 disabled:cursor-not-allowed transition"
+          title="Send (Cmd+Enter)"
+        >
+          {p.streaming ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Send className="w-3.5 h-3.5" strokeWidth={2} />
+          )}
+        </button>
+      </div>
+    );
+  }
+
+  // Full landing input — textarea on top, toolbar tucked into the
+  // same container with no divider. Send is icon-only on the right.
   return (
     <div className="rounded-[12px] border border-[var(--rule)] bg-[var(--canvas-subtle)] shadow-sm">
       <textarea
@@ -523,9 +562,9 @@ function InputBar(p: InputBarProps) {
         placeholder="Ask Dante anything…"
         disabled={p.streaming}
         rows={p.rows}
-        className="w-full resize-none bg-transparent px-5 py-4 text-base text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none disabled:opacity-60"
+        className="w-full resize-none bg-transparent px-5 pt-4 pb-2 text-base text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none disabled:opacity-60"
       />
-      <div className="flex items-center justify-between px-3 py-2 border-t border-[var(--rule)]/60">
+      <div className="flex items-center justify-between px-3 pb-2 pt-1">
         <div className="flex items-center gap-0.5">
           <ToolbarButton
             icon={Library}
@@ -541,8 +580,6 @@ function InputBar(p: InputBarProps) {
             tip="AI-rewrite this prompt to be more specific"
             onClick={p.onCustomize}
           />
-        </div>
-        <div className="flex items-center gap-2">
           <ToolbarButton
             icon={Telescope}
             label="Deep research"
@@ -554,19 +591,19 @@ function InputBar(p: InputBarProps) {
             }
             onClick={() => p.setDeepResearch((v) => !v)}
           />
-          <button
-            onClick={p.submit}
-            disabled={!p.input.trim() || p.streaming}
-            className="inline-flex items-center gap-1.5 rounded-[6px] bg-black px-3 py-1.5 text-sm text-white hover:bg-black/85 disabled:opacity-40 font-medium"
-          >
-            {p.streaming ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Send className="w-3.5 h-3.5" />
-            )}
-            {p.streaming ? "Thinking…" : "Ask Dante"}
-          </button>
         </div>
+        <button
+          onClick={p.submit}
+          disabled={!p.input.trim() || p.streaming}
+          className="inline-flex items-center justify-center w-8 h-8 rounded-[6px] bg-black text-white hover:bg-black/85 disabled:opacity-30 disabled:cursor-not-allowed transition"
+          title="Send (Cmd+Enter)"
+        >
+          {p.streaming ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Send className="w-3.5 h-3.5" strokeWidth={2} />
+          )}
+        </button>
       </div>
 
       {p.promptsOpen && (
