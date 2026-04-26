@@ -2,10 +2,10 @@
 
 // app/dante/chat/[id]/ChatThread.tsx
 //
-// Renders the message history for a single chat and provides a
-// follow-up input pinned to the bottom. Each assistant message has
-// an expandable reasoning trace (the StepLogEntry[] from the agent
-// loop) so the advisor can audit "why did Dante say that?"
+// Renders the message history for a single chat with a pinned
+// follow-up input. Streams new turns via /api/dante/ask SSE so each
+// follow-up renders the live "Working…" trace, then settles into
+// the final answer with clickable citation chips.
 
 import { useEffect, useRef, useState } from "react";
 import {
@@ -16,15 +16,13 @@ import {
   User as UserIcon,
   Sparkles,
 } from "lucide-react";
-
-interface TraceEntry {
-  step_id: string;
-  step_type: string;
-  step_name: string;
-  status: string;
-  output?: unknown;
-  error?: string;
-}
+import CitationRenderer from "@/app/dante/CitationRenderer";
+import {
+  consumeAgentStream,
+  initialStreamState,
+  type StreamState,
+} from "@/app/dante/streamClient";
+import type { StepLogEntry } from "@/lib/dante/workflow-types";
 
 interface Message {
   id: string;
@@ -43,21 +41,21 @@ export default function ChatThread({
 }) {
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [streamState, setStreamState] = useState<StreamState>(initialStreamState());
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
-  // Scroll to bottom whenever messages change.
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, submitting]);
+  }, [messages.length, streamState.streaming, streamState.events.length]);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   const submit = async () => {
     const message = input.trim();
-    if (!message || submitting) return;
-    setSubmitting(true);
+    if (!message || streamState.streaming) return;
 
-    // Optimistic user-message insert so the UI updates immediately
-    // rather than waiting on the round-trip.
+    // Optimistic user-message insert.
     const optimisticUser: Message = {
       id: `optimistic_${Date.now()}`,
       role: "user",
@@ -68,21 +66,31 @@ export default function ChatThread({
     setMessages((prev) => [...prev, optimisticUser]);
     setInput("");
 
+    abortRef.current = new AbortController();
+    setStreamState({ ...initialStreamState(), streaming: true });
+
     try {
-      const res = await fetch("/api/dante/ask", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: chatId, message }),
+      let captured: StreamState = initialStreamState();
+      await consumeAgentStream({
+        body: { chat_id: chatId, message },
+        signal: abortRef.current.signal,
+        onUpdate: (next) => {
+          captured = next;
+          setStreamState(next);
+        },
       });
-      const json = await res.json();
+
+      // Stream finished — flush the assistant turn into the message
+      // list so it renders alongside history. Reset the live state.
       const assistant: Message = {
-        id: json.message_id || `assistant_${Date.now()}`,
+        id: captured.messageId || `assistant_${Date.now()}`,
         role: "assistant",
-        content: json.content || "(no response)",
-        trace: json.trace || [],
+        content: captured.finalContent || "(no response)",
+        trace: captured.trace,
         created_at: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, assistant]);
+      setStreamState(initialStreamState());
     } catch (err) {
       const errorMsg: Message = {
         id: `err_${Date.now()}`,
@@ -92,8 +100,7 @@ export default function ChatThread({
         created_at: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, errorMsg]);
-    } finally {
-      setSubmitting(false);
+      setStreamState(initialStreamState());
     }
   };
 
@@ -110,7 +117,12 @@ export default function ChatThread({
         {messages.map((m) => (
           <MessageRow key={m.id} message={m} />
         ))}
-        {submitting && (
+
+        {streamState.streaming && streamState.events.length > 0 && (
+          <LiveTrace state={streamState} />
+        )}
+
+        {streamState.streaming && streamState.events.length === 0 && (
           <div className="flex items-start gap-3 text-[var(--ink-subtle)]">
             <Sparkles className="w-4 h-4 mt-1" strokeWidth={1.5} />
             <div className="flex items-center gap-2 text-sm">
@@ -121,7 +133,6 @@ export default function ChatThread({
         <div ref={bottomRef} />
       </div>
 
-      {/* Pinned follow-up input */}
       <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-[var(--canvas)] via-[var(--canvas)] to-transparent pt-6 pb-4">
         <div className="max-w-[900px] mx-auto px-6 md:px-8">
           <div className="rounded-[8px] border border-[var(--rule)] bg-[var(--canvas-subtle)]">
@@ -130,22 +141,22 @@ export default function ChatThread({
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={onKeyDown}
               placeholder="Follow up… Cmd+Enter to send."
-              disabled={submitting}
+              disabled={streamState.streaming}
               rows={2}
               className="w-full resize-none bg-transparent px-4 py-3 text-base text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none disabled:opacity-60"
             />
             <div className="flex items-center justify-end px-3 py-2 border-t border-[var(--rule)]">
               <button
                 onClick={submit}
-                disabled={!input.trim() || submitting}
+                disabled={!input.trim() || streamState.streaming}
                 className="inline-flex items-center gap-1.5 rounded-[4px] bg-[var(--accent)] px-3 py-1.5 text-sm text-white hover:opacity-90 disabled:opacity-40"
               >
-                {submitting ? (
+                {streamState.streaming ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <Send className="w-4 h-4" />
                 )}
-                {submitting ? "Thinking…" : "Send"}
+                {streamState.streaming ? "Thinking…" : "Send"}
               </button>
             </div>
           </div>
@@ -157,7 +168,7 @@ export default function ChatThread({
 
 function MessageRow({ message }: { message: Message }) {
   const [traceOpen, setTraceOpen] = useState(false);
-  const trace = Array.isArray(message.trace) ? (message.trace as TraceEntry[]) : [];
+  const trace = Array.isArray(message.trace) ? (message.trace as StepLogEntry[]) : [];
 
   if (message.role === "user") {
     return (
@@ -178,9 +189,7 @@ function MessageRow({ message }: { message: Message }) {
         <Sparkles className="w-3.5 h-3.5 text-[var(--accent)]" strokeWidth={1.5} />
       </div>
       <div className="flex-1 min-w-0">
-        <div className="text-[var(--ink)] text-sm whitespace-pre-wrap leading-relaxed">
-          {message.content}
-        </div>
+        <CitationRenderer content={message.content} trace={trace} />
         {trace.length > 0 && (
           <div className="mt-3">
             <button
@@ -225,4 +234,70 @@ function MessageRow({ message }: { message: Message }) {
       </div>
     </div>
   );
+}
+
+function LiveTrace({ state }: { state: StreamState }) {
+  return (
+    <div className="flex items-start gap-3">
+      <div className="rounded-full bg-[var(--accent-soft)] border border-[var(--accent)]/40 p-1.5">
+        <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--accent)]" />
+      </div>
+      <div className="flex-1 rounded-[6px] border border-[var(--rule)] bg-[var(--canvas-subtle)] p-3">
+        <div className="text-[11px] text-[var(--ink-subtle)] mb-2">Working…</div>
+        <div className="space-y-1.5">
+          {state.events.map((e, i) => {
+            if (e.type === "iteration_thinking") {
+              return (
+                <div
+                  key={i}
+                  className="text-[11px] text-[var(--ink-subtle)] flex items-center gap-2"
+                >
+                  <span className="w-1 h-1 rounded-full bg-[var(--ink-subtle)]" />
+                  Thinking about next step…
+                </div>
+              );
+            }
+            const tool = prettifyToolName(e.tool_name);
+            if (e.type === "tool_start") {
+              return (
+                <div
+                  key={i}
+                  className="text-[11px] text-[var(--ink-muted)] flex items-center gap-2"
+                >
+                  <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                  <span className="font-mono">{tool}</span>
+                  {e.summary && (
+                    <span className="text-[var(--ink-subtle)]">— {e.summary}</span>
+                  )}
+                </div>
+              );
+            }
+            const ok = e.status === "success";
+            return (
+              <div key={i} className="text-[11px] flex items-center gap-2">
+                <span
+                  className={ok ? "text-emerald-300/80" : "text-red-300"}
+                  aria-hidden
+                >
+                  {ok ? "✓" : "✗"}
+                </span>
+                <span className="font-mono text-[var(--ink-muted)]">{tool}</span>
+                {e.summary && (
+                  <span className="text-[var(--ink-subtle)]">— {e.summary}</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function prettifyToolName(raw: string): string {
+  if (raw.startsWith("mcp__")) {
+    const parts = raw.slice(5).split("__");
+    return `${parts[0]} · ${(parts[1] || "").replace(/_/g, ".")}`;
+  }
+  return raw.replace(/_/g, ".");
 }

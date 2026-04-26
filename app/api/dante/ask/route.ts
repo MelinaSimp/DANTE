@@ -1,25 +1,30 @@
 // /api/dante/ask — the front-door chat endpoint.
 //
-// Body shape:
-//   { chat_id?: string, message: string }
+// Streams agent-loop events back to the client over Server-Sent
+// Events so the chat UI can render "Searching memory..." → "Checking
+// vault..." live as the loop progresses, instead of sitting silent
+// for 10 seconds and dumping the result. This is the Phase 4a fix —
+// same engine, same tools, same persisted history; just a streaming
+// transport instead of a request/response one.
 //
-// If chat_id is provided, append to that conversation. Otherwise
-// create a new one. Either way, the user message is persisted, the
-// agent loop fires with the default tool whitelist, the assistant
-// reply is persisted with the full reasoning trace, and the
-// response surfaces { chat_id, message_id, content, trace }.
+// Wire format: `data: <json>\n\n` lines. Event shapes:
+//   { type: "chat_started", chat_id }              — first frame
+//   { type: "tool_start", sub_id, tool_name, args }
+//   { type: "tool_end", sub_id, tool_name, status, output, error? }
+//   { type: "iteration_thinking", iteration }
+//   { type: "final", chat_id, message_id, content, trace }
+//   { type: "error", error }
 //
 // Default tools = the read-mostly set: memory.search, archive.search,
-// vault.cite, clients.query, skill.run. We deliberately exclude
-// mutating tools (email.send, clients.update, memory.write) from the
-// default chat surface — advisors can still invoke skills that
-// mutate, gated by skill auto_approve. This keeps "Ask Dante anything"
-// from being a way to accidentally email a client.
+// vault.cite, clients.query, skill.run. Mutating tools are excluded
+// from the chat surface by design — chat is for asking, not for
+// sending mail. Skill invocations through skill.run still respect
+// each skill's own auto_approve gate.
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { runAgent } from "@/lib/dante/agent";
+import { runAgent, type AgentEvent } from "@/lib/dante/agent";
 import type { AgentStep, AgentToolEntry, StepLogEntry } from "@/lib/dante/workflow-types";
 
 export const dynamic = "force-dynamic";
@@ -52,23 +57,21 @@ export async function POST(req: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (!user) return jsonError(401, "unauthorized");
 
   const { data: profile } = await supabase
     .from("profiles")
     .select("workspace_id")
     .eq("id", user.id)
     .maybeSingle();
-  if (!profile?.workspace_id) {
-    return NextResponse.json({ error: "no workspace" }, { status: 400 });
-  }
+  if (!profile?.workspace_id) return jsonError(400, "no workspace");
 
   const body = (await req.json().catch(() => ({}))) as {
     chat_id?: string;
     message?: string;
   };
   const message = (body.message || "").trim();
-  if (!message) return NextResponse.json({ error: "message required" }, { status: 400 });
+  if (!message) return jsonError(400, "message required");
 
   // Resolve chat — create or verify ownership of existing.
   let chatId = body.chat_id;
@@ -79,15 +82,13 @@ export async function POST(req: NextRequest) {
       .eq("id", chatId)
       .maybeSingle();
     if (!chat || chat.user_id !== user.id || chat.workspace_id !== profile.workspace_id) {
-      return NextResponse.json({ error: "chat not found" }, { status: 404 });
+      return jsonError(404, "chat not found");
     }
-    // Bump updated_at so the recent-chats list reorders.
     await supabaseAdmin
       .from("dante_chats")
       .update({ updated_at: new Date().toISOString() })
       .eq("id", chatId);
   } else {
-    // First-message chat: derive title from user input.
     const title = message.length > 60 ? message.slice(0, 57) + "…" : message;
     const { data: created, error } = await supabaseAdmin
       .from("dante_chats")
@@ -98,24 +99,18 @@ export async function POST(req: NextRequest) {
       })
       .select("id")
       .single();
-    if (error || !created) {
-      return NextResponse.json({ error: error?.message || "create_failed" }, { status: 500 });
-    }
+    if (error || !created) return jsonError(500, error?.message || "create_failed");
     chatId = created.id as string;
   }
 
-  // Persist the user turn before running the agent. If the agent
-  // throws, the user message stays — they can retry without re-typing.
+  // Persist the user turn before running the agent.
   await supabaseAdmin.from("dante_chat_messages").insert({
     chat_id: chatId,
     role: "user",
     content: message,
   });
 
-  // Pull prior turns (if any) and prepend them to the agent's
-  // objective so it has conversation context. Multi-turn done the
-  // poor man's way — we don't yet pipe full message history into the
-  // agent loop's messages[] array, but for MVP this is plenty.
+  // Pull prior turns for context.
   const { data: priorMessages } = await supabaseAdmin
     .from("dante_chat_messages")
     .select("role, content")
@@ -124,7 +119,7 @@ export async function POST(req: NextRequest) {
     .limit(10);
 
   const priorTranscript = (priorMessages || [])
-    .slice(0, -1)                                        // exclude the just-inserted user message
+    .slice(0, -1)
     .map((m) => `${m.role === "user" ? "User" : "Dante"}: ${m.content}`)
     .join("\n\n");
 
@@ -147,41 +142,81 @@ export async function POST(req: NextRequest) {
   const log: StepLogEntry[] = [];
   const runId = `chat_${chatId}_${Date.now()}`;
 
-  let assistantContent = "";
-  let runError: string | null = null;
+  // Build the SSE stream. We keep the response open until the agent
+  // loop returns or throws, then send a final event with the
+  // persisted assistant message id.
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = (payload: unknown) => {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+      };
 
-  try {
-    const result = await runAgent({
-      step,
-      workspaceId: profile.workspace_id,
-      simulate: true,                                    // chat surface is read-only by design
-      runId,
-      log,
-    });
-    assistantContent = result.text || "";
-  } catch (err) {
-    runError = err instanceof Error ? err.message : "agent_failed";
-    assistantContent = `I hit an error and couldn't complete that. ${runError}`;
-  }
+      send({ type: "chat_started", chat_id: chatId });
 
-  // Persist the assistant turn.
-  const { data: persisted } = await supabaseAdmin
-    .from("dante_chat_messages")
-    .insert({
-      chat_id: chatId,
-      role: "assistant",
-      content: assistantContent,
-      trace: log,
-    })
-    .select("id")
-    .single();
+      let assistantContent = "";
+      let runError: string | null = null;
 
-  return NextResponse.json({
-    ok: !runError,
-    chat_id: chatId,
-    message_id: persisted?.id,
-    content: assistantContent,
-    trace: log,
-    error: runError,
+      try {
+        const result = await runAgent({
+          step,
+          workspaceId: profile.workspace_id!,
+          simulate: true,
+          runId,
+          log,
+          onEvent: (event: AgentEvent) => {
+            send(event);
+          },
+        });
+        assistantContent = result.text || "";
+      } catch (err) {
+        runError = err instanceof Error ? err.message : "agent_failed";
+        assistantContent = `I hit an error and couldn't complete that. ${runError}`;
+        send({ type: "error", error: runError });
+      }
+
+      // Persist the assistant turn and emit a `final` event with the
+      // canonical data so the client can replace its in-memory
+      // streaming state with the persisted version (matches what
+      // /chat/[id] would show on a hard refresh).
+      const { data: persisted } = await supabaseAdmin
+        .from("dante_chat_messages")
+        .insert({
+          chat_id: chatId,
+          role: "assistant",
+          content: assistantContent,
+          trace: log,
+        })
+        .select("id")
+        .single();
+
+      send({
+        type: "final",
+        chat_id: chatId,
+        message_id: persisted?.id,
+        content: assistantContent,
+        trace: log,
+        error: runError,
+      });
+
+      controller.close();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      // Vercel-specific: tells their edge to NOT buffer this response.
+      "X-Accel-Buffering": "no",
+    },
+  });
+}
+
+function jsonError(status: number, error: string) {
+  return new Response(JSON.stringify({ error }), {
+    status,
+    headers: { "Content-Type": "application/json" },
   });
 }

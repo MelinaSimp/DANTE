@@ -449,6 +449,11 @@ interface ChatMessage {
   tool_call_id?: string;
 }
 
+export type AgentEvent =
+  | { type: "tool_start"; sub_id: string; tool_name: string; args: Record<string, unknown> }
+  | { type: "tool_end"; sub_id: string; tool_name: string; status: "success" | "error"; output: unknown; error?: string }
+  | { type: "iteration_thinking"; iteration: number };
+
 export interface AgentRunInput {
   step: AgentStep;
   workspaceId: string;
@@ -459,6 +464,14 @@ export interface AgentRunInput {
    * tool call so the run timeline shows the full reasoning trace.
    */
   log: StepLogEntry[];
+  /**
+   * Optional callback fired at each agent-loop boundary. Used by the
+   * /api/dante/ask SSE handler to push tool calls to the client live
+   * — without this, the chat UI sits silent for ~10s before the
+   * full response lands. Synchronous or async; we await each call so
+   * the stream stays ordered with the actual loop progress.
+   */
+  onEvent?: (event: AgentEvent) => void | Promise<void>;
 }
 
 export interface AgentRunResult {
@@ -535,8 +548,21 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
 
   let stepIdx = 0;
   let finalText = "";
+  let iterationIdx = 0;
+
+  // Tiny helper so callsites stay readable. Swallows handler errors
+  // — a broken stream consumer should never abort the agent loop.
+  const fire = async (event: AgentEvent) => {
+    if (!input.onEvent) return;
+    try {
+      await input.onEvent(event);
+    } catch (err) {
+      console.warn("[agent] onEvent handler threw:", err);
+    }
+  };
 
   while (stepIdx < maxSteps) {
+    await fire({ type: "iteration_thinking", iteration: iterationIdx++ });
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -590,6 +616,15 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
         // tool error rather than crashing the run.
       }
 
+      // Fire tool_start before dispatch so the client can render
+      // "Searching memory..." while we're actually doing it.
+      await fire({
+        type: "tool_start",
+        sub_id: subId,
+        tool_name: call.function.name,
+        args: parsedArgs,
+      });
+
       let toolOutput: unknown;
       let errored = false;
       let errorMessage = "";
@@ -635,6 +670,15 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
         started_at,
         finished_at: new Date().toISOString(),
         output: { args: parsedArgs, result: toolOutput },
+        error: errored ? errorMessage : undefined,
+      });
+
+      await fire({
+        type: "tool_end",
+        sub_id: subId,
+        tool_name: call.function.name,
+        status: errored ? "error" : "success",
+        output: toolOutput,
         error: errored ? errorMessage : undefined,
       });
 
