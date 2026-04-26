@@ -351,15 +351,11 @@ export default function AskDante() {
         />
       )}
 
-      {/* Knowledge source pills — fade out when entering expanded mode */}
-      <div
-        className={`transition-all duration-500 ease-out ${
-          inExpandedMode
-            ? "opacity-0 -translate-y-2 max-h-0 overflow-hidden pointer-events-none"
-            : "opacity-100 max-h-32 mt-4"
-        }`}
-      >
-        <div className="flex flex-wrap items-center justify-center gap-2">
+      {/* Knowledge source pills — only on landing. Once the user has
+          sent a message we unmount them entirely (not just fade) so
+          there's no chance of them lingering across the transition. */}
+      {!inExpandedMode && (
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
           {KNOWLEDGE_SOURCES.map((s) => {
             const Icon = s.icon;
             return (
@@ -373,7 +369,7 @@ export default function AskDante() {
             );
           })}
         </div>
-      </div>
+      )}
 
       {/* Threaded messages */}
       {inExpandedMode && (
