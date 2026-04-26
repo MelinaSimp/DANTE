@@ -20,7 +20,6 @@ import {
   Loader2,
   ChevronDown,
   ChevronRight,
-  Paperclip,
   Library,
   Sliders,
   Wand2,
@@ -31,6 +30,8 @@ import {
   CalendarDays,
   History,
   FileText,
+  X,
+  Search,
 } from "lucide-react";
 import MarkdownRenderer from "./MarkdownRenderer";
 import DocumentPanel, { looksLikeDraft, deriveFilenameStem } from "./DocumentPanel";
@@ -44,6 +45,12 @@ interface RecentChat {
   id: string;
   title: string;
   updated_at: string;
+}
+
+interface Contact {
+  id: string;
+  name: string | null;
+  email: string | null;
 }
 
 const QUICK_PROMPTS: Array<{ label: string; prompt: string }> = [
@@ -97,6 +104,8 @@ export default function AskDante() {
   const [refining, setRefining] = useState<"customize" | "improve" | null>(null);
   const [improveOpen, setImproveOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
+  const [contextContact, setContextContact] = useState<Contact | null>(null);
+  const [contactPickerOpen, setContactPickerOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -133,7 +142,12 @@ export default function AskDante() {
 
     try {
       await consumeAgentStream({
-        body: { message, deep: deepResearch },
+        body: {
+          message,
+          deep: deepResearch,
+          context_contact_id: contextContact?.id,
+          context_contact_name: contextContact?.name || undefined,
+        },
         signal: abortRef.current.signal,
         onUpdate: (next) => setStreamState(next),
       });
@@ -217,25 +231,32 @@ export default function AskDante() {
         </div>
       )}
 
-      {/* Scope row — Harvey-style placeholder pills */}
+      {/* Scope row — single working chip (Set client context). Other
+          scope filters (vault, file upload) deferred until the
+          underlying capability ships. */}
       {!hasResultOrTrace && (
-        <div className="flex items-center justify-center gap-4 mb-3 text-xs text-[var(--ink-muted)]">
-          <button
-            disabled
-            className="inline-flex items-center gap-1.5 hover:text-[var(--ink)] disabled:cursor-not-allowed"
-            title="Coming soon"
-          >
-            <BookOpen className="w-3.5 h-3.5" strokeWidth={1.5} />
-            Choose vault
-          </button>
-          <button
-            disabled
-            className="inline-flex items-center gap-1.5 hover:text-[var(--ink)] disabled:cursor-not-allowed"
-            title="Coming soon"
-          >
-            <Users className="w-3.5 h-3.5" strokeWidth={1.5} />
-            Set client context
-          </button>
+        <div className="flex items-center justify-center gap-3 mb-3">
+          {contextContact ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-black px-3 py-1 text-xs text-white">
+              <Users className="w-3 h-3" strokeWidth={1.5} />
+              {contextContact.name || contextContact.email || "Unnamed"}
+              <button
+                onClick={() => setContextContact(null)}
+                className="ml-0.5 hover:opacity-70"
+                title="Clear context"
+              >
+                <X className="w-3 h-3" strokeWidth={2} />
+              </button>
+            </span>
+          ) : (
+            <button
+              onClick={() => setContactPickerOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--rule)] px-3 py-1 text-xs text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
+            >
+              <Users className="w-3 h-3" strokeWidth={1.5} />
+              Set client context
+            </button>
+          )}
         </div>
       )}
 
@@ -254,7 +275,6 @@ export default function AskDante() {
         <div className="flex items-center justify-between px-3 py-2 border-t border-[var(--rule)]/60">
           {/* Left toolbar */}
           <div className="flex items-center gap-0.5">
-            <ToolbarButton icon={Paperclip} label="Files" disabled tip="Coming soon" />
             <ToolbarButton
               icon={Library}
               label="Prompts"
@@ -286,7 +306,7 @@ export default function AskDante() {
             <button
               onClick={submit}
               disabled={!input.trim() || streamState.streaming}
-              className="inline-flex items-center gap-1.5 rounded-[6px] bg-[var(--ink)] px-3 py-1.5 text-sm text-[var(--canvas)] hover:opacity-90 disabled:opacity-40 font-medium"
+              className="inline-flex items-center gap-1.5 rounded-[6px] bg-black px-3 py-1.5 text-sm text-white hover:bg-black/85 disabled:opacity-40 font-medium"
             >
               {streamState.streaming ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -460,6 +480,17 @@ export default function AskDante() {
         </div>
       )}
 
+      {/* Contact picker modal */}
+      {contactPickerOpen && (
+        <ContactPicker
+          onPick={(c) => {
+            setContextContact(c);
+            setContactPickerOpen(false);
+          }}
+          onClose={() => setContactPickerOpen(false)}
+        />
+      )}
+
       {/* Document editor drawer — opens when user clicks "Open in editor"
           on a draft-shaped response. */}
       {editorOpen && (
@@ -537,7 +568,7 @@ function ToolbarButton({
   const base =
     "inline-flex items-center gap-1.5 rounded-[4px] px-2 py-1 text-xs transition disabled:cursor-not-allowed";
   const palette = active
-    ? "bg-[var(--ink)] text-[var(--canvas)]"
+    ? "bg-black text-white"
     : disabled
       ? "text-[var(--ink-muted)] opacity-40"
       : "text-[var(--ink)] hover:bg-[var(--canvas)]/60";
@@ -629,5 +660,113 @@ function prettifyToolName(raw: string): string {
     return `${parts[0]} · ${(parts[1] || "").replace(/_/g, ".")}`;
   }
   return raw.replace(/_/g, ".");
+}
+
+// ── Contact picker modal ─────────────────────────────────────────
+// Lightweight searchable list of workspace contacts. Pulls all
+// contacts up front (most workspaces have hundreds, not thousands)
+// and filters client-side so search feels instant.
+
+function ContactPicker({
+  onPick,
+  onClose,
+}: {
+  onPick: (c: Contact) => void;
+  onClose: () => void;
+}) {
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/contacts");
+        if (!res.ok) throw new Error(`status ${res.status}`);
+        const data = await res.json();
+        if (!cancelled) setContacts(data as Contact[]);
+      } catch {
+        /* swallow — modal will show empty list */
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? contacts.filter((c) => {
+        const haystack = `${c.name || ""} ${c.email || ""}`.toLowerCase();
+        return haystack.includes(q);
+      })
+    : contacts;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-6 pt-24"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md bg-[var(--canvas)] border border-[var(--rule)] rounded-[8px] shadow-xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-2 border-b border-[var(--rule)] px-3 py-2">
+          <Search className="w-4 h-4 text-[var(--ink-muted)]" strokeWidth={1.5} />
+          <input
+            autoFocus
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search contacts…"
+            className="flex-1 bg-transparent text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none"
+          />
+          <button
+            onClick={onClose}
+            className="text-[var(--ink-muted)] hover:text-[var(--ink)]"
+            title="Close (Esc)"
+          >
+            <X className="w-4 h-4" strokeWidth={1.5} />
+          </button>
+        </div>
+        <div className="max-h-80 overflow-y-auto">
+          {loading ? (
+            <div className="px-3 py-6 text-center text-xs text-[var(--ink-muted)]">
+              <Loader2 className="w-4 h-4 animate-spin inline-block mr-1.5" />
+              Loading contacts…
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="px-3 py-6 text-center text-xs text-[var(--ink-muted)]">
+              No matching contacts.
+            </div>
+          ) : (
+            filtered.slice(0, 50).map((c) => (
+              <button
+                key={c.id}
+                onClick={() => onPick(c)}
+                className="block w-full text-left px-3 py-2 text-sm text-[var(--ink)] hover:bg-[var(--canvas-subtle)] border-b border-[var(--rule)]/40 last:border-0"
+              >
+                <div className="font-medium">{c.name || "(unnamed)"}</div>
+                {c.email && (
+                  <div className="text-[11px] text-[var(--ink-muted)]">{c.email}</div>
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 

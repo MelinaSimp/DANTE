@@ -70,10 +70,14 @@ export async function POST(req: NextRequest) {
     chat_id?: string;
     message?: string;
     deep?: boolean;
+    context_contact_id?: string;
+    context_contact_name?: string;
   };
   const message = (body.message || "").trim();
   if (!message) return jsonError(400, "message required");
   const deep = body.deep === true;
+  const contextContactId = body.context_contact_id?.trim() || null;
+  const contextContactName = body.context_contact_name?.trim() || null;
 
   // Resolve chat — create or verify ownership of existing.
   let chatId = body.chat_id;
@@ -125,9 +129,16 @@ export async function POST(req: NextRequest) {
     .map((m) => `${m.role === "user" ? "User" : "Dante"}: ${m.content}`)
     .join("\n\n");
 
+  // Contact scope is prepended so the model treats it as load-bearing
+  // context: any tool call that takes a contact_id should default to
+  // this one unless the user explicitly names a different contact.
+  const contextLine = contextContactId
+    ? `\n\nCONTEXT: this conversation is scoped to contact ${contextContactName || "(unknown name)"} (id: ${contextContactId}). When calling memory.search, clients.query, or skill.run, pass this contact_id by default unless the user asks about a different contact.`
+    : "";
+
   const objective = priorTranscript
-    ? `Previous turns in this conversation:\n\n${priorTranscript}\n\n---\n\nLatest user message: ${message}`
-    : message;
+    ? `Previous turns in this conversation:\n\n${priorTranscript}${contextLine}\n\n---\n\nLatest user message: ${message}`
+    : `${message}${contextLine}`;
 
   // Deep research bumps the agent's tool-call budget and nudges the
   // system prompt toward iterative refinement — the model is told to

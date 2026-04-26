@@ -51,7 +51,14 @@ export function initialStreamState(): StreamState {
 }
 
 interface ConsumeInput {
-  body: { message: string; chat_id?: string; deep?: boolean };
+  body: {
+    message: string;
+    chat_id?: string;
+    deep?: boolean;
+    /** Scope the agent to one contact's memory + correspondence. */
+    context_contact_id?: string;
+    context_contact_name?: string;
+  };
   signal?: AbortSignal;
   onUpdate: (state: StreamState) => void;
 }
