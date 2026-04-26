@@ -15,8 +15,13 @@ import {
   ChevronDown,
   User as UserIcon,
   Sparkles,
+  FileText,
 } from "lucide-react";
-import CitationRenderer from "@/app/dante/CitationRenderer";
+import MarkdownRenderer from "@/app/dante/MarkdownRenderer";
+import DocumentPanel, {
+  looksLikeDraft,
+  deriveFilenameStem,
+} from "@/app/dante/DocumentPanel";
 import {
   consumeAgentStream,
   initialStreamState,
@@ -42,6 +47,9 @@ export default function ChatThread({
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
   const [streamState, setStreamState] = useState<StreamState>(initialStreamState());
+  // Single editor at a time — clicking "Open in editor" on any message
+  // sets this; DocumentPanel reads from it.
+  const [editorContent, setEditorContent] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -115,7 +123,11 @@ export default function ChatThread({
     <div>
       <div className="space-y-6 mb-32">
         {messages.map((m) => (
-          <MessageRow key={m.id} message={m} />
+          <MessageRow
+            key={m.id}
+            message={m}
+            onOpenEditor={(content) => setEditorContent(content)}
+          />
         ))}
 
         {streamState.streaming && streamState.events.length > 0 && (
@@ -132,6 +144,14 @@ export default function ChatThread({
         )}
         <div ref={bottomRef} />
       </div>
+
+      {editorContent != null && (
+        <DocumentPanel
+          initialContent={editorContent}
+          filenameStem={deriveFilenameStem(editorContent)}
+          onClose={() => setEditorContent(null)}
+        />
+      )}
 
       <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-[var(--canvas)] via-[var(--canvas)] to-transparent pt-6 pb-4">
         <div className="max-w-[900px] mx-auto px-6 md:px-8">
@@ -166,7 +186,13 @@ export default function ChatThread({
   );
 }
 
-function MessageRow({ message }: { message: Message }) {
+function MessageRow({
+  message,
+  onOpenEditor,
+}: {
+  message: Message;
+  onOpenEditor: (content: string) => void;
+}) {
   const [traceOpen, setTraceOpen] = useState(false);
   const trace = Array.isArray(message.trace) ? (message.trace as StepLogEntry[]) : [];
 
@@ -183,13 +209,27 @@ function MessageRow({ message }: { message: Message }) {
     );
   }
 
+  const isDraft = looksLikeDraft(message.content);
+
   return (
     <div className="flex items-start gap-3">
       <div className="rounded-full bg-[var(--accent-soft)] border border-[var(--accent)]/40 p-1.5">
         <Sparkles className="w-3.5 h-3.5 text-[var(--accent)]" strokeWidth={1.5} />
       </div>
       <div className="flex-1 min-w-0">
-        <CitationRenderer content={message.content} trace={trace} />
+        {isDraft && (
+          <div className="mb-2">
+            <button
+              onClick={() => onOpenEditor(message.content)}
+              className="inline-flex items-center gap-1.5 rounded-[4px] border border-[var(--rule)] px-2 py-0.5 text-[11px] text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
+              title="Open as editable document"
+            >
+              <FileText className="w-3 h-3" strokeWidth={1.5} />
+              Open in editor
+            </button>
+          </div>
+        )}
+        <MarkdownRenderer content={message.content} trace={trace} />
         {trace.length > 0 && (
           <div className="mt-3">
             <button

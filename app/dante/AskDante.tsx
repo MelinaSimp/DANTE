@@ -18,7 +18,6 @@ import { useRouter } from "next/navigation";
 import {
   Send,
   Loader2,
-  Sparkles,
   ChevronDown,
   ChevronRight,
   Paperclip,
@@ -31,8 +30,10 @@ import {
   Users,
   CalendarDays,
   History,
+  FileText,
 } from "lucide-react";
-import CitationRenderer from "./CitationRenderer";
+import MarkdownRenderer from "./MarkdownRenderer";
+import DocumentPanel, { looksLikeDraft, deriveFilenameStem } from "./DocumentPanel";
 import {
   consumeAgentStream,
   type StreamState,
@@ -95,6 +96,7 @@ export default function AskDante() {
   const [deepResearch, setDeepResearch] = useState(false);
   const [refining, setRefining] = useState<"customize" | "improve" | null>(null);
   const [improveOpen, setImproveOpen] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -345,38 +347,51 @@ export default function AskDante() {
         <div className="mt-6 rounded-[8px] border border-[var(--rule)] bg-[var(--canvas)] p-5">
           <div className="flex items-center justify-between mb-2">
             <div className="text-xs text-[var(--ink-muted)]">Dante</div>
-            {/* Improve button — opens dropdown of preset rewrites */}
-            <div className="relative">
-              <button
-                onClick={() => setImproveOpen((v) => !v)}
-                disabled={refining === "improve"}
-                className="inline-flex items-center gap-1.5 rounded-[4px] border border-[var(--rule)] px-2 py-1 text-xs text-[var(--ink)] hover:bg-[var(--canvas-subtle)] disabled:opacity-50"
-                title="Refine this answer"
-              >
-                {refining === "improve" ? (
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                ) : (
-                  <Wand2 className="w-3 h-3" strokeWidth={1.5} />
-                )}
-                Improve
-                <ChevronDown className="w-3 h-3" />
-              </button>
-              {improveOpen && (
-                <div className="absolute right-0 top-full mt-1 z-10 rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] shadow-lg p-1 min-w-[160px]">
-                  {IMPROVE_PRESETS.map((p) => (
-                    <button
-                      key={p.label}
-                      onClick={() => onImprove(p.instruction)}
-                      className="block w-full text-left rounded-[3px] px-2 py-1.5 text-xs text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
+            <div className="flex items-center gap-1.5">
+              {/* Open in editor — only when content looks like a draft */}
+              {looksLikeDraft(streamState.finalContent) && (
+                <button
+                  onClick={() => setEditorOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-[4px] border border-[var(--rule)] px-2 py-1 text-xs text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
+                  title="Open as editable document"
+                >
+                  <FileText className="w-3 h-3" strokeWidth={1.5} />
+                  Open in editor
+                </button>
               )}
+              {/* Improve button — opens dropdown of preset rewrites */}
+              <div className="relative">
+                <button
+                  onClick={() => setImproveOpen((v) => !v)}
+                  disabled={refining === "improve"}
+                  className="inline-flex items-center gap-1.5 rounded-[4px] border border-[var(--rule)] px-2 py-1 text-xs text-[var(--ink)] hover:bg-[var(--canvas-subtle)] disabled:opacity-50"
+                  title="Refine this answer"
+                >
+                  {refining === "improve" ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Wand2 className="w-3 h-3" strokeWidth={1.5} />
+                  )}
+                  Improve
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+                {improveOpen && (
+                  <div className="absolute right-0 top-full mt-1 z-10 rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] shadow-lg p-1 min-w-[160px]">
+                    {IMPROVE_PRESETS.map((p) => (
+                      <button
+                        key={p.label}
+                        onClick={() => onImprove(p.instruction)}
+                        className="block w-full text-left rounded-[3px] px-2 py-1.5 text-xs text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-          <CitationRenderer
+          <MarkdownRenderer
             content={streamState.finalContent || "(no response)"}
             trace={streamState.trace}
           />
@@ -443,6 +458,16 @@ export default function AskDante() {
         <div className="mt-4 rounded-[4px] border border-red-500/30 bg-red-500/5 px-3 py-2 text-sm text-red-300">
           {streamState.error}
         </div>
+      )}
+
+      {/* Document editor drawer — opens when user clicks "Open in editor"
+          on a draft-shaped response. */}
+      {editorOpen && (
+        <DocumentPanel
+          initialContent={streamState.finalContent}
+          filenameStem={deriveFilenameStem(streamState.finalContent)}
+          onClose={() => setEditorOpen(false)}
+        />
       )}
 
       {/* History collapsible */}
