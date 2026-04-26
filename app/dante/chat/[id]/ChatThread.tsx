@@ -3,37 +3,37 @@
 // app/dante/chat/[id]/ChatThread.tsx
 //
 // Renders the message history for a single chat with a pinned
-// follow-up input. Streams new turns via /api/dante/ask SSE so each
-// follow-up renders the live "Working…" trace, then settles into
-// the final answer with clickable citation chips.
+// follow-up input. Same Harvey-style visual primitives as /dante —
+// no chat bubbles, clean prose, action bar under each assistant
+// turn, aggregated Sources block.
+//
+// Streams new turns via /api/dante/ask SSE so each follow-up
+// renders the live "Working…" trace before settling into the final
+// answer.
 
 import { useEffect, useRef, useState } from "react";
-import {
-  Send,
-  Loader2,
-  ChevronRight,
-  ChevronDown,
-  User as UserIcon,
-  Sparkles,
-  FileText,
-} from "lucide-react";
-import MarkdownRenderer from "@/app/dante/MarkdownRenderer";
-import DocumentPanel, {
-  looksLikeDraft,
-  deriveFilenameStem,
-} from "@/app/dante/DocumentPanel";
+import { Send, Loader2 } from "lucide-react";
+import DocumentPanel, { deriveFilenameStem } from "@/app/dante/DocumentPanel";
 import {
   consumeAgentStream,
   initialStreamState,
   type StreamState,
 } from "@/app/dante/streamClient";
-import type { StepLogEntry } from "@/lib/dante/workflow-types";
+import {
+  UserMessage,
+  AssistantMessage,
+  LiveThinking,
+} from "@/app/dante/MessageView";
 
 interface Message {
   id: string;
   role: "user" | "assistant" | "tool";
   content: string;
   trace: unknown;
+  /** Suggested follow-ups carried from the live stream. Persisted
+   *  messages don't have these (we only persist content + trace
+   *  today), so older turns render with no follow-ups. */
+  followups?: string[];
   created_at: string;
 }
 
@@ -47,23 +47,21 @@ export default function ChatThread({
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [input, setInput] = useState("");
   const [streamState, setStreamState] = useState<StreamState>(initialStreamState());
-  // Single editor at a time — clicking "Open in editor" on any message
-  // sets this; DocumentPanel reads from it.
   const [editorContent, setEditorContent] = useState<string | null>(null);
+  const [refining, setRefining] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, streamState.streaming, streamState.events.length]);
+  }, [messages.length, streamState.streaming, streamState.events.length, streamState.followups.length]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  const submit = async () => {
-    const message = input.trim();
+  const submit = async (overrideInput?: string) => {
+    const message = (overrideInput ?? input).trim();
     if (!message || streamState.streaming) return;
 
-    // Optimistic user-message insert.
     const optimisticUser: Message = {
       id: `optimistic_${Date.now()}`,
       role: "user",
@@ -88,13 +86,12 @@ export default function ChatThread({
         },
       });
 
-      // Stream finished — flush the assistant turn into the message
-      // list so it renders alongside history. Reset the live state.
       const assistant: Message = {
         id: captured.messageId || `assistant_${Date.now()}`,
         role: "assistant",
         content: captured.finalContent || "(no response)",
         trace: captured.trace,
+        followups: captured.followups || [],
         created_at: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, assistant]);
@@ -105,10 +102,40 @@ export default function ChatThread({
         role: "assistant",
         content: `Error: ${err instanceof Error ? err.message : "request_failed"}`,
         trace: [],
+        followups: [],
         created_at: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, errorMsg]);
       setStreamState(initialStreamState());
+    }
+  };
+
+  const onRewriteLast = async (instruction: string) => {
+    // Rewrites the latest assistant turn's content. Same shape as the
+    // landing surface — refine endpoint preserves citation markers.
+    const lastIdx = [...messages].reverse().findIndex((m) => m.role === "assistant");
+    if (lastIdx < 0 || refining) return;
+    const realIdx = messages.length - 1 - lastIdx;
+    const target = messages[realIdx];
+    setRefining(true);
+    try {
+      const res = await fetch("/api/dante/refine", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "answer", text: target.content, instruction }),
+      });
+      const json = await res.json();
+      if (res.ok && json.text) {
+        setMessages((prev) => {
+          const next = [...prev];
+          next[realIdx] = { ...target, content: json.text };
+          return next;
+        });
+      }
+    } catch {
+      /* swallow */
+    } finally {
+      setRefining(false);
     }
   };
 
@@ -121,27 +148,28 @@ export default function ChatThread({
 
   return (
     <div>
-      <div className="space-y-6 mb-32">
-        {messages.map((m) => (
-          <MessageRow
-            key={m.id}
-            message={m}
-            onOpenEditor={(content) => setEditorContent(content)}
-          />
-        ))}
-
-        {streamState.streaming && streamState.events.length > 0 && (
-          <LiveTrace state={streamState} />
+      <div className="space-y-8 mb-32">
+        {messages.map((m) =>
+          m.role === "user" ? (
+            <UserMessage key={m.id} content={m.content} />
+          ) : (
+            <AssistantMessage
+              key={m.id}
+              content={m.content}
+              trace={m.trace}
+              followups={m.followups || []}
+              onOpenEditor={(c) => setEditorContent(c)}
+              onRewrite={(instruction) => onRewriteLast(instruction)}
+              onFollowup={(q) => submit(q)}
+              rewriting={refining}
+            />
+          ),
         )}
 
-        {streamState.streaming && streamState.events.length === 0 && (
-          <div className="flex items-start gap-3 text-[var(--ink-subtle)]">
-            <Sparkles className="w-4 h-4 mt-1" strokeWidth={1.5} />
-            <div className="flex items-center gap-2 text-sm">
-              <Loader2 className="w-4 h-4 animate-spin" /> Thinking…
-            </div>
-          </div>
+        {streamState.streaming && (
+          <LiveThinking state={streamState} deep={false} />
         )}
+
         <div ref={bottomRef} />
       </div>
 
@@ -153,9 +181,9 @@ export default function ChatThread({
         />
       )}
 
-      <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-[var(--canvas)] via-[var(--canvas)] to-transparent pt-6 pb-4">
+      <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-[var(--canvas)] via-[var(--canvas)] to-transparent pt-6 pb-4 z-30">
         <div className="max-w-[900px] mx-auto px-6 md:px-8">
-          <div className="rounded-[8px] border border-[var(--rule)] bg-[var(--canvas-subtle)]">
+          <div className="rounded-[12px] border border-[var(--rule)] bg-[var(--canvas-subtle)] shadow-sm">
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -163,18 +191,18 @@ export default function ChatThread({
               placeholder="Follow up… Cmd+Enter to send."
               disabled={streamState.streaming}
               rows={2}
-              className="w-full resize-none bg-transparent px-4 py-3 text-base text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none disabled:opacity-60"
+              className="w-full resize-none bg-transparent px-5 py-4 text-base text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none disabled:opacity-60"
             />
-            <div className="flex items-center justify-end px-3 py-2 border-t border-[var(--rule)]">
+            <div className="flex items-center justify-end px-3 py-2 border-t border-[var(--rule)]/60">
               <button
-                onClick={submit}
+                onClick={() => submit()}
                 disabled={!input.trim() || streamState.streaming}
-                className="inline-flex items-center gap-1.5 rounded-[4px] bg-[var(--accent)] px-3 py-1.5 text-sm text-white hover:opacity-90 disabled:opacity-40"
+                className="inline-flex items-center gap-1.5 rounded-[6px] bg-black px-3 py-1.5 text-sm text-white hover:bg-black/85 disabled:opacity-40 font-medium"
               >
                 {streamState.streaming ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
-                  <Send className="w-4 h-4" />
+                  <Send className="w-3.5 h-3.5" />
                 )}
                 {streamState.streaming ? "Thinking…" : "Send"}
               </button>
@@ -184,160 +212,4 @@ export default function ChatThread({
       </div>
     </div>
   );
-}
-
-function MessageRow({
-  message,
-  onOpenEditor,
-}: {
-  message: Message;
-  onOpenEditor: (content: string) => void;
-}) {
-  const [traceOpen, setTraceOpen] = useState(false);
-  const trace = Array.isArray(message.trace) ? (message.trace as StepLogEntry[]) : [];
-
-  if (message.role === "user") {
-    return (
-      <div className="flex items-start gap-3">
-        <div className="rounded-full bg-[var(--canvas-subtle)] border border-[var(--rule)] p-1.5">
-          <UserIcon className="w-3.5 h-3.5 text-[var(--ink-muted)]" strokeWidth={1.5} />
-        </div>
-        <div className="flex-1 pt-0.5 text-[var(--ink)] whitespace-pre-wrap text-sm">
-          {message.content}
-        </div>
-      </div>
-    );
-  }
-
-  const isDraft = looksLikeDraft(message.content);
-
-  return (
-    <div className="flex items-start gap-3">
-      <div className="rounded-full bg-[var(--accent-soft)] border border-[var(--accent)]/40 p-1.5">
-        <Sparkles className="w-3.5 h-3.5 text-[var(--accent)]" strokeWidth={1.5} />
-      </div>
-      <div className="flex-1 min-w-0">
-        {isDraft && (
-          <div className="mb-2">
-            <button
-              onClick={() => onOpenEditor(message.content)}
-              className="inline-flex items-center gap-1.5 rounded-[4px] border border-[var(--rule)] px-2 py-0.5 text-[11px] text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
-              title="Open as editable document"
-            >
-              <FileText className="w-3 h-3" strokeWidth={1.5} />
-              Open in editor
-            </button>
-          </div>
-        )}
-        <MarkdownRenderer content={message.content} trace={trace} />
-        {trace.length > 0 && (
-          <div className="mt-3">
-            <button
-              onClick={() => setTraceOpen((v) => !v)}
-              className="inline-flex items-center gap-1.5 text-[11px] text-[var(--ink-subtle)] hover:text-[var(--ink-muted)]"
-            >
-              {traceOpen ? (
-                <ChevronDown className="w-3 h-3" />
-              ) : (
-                <ChevronRight className="w-3 h-3" />
-              )}
-              {trace.length} reasoning step{trace.length === 1 ? "" : "s"}
-            </button>
-            {traceOpen && (
-              <div className="mt-2 space-y-1.5">
-                {trace.map((t) => (
-                  <div
-                    key={t.step_id}
-                    className="text-[11px] rounded-[4px] border border-[var(--rule)] bg-[var(--canvas-subtle)] px-2.5 py-1.5"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono text-[var(--ink-muted)]">
-                        {t.step_name}
-                      </span>
-                      <span
-                        className={
-                          t.status === "error"
-                            ? "text-red-300"
-                            : "text-emerald-300/80"
-                        }
-                      >
-                        {t.status}
-                      </span>
-                    </div>
-                    {t.error && <div className="text-red-300/90 mt-0.5">{t.error}</div>}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function LiveTrace({ state }: { state: StreamState }) {
-  return (
-    <div className="flex items-start gap-3">
-      <div className="rounded-full bg-[var(--accent-soft)] border border-[var(--accent)]/40 p-1.5">
-        <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--accent)]" />
-      </div>
-      <div className="flex-1 rounded-[6px] border border-[var(--rule)] bg-[var(--canvas-subtle)] p-3">
-        <div className="text-[11px] text-[var(--ink-subtle)] mb-2">Working…</div>
-        <div className="space-y-1.5">
-          {state.events.map((e, i) => {
-            if (e.type === "iteration_thinking") {
-              return (
-                <div
-                  key={i}
-                  className="text-[11px] text-[var(--ink-subtle)] flex items-center gap-2"
-                >
-                  <span className="w-1 h-1 rounded-full bg-[var(--ink-subtle)]" />
-                  Thinking about next step…
-                </div>
-              );
-            }
-            const tool = prettifyToolName(e.tool_name);
-            if (e.type === "tool_start") {
-              return (
-                <div
-                  key={i}
-                  className="text-[11px] text-[var(--ink-muted)] flex items-center gap-2"
-                >
-                  <Loader2 className="w-2.5 h-2.5 animate-spin" />
-                  <span className="font-mono">{tool}</span>
-                  {e.summary && (
-                    <span className="text-[var(--ink-subtle)]">— {e.summary}</span>
-                  )}
-                </div>
-              );
-            }
-            const ok = e.status === "success";
-            return (
-              <div key={i} className="text-[11px] flex items-center gap-2">
-                <span
-                  className={ok ? "text-emerald-300/80" : "text-red-300"}
-                  aria-hidden
-                >
-                  {ok ? "✓" : "✗"}
-                </span>
-                <span className="font-mono text-[var(--ink-muted)]">{tool}</span>
-                {e.summary && (
-                  <span className="text-[var(--ink-subtle)]">— {e.summary}</span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function prettifyToolName(raw: string): string {
-  if (raw.startsWith("mcp__")) {
-    const parts = raw.slice(5).split("__");
-    return `${parts[0]} · ${(parts[1] || "").replace(/_/g, ".")}`;
-  }
-  return raw.replace(/_/g, ".");
 }
