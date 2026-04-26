@@ -13,7 +13,14 @@
 import type { StepLogEntry } from "@/lib/dante/workflow-types";
 
 export type StreamEvent =
-  | { type: "iteration_thinking"; iteration: number }
+  | {
+      type: "iteration_thinking";
+      iteration: number;
+      /** Natural-language preamble parsed from the model's message
+       *  before the tool batch. Renders as the step heading in the
+       *  Harvey-style trace. */
+      summary?: string;
+    }
   | {
       type: "tool_start";
       sub_id: string;
@@ -36,6 +43,9 @@ export interface StreamState {
   events: StreamEvent[];
   finalContent: string;
   trace: StepLogEntry[];
+  /** Suggested follow-up questions, populated by the followups SSE
+   *  event a moment after the final answer lands. */
+  followups: string[];
   chatId?: string;
   messageId?: string;
   error?: string;
@@ -47,6 +57,7 @@ export function initialStreamState(): StreamState {
     events: [],
     finalContent: "",
     trace: [],
+    followups: [],
   };
 }
 
@@ -147,7 +158,11 @@ function reduce(state: StreamState, raw: unknown): StreamState {
         ...state,
         events: [
           ...state.events,
-          { type: "iteration_thinking", iteration: ev.iteration as number },
+          {
+            type: "iteration_thinking",
+            iteration: ev.iteration as number,
+            summary: ev.summary as string | undefined,
+          },
         ],
       };
 
@@ -186,6 +201,15 @@ function reduce(state: StreamState, raw: unknown): StreamState {
         chatId: (ev.chat_id as string) || state.chatId,
         messageId: ev.message_id as string | undefined,
         error: ev.error as string | undefined,
+      };
+    }
+
+    case "followups": {
+      const arr = ev.suggestions;
+      if (!Array.isArray(arr)) return state;
+      return {
+        ...state,
+        followups: arr.filter((s): s is string => typeof s === "string"),
       };
     }
 

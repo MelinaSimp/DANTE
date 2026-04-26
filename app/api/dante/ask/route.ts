@@ -220,6 +220,21 @@ export async function POST(req: NextRequest) {
         error: runError,
       });
 
+      // Suggested follow-ups — fire AFTER `final` so the UI renders
+      // the answer immediately and the suggestions populate a moment
+      // later. One small gpt-4o-mini call. Failures here are silent;
+      // the UI just doesn't show suggestions.
+      if (!runError && assistantContent) {
+        try {
+          const suggestions = await generateFollowups(message, assistantContent);
+          if (suggestions.length > 0) {
+            send({ type: "followups", suggestions });
+          }
+        } catch (err) {
+          console.warn("[ask] followups generation failed:", err);
+        }
+      }
+
       controller.close();
     },
   });
@@ -240,4 +255,55 @@ function jsonError(status: number, error: string) {
     status,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+/**
+ * Suggest 3 follow-up questions the advisor might ask next, given
+ * the question they just asked and Dante's answer. Returns an empty
+ * array on any failure — follow-ups are nice-to-have, never load-
+ * bearing for the chat experience.
+ */
+async function generateFollowups(question: string, answer: string): Promise<string[]> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return [];
+
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content:
+            'You suggest follow-up questions a financial advisor might ask their AI assistant next. Given a question and an answer, return JSON of the shape { "questions": [string, string, string] } with exactly three short, specific, actionable follow-ups (8-15 words each, end with a question mark). They should build on the answer — extend it, drill into a specific point, or pivot to a related concrete next step. Do not repeat the original question.',
+        },
+        {
+          role: "user",
+          content: `QUESTION:\n${question}\n\nANSWER:\n${answer.slice(0, 4000)}`,
+        },
+      ],
+      max_tokens: 400,
+    }),
+  });
+  if (!res.ok) return [];
+  const json = (await res.json()) as {
+    choices: Array<{ message: { content: string } }>;
+  };
+  const raw = json.choices?.[0]?.message?.content;
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as { questions?: unknown };
+    if (!Array.isArray(parsed.questions)) return [];
+    return parsed.questions
+      .filter((q): q is string => typeof q === "string" && q.trim().length > 0)
+      .slice(0, 4)
+      .map((q) => q.trim());
+  } catch {
+    return [];
+  }
 }

@@ -452,7 +452,17 @@ interface ChatMessage {
 export type AgentEvent =
   | { type: "tool_start"; sub_id: string; tool_name: string; args: Record<string, unknown> }
   | { type: "tool_end"; sub_id: string; tool_name: string; status: "success" | "error"; output: unknown; error?: string }
-  | { type: "iteration_thinking"; iteration: number };
+  | {
+      type: "iteration_thinking";
+      iteration: number;
+      /**
+       * Natural-language description of what the agent is about to
+       * do this iteration, parsed from the assistant message that
+       * preceded the tool calls. Empty when the model didn't write a
+       * preamble (rare with the system prompt below, but possible).
+       */
+      summary?: string;
+    };
 
 export interface AgentRunInput {
   step: AgentStep;
@@ -517,6 +527,12 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
     cfg.system?.trim() || "You are Dante, an AI assistant for a financial advisor.",
     "",
     "You operate inside a workflow as an agent loop. You can call the listed tools to gather information or take actions. When you have enough to answer the objective, return a plain assistant message with the final answer — do NOT call further tools at that point.",
+    "",
+    // Harvey-style live trace: the user sees what we're doing as we
+    // do it. Forcing a one-line plan before each tool batch gives the
+    // streaming UI something readable to render. Without this the
+    // trace shows raw tool names, which feels mechanical.
+    "Whenever you call tools, write a single short sentence (5-12 words, no markdown, present continuous) describing what you're about to do, BEFORE the tool calls. Examples: 'Searching memory for Aaron's recent activity.' or 'Looking up the firm's investment policy in the vault.' Skip this preamble only when delivering a final answer.",
     cfg.output_schema
       ? `Final answer must be a JSON object validating against this schema: ${JSON.stringify(cfg.output_schema)}`
       : "",
@@ -562,7 +578,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
   };
 
   while (stepIdx < maxSteps) {
-    await fire({ type: "iteration_thinking", iteration: iterationIdx++ });
+    const thisIteration = iterationIdx++;
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -599,6 +615,17 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       finalText = (assistantMsg.content as string) || "";
       break;
     }
+
+    // The system prompt asks the model to write a one-line preamble
+    // before each tool batch. Pull it out of the assistant message
+    // and emit as the iteration summary so the streaming UI can
+    // render Harvey-style "Searching memory for X..." headings.
+    const preamble = trimPreamble(assistantMsg.content);
+    await fire({
+      type: "iteration_thinking",
+      iteration: thisIteration,
+      summary: preamble || synthesizeSummary(assistantMsg.tool_calls),
+    });
 
     // Otherwise dispatch each tool call. The loop appends a log
     // entry per call BEFORE the actual call so a thrown error still
@@ -742,4 +769,40 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
     steps_taken: stepIdx,
     truncated,
   };
+}
+
+// ── Iteration summary helpers ────────────────────────────────────
+
+/**
+ * Strip leading punctuation/markdown and clamp the model's preamble
+ * to a single sentence. Models occasionally write longer plans
+ * ("First I'll search memory, then..."); we keep just the first.
+ */
+function trimPreamble(content: string | null | undefined): string {
+  if (!content) return "";
+  const cleaned = content
+    .trim()
+    .replace(/^[#*_>-]+\s*/, "")
+    .replace(/^\s*"|"\s*$/g, "")
+    .trim();
+  if (!cleaned) return "";
+  // First sentence only.
+  const firstSentence = cleaned.split(/(?<=[.!?])\s+/)[0];
+  return firstSentence.length <= 200 ? firstSentence : firstSentence.slice(0, 197) + "…";
+}
+
+/**
+ * Fallback summary derived from tool names when the model skipped
+ * the preamble. Keeps the trace from showing a blank step.
+ */
+function synthesizeSummary(
+  toolCalls: Array<{ function: { name: string } }>,
+): string {
+  const names = toolCalls.map((c) => c.function.name);
+  if (names.includes("memory_search")) return "Checking memory…";
+  if (names.includes("archive_search") || names.includes("vault_cite")) return "Searching the vault…";
+  if (names.includes("clients_query")) return "Looking up contacts…";
+  if (names.includes("skill_run")) return "Running a skill…";
+  if (names.some((n) => n.startsWith("mcp__"))) return "Calling an external tool…";
+  return "Working…";
 }
