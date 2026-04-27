@@ -188,6 +188,16 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
           >
             Agent
           </Link>
+          {data.industry === "real_estate" && (
+            // Properties is RE-only — financial-advisor workspaces have
+            // no concept of a property-as-noun, so we keep the nav clean.
+            <Link
+              href="/properties"
+              className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
+            >
+              Properties
+            </Link>
+          )}
           {data.features.includes("dante") && (
             // Dante gets a distinct visual treatment: the double-gate
             // mark + passing-through animation make entering Dante feel
