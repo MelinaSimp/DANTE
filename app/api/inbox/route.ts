@@ -31,18 +31,20 @@ export async function GET(request: Request) {
   const search = searchParams.get("q")?.trim();
   const limit = Math.min(Number(searchParams.get("limit") || 100), 200);
 
+  const urgency = searchParams.get("urgency");
+
   let q = supabase
     .from("customer_emails")
     .select(
-      "id, contact_id, property_id, direction, from_addr, to_addrs, subject, snippet, received_at, category, category_confidence"
+      "id, contact_id, property_id, direction, from_addr, to_addrs, subject, snippet, received_at, category, category_confidence, urgency_level, urgency_score"
     )
     .eq("workspace_id", profile.workspace_id)
-    .order("received_at", { ascending: false })
     .limit(limit);
 
   if (category) q = q.eq("category", category);
   if (contactId) q = q.eq("contact_id", contactId);
   if (propertyId) q = q.eq("property_id", propertyId);
+  if (urgency) q = q.eq("urgency_level", urgency);
   if (direction === "inbound" || direction === "outbound") q = q.eq("direction", direction);
   if (search) {
     q = q.or(
@@ -50,32 +52,56 @@ export async function GET(request: Request) {
     );
   }
 
+  // Sort: urgency first (urgent at top), then most recent. We bucket
+  // urgency in SQL via case to keep the order deterministic.
+  q = q
+    .order("received_at", { ascending: false });
+
   const { data: items, error } = await q;
   if (error) {
     console.error("inbox GET:", error);
     return NextResponse.json({ error: "Failed" }, { status: 500 });
   }
 
-  // Facets — lightweight category counts. We don't need a server-side
-  // aggregate at the current scale; counting client-side off the page
-  // would miss filtered-out items, so do a tiny separate fetch over
-  // category only.
-  const { data: catRows } = await supabase
+  // Apply urgency-aware sort client-side (simpler than a Postgres CASE
+  // and the data is already paged at limit).
+  const URGENCY_RANK: Record<string, number> = {
+    urgent: 0,
+    needs_attention: 1,
+    normal: 2,
+    low: 3,
+  };
+  const sorted = (items || []).slice().sort((a: any, b: any) => {
+    const ra = URGENCY_RANK[a.urgency_level] ?? 4;
+    const rb = URGENCY_RANK[b.urgency_level] ?? 4;
+    if (ra !== rb) return ra - rb;
+    return new Date(b.received_at).getTime() - new Date(a.received_at).getTime();
+  });
+
+  // Facets — category counts + urgency counts.
+  const { data: facetRows } = await supabase
     .from("customer_emails")
-    .select("category")
+    .select("category, urgency_level")
     .eq("workspace_id", profile.workspace_id);
   const catCounts = new Map<string, number>();
-  for (const r of catRows || []) {
-    const k = r.category || "uncategorized";
-    catCounts.set(k, (catCounts.get(k) || 0) + 1);
+  const urgCounts = new Map<string, number>();
+  for (const r of facetRows || []) {
+    const c = r.category || "uncategorized";
+    catCounts.set(c, (catCounts.get(c) || 0) + 1);
+    if (r.urgency_level) {
+      urgCounts.set(r.urgency_level, (urgCounts.get(r.urgency_level) || 0) + 1);
+    }
   }
 
   return NextResponse.json({
-    items: items || [],
+    items: sorted,
     facets: {
       categories: Array.from(catCounts.entries())
         .map(([k, count]) => ({ key: k, count }))
         .sort((a, b) => b.count - a.count),
+      urgency: Array.from(urgCounts.entries())
+        .map(([k, count]) => ({ key: k, count }))
+        .sort((a, b) => (URGENCY_RANK[a.key] ?? 4) - (URGENCY_RANK[b.key] ?? 4)),
     },
   });
 }

@@ -14,11 +14,15 @@ import {
   Search,
   Sparkles,
   AlertCircle,
+  AlertTriangle,
   Tag,
   User,
   Home,
   Mail,
+  Flame,
 } from "lucide-react";
+
+type Urgency = "urgent" | "needs_attention" | "normal" | "low";
 
 interface Row {
   id: string;
@@ -32,6 +36,8 @@ interface Row {
   received_at: string;
   category: string | null;
   category_confidence: number | null;
+  urgency_level: Urgency | null;
+  urgency_score: number | null;
 }
 
 interface Facet {
@@ -39,12 +45,33 @@ interface Facet {
   count: number;
 }
 
+const URGENCY_LABEL: Record<Urgency, string> = {
+  urgent: "Urgent",
+  needs_attention: "Needs attention",
+  normal: "Normal",
+  low: "Low",
+};
+const URGENCY_CHIP: Record<Urgency, string> = {
+  urgent:
+    "text-[var(--danger)] bg-[var(--danger-soft)] border-[var(--danger)]/30",
+  needs_attention:
+    "text-[var(--flag)] bg-[var(--flag-soft)] border-[var(--flag)]/30",
+  normal:
+    "text-[var(--ink-muted)] bg-[var(--canvas-subtle)] border-[var(--rule)]",
+  low: "text-[var(--ink-subtle)] bg-[var(--canvas-subtle)] border-[var(--rule)]",
+};
+
 interface Detail extends Row {
   cc_addrs: string[] | null;
   body_text: string | null;
   body_html: string | null;
   contact: { id: string; name: string | null; email: string | null } | null;
   property: { id: string; address_line1: string; city: string | null } | null;
+}
+
+interface InboxFacets {
+  categories: Facet[];
+  urgency: Facet[];
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -85,19 +112,26 @@ function fmt(iso: string) {
 
 export default function InboxClient() {
   const [items, setItems] = useState<Row[] | null>(null);
-  const [facets, setFacets] = useState<Facet[]>([]);
+  const [facets, setFacets] = useState<InboxFacets>({
+    categories: [],
+    urgency: [],
+  });
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [activeUrgency, setActiveUrgency] = useState<Urgency | null>(null);
   const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Detail | null>(null);
   const [categorizing, setCategorizing] = useState(false);
   const [categorizeMessage, setCategorizeMessage] = useState<string | null>(null);
+  const [triaging, setTriaging] = useState(false);
+  const [triageMessage, setTriageMessage] = useState<string | null>(null);
 
   const load = () => {
     setItems(null);
     setError(null);
     const params = new URLSearchParams();
     if (activeCategory) params.set("category", activeCategory);
+    if (activeUrgency) params.set("urgency", activeUrgency);
     if (search.trim()) params.set("q", search.trim());
     fetch(`/api/inbox?${params.toString()}`, { credentials: "include" })
       .then(async (r) => {
@@ -106,21 +140,29 @@ export default function InboxClient() {
       })
       .then((d) => {
         setItems(d.items || []);
-        setFacets(d.facets?.categories || []);
+        setFacets({
+          categories: d.facets?.categories || [],
+          urgency: d.facets?.urgency || [],
+        });
       })
       .catch((e) => setError(e.message));
   };
 
-  useEffect(load, [activeCategory]);
+  useEffect(load, [activeCategory, activeUrgency]);
 
   const totalCount = useMemo(
-    () => facets.reduce((sum, f) => sum + f.count, 0),
+    () => facets.categories.reduce((sum, f) => sum + f.count, 0),
     [facets]
   );
   const uncategorizedCount = useMemo(
-    () => facets.find((f) => f.key === "uncategorized")?.count ?? 0,
+    () => facets.categories.find((f) => f.key === "uncategorized")?.count ?? 0,
     [facets]
   );
+  const triagedCount = useMemo(
+    () => facets.urgency.reduce((sum, f) => sum + f.count, 0),
+    [facets]
+  );
+  const untriagedCount = totalCount - triagedCount;
 
   const openEmail = async (id: string) => {
     setSelected(null);
@@ -146,6 +188,27 @@ export default function InboxClient() {
       setCategorizeMessage(`Error: ${e.message}`);
     } finally {
       setCategorizing(false);
+    }
+  };
+
+  const triggerTriage = async () => {
+    setTriaging(true);
+    setTriageMessage(null);
+    try {
+      const r = await fetch("/api/emails/triage", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!r.ok) throw new Error((await r.json()).error || "Failed");
+      const j = await r.json();
+      setTriageMessage(
+        `Triaged ${j.processed} (${j.rules_only} by rules, ${j.ai_pass} via AI).${j.processed >= 40 ? " More to go — click again." : ""}`
+      );
+      load();
+    } catch (e: any) {
+      setTriageMessage(`Error: ${e.message}`);
+    } finally {
+      setTriaging(false);
     }
   };
 
@@ -196,12 +259,34 @@ export default function InboxClient() {
               )}
               {categorizing ? "Sorting…" : "Sort with AI"}
             </button>
+            <button
+              onClick={triggerTriage}
+              disabled={triaging || untriagedCount <= 0}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-[4px] border border-[var(--rule)] hover:bg-[var(--canvas-subtle)] text-xs font-medium text-[var(--ink)] transition disabled:opacity-40"
+              title={untriagedCount <= 0 ? "No backlog" : "Score urgency on untriaged emails"}
+            >
+              {triaging ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.5} />
+              ) : (
+                <Flame className="w-3.5 h-3.5" strokeWidth={1.5} />
+              )}
+              {triaging ? "Triaging…" : "Triage"}
+            </button>
           </div>
         </div>
 
-        {categorizeMessage && (
-          <div className="mb-4 px-3 py-2 text-xs text-[var(--ink-muted)] bg-[var(--canvas-subtle)] border border-[var(--rule)] rounded-[4px]">
-            {categorizeMessage}
+        {(categorizeMessage || triageMessage) && (
+          <div className="mb-4 space-y-2">
+            {categorizeMessage && (
+              <div className="px-3 py-2 text-xs text-[var(--ink-muted)] bg-[var(--canvas-subtle)] border border-[var(--rule)] rounded-[4px]">
+                {categorizeMessage}
+              </div>
+            )}
+            {triageMessage && (
+              <div className="px-3 py-2 text-xs text-[var(--ink-muted)] bg-[var(--canvas-subtle)] border border-[var(--rule)] rounded-[4px]">
+                {triageMessage}
+              </div>
+            )}
           </div>
         )}
 
@@ -211,8 +296,43 @@ export default function InboxClient() {
           </div>
         )}
 
-        {/* Filter chips */}
+        {/* Urgency filter row */}
+        {facets.urgency.length > 0 && (
+          <div className="flex items-center gap-2 mb-3 flex-wrap">
+            <span className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] mr-1">
+              Urgency
+            </span>
+            {facets.urgency.map((f) => {
+              const k = f.key as Urgency;
+              return (
+                <button
+                  key={k}
+                  onClick={() =>
+                    setActiveUrgency(activeUrgency === k ? null : k)
+                  }
+                  className={`px-3 py-1 rounded-full text-xs font-medium border transition ${
+                    activeUrgency === k
+                      ? "bg-[var(--ink)] text-[var(--canvas)] border-[var(--ink)]"
+                      : URGENCY_CHIP[k]
+                  }`}
+                >
+                  {URGENCY_LABEL[k]} ({f.count})
+                </button>
+              );
+            })}
+            {untriagedCount > 0 && (
+              <span className="text-[11px] text-[var(--ink-subtle)] ml-1">
+                · {untriagedCount} untriaged
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Category filter chips */}
         <div className="flex items-center gap-2 mb-4 flex-wrap">
+          <span className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] mr-1">
+            Category
+          </span>
           <button
             onClick={() => setActiveCategory(null)}
             className={`px-3 py-1 rounded-full text-xs font-medium border transition ${
@@ -223,7 +343,7 @@ export default function InboxClient() {
           >
             All ({totalCount})
           </button>
-          {facets.map((f) => (
+          {facets.categories.map((f) => (
             <button
               key={f.key}
               onClick={() => setActiveCategory(f.key === activeCategory ? null : f.key)}
@@ -281,12 +401,24 @@ export default function InboxClient() {
                   <li
                     key={r.id}
                     onClick={() => openEmail(r.id)}
-                    className={`py-3 px-4 cursor-pointer transition ${
+                    className={`py-3 px-4 cursor-pointer transition relative ${
                       selected?.id === r.id
                         ? "bg-[var(--canvas-subtle)]"
                         : "hover:bg-[var(--canvas-subtle)]"
                     }`}
                   >
+                    {r.urgency_level === "urgent" && (
+                      <div
+                        className="absolute left-0 top-0 bottom-0 w-1 bg-[var(--danger)]"
+                        aria-hidden
+                      />
+                    )}
+                    {r.urgency_level === "needs_attention" && (
+                      <div
+                        className="absolute left-0 top-0 bottom-0 w-1 bg-[var(--flag)]"
+                        aria-hidden
+                      />
+                    )}
                     <div className="flex items-baseline justify-between gap-2 mb-1">
                       <span className="text-xs text-[var(--ink-muted)] truncate">
                         {r.from_addr}
@@ -295,22 +427,36 @@ export default function InboxClient() {
                         {fmt(r.received_at)}
                       </span>
                     </div>
-                    <div className="text-sm font-medium text-[var(--ink)] truncate mb-0.5">
-                      {r.subject || "(no subject)"}
+                    <div className="text-sm font-medium text-[var(--ink)] truncate mb-0.5 flex items-center gap-1.5">
+                      {r.urgency_level === "urgent" && (
+                        <AlertTriangle
+                          className="w-3.5 h-3.5 text-[var(--danger)] shrink-0"
+                          strokeWidth={1.75}
+                        />
+                      )}
+                      <span className="truncate">{r.subject || "(no subject)"}</span>
                     </div>
                     <div className="text-[11px] text-[var(--ink-subtle)] truncate">
                       {r.snippet || "—"}
                     </div>
-                    {r.category && (
-                      <div className="mt-1.5">
+                    <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                      {r.urgency_level && (
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${URGENCY_CHIP[r.urgency_level]}`}
+                        >
+                          <Flame className="w-2.5 h-2.5" strokeWidth={1.5} />
+                          {URGENCY_LABEL[r.urgency_level]}
+                        </span>
+                      )}
+                      {r.category && (
                         <span
                           className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${chipClass(r.category)}`}
                         >
                           <Tag className="w-2.5 h-2.5" strokeWidth={1.5} />
                           {r.category}
                         </span>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -358,6 +504,14 @@ export default function InboxClient() {
 
                 {/* Linked entities */}
                 <div className="flex items-center gap-2 mb-4 flex-wrap">
+                  {selected.urgency_level && (
+                    <span
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${URGENCY_CHIP[selected.urgency_level]}`}
+                    >
+                      <Flame className="w-2.5 h-2.5" strokeWidth={1.5} />
+                      {URGENCY_LABEL[selected.urgency_level]}
+                    </span>
+                  )}
                   {selected.category && (
                     <span
                       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${chipClass(selected.category)}`}

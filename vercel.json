@@ -53,6 +53,10 @@
     {
       "path": "/api/emails/categorize/cron",
       "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/emails/triage/cron",
+      "schedule": "0 15 * * *"
     }
   ]
 }
