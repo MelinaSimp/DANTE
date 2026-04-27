@@ -15,7 +15,40 @@ import {
   Plus,
   X,
   Check,
+  Upload,
+  Sparkles,
+  AlertCircle,
 } from "lucide-react";
+
+// Augments the Window type so TypeScript stops complaining about the
+// IPC bridge our Electron preload exposes. Web users see undefined.
+declare global {
+  interface Window {
+    electronAPI?: {
+      isElectron: boolean;
+      pickAndExtractPdfs: () => Promise<
+        Array<{ name: string; text: string; size?: number; error?: string }>
+      >;
+    };
+  }
+}
+
+interface IntakeProposed {
+  address_line1?: string | null;
+  address_line2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+  beds?: number | null;
+  baths?: number | null;
+  sqft?: number | null;
+  kind?: string | null;
+  list_price_cents?: number | null;
+  status?: string | null;
+  notes?: string | null;
+  citations?: Array<{ field: string; source: string }>;
+  warnings?: string[];
+}
 
 interface PropertyRow {
   id: string;
@@ -77,6 +110,90 @@ export default function PropertiesClient() {
     zip: "",
     list_price: "",
   });
+
+  // Electron-only "Import from desktop" flow.
+  const [isElectron, setIsElectron] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [intake, setIntake] = useState<{
+    proposed: IntakeProposed;
+    used_files: string[];
+    skipped_files: Array<{ name: string; reason: string }>;
+  } | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.electronAPI?.isElectron) {
+      setIsElectron(true);
+    }
+  }, []);
+
+  const importFromDesktop = async () => {
+    if (!window.electronAPI?.pickAndExtractPdfs) return;
+    setImporting(true);
+    setError(null);
+    try {
+      const pdfs = await window.electronAPI.pickAndExtractPdfs();
+      if (!pdfs || pdfs.length === 0) {
+        setImporting(false);
+        return; // user cancelled
+      }
+      const res = await fetch("/api/properties/intake", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ pdfs }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || "Intake failed");
+      }
+      setIntake(await res.json());
+    } catch (e: any) {
+      setError(e.message || "Intake failed");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const confirmIntake = async () => {
+    if (!intake) return;
+    setCreating(true);
+    setError(null);
+    try {
+      const p = intake.proposed;
+      const res = await fetch("/api/properties", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          address_line1: p.address_line1 || "(no address found)",
+          address_line2: p.address_line2 || null,
+          city: p.city || null,
+          state: p.state || null,
+          zip: p.zip || null,
+          beds: typeof p.beds === "number" ? p.beds : null,
+          baths: typeof p.baths === "number" ? p.baths : null,
+          sqft: typeof p.sqft === "number" ? p.sqft : null,
+          kind: p.kind || null,
+          list_price_cents:
+            typeof p.list_price_cents === "number" ? p.list_price_cents : null,
+          status: p.status || "active",
+          notes: p.notes || null,
+        }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error || "Save failed");
+      }
+      const created = await res.json();
+      setRows((prev) => (prev ? [created, ...prev] : [created]));
+      setIntake(null);
+      router.push(`/properties/${created.id}`);
+    } catch (e: any) {
+      setError(e.message || "Save failed");
+    } finally {
+      setCreating(false);
+    }
+  };
 
   useEffect(() => {
     fetch("/api/properties", { credentials: "include" })
@@ -161,20 +278,37 @@ export default function PropertiesClient() {
               {rows ? `${rows.length} in this workspace` : "Loading…"}
             </p>
           </div>
-          <button
-            onClick={() => setShowCreate((v) => !v)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-sm font-semibold hover:opacity-90 transition"
-          >
-            {showCreate ? (
-              <>
-                <X className="w-4 h-4" strokeWidth={1.5} /> Cancel
-              </>
-            ) : (
-              <>
-                <Plus className="w-4 h-4" strokeWidth={1.5} /> New property
-              </>
+          <div className="flex items-center gap-2">
+            {isElectron && (
+              <button
+                onClick={importFromDesktop}
+                disabled={importing}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-[4px] border border-[var(--rule)] hover:bg-[var(--canvas-subtle)] text-xs font-medium text-[var(--ink)] transition disabled:opacity-40"
+                title="Pick PDFs from your computer; AI extracts the property record."
+              >
+                {importing ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.5} />
+                ) : (
+                  <Sparkles className="w-3.5 h-3.5" strokeWidth={1.5} />
+                )}
+                {importing ? "Reading PDFs…" : "Import from desktop"}
+              </button>
             )}
-          </button>
+            <button
+              onClick={() => setShowCreate((v) => !v)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-sm font-semibold hover:opacity-90 transition"
+            >
+              {showCreate ? (
+                <>
+                  <X className="w-4 h-4" strokeWidth={1.5} /> Cancel
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4" strokeWidth={1.5} /> New property
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Inline create */}
@@ -333,6 +467,144 @@ export default function PropertiesClient() {
           </div>
         )}
       </div>
+
+      {/* Intake review modal */}
+      {intake && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--ink)]/30 backdrop-blur-sm px-4 py-8"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIntake(null);
+          }}
+        >
+          <div className="bg-[var(--canvas)] border border-[var(--rule)] rounded-[6px] shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="px-6 py-4 border-b border-[var(--rule)] flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-[var(--accent)]" strokeWidth={1.5} />
+                <h3 className="text-sm font-semibold text-[var(--ink)]">
+                  Review extracted property
+                </h3>
+              </div>
+              <button
+                onClick={() => setIntake(null)}
+                className="p-1.5 rounded-[4px] text-[var(--ink-muted)] hover:bg-[var(--canvas-subtle)] transition"
+              >
+                <X className="w-4 h-4" strokeWidth={1.5} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+              {intake.proposed.warnings && intake.proposed.warnings.length > 0 && (
+                <div className="px-3 py-2 text-xs text-[var(--flag)] bg-[var(--flag-soft)] border border-[var(--flag)]/30 rounded-[4px] space-y-1">
+                  {intake.proposed.warnings.map((w, i) => (
+                    <div key={i} className="flex items-start gap-2">
+                      <AlertCircle
+                        className="w-3.5 h-3.5 shrink-0 mt-0.5"
+                        strokeWidth={1.5}
+                      />
+                      <span>{w}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="text-[11px] text-[var(--ink-subtle)]">
+                Read from: {intake.used_files.join(" · ") || "(no files)"}
+                {intake.skipped_files.length > 0 && (
+                  <>
+                    <br />
+                    Skipped: {intake.skipped_files.map((s) => `${s.name} (${s.reason})`).join(" · ")}
+                  </>
+                )}
+              </div>
+              {/* Field grid (read-only preview; user goes to detail page to edit) */}
+              <div className="grid md:grid-cols-2 gap-x-6 gap-y-3 text-sm">
+                {[
+                  { key: "address_line1", label: "Address" },
+                  { key: "address_line2", label: "Unit" },
+                  { key: "city", label: "City" },
+                  { key: "state", label: "State" },
+                  { key: "zip", label: "ZIP" },
+                  { key: "beds", label: "Beds" },
+                  { key: "baths", label: "Baths" },
+                  { key: "sqft", label: "Sqft" },
+                  { key: "kind", label: "Kind" },
+                  {
+                    key: "list_price_cents",
+                    label: "List price",
+                    format: (v: any) =>
+                      typeof v === "number" ? `$${(v / 100).toLocaleString()}` : "—",
+                  },
+                  { key: "status", label: "Status" },
+                ].map((f) => {
+                  const v = (intake.proposed as any)[f.key];
+                  const display = f.format
+                    ? f.format(v)
+                    : v == null || v === ""
+                    ? "—"
+                    : String(v);
+                  return (
+                    <div key={f.key} className="flex items-baseline gap-3">
+                      <span className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] min-w-[80px]">
+                        {f.label}
+                      </span>
+                      <span
+                        className={
+                          v == null || v === ""
+                            ? "text-[var(--ink-subtle)] italic"
+                            : "text-[var(--ink)]"
+                        }
+                      >
+                        {display}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              {intake.proposed.notes && (
+                <div>
+                  <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] mb-1">
+                    Notes
+                  </div>
+                  <p className="text-sm text-[var(--ink)]">
+                    {intake.proposed.notes}
+                  </p>
+                </div>
+              )}
+              {intake.proposed.citations && intake.proposed.citations.length > 0 && (
+                <div>
+                  <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] mb-1">
+                    Citations
+                  </div>
+                  <ul className="text-[11px] text-[var(--ink-muted)] space-y-1">
+                    {intake.proposed.citations.map((c, i) => (
+                      <li key={i}>
+                        <span className="font-medium text-[var(--ink)]">{c.field}</span>
+                        {" — "}
+                        {c.source}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-[var(--rule)] flex items-center gap-3">
+              <button
+                onClick={confirmIntake}
+                disabled={creating}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-sm font-semibold disabled:opacity-50"
+              >
+                {creating ? (
+                  <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.5} />
+                ) : (
+                  <Check className="w-4 h-4" strokeWidth={1.5} />
+                )}
+                {creating ? "Saving…" : "Save property"}
+              </button>
+              <span className="text-[11px] text-[var(--ink-subtle)]">
+                You'll land on the detail page where you can tweak any field.
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
-const { app, BrowserWindow, shell, Tray, Menu, nativeImage, dialog } = require("electron");
+const { app, BrowserWindow, shell, Tray, Menu, nativeImage, dialog, ipcMain } = require("electron");
 const path = require("path");
+const fs = require("fs");
 const { autoUpdater } = require("electron-updater");
 
 const isDev = process.env.NODE_ENV === "development";
@@ -120,6 +121,47 @@ function createTray() {
     else createWindow();
   });
 }
+
+// Phase 9 — agentic PDF intake. Renderer asks for a file picker via
+// preload's pickAndExtractPdfs(); we open the OS dialog, read each
+// PDF locally with pdf-parse, and return just { name, text } so the
+// PDF bytes never leave the user's machine. The renderer ships those
+// strings to /api/properties/intake which calls OpenAI for the
+// structured property record.
+ipcMain.handle("pdfs:pickAndExtract", async () => {
+  const result = await dialog.showOpenDialog({
+    title: "Pick PDFs to import",
+    properties: ["openFile", "multiSelections"],
+    filters: [{ name: "PDFs", extensions: ["pdf"] }],
+  });
+  if (result.canceled || result.filePaths.length === 0) return [];
+
+  // pdf-parse runs in the Node main process — works fine here even
+  // though it errors out on Vercel's serverless runtime.
+  const pdfParse = require("pdf-parse");
+
+  const out = [];
+  for (const filePath of result.filePaths) {
+    try {
+      const buffer = fs.readFileSync(filePath);
+      const parsed = await pdfParse(buffer);
+      out.push({
+        name: path.basename(filePath),
+        text: (parsed.text || "").slice(0, 60000),
+        size: buffer.length,
+      });
+    } catch (err) {
+      console.error("[Drift] PDF parse failed:", filePath, err?.message);
+      out.push({
+        name: path.basename(filePath),
+        text: "",
+        size: 0,
+        error: err?.message || "parse failed",
+      });
+    }
+  }
+  return out;
+});
 
 app.whenReady().then(() => {
   createWindow();
