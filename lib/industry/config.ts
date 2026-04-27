@@ -24,6 +24,8 @@ export interface IndustryConfig {
   displayName: string;
   /** Brand name of the LLM assistant for this vertical (Dante / Vergil). */
   assistantName: string;
+  /** Path under /public to the assistant's brand mark (gate / echo). */
+  assistantIconPath: string;
   /** What the primary person is called in this vertical. */
   clientLabel: string;
   /** Plural form of clientLabel. */
@@ -50,6 +52,7 @@ const FINANCIAL_ADVISOR: IndustryConfig = {
   marketingChips: ["Citation-grounded", "Audit packet"],
   displayName: "Financial Advisor",
   assistantName: "Dante",
+  assistantIconPath: "/brand/dante-double-gate-black.png",
   clientLabel: "client",
   clientLabelPlural: "clients",
   danteHero: "What do you need today?",
@@ -78,6 +81,7 @@ const REAL_ESTATE: IndustryConfig = {
   marketingChips: ["Always-on receptionist", "Tour recap"],
   displayName: "Real Estate Agent",
   assistantName: "Vergil",
+  assistantIconPath: "/brand/vergil-echo-black.png",
   clientLabel: "client",
   clientLabelPlural: "clients",
   danteHero: "What do you need today?",

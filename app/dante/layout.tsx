@@ -17,12 +17,33 @@ import { AssistantNameProvider } from "@/components/dante/AssistantNameProvider"
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  icons: {
-    icon: "/brand/dante-double-gate-black.png",
-    apple: "/brand/dante-double-gate-black.png",
-  },
-};
+// Browser-tab favicon swaps with the workspace's assistant — gate for
+// Dante, echo for Vergil — so a user with multiple Drift tabs open can
+// still tell at a glance which workspace they're in.
+export async function generateMetadata(): Promise<Metadata> {
+  const supabase = await createServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { icons: { icon: "/brand/dante-double-gate-black.png" } };
+  }
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("workspace_id")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (!profile?.workspace_id) {
+    return { icons: { icon: "/brand/dante-double-gate-black.png" } };
+  }
+  const { data: workspace } = await supabase
+    .from("workspaces")
+    .select("industry")
+    .eq("id", profile.workspace_id)
+    .maybeSingle();
+  const iconPath = getIndustryConfig(workspace?.industry).assistantIconPath;
+  return { icons: { icon: iconPath, apple: iconPath } };
+}
 
 export default async function DanteLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createServerSupabase();
@@ -46,9 +67,14 @@ export default async function DanteLayout({ children }: { children: React.ReactN
     .select("industry")
     .eq("id", profile.workspace_id)
     .maybeSingle();
-  const assistantName = getIndustryConfig(workspace?.industry).assistantName;
+  const config = getIndustryConfig(workspace?.industry);
 
   return (
-    <AssistantNameProvider name={assistantName}>{children}</AssistantNameProvider>
+    <AssistantNameProvider
+      name={config.assistantName}
+      iconPath={config.assistantIconPath}
+    >
+      {children}
+    </AssistantNameProvider>
   );
 }

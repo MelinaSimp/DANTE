@@ -28,7 +28,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { useAssistantName } from "./AssistantNameProvider";
+import { useAssistantBrand } from "./AssistantNameProvider";
 
 type Variant = "nav-primary" | "breadcrumb" | "breadcrumb-static";
 
@@ -39,18 +39,21 @@ interface DanteGateLinkProps {
   /** Override the brand label. If omitted, reads from the
    *  AssistantNameProvider — Dante for FA, Vergil for RE. */
   label?: string;
+  /** Override the brand icon path. If omitted, reads from the
+   *  AssistantNameProvider. */
+  iconSrc?: string;
 }
-
-const GATE_SRC = "/brand/dante-double-gate-black.png";
 
 export default function DanteGateLink({
   variant = "nav-primary",
   className = "",
   href = "/dante",
   label,
+  iconSrc,
 }: DanteGateLinkProps) {
-  const contextName = useAssistantName();
-  const resolvedLabel = label ?? contextName;
+  const brand = useAssistantBrand();
+  const resolvedLabel = label ?? brand.name;
+  const resolvedIconSrc = iconSrc ?? brand.iconPath;
   const router = useRouter();
   const [opening, setOpening] = useState(false);
 
@@ -106,7 +109,7 @@ export default function DanteGateLink({
   const content = (
     <>
       <img
-        src={GATE_SRC}
+        src={resolvedIconSrc}
         alt={variant === "breadcrumb-static" ? resolvedLabel : ""}
         width={s.iconSize}
         height={s.iconSize}
@@ -149,7 +152,7 @@ export default function DanteGateLink({
             aria-hidden="true"
           >
             <motion.img
-              src={GATE_SRC}
+              src={resolvedIconSrc}
               alt=""
               initial={{ scale: 0.3, opacity: 0 }}
               animate={{ scale: 1.6, opacity: 1 }}
