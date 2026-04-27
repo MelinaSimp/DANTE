@@ -23,6 +23,7 @@ import {
   Home,
   Plus,
 } from "lucide-react";
+import FillTemplateButton from "./FillTemplateButton";
 
 interface VaultItem {
   id: string;
@@ -275,16 +276,25 @@ export default function VaultItemDetailClient({
               {item.title}
             </h1>
           </div>
-          {item.file_url && (
-            <a
-              href={item.file_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-[4px] border border-[var(--rule)] hover:bg-[var(--canvas-subtle)] text-xs font-medium text-[var(--ink)] transition"
-            >
-              <Eye className="w-3.5 h-3.5" strokeWidth={1.5} /> Open file
-            </a>
-          )}
+          <div className="flex items-center gap-2">
+            {item.file_url && (
+              <a
+                href={item.file_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-[4px] border border-[var(--rule)] hover:bg-[var(--canvas-subtle)] text-xs font-medium text-[var(--ink)] transition"
+              >
+                <Eye className="w-3.5 h-3.5" strokeWidth={1.5} /> Open file
+              </a>
+            )}
+            {item.kind === "template" && (
+              <FillTemplateButton
+                templateId={item.id}
+                templateTitle={item.title}
+                initialPropertyId={item.property_id}
+              />
+            )}
+          </div>
         </div>
 
         {/* Metadata */}
