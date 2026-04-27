@@ -83,16 +83,29 @@ async function buildAssistantConfig(agentId: string): Promise<VapiAssistantConfi
     }
   }
 
-  // Build system prompt
+  // Build system prompt. Two paths:
+  //   - mode='scenario' (new) — translate the JSONB scenario graph to a
+  //     deterministic numbered script via scenarioToSystemPrompt. The
+  //     llm_instructions are ignored; the script wins.
+  //   - mode='llm' or unset — current behavior: free-form persona prompt.
   let systemPrompt = "";
 
-  if (agent.llm_instructions && agent.llm_instructions.trim()) {
+  if (agent.mode === "scenario" && agent.scenario) {
+    const { scenarioToSystemPrompt, isScenario } = await import("./scenario-prompt");
+    if (isScenario(agent.scenario)) {
+      systemPrompt = scenarioToSystemPrompt(agent.scenario, agent.name);
+    } else {
+      systemPrompt = `You are ${agent.name}. The scenario data is malformed; ask the user to retry shortly.`;
+    }
+  } else if (agent.llm_instructions && agent.llm_instructions.trim()) {
     systemPrompt = agent.llm_instructions.trim();
   } else {
     systemPrompt = `You are ${agent.name}. ${agent.description || "You are a helpful AI assistant."}`;
   }
 
-  if (scenarioContext) {
+  // Legacy `scenarios` + `steps` table — only stitched in for LLM mode
+  // since scenario mode is the new authoritative path.
+  if (scenarioContext && agent.mode !== "scenario") {
     systemPrompt += `\n\nCONVERSATION FLOW:${scenarioContext}`;
   }
 

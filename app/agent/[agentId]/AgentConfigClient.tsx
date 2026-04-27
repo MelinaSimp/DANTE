@@ -35,7 +35,10 @@ import {
   AlertCircle,
   FileText,
   Sparkles,
+  GitBranch,
+  Mic,
 } from "lucide-react";
+import ScenarioBuilder, { type Scenario } from "./ScenarioBuilder";
 
 interface Agent {
   id: string;
@@ -50,6 +53,8 @@ interface Agent {
   elevenlabs_voice_id: string | null;
   phone_number: string | null;
   llm_model: string | null;
+  mode?: "llm" | "scenario" | null;
+  scenario?: any;
 }
 
 const MODEL_OPTIONS: { id: string; label: string; hint: string }[] = [
@@ -100,6 +105,12 @@ export default function AgentConfigClient({
   const [firstMessage, setFirstMessage] = useState(agent.first_message ?? "");
   const [voiceId, setVoiceId] = useState(agent.elevenlabs_voice_id ?? "");
   const [llmModel, setLlmModel] = useState(agent.llm_model ?? "gpt-4o-mini");
+  const [mode, setMode] = useState<"llm" | "scenario">(agent.mode === "scenario" ? "scenario" : "llm");
+  const [scenario, setScenario] = useState<Scenario>(
+    agent.scenario && typeof agent.scenario === "object"
+      ? (agent.scenario as Scenario)
+      : { version: 1, entry: null, nodes: [] }
+  );
   const [savingAgent, setSavingAgent] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [syncState, setSyncState] = useState<"idle" | "syncing" | "synced" | "error">("idle");
@@ -148,7 +159,10 @@ export default function AgentConfigClient({
     instructions !== (agent.llm_instructions ?? "") ||
     firstMessage !== (agent.first_message ?? "") ||
     voiceId !== (agent.elevenlabs_voice_id ?? "") ||
-    llmModel !== (agent.llm_model ?? "gpt-4o-mini");
+    llmModel !== (agent.llm_model ?? "gpt-4o-mini") ||
+    mode !== (agent.mode === "scenario" ? "scenario" : "llm") ||
+    JSON.stringify(scenario) !==
+      JSON.stringify(agent.scenario ?? { version: 1, entry: null, nodes: [] });
 
   const isDeployedVapi =
     agent.status === "deployed" && agent.voice_provider === "vapi";
@@ -197,6 +211,8 @@ export default function AgentConfigClient({
           first_message: firstMessage.trim() || null,
           elevenlabs_voice_id: voiceId.trim() || null,
           llm_model: llmModel || "gpt-4o-mini",
+          mode,
+          scenario: mode === "scenario" ? scenario : null,
         }),
       });
       if (!r.ok) throw new Error((await r.json()).error || "Save failed");
@@ -228,7 +244,7 @@ export default function AgentConfigClient({
     } finally {
       setSavingAgent(false);
     }
-  }, [agent.id, agent.name, description, instructions, firstMessage, voiceId, llmModel, isDeployedVapi, name]);
+  }, [agent.id, agent.name, description, instructions, firstMessage, voiceId, llmModel, mode, scenario, isDeployedVapi, name]);
 
   const addText = async () => {
     if (!textDraft.trim()) return;
@@ -401,7 +417,60 @@ export default function AgentConfigClient({
           </p>
         </section>
 
-        {/* Persona / instructions */}
+        {/* Mode picker — LLM (free-form) vs Scenario (deterministic). */}
+        <section className="card-flat p-6">
+          <div className="mb-4">
+            <div className="label-section mb-1">Mode</div>
+            <h2 className="text-base font-semibold text-[var(--ink)]">
+              How the agent decides what to say
+            </h2>
+            <p className="text-xs text-[var(--ink-muted)] mt-1 max-w-xl">
+              Pick LLM for free-form persona-driven calls, or Scenario for a
+              deterministic if/then script with hard branches and transfers.
+              Voicemail and transfer are first-class steps in scenario mode.
+            </p>
+          </div>
+          <div className="grid md:grid-cols-2 gap-3">
+            {(["llm", "scenario"] as const).map((m) => {
+              const Icon = m === "llm" ? Mic : GitBranch;
+              const selected = mode === m;
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMode(m)}
+                  className="text-left transition"
+                  style={{
+                    border: selected
+                      ? "1px solid var(--ink)"
+                      : "1px solid var(--rule)",
+                    background: selected
+                      ? "var(--canvas-subtle)"
+                      : "var(--canvas)",
+                    color: "var(--ink)",
+                    borderRadius: "var(--r-input)",
+                    padding: "14px 16px",
+                  }}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Icon className="w-4 h-4" strokeWidth={1.5} />
+                    <span className="text-sm font-semibold">
+                      {m === "llm" ? "LLM" : "Scenario"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-[var(--ink-muted)]">
+                    {m === "llm"
+                      ? "Persona prompt drives the conversation. Best for open-ended Q&A and reception."
+                      : "Step-by-step script. Best for tightly controlled flows like screening, qualification, after-hours routing."}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Persona / instructions — only when mode === 'llm'. */}
+        {mode === "llm" && (
         <section className="card-flat p-6">
           <div className="flex items-baseline justify-between mb-5 gap-4 flex-wrap">
             <div>
@@ -436,6 +505,26 @@ export default function AgentConfigClient({
             verbatim — if you leave an old name in here, callers will hear it.
           </p>
         </section>
+        )}
+
+        {/* Scenario builder — only when mode === 'scenario'. */}
+        {mode === "scenario" && (
+        <section className="card-flat p-6">
+          <div className="mb-5">
+            <div className="label-section mb-1">Scenario</div>
+            <h2 className="text-base font-semibold text-[var(--ink)]">
+              Step-by-step call script
+            </h2>
+            <p className="text-xs text-[var(--ink-muted)] mt-1 max-w-xl">
+              Build the call flow as a sequence of steps. Branches let you
+              route based on what the caller says; voicemail and transfer
+              are terminal. The agent follows this verbatim — the persona
+              text above is ignored when scenario mode is on.
+            </p>
+          </div>
+          <ScenarioBuilder value={scenario} onChange={setScenario} />
+        </section>
+        )}
 
         {/* First message */}
         <section className="card-flat p-6">
