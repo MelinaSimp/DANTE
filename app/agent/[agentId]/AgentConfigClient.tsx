@@ -49,7 +49,14 @@ interface Agent {
   vapi_assistant_id: string | null;
   elevenlabs_voice_id: string | null;
   phone_number: string | null;
+  llm_model: string | null;
 }
+
+const MODEL_OPTIONS: { id: string; label: string; hint: string }[] = [
+  { id: "gpt-4o-mini", label: "GPT-4o mini", hint: "Fastest, cheapest. Recommended for most calls." },
+  { id: "gpt-4o", label: "GPT-4o", hint: "Smartest OpenAI model. Slower and ~10× the per-minute cost." },
+  { id: "gpt-4-turbo", label: "GPT-4 Turbo", hint: "Legacy. Use only if you've tuned a prompt against it." },
+];
 
 interface Voice {
   voice_id: string;
@@ -92,6 +99,7 @@ export default function AgentConfigClient({
   const [instructions, setInstructions] = useState(agent.llm_instructions ?? "");
   const [firstMessage, setFirstMessage] = useState(agent.first_message ?? "");
   const [voiceId, setVoiceId] = useState(agent.elevenlabs_voice_id ?? "");
+  const [llmModel, setLlmModel] = useState(agent.llm_model ?? "gpt-4o-mini");
   const [savingAgent, setSavingAgent] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [syncState, setSyncState] = useState<"idle" | "syncing" | "synced" | "error">("idle");
@@ -139,7 +147,8 @@ export default function AgentConfigClient({
     description !== (agent.description ?? "") ||
     instructions !== (agent.llm_instructions ?? "") ||
     firstMessage !== (agent.first_message ?? "") ||
-    voiceId !== (agent.elevenlabs_voice_id ?? "");
+    voiceId !== (agent.elevenlabs_voice_id ?? "") ||
+    llmModel !== (agent.llm_model ?? "gpt-4o-mini");
 
   const isDeployedVapi =
     agent.status === "deployed" && agent.voice_provider === "vapi";
@@ -187,6 +196,7 @@ export default function AgentConfigClient({
           llm_instructions: instructions.trim() || null,
           first_message: firstMessage.trim() || null,
           elevenlabs_voice_id: voiceId.trim() || null,
+          llm_model: llmModel || "gpt-4o-mini",
         }),
       });
       if (!r.ok) throw new Error((await r.json()).error || "Save failed");
@@ -218,7 +228,7 @@ export default function AgentConfigClient({
     } finally {
       setSavingAgent(false);
     }
-  }, [agent.id, agent.name, description, instructions, firstMessage, voiceId, isDeployedVapi, name]);
+  }, [agent.id, agent.name, description, instructions, firstMessage, voiceId, llmModel, isDeployedVapi, name]);
 
   const addText = async () => {
     if (!textDraft.trim()) return;
@@ -498,6 +508,49 @@ export default function AgentConfigClient({
               ))}
             </select>
           )}
+        </section>
+
+        {/* Model */}
+        <section className="card-flat p-6">
+          <div className="mb-4">
+            <div className="label-section mb-1">Model</div>
+            <h2 className="text-base font-semibold text-[var(--ink)]">
+              Which LLM powers the conversation
+            </h2>
+            <p className="text-xs text-[var(--ink-muted)] mt-1 max-w-xl">
+              The smarter models reason better about edge cases but cost more
+              per minute and can feel slower on the line. Default is fine for
+              most workflows.
+            </p>
+          </div>
+          <div className="grid gap-2">
+            {MODEL_OPTIONS.map((m) => {
+              const selected = llmModel === m.id;
+              return (
+                <label
+                  key={m.id}
+                  className={`flex items-start gap-3 cursor-pointer rounded-[4px] border p-3 transition ${
+                    selected
+                      ? "border-[var(--ink)] bg-[var(--canvas-subtle)]"
+                      : "border-[var(--rule)] hover:border-[var(--rule-strong)] bg-[var(--canvas)]"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="llm-model"
+                    value={m.id}
+                    checked={selected}
+                    onChange={() => setLlmModel(m.id)}
+                    className="mt-0.5 accent-[var(--ink)]"
+                  />
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-[var(--ink)] mono">{m.label}</div>
+                    <div className="text-[11px] text-[var(--ink-muted)] mt-0.5">{m.hint}</div>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
         </section>
 
         {/* Save strip */}

@@ -199,7 +199,7 @@ Keep responses short and natural for voice (1-3 sentences).`;
     firstMessage,
     model: {
       provider: "openai",
-      model: "gpt-4o-mini",
+      model: agent.llm_model || "gpt-4o-mini",
       messages: [{ role: "system", content: systemPrompt }],
       tools,
       temperature: 0.3,

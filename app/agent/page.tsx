@@ -25,7 +25,7 @@ import {
   CheckCircle2, XCircle, Circle, Layers, Radio,
   Settings, Loader2, Users, DollarSign, AlertTriangle,
   CheckCircle, Play, Sparkles, ThumbsUp, X, Clock,
-  Lightbulb, FileText, Bell, Trash2,
+  Lightbulb, FileText, Bell, Trash2, Plus,
 } from "lucide-react";
 // Autonomous-agent creation moved to Dante — the roster on this page is
 // read-only (run / configure / delete). Everything workflow-like gets
@@ -179,6 +179,38 @@ export default function AgentsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null);
+
+  // Voice agent creation
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createName, setCreateName] = useState("");
+  const [createDescription, setCreateDescription] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  const createVoiceAgent = async () => {
+    const name = createName.trim();
+    if (!name) return;
+    setCreating(true);
+    setCreateError(null);
+    try {
+      const res = await fetch("/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          name,
+          modality: "voice",
+          description: createDescription.trim() || undefined,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error || "Failed to create agent");
+      router.push(`/agent/${json.id}`);
+    } catch (e: any) {
+      setCreateError(e?.message || "Failed to create agent");
+      setCreating(false);
+    }
+  };
 
   // Workspace feature entitlements — used to hide the Dante CTA + footer
   // link when the workspace isn't paying for Dante.
@@ -448,6 +480,10 @@ export default function AgentsPage() {
           onToggleCRM={handleToggleCRM}
           onRunAuto={runAgent}
           onDeleteAuto={handleDeleteAgent}
+          onCreateVoice={() => {
+            setCreateError(null);
+            setShowCreateModal(true);
+          }}
           runningAll={runningAll}
           runningAgent={runningAgent}
           deletingAgentId={deletingAgentId}
@@ -490,6 +526,78 @@ export default function AgentsPage() {
         )}
       </div>
 
+      {showCreateModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--ink)]/30 backdrop-blur-sm p-4"
+          onClick={() => !creating && setShowCreateModal(false)}
+        >
+          <div
+            className="card-flat w-full max-w-md p-6 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => !creating && setShowCreateModal(false)}
+              className="absolute right-4 top-4 p-1.5 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition disabled:opacity-50"
+              disabled={creating}
+              aria-label="Close"
+            >
+              <X className="h-4 w-4" strokeWidth={1.5} />
+            </button>
+            <div className="label-section mb-2">New voice agent</div>
+            <h2 className="heading-display text-2xl text-[var(--ink)] mb-1">Create a voice agent</h2>
+            <p className="text-xs text-[var(--ink-muted)] mb-5">
+              Name it now, configure persona, model, and voice on the next screen.
+            </p>
+
+            <label className="block mb-4">
+              <div className="text-xs font-medium text-[var(--ink-muted)] mb-1.5">Agent name</div>
+              <input
+                value={createName}
+                onChange={(e) => setCreateName(e.target.value)}
+                autoFocus
+                placeholder="e.g. Riley"
+                className="w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && createName.trim() && !creating) createVoiceAgent();
+                }}
+              />
+            </label>
+
+            <label className="block mb-5">
+              <div className="text-xs font-medium text-[var(--ink-muted)] mb-1.5">Short description (optional)</div>
+              <input
+                value={createDescription}
+                onChange={(e) => setCreateDescription(e.target.value)}
+                placeholder="Receptionist for Acme Wealth"
+                className="w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
+              />
+            </label>
+
+            {createError && (
+              <div className="mb-4 text-xs text-[var(--danger)]">{createError}</div>
+            )}
+
+            <div className="flex items-center justify-end gap-2">
+              <button
+                onClick={() => setShowCreateModal(false)}
+                disabled={creating}
+                className="px-4 py-2 rounded-[4px] text-sm font-medium text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={createVoiceAgent}
+                disabled={!createName.trim() || creating}
+                className="inline-flex items-center gap-2 px-5 py-2 rounded-[4px] bg-[var(--ink)] hover:opacity-90 text-[var(--canvas)] text-sm font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {creating ? <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} /> : <Plus className="h-4 w-4" strokeWidth={1.5} />}
+                {creating ? "Creating..." : "Create"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -500,7 +608,7 @@ export default function AgentsPage() {
 // without hopping between tabs.
 
 function UnifiedRoster({
-  crmAgents, autoAgents, onToggleCRM, onRunAuto, onDeleteAuto,
+  crmAgents, autoAgents, onToggleCRM, onRunAuto, onDeleteAuto, onCreateVoice,
   runningAll, runningAgent, deletingAgentId, hasDante,
 }: {
   crmAgents: CRMAgent[];
@@ -508,34 +616,31 @@ function UnifiedRoster({
   onToggleCRM: (a: CRMAgent) => void;
   onRunAuto: (id: string) => void;
   onDeleteAuto: (agent: AutoAgent) => void;
+  onCreateVoice: () => void;
   runningAll: boolean;
   runningAgent: string | null;
   deletingAgentId: string | null;
   hasDante: boolean;
 }) {
-  if (crmAgents.length === 0 && autoAgents.length === 0) {
-    return (
-      <div className="card-flat p-12 text-center">
-        <Bot className="h-10 w-10 text-[var(--ink-subtle)] mx-auto mb-3" strokeWidth={1.5} />
-        <p className="text-[var(--ink-muted)] mb-1">No agents yet</p>
-        <p className="text-xs text-[var(--ink-subtle)]">
-          {hasDante ? (
-            <>
-              Voice agents live in the Backend. Autonomous workflows are authored in{" "}
-              <Link href="/dante" className="underline underline-offset-2 hover:text-[var(--ink)]">Dante</Link>.
-            </>
-          ) : (
-            <>Voice agents live in the Backend.</>
-          )}
-        </p>
-      </div>
-    );
-  }
-
   return (
     <>
       <div className="label-section mb-4">Agent roster</div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {/* Create voice agent — first tile, always present */}
+        <button
+          type="button"
+          onClick={onCreateVoice}
+          className="card-flat card-flat-hover p-5 flex flex-col items-center justify-center text-center min-h-[260px] border-dashed transition group"
+        >
+          <div className="border border-[var(--rule)] bg-[var(--canvas)] rounded-[4px] p-2.5 mb-3 group-hover:border-[var(--ink)] transition">
+            <Plus className="h-4 w-4 text-[var(--ink)]" strokeWidth={1.5} />
+          </div>
+          <div className="text-sm font-semibold text-[var(--ink)] mb-1">New voice agent</div>
+          <p className="text-xs text-[var(--ink-muted)] max-w-[220px]">
+            Create a voice agent that answers calls. Configure persona, model, voice, and knowledge after.
+          </p>
+        </button>
+
         {/* Voice / chat agents */}
         {crmAgents.map((agent) => {
           const sc = STATUS_CONFIG[agent.status] || STATUS_CONFIG.draft;
