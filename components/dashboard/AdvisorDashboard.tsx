@@ -188,6 +188,12 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
           >
             Agent
           </Link>
+          <Link
+            href="/vault"
+            className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
+          >
+            Vault
+          </Link>
           {data.industry === "real_estate" && (
             // Properties is RE-only — financial-advisor workspaces have
             // no concept of a property-as-noun, so we keep the nav clean.

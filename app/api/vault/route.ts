@@ -1,0 +1,127 @@
+// app/api/vault/route.ts
+//
+// Workspace Vault — list + create. Templates and documents share one
+// table with a `kind` column. Files arrive here already uploaded via
+// /api/upload (same pipeline used for agent data sources); this route
+// just stamps the metadata row + optional client tags.
+
+import { createServerSupabase } from "@/lib/supabase/server";
+import { NextResponse } from "next/server";
+
+const VALID_KINDS = ["template", "document"];
+
+export async function GET(request: Request) {
+  const supabase = await createServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("workspace_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.workspace_id) return NextResponse.json([]);
+
+  const { searchParams } = new URL(request.url);
+  const kind = searchParams.get("kind");
+  const propertyId = searchParams.get("property_id");
+  const contactId = searchParams.get("contact_id");
+  const search = searchParams.get("q")?.trim();
+
+  // Contact filter: resolve to vault_item_ids first, then filter the
+  // main fetch by id. Two queries, but keeps the main query simple.
+  let onlyIds: string[] | null = null;
+  if (contactId) {
+    const { data: links } = await supabase
+      .from("vault_item_clients")
+      .select("vault_item_id")
+      .eq("contact_id", contactId);
+    onlyIds = (links || []).map((l: any) => l.vault_item_id);
+    if (onlyIds.length === 0) return NextResponse.json([]);
+  }
+
+  let query = supabase
+    .from("vault_items")
+    .select(
+      "id, kind, title, description, file_url, file_size, file_type, property_id, created_at, updated_at"
+    )
+    .eq("workspace_id", profile.workspace_id)
+    .order("updated_at", { ascending: false });
+
+  if (kind && VALID_KINDS.includes(kind)) query = query.eq("kind", kind);
+  if (propertyId) query = query.eq("property_id", propertyId);
+  if (onlyIds) query = query.in("id", onlyIds);
+  if (search) {
+    // Fuzzy across title + description + (extracted) content. Postgres
+    // ilike is fine at this scale; switch to tsvector when the corpus
+    // gets big enough that scan cost matters.
+    query = query.or(
+      `title.ilike.%${search}%,description.ilike.%${search}%,content.ilike.%${search}%`
+    );
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.error("Vault GET:", error);
+    return NextResponse.json({ error: "Failed" }, { status: 500 });
+  }
+  return NextResponse.json(data || []);
+}
+
+export async function POST(request: Request) {
+  const supabase = await createServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("workspace_id")
+    .eq("id", user.id)
+    .single();
+  if (!profile?.workspace_id) {
+    return NextResponse.json({ error: "No workspace" }, { status: 400 });
+  }
+
+  const body = await request.json();
+  const title = (body.title || "").trim();
+  if (!title) return NextResponse.json({ error: "Title required" }, { status: 400 });
+  const kind = VALID_KINDS.includes(body.kind) ? body.kind : "document";
+
+  const insert: Record<string, unknown> = {
+    workspace_id: profile.workspace_id,
+    uploaded_by: user.id,
+    kind,
+    title,
+    description: body.description?.trim() || null,
+    file_url: body.file_url || null,
+    file_size: typeof body.file_size === "number" ? body.file_size : null,
+    file_type: body.file_type || null,
+    content: body.content || null,
+    property_id: body.property_id || null,
+  };
+
+  const { data, error } = await supabase
+    .from("vault_items")
+    .insert(insert)
+    .select()
+    .single();
+  if (error) {
+    console.error("Vault POST:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Optional client tags from the create call.
+  if (Array.isArray(body.contact_ids) && body.contact_ids.length > 0) {
+    const rows = body.contact_ids.map((cid: string) => ({
+      vault_item_id: data.id,
+      contact_id: cid,
+    }));
+    await supabase.from("vault_item_clients").insert(rows);
+  }
+
+  return NextResponse.json(data);
+}
