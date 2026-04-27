@@ -8,6 +8,11 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
+import {
+  ALL_INDUSTRIES,
+  getIndustryConfig,
+  type Industry,
+} from "@/lib/industry/config";
 
 export default function AuthPage() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -16,10 +21,13 @@ export default function AuthPage() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [workspaceCode, setWorkspaceCode] = useState("");
+  const [industry, setIndustry] = useState<Industry>("financial_advisor");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [keepSignedIn, setKeepSignedIn] = useState(false);
+
+  const industryConfig = getIndustryConfig(industry);
 
   // The old dark-theme override set html/body to #000. The whole app is
   // now white-by-default, so we just make sure nothing legacy is still
@@ -74,6 +82,7 @@ export default function AuthPage() {
               first_name: firstName.trim(),
               last_name: lastName.trim(),
               pending_workspace_code: normalizedCode,
+              pending_industry: industry,
             },
           },
         });
@@ -145,31 +154,28 @@ export default function AuthPage() {
         </Link>
       </div>
 
-      {/* Editorial intro column — shows only on wide screens. It gives
-          the page the Harvey "quiet authority" feel without any
-          decorative graphic. */}
+      {/* Editorial intro column — shows only on wide screens. Reads from
+          the per-industry config so the marketing pitch on the left
+          updates live as the visitor toggles FA / RE on the form. When
+          signing in (no toggle visible), defaults to financial_advisor
+          since that's the primary persona. */}
       <div className="hidden lg:flex absolute left-[8%] top-1/2 -translate-y-1/2 max-w-md flex-col gap-6 z-10">
-        <div className="label-section">For financial advisors</div>
+        <div className="label-section">{industryConfig.eyebrow}</div>
         <h2
           className="heading-display text-5xl leading-[1.05]"
           style={{ color: "var(--ink)" }}
         >
-          Every answer,
-          <br />
-          traced to a source.
+          {industryConfig.marketingHeadline}
         </h2>
         <p
           className="prose-body"
           style={{ color: "var(--ink-muted)", maxWidth: 380 }}
         >
-          Drift grounds every call summary, meeting brief, and compliance
-          check in the exact transcript segment, document chunk, or
-          custodian balance it came from. A compliance officer can hover
-          any claim and see where it came from.
+          {industryConfig.marketingDescription}
         </p>
         <div className="flex items-center gap-3 pt-2">
-          <span className="chip-verified">Citation-grounded</span>
-          <span className="chip-citation">Audit packet</span>
+          <span className="chip-verified">{industryConfig.marketingChips[0]}</span>
+          <span className="chip-citation">{industryConfig.marketingChips[1]}</span>
         </div>
       </div>
 
@@ -241,6 +247,45 @@ export default function AuthPage() {
                 required
                 minLength={8}
               />
+
+              {isSignUp && (
+                <div>
+                  <div
+                    className="label-section mb-1.5"
+                    style={{ color: "var(--ink-muted)" }}
+                  >
+                    I am a…
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {ALL_INDUSTRIES.map((id) => {
+                      const cfg = getIndustryConfig(id);
+                      const selected = industry === id;
+                      return (
+                        <button
+                          key={id}
+                          type="button"
+                          onClick={() => setIndustry(id)}
+                          className="text-left text-sm px-3 py-2.5 transition"
+                          style={{
+                            border: selected
+                              ? "1px solid var(--ink)"
+                              : "1px solid var(--rule)",
+                            background: selected
+                              ? "var(--canvas-subtle)"
+                              : "var(--canvas)",
+                            color: "var(--ink)",
+                            borderRadius: "var(--r-input)",
+                            fontWeight: selected ? 600 : 400,
+                          }}
+                          aria-pressed={selected}
+                        >
+                          {cfg.shortLabel}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {isSignUp && (
                 <div>

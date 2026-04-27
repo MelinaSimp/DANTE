@@ -27,7 +27,7 @@ export async function GET() {
 
   const { data: workspaces, error } = await supabaseAdmin
     .from("workspaces")
-    .select("id, name, created_at, owner_id, enabled_features, plan_status, billing_amount, billing_cycle, invite_code")
+    .select("id, name, created_at, owner_id, enabled_features, plan_status, billing_amount, billing_cycle, invite_code, industry")
     .order("created_at", { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

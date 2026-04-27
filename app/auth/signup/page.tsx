@@ -9,6 +9,7 @@ import Link from "next/link";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { isValidEmail, normalizeToken } from "@/lib/invite";
+import { ALL_INDUSTRIES, getIndustryConfig } from "@/lib/industry/config";
 
 export const dynamic = "force-dynamic";
 
@@ -25,23 +26,12 @@ export default async function SignupPage({
     const password = (formData.get("password") as string) || "";
     const first_name = ((formData.get("first_name") as string) || "").trim();
     const last_name = ((formData.get("last_name") as string) || "").trim();
-    const company_category = ((formData.get("company_category") as string) || "").trim();
+    const industry = ((formData.get("industry") as string) || "").trim();
 
     if (!first_name) throw new Error("First name is required.");
     if (!last_name) throw new Error("Last name is required.");
-    // Primary audience is financial advisors with real-estate as the
-    // near-term expansion. "other" is a soft escape hatch so we don't
-    // block adjacent industries, and the legacy service/restaurant
-    // values stay accepted so old invite-token redemptions still work.
-    const allowedCategories = [
-      "financial_advisor",
-      "real_estate",
-      "other",
-      "service",
-      "restaurant",
-    ];
-    if (!company_category || !allowedCategories.includes(company_category)) {
-      throw new Error("Company type is required.");
+    if (industry !== "financial_advisor" && industry !== "real_estate") {
+      throw new Error("Please pick whether you're a financial advisor or real estate agent.");
     }
 
     if (!token) throw new Error("Invite token is required.");
@@ -76,7 +66,7 @@ export default async function SignupPage({
         full_name: `${first_name} ${last_name}`.trim(),
         first_name,
         last_name,
-        company_category,
+        company_category: industry,
       },
     });
     if (createErr) {
@@ -106,14 +96,22 @@ export default async function SignupPage({
       full_name: `${first_name} ${last_name}`.trim(),
       first_name,
       last_name,
-      company_category,
+      company_category: industry,
       email,
       role: "member",
       workspace_id,
     });
     if (upErr) throw upErr;
 
-    // 4) Delete invite (single-use)
+    // 4) Stamp the workspace's industry from the user's pick. Only the
+    //    first redeemer's choice sticks — subsequent joiners join the
+    //    workspace already configured for that vertical.
+    await supabaseAdmin
+      .from("workspaces")
+      .update({ industry })
+      .eq("id", workspace_id);
+
+    // 5) Delete invite (single-use)
     await supabaseAdmin.from("invites").delete().eq("id", invite.id);
 
     // 5) Create a session for the new user so they land signed in
@@ -228,20 +226,41 @@ export default async function SignupPage({
                 minLength={8}
               />
 
-              <select
-                name="company_category"
-                className={inputClass}
-                style={inputStyle}
-                required
-                defaultValue=""
-              >
-                <option value="" disabled>
-                  Company type…
-                </option>
-                <option value="financial_advisor">Financial advisor</option>
-                <option value="real_estate">Real estate</option>
-                <option value="other">Other</option>
-              </select>
+              <fieldset className="space-y-1.5">
+                <legend
+                  className="label-section block mb-1.5"
+                  style={{ color: "var(--ink-muted)" }}
+                >
+                  I am a…
+                </legend>
+                <div className="grid grid-cols-2 gap-2">
+                  {ALL_INDUSTRIES.map((id, idx) => {
+                    const cfg = getIndustryConfig(id);
+                    return (
+                      <label
+                        key={id}
+                        className="flex items-center justify-center text-sm px-3 py-2.5 cursor-pointer transition has-[:checked]:bg-[var(--canvas-subtle)] has-[:checked]:font-semibold has-[:checked]:border-[var(--ink)]"
+                        style={{
+                          border: "1px solid var(--rule)",
+                          background: "var(--canvas)",
+                          color: "var(--ink)",
+                          borderRadius: "var(--r-input)",
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="industry"
+                          value={id}
+                          required
+                          defaultChecked={idx === 0}
+                          className="sr-only"
+                        />
+                        {cfg.shortLabel}
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
 
               <button
                 type="submit"

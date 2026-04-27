@@ -18,6 +18,15 @@ async function ensureUserWorkspace(user: any, supabase: any): Promise<string | n
     typeof meta.pending_workspace_code === "string"
       ? meta.pending_workspace_code.trim().toUpperCase()
       : "";
+  // Stamped on the workspace when the user redeems their code below.
+  // Whitelisted to the two verticals we sell; anything else falls
+  // through to financial_advisor (the primary persona).
+  const pendingIndustry =
+    meta.pending_industry === "real_estate"
+      ? "real_estate"
+      : meta.pending_industry === "financial_advisor"
+      ? "financial_advisor"
+      : null;
   const computedFullName = `${firstName} ${lastName}`.trim() || userEmail.split("@")[0];
 
   const { data: existingProfile } = await supabase
@@ -61,10 +70,27 @@ async function ensureUserWorkspace(user: any, supabase: any): Promise<string | n
       .maybeSingle();
     if (workspace?.id) {
       redeemedWorkspaceId = workspace.id;
-      // Clear the stashed code — it's single-use per signup.
+      // Stamp the workspace's industry from the user's pick on signup.
+      // Only the first redeemer's choice sticks — subsequent joiners
+      // join the workspace already configured for that vertical.
+      if (pendingIndustry) {
+        try {
+          await supabaseAdmin
+            .from("workspaces")
+            .update({ industry: pendingIndustry })
+            .eq("id", workspace.id);
+        } catch {
+          // Non-fatal: the workspace just stays on whatever it was.
+        }
+      }
+      // Clear the stashed code + industry — single-use per signup.
       try {
         await supabaseAdmin.auth.admin.updateUserById(userId, {
-          user_metadata: { ...meta, pending_workspace_code: null },
+          user_metadata: {
+            ...meta,
+            pending_workspace_code: null,
+            pending_industry: null,
+          },
         });
       } catch {
         // Non-fatal: the code just lingers in metadata, no harm done.

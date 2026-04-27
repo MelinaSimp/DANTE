@@ -11,6 +11,7 @@ import {
   Loader2,
   X,
   Check,
+  DollarSign,
 } from "lucide-react";
 import { reportError } from "@/lib/report-error";
 
@@ -24,6 +25,10 @@ interface Workspace {
   owner_name: string | null;
   owner_email: string | null;
   user_count: number;
+  /** Negotiated monthly base price, stored in cents. */
+  billing_amount: number | null;
+  /** Vertical the workspace was created for. */
+  industry: string | null;
 }
 
 export default function WorkspacesPage() {
@@ -32,6 +37,9 @@ export default function WorkspacesPage() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [addingUser, setAddingUser] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState("");
+  const [editingPrice, setEditingPrice] = useState<string | null>(null);
+  const [priceDraft, setPriceDraft] = useState("");
+  const [savingPrice, setSavingPrice] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -69,6 +77,45 @@ export default function WorkspacesPage() {
     } finally {
       setDeleting(null);
       setConfirmDelete(null);
+    }
+  };
+
+  const handleSavePrice = async (workspaceId: string) => {
+    const dollars = parseFloat(priceDraft);
+    if (!Number.isFinite(dollars) || dollars < 0) {
+      setToast({ type: "error", message: "Enter a valid dollar amount" });
+      return;
+    }
+    const cents = Math.round(dollars * 100);
+    setSavingPrice(true);
+    try {
+      const res = await fetch("/api/admin/workspaces", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          workspace_id: workspaceId,
+          billing_amount: cents,
+          billing_cycle: "monthly",
+        }),
+      });
+      if (res.ok) {
+        setWorkspaces((prev) =>
+          prev.map((w) =>
+            w.id === workspaceId ? { ...w, billing_amount: cents } : w
+          )
+        );
+        setToast({ type: "success", message: `Price set to $${dollars.toFixed(2)}/mo` });
+        setEditingPrice(null);
+        setPriceDraft("");
+      } else {
+        const data = await res.json();
+        setToast({ type: "error", message: data.error || "Failed to save price" });
+      }
+    } catch {
+      setToast({ type: "error", message: "Network error" });
+    } finally {
+      setSavingPrice(false);
     }
   };
 
@@ -140,7 +187,9 @@ export default function WorkspacesPage() {
                 <tr>
                   <th className="label-section text-left py-4 px-6">Health</th>
                   <th className="label-section text-left py-4 px-4">Workspace</th>
+                  <th className="label-section text-left py-4 px-4">Industry</th>
                   <th className="label-section text-left py-4 px-4">Plan</th>
+                  <th className="label-section text-left py-4 px-4">Price / mo</th>
                   <th className="label-section text-left py-4 px-4">Users</th>
                   <th className="label-section text-left py-4 px-4">Features</th>
                   <th className="label-section text-left py-4 px-4">Created</th>
@@ -195,12 +244,84 @@ export default function WorkspacesPage() {
                           {ws.owner_name || ws.owner_email || "Unknown"}
                         </div>
                       </td>
+                      <td className="py-4 px-4 text-xs text-[var(--ink-muted)]">
+                        {ws.industry === "real_estate"
+                          ? "Real estate"
+                          : ws.industry === "financial_advisor"
+                          ? "Financial advisor"
+                          : "—"}
+                      </td>
                       <td className="py-4 px-4">
                         <span
                           className={`px-2 py-0.5 rounded-full text-[10px] font-medium border ${statusClass}`}
                         >
                           {ws.plan_status || "active"}
                         </span>
+                      </td>
+                      <td className="py-4 px-4">
+                        {editingPrice === ws.id ? (
+                          <div className="flex items-center gap-1.5">
+                            <div className="relative">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-[var(--ink-subtle)]">
+                                $
+                              </span>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={priceDraft}
+                                onChange={(e) => setPriceDraft(e.target.value)}
+                                onKeyDown={(e) =>
+                                  e.key === "Enter" && handleSavePrice(ws.id)
+                                }
+                                placeholder="699.00"
+                                className="pl-5 pr-2 py-1 text-xs rounded-[4px] bg-[var(--canvas)] border border-[var(--rule)] text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none focus:border-[var(--accent)] w-24 mono"
+                                autoFocus
+                              />
+                            </div>
+                            <button
+                              onClick={() => handleSavePrice(ws.id)}
+                              disabled={savingPrice}
+                              className="p-1 rounded-[4px] text-[var(--verified)] hover:bg-[var(--verified-soft)] transition disabled:opacity-50"
+                            >
+                              {savingPrice ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
+                              ) : (
+                                <Check className="h-3.5 w-3.5" strokeWidth={1.5} />
+                              )}
+                            </button>
+                            <button
+                              onClick={() => {
+                                setEditingPrice(null);
+                                setPriceDraft("");
+                              }}
+                              className="p-1 rounded-[4px] text-[var(--ink-muted)] hover:bg-[var(--canvas-subtle)] transition"
+                            >
+                              <X className="h-3.5 w-3.5" strokeWidth={1.5} />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setEditingPrice(ws.id);
+                              setPriceDraft(
+                                ws.billing_amount
+                                  ? (ws.billing_amount / 100).toFixed(2)
+                                  : ""
+                              );
+                            }}
+                            className="text-xs mono text-[var(--ink)] hover:text-[var(--accent)] transition flex items-center gap-1"
+                            title="Click to edit"
+                          >
+                            <DollarSign
+                              className="h-3 w-3 text-[var(--ink-subtle)]"
+                              strokeWidth={1.5}
+                            />
+                            {ws.billing_amount
+                              ? (ws.billing_amount / 100).toFixed(2)
+                              : <span className="text-[var(--ink-subtle)]">set</span>}
+                          </button>
+                        )}
                       </td>
                       <td className="py-4 px-4 mono text-[var(--ink-muted)]">{ws.user_count}</td>
                       <td className="py-4 px-4">
