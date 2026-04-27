@@ -121,7 +121,12 @@ const REWRITE_PRESETS = [
 
 // ── Component ────────────────────────────────────────────────────
 
-export default function AskDante() {
+export default function AskDante({
+  assistantName = "Dante",
+}: {
+  /** Brand name of the assistant — "Dante" for FA, "Vergil" for RE. */
+  assistantName?: string;
+}) {
   const router = useRouter();
   const [input, setInput] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -348,6 +353,7 @@ export default function AskDante() {
           customizing={refining === "customize"}
           textareaRef={textareaRef}
           rows={4}
+          assistantName={assistantName}
         />
       )}
 
@@ -465,6 +471,7 @@ export default function AskDante() {
               customizing={refining === "customize"}
               textareaRef={textareaRef}
               rows={2}
+              assistantName={assistantName}
             />
           </div>
         </div>
@@ -507,6 +514,8 @@ interface InputBarProps {
   customizing: boolean;
   textareaRef: React.RefObject<HTMLTextAreaElement | null>;
   rows: number;
+  /** Brand name of the assistant, used in the placeholder. */
+  assistantName: string;
   /** When true, the toolbar (Prompts/Customize/Deep research) is
    *  hidden and the input shrinks to just textarea + send. Used in
    *  expanded mode where the chat is the focus and toolbar choices
@@ -525,7 +534,7 @@ function InputBar(p: InputBarProps) {
           value={p.input}
           onChange={(e) => p.setInput(e.target.value)}
           onKeyDown={p.onKeyDown}
-          placeholder="Ask Dante anything…"
+          placeholder={`Ask ${p.assistantName} anything…`}
           disabled={p.streaming}
           rows={p.rows}
           className="w-full resize-none bg-transparent pl-5 pr-14 py-4 text-base text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none disabled:opacity-60"
@@ -555,7 +564,7 @@ function InputBar(p: InputBarProps) {
         value={p.input}
         onChange={(e) => p.setInput(e.target.value)}
         onKeyDown={p.onKeyDown}
-        placeholder="Ask Dante anything…"
+        placeholder={`Ask ${p.assistantName} anything…`}
         disabled={p.streaming}
         rows={p.rows}
         className="w-full resize-none bg-transparent px-5 pt-4 pb-2 text-base text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none disabled:opacity-60"

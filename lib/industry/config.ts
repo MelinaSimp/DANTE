@@ -22,6 +22,8 @@ export interface IndustryConfig {
   marketingChips: [string, string];
   /** Display name for the vertical, shown in headings. */
   displayName: string;
+  /** Brand name of the LLM assistant for this vertical (Dante / Vergil). */
+  assistantName: string;
   /** What the primary person is called in this vertical. */
   clientLabel: string;
   /** Plural form of clientLabel. */
@@ -47,6 +49,7 @@ const FINANCIAL_ADVISOR: IndustryConfig = {
     "Drift grounds every call summary, meeting brief, and compliance check in the exact transcript segment, document chunk, or custodian balance it came from. A compliance officer can hover any claim and see where it came from.",
   marketingChips: ["Citation-grounded", "Audit packet"],
   displayName: "Financial Advisor",
+  assistantName: "Dante",
   clientLabel: "client",
   clientLabelPlural: "clients",
   danteHero: "What do you need today?",
@@ -74,6 +77,7 @@ const REAL_ESTATE: IndustryConfig = {
     "Drift answers the showing line, books tours, and writes the recap email before you're back in the car. Every claim traces to the listing, the showing transcript, or the buyer's stated budget — so nothing gets misquoted to the wrong party.",
   marketingChips: ["Always-on receptionist", "Tour recap"],
   displayName: "Real Estate Agent",
+  assistantName: "Vergil",
   clientLabel: "client",
   clientLabelPlural: "clients",
   danteHero: "What do you need today?",

@@ -12,6 +12,8 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { requireFeature } from "@/lib/features/server";
+import { getIndustryConfig } from "@/lib/industry/config";
+import { AssistantNameProvider } from "@/components/dante/AssistantNameProvider";
 
 export const dynamic = "force-dynamic";
 
@@ -39,5 +41,14 @@ export default async function DanteLayout({ children }: { children: React.ReactN
 
   await requireFeature(profile.workspace_id, "dante");
 
-  return <>{children}</>;
+  const { data: workspace } = await supabase
+    .from("workspaces")
+    .select("industry")
+    .eq("id", profile.workspace_id)
+    .maybeSingle();
+  const assistantName = getIndustryConfig(workspace?.industry).assistantName;
+
+  return (
+    <AssistantNameProvider name={assistantName}>{children}</AssistantNameProvider>
+  );
 }

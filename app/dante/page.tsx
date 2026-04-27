@@ -14,6 +14,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { ArrowLeft } from "lucide-react";
 import AskDante from "./AskDante";
+import { getIndustryConfig } from "@/lib/industry/config";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,13 @@ export default async function DantePage() {
     .eq("id", user.id)
     .maybeSingle();
   if (!profile?.workspace_id) redirect("/dashboard");
+
+  const { data: workspace } = await supabase
+    .from("workspaces")
+    .select("industry")
+    .eq("id", profile.workspace_id)
+    .maybeSingle();
+  const assistantName = getIndustryConfig(workspace?.industry).assistantName;
 
   return (
     <div className="min-h-screen bg-[var(--canvas)]">
@@ -50,7 +58,7 @@ export default async function DantePage() {
             Dashboard
           </Link>
           <span className="text-xs text-[var(--ink-subtle)]">/</span>
-          <DanteGateLink variant="breadcrumb-static" />
+          <DanteGateLink variant="breadcrumb-static" label={assistantName} />
         </div>
         <Link
           href="/dashboard"
@@ -66,7 +74,7 @@ export default async function DantePage() {
             workflows, archive, templates, secrets) are still
             reachable via direct URLs and the breadcrumb top nav,
             but no longer compete with the chat for attention. */}
-        <AskDante />
+        <AskDante assistantName={assistantName} />
       </div>
     </div>
   );

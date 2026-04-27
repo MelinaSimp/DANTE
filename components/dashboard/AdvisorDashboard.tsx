@@ -27,6 +27,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { pickGreeting, pickSubtitle } from "@/lib/dashboard/greetings";
 import DanteGateLink from "@/components/dante/DanteGateLink";
+import { getIndustryConfig } from "@/lib/industry/config";
 import {
   ArrowUpRight,
   ShieldCheck,
@@ -70,6 +71,9 @@ type Flag = {
 type DashboardData = {
   advisorName: string;
   workspaceName: string;
+  // Vertical the workspace was set to on signup. Drives Dante↔Vergil
+  // label swap and per-vertical copy across the surface.
+  industry?: string;
   // Only true when the logged-in user is a platform superadmin
   // (per hasSuperadminAccess). Used to reveal the Admin nav item.
   isSuperadmin?: boolean;
@@ -190,7 +194,10 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
             // like crossing a threshold instead of clicking a nav link.
             // Every other nav item here is plain text — that's the
             // point. Dante is meant to stand out.
-            <DanteGateLink variant="nav-primary" />
+            <DanteGateLink
+              variant="nav-primary"
+              label={getIndustryConfig(data.industry).assistantName}
+            />
           )}
           <Link
             href="/settings"

@@ -28,6 +28,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAssistantName } from "./AssistantNameProvider";
 
 type Variant = "nav-primary" | "breadcrumb" | "breadcrumb-static";
 
@@ -35,6 +36,8 @@ interface DanteGateLinkProps {
   variant?: Variant;
   className?: string;
   href?: string;
+  /** Override the brand label. If omitted, reads from the
+   *  AssistantNameProvider — Dante for FA, Vergil for RE. */
   label?: string;
 }
 
@@ -44,8 +47,10 @@ export default function DanteGateLink({
   variant = "nav-primary",
   className = "",
   href = "/dante",
-  label = "Dante",
+  label,
 }: DanteGateLinkProps) {
+  const contextName = useAssistantName();
+  const resolvedLabel = label ?? contextName;
   const router = useRouter();
   const [opening, setOpening] = useState(false);
 
@@ -102,13 +107,13 @@ export default function DanteGateLink({
     <>
       <img
         src={GATE_SRC}
-        alt={variant === "breadcrumb-static" ? "Dante" : ""}
+        alt={variant === "breadcrumb-static" ? resolvedLabel : ""}
         width={s.iconSize}
         height={s.iconSize}
         style={{ width: s.iconSize, height: s.iconSize }}
         className={`object-contain ${s.iconClass}`}
       />
-      <span className={s.textClass}>{label}</span>
+      <span className={s.textClass}>{resolvedLabel}</span>
     </>
   );
 
