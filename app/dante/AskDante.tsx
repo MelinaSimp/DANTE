@@ -370,15 +370,15 @@ export default function AskDante({
           sent a message we unmount them entirely (not just fade) so
           there's no chance of them lingering across the transition. */}
       {!inExpandedMode && (
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
           {KNOWLEDGE_SOURCES.map((s) => {
             const Icon = s.icon;
             return (
               <span
                 key={s.label}
-                className="inline-flex items-center gap-1.5 rounded-full border border-[var(--rule)] bg-[var(--canvas)] px-3 py-1.5 text-xs text-[var(--ink)]"
+                className="inline-flex items-center gap-2 rounded-full border border-[var(--rule)] bg-[var(--canvas)] px-3.5 py-2 text-[13px] text-[var(--ink)] shadow-[0_1px_0_rgba(0,0,0,0.02)]"
               >
-                <Icon className="w-3 h-3" strokeWidth={1.5} />
+                <Icon className="w-3.5 h-3.5 text-[var(--ink-muted)]" strokeWidth={1.5} />
                 {s.label}
               </span>
             );

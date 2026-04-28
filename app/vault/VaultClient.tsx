@@ -1,15 +1,19 @@
 "use client";
 
-// VaultClient — list, filter, search, and upload. Mirrors the
-// Properties list visual: filter chips at top (All / Templates /
-// Documents), search box, drag-drop upload zone, table of items.
-// Click a row → /vault/[id] for the detail/edit screen.
+// VaultClient — Harvey-styled. Big serif hero + subtitle, two
+// prominent CTA cards at the top (Upload Template / Upload
+// Document), filter tabs (text-only, no pill chrome), and a card
+// grid below grouped by kind when "All" is selected. Each card
+// reads as a single coherent object — large icon, bold title,
+// dimmed description, footer chip with kind + size — instead of
+// the dense one-line rows we had before.
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
+  ArrowRight,
   FileText,
   Search,
   Upload,
@@ -17,6 +21,9 @@ import {
   AlertCircle,
   Sparkles,
   ScrollText,
+  Plus,
+  X,
+  Check,
 } from "lucide-react";
 
 interface VaultRow {
@@ -32,11 +39,13 @@ interface VaultRow {
   updated_at: string;
 }
 
-const KIND_FILTERS = [
+type FilterKind = "all" | "template" | "document";
+
+const TABS: Array<{ value: FilterKind; label: string }> = [
   { value: "all", label: "All" },
   { value: "template", label: "Templates" },
   { value: "document", label: "Documents" },
-] as const;
+];
 
 function formatSize(bytes: number | null) {
   if (!bytes) return "";
@@ -49,11 +58,11 @@ export default function VaultClient() {
   const router = useRouter();
   const [rows, setRows] = useState<VaultRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | "template" | "document">("all");
+  const [filter, setFilter] = useState<FilterKind>("all");
   const [search, setSearch] = useState("");
 
-  // Upload state
-  const [uploading, setUploading] = useState(false);
+  // Upload modal state — replaces the old inline form so the page's
+  // resting state stays clean and editorial like Harvey's Vault.
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadKind, setUploadKind] =
     useState<"template" | "document">("document");
@@ -61,6 +70,7 @@ export default function VaultClient() {
   const [uploadDescription, setUploadDescription] = useState("");
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const load = () => {
     setRows(null);
@@ -91,25 +101,29 @@ export default function VaultClient() {
     });
   }, [rows, filter, search]);
 
+  const templates = filtered?.filter((r) => r.kind === "template") ?? [];
+  const documents = filtered?.filter((r) => r.kind === "document") ?? [];
+
+  const openUpload = (kind: "template" | "document") => {
+    setUploadKind(kind);
+    setUploadTitle("");
+    setUploadDescription("");
+    setPendingFile(null);
+    setError(null);
+    setUploadOpen(true);
+  };
+
   const submitUpload = async () => {
-    if (!pendingFile) {
-      setError("Pick a file first");
-      return;
-    }
-    if (!uploadTitle.trim()) {
-      setError("Title required");
-      return;
-    }
+    if (!pendingFile) return setError("Pick a file first");
+    if (!uploadTitle.trim()) return setError("Title required");
     if (uploadKind === "template" && !uploadDescription.trim()) {
-      setError(
-        "Templates need a description so Vergil knows when to use this one"
+      return setError(
+        "Templates need a description so the assistant knows when to use them"
       );
-      return;
     }
     setUploading(true);
     setError(null);
     try {
-      // 1) Upload the file via the existing /api/upload pipeline.
       const form = new FormData();
       form.append("file", pendingFile);
       form.append("category", "vault");
@@ -119,8 +133,6 @@ export default function VaultClient() {
         throw new Error(j.error || "Upload failed");
       }
       const u = await up.json();
-
-      // 2) Create the vault row.
       const create = await fetch("/api/vault", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -141,9 +153,6 @@ export default function VaultClient() {
       const created = await create.json();
       setRows((prev) => (prev ? [created, ...prev] : [created]));
       setUploadOpen(false);
-      setPendingFile(null);
-      setUploadTitle("");
-      setUploadDescription("");
     } catch (e: any) {
       setError(e.message || "Upload failed");
     } finally {
@@ -151,11 +160,116 @@ export default function VaultClient() {
     }
   };
 
+  const Card = ({ row }: { row: VaultRow }) => {
+    const isTemplate = row.kind === "template";
+    const Icon = isTemplate ? Sparkles : ScrollText;
+    return (
+      <button
+        onClick={() => router.push(`/vault/${row.id}`)}
+        className="group text-left transition flex flex-col"
+        style={{
+          background: "var(--canvas)",
+          border: "1px solid var(--rule)",
+          borderRadius: "8px",
+          padding: 0,
+          minHeight: "200px",
+        }}
+      >
+        {/* Icon panel */}
+        <div
+          className="flex items-center justify-center transition-colors"
+          style={{
+            background: isTemplate
+              ? "var(--accent-soft)"
+              : "var(--canvas-subtle)",
+            borderRadius: "8px 8px 0 0",
+            height: "92px",
+          }}
+        >
+          <Icon
+            className={
+              isTemplate
+                ? "w-9 h-9 text-[var(--accent)]"
+                : "w-9 h-9 text-[var(--ink-muted)]"
+            }
+            strokeWidth={1.25}
+          />
+        </div>
+        {/* Body */}
+        <div className="flex-1 px-4 py-3 flex flex-col">
+          <div className="flex items-baseline gap-2 mb-1">
+            <span className="text-sm font-semibold text-[var(--ink)] truncate">
+              {row.title}
+            </span>
+          </div>
+          {row.description ? (
+            <p className="text-[12px] text-[var(--ink-muted)] line-clamp-2 mb-2">
+              {row.description}
+            </p>
+          ) : (
+            <p className="text-[12px] text-[var(--ink-subtle)] italic mb-2">
+              No description
+            </p>
+          )}
+          <div className="mt-auto flex items-center gap-2 text-[10px] mono text-[var(--ink-subtle)]">
+            <span>{isTemplate ? "Template" : "Document"}</span>
+            {row.file_size ? <span>·</span> : null}
+            {row.file_size ? <span>{formatSize(row.file_size)}</span> : null}
+            <span className="ml-auto text-[var(--ink-subtle)] group-hover:text-[var(--ink)] transition">
+              Open →
+            </span>
+          </div>
+        </div>
+      </button>
+    );
+  };
+
+  const Section = ({
+    title,
+    items,
+    emptyHint,
+    cta,
+  }: {
+    title: string;
+    items: VaultRow[];
+    emptyHint: string;
+    cta?: { label: string; onClick: () => void };
+  }) => (
+    <section className="mb-12">
+      <div className="flex items-baseline justify-between mb-4">
+        <h2 className="heading-display text-2xl text-[var(--ink)]">{title}</h2>
+        {items.length > 0 && cta && (
+          <button
+            onClick={cta.onClick}
+            className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] transition inline-flex items-center gap-1"
+          >
+            {cta.label}
+            <ArrowRight className="w-3 h-3" strokeWidth={1.5} />
+          </button>
+        )}
+      </div>
+      {items.length === 0 ? (
+        <div
+          className="rounded-[8px] border border-dashed py-10 px-6 text-center"
+          style={{ borderColor: "var(--rule-strong)" }}
+        >
+          <p className="text-sm text-[var(--ink-muted)]">{emptyHint}</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {items.map((r) => (
+            <Card key={r.id} row={r} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+
   return (
     <div className="min-h-screen bg-[var(--canvas)] text-[var(--ink)]">
       {/* Top bar */}
       <div className="sticky top-0 z-10 border-b border-[var(--rule)] bg-[var(--canvas)]/95 backdrop-blur">
-        <div className="max-w-6xl mx-auto px-6 md:px-10 py-4 flex items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-6 md:px-10 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 text-sm text-[var(--ink-muted)]">
             <Link href="/dashboard" className="hover:text-[var(--ink)] transition">
               Drift
@@ -173,60 +287,262 @@ export default function VaultClient() {
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-6 md:px-10 py-10">
-        <div className="flex items-baseline justify-between mb-8 gap-6 flex-wrap">
-          <div>
-            <div className="label-section mb-1">Workspace archive</div>
-            <h1 className="heading-display text-4xl text-[var(--ink)]">Vault</h1>
-            <p className="text-sm text-[var(--ink-muted)] mt-1 max-w-xl">
-              Templates and documents your AI assistant can quote and fill out.
-              Everyone in this workspace sees everything here.
-            </p>
-          </div>
+      <div className="max-w-7xl mx-auto px-6 md:px-10 py-12 md:py-16">
+        {/* Editorial hero */}
+        <div className="mb-10">
+          <div className="label-section mb-2">Workspace archive</div>
+          <h1 className="heading-display text-5xl md:text-6xl text-[var(--ink)] leading-[1.05] mb-3">
+            Vault
+          </h1>
+          <p className="text-base text-[var(--ink-muted)] max-w-2xl">
+            Upload, store, and have the assistant cite from templates
+            and documents — everyone in this workspace sees everything here.
+          </p>
+        </div>
+
+        {/* Two prominent CTAs */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-12">
           <button
-            onClick={() => setUploadOpen((v) => !v)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-sm font-semibold hover:opacity-90 transition"
+            onClick={() => openUpload("template")}
+            className="group text-left transition flex items-center gap-5 px-6 py-5"
+            style={{
+              background: "var(--canvas)",
+              border: "1px solid var(--rule)",
+              borderRadius: "8px",
+            }}
           >
-            <Upload className="w-4 h-4" strokeWidth={1.5} />
-            {uploadOpen ? "Cancel" : "Upload"}
+            <div
+              className="flex items-center justify-center shrink-0"
+              style={{
+                width: 56,
+                height: 56,
+                background: "var(--accent-soft)",
+                borderRadius: 8,
+              }}
+            >
+              <Sparkles
+                className="w-6 h-6 text-[var(--accent)]"
+                strokeWidth={1.25}
+              />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold text-[var(--ink)] mb-0.5">
+                Upload template
+              </div>
+              <div className="text-xs text-[var(--ink-muted)]">
+                Fillable docs the assistant uses to draft for clients.
+              </div>
+            </div>
+            <ArrowRight
+              className="w-4 h-4 text-[var(--ink-subtle)] group-hover:text-[var(--ink)] transition shrink-0"
+              strokeWidth={1.5}
+            />
+          </button>
+
+          <button
+            onClick={() => openUpload("document")}
+            className="group text-left transition flex items-center gap-5 px-6 py-5"
+            style={{
+              background: "var(--canvas)",
+              border: "1px solid var(--rule)",
+              borderRadius: "8px",
+            }}
+          >
+            <div
+              className="flex items-center justify-center shrink-0"
+              style={{
+                width: 56,
+                height: 56,
+                background: "var(--canvas-subtle)",
+                borderRadius: 8,
+              }}
+            >
+              <ScrollText
+                className="w-6 h-6 text-[var(--ink-muted)]"
+                strokeWidth={1.25}
+              />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold text-[var(--ink)] mb-0.5">
+                Upload document
+              </div>
+              <div className="text-xs text-[var(--ink-muted)]">
+                Contracts, statements, tax forms — anything to cite from.
+              </div>
+            </div>
+            <ArrowRight
+              className="w-4 h-4 text-[var(--ink-subtle)] group-hover:text-[var(--ink)] transition shrink-0"
+              strokeWidth={1.5}
+            />
           </button>
         </div>
 
-        {/* Upload form */}
-        {uploadOpen && (
-          <section className="card-flat p-6 mb-8">
-            <div className="grid md:grid-cols-3 gap-3 mb-4">
+        {/* Tabs + search */}
+        <div className="flex items-center justify-between gap-4 mb-8 flex-wrap border-b border-[var(--rule)]">
+          <div className="flex items-center -mb-px">
+            {TABS.map((t) => (
+              <button
+                key={t.value}
+                onClick={() => setFilter(t.value)}
+                className="px-4 py-3 text-sm font-medium transition relative"
+                style={{
+                  color:
+                    filter === t.value ? "var(--ink)" : "var(--ink-muted)",
+                  borderBottom:
+                    filter === t.value
+                      ? "2px solid var(--ink)"
+                      : "2px solid transparent",
+                }}
+              >
+                {t.label}
+                {rows && (
+                  <span className="ml-1.5 text-[var(--ink-subtle)] text-[11px] mono">
+                    {t.value === "all"
+                      ? rows.length
+                      : rows.filter((r) => r.kind === t.value).length}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+          <div className="flex-1 max-w-xs relative pb-3">
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-[60%] w-3.5 h-3.5 text-[var(--ink-subtle)]"
+              strokeWidth={1.5}
+            />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search title or description"
+              className="w-full rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] pl-9 pr-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
+            />
+          </div>
+        </div>
+
+        {error && (
+          <div className="mb-4 px-3 py-2 text-sm text-[var(--danger)] bg-[var(--danger-soft)] border border-[var(--danger)]/30 rounded-[4px] flex items-center gap-2">
+            <AlertCircle className="w-4 h-4" strokeWidth={1.5} /> {error}
+          </div>
+        )}
+
+        {/* Body */}
+        {filtered === null ? (
+          <div className="flex items-center justify-center py-32">
+            <Loader2
+              className="w-6 h-6 animate-spin text-[var(--ink-subtle)]"
+              strokeWidth={1.5}
+            />
+          </div>
+        ) : rows && rows.length === 0 ? (
+          <div className="py-24 text-center">
+            <FileText
+              className="w-10 h-10 text-[var(--ink-subtle)] mx-auto mb-4"
+              strokeWidth={1}
+            />
+            <h2 className="heading-display text-2xl text-[var(--ink)] mb-2">
+              Nothing here yet
+            </h2>
+            <p className="text-sm text-[var(--ink-muted)] max-w-md mx-auto mb-6">
+              Upload your first template or document above to get started.
+              The assistant will start citing from them on the next call or
+              draft.
+            </p>
+          </div>
+        ) : filter === "all" ? (
+          <>
+            <Section
+              title="Templates"
+              items={templates}
+              emptyHint="No templates yet. Upload one above to let the assistant draft from a saved form."
+              cta={
+                templates.length > 6
+                  ? { label: "View all", onClick: () => setFilter("template") }
+                  : undefined
+              }
+            />
+            <Section
+              title="Documents"
+              items={documents}
+              emptyHint="No documents yet. Upload contracts, statements, or anything else the assistant should be able to quote."
+              cta={
+                documents.length > 6
+                  ? { label: "View all", onClick: () => setFilter("document") }
+                  : undefined
+              }
+            />
+          </>
+        ) : (
+          <Section
+            title={filter === "template" ? "Templates" : "Documents"}
+            items={filtered}
+            emptyHint={
+              search.trim()
+                ? "No matches. Clear the search or pick another tab."
+                : filter === "template"
+                ? "No templates yet."
+                : "No documents yet."
+            }
+          />
+        )}
+      </div>
+
+      {/* Upload modal */}
+      {uploadOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--ink)]/30 backdrop-blur-sm px-4 py-8"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setUploadOpen(false);
+          }}
+        >
+          <div className="bg-[var(--canvas)] border border-[var(--rule)] rounded-[8px] shadow-xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="px-6 py-4 border-b border-[var(--rule)] flex items-center justify-between">
+              <div>
+                <div className="label-section mb-0.5">
+                  Upload to vault
+                </div>
+                <h3 className="text-sm font-semibold text-[var(--ink)]">
+                  {uploadKind === "template"
+                    ? "New template"
+                    : "New document"}
+                </h3>
+              </div>
+              <button
+                onClick={() => setUploadOpen(false)}
+                className="p-1.5 rounded-[4px] text-[var(--ink-muted)] hover:bg-[var(--canvas-subtle)] transition"
+              >
+                <X className="w-4 h-4" strokeWidth={1.5} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+              {/* Kind toggle (so user can flip without closing) */}
+              <div className="grid grid-cols-2 gap-2">
+                {(["template", "document"] as const).map((k) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setUploadKind(k)}
+                    className="text-left text-sm px-3 py-2.5 transition"
+                    style={{
+                      border:
+                        uploadKind === k
+                          ? "1px solid var(--ink)"
+                          : "1px solid var(--rule)",
+                      background:
+                        uploadKind === k
+                          ? "var(--canvas-subtle)"
+                          : "var(--canvas)",
+                      color: "var(--ink)",
+                      fontWeight: uploadKind === k ? 600 : 400,
+                      borderRadius: "var(--r-input)",
+                    }}
+                  >
+                    {k === "template" ? "Template" : "Document"}
+                  </button>
+                ))}
+              </div>
+
               <label className="block">
-                <div className="text-xs font-medium text-[var(--ink-muted)] mb-1.5">
-                  Type
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {(["document", "template"] as const).map((k) => (
-                    <button
-                      key={k}
-                      type="button"
-                      onClick={() => setUploadKind(k)}
-                      className="text-sm px-3 py-2 transition"
-                      style={{
-                        border:
-                          uploadKind === k
-                            ? "1px solid var(--ink)"
-                            : "1px solid var(--rule)",
-                        background:
-                          uploadKind === k
-                            ? "var(--canvas-subtle)"
-                            : "var(--canvas)",
-                        color: "var(--ink)",
-                        fontWeight: uploadKind === k ? 600 : 400,
-                        borderRadius: "var(--r-input)",
-                      }}
-                    >
-                      {k === "template" ? "Template" : "Document"}
-                    </button>
-                  ))}
-                </div>
-              </label>
-              <label className="block md:col-span-2">
                 <div className="text-xs font-medium text-[var(--ink-muted)] mb-1.5">
                   Title
                 </div>
@@ -241,213 +557,92 @@ export default function VaultClient() {
                   className="w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
                 />
               </label>
-            </div>
-            <label className="block mb-4">
-              <div className="text-xs font-medium text-[var(--ink-muted)] mb-1.5">
-                {uploadKind === "template"
-                  ? "Description (required) — what is this template for?"
-                  : "Description (optional)"}
-              </div>
-              <textarea
-                value={uploadDescription}
-                onChange={(e) => setUploadDescription(e.target.value)}
-                rows={3}
-                placeholder={
-                  uploadKind === "template"
-                    ? "Use this for cash offers on residential listings in Texas. Includes seller-fills-title-fee clause."
-                    : "Anything you want to remember about this doc."
-                }
-                className="w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)] resize-y"
-              />
-              {uploadKind === "template" && (
-                <p className="text-[11px] text-[var(--ink-subtle)] mt-1.5">
-                  Vergil reads this description to decide which template to
-                  reach for when you ask it to draft something.
-                </p>
-              )}
-            </label>
 
-            {/* File picker / drop zone */}
-            <div
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragOver(true);
-              }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setDragOver(false);
-                const f = e.dataTransfer.files?.[0];
-                if (f) setPendingFile(f);
-              }}
-              className={`rounded-[6px] border border-dashed p-6 text-center transition ${
-                dragOver
-                  ? "border-[var(--ink)] bg-[var(--canvas-subtle)]"
-                  : "border-[var(--rule-strong)] bg-[var(--canvas)]"
-              }`}
-            >
-              <input
-                id="vault-upload-file"
-                type="file"
-                onChange={(e) => setPendingFile(e.target.files?.[0] ?? null)}
-                className="hidden"
-              />
-              <label
-                htmlFor="vault-upload-file"
-                className="cursor-pointer block"
-              >
-                <Upload
-                  className="w-5 h-5 text-[var(--ink-muted)] mx-auto mb-2"
-                  strokeWidth={1.5}
+              <label className="block">
+                <div className="text-xs font-medium text-[var(--ink-muted)] mb-1.5">
+                  {uploadKind === "template"
+                    ? "Description (required) — what is this template for?"
+                    : "Description (optional)"}
+                </div>
+                <textarea
+                  value={uploadDescription}
+                  onChange={(e) => setUploadDescription(e.target.value)}
+                  rows={3}
+                  placeholder={
+                    uploadKind === "template"
+                      ? "Cash offers on residential listings in Texas. Includes seller-fills-title-fee clause."
+                      : "Anything you want to remember about this doc."
+                  }
+                  className="w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)] resize-y"
                 />
-                <div className="text-sm text-[var(--ink)] font-medium">
-                  {pendingFile
-                    ? pendingFile.name
-                    : "Drop a file or click to choose"}
-                </div>
-                <div className="text-[11px] text-[var(--ink-subtle)] mt-1">
-                  PDFs, Word, text. PDFs are text-extracted in the background.
-                </div>
               </label>
+
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragOver(true);
+                }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOver(false);
+                  const f = e.dataTransfer.files?.[0];
+                  if (f) setPendingFile(f);
+                }}
+                className={`rounded-[6px] border border-dashed p-6 text-center transition ${
+                  dragOver
+                    ? "border-[var(--ink)] bg-[var(--canvas-subtle)]"
+                    : "border-[var(--rule-strong)] bg-[var(--canvas)]"
+                }`}
+              >
+                <input
+                  id="vault-upload-file"
+                  type="file"
+                  onChange={(e) =>
+                    setPendingFile(e.target.files?.[0] ?? null)
+                  }
+                  className="hidden"
+                />
+                <label
+                  htmlFor="vault-upload-file"
+                  className="cursor-pointer block"
+                >
+                  <Upload
+                    className="w-5 h-5 text-[var(--ink-muted)] mx-auto mb-2"
+                    strokeWidth={1.5}
+                  />
+                  <div className="text-sm text-[var(--ink)] font-medium">
+                    {pendingFile
+                      ? pendingFile.name
+                      : "Drop a file or click to choose"}
+                  </div>
+                  <div className="text-[11px] text-[var(--ink-subtle)] mt-1">
+                    PDFs, Word, text. PDFs are text-extracted in the background.
+                  </div>
+                </label>
+              </div>
             </div>
 
-            <div className="mt-4 flex items-center gap-3">
+            <div className="px-6 py-4 border-t border-[var(--rule)] flex items-center gap-3">
               <button
                 onClick={submitUpload}
                 disabled={uploading}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-sm font-semibold disabled:opacity-50"
               >
                 {uploading ? (
-                  <Loader2
-                    className="w-4 h-4 animate-spin"
-                    strokeWidth={1.5}
-                  />
+                  <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.5} />
                 ) : (
-                  <Upload className="w-4 h-4" strokeWidth={1.5} />
+                  <Plus className="w-4 h-4" strokeWidth={1.5} />
                 )}
                 {uploading ? "Uploading…" : "Add to vault"}
               </button>
+              <span className="text-[11px] text-[var(--ink-subtle)]">
+                Press Esc to close.
+              </span>
             </div>
-          </section>
-        )}
-
-        {error && (
-          <div className="mb-4 px-3 py-2 text-sm text-[var(--danger)] bg-[var(--danger-soft)] border border-[var(--danger)]/30 rounded-[4px] flex items-center gap-2">
-            <AlertCircle className="w-4 h-4" strokeWidth={1.5} /> {error}
-          </div>
-        )}
-
-        {/* Filter chips + search */}
-        <div className="flex items-center gap-3 mb-6 flex-wrap">
-          <div className="flex items-center gap-1 p-0.5 rounded-[6px] border border-[var(--rule)] bg-[var(--canvas-subtle)]">
-            {KIND_FILTERS.map((k) => (
-              <button
-                key={k.value}
-                onClick={() => setFilter(k.value as any)}
-                className="px-3 py-1.5 rounded-[4px] text-xs font-medium transition"
-                style={{
-                  background:
-                    filter === k.value ? "var(--canvas)" : "transparent",
-                  color:
-                    filter === k.value ? "var(--ink)" : "var(--ink-muted)",
-                  boxShadow:
-                    filter === k.value
-                      ? "0 1px 2px rgba(0,0,0,0.04)"
-                      : "none",
-                }}
-              >
-                {k.label}
-              </button>
-            ))}
-          </div>
-          <div className="flex-1 min-w-[200px] relative">
-            <Search
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--ink-subtle)]"
-              strokeWidth={1.5}
-            />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search title or description…"
-              className="w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] pl-9 pr-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
-            />
           </div>
         </div>
-
-        {filtered === null ? (
-          <div className="flex items-center justify-center py-24">
-            <Loader2
-              className="w-6 h-6 animate-spin text-[var(--ink-subtle)]"
-              strokeWidth={1.5}
-            />
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="card-flat py-16 text-center">
-            <FileText
-              className="w-8 h-8 text-[var(--ink-subtle)] mx-auto mb-3"
-              strokeWidth={1.5}
-            />
-            <p className="text-sm text-[var(--ink-muted)] mb-4">
-              {rows && rows.length > 0
-                ? "No matches with this filter."
-                : "No items in the vault yet — upload your first template or document."}
-            </p>
-            {!uploadOpen && (
-              <button
-                onClick={() => setUploadOpen(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-sm font-semibold hover:opacity-90 transition"
-              >
-                <Upload className="w-4 h-4" strokeWidth={1.5} /> Upload
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="card-flat overflow-hidden">
-            <ul className="divide-y divide-[var(--rule)]">
-              {filtered.map((r) => (
-                <li
-                  key={r.id}
-                  onClick={() => router.push(`/vault/${r.id}`)}
-                  className="py-4 px-6 flex items-center gap-4 hover:bg-[var(--canvas-subtle)] transition cursor-pointer"
-                >
-                  {r.kind === "template" ? (
-                    <Sparkles
-                      className="w-4 h-4 text-[var(--accent)] shrink-0"
-                      strokeWidth={1.5}
-                    />
-                  ) : (
-                    <ScrollText
-                      className="w-4 h-4 text-[var(--ink-muted)] shrink-0"
-                      strokeWidth={1.5}
-                    />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline gap-2 flex-wrap">
-                      <span className="text-sm font-medium text-[var(--ink)] truncate">
-                        {r.title}
-                      </span>
-                      <span className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)]">
-                        {r.kind}
-                      </span>
-                    </div>
-                    {r.description && (
-                      <div className="text-[11px] text-[var(--ink-subtle)] truncate mt-0.5">
-                        {r.description}
-                      </div>
-                    )}
-                  </div>
-                  <span className="text-[10px] mono text-[var(--ink-subtle)] shrink-0">
-                    {formatSize(r.file_size)}
-                  </span>
-                  <span className="text-[10px] mono text-[var(--ink-subtle)] shrink-0">
-                    {new Date(r.updated_at).toLocaleDateString()}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }
