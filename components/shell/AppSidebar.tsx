@@ -1,15 +1,11 @@
 "use client";
 
-// AppSidebar — persistent left navigation. Replaces the top horizontal
-// nav. Modeled on Harvey's pattern: workspace identity at top, search,
-// module list with icons, Vergil/Dante gate as the distinct first-class
-// entry, then settings + sign out at the bottom. Recent activity slot
-// at the bottom is wired in a follow-up commit.
-//
-// Props are pulled from whichever data fetch the page already runs
-// (dashboard already has them); other pages import them via a small
-// hook in a follow-up. For now, every page that mounts AppShell passes
-// these explicitly so we don't add a new server-fetch on every route.
+// AppSidebar — Harvey-style icon-only left rail. Just under 64px
+// wide, no text labels except in tooltips on hover. Workspace badge
+// at the top (workspace initials in a small dark square), then the
+// "+ Create" primary action, then the module stack, then settings +
+// sign out at the bottom. Vergil/Dante gate is its own slot above
+// the footer so it stands apart.
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -30,8 +26,8 @@ import {
   Search,
   ShieldCheck,
   LayoutDashboard,
+  Plus,
 } from "lucide-react";
-import DanteGateLink from "@/components/dante/DanteGateLink";
 import { getIndustryConfig } from "@/lib/industry/config";
 
 export interface AppSidebarProps {
@@ -45,11 +41,17 @@ interface NavItem {
   href: string;
   label: string;
   icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
-  /** When set, only render if the workspace's enabled_features array
-   *  contains this feature id. */
   feature?: string;
-  /** When set, only render for workspaces of the matching industry. */
   industry?: string;
+}
+
+function workspaceInitials(name: string): string {
+  if (!name) return "?";
+  // First letters of the first two words; e.g. "Loretta's Workspace" → "LW"
+  const words = name.replace(/[^A-Za-z0-9 ]/g, "").trim().split(/\s+/);
+  if (words.length === 0) return "?";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
 }
 
 export default function AppSidebar({
@@ -62,10 +64,9 @@ export default function AppSidebar({
   const router = useRouter();
   const [searchOpen, setSearchOpen] = useState(false);
 
-  // ⌘K opens the (yet-to-be-built) global search modal. For now the
-  // shortcut is wired so the muscle memory is right; the modal lands
-  // in a follow-up commit. Pressing it currently focuses the input
-  // visually so the user knows the shortcut works.
+  // ⌘K opens the global search modal — currently a placeholder; the
+  // real cross-surface search lands in a follow-up commit. Wiring
+  // the shortcut now sets muscle memory.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -87,55 +88,70 @@ export default function AppSidebar({
     { href: "/review-tables", label: "Review tables", icon: Table2 },
     { href: "/library", label: "Library", icon: BookOpen },
     { href: "/reminders", label: "Reminders", icon: Bell },
-    { href: "/properties", label: "Properties", icon: Home, industry: "real_estate" },
+    {
+      href: "/properties",
+      label: "Properties",
+      icon: Home,
+      industry: "real_estate",
+    },
   ];
 
-  const isActive = (href: string) => {
+  const isActive = (href: string): boolean => {
     if (href === "/dashboard") return pathname === "/dashboard";
-    return pathname?.startsWith(href);
+    return !!(pathname && pathname.startsWith(href));
   };
 
   const assistantConfig = getIndustryConfig(industry);
+  const initials = workspaceInitials(workspaceName);
+
+  // Reusable icon-button class. Active state gets an inset light
+  // surface; idle state stays muted but lifts on hover.
+  const iconBtn = (active: boolean) =>
+    "w-9 h-9 flex items-center justify-center rounded-[6px] transition";
+  const iconBtnStyle = (active: boolean): React.CSSProperties => ({
+    background: active ? "var(--canvas)" : "transparent",
+    color: active ? "var(--ink)" : "var(--ink-muted)",
+    boxShadow: active ? "0 1px 2px rgba(0,0,0,0.05)" : "none",
+  });
 
   return (
     <aside
-      className="hidden lg:flex flex-col w-[240px] shrink-0 sticky top-0 h-screen bg-[var(--canvas-subtle)] border-r border-[var(--rule)]"
+      className="hidden lg:flex flex-col w-[60px] shrink-0 sticky top-0 h-screen bg-[var(--canvas-subtle)] border-r border-[var(--rule)] py-3"
       aria-label="Primary navigation"
     >
-      {/* Workspace identity */}
-      <div className="px-4 py-4 border-b border-[var(--rule)]">
-        <Link href="/dashboard" className="flex items-center gap-2.5 mb-0.5">
-          <img
-            src="/brand/logo-circle.png"
-            alt=""
-            className="w-6 h-6 rounded-full object-cover shrink-0"
-          />
-          <span className="text-sm font-semibold tracking-tight text-[var(--ink)]">
-            Drift
-          </span>
-        </Link>
-        <div className="text-[11px] mono text-[var(--ink-muted)] truncate ml-[34px]">
-          {workspaceName}
-        </div>
-      </div>
+      {/* Workspace badge — small dark square with initials. Click goes
+          to dashboard; we keep this as the home affordance instead of
+          a separate Drift logo. */}
+      <Link
+        href="/dashboard"
+        title={workspaceName}
+        className="self-center mb-2 w-9 h-9 rounded-[6px] bg-[var(--ink)] text-[var(--canvas)] flex items-center justify-center text-[11px] font-semibold tracking-tight"
+      >
+        {initials}
+      </Link>
 
-      {/* Search trigger — Cmd+K. The modal lands in a later commit; for
-          now clicking just opens a placeholder state. */}
-      <div className="px-3 py-3">
-        <button
-          onClick={() => setSearchOpen(true)}
-          className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-[6px] bg-[var(--canvas)] border border-[var(--rule)] hover:border-[var(--rule-strong)] text-left text-xs text-[var(--ink-muted)] transition"
-        >
-          <Search className="w-3.5 h-3.5 shrink-0" strokeWidth={1.5} />
-          <span className="flex-1">Search</span>
-          <kbd className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--canvas-subtle)] text-[var(--ink-subtle)] border border-[var(--rule)]">
-            ⌘K
-          </kbd>
-        </button>
-      </div>
+      {/* Search — Cmd+K affordance. */}
+      <button
+        onClick={() => setSearchOpen(true)}
+        title="Search · ⌘K"
+        className={`${iconBtn(false)} self-center mb-1 hover:bg-[var(--canvas)]`}
+        style={iconBtnStyle(false)}
+      >
+        <Search className="w-4 h-4" strokeWidth={1.5} />
+      </button>
 
-      {/* Modules */}
-      <nav className="flex-1 overflow-y-auto px-3 pb-3 space-y-0.5">
+      {/* Create — primary CTA. Placeholder action for now (could open
+          a "what do you want to make?" picker later). */}
+      <button
+        onClick={() => setSearchOpen(true)}
+        title="Create"
+        className="self-center mb-3 w-9 h-9 rounded-[6px] bg-[var(--ink)] text-[var(--canvas)] flex items-center justify-center hover:opacity-90 transition"
+      >
+        <Plus className="w-4 h-4" strokeWidth={1.75} />
+      </button>
+
+      {/* Module stack */}
+      <nav className="flex-1 overflow-y-auto flex flex-col items-center gap-0.5 px-2">
         {items.map((item) => {
           if (item.feature && !features.includes(item.feature)) return null;
           if (item.industry && industry !== item.industry) return null;
@@ -145,94 +161,69 @@ export default function AppSidebar({
             <Link
               key={item.href}
               href={item.href}
-              className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-[6px] text-sm transition"
-              style={{
-                background: active ? "var(--canvas)" : "transparent",
-                color: active ? "var(--ink)" : "var(--ink-muted)",
-                fontWeight: active ? 600 : 400,
-                boxShadow: active ? "0 1px 2px rgba(0,0,0,0.04)" : "none",
-              }}
+              title={item.label}
+              className={`${iconBtn(active)} hover:bg-[var(--canvas)]`}
+              style={iconBtnStyle(active)}
             >
-              <Icon
-                className="w-4 h-4 shrink-0"
-                strokeWidth={active ? 1.75 : 1.5}
-              />
-              <span className="truncate">{item.label}</span>
+              <Icon className="w-4 h-4" strokeWidth={active ? 1.75 : 1.5} />
             </Link>
           );
         })}
 
-        {/* Vergil/Dante gate — distinct visual treatment. The icon
-            and label come from IndustryConfig so RE workspaces see
-            the echo + "Vergil", FA workspaces see the gate + "Dante". */}
         {features.includes("dante") && (
-          <div className="pt-2 mt-2 border-t border-[var(--rule)]">
+          <>
+            <div className="w-6 my-1.5 border-t border-[var(--rule)]" />
             <Link
               href="/dante"
-              className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-[6px] text-sm transition"
-              style={{
-                background: pathname?.startsWith("/dante")
-                  ? "var(--canvas)"
-                  : "transparent",
-                color: "var(--ink)",
-                fontWeight: pathname?.startsWith("/dante") ? 600 : 500,
-                boxShadow: pathname?.startsWith("/dante")
-                  ? "0 1px 2px rgba(0,0,0,0.04)"
-                  : "none",
-              }}
+              title={assistantConfig.assistantName}
+              className={`${iconBtn(!!pathname?.startsWith("/dante"))} hover:bg-[var(--canvas)]`}
+              style={iconBtnStyle(!!pathname?.startsWith("/dante"))}
             >
               <img
                 src={assistantConfig.assistantIconPath}
                 alt=""
-                className="w-4 h-4 shrink-0 object-contain"
+                className="w-4 h-4 object-contain"
               />
-              <span className="truncate">{assistantConfig.assistantName}</span>
             </Link>
-          </div>
+          </>
         )}
       </nav>
 
-      {/* Footer — settings + sign out */}
-      <div className="px-3 py-3 border-t border-[var(--rule)] space-y-0.5">
+      {/* Footer */}
+      <div className="flex flex-col items-center gap-0.5 px-2 mt-2 pt-2 border-t border-[var(--rule)]">
         {isSuperadmin && (
           <Link
             href="/admin"
-            className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-[6px] text-sm text-[var(--accent)] hover:bg-[var(--canvas)] transition"
+            title="Admin"
+            className={`${iconBtn(false)} hover:bg-[var(--canvas)]`}
+            style={{ ...iconBtnStyle(false), color: "var(--accent)" }}
           >
-            <ShieldCheck className="w-4 h-4 shrink-0" strokeWidth={1.5} />
-            Admin
+            <ShieldCheck className="w-4 h-4" strokeWidth={1.5} />
           </Link>
         )}
         <Link
           href="/settings"
-          className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-[6px] text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas)] transition"
-          style={{
-            background: pathname?.startsWith("/settings")
-              ? "var(--canvas)"
-              : "transparent",
-            color: pathname?.startsWith("/settings")
-              ? "var(--ink)"
-              : "var(--ink-muted)",
-          }}
+          title="Settings"
+          className={`${iconBtn(!!(pathname && pathname.startsWith("/settings")))} hover:bg-[var(--canvas)]`}
+          style={iconBtnStyle(!!(pathname && pathname.startsWith("/settings")))}
         >
-          <Settings className="w-4 h-4 shrink-0" strokeWidth={1.5} />
-          Settings
+          <Settings className="w-4 h-4" strokeWidth={1.5} />
         </Link>
         <button
           onClick={async () => {
             await supabase.auth.signOut();
             router.push("/auth");
           }}
-          className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-[6px] text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas)] transition text-left"
+          title="Sign out"
+          className={`${iconBtn(false)} hover:bg-[var(--canvas)]`}
+          style={iconBtnStyle(false)}
         >
-          <LogOut className="w-4 h-4 shrink-0" strokeWidth={1.5} />
-          Sign out
+          <LogOut className="w-4 h-4" strokeWidth={1.5} />
         </button>
       </div>
 
-      {/* Placeholder for the global search modal — the real one lands
-          next commit. For now we render a tiny notice so users see the
-          ⌘K wiring is alive. */}
+      {/* Search placeholder modal — same one as before; the real
+          cross-surface search ships in the next commit. */}
       {searchOpen && (
         <div
           className="fixed inset-0 z-50 flex items-start justify-center bg-[var(--ink)]/30 backdrop-blur-sm pt-32 px-4"
@@ -256,8 +247,7 @@ export default function AppSidebar({
               </kbd>
             </div>
             <div className="px-4 py-8 text-center text-sm text-[var(--ink-subtle)]">
-              Global search lands in the next deploy. The shortcut is
-              wired so your muscle memory will be right when it ships.
+              Global search lands in the next deploy.
             </div>
           </div>
         </div>

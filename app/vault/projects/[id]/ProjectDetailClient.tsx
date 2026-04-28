@@ -1,9 +1,14 @@
 "use client";
 
-// ProjectDetailClient — Harvey-style project detail. Sticky header
-// with project name + Upload + Delete. Body has the file list (cards
-// grouped by kind). The "Loose files" virtual project (id='loose')
-// reuses the same view but without project metadata or delete.
+// ProjectDetailClient — Harvey-style project detail. The body is a
+// TABLE of files (not a card grid) so the project reads as a
+// structured corpus you can scan, sort, and select. Red PDF icons,
+// numbered rows, checkbox column, and an "+ Add column" header
+// affordance for triggering review-table-style extraction inline.
+//
+// Header keeps Upload + Delete actions on the right. The "Loose
+// files" virtual project (id='loose') reuses the same view without
+// project metadata.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -18,13 +23,16 @@ import {
   X,
   AlertCircle,
   Sparkles,
-  ScrollText,
   Search,
   Trash2,
   Pencil,
   Save,
   CheckCircle2,
   Table2,
+  FileText,
+  FileImage,
+  FileType,
+  File as FileIcon,
 } from "lucide-react";
 
 interface VaultItem {
@@ -49,10 +57,86 @@ interface Project {
 }
 
 function formatSize(bytes: number | null) {
-  if (!bytes) return "";
+  if (!bytes) return "—";
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatRelative(iso: string) {
+  const d = new Date(iso);
+  const now = new Date();
+  const sameYear = d.getFullYear() === now.getFullYear();
+  return d.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: sameYear ? undefined : "numeric",
+  });
+}
+
+// Pick an icon + tint based on file_type. Mirrors Harvey's red PDF
+// glyph — PDFs are the dominant type in this domain so they get the
+// distinctive red treatment; everything else gets a muted gray.
+function FileTypeIcon({
+  fileType,
+  fileName,
+  className = "w-4 h-4",
+}: {
+  fileType: string | null;
+  fileName: string;
+  className?: string;
+}) {
+  const lower = (fileType || "").toLowerCase();
+  const ext = fileName.toLowerCase().split(".").pop() || "";
+
+  if (lower.includes("pdf") || ext === "pdf") {
+    return (
+      <FileText
+        className={`${className} text-[#D93025] shrink-0`}
+        strokeWidth={1.5}
+      />
+    );
+  }
+  if (lower.includes("word") || ext === "doc" || ext === "docx") {
+    return (
+      <FileType
+        className={`${className} text-[#2A5BD7] shrink-0`}
+        strokeWidth={1.5}
+      />
+    );
+  }
+  if (lower.startsWith("image/") || ["png", "jpg", "jpeg", "gif", "webp"].includes(ext)) {
+    return (
+      <FileImage
+        className={`${className} text-[var(--ink-muted)] shrink-0`}
+        strokeWidth={1.5}
+      />
+    );
+  }
+  return (
+    <FileIcon
+      className={`${className} text-[var(--ink-muted)] shrink-0`}
+      strokeWidth={1.5}
+    />
+  );
+}
+
+// Type chip for the "Type" column. Templates get an accent pill,
+// documents get a muted one.
+function KindBadge({ kind }: { kind: "template" | "document" }) {
+  if (kind === "template") {
+    return (
+      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border border-[var(--accent)]/30 text-[var(--accent)] bg-[var(--accent-soft)]">
+        <Sparkles className="w-2.5 h-2.5" strokeWidth={1.75} />
+        Template
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border border-[var(--rule)] text-[var(--ink-muted)] bg-[var(--canvas-subtle)]">
+      Document
+    </span>
+  );
 }
 
 export default function ProjectDetailClient({
@@ -66,13 +150,14 @@ export default function ProjectDetailClient({
   const [looseItems, setLooseItems] = useState<VaultItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  // Edit-name state (proper projects only)
+  // Edit-name (proper projects only)
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
   const [savingName, setSavingName] = useState(false);
 
-  // Upload modal state
+  // Upload modal
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadKind, setUploadKind] =
     useState<"template" | "document">("document");
@@ -85,17 +170,14 @@ export default function ProjectDetailClient({
   const load = useCallback(async () => {
     setError(null);
     if (isLoose) {
-      // Loose items — fetch /api/vault filtered to project_id=null.
-      // The list endpoint doesn't have a "no project" filter built in,
-      // so we just fetch everything and filter client-side. At the
-      // workspace size we expect this is fine; tighten later if a
-      // workspace ever has thousands of items.
       const r = await fetch("/api/vault", { credentials: "include" });
       if (!r.ok) {
         setError((await r.json()).error || "Failed");
         return;
       }
-      const all = (await r.json()) as Array<VaultItem & { project_id?: string | null }>;
+      const all = (await r.json()) as Array<
+        VaultItem & { project_id?: string | null }
+      >;
       setLooseItems(all.filter((i) => !i.project_id));
       return;
     }
@@ -126,8 +208,21 @@ export default function ProjectDetailClient({
     );
   }, [items, search]);
 
-  const templates = filteredItems.filter((i) => i.kind === "template");
-  const documents = filteredItems.filter((i) => i.kind === "document");
+  const toggleAll = () => {
+    if (selected.size === filteredItems.length && filteredItems.length > 0) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(filteredItems.map((i) => i.id)));
+    }
+  };
+  const toggleOne = (id: string) => {
+    setSelected((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const saveName = async () => {
     if (!project || !nameDraft.trim() || nameDraft.trim() === project.name) {
@@ -154,7 +249,12 @@ export default function ProjectDetailClient({
 
   const deleteProject = async () => {
     if (isLoose) return;
-    if (!confirm("Delete this project? Items inside become loose (not deleted).")) return;
+    if (
+      !confirm(
+        "Delete this project? Items inside become loose (not deleted)."
+      )
+    )
+      return;
     const r = await fetch(`/api/vault/projects/${projectId}`, {
       method: "DELETE",
       credentials: "include",
@@ -175,7 +275,10 @@ export default function ProjectDetailClient({
     try {
       const form = new FormData();
       form.append("file", pendingFile);
-      const up = await fetch("/api/vault/upload", { method: "POST", body: form });
+      const up = await fetch("/api/vault/upload", {
+        method: "POST",
+        body: form,
+      });
       if (!up.ok) {
         const j = await up.json().catch(() => ({}));
         throw new Error(j.error || "Upload failed");
@@ -214,62 +317,6 @@ export default function ProjectDetailClient({
   const inputClass =
     "w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none focus:border-[var(--rule-strong)]";
 
-  // Card component reused for both template + document sections.
-  const ItemCard = ({ row }: { row: VaultItem }) => {
-    const isTemplate = row.kind === "template";
-    const Icon = isTemplate ? Sparkles : ScrollText;
-    return (
-      <button
-        onClick={() => router.push(`/vault/${row.id}`)}
-        className="group text-left transition flex flex-col hover:border-[var(--rule-strong)]"
-        style={{
-          background: "var(--canvas)",
-          border: "1px solid var(--rule)",
-          borderRadius: "8px",
-          minHeight: "170px",
-        }}
-      >
-        <div
-          className="flex items-center justify-center"
-          style={{
-            background: isTemplate ? "var(--accent-soft)" : "var(--canvas-subtle)",
-            borderRadius: "8px 8px 0 0",
-            height: "72px",
-          }}
-        >
-          <Icon
-            className={
-              isTemplate
-                ? "w-7 h-7 text-[var(--accent)]"
-                : "w-7 h-7 text-[var(--ink-muted)]"
-            }
-            strokeWidth={1.25}
-          />
-        </div>
-        <div className="flex-1 px-4 py-3 flex flex-col">
-          <div className="text-sm font-semibold text-[var(--ink)] truncate mb-1">
-            {row.title}
-          </div>
-          {row.description ? (
-            <p className="text-[12px] text-[var(--ink-muted)] line-clamp-2 mb-2">
-              {row.description}
-            </p>
-          ) : (
-            <p className="text-[12px] text-[var(--ink-subtle)] italic mb-2">
-              No description
-            </p>
-          )}
-          <div className="mt-auto flex items-center gap-2 text-[10px] mono text-[var(--ink-subtle)]">
-            <span>{isTemplate ? "Template" : "Document"}</span>
-            {row.file_size ? <span>·</span> : null}
-            {row.file_size ? <span>{formatSize(row.file_size)}</span> : null}
-          </div>
-        </div>
-      </button>
-    );
-  };
-
-  // Header values vary slightly between loose + real projects.
   const headerName = isLoose ? "Loose files" : project?.name ?? "";
   const headerDescription = isLoose
     ? "Items not yet placed in a project. Upload or move them somewhere they belong."
@@ -286,16 +333,17 @@ export default function ProjectDetailClient({
     );
   }
 
+  const allSelected =
+    filteredItems.length > 0 && selected.size === filteredItems.length;
+
   return (
     <div className="min-h-screen bg-[var(--canvas)] text-[var(--ink)]">
+      {/* Top bar */}
       <div className="sticky top-0 z-10 border-b border-[var(--rule)] bg-[var(--canvas)]/95 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-6 md:px-10 py-4 flex items-center justify-between gap-4 flex-wrap">
+        <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-4 flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3 text-sm text-[var(--ink-muted)] min-w-0">
-            <Link href="/dashboard" className="hover:text-[var(--ink)] transition">
-              Drift
-            </Link>
-            <span className="text-[var(--ink-subtle)]">/</span>
-            <Link href="/vault" className="hover:text-[var(--ink)] transition">
+            <Link href="/vault" className="hover:text-[var(--ink)] transition flex items-center gap-1">
+              <ArrowLeft className="w-3.5 h-3.5" strokeWidth={1.5} />
               Vault
             </Link>
             <span className="text-[var(--ink-subtle)]">/</span>
@@ -324,34 +372,22 @@ export default function ProjectDetailClient({
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 md:px-10 py-8 md:py-10">
-        {/* Project hero */}
-        <div className="mb-8">
-          <div className="flex items-start gap-4">
-            <div
-              className="flex items-center justify-center shrink-0"
-              style={{
-                width: 72,
-                height: 72,
-                background: "var(--canvas-subtle)",
-                border: "1px solid var(--rule)",
-                borderRadius: 8,
-              }}
-            >
-              {isLoose ? (
-                <Folder
-                  className="w-9 h-9 text-[var(--ink-subtle)]"
-                  strokeWidth={1.25}
-                />
-              ) : (
-                <FolderClosed
-                  className="w-9 h-9 text-[var(--ink-muted)]"
-                  strokeWidth={1.25}
-                />
-              )}
-            </div>
+      <div className="max-w-[1400px] mx-auto px-6 md:px-10 py-8">
+        {/* Project hero — compact, single line of metadata */}
+        <div className="mb-6">
+          <div className="flex items-start gap-3 mb-2">
+            {isLoose ? (
+              <Folder
+                className="w-5 h-5 text-[var(--ink-subtle)] mt-1"
+                strokeWidth={1.5}
+              />
+            ) : (
+              <FolderClosed
+                className="w-5 h-5 text-[var(--ink-muted)] mt-1"
+                strokeWidth={1.5}
+              />
+            )}
             <div className="flex-1 min-w-0">
-              <div className="label-section mb-1">Project</div>
               {!isLoose && editingName ? (
                 <div className="flex items-center gap-2 mb-1">
                   <input
@@ -361,7 +397,7 @@ export default function ProjectDetailClient({
                       if (e.key === "Enter") saveName();
                       if (e.key === "Escape") setEditingName(false);
                     }}
-                    className="heading-display text-3xl md:text-4xl text-[var(--ink)] leading-[1.1] bg-transparent border-b border-[var(--rule-strong)] focus:outline-none focus:border-[var(--ink)] px-1 py-0.5 max-w-xl"
+                    className="heading-display text-2xl md:text-3xl text-[var(--ink)] leading-[1.1] bg-transparent border-b border-[var(--rule-strong)] focus:outline-none focus:border-[var(--ink)] px-1 py-0.5 max-w-xl"
                     autoFocus
                   />
                   <button
@@ -390,126 +426,91 @@ export default function ProjectDetailClient({
                 </div>
               ) : (
                 <div className="flex items-baseline gap-2 mb-1">
-                  <h1 className="heading-display text-3xl md:text-4xl text-[var(--ink)] leading-[1.1]">
+                  <h1 className="heading-display text-2xl md:text-3xl text-[var(--ink)] leading-[1.1]">
                     {headerName}
                   </h1>
                   {!isLoose && (
                     <button
                       onClick={() => setEditingName(true)}
-                      className="opacity-0 hover:opacity-100 group-hover:opacity-100 p-1 rounded-[4px] text-[var(--ink-muted)] hover:bg-[var(--canvas-subtle)] transition"
+                      className="p-1 rounded-[4px] text-[var(--ink-subtle)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition"
                       title="Rename"
                     >
-                      <Pencil className="w-3.5 h-3.5" strokeWidth={1.5} />
+                      <Pencil className="w-3 h-3" strokeWidth={1.5} />
                     </button>
                   )}
                 </div>
               )}
-              <p className="text-sm text-[var(--ink-muted)] max-w-2xl">
+              <p className="text-xs text-[var(--ink-muted)] max-w-2xl">
                 {headerDescription || (
                   <span className="text-[var(--ink-subtle)] italic">
                     No description
                   </span>
                 )}
               </p>
-              <div className="mt-2 flex items-center gap-3 text-[11px] mono text-[var(--ink-subtle)]">
-                <span>{items.length} item{items.length === 1 ? "" : "s"}</span>
-                <span>·</span>
+              <div className="mt-2 flex items-center gap-2 text-[11px] mono text-[var(--ink-subtle)]">
                 <span>
-                  {documents.length} document{documents.length === 1 ? "" : "s"}
+                  {items.length} file{items.length === 1 ? "" : "s"}
                 </span>
-                <span>·</span>
-                <span>
-                  {templates.length} template{templates.length === 1 ? "" : "s"}
-                </span>
+                {items.length > 0 && (
+                  <>
+                    <span>·</span>
+                    <span>
+                      {items.filter((i) => i.kind === "template").length}{" "}
+                      template
+                      {items.filter((i) => i.kind === "template").length === 1 ? "" : "s"}
+                    </span>
+                    <span>·</span>
+                    <span>
+                      {items.filter((i) => i.kind === "document").length}{" "}
+                      document
+                      {items.filter((i) => i.kind === "document").length === 1 ? "" : "s"}
+                    </span>
+                  </>
+                )}
               </div>
             </div>
           </div>
         </div>
 
-        {/* Workflow CTAs — discovery for power features. Each links
-            into the appropriate flow with this project pre-selected
-            where possible. */}
+        {/* Workflow CTAs row — compact and inline */}
         {!isLoose && items.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
+          <div className="flex items-center gap-2 mb-6 flex-wrap">
             <Link
               href="/review-tables/new"
-              className="group flex items-center gap-4 px-5 py-3.5 transition hover:border-[var(--rule-strong)]"
-              style={{
-                background: "var(--canvas)",
-                border: "1px solid var(--rule)",
-                borderRadius: "8px",
-              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] border border-[var(--rule)] hover:bg-[var(--canvas-subtle)] text-xs font-medium text-[var(--ink)] transition"
             >
-              <div
-                className="flex items-center justify-center shrink-0"
-                style={{
-                  width: 40,
-                  height: 40,
-                  background: "var(--accent-soft)",
-                  borderRadius: 6,
-                }}
-              >
-                <Table2
-                  className="w-5 h-5 text-[var(--accent)]"
-                  strokeWidth={1.5}
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-[var(--ink)]">
-                  Create a review table
-                </div>
-                <div className="text-[11px] text-[var(--ink-muted)] truncate">
-                  Extract structured fields across these documents.
-                </div>
-              </div>
+              <Table2 className="w-3.5 h-3.5" strokeWidth={1.5} />
+              Create review table
             </Link>
             <Link
               href="/dante"
-              className="group flex items-center gap-4 px-5 py-3.5 transition hover:border-[var(--rule-strong)]"
-              style={{
-                background: "var(--canvas)",
-                border: "1px solid var(--rule)",
-                borderRadius: "8px",
-              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] border border-[var(--rule)] hover:bg-[var(--canvas-subtle)] text-xs font-medium text-[var(--ink)] transition"
             >
-              <div
-                className="flex items-center justify-center shrink-0"
-                style={{
-                  width: 40,
-                  height: 40,
-                  background: "var(--canvas-subtle)",
-                  borderRadius: 6,
-                }}
-              >
-                <Sparkles
-                  className="w-5 h-5 text-[var(--ink-muted)]"
-                  strokeWidth={1.5}
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-[var(--ink)]">
-                  Ask the assistant
-                </div>
-                <div className="text-[11px] text-[var(--ink-muted)] truncate">
-                  Question across this project's documents.
-                </div>
-              </div>
+              <Sparkles className="w-3.5 h-3.5" strokeWidth={1.5} />
+              Ask the assistant
             </Link>
           </div>
         )}
 
-        {/* Search */}
-        <div className="mb-6 max-w-md relative">
-          <Search
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--ink-subtle)]"
-            strokeWidth={1.5}
-          />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search this project"
-            className={`${inputClass} pl-9`}
-          />
+        {/* Search + selection summary */}
+        <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+          <div className="max-w-md flex-1 relative">
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--ink-subtle)]"
+              strokeWidth={1.5}
+            />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search this project"
+              className={`${inputClass} pl-9 py-1.5`}
+            />
+          </div>
+          {selected.size > 0 && (
+            <div className="text-xs text-[var(--ink-muted)] mono">
+              {selected.size} selected
+            </div>
+          )}
         </div>
 
         {error && (
@@ -519,7 +520,7 @@ export default function ProjectDetailClient({
         )}
 
         {items.length === 0 ? (
-          <div className="py-16 text-center">
+          <div className="py-16 text-center border border-dashed border-[var(--rule-strong)] rounded-[8px]">
             <Folder
               className="w-10 h-10 text-[var(--ink-subtle)] mx-auto mb-3"
               strokeWidth={1}
@@ -543,37 +544,120 @@ export default function ProjectDetailClient({
             )}
           </div>
         ) : (
-          <>
-            {templates.length > 0 && (
-              <section className="mb-10">
-                <h2 className="heading-display text-xl text-[var(--ink)] mb-3">
-                  Templates
-                </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {templates.map((r) => (
-                    <ItemCard key={r.id} row={r} />
-                  ))}
-                </div>
-              </section>
-            )}
-            {documents.length > 0 && (
-              <section className="mb-10">
-                <h2 className="heading-display text-xl text-[var(--ink)] mb-3">
-                  Documents
-                </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {documents.map((r) => (
-                    <ItemCard key={r.id} row={r} />
-                  ))}
-                </div>
-              </section>
-            )}
-          </>
+          <div className="border border-[var(--rule)] rounded-[8px] overflow-hidden bg-[var(--canvas)]">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="border-b border-[var(--rule)]">
+                  <tr>
+                    <th className="w-10 px-3 py-3 text-left">
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={toggleAll}
+                        className="w-3.5 h-3.5 accent-[var(--ink)] cursor-pointer"
+                        aria-label="Select all"
+                      />
+                    </th>
+                    <th className="w-10 px-2 py-3 text-left text-[10px] mono text-[var(--ink-subtle)] uppercase tracking-wider"></th>
+                    <th className="px-3 py-3 text-left label-section">Name</th>
+                    <th className="px-3 py-3 text-left label-section w-32">
+                      Type
+                    </th>
+                    <th className="px-3 py-3 text-left label-section w-32">
+                      Modified
+                    </th>
+                    <th className="px-3 py-3 text-right label-section w-28">
+                      Size
+                    </th>
+                    {/* "+ Add column" — placeholder for inline review-table
+                        column creation. Wired in a follow-up pass. */}
+                    <th className="px-3 py-3 text-left w-32">
+                      <button
+                        className="inline-flex items-center gap-1 text-xs text-[var(--ink-subtle)] hover:text-[var(--ink)] transition"
+                        title="Add a custom column (extracts data per file)"
+                        onClick={() =>
+                          alert(
+                            "Inline column extraction lands in the next pass. For now use Review Tables."
+                          )
+                        }
+                      >
+                        <Plus className="w-3 h-3" strokeWidth={1.75} />
+                        Add column
+                      </button>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredItems.map((item, i) => {
+                    const isSelected = selected.has(item.id);
+                    return (
+                      <tr
+                        key={item.id}
+                        onClick={() => router.push(`/vault/${item.id}`)}
+                        className="border-b border-[var(--rule)] last:border-b-0 hover:bg-[var(--canvas-subtle)] transition cursor-pointer"
+                        style={{
+                          background: isSelected
+                            ? "var(--canvas-subtle)"
+                            : undefined,
+                        }}
+                      >
+                        <td
+                          className="px-3 py-3"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleOne(item.id);
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleOne(item.id)}
+                            className="w-3.5 h-3.5 accent-[var(--ink)] cursor-pointer"
+                            aria-label={`Select ${item.title}`}
+                          />
+                        </td>
+                        <td className="px-2 py-3 text-[11px] mono text-[var(--ink-subtle)] text-center">
+                          {i + 1}
+                        </td>
+                        <td className="px-3 py-3">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <FileTypeIcon
+                              fileType={item.file_type}
+                              fileName={item.title}
+                            />
+                            <div className="min-w-0">
+                              <div className="text-sm text-[var(--ink)] truncate">
+                                {item.title}
+                              </div>
+                              {item.description && (
+                                <div className="text-[11px] text-[var(--ink-subtle)] truncate mt-0.5">
+                                  {item.description}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3">
+                          <KindBadge kind={item.kind} />
+                        </td>
+                        <td className="px-3 py-3 text-xs text-[var(--ink-muted)] mono">
+                          {formatRelative(item.updated_at)}
+                        </td>
+                        <td className="px-3 py-3 text-right text-xs text-[var(--ink-muted)] mono">
+                          {formatSize(item.file_size)}
+                        </td>
+                        <td className="px-3 py-3"></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
       </div>
 
-      {/* Upload modal — same shape as the previous Vault one but
-          posts project_id with the create call. */}
+      {/* Upload modal */}
       {uploadOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--ink)]/30 backdrop-blur-sm px-4 py-8"
