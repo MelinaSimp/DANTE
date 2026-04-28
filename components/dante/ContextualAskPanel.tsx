@@ -39,6 +39,7 @@ import {
 } from "@/app/dante/streamClient";
 import { useAssistantBrand } from "./AssistantNameProvider";
 import MarkdownRenderer from "@/app/dante/MarkdownRenderer";
+import type { StepLogEntry } from "@/lib/dante/workflow-types";
 
 export type EntityKind = "property" | "contact";
 
@@ -54,6 +55,10 @@ interface Props {
 interface Turn {
   role: "user" | "assistant";
   content: string;
+  /** Trace from the agent run — the citation map is derived from this
+   *  so [v1] / [mem:abc12345] markers in `content` render as clickable
+   *  chips. Empty for user turns. */
+  trace: StepLogEntry[];
 }
 
 const DEFAULT_PROMPTS: Record<EntityKind, string[]> = {
@@ -118,7 +123,7 @@ export default function ContextualAskPanel({
       const q = question.trim();
       if (!q || stream.streaming) return;
       setInput("");
-      setTurns((t) => [...t, { role: "user", content: q }]);
+      setTurns((t) => [...t, { role: "user", content: q, trace: [] }]);
       setStream({ ...initialStreamState(), streaming: true });
 
       const controller = new AbortController();
@@ -147,11 +152,15 @@ export default function ContextualAskPanel({
       }
 
       // After the stream resolves, fold the final assistant content
-      // into the turn history and reset the live stream state for
-      // the next question.
+      // into the turn history along with its trace so citation chips
+      // remain clickable when the user scrolls back. Reset the live
+      // stream state for the next question.
       setStream((s) => {
         if (s.finalContent) {
-          setTurns((t) => [...t, { role: "assistant", content: s.finalContent }]);
+          setTurns((t) => [
+            ...t,
+            { role: "assistant", content: s.finalContent, trace: s.trace },
+          ]);
         }
         return initialStreamState();
       });
@@ -268,7 +277,7 @@ export default function ContextualAskPanel({
                 )}
                 <div className="text-sm text-[var(--ink)] leading-relaxed">
                   {t.role === "assistant" ? (
-                    <MarkdownRenderer content={t.content} trace={[]} />
+                    <MarkdownRenderer content={t.content} trace={t.trace} />
                   ) : (
                     <span className="whitespace-pre-wrap">{t.content}</span>
                   )}

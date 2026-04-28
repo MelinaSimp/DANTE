@@ -40,6 +40,7 @@ import {
 } from "@/app/dante/streamClient";
 import MarkdownRenderer from "@/app/dante/MarkdownRenderer";
 import { useAssistantBrand } from "@/components/dante/AssistantNameProvider";
+import type { StepLogEntry } from "@/lib/dante/workflow-types";
 
 type Kind =
   | "vault_item"
@@ -83,6 +84,9 @@ type Mode = "search" | "ask";
 interface AskTurn {
   role: "user" | "assistant";
   content: string;
+  /** Captured trace from the agent run; powers citation chip
+   *  resolution in MarkdownRenderer. Empty for user turns. */
+  trace: StepLogEntry[];
 }
 
 export default function GlobalSearchModal({
@@ -223,7 +227,7 @@ export default function GlobalSearchModal({
       const qn = question.trim();
       if (!qn || stream.streaming) return;
       setAskInput("");
-      setTurns((t) => [...t, { role: "user", content: qn }]);
+      setTurns((t) => [...t, { role: "user", content: qn, trace: [] }]);
       setStream({ ...initialStreamState(), streaming: true });
 
       const controller = new AbortController();
@@ -246,7 +250,10 @@ export default function GlobalSearchModal({
 
       setStream((s) => {
         if (s.finalContent) {
-          setTurns((t) => [...t, { role: "assistant", content: s.finalContent }]);
+          setTurns((t) => [
+            ...t,
+            { role: "assistant", content: s.finalContent, trace: s.trace },
+          ]);
         }
         return initialStreamState();
       });
@@ -491,7 +498,7 @@ export default function GlobalSearchModal({
                   </div>
                   <div className="text-sm text-[var(--ink)] leading-relaxed">
                     {t.role === "assistant" ? (
-                      <MarkdownRenderer content={t.content} trace={[]} />
+                      <MarkdownRenderer content={t.content} trace={t.trace} />
                     ) : (
                       <span className="whitespace-pre-wrap">{t.content}</span>
                     )}

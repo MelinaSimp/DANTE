@@ -136,7 +136,8 @@ export default function DraftWithAssistant({
         "Output JUST the email body, ready to paste into the composer. " +
           "No preamble like 'Here's a draft:'. " +
           "If you want to propose a new subject line, prefix it on its own line as `Subject: <line>` before the body — otherwise omit the subject and only return the body. " +
-          "Plain text or light markdown only; the composer renders newlines as paragraph breaks.",
+          "Plain text or light markdown only; the composer renders newlines as paragraph breaks. " +
+          "Do NOT include citation markers like [v1] or [mem:abc12345] in the body — this output goes directly into an outgoing email, where those internal references would be confusing to the recipient.",
       );
       lines.push("");
       lines.push(`Request: ${p}`);
@@ -174,14 +175,30 @@ export default function DraftWithAssistant({
     return { subject: null, body: trimmed };
   };
 
+  // Strip internal citation markers ([v1], [mem:abc12345]) before
+  // pasting into the composer. The system prompt forbids them, but
+  // some models slip them in anyway — defensive scrub keeps the
+  // recipient from seeing internal vault references.
+  const stripCitations = (text: string): string => {
+    return text
+      .replace(/\[v\d+\]/g, "")
+      .replace(/\[mem:[a-f0-9]+\]/g, "")
+      // Collapse double spaces left behind by the strip.
+      .replace(/[ \t]{2,}/g, " ")
+      // Tidy " ." → "." artefacts.
+      .replace(/\s+([.,;:!?])/g, "$1")
+      .trim();
+  };
+
   const apply = (mode: "replace" | "append") => {
     const out = parseDraft(stream.finalContent);
-    if (!out.body) return;
+    const cleanBody = stripCitations(out.body);
+    if (!cleanBody) return;
     if (mode === "append") {
       const sep = currentBody.trim() ? "\n\n" : "";
-      onApply(currentBody + sep + out.body, out.subject || undefined);
+      onApply(currentBody + sep + cleanBody, out.subject || undefined);
     } else {
-      onApply(out.body, out.subject || undefined);
+      onApply(cleanBody, out.subject || undefined);
     }
     setStream(initialStreamState());
     setPrompt("");
