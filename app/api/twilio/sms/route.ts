@@ -5,6 +5,34 @@ import { AgentExecutor, ConversationContext } from "@/lib/agent-executor/executo
 import twilio from "twilio";
 import { validateTwilioRequest } from "@/lib/twilio-validate";
 import { decryptSecret } from "@/lib/crypto/secrets";
+import { remember } from "@/lib/dante/memory/write";
+
+// Best-effort phone → contact_id resolver. Tries the various phone
+// shapes Twilio surfaces (E.164, no-country-code, dashed) against
+// the workspace's contacts.phone column. Returns null if no match;
+// the memory entry then lands as a workspace-level episode without
+// a contact subject.
+async function resolveContactByPhone(
+  workspaceId: string,
+  rawPhone: string,
+): Promise<string | null> {
+  const normalized = normalizePhone(rawPhone);
+  const formats = [
+    rawPhone,
+    normalized,
+    normalized?.replace(/^\+1/, ""),
+    rawPhone.replace(/^\+1/, ""),
+  ].filter(Boolean) as string[];
+  if (formats.length === 0) return null;
+  const { data } = await supabaseAdmin
+    .from("contacts")
+    .select("id")
+    .eq("workspace_id", workspaceId)
+    .in("phone", Array.from(new Set(formats)))
+    .limit(1)
+    .maybeSingle();
+  return data?.id ?? null;
+}
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -258,6 +286,37 @@ export async function POST(req: NextRequest) {
       .from("conversations")
       .update(updates)
       .eq("id", conversation.id);
+
+    // Persist this SMS exchange to memory so D/V can ground future
+    // questions like "what did Smith last text me about?" Two
+    // episodes per turn — inbound + the agent's response — keyed
+    // on the Twilio MessageSid for source-cascade. Best-effort: a
+    // memory failure must never wedge the SMS reply path.
+    try {
+      const subjectContactId = await resolveContactByPhone(agent.workspace_id, from);
+      await Promise.all([
+        remember({
+          workspaceId: agent.workspace_id,
+          kind: "episode",
+          content: `SMS (inbound) from ${from}: ${body}`,
+          subjectContactId: subjectContactId ?? undefined,
+          sourceKind: "sms",
+          sourceId: messageSid,
+        }),
+        responseMessage
+          ? remember({
+              workspaceId: agent.workspace_id,
+              kind: "episode",
+              content: `SMS (sent by ${agent.name}) to ${from}: ${responseMessage}`,
+              subjectContactId: subjectContactId ?? undefined,
+              sourceKind: "sms",
+              sourceId: `${messageSid}:reply`,
+            })
+          : Promise.resolve(),
+      ]);
+    } catch (err) {
+      console.error("[twilio.sms] memory write failed:", err);
+    }
 
     // Get Twilio credentials - try database first, then environment variables
     let accountSid: string | null = null;

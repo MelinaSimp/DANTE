@@ -5,6 +5,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import twilio from "twilio";
+import { remember } from "@/lib/dante/memory/write";
+import { normalizePhone } from "@/lib/phone";
 import { recordSmsUsage } from "@/lib/usage/track";
 import { decryptSecret } from "@/lib/crypto/secrets";
 
@@ -138,6 +140,40 @@ export async function GET(req: NextRequest) {
             source: "scheduled",
             metadata: { scheduled_sms_id: sms.id, twilio_sid: message.sid },
           });
+        }
+
+        // Memory write — persist the outbound SMS as an episode so
+        // D/V can answer "what did I last text Smith?" Best-effort.
+        if (sms.workspace_id) {
+          try {
+            let subjectContactId: string | null = sms.contact_id ?? null;
+            if (!subjectContactId && sms.phone_number) {
+              const normalized = normalizePhone(sms.phone_number);
+              const formats = [
+                sms.phone_number,
+                normalized,
+                normalized?.replace(/^\+1/, ""),
+              ].filter(Boolean) as string[];
+              const { data: contact } = await supabaseAdmin
+                .from("contacts")
+                .select("id")
+                .eq("workspace_id", sms.workspace_id)
+                .in("phone", Array.from(new Set(formats)))
+                .limit(1)
+                .maybeSingle();
+              subjectContactId = contact?.id ?? null;
+            }
+            await remember({
+              workspaceId: sms.workspace_id,
+              kind: "episode",
+              content: `SMS (sent, scheduled) to ${sms.phone_number}: ${sms.message}`,
+              subjectContactId: subjectContactId ?? undefined,
+              sourceKind: "sms",
+              sourceId: message.sid,
+            });
+          } catch (err) {
+            console.error("[scheduled-sms] memory write failed:", err);
+          }
         }
 
         processed++;

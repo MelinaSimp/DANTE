@@ -20,6 +20,7 @@ import {
   formatReferenceContext,
 } from "@/lib/references/retrieve";
 import { logChurnEvent } from "@/lib/dante/churn-events";
+import { remember } from "@/lib/dante/memory/write";
 
 const MAX_UPLOAD_BYTES = 24 * 1024 * 1024; // Whisper API limit is 25 MB
 
@@ -266,6 +267,25 @@ export async function processRecording(opts: {
         : null,
     })
     .eq("id", recordingId);
+
+  // Persist the call summary as a memory episode so D/V can ground
+  // "what did we discuss with X last call?" questions. We store the
+  // summary, not the full transcript — the transcript is already on
+  // the linked notes row, and embedding 5,000-token transcripts is
+  // wasteful when the summary captures the load-bearing content.
+  // Best-effort: a memory failure doesn't fail the call pipeline.
+  try {
+    await remember({
+      workspaceId: rec.workspace_id,
+      kind: "episode",
+      content: `${header}\n\n${summary}`,
+      subjectContactId: rec.contact_id ?? undefined,
+      sourceKind: "call",
+      sourceId: recordingId,
+    });
+  } catch (err) {
+    console.error("[calls.pipeline] memory write failed:", err);
+  }
 
   // Per-topic churn events — one event per topic so Dante can track
   // decay + surface "low interest on X" in the timeline. Medium-interest

@@ -1,9 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { Resend } from "resend";
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { emitEvent } from "@/lib/automations";
 import { recordEmailUsage } from "@/lib/usage/track";
+import { remember } from "@/lib/dante/memory/write";
+
+// Crude HTML → text for memory storage. The email itself ships HTML
+// to the recipient; this stripped form is what D/V's memory.search
+// looks at. Doesn't need to be perfect — the body is also embedded.
+function htmlToText(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<\/?(p|div|br|h[1-6]|li|tr)[^>]*>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
 
 export const dynamic = "force-dynamic";
 
@@ -78,15 +100,19 @@ export async function POST(req: NextRequest) {
 
     emitEvent("email.sent", { to: recipients, subject, messageId: data?.id });
 
+    // Resolve workspace once — used for both usage tracking and the
+    // memory write below.
+    let workspaceId: string | null = null;
     try {
       const { data: prof } = await supabase
         .from("profiles")
         .select("workspace_id")
         .eq("id", user.id)
         .maybeSingle();
-      if (prof?.workspace_id) {
+      workspaceId = prof?.workspace_id ?? null;
+      if (workspaceId) {
         recordEmailUsage({
-          workspaceId: prof.workspace_id,
+          workspaceId,
           userId: user.id,
           recipientCount: recipients.length,
           source: "direct_send",
@@ -95,6 +121,45 @@ export async function POST(req: NextRequest) {
       }
     } catch (err) {
       console.error("[emails/send] usage tracking failed:", err);
+    }
+
+    // Persist the sent email as a memory episode so D/V can ground
+    // future "what did I last send to X?" questions. Best-effort —
+    // a memory failure never blocks the send response. Resolves the
+    // primary recipient to a contact id when possible so the entry
+    // is subject-scoped.
+    if (workspaceId) {
+      try {
+        const primaryRecipient = recipients[0];
+        const { data: contact } = await supabaseAdmin
+          .from("contacts")
+          .select("id")
+          .eq("workspace_id", workspaceId)
+          .ilike("email", primaryRecipient)
+          .maybeSingle();
+
+        const bodyText = htmlToText(htmlContent).slice(0, 4000);
+        const recipientLine =
+          recipients.length === 1
+            ? recipients[0]
+            : `${recipients[0]} +${recipients.length - 1} more`;
+        const content = [
+          `Email (sent) — ${subject} — to ${recipientLine}`,
+          "",
+          bodyText,
+        ].join("\n");
+
+        await remember({
+          workspaceId,
+          kind: "episode",
+          content,
+          subjectContactId: contact?.id ?? undefined,
+          sourceKind: "email",
+          sourceId: data?.id || `resend_${Date.now()}`,
+        });
+      } catch (err) {
+        console.error("[emails/send] memory write failed:", err);
+      }
     }
 
     return NextResponse.json({
