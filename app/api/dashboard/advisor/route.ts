@@ -54,15 +54,18 @@ export async function GET() {
   endOfToday.setHours(23, 59, 59, 999);
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
 
-  // Workspace name lookup
+  // Workspace name + industry lookup. The industry value is what
+  // drives the Dante↔Vergil branding swap on the dashboard top nav.
   let workspaceName = "Drift";
+  let industry: string | null = null;
   if (wid) {
     const { data: ws } = await supabaseAdmin
       .from("workspaces")
-      .select("name")
+      .select("name, industry")
       .eq("id", wid)
       .maybeSingle();
     if (ws?.name) workspaceName = ws.name;
+    if (ws?.industry) industry = ws.industry;
   }
 
   // ---- Fetch data in parallel ----
@@ -241,6 +244,7 @@ export async function GET() {
     // so a real-estate agent doesn't get addressed as "Advisor" by default.
     advisorName: profile.full_name || user.email?.split("@")[0] || "there",
     workspaceName,
+    industry,
     isSuperadmin: hasSuperadminAccess(user.email, profile.is_superadmin),
     features,
     today,
