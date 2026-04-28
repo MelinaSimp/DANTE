@@ -72,12 +72,16 @@ export async function POST(req: NextRequest) {
     deep?: boolean;
     context_contact_id?: string;
     context_contact_name?: string;
+    context_property_id?: string;
+    context_property_label?: string;
   };
   const message = (body.message || "").trim();
   if (!message) return jsonError(400, "message required");
   const deep = body.deep === true;
   const contextContactId = body.context_contact_id?.trim() || null;
   const contextContactName = body.context_contact_name?.trim() || null;
+  const contextPropertyId = body.context_property_id?.trim() || null;
+  const contextPropertyLabel = body.context_property_label?.trim() || null;
 
   // Resolve chat — create or verify ownership of existing.
   let chatId = body.chat_id;
@@ -129,12 +133,85 @@ export async function POST(req: NextRequest) {
     .map((m) => `${m.role === "user" ? "User" : "Dante"}: ${m.content}`)
     .join("\n\n");
 
-  // Contact scope is prepended so the model treats it as load-bearing
-  // context: any tool call that takes a contact_id should default to
-  // this one unless the user explicitly names a different contact.
-  const contextLine = contextContactId
-    ? `\n\nCONTEXT: this conversation is scoped to contact ${contextContactName || "(unknown name)"} (id: ${contextContactId}). When calling memory.search, clients.query, or skill.run, pass this contact_id by default unless the user asks about a different contact.`
-    : "";
+  // Entity scope is prepended so the model treats it as load-bearing
+  // context: any tool call that takes a contact_id or property_id
+  // should default to this one unless the user explicitly names a
+  // different entity. Property scope additionally fetches the
+  // property's address + linked clients + attached documents up
+  // front so the agent doesn't burn a tool call on the obvious
+  // first-step lookup.
+  let contextLine = "";
+  if (contextContactId) {
+    contextLine += `\n\nCONTEXT: this conversation is scoped to contact ${contextContactName || "(unknown name)"} (id: ${contextContactId}). When calling memory.search, clients.query, or skill.run, pass this contact_id by default unless the user asks about a different contact.`;
+  }
+  if (contextPropertyId) {
+    // Snapshot the property up front — saves the agent a hop.
+    const { data: prop } = await supabaseAdmin
+      .from("properties")
+      .select(
+        "address_line1, city, state, zip, kind, status, beds, baths, sqft, year_built, list_price_cents, monthly_rent_cents, lease_start_date, lease_end_date, description, interior_features, exterior_features",
+      )
+      .eq("id", contextPropertyId)
+      .eq("workspace_id", profile.workspace_id)
+      .maybeSingle();
+    const { data: links } = await supabaseAdmin
+      .from("property_clients")
+      .select("contact_id, role")
+      .eq("property_id", contextPropertyId);
+    const { data: docs } = await supabaseAdmin
+      .from("property_documents")
+      .select("id, title, doc_kind, expires_at")
+      .eq("workspace_id", profile.workspace_id)
+      .eq("property_id", contextPropertyId)
+      .order("expires_at", { ascending: true, nullsFirst: false });
+
+    const lines: string[] = [];
+    lines.push(
+      `\n\nCONTEXT: this conversation is scoped to property ${contextPropertyLabel || "(unknown)"} (id: ${contextPropertyId}).`,
+    );
+    if (prop) {
+      const facts: string[] = [];
+      const addr = [prop.address_line1, prop.city, prop.state, prop.zip].filter(Boolean).join(", ");
+      if (addr) facts.push(`address: ${addr}`);
+      if (prop.kind) facts.push(`kind: ${prop.kind}`);
+      if (prop.status) facts.push(`status: ${prop.status}`);
+      if (prop.beds != null) facts.push(`beds: ${prop.beds}`);
+      if (prop.baths != null) facts.push(`baths: ${prop.baths}`);
+      if (prop.sqft != null) facts.push(`sqft: ${prop.sqft}`);
+      if (prop.year_built != null) facts.push(`year built: ${prop.year_built}`);
+      if (prop.list_price_cents != null)
+        facts.push(`list price: $${(prop.list_price_cents / 100).toLocaleString()}`);
+      if (prop.monthly_rent_cents != null)
+        facts.push(`monthly rent: $${(prop.monthly_rent_cents / 100).toLocaleString()}`);
+      if (prop.lease_start_date) facts.push(`lease start: ${prop.lease_start_date}`);
+      if (prop.lease_end_date) facts.push(`lease end: ${prop.lease_end_date}`);
+      if (Array.isArray(prop.interior_features) && prop.interior_features.length > 0)
+        facts.push(`interior: ${prop.interior_features.join(", ")}`);
+      if (Array.isArray(prop.exterior_features) && prop.exterior_features.length > 0)
+        facts.push(`exterior: ${prop.exterior_features.join(", ")}`);
+      if (facts.length > 0) lines.push(`Property facts — ${facts.join("; ")}.`);
+      if (prop.description) lines.push(`Description: ${prop.description}`);
+    }
+    if (links && links.length > 0) {
+      lines.push(
+        `Linked clients (use clients.query for details): ${links
+          .map((l: any) => `${l.role}=${l.contact_id}`)
+          .join(", ")}.`,
+      );
+    }
+    if (docs && docs.length > 0) {
+      const docLines = docs
+        .map((d: any) =>
+          `${d.doc_kind} "${d.title}"${d.expires_at ? ` (expires ${d.expires_at})` : ""}`,
+        )
+        .join("; ");
+      lines.push(`Attached documents: ${docLines}.`);
+    }
+    lines.push(
+      "When tools take a property_id, contact_id, or document context, default to this property and its linked clients unless the user names a different entity.",
+    );
+    contextLine += lines.join("\n");
+  }
 
   const objective = priorTranscript
     ? `Previous turns in this conversation:\n\n${priorTranscript}${contextLine}\n\n---\n\nLatest user message: ${message}`

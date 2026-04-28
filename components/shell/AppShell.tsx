@@ -18,16 +18,27 @@
 // pages render full-width. A top mobile nav lands in a follow-up.
 
 import AppSidebar, { type AppSidebarProps } from "./AppSidebar";
+import { AssistantNameProvider } from "@/components/dante/AssistantNameProvider";
+import { getIndustryConfig } from "@/lib/industry/config";
 
 interface Props extends AppSidebarProps {
   children: React.ReactNode;
 }
 
 export default function AppShell({ children, ...sidebarProps }: Props) {
+  // Hoist the assistant brand to every authenticated page, not just
+  // /dante/*. ContextualAskPanel and any future surface that wants
+  // to address D/V by their per-vertical name can just useAssistantBrand().
+  const brand = getIndustryConfig(sidebarProps.industry);
   return (
-    <div className="flex min-h-screen bg-[var(--canvas)]">
-      <AppSidebar {...sidebarProps} />
-      <main className="flex-1 min-w-0">{children}</main>
-    </div>
+    <AssistantNameProvider
+      name={brand.assistantName}
+      iconPath={brand.assistantIconPath}
+    >
+      <div className="flex min-h-screen bg-[var(--canvas)]">
+        <AppSidebar {...sidebarProps} />
+        <main className="flex-1 min-w-0">{children}</main>
+      </div>
+    </AssistantNameProvider>
   );
 }

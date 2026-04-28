@@ -90,15 +90,25 @@ export default function AppSidebar({
   const pathname = usePathname();
   const router = useRouter();
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchInitialMode, setSearchInitialMode] = useState<"search" | "ask">(
+    "search",
+  );
 
-  // ⌘K opens the global search modal — currently a placeholder; the
-  // real cross-surface search lands in a follow-up commit. Wiring
-  // the shortcut now sets muscle memory.
+  // ⌘K opens the palette in Search mode; ⌘/ opens it directly in
+  // Ask mode (mnemonic: "ask"). Either shortcut closes the palette
+  // if already open, so the user can mash the key to dismiss it.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const k = e.key.toLowerCase();
+      if (k === "k") {
         e.preventDefault();
-        setSearchOpen(true);
+        setSearchInitialMode("search");
+        setSearchOpen((v) => !v);
+      } else if (k === "/") {
+        e.preventDefault();
+        setSearchInitialMode("ask");
+        setSearchOpen((v) => !v);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -267,7 +277,11 @@ export default function AppSidebar({
       {/* Real global search — keyboard-driven, debounced, paged
           across vault / projects / contacts / properties / prompts /
           tables / reminders. */}
-      <GlobalSearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
+      <GlobalSearchModal
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        initialMode={searchInitialMode}
+      />
 
     </aside>
   );

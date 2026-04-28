@@ -24,6 +24,7 @@ import {
   ExternalLink,
   CalendarClock,
 } from "lucide-react";
+import ContextualAskPanel from "@/components/dante/ContextualAskPanel";
 
 interface Property {
   id: string;
@@ -538,16 +539,28 @@ export default function PropertyDetailClient({
       </div>
 
       <div className="max-w-5xl mx-auto px-6 md:px-10 py-10 space-y-8">
-        <div>
-          <div className="label-section mb-2">Property</div>
-          <h1 className="heading-display text-4xl text-[var(--ink)]">
-            {property.address_line1}
-          </h1>
-          <p className="text-sm text-[var(--ink-muted)] mt-1">
-            {[property.city, property.state, property.zip]
-              .filter(Boolean)
-              .join(", ") || "—"}
-          </p>
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <div className="label-section mb-2">Property</div>
+            <h1 className="heading-display text-4xl text-[var(--ink)]">
+              {property.address_line1}
+            </h1>
+            <p className="text-sm text-[var(--ink-muted)] mt-1">
+              {[property.city, property.state, property.zip]
+                .filter(Boolean)
+                .join(", ") || "—"}
+            </p>
+          </div>
+          <div className="pt-2">
+            <ContextualAskPanel
+              entityKind="property"
+              entityId={property.id}
+              entityLabel={
+                property.address_line1 +
+                (property.city ? `, ${property.city}` : "")
+              }
+            />
+          </div>
         </div>
 
         {/* Address */}

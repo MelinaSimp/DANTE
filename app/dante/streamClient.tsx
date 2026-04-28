@@ -69,6 +69,10 @@ interface ConsumeInput {
     /** Scope the agent to one contact's memory + correspondence. */
     context_contact_id?: string;
     context_contact_name?: string;
+    /** Scope the agent to one property — includes its linked clients
+     *  and attached documents in the system prompt. */
+    context_property_id?: string;
+    context_property_label?: string;
   };
   signal?: AbortSignal;
   onUpdate: (state: StreamState) => void;
