@@ -47,7 +47,17 @@ export async function POST(request: Request) {
   const title = (body.title || "").trim();
   if (!title) return NextResponse.json({ error: "Title required" }, { status: 400 });
 
-  const columns = Array.isArray(body.columns) ? body.columns : [];
+  const VALID_KINDS = ["text", "number", "date", "yes_no", "currency", "verbatim", "list"];
+  const columns = Array.isArray(body.columns)
+    ? body.columns.filter(
+        (c: any) =>
+          c &&
+          typeof c.id === "string" &&
+          typeof c.name === "string" &&
+          typeof c.prompt === "string" &&
+          VALID_KINDS.includes(c.kind)
+      )
+    : [];
   const doc_ids = Array.isArray(body.doc_ids) ? body.doc_ids : [];
 
   const { data, error } = await supabase

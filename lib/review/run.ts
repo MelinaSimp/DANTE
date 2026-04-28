@@ -10,7 +10,14 @@ import OpenAI from "openai";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-export type ColumnKind = "text" | "number" | "date" | "yes_no";
+export type ColumnKind =
+  | "text"
+  | "number"
+  | "date"
+  | "yes_no"
+  | "currency"
+  | "verbatim"
+  | "list";
 
 export interface ReviewColumn {
   id: string;
@@ -55,6 +62,12 @@ async function extractCell(
       ? "Return only the numeric value, no units or commas."
       : column.kind === "yes_no"
       ? "Return exactly 'yes' or 'no'."
+      : column.kind === "currency"
+      ? "Return the dollar amount in the format '$<number>' (e.g. '$1,250,000'). Include the currency symbol; commas in long numbers are fine. If the doc states a different currency, prefix appropriately (e.g. '€', '£')."
+      : column.kind === "verbatim"
+      ? "Return a verbatim quote from the document, preserving exact wording. Do not paraphrase, summarize, or add commentary. The 'value' field IS the quote (no surrounding quotes needed; the citation field will repeat the same text)."
+      : column.kind === "list"
+      ? "Return a comma-separated list of items. Each item should be short (e.g. names, terms). No bullets, no numbering."
       : "Return a short, direct answer (one sentence max).";
 
   const systemPrompt = `You answer one question about one document. Output ONLY this JSON:

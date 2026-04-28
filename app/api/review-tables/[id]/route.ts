@@ -66,7 +66,17 @@ export async function PATCH(
   const body = await request.json();
   const updates: Record<string, unknown> = {};
   if (typeof body.title === "string" && body.title.trim()) updates.title = body.title.trim();
-  if (Array.isArray(body.columns)) updates.columns = body.columns;
+  if (Array.isArray(body.columns)) {
+    const VALID_KINDS = ["text", "number", "date", "yes_no", "currency", "verbatim", "list"];
+    updates.columns = body.columns.filter(
+      (c: any) =>
+        c &&
+        typeof c.id === "string" &&
+        typeof c.name === "string" &&
+        typeof c.prompt === "string" &&
+        VALID_KINDS.includes(c.kind)
+    );
+  }
   if (Array.isArray(body.doc_ids)) updates.doc_ids = body.doc_ids;
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "No fields" }, { status: 400 });

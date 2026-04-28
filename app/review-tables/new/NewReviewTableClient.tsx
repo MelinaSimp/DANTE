@@ -20,7 +20,14 @@ import {
   Check,
 } from "lucide-react";
 
-type Kind = "text" | "date" | "number" | "yes_no";
+type Kind =
+  | "text"
+  | "date"
+  | "number"
+  | "yes_no"
+  | "currency"
+  | "verbatim"
+  | "list";
 
 interface Column {
   id: string;
@@ -36,11 +43,22 @@ interface VaultItem {
   description: string | null;
 }
 
+interface ReviewTemplateSummary {
+  id: string;
+  name: string;
+  description: string;
+  industry: string;
+  columns: Array<{ name: string; prompt: string; kind: Kind }>;
+}
+
 const KIND_LABEL: Record<Kind, string> = {
   text: "Text",
   date: "Date",
   number: "Number",
   yes_no: "Yes / No",
+  currency: "Currency",
+  verbatim: "Verbatim quote",
+  list: "List",
 };
 
 function newColumnId(): string {
@@ -58,13 +76,41 @@ export default function NewReviewTableClient() {
   const [selectedDocs, setSelectedDocs] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [templates, setTemplates] = useState<ReviewTemplateSummary[]>([]);
 
   useEffect(() => {
     fetch("/api/vault", { credentials: "include" })
       .then((r) => (r.ok ? r.json() : []))
       .then((d) => setDocs(Array.isArray(d) ? d : []))
       .catch(() => setDocs([]));
+    fetch("/api/review-tables/templates", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => setTemplates(Array.isArray(d) ? d : []))
+      .catch(() => setTemplates([]));
   }, []);
+
+  // Apply a template — overwrites title (suggestion) and columns.
+  // Doc selection is preserved so the user can build a template +
+  // pick docs in either order.
+  const applyTemplate = (t: ReviewTemplateSummary) => {
+    if (
+      columns.some((c) => c.name.trim() || c.prompt.trim()) &&
+      !confirm(
+        `Replace your current columns with the "${t.name}" template? Your unsaved column edits will be lost.`
+      )
+    ) {
+      return;
+    }
+    if (!title.trim()) setTitle(t.name);
+    setColumns(
+      t.columns.map((c) => ({
+        id: newColumnId(),
+        name: c.name,
+        prompt: c.prompt,
+        kind: c.kind,
+      }))
+    );
+  };
 
   const inputClass =
     "w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none focus:border-[var(--rule-strong)]";
@@ -177,6 +223,49 @@ export default function NewReviewTableClient() {
             becomes a question it answers per row, with citations.
           </p>
         </div>
+
+        {/* Templates — Harvey "one-click workflow" pattern. Filtered
+            by workspace industry on the server. */}
+        {templates.length > 0 && (
+          <section className="card-flat p-5">
+            <div className="flex items-baseline justify-between mb-3">
+              <div>
+                <div className="label-section mb-0.5">Start from a template</div>
+                <p className="text-xs text-[var(--ink-muted)]">
+                  Pre-built column sets for common doc types — click to
+                  populate the columns below.
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {templates.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => applyTemplate(t)}
+                  className="text-left transition flex flex-col hover:border-[var(--rule-strong)]"
+                  style={{
+                    background: "var(--canvas)",
+                    border: "1px solid var(--rule)",
+                    borderRadius: "8px",
+                    padding: "12px 14px",
+                  }}
+                >
+                  <div className="flex items-baseline justify-between gap-2 mb-1">
+                    <span className="text-sm font-semibold text-[var(--ink)] truncate">
+                      {t.name}
+                    </span>
+                    <span className="text-[10px] mono text-[var(--ink-subtle)] shrink-0">
+                      {t.columns.length} cols
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[var(--ink-muted)] line-clamp-2">
+                    {t.description}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Title */}
         <section className="card-flat p-5">
