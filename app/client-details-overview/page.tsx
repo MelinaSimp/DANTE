@@ -1,5 +1,7 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { getShellContext } from "@/lib/shell/workspace-context";
+import AppShell from "@/components/shell/AppShell";
 import ClientDetailsOverviewClient from "./ClientDetailsOverviewClient";
 
 export default async function ClientDetailsOverviewPage({
@@ -7,18 +9,17 @@ export default async function ClientDetailsOverviewPage({
 }: {
   searchParams: Promise<{ contactId?: string }>;
 }) {
-  const supabase = await createServerSupabase();
+  const ctx = await getShellContext();
+  if (!ctx) redirect("/auth");
 
+  const supabase = await createServerSupabase();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  if (!user) redirect("/auth");
-
   const { data: profile } = await supabase
     .from("profiles")
     .select("workspace_id")
-    .eq("id", user.id)
+    .eq("id", user!.id)
     .maybeSingle();
 
   let contacts: { id: string; name: string; phone?: string; email?: string }[] = [];
@@ -35,11 +36,13 @@ export default async function ClientDetailsOverviewPage({
   const initialContactId = params.contactId ?? null;
 
   return (
-    <div className="min-h-screen bg-[var(--canvas)]">
-      <ClientDetailsOverviewClient
-        initialContacts={contacts}
-        initialContactId={initialContactId}
-      />
-    </div>
+    <AppShell {...ctx}>
+      <div className="min-h-screen bg-[var(--canvas)]">
+        <ClientDetailsOverviewClient
+          initialContacts={contacts}
+          initialContactId={initialContactId}
+        />
+      </div>
+    </AppShell>
   );
 }

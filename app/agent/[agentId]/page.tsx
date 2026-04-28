@@ -13,6 +13,8 @@
 import { redirect, notFound } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getShellContext } from "@/lib/shell/workspace-context";
+import AppShell from "@/components/shell/AppShell";
 import AgentConfigClient from "./AgentConfigClient";
 
 export const dynamic = "force-dynamic";
@@ -24,18 +26,18 @@ export default async function AgentConfigPage({
 }) {
   const { agentId } = await params;
 
+  const ctx = await getShellContext();
+  if (!ctx) redirect("/auth");
+
   const supabase = await createServerSupabase();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect("/auth");
-
   const { data: profile } = await supabase
     .from("profiles")
     .select("workspace_id")
-    .eq("id", user.id)
+    .eq("id", user!.id)
     .maybeSingle();
-  if (!profile?.workspace_id) redirect("/dashboard");
 
   const { data: agent } = await supabaseAdmin
     .from("agents")
@@ -43,7 +45,7 @@ export default async function AgentConfigPage({
       "id, name, description, llm_instructions, first_message, modality, status, voice_provider, vapi_assistant_id, elevenlabs_voice_id, phone_number, llm_model"
     )
     .eq("id", agentId)
-    .eq("workspace_id", profile.workspace_id)
+    .eq("workspace_id", profile!.workspace_id)
     .maybeSingle();
   if (!agent) notFound();
 
@@ -54,9 +56,11 @@ export default async function AgentConfigPage({
     .order("created_at", { ascending: false });
 
   return (
-    <AgentConfigClient
-      agent={agent}
-      initialDataSources={dataSources ?? []}
-    />
+    <AppShell {...ctx}>
+      <AgentConfigClient
+        agent={agent}
+        initialDataSources={dataSources ?? []}
+      />
+    </AppShell>
   );
 }
