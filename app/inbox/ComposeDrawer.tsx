@@ -18,6 +18,7 @@ import {
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
+import DraftWithAssistant from "@/components/dante/DraftWithAssistant";
 
 interface Props {
   open: boolean;
@@ -166,18 +167,27 @@ export default function ComposeDrawer({
               className={inputClass}
             />
           </label>
-          <label className="block flex-1">
-            <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] mb-1">
+          <div className="flex items-center justify-between">
+            <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)]">
               Message
             </div>
-            <textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              placeholder="Write your message…"
-              rows={14}
-              className={`${inputClass} resize-y leading-relaxed`}
+            <DraftWithAssistant
+              toEmail={to}
+              subject={subject}
+              currentBody={body}
+              onApply={(b, s) => {
+                setBody(b);
+                if (s) setSubject(s);
+              }}
             />
-          </label>
+          </div>
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder="Write your message…"
+            rows={14}
+            className={`${inputClass} resize-y leading-relaxed`}
+          />
           {error && (
             <div className="px-3 py-2 text-sm text-[var(--danger)] bg-[var(--danger-soft)] border border-[var(--danger)]/30 rounded-[4px] flex items-center gap-2">
               <AlertCircle className="w-4 h-4" strokeWidth={1.5} />

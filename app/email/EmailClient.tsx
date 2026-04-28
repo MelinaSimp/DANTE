@@ -29,10 +29,10 @@ import {
   X,
   Send,
   Loader2,
-  Sparkles,
   ChevronDown,
 } from "lucide-react";
 import { reportError } from "@/lib/report-error";
+import DraftWithAssistant from "@/components/dante/DraftWithAssistant";
 
 interface Contact {
   id: string;
@@ -159,13 +159,9 @@ export default function EmailClient({ agentId }: { agentId: string }) {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
-  const [aiPrompt, setAiPrompt] = useState("");
-  const [aiResponse, setAiResponse] = useState("");
-  const [loadingAi, setLoadingAi] = useState(false);
   const [sentEmails, setSentEmails] = useState<SentEmail[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [showAiHelper, setShowAiHelper] = useState(false);
   const [toast, setToast] = useState<{
     type: "success" | "error";
     message: string;
@@ -233,9 +229,6 @@ export default function EmailClient({ agentId }: { agentId: string }) {
     setToEmail("");
     setSubject("");
     setBody("");
-    setAiPrompt("");
-    setAiResponse("");
-    setShowAiHelper(false);
   };
 
   const handleSelectTemplate = (template: EmailTemplate) => {
@@ -243,9 +236,6 @@ export default function EmailClient({ agentId }: { agentId: string }) {
     setComposing(true);
     setSubject(template.subject);
     setBody(template.body);
-    setAiPrompt("");
-    setAiResponse("");
-    setShowAiHelper(false);
   };
 
   const handleSelectContact = (contact: Contact) => {
@@ -258,46 +248,6 @@ export default function EmailClient({ agentId }: { agentId: string }) {
       setBody(
         selectedTemplate.body.replace(/\{client_name\}/g, contact.name)
       );
-    }
-  };
-
-  const handleAskAi = async () => {
-    if (!aiPrompt.trim()) return;
-    setLoadingAi(true);
-    setAiResponse("");
-    try {
-      const response = await fetch("/api/llm/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          message: `You are helping compose an email. Here is the current email body:\n\n---\n${body}\n---\n\nThe user's request: ${aiPrompt}\n\nPlease provide the improved or new email body text only, without any extra explanation.`,
-          history: [],
-          agentId,
-          recipientEmail: toEmail || undefined,
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const content = data.message || data.content || data.response || "";
-        setAiResponse(content);
-      } else {
-        setAiResponse("Sorry, I couldn't generate a response. Please try again.");
-      }
-    } catch {
-      setAiResponse("Failed to reach AI. Please try again.");
-    } finally {
-      setLoadingAi(false);
-    }
-  };
-
-  const handleApplyAiSuggestion = () => {
-    if (aiResponse) {
-      setBody(aiResponse);
-      setAiResponse("");
-      setAiPrompt("");
-      setShowAiHelper(false);
     }
   };
 
@@ -337,9 +287,6 @@ export default function EmailClient({ agentId }: { agentId: string }) {
         setToEmail("");
         setSubject("");
         setBody("");
-        setAiPrompt("");
-        setAiResponse("");
-        setShowAiHelper(false);
       } else {
         showToast("error", result.error || "Failed to send email");
       }
@@ -461,7 +408,6 @@ export default function EmailClient({ agentId }: { agentId: string }) {
                     onClick={() => {
                       setComposing(false);
                       setSelectedTemplate(null);
-                      setShowAiHelper(false);
                     }}
                     className="p-1.5 hover:bg-[var(--canvas-subtle)] rounded-[4px] transition"
                     aria-label="Close composer"
@@ -543,106 +489,20 @@ export default function EmailClient({ agentId }: { agentId: string }) {
                     />
                   </div>
 
-                  {/* AI Helper */}
-                  {!showAiHelper ? (
-                    <button
-                      onClick={() => setShowAiHelper(true)}
-                      className="inline-flex items-center gap-2 rounded-[4px] border border-[var(--rule)] px-3 py-2 text-sm text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition"
-                    >
-                      <Sparkles className="w-4 h-4 text-[var(--ink-muted)]" strokeWidth={1.5} />
-                      Ask AI to help
-                    </button>
-                  ) : (
-                    <div className="space-y-2">
-                      <div
-                        className="group relative flex items-center gap-2 rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] pl-3 pr-1.5 py-1.5 transition focus-within:border-[var(--ink)]"
-                      >
-                        <Sparkles
-                          className="w-4 h-4 shrink-0 text-[var(--ink-muted)] group-focus-within:text-[var(--ink)] transition"
-                          strokeWidth={1.5}
-                        />
-                        <input
-                          type="text"
-                          value={aiPrompt}
-                          onChange={(e) => setAiPrompt(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && !e.shiftKey) {
-                              e.preventDefault();
-                              handleAskAi();
-                            }
-                          }}
-                          placeholder={
-                            body.trim()
-                              ? "Tell the AI how to refine this draft…"
-                              : "Tell the AI what this email is about…"
-                          }
-                          className="flex-1 bg-transparent text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none"
-                        />
-                        <button
-                          onClick={handleAskAi}
-                          disabled={loadingAi || !aiPrompt.trim()}
-                          className="inline-flex items-center justify-center w-7 h-7 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] hover:bg-[var(--ink)]/90 disabled:opacity-30 disabled:cursor-not-allowed transition"
-                          aria-label="Send prompt"
-                        >
-                          {loadingAi ? (
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.5} />
-                          ) : (
-                            <Send className="w-3.5 h-3.5" strokeWidth={1.5} />
-                          )}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setShowAiHelper(false);
-                            setAiPrompt("");
-                            setAiResponse("");
-                          }}
-                          className="inline-flex items-center justify-center w-7 h-7 rounded-[4px] text-[var(--ink-subtle)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition"
-                          aria-label="Close AI helper"
-                        >
-                          <X className="w-3.5 h-3.5" strokeWidth={1.5} />
-                        </button>
-                      </div>
-                      {body.trim() && !aiResponse && !loadingAi && (
-                        <div className="flex flex-wrap gap-1.5">
-                          {["Make it shorter", "More professional", "More friendly", "Fix grammar"].map((p) => (
-                            <button
-                              key={p}
-                              type="button"
-                              onClick={() => {
-                                setAiPrompt(p);
-                                setTimeout(() => handleAskAi(), 0);
-                              }}
-                              className="text-[11px] text-[var(--ink-muted)] hover:text-[var(--ink)] border border-[var(--rule)] hover:border-[var(--ink)] rounded-[4px] px-2 py-1 transition"
-                            >
-                              {p}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      {aiResponse && (
-                        <div className="space-y-2">
-                          <div className="rounded-[4px] border border-[var(--rule)] bg-[var(--canvas-subtle)] px-3 py-2.5 text-sm text-[var(--ink)] leading-relaxed whitespace-pre-wrap max-h-64 overflow-y-auto">
-                            {aiResponse}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={handleApplyAiSuggestion}
-                              className="inline-flex items-center gap-1.5 rounded-[4px] bg-[var(--ink)] px-3 py-1.5 text-xs font-medium text-[var(--canvas)] hover:bg-[var(--ink)]/90 transition"
-                            >
-                              <Sparkles className="w-3 h-3" strokeWidth={1.5} />
-                              Apply to email body
-                            </button>
-                            <button
-                              onClick={() => setAiResponse("")}
-                              className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
-                            >
-                              Discard
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  {/* AI helper — agent-grounded draft assist. Replaces the
+                      old /api/llm/chat passthrough; this version routes
+                      through /api/dante/ask so memory + vault grounding
+                      apply, and resolves the recipient to a contact_id
+                      automatically when the email matches. */}
+                  <DraftWithAssistant
+                    toEmail={toEmail}
+                    subject={subject}
+                    currentBody={body}
+                    onApply={(b, s) => {
+                      setBody(b);
+                      if (s) setSubject(s);
+                    }}
+                  />
                 </div>
 
                 <div className="px-6 py-4 border-t border-[var(--rule)]">
