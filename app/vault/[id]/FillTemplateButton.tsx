@@ -15,7 +15,55 @@ import {
   AlertCircle,
   Download,
   CheckCircle2,
+  Eye,
+  EyeOff,
 } from "lucide-react";
+
+// ── Word-level diff (LCS-based) ─────────────────────────────────
+//
+// Used by the "Show edits" toggle so the user can see exactly which
+// runs of text Vergil added when filling the template. Splits on
+// whitespace boundaries, runs an O(m*n) LCS, then walks the table
+// to produce same/add/remove segments. Templates here are < a few
+// thousand words so the quadratic memory is fine; if that ever
+// changes, swap for a streaming diff.
+
+type DiffSegment = { kind: "same" | "add" | "remove"; text: string };
+
+function diffByWords(a: string, b: string): DiffSegment[] {
+  const aw = a.split(/(\s+)/);
+  const bw = b.split(/(\s+)/);
+  const m = aw.length;
+  const n = bw.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, () =>
+    Array(n + 1).fill(0)
+  );
+  for (let i = m - 1; i >= 0; i--) {
+    for (let j = n - 1; j >= 0; j--) {
+      if (aw[i] === bw[j]) dp[i][j] = dp[i + 1][j + 1] + 1;
+      else dp[i][j] = Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+  const out: DiffSegment[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < m && j < n) {
+    if (aw[i] === bw[j]) {
+      out.push({ kind: "same", text: aw[i] });
+      i++;
+      j++;
+    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+      out.push({ kind: "remove", text: aw[i] });
+      i++;
+    } else {
+      out.push({ kind: "add", text: bw[j] });
+      j++;
+    }
+  }
+  while (i < m) out.push({ kind: "remove", text: aw[i++] });
+  while (j < n) out.push({ kind: "add", text: bw[j++] });
+  return out;
+}
 
 interface Contact {
   id: string;
@@ -62,6 +110,10 @@ export default function FillTemplateButton({
   const [filling, setFilling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<FillResult | null>(null);
+  // "edits" highlights additions inline on the filled side; "clean"
+  // shows just the final draft text. Defaults to edits because the
+  // user's first instinct is "what did the AI change?".
+  const [viewMode, setViewMode] = useState<"edits" | "clean">("edits");
 
   useEffect(() => {
     if (!open) return;
@@ -310,6 +362,29 @@ export default function FillTemplateButton({
                       <span className="text-[10px] mono text-[var(--ink-subtle)]">
                         ~{(result.cost_cents_estimate / 100).toFixed(2)}¢ this fill
                       </span>
+                      <button
+                        onClick={() =>
+                          setViewMode((v) => (v === "edits" ? "clean" : "edits"))
+                        }
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] border border-[var(--rule)] hover:bg-[var(--canvas-subtle)] text-[11px] font-medium text-[var(--ink-muted)] transition"
+                        title={
+                          viewMode === "edits"
+                            ? "Hide highlights of what Vergil added"
+                            : "Highlight what Vergil added"
+                        }
+                      >
+                        {viewMode === "edits" ? (
+                          <>
+                            <EyeOff className="w-3 h-3" strokeWidth={1.5} />
+                            Hide edits
+                          </>
+                        ) : (
+                          <>
+                            <Eye className="w-3 h-3" strokeWidth={1.5} />
+                            Show edits
+                          </>
+                        )}
+                      </button>
                     </div>
                   </div>
 
@@ -323,11 +398,34 @@ export default function FillTemplateButton({
                       </pre>
                     </div>
                     <div className="border border-[var(--rule)] rounded-[4px] p-3 max-h-[400px] overflow-y-auto bg-[var(--canvas-subtle)]">
-                      <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] mb-2">
-                        Filled draft
+                      <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] mb-2 flex items-center gap-2">
+                        <span>Filled draft</span>
+                        {viewMode === "edits" && (
+                          <span className="text-[var(--verified)] normal-case tracking-normal">
+                            · highlights show what Vergil added
+                          </span>
+                        )}
                       </div>
                       <pre className="whitespace-pre-wrap text-[12px] text-[var(--ink)] leading-relaxed font-sans">
-                        {result.filled_text}
+                        {viewMode === "clean"
+                          ? result.filled_text
+                          : diffByWords(
+                              result.template_text,
+                              result.filled_text
+                            )
+                              .filter((seg) => seg.kind !== "remove")
+                              .map((seg, i) =>
+                                seg.kind === "add" ? (
+                                  <mark
+                                    key={i}
+                                    className="px-0.5 rounded-[2px] bg-[var(--verified-soft)] text-[var(--ink)] not-italic"
+                                  >
+                                    {seg.text}
+                                  </mark>
+                                ) : (
+                                  <span key={i}>{seg.text}</span>
+                                )
+                              )}
                       </pre>
                     </div>
                   </div>
