@@ -31,6 +31,10 @@
       "schedule": "0 13 * * 1"
     },
     {
+      "path": "/api/dante/cron/memory-rollup",
+      "schedule": "0 5 * * 1"
+    },
+    {
       "path": "/api/integrations/gmail/sync",
       "schedule": "0 6 * * *"
     },

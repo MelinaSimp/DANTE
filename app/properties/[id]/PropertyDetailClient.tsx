@@ -23,6 +23,8 @@ import {
   FileText,
   ExternalLink,
   CalendarClock,
+  Upload,
+  Download,
 } from "lucide-react";
 import ContextualAskPanel from "@/components/dante/ContextualAskPanel";
 
@@ -398,26 +400,50 @@ export default function PropertyDetailClient({
     });
   };
 
+  // Pending file selected by the user before submit. When set, we
+  // POST to the upload endpoint as multipart instead of a JSON
+  // payload to /documents — same row shape lands either way.
+  const [docFile, setDocFile] = useState<File | null>(null);
+
   const addDocument = async () => {
     setDocError(null);
-    if (!docDraft.title.trim()) {
-      setDocError("Title is required");
+    if (!docDraft.title.trim() && !docFile) {
+      setDocError("Title or file is required");
       return;
     }
     setSavingDoc(true);
     try {
-      const r = await fetch(`/api/properties/${propertyId}/documents`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          title: docDraft.title.trim(),
-          doc_kind: docDraft.doc_kind,
-          external_url: docDraft.external_url.trim() || null,
-          expires_at: docDraft.expires_at || null,
-          notes: docDraft.notes.trim() || null,
-        }),
-      });
+      let r: Response;
+      if (docFile) {
+        const fd = new FormData();
+        fd.append("file", docFile);
+        // Title falls back to the filename if the user left it blank.
+        fd.append(
+          "title",
+          (docDraft.title.trim() || docFile.name.replace(/\.[^.]+$/, "")).slice(0, 200),
+        );
+        fd.append("doc_kind", docDraft.doc_kind);
+        if (docDraft.expires_at) fd.append("expires_at", docDraft.expires_at);
+        if (docDraft.notes.trim()) fd.append("notes", docDraft.notes.trim());
+        r = await fetch(`/api/properties/${propertyId}/documents/upload`, {
+          method: "POST",
+          credentials: "include",
+          body: fd,
+        });
+      } else {
+        r = await fetch(`/api/properties/${propertyId}/documents`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            title: docDraft.title.trim(),
+            doc_kind: docDraft.doc_kind,
+            external_url: docDraft.external_url.trim() || null,
+            expires_at: docDraft.expires_at || null,
+            notes: docDraft.notes.trim() || null,
+          }),
+        });
+      }
       if (!r.ok) {
         const j = await r.json().catch(() => ({}));
         throw new Error(j.error || "Failed");
@@ -429,12 +455,33 @@ export default function PropertyDetailClient({
         expires_at: "",
         notes: "",
       });
+      setDocFile(null);
       setDocFormOpen(false);
       await loadDocuments();
     } catch (e: any) {
       setDocError(e.message || "Failed to attach");
     } finally {
       setSavingDoc(false);
+    }
+  };
+
+  // Open a stored file via short-lived signed URL. We do not embed
+  // signed URLs in the list payload because they're sensitive and
+  // expire — fetch on click is both safer and friendlier on caching.
+  const openStoredFile = async (filePath: string) => {
+    try {
+      const r = await fetch(
+        `/api/properties/${propertyId}/documents/upload?path=${encodeURIComponent(filePath)}`,
+        { credentials: "include" },
+      );
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        throw new Error(j.error || "Failed");
+      }
+      const j = await r.json();
+      if (j.url) window.open(j.url, "_blank", "noopener,noreferrer");
+    } catch (e: any) {
+      alert(e.message || "Failed to open file");
     }
   };
   const removeDocument = async (docId: string) => {
@@ -1121,8 +1168,9 @@ export default function PropertyDetailClient({
                   onChange={(e) =>
                     setDocDraft({ ...docDraft, external_url: e.target.value })
                   }
-                  placeholder="Link (Google Drive, MLS, vault…)"
+                  placeholder="Or paste a link (Google Drive, MLS…)"
                   className={inputClass}
+                  disabled={!!docFile}
                 />
                 <label className="block">
                   <div className="text-[11px] text-[var(--ink-muted)] mb-1">
@@ -1138,6 +1186,69 @@ export default function PropertyDetailClient({
                   />
                 </label>
               </div>
+
+              {/* File picker — drag-drop or browse. When a file is
+                  selected, the link field disables (one OR the other,
+                  not both, to avoid ambiguity about which "wins"). */}
+              <div>
+                <div className="text-[11px] text-[var(--ink-muted)] mb-1">
+                  Upload a file
+                </div>
+                {docFile ? (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] text-xs">
+                    <FileText
+                      className="w-3.5 h-3.5 text-[var(--ink-muted)]"
+                      strokeWidth={1.5}
+                    />
+                    <span className="flex-1 truncate text-[var(--ink)]">
+                      {docFile.name}
+                    </span>
+                    <span className="mono text-[10px] text-[var(--ink-subtle)]">
+                      {(docFile.size / 1024).toFixed(0)} KB
+                    </span>
+                    <button
+                      onClick={() => setDocFile(null)}
+                      className="text-[var(--ink-subtle)] hover:text-[var(--danger)]"
+                      title="Remove"
+                    >
+                      <X className="w-3.5 h-3.5" strokeWidth={1.5} />
+                    </button>
+                  </div>
+                ) : (
+                  <label
+                    className="flex items-center justify-center gap-2 py-3 rounded-[4px] border border-dashed border-[var(--rule-strong)] hover:bg-[var(--canvas)] text-xs text-[var(--ink-muted)] cursor-pointer transition"
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      (e.currentTarget as HTMLLabelElement).style.borderColor =
+                        "var(--ink)";
+                    }}
+                    onDragLeave={(e) => {
+                      (e.currentTarget as HTMLLabelElement).style.borderColor =
+                        "var(--rule-strong)";
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      (e.currentTarget as HTMLLabelElement).style.borderColor =
+                        "var(--rule-strong)";
+                      const f = e.dataTransfer.files?.[0];
+                      if (f) setDocFile(f);
+                    }}
+                  >
+                    <Upload className="w-3.5 h-3.5" strokeWidth={1.5} />
+                    <span>Drag a file here, or click to browse</span>
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept=".pdf,.png,.jpg,.jpeg,.heic,.webp,.doc,.docx,.txt,.md"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) setDocFile(f);
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+
               <textarea
                 value={docDraft.notes}
                 onChange={(e) =>
@@ -1153,15 +1264,17 @@ export default function PropertyDetailClient({
               <div className="flex items-center gap-2">
                 <button
                   onClick={addDocument}
-                  disabled={savingDoc || !docDraft.title.trim()}
+                  disabled={savingDoc || (!docDraft.title.trim() && !docFile)}
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-[4px] bg-[var(--ink)] hover:opacity-90 text-[var(--canvas)] text-xs font-semibold transition disabled:opacity-40"
                 >
                   {savingDoc ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.5} />
+                  ) : docFile ? (
+                    <Upload className="w-3.5 h-3.5" strokeWidth={1.5} />
                   ) : (
                     <Plus className="w-3.5 h-3.5" strokeWidth={1.5} />
                   )}
-                  Attach
+                  {docFile ? "Upload" : "Attach"}
                 </button>
               </div>
             </div>
@@ -1200,6 +1313,15 @@ export default function PropertyDetailClient({
                       )}
                     </div>
                   </div>
+                  {d.file_path && (
+                    <button
+                      onClick={() => openStoredFile(d.file_path!)}
+                      className="p-1.5 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition"
+                      title="Open uploaded file"
+                    >
+                      <Download className="w-3.5 h-3.5" strokeWidth={1.5} />
+                    </button>
+                  )}
                   {d.external_url && (
                     <a
                       href={d.external_url}

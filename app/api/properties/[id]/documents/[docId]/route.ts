@@ -4,6 +4,7 @@
 // metadata (title, expires_at, notes) and for unlinking.
 
 import { createServerSupabase } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 
 const VALID_KINDS = [
@@ -89,6 +90,17 @@ export async function DELETE(
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id, docId } = await params;
 
+  // Read the row first so we know whether there's a storage blob to
+  // clean up. Best-effort: a missing row still falls through to the
+  // delete, which will no-op.
+  const { data: existing } = await ctx.supabase
+    .from("property_documents")
+    .select("file_path")
+    .eq("id", docId)
+    .eq("property_id", id)
+    .eq("workspace_id", ctx.workspaceId)
+    .maybeSingle();
+
   const { error } = await ctx.supabase
     .from("property_documents")
     .delete()
@@ -100,5 +112,19 @@ export async function DELETE(
     console.error("property_documents DELETE:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // Remove the storage blob if there was one. Non-fatal — orphaned
+  // blobs are recoverable via storage admin; a failed row delete is
+  // not, so we prioritise the row.
+  if (existing?.file_path) {
+    try {
+      await supabaseAdmin.storage
+        .from("client-documents")
+        .remove([existing.file_path]);
+    } catch (err) {
+      console.error("[property_documents.delete] orphaned blob:", err);
+    }
+  }
+
   return NextResponse.json({ success: true });
 }

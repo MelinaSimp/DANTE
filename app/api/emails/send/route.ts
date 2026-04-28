@@ -6,6 +6,7 @@ import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { emitEvent } from "@/lib/automations";
 import { recordEmailUsage } from "@/lib/usage/track";
 import { remember } from "@/lib/dante/memory/write";
+import { scanForCompliance } from "@/lib/compliance/scan";
 
 // Crude HTML → text for memory storage. The email itself ships HTML
 // to the recipient; this stripped form is what D/V's memory.search
@@ -123,43 +124,76 @@ export async function POST(req: NextRequest) {
       console.error("[emails/send] usage tracking failed:", err);
     }
 
-    // Persist the sent email as a memory episode so D/V can ground
-    // future "what did I last send to X?" questions. Best-effort —
-    // a memory failure never blocks the send response. Resolves the
-    // primary recipient to a contact id when possible so the entry
-    // is subject-scoped.
+    // Persist + compliance-scan in parallel. Both are best-effort —
+    // a failure in either logs and moves on; the user-facing send
+    // response never blocks on these.
     if (workspaceId) {
-      try {
-        const primaryRecipient = recipients[0];
-        const { data: contact } = await supabaseAdmin
-          .from("contacts")
-          .select("id")
-          .eq("workspace_id", workspaceId)
-          .ilike("email", primaryRecipient)
-          .maybeSingle();
+      const primaryRecipient = recipients[0];
+      const bodyText = htmlToText(htmlContent).slice(0, 4000);
+      const recipientLine =
+        recipients.length === 1
+          ? recipients[0]
+          : `${recipients[0]} +${recipients.length - 1} more`;
+      const messageId = data?.id || `resend_${Date.now()}`;
 
-        const bodyText = htmlToText(htmlContent).slice(0, 4000);
-        const recipientLine =
-          recipients.length === 1
-            ? recipients[0]
-            : `${recipients[0]} +${recipients.length - 1} more`;
-        const content = [
-          `Email (sent) — ${subject} — to ${recipientLine}`,
-          "",
-          bodyText,
-        ].join("\n");
+      // Memory write — looks up the recipient's contact_id by email.
+      const memoryWrite = (async () => {
+        try {
+          const { data: contact } = await supabaseAdmin
+            .from("contacts")
+            .select("id")
+            .eq("workspace_id", workspaceId)
+            .ilike("email", primaryRecipient)
+            .maybeSingle();
+          await remember({
+            workspaceId,
+            kind: "episode",
+            content: [
+              `Email (sent) — ${subject} — to ${recipientLine}`,
+              "",
+              bodyText,
+            ].join("\n"),
+            subjectContactId: contact?.id ?? undefined,
+            sourceKind: "email",
+            sourceId: messageId,
+          });
+        } catch (err) {
+          console.error("[emails/send] memory write failed:", err);
+        }
+      })();
 
-        await remember({
-          workspaceId,
-          kind: "episode",
-          content,
-          subjectContactId: contact?.id ?? undefined,
-          sourceKind: "email",
-          sourceId: data?.id || `resend_${Date.now()}`,
-        });
-      } catch (err) {
-        console.error("[emails/send] memory write failed:", err);
-      }
+      // Compliance scan — surfaces FINRA/SEC red flags for sent
+      // emails. The /work queue picks these up under the Compliance
+      // filter; nothing about the send itself is blocked.
+      const complianceScan = (async () => {
+        try {
+          const scan = await scanForCompliance({
+            text: `${subject}\n\n${bodyText}`,
+            contextLabel: `Sent email to ${recipientLine}`,
+            anthropicKey: process.env.ANTHROPIC_API_KEY,
+          });
+          if (scan.flags.length > 0) {
+            await supabaseAdmin.from("compliance_flags").insert(
+              scan.flags.map((f) => ({
+                workspace_id: workspaceId,
+                source_type: "email",
+                source_id: messageId,
+                scanned_text: bodyText,
+                layer: f.layer,
+                rule_id: f.rule_id,
+                severity: f.severity,
+                message: f.message,
+                citation_refs: f.citations,
+                status: "pending" as const,
+              })),
+            );
+          }
+        } catch (err) {
+          console.error("[emails/send] compliance scan failed:", err);
+        }
+      })();
+
+      await Promise.allSettled([memoryWrite, complianceScan]);
     }
 
     return NextResponse.json({
