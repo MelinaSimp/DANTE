@@ -20,7 +20,9 @@ import {
   Home,
   Mail,
   Flame,
+  Pencil,
 } from "lucide-react";
+import ComposeDrawer from "./ComposeDrawer";
 
 type Urgency = "urgent" | "needs_attention" | "normal" | "low";
 
@@ -125,6 +127,13 @@ export default function InboxClient() {
   const [categorizeMessage, setCategorizeMessage] = useState<string | null>(null);
   const [triaging, setTriaging] = useState(false);
   const [triageMessage, setTriageMessage] = useState<string | null>(null);
+  // Compose drawer — Gmail-style slide-in. Opens from the header
+  // button or future "Reply" actions on individual messages.
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [composeDefaults, setComposeDefaults] = useState<{
+    to?: string;
+    subject?: string;
+  }>({});
 
   const load = () => {
     setItems(null);
@@ -246,6 +255,16 @@ export default function InboxClient() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setComposeDefaults({});
+                setComposeOpen(true);
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-sm font-semibold hover:opacity-90 transition"
+            >
+              <Pencil className="w-4 h-4" strokeWidth={1.5} />
+              Compose
+            </button>
             <button
               onClick={triggerCategorize}
               disabled={categorizing || uncategorizedCount === 0}
@@ -563,6 +582,13 @@ export default function InboxClient() {
           </div>
         </div>
       </div>
+
+      <ComposeDrawer
+        open={composeOpen}
+        onClose={() => setComposeOpen(false)}
+        defaultTo={composeDefaults.to}
+        defaultSubject={composeDefaults.subject}
+      />
     </div>
   );
 }

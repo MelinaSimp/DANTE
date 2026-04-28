@@ -180,13 +180,7 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
             href="/inbox"
             className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
           >
-            Inbox
-          </Link>
-          <Link
-            href="/email"
-            className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
-          >
-            Compose
+            Email
           </Link>
           <Link
             href="/agent"
