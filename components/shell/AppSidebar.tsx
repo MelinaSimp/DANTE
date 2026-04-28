@@ -30,6 +30,32 @@ import {
 } from "lucide-react";
 import { getIndustryConfig } from "@/lib/industry/config";
 import GlobalSearchModal from "./GlobalSearchModal";
+import DanteGateLink from "@/components/dante/DanteGateLink";
+
+// SidebarTip — small CSS-only tooltip that floats to the right of an
+// icon button on hover. Replaces the native `title` attribute so the
+// design is consistent (no random delay, no OS chrome). Children
+// must render the icon button itself; we wrap it in a positioning
+// container.
+function SidebarTip({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="group relative flex items-center justify-center">
+      {children}
+      <span
+        className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2 py-1 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-[11px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow-md"
+        role="tooltip"
+      >
+        {label}
+      </span>
+    </div>
+  );
+}
 
 export interface AppSidebarProps {
   workspaceName: string;
@@ -123,33 +149,43 @@ export default function AppSidebar({
       {/* Workspace badge — small dark square with initials. Click goes
           to dashboard; we keep this as the home affordance instead of
           a separate Drift logo. */}
-      <Link
-        href="/dashboard"
-        title={workspaceName}
-        className="self-center mb-2 w-9 h-9 rounded-[6px] bg-[var(--ink)] text-[var(--canvas)] flex items-center justify-center text-[11px] font-semibold tracking-tight"
-      >
-        {initials}
-      </Link>
+      <div className="self-center mb-2">
+        <SidebarTip label={workspaceName}>
+          <Link
+            href="/dashboard"
+            className="w-9 h-9 rounded-[6px] bg-[var(--ink)] text-[var(--canvas)] flex items-center justify-center text-[11px] font-semibold tracking-tight"
+          >
+            {initials}
+          </Link>
+        </SidebarTip>
+      </div>
 
       {/* Search — Cmd+K affordance. */}
-      <button
-        onClick={() => setSearchOpen(true)}
-        title="Search · ⌘K"
-        className={`${iconBtn(false)} self-center mb-1 hover:bg-[var(--canvas)]`}
-        style={iconBtnStyle(false)}
-      >
-        <Search className="w-4 h-4" strokeWidth={1.5} />
-      </button>
+      <div className="self-center mb-1">
+        <SidebarTip label="Search · ⌘K">
+          <button
+            onClick={() => setSearchOpen(true)}
+            className={`${iconBtn(false)} hover:bg-[var(--canvas)]`}
+            style={iconBtnStyle(false)}
+          >
+            <Search className="w-4 h-4" strokeWidth={1.5} />
+          </button>
+        </SidebarTip>
+      </div>
 
-      {/* Create — primary CTA. Placeholder action for now (could open
-          a "what do you want to make?" picker later). */}
-      <button
-        onClick={() => setSearchOpen(true)}
-        title="Create"
-        className="self-center mb-3 w-9 h-9 rounded-[6px] bg-[var(--ink)] text-[var(--canvas)] flex items-center justify-center hover:opacity-90 transition"
-      >
-        <Plus className="w-4 h-4" strokeWidth={1.75} />
-      </button>
+      {/* Create — primary CTA. Opens search modal as a placeholder
+          target until a dedicated "what do you want to make?" picker
+          ships. */}
+      <div className="self-center mb-3">
+        <SidebarTip label="Create">
+          <button
+            onClick={() => setSearchOpen(true)}
+            className="w-9 h-9 rounded-[6px] bg-[var(--ink)] text-[var(--canvas)] flex items-center justify-center hover:opacity-90 transition"
+          >
+            <Plus className="w-4 h-4" strokeWidth={1.75} />
+          </button>
+        </SidebarTip>
+      </div>
 
       {/* Module stack */}
       <nav className="flex-1 overflow-y-auto flex flex-col items-center gap-0.5 px-2">
@@ -159,33 +195,31 @@ export default function AppSidebar({
           const active = isActive(item.href);
           const Icon = item.icon;
           return (
-            <Link
-              key={item.href}
-              href={item.href}
-              title={item.label}
-              className={`${iconBtn(active)} hover:bg-[var(--canvas)]`}
-              style={iconBtnStyle(active)}
-            >
+            <SidebarTip key={item.href} label={item.label}>
+              <Link
+                href={item.href}
+                className={`${iconBtn(active)} hover:bg-[var(--canvas)]`}
+                style={iconBtnStyle(active)}
+              >
               <Icon className="w-4 h-4" strokeWidth={active ? 1.75 : 1.5} />
-            </Link>
+              </Link>
+            </SidebarTip>
           );
         })}
 
         {features.includes("dante") && (
           <>
             <div className="w-6 my-1.5 border-t border-[var(--rule)]" />
-            <Link
-              href="/dante"
-              title={assistantConfig.assistantName}
-              className={`${iconBtn(!!pathname?.startsWith("/dante"))} hover:bg-[var(--canvas)]`}
-              style={iconBtnStyle(!!pathname?.startsWith("/dante"))}
-            >
-              <img
-                src={assistantConfig.assistantIconPath}
-                alt=""
-                className="w-4 h-4 object-contain"
+            {/* Vergil/Dante uses DanteGateLink so the ceremonial
+                "passing through" overlay animation fires when the
+                user clicks. Plain Link wouldn't trigger it. */}
+            <SidebarTip label={assistantConfig.assistantName}>
+              <DanteGateLink
+                variant="icon-only"
+                label={assistantConfig.assistantName}
+                iconSrc={assistantConfig.assistantIconPath}
               />
-            </Link>
+            </SidebarTip>
           </>
         )}
       </nav>
@@ -193,34 +227,37 @@ export default function AppSidebar({
       {/* Footer */}
       <div className="flex flex-col items-center gap-0.5 px-2 mt-2 pt-2 border-t border-[var(--rule)]">
         {isSuperadmin && (
-          <Link
-            href="/admin"
-            title="Admin"
-            className={`${iconBtn(false)} hover:bg-[var(--canvas)]`}
-            style={{ ...iconBtnStyle(false), color: "var(--accent)" }}
-          >
-            <ShieldCheck className="w-4 h-4" strokeWidth={1.5} />
-          </Link>
+          <SidebarTip label="Admin">
+            <Link
+              href="/admin"
+              className={`${iconBtn(false)} hover:bg-[var(--canvas)]`}
+              style={{ ...iconBtnStyle(false), color: "var(--accent)" }}
+            >
+              <ShieldCheck className="w-4 h-4" strokeWidth={1.5} />
+            </Link>
+          </SidebarTip>
         )}
-        <Link
-          href="/settings"
-          title="Settings"
-          className={`${iconBtn(!!(pathname && pathname.startsWith("/settings")))} hover:bg-[var(--canvas)]`}
-          style={iconBtnStyle(!!(pathname && pathname.startsWith("/settings")))}
-        >
-          <Settings className="w-4 h-4" strokeWidth={1.5} />
-        </Link>
-        <button
-          onClick={async () => {
-            await supabase.auth.signOut();
-            router.push("/auth");
-          }}
-          title="Sign out"
-          className={`${iconBtn(false)} hover:bg-[var(--canvas)]`}
-          style={iconBtnStyle(false)}
-        >
-          <LogOut className="w-4 h-4" strokeWidth={1.5} />
-        </button>
+        <SidebarTip label="Settings">
+          <Link
+            href="/settings"
+            className={`${iconBtn(!!(pathname && pathname.startsWith("/settings")))} hover:bg-[var(--canvas)]`}
+            style={iconBtnStyle(!!(pathname && pathname.startsWith("/settings")))}
+          >
+            <Settings className="w-4 h-4" strokeWidth={1.5} />
+          </Link>
+        </SidebarTip>
+        <SidebarTip label="Sign out">
+          <button
+            onClick={async () => {
+              await supabase.auth.signOut();
+              router.push("/auth");
+            }}
+            className={`${iconBtn(false)} hover:bg-[var(--canvas)]`}
+            style={iconBtnStyle(false)}
+          >
+            <LogOut className="w-4 h-4" strokeWidth={1.5} />
+          </button>
+        </SidebarTip>
       </div>
 
       {/* Real global search — keyboard-driven, debounced, paged

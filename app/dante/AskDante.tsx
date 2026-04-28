@@ -298,13 +298,18 @@ export default function AskDante({
             : "opacity-100 max-h-[400px]"
         }`}
       >
-        <div className="text-center mb-8 flex items-center justify-center">
-          <img
-            src={brand.iconPath}
-            alt={brand.name}
-            className="h-24 md:h-32 w-auto object-contain select-none"
-            draggable={false}
-          />
+        <div className="text-center mb-8">
+          {/* Giant single-letter wordmark — V for Vergil, D for Dante.
+              Mirrors Harvey's serif "Harvey" pattern but uses the
+              assistant's first letter so the brand reads at glance.
+              The full echo / gate icon stays in the breadcrumb +
+              sidebar; the hero is the letter so the page has weight. */}
+          <h1
+            className="heading-display text-7xl md:text-8xl text-[var(--ink)] font-bold tracking-tight leading-none"
+            aria-label={brand.name}
+          >
+            {brand.name.charAt(0)}
+          </h1>
         </div>
 
         <div className="flex items-center justify-center gap-3 mb-3">
