@@ -65,9 +65,9 @@ const FINANCIAL_ADVISOR: IndustryConfig = {
     "Prep me for my 2 PM meeting",
   ],
   seededSkills: [
-    "draft_quarterly_review",
-    "summarize_recent_client_emails",
-    "prep_briefing_for_review",
+    "draft_review_meeting_recap",
+    "summarize_recent_emails",
+    "prep_briefing_for_meeting",
   ],
 };
 
@@ -100,6 +100,11 @@ const REAL_ESTATE: IndustryConfig = {
   ],
 };
 
+// Industries we recognise. Used by getIndustryConfig to detect
+// unexpected values (legacy / corrupted rows) and warn loudly in
+// development without breaking production.
+const KNOWN_INDUSTRIES = new Set<string>(["financial_advisor", "real_estate"]);
+
 const CONFIGS: Record<Industry, IndustryConfig> = {
   financial_advisor: FINANCIAL_ADVISOR,
   real_estate: REAL_ESTATE,
@@ -107,7 +112,25 @@ const CONFIGS: Record<Industry, IndustryConfig> = {
 
 export const ALL_INDUSTRIES: Industry[] = ["financial_advisor", "real_estate"];
 
+// Resolves a workspace's industry to its config. Falls back to
+// financial_advisor (the primary persona) for null / unknown values
+// so the UI never crashes on legacy rows. In development we warn
+// when an unexpected non-null value sneaks through, since that
+// usually means the column has drifted from the whitelist used at
+// signup (auth/callback) — a realtor stuck on the advisor config is
+// a real bug, just not a fatal one.
 export function getIndustryConfig(industry: string | null | undefined): IndustryConfig {
   if (industry === "real_estate") return CONFIGS.real_estate;
+  if (industry === "financial_advisor") return CONFIGS.financial_advisor;
+  if (
+    industry != null &&
+    industry !== "" &&
+    !KNOWN_INDUSTRIES.has(industry) &&
+    process.env.NODE_ENV !== "production"
+  ) {
+    console.warn(
+      `[industry] unrecognised industry "${industry}" — falling back to financial_advisor`,
+    );
+  }
   return CONFIGS.financial_advisor;
 }

@@ -9,8 +9,14 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { defaultSkillSeedsFor } from "@/lib/industry/skills";
+import type { Industry } from "@/lib/industry/config";
 
 export const dynamic = "force-dynamic";
+
+function normalizeIndustry(value: unknown): Industry {
+  return value === "real_estate" ? "real_estate" : "financial_advisor";
+}
 
 interface SeedEntryPayload {
   category: string;
@@ -85,6 +91,39 @@ export async function POST(request: Request) {
       { error: "Failed to save workspace" },
       { status: 500 },
     );
+  }
+
+  // Seed the vertical's default skills. Idempotent via the
+  // (workspace_id, name, version) unique constraint — re-running
+  // onboarding (shouldn't happen, but defensively) won't duplicate.
+  // Read industry fresh so we use whatever auth/callback stamped.
+  const { data: ws } = await supabaseAdmin
+    .from("workspaces")
+    .select("industry")
+    .eq("id", profile.workspace_id)
+    .maybeSingle();
+  const industry = normalizeIndustry(ws?.industry);
+  const skillRows = defaultSkillSeedsFor(industry).map((s) => ({
+    workspace_id: profile.workspace_id,
+    name: s.name,
+    version: 1,
+    description: s.description,
+    config: s.config,
+    input_schema: s.input_schema,
+    auto_approve: s.auto_approve,
+  }));
+  if (skillRows.length > 0) {
+    const { error: skillErr } = await supabaseAdmin
+      .from("dante_skills")
+      .upsert(skillRows, {
+        onConflict: "workspace_id,name,version",
+        ignoreDuplicates: true,
+      });
+    if (skillErr) {
+      // Non-fatal — onboarded_at still lands. Skills can be created
+      // manually under Settings if this ever silently fails.
+      console.error("[onboarding] skill seed failed:", skillErr);
+    }
   }
 
   // Best-effort knowledge seed. Use the RLS-aware server client so the
