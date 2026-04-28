@@ -27,6 +27,7 @@ import {
   ShieldCheck,
   LayoutDashboard,
   Plus,
+  Inbox,
 } from "lucide-react";
 import { getIndustryConfig } from "@/lib/industry/config";
 import GlobalSearchModal from "./GlobalSearchModal";
@@ -117,6 +118,7 @@ export default function AppSidebar({
 
   const items: NavItem[] = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/work", label: "Work", icon: Inbox },
     { href: "/client-details-overview", label: "Clients", icon: Users },
     { href: "/calendar", label: "Calendar", icon: CalendarIcon },
     { href: "/inbox", label: "Email", icon: Mail },
