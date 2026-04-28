@@ -201,6 +201,12 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
             Library
           </Link>
           <Link
+            href="/review-tables"
+            className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
+          >
+            Review tables
+          </Link>
+          <Link
             href="/reminders"
             className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
           >
