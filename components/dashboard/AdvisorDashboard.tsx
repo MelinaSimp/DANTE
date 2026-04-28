@@ -231,6 +231,7 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
             <DanteGateLink
               variant="nav-primary"
               label={getIndustryConfig(data.industry).assistantName}
+              iconSrc={getIndustryConfig(data.industry).assistantIconPath}
             />
           )}
           <Link
