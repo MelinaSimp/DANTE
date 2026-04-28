@@ -195,6 +195,12 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
             Vault
           </Link>
           <Link
+            href="/library"
+            className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
+          >
+            Library
+          </Link>
+          <Link
             href="/reminders"
             className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
           >
