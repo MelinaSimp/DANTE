@@ -20,6 +20,9 @@ import {
   Trash2,
   RefreshCcw,
   Clock,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from "lucide-react";
 
 type Kind = "text" | "date" | "number" | "yes_no";
@@ -94,6 +97,52 @@ export default function ReviewTableDetailClient({
     }
     return m;
   }, [table]);
+
+  // Sort state — clicking a column header toggles asc → desc → off.
+  // 'doc' sorts by document title; otherwise sort by the cell value
+  // for that column id. Empty cells sort last regardless of direction.
+  const [sortBy, setSortBy] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const toggleSort = (key: string) => {
+    if (sortBy !== key) {
+      setSortBy(key);
+      setSortDir("asc");
+    } else if (sortDir === "asc") {
+      setSortDir("desc");
+    } else {
+      setSortBy(null);
+    }
+  };
+
+  const sortedDocs = useMemo(() => {
+    if (!table) return [];
+    if (!sortBy) return table.docs;
+    const valueFor = (docId: string): string => {
+      if (sortBy === "doc") {
+        return table.docs.find((d) => d.id === docId)?.title ?? "";
+      }
+      const cell = cellMap.get(`${docId}::${sortBy}`);
+      return cell?.value ?? "";
+    };
+    const docs = [...table.docs];
+    docs.sort((a, b) => {
+      const va = valueFor(a.id);
+      const vb = valueFor(b.id);
+      // Empty values bubble to the bottom regardless of direction.
+      if (!va && !vb) return 0;
+      if (!va) return 1;
+      if (!vb) return -1;
+      // Numeric-aware compare: trims currency symbols + commas so
+      // "$1,250,000" sorts after "$900,000".
+      const na = parseFloat(va.replace(/[$,€£]/g, ""));
+      const nb = parseFloat(vb.replace(/[$,€£]/g, ""));
+      let cmp: number;
+      if (!isNaN(na) && !isNaN(nb)) cmp = na - nb;
+      else cmp = va.localeCompare(vb);
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return docs;
+  }, [table, sortBy, sortDir, cellMap]);
 
   const totalCells = table ? table.docs.length * table.columns.length : 0;
   const doneCells = useMemo(
@@ -300,7 +349,13 @@ export default function ReviewTableDetailClient({
               <thead className="border-b border-[var(--rule)] bg-[var(--canvas-subtle)]">
                 <tr>
                   <th className="label-section text-left py-3 px-4 sticky left-0 bg-[var(--canvas-subtle)] z-10 min-w-[220px]">
-                    Document
+                    <button
+                      onClick={() => toggleSort("doc")}
+                      className="inline-flex items-center gap-1 hover:text-[var(--ink)] transition"
+                    >
+                      Document
+                      <SortGlyph active={sortBy === "doc"} dir={sortDir} />
+                    </button>
                   </th>
                   {table.columns.map((c) => (
                     <th
@@ -308,10 +363,16 @@ export default function ReviewTableDetailClient({
                       className="label-section text-left py-3 px-4 min-w-[200px]"
                       title={c.prompt}
                     >
-                      {c.name}
-                      <span className="ml-1.5 text-[10px] mono text-[var(--ink-subtle)] font-normal">
-                        {c.kind}
-                      </span>
+                      <button
+                        onClick={() => toggleSort(c.id)}
+                        className="inline-flex items-center gap-1 hover:text-[var(--ink)] transition"
+                      >
+                        {c.name}
+                        <span className="ml-0.5 text-[10px] mono text-[var(--ink-subtle)] font-normal">
+                          {c.kind}
+                        </span>
+                        <SortGlyph active={sortBy === c.id} dir={sortDir} />
+                      </button>
                     </th>
                   ))}
                 </tr>
@@ -327,7 +388,7 @@ export default function ReviewTableDetailClient({
                     </td>
                   </tr>
                 ) : (
-                  table.docs.map((doc) => (
+                  sortedDocs.map((doc) => (
                     <tr
                       key={doc.id}
                       className="border-b border-[var(--rule)] last:border-b-0"
@@ -350,6 +411,22 @@ export default function ReviewTableDetailClient({
         </div>
       </div>
     </div>
+  );
+}
+
+function SortGlyph({ active, dir }: { active: boolean; dir: "asc" | "desc" }) {
+  if (!active) {
+    return (
+      <ArrowUpDown
+        className="w-3 h-3 text-[var(--ink-subtle)] opacity-40"
+        strokeWidth={1.5}
+      />
+    );
+  }
+  return dir === "asc" ? (
+    <ArrowUp className="w-3 h-3 text-[var(--ink)]" strokeWidth={1.75} />
+  ) : (
+    <ArrowDown className="w-3 h-3 text-[var(--ink)]" strokeWidth={1.75} />
   );
 }
 

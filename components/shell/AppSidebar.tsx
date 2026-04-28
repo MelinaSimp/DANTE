@@ -29,6 +29,7 @@ import {
   Plus,
 } from "lucide-react";
 import { getIndustryConfig } from "@/lib/industry/config";
+import GlobalSearchModal from "./GlobalSearchModal";
 
 export interface AppSidebarProps {
   workspaceName: string;
@@ -222,36 +223,11 @@ export default function AppSidebar({
         </button>
       </div>
 
-      {/* Search placeholder modal — same one as before; the real
-          cross-surface search ships in the next commit. */}
-      {searchOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center bg-[var(--ink)]/30 backdrop-blur-sm pt-32 px-4"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setSearchOpen(false);
-          }}
-        >
-          <div className="bg-[var(--canvas)] border border-[var(--rule)] rounded-[8px] shadow-xl w-full max-w-xl">
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--rule)]">
-              <Search
-                className="w-4 h-4 text-[var(--ink-muted)]"
-                strokeWidth={1.5}
-              />
-              <input
-                placeholder="Search across vault, contacts, properties…"
-                className="flex-1 bg-transparent text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none"
-                autoFocus
-              />
-              <kbd className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--canvas-subtle)] text-[var(--ink-subtle)] border border-[var(--rule)]">
-                Esc
-              </kbd>
-            </div>
-            <div className="px-4 py-8 text-center text-sm text-[var(--ink-subtle)]">
-              Global search lands in the next deploy.
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Real global search — keyboard-driven, debounced, paged
+          across vault / projects / contacts / properties / prompts /
+          tables / reminders. */}
+      <GlobalSearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
+
     </aside>
   );
 }
