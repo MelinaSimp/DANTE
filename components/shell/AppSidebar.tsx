@@ -187,8 +187,12 @@ export default function AppSidebar({
         </SidebarTip>
       </div>
 
-      {/* Module stack */}
-      <nav className="flex-1 overflow-y-auto flex flex-col items-center gap-0.5 px-2">
+      {/* Module stack — no overflow on the nav itself, otherwise the
+          tooltips that float to the right of each icon get clipped
+          (overflow-y: auto silently sets overflow-x: auto in CSS).
+          The sidebar fits ~15 icons at 36px each within any
+          reasonable viewport, so we don't need scroll here. */}
+      <nav className="flex-1 flex flex-col items-center gap-0.5 px-2">
         {items.map((item) => {
           if (item.feature && !features.includes(item.feature)) return null;
           if (item.industry && industry !== item.industry) return null;
