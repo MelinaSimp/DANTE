@@ -126,8 +126,7 @@ export default function VaultClient() {
     try {
       const form = new FormData();
       form.append("file", pendingFile);
-      form.append("category", "vault");
-      const up = await fetch("/api/upload", { method: "POST", body: form });
+      const up = await fetch("/api/vault/upload", { method: "POST", body: form });
       if (!up.ok) {
         const j = await up.json().catch(() => ({}));
         throw new Error(j.error || "Upload failed");
@@ -287,24 +286,27 @@ export default function VaultClient() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 md:px-10 py-12 md:py-16">
-        {/* Editorial hero */}
-        <div className="mb-10">
-          <div className="label-section mb-2">Workspace archive</div>
-          <h1 className="heading-display text-5xl md:text-6xl text-[var(--ink)] leading-[1.05] mb-3">
-            Vault
-          </h1>
-          <p className="text-base text-[var(--ink-muted)] max-w-2xl">
-            Upload, store, and have the assistant cite from templates
-            and documents — everyone in this workspace sees everything here.
-          </p>
+      <div className="max-w-7xl mx-auto px-6 md:px-10 py-8 md:py-10">
+        {/* Editorial hero — sized down so the page breathes around
+            content, not headlines. */}
+        <div className="mb-6 flex items-end justify-between gap-6 flex-wrap">
+          <div>
+            <div className="label-section mb-1.5">Workspace archive</div>
+            <h1 className="heading-display text-3xl md:text-4xl text-[var(--ink)] leading-[1.1]">
+              Vault
+            </h1>
+            <p className="text-sm text-[var(--ink-muted)] mt-1.5 max-w-xl">
+              Templates and documents the assistant cites from. Everyone in
+              this workspace sees everything here.
+            </p>
+          </div>
         </div>
 
-        {/* Two prominent CTAs */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-12">
+        {/* Two prominent CTAs — tighter so they don't dominate */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-8">
           <button
             onClick={() => openUpload("template")}
-            className="group text-left transition flex items-center gap-5 px-6 py-5"
+            className="group text-left transition flex items-center gap-4 px-5 py-3.5 hover:border-[var(--rule-strong)]"
             style={{
               background: "var(--canvas)",
               border: "1px solid var(--rule)",
@@ -314,22 +316,22 @@ export default function VaultClient() {
             <div
               className="flex items-center justify-center shrink-0"
               style={{
-                width: 56,
-                height: 56,
+                width: 40,
+                height: 40,
                 background: "var(--accent-soft)",
-                borderRadius: 8,
+                borderRadius: 6,
               }}
             >
               <Sparkles
-                className="w-6 h-6 text-[var(--accent)]"
-                strokeWidth={1.25}
+                className="w-5 h-5 text-[var(--accent)]"
+                strokeWidth={1.5}
               />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold text-[var(--ink)] mb-0.5">
+              <div className="text-sm font-semibold text-[var(--ink)]">
                 Upload template
               </div>
-              <div className="text-xs text-[var(--ink-muted)]">
+              <div className="text-[11px] text-[var(--ink-muted)] truncate">
                 Fillable docs the assistant uses to draft for clients.
               </div>
             </div>
@@ -341,7 +343,7 @@ export default function VaultClient() {
 
           <button
             onClick={() => openUpload("document")}
-            className="group text-left transition flex items-center gap-5 px-6 py-5"
+            className="group text-left transition flex items-center gap-4 px-5 py-3.5 hover:border-[var(--rule-strong)]"
             style={{
               background: "var(--canvas)",
               border: "1px solid var(--rule)",
@@ -351,22 +353,22 @@ export default function VaultClient() {
             <div
               className="flex items-center justify-center shrink-0"
               style={{
-                width: 56,
-                height: 56,
+                width: 40,
+                height: 40,
                 background: "var(--canvas-subtle)",
-                borderRadius: 8,
+                borderRadius: 6,
               }}
             >
               <ScrollText
-                className="w-6 h-6 text-[var(--ink-muted)]"
-                strokeWidth={1.25}
+                className="w-5 h-5 text-[var(--ink-muted)]"
+                strokeWidth={1.5}
               />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold text-[var(--ink)] mb-0.5">
+              <div className="text-sm font-semibold text-[var(--ink)]">
                 Upload document
               </div>
-              <div className="text-xs text-[var(--ink-muted)]">
+              <div className="text-[11px] text-[var(--ink-muted)] truncate">
                 Contracts, statements, tax forms — anything to cite from.
               </div>
             </div>
@@ -378,13 +380,13 @@ export default function VaultClient() {
         </div>
 
         {/* Tabs + search */}
-        <div className="flex items-center justify-between gap-4 mb-8 flex-wrap border-b border-[var(--rule)]">
+        <div className="flex items-center justify-between gap-4 mb-6 flex-wrap border-b border-[var(--rule)]">
           <div className="flex items-center -mb-px">
             {TABS.map((t) => (
               <button
                 key={t.value}
                 onClick={() => setFilter(t.value)}
-                className="px-4 py-3 text-sm font-medium transition relative"
+                className="px-3 py-2.5 text-sm font-medium transition relative"
                 style={{
                   color:
                     filter === t.value ? "var(--ink)" : "var(--ink-muted)",
@@ -405,7 +407,7 @@ export default function VaultClient() {
               </button>
             ))}
           </div>
-          <div className="flex-1 max-w-xs relative pb-3">
+          <div className="flex-1 max-w-xs relative pb-2">
             <Search
               className="absolute left-3 top-1/2 -translate-y-[60%] w-3.5 h-3.5 text-[var(--ink-subtle)]"
               strokeWidth={1.5}
@@ -414,7 +416,7 @@ export default function VaultClient() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search title or description"
-              className="w-full rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] pl-9 pr-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
+              className="w-full rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] pl-9 pr-3 py-1.5 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
             />
           </div>
         </div>
@@ -434,19 +436,89 @@ export default function VaultClient() {
             />
           </div>
         ) : rows && rows.length === 0 ? (
-          <div className="py-24 text-center">
-            <FileText
-              className="w-10 h-10 text-[var(--ink-subtle)] mx-auto mb-4"
-              strokeWidth={1}
-            />
-            <h2 className="heading-display text-2xl text-[var(--ink)] mb-2">
-              Nothing here yet
-            </h2>
-            <p className="text-sm text-[var(--ink-muted)] max-w-md mx-auto mb-6">
-              Upload your first template or document above to get started.
-              The assistant will start citing from them on the next call or
-              draft.
-            </p>
+          // First-run state — show placeholder cards so the page reads
+          // as "this is what your vault will look like" instead of an
+          // empty void.
+          <div>
+            <div className="mb-3 flex items-baseline justify-between">
+              <h2 className="heading-display text-xl text-[var(--ink)]">
+                Your vault will live here
+              </h2>
+              <span className="text-[11px] text-[var(--ink-subtle)]">
+                Click a card above to upload your first item.
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {[
+                {
+                  kind: "template" as const,
+                  title: "e.g. Texas residential cash offer",
+                  description:
+                    "Fillable purchase agreement. The assistant uses your description to pick this template when you ask it to draft.",
+                },
+                {
+                  kind: "template" as const,
+                  title: "e.g. Quarterly review email",
+                  description:
+                    "Templated outreach. Vergil prefills with the client's portfolio numbers and recent activity.",
+                },
+                {
+                  kind: "document" as const,
+                  title: "e.g. Smith pre-approval letter",
+                  description:
+                    "Tag with the client's contact and Vergil cites it when drafting offers.",
+                },
+                {
+                  kind: "document" as const,
+                  title: "e.g. Listing agreement, 123 Main St",
+                  description:
+                    "Tag with a property and the assistant pulls relevant clauses on calls.",
+                },
+              ].map((p, i) => {
+                const Icon = p.kind === "template" ? Sparkles : ScrollText;
+                return (
+                  <div
+                    key={i}
+                    className="flex flex-col opacity-60"
+                    style={{
+                      background: "var(--canvas)",
+                      border: "1px dashed var(--rule-strong)",
+                      borderRadius: "8px",
+                      minHeight: "200px",
+                    }}
+                  >
+                    <div
+                      className="flex items-center justify-center"
+                      style={{
+                        background:
+                          p.kind === "template"
+                            ? "var(--accent-soft)"
+                            : "var(--canvas-subtle)",
+                        borderRadius: "8px 8px 0 0",
+                        height: "92px",
+                      }}
+                    >
+                      <Icon
+                        className={
+                          p.kind === "template"
+                            ? "w-9 h-9 text-[var(--accent)]"
+                            : "w-9 h-9 text-[var(--ink-muted)]"
+                        }
+                        strokeWidth={1.25}
+                      />
+                    </div>
+                    <div className="flex-1 px-4 py-3">
+                      <div className="text-sm font-semibold text-[var(--ink)] mb-1">
+                        {p.title}
+                      </div>
+                      <p className="text-[12px] text-[var(--ink-muted)] line-clamp-3">
+                        {p.description}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         ) : filter === "all" ? (
           <>
