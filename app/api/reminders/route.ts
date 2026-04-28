@@ -25,7 +25,7 @@ export async function GET(request: Request) {
   let q = supabase
     .from("reminders")
     .select(
-      "id, source, contact_id, property_id, appointment_id, channel, to_email, subject, body, send_at, status, sent_at, send_error, reason, created_at, updated_at"
+      "id, source, contact_id, property_id, appointment_id, property_document_id, channel, to_email, subject, body, send_at, status, sent_at, send_error, reason, created_at, updated_at"
     )
     .eq("workspace_id", profile.workspace_id)
     .order("send_at", { ascending: true, nullsFirst: false })
@@ -38,7 +38,71 @@ export async function GET(request: Request) {
     console.error("reminders GET:", error);
     return NextResponse.json({ error: "Failed" }, { status: 500 });
   }
-  return NextResponse.json(data || []);
+
+  // Enrich with related entity labels so the triage list can render
+  // "🏠 123 Main St — lease" without a fan-out of follow-up requests.
+  // The full lookup runs through supabase (RLS-bound to this user's
+  // workspace), and only over the ids actually referenced in the
+  // result set.
+  const rows = data || [];
+  const contactIds = Array.from(
+    new Set(rows.map((r: any) => r.contact_id).filter(Boolean)),
+  ) as string[];
+  const propertyIds = Array.from(
+    new Set(rows.map((r: any) => r.property_id).filter(Boolean)),
+  ) as string[];
+  const docIds = Array.from(
+    new Set(rows.map((r: any) => r.property_document_id).filter(Boolean)),
+  ) as string[];
+
+  const [{ data: relContacts }, { data: relProperties }, { data: relDocs }] =
+    await Promise.all([
+      contactIds.length > 0
+        ? supabase.from("contacts").select("id, name").in("id", contactIds)
+        : Promise.resolve({ data: [] as any[] }),
+      propertyIds.length > 0
+        ? supabase
+            .from("properties")
+            .select("id, address_line1, city")
+            .in("id", propertyIds)
+        : Promise.resolve({ data: [] as any[] }),
+      docIds.length > 0
+        ? supabase
+            .from("property_documents")
+            .select("id, title, doc_kind")
+            .in("id", docIds)
+        : Promise.resolve({ data: [] as any[] }),
+    ]);
+
+  const contactName = new Map<string, string>(
+    (relContacts || []).map((c: any) => [c.id, c.name as string]),
+  );
+  const propLabel = new Map<string, string>(
+    (relProperties || []).map((p: any) => [
+      p.id,
+      [p.address_line1, p.city].filter(Boolean).join(", ") as string,
+    ]),
+  );
+  const docInfo = new Map<string, { title: string; doc_kind: string }>(
+    (relDocs || []).map((d: any) => [
+      d.id,
+      { title: d.title as string, doc_kind: d.doc_kind as string },
+    ]),
+  );
+
+  const enriched = rows.map((r: any) => ({
+    ...r,
+    contact_name: r.contact_id ? contactName.get(r.contact_id) || null : null,
+    property_address: r.property_id ? propLabel.get(r.property_id) || null : null,
+    document_title: r.property_document_id
+      ? docInfo.get(r.property_document_id)?.title || null
+      : null,
+    document_kind: r.property_document_id
+      ? docInfo.get(r.property_document_id)?.doc_kind || null
+      : null,
+  }));
+
+  return NextResponse.json(enriched);
 }
 
 export async function POST(request: Request) {

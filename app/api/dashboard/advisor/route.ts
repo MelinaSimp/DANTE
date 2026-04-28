@@ -239,6 +239,146 @@ export async function GET() {
 
   const features = await getWorkspaceFeatures(wid);
 
+  // ---- "What I noticed today" panel ------------------------------
+  // Two streams D/V populates in the background that the user should
+  // see at a glance every morning:
+  //
+  //   1. Pending reminder drafts — auto-proposed by the cron, awaiting
+  //      review/approval. Surfaces the top 3 by send_at; full list at
+  //      /reminders.
+  //   2. Property documents expiring soon (next 30 days). Even if the
+  //      cron has already drafted reminders for these, surfacing the
+  //      raw expiries gives the user a clean place to see "leases up
+  //      for renewal" without parsing email subjects.
+  let pendingDraftsCount = 0;
+  let topDrafts: Array<{
+    id: string;
+    subject: string | null;
+    reason: string | null;
+    send_at: string | null;
+    contact_name: string | null;
+    property_address: string | null;
+    doc_kind: string | null;
+  }> = [];
+  let expiringDocsCount = 0;
+  let topExpiring: Array<{
+    id: string;
+    property_id: string;
+    title: string;
+    doc_kind: string;
+    expires_at: string;
+    property_address: string | null;
+  }> = [];
+
+  if (wid) {
+    const horizonIso = new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10);
+    const todayIso = new Date().toISOString().slice(0, 10);
+
+    const [{ count: draftCount }, { data: drafts }, { count: expCount }, { data: expDocs }] =
+      await Promise.all([
+        supabaseAdmin
+          .from("reminders")
+          .select("id", { count: "exact", head: true })
+          .eq("workspace_id", wid)
+          .eq("status", "draft"),
+        supabaseAdmin
+          .from("reminders")
+          .select(
+            "id, subject, reason, send_at, contact_id, property_id, property_document_id",
+          )
+          .eq("workspace_id", wid)
+          .eq("status", "draft")
+          .order("send_at", { ascending: true, nullsFirst: false })
+          .limit(3),
+        supabaseAdmin
+          .from("property_documents")
+          .select("id", { count: "exact", head: true })
+          .eq("workspace_id", wid)
+          .gte("expires_at", todayIso)
+          .lte("expires_at", horizonIso),
+        supabaseAdmin
+          .from("property_documents")
+          .select("id, property_id, title, doc_kind, expires_at")
+          .eq("workspace_id", wid)
+          .gte("expires_at", todayIso)
+          .lte("expires_at", horizonIso)
+          .order("expires_at", { ascending: true })
+          .limit(3),
+      ]);
+
+    pendingDraftsCount = draftCount || 0;
+    expiringDocsCount = expCount || 0;
+
+    // Enrich both lists with names/addresses so the dashboard doesn't
+    // render bare uuids. One query per related table, max ~6 rows.
+    const draftContactIds = (drafts || [])
+      .map((d: any) => d.contact_id)
+      .filter(Boolean) as string[];
+    const draftPropertyIds = (drafts || [])
+      .map((d: any) => d.property_id)
+      .filter(Boolean) as string[];
+    const expPropertyIds = (expDocs || []).map((d: any) => d.property_id);
+    const propIds = Array.from(new Set([...draftPropertyIds, ...expPropertyIds]));
+    const draftDocIds = (drafts || [])
+      .map((d: any) => d.property_document_id)
+      .filter(Boolean) as string[];
+
+    const [{ data: relContacts }, { data: relProps }, { data: relDocs }] =
+      await Promise.all([
+        draftContactIds.length > 0
+          ? supabaseAdmin
+              .from("contacts")
+              .select("id, name")
+              .in("id", draftContactIds)
+          : Promise.resolve({ data: [] as any[] }),
+        propIds.length > 0
+          ? supabaseAdmin
+              .from("properties")
+              .select("id, address_line1, city")
+              .in("id", propIds)
+          : Promise.resolve({ data: [] as any[] }),
+        draftDocIds.length > 0
+          ? supabaseAdmin
+              .from("property_documents")
+              .select("id, doc_kind")
+              .in("id", draftDocIds)
+          : Promise.resolve({ data: [] as any[] }),
+      ]);
+
+    const contactName = new Map<string, string>(
+      (relContacts || []).map((c: any) => [c.id, c.name as string]),
+    );
+    const propAddr = new Map<string, string>(
+      (relProps || []).map((p: any) => [
+        p.id,
+        [p.address_line1, p.city].filter(Boolean).join(", ") as string,
+      ]),
+    );
+    const docKindById = new Map<string, string>(
+      (relDocs || []).map((d: any) => [d.id, d.doc_kind as string]),
+    );
+
+    topDrafts = (drafts || []).map((d: any) => ({
+      id: d.id,
+      subject: d.subject,
+      reason: d.reason,
+      send_at: d.send_at,
+      contact_name: d.contact_id ? contactName.get(d.contact_id) || null : null,
+      property_address: d.property_id ? propAddr.get(d.property_id) || null : null,
+      doc_kind: d.property_document_id
+        ? docKindById.get(d.property_document_id) || null
+        : null,
+    }));
+    topExpiring = (expDocs || []).map((d: any) => ({
+      id: d.id,
+      property_id: d.property_id,
+      title: d.title,
+      doc_kind: d.doc_kind,
+      expires_at: d.expires_at,
+      property_address: propAddr.get(d.property_id) || null,
+    }));
+  }
+
   return NextResponse.json({
     // Display name for the greeting — vertical-neutral fallback ("there")
     // so a real-estate agent doesn't get addressed as "Advisor" by default.
@@ -256,6 +396,12 @@ export async function GET() {
       calls7d: (calls7d as any)?.count || 0,
       documents: (documents as any)?.count || 0,
       verifiedPct,
+    },
+    noticedToday: {
+      pendingDraftsCount,
+      topDrafts,
+      expiringDocsCount,
+      topExpiring,
     },
   });
 }

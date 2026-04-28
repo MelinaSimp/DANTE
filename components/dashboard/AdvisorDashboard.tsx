@@ -39,6 +39,9 @@ import {
   Sparkles,
   X,
   Check,
+  Bell,
+  FileText,
+  Eye,
 } from "lucide-react";
 
 type Meeting = {
@@ -69,6 +72,25 @@ type Flag = {
   dueAt?: string | null;
 };
 
+type NoticedDraft = {
+  id: string;
+  subject: string | null;
+  reason: string | null;
+  send_at: string | null;
+  contact_name: string | null;
+  property_address: string | null;
+  doc_kind: string | null;
+};
+
+type NoticedExpiring = {
+  id: string;
+  property_id: string;
+  title: string;
+  doc_kind: string;
+  expires_at: string;
+  property_address: string | null;
+};
+
 type DashboardData = {
   advisorName: string;
   workspaceName: string;
@@ -91,6 +113,15 @@ type DashboardData = {
     calls7d: number;
     documents: number;
     verifiedPct: number | null;
+  };
+  // What D/V noticed in the background — pending draft reminders +
+  // soon-to-expire property documents. Populated by the advisor
+  // dashboard endpoint, drives the "What I noticed today" panel.
+  noticedToday?: {
+    pendingDraftsCount: number;
+    topDrafts: NoticedDraft[];
+    expiringDocsCount: number;
+    topExpiring: NoticedExpiring[];
   };
 };
 
@@ -216,6 +247,152 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
                 />
               )}
             </div>
+          );
+        })()}
+
+        {/* What I noticed today — D/V's daily voice on the dashboard.
+            Surfaces draft reminders awaiting approval and property
+            documents expiring in the next 30 days. Hidden when there's
+            nothing to surface so we don't render an "empty noticing"
+            shell on a fresh workspace. */}
+        {(() => {
+          const n = data.noticedToday;
+          if (!n) return null;
+          if (n.pendingDraftsCount === 0 && n.expiringDocsCount === 0) return null;
+          const assistantName = getIndustryConfig(data.industry).assistantName;
+          return (
+            <section className="mb-12 border border-[var(--rule)] rounded-[6px] overflow-hidden">
+              <div className="px-5 py-3 border-b border-[var(--rule)] bg-[var(--canvas-subtle)] flex items-center gap-2">
+                <Sparkles
+                  className="w-3.5 h-3.5 text-[var(--ink-muted)]"
+                  strokeWidth={1.5}
+                />
+                <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)]">
+                  What {assistantName} noticed today
+                </div>
+              </div>
+              <div className="grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[var(--rule)]">
+                {/* Pending drafts */}
+                <div className="p-5">
+                  <div className="flex items-baseline justify-between mb-3 gap-3">
+                    <div>
+                      <div className="text-sm font-medium text-[var(--ink)]">
+                        {n.pendingDraftsCount === 0
+                          ? "No drafts awaiting review"
+                          : `${n.pendingDraftsCount} draft${n.pendingDraftsCount === 1 ? "" : "s"} awaiting review`}
+                      </div>
+                      <div className="text-[11px] text-[var(--ink-muted)] mt-0.5">
+                        Auto-proposed reminders. Nothing sends until you approve.
+                      </div>
+                    </div>
+                    {n.pendingDraftsCount > 0 && (
+                      <Link
+                        href="/reminders"
+                        className="inline-flex items-center gap-1 text-xs text-[var(--accent)] hover:underline whitespace-nowrap"
+                      >
+                        Review all
+                        <ArrowUpRight className="w-3 h-3" strokeWidth={1.5} />
+                      </Link>
+                    )}
+                  </div>
+                  {n.topDrafts.length > 0 ? (
+                    <ul className="space-y-2">
+                      {n.topDrafts.map((d) => (
+                        <li key={d.id}>
+                          <Link
+                            href="/reminders"
+                            className="block group rounded-[4px] border border-[var(--rule)] hover:border-[var(--rule-strong)] p-3 transition"
+                          >
+                            <div className="flex items-start gap-3">
+                              <Bell
+                                className="w-3.5 h-3.5 text-[var(--ink-muted)] mt-0.5 shrink-0"
+                                strokeWidth={1.5}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm text-[var(--ink)] truncate">
+                                  {d.subject || "(no subject)"}
+                                </div>
+                                <div className="text-[11px] text-[var(--ink-subtle)] truncate mt-0.5 flex items-center gap-2 flex-wrap">
+                                  {d.contact_name && <span>{d.contact_name}</span>}
+                                  {d.property_address && (
+                                    <span className="inline-flex items-center gap-1">
+                                      <span className="text-[var(--ink-subtle)]">·</span>
+                                      <span>{d.property_address}</span>
+                                    </span>
+                                  )}
+                                  {d.doc_kind && (
+                                    <span className="mono uppercase tracking-wider">
+                                      · {d.doc_kind}
+                                    </span>
+                                  )}
+                                  {d.send_at && (
+                                    <span>
+                                      <span className="text-[var(--ink-subtle)]">·</span>{" "}
+                                      send {formatRelativeDate(d.send_at)}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+
+                {/* Expiring documents */}
+                <div className="p-5">
+                  <div className="flex items-baseline justify-between mb-3 gap-3">
+                    <div>
+                      <div className="text-sm font-medium text-[var(--ink)]">
+                        {n.expiringDocsCount === 0
+                          ? "Nothing expiring in 30 days"
+                          : `${n.expiringDocsCount} document${n.expiringDocsCount === 1 ? "" : "s"} expiring soon`}
+                      </div>
+                      <div className="text-[11px] text-[var(--ink-muted)] mt-0.5">
+                        Leases, insurance, disclosures within the next month.
+                      </div>
+                    </div>
+                  </div>
+                  {n.topExpiring.length > 0 ? (
+                    <ul className="space-y-2">
+                      {n.topExpiring.map((e) => (
+                        <li key={e.id}>
+                          <Link
+                            href={`/properties/${e.property_id}`}
+                            className="block group rounded-[4px] border border-[var(--rule)] hover:border-[var(--rule-strong)] p-3 transition"
+                          >
+                            <div className="flex items-start gap-3">
+                              <FileText
+                                className="w-3.5 h-3.5 text-[var(--ink-muted)] mt-0.5 shrink-0"
+                                strokeWidth={1.5}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm text-[var(--ink)] truncate">
+                                  {e.title}
+                                </div>
+                                <div className="text-[11px] text-[var(--ink-subtle)] truncate mt-0.5 flex items-center gap-2 flex-wrap">
+                                  <span className="mono uppercase tracking-wider">
+                                    {e.doc_kind}
+                                  </span>
+                                  {e.property_address && (
+                                    <span>· {e.property_address}</span>
+                                  )}
+                                  <span>
+                                    · expires {formatRelativeDate(e.expires_at)}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              </div>
+            </section>
           );
         })()}
 

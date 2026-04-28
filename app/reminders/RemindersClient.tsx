@@ -7,6 +7,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useAssistantName } from "@/components/dante/AssistantNameProvider";
 import {
   ArrowLeft,
   Bell,
@@ -18,6 +19,10 @@ import {
   CheckCircle2,
   Clock,
   X,
+  Home,
+  Users,
+  FileText,
+  CalendarClock,
 } from "lucide-react";
 
 interface Reminder {
@@ -26,6 +31,7 @@ interface Reminder {
   contact_id: string | null;
   property_id: string | null;
   appointment_id: string | null;
+  property_document_id: string | null;
   channel: string;
   to_email: string | null;
   subject: string | null;
@@ -37,6 +43,32 @@ interface Reminder {
   reason: string | null;
   created_at: string;
   updated_at: string;
+  // Enriched fields from /api/reminders GET — entity labels for the
+  // triage UI badges, so the user can see "lease for 123 Main St"
+  // without opening each row.
+  contact_name?: string | null;
+  property_address?: string | null;
+  document_title?: string | null;
+  document_kind?: string | null;
+}
+
+type Filter = "all" | "renewals" | "appointments" | "manual";
+
+const FILTERS: Array<{ value: Filter; label: string }> = [
+  { value: "all", label: "All" },
+  { value: "renewals", label: "Renewals" },
+  { value: "appointments", label: "Appointments" },
+  { value: "manual", label: "Manual" },
+];
+
+// Bucket a reminder into one of the filter categories. Renewals are
+// the doc-expiry auto reminders (have property_document_id);
+// appointments are the appointment-driven auto reminders (have
+// appointment_id); manual is everything else (source='user').
+function categorize(r: Reminder): Filter {
+  if (r.property_document_id) return "renewals";
+  if (r.appointment_id) return "appointments";
+  return "manual";
 }
 
 const TABS = [
@@ -62,6 +94,7 @@ function fmtForInput(iso: string | null) {
 
 export default function RemindersClient() {
   const [tab, setTab] = useState<"draft" | "scheduled" | "sent">("draft");
+  const [filter, setFilter] = useState<Filter>("all");
   const [items, setItems] = useState<Reminder[] | null>(null);
   const [editing, setEditing] = useState<Reminder | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -70,6 +103,7 @@ export default function RemindersClient() {
   const [askOpen, setAskOpen] = useState(false);
   const [askPrompt, setAskPrompt] = useState("");
   const [drafting, setDrafting] = useState(false);
+  const assistantName = useAssistantName();
 
   const load = (forTab: "draft" | "scheduled" | "sent") => {
     setItems(null);
@@ -214,7 +248,7 @@ export default function RemindersClient() {
             className="inline-flex items-center gap-2 px-4 py-2 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-sm font-semibold hover:opacity-90 transition"
           >
             <Sparkles className="w-4 h-4" strokeWidth={1.5} />
-            Ask Vergil
+            Ask {assistantName}
           </button>
         </div>
 
@@ -254,101 +288,160 @@ export default function RemindersClient() {
           </div>
         )}
 
-        {/* Tabs */}
-        <div className="flex items-center gap-1 p-0.5 mb-6 rounded-[6px] border border-[var(--rule)] bg-[var(--canvas-subtle)] w-fit">
-          {TABS.map((t) => (
-            <button
-              key={t.value}
-              onClick={() => setTab(t.value)}
-              className="px-3 py-1.5 rounded-[4px] text-xs font-medium transition"
-              style={{
-                background: tab === t.value ? "var(--canvas)" : "transparent",
-                color: tab === t.value ? "var(--ink)" : "var(--ink-muted)",
-                boxShadow: tab === t.value ? "0 1px 2px rgba(0,0,0,0.04)" : "none",
-              }}
-            >
-              {t.label}
-            </button>
-          ))}
+        {/* Tabs + filter pills. Tabs switch the status (draft/scheduled/
+            sent) — filter narrows by source kind (renewals/appointments/
+            manual) so the user can triage a long list of drafts. */}
+        <div className="flex items-center gap-3 mb-6 flex-wrap">
+          <div className="flex items-center gap-1 p-0.5 rounded-[6px] border border-[var(--rule)] bg-[var(--canvas-subtle)] w-fit">
+            {TABS.map((t) => (
+              <button
+                key={t.value}
+                onClick={() => setTab(t.value)}
+                className="px-3 py-1.5 rounded-[4px] text-xs font-medium transition"
+                style={{
+                  background: tab === t.value ? "var(--canvas)" : "transparent",
+                  color: tab === t.value ? "var(--ink)" : "var(--ink-muted)",
+                  boxShadow: tab === t.value ? "0 1px 2px rgba(0,0,0,0.04)" : "none",
+                }}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <div className="text-[var(--ink-subtle)] text-xs">·</div>
+          <div className="flex items-center gap-1 flex-wrap">
+            {FILTERS.map((f) => (
+              <button
+                key={f.value}
+                onClick={() => setFilter(f.value)}
+                className="px-2.5 py-1 rounded-[4px] text-[11px] font-medium transition border"
+                style={{
+                  background:
+                    filter === f.value ? "var(--ink)" : "transparent",
+                  color:
+                    filter === f.value ? "var(--canvas)" : "var(--ink-muted)",
+                  borderColor:
+                    filter === f.value ? "var(--ink)" : "var(--rule)",
+                }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {items === null ? (
-          <div className="flex items-center justify-center py-24">
-            <Loader2
-              className="w-6 h-6 animate-spin text-[var(--ink-subtle)]"
-              strokeWidth={1.5}
-            />
-          </div>
-        ) : items.length === 0 ? (
-          <div className="card-flat py-16 text-center">
-            <Bell
-              className="w-8 h-8 text-[var(--ink-subtle)] mx-auto mb-3"
-              strokeWidth={1.5}
-            />
-            <p className="text-sm text-[var(--ink-muted)]">
-              {tab === "draft"
-                ? "No drafts. Ask Vergil or wait for the daily auto-scan."
-                : tab === "scheduled"
-                ? "Nothing scheduled."
-                : "Nothing sent yet."}
-            </p>
-          </div>
-        ) : (
-          <div className="card-flat overflow-hidden">
-            <ul className="divide-y divide-[var(--rule)]">
-              {items.map((r) => (
-                <li
-                  key={r.id}
-                  onClick={() => setEditing(r)}
-                  className="py-4 px-6 flex items-center gap-4 hover:bg-[var(--canvas-subtle)] transition cursor-pointer"
-                >
-                  <div className="shrink-0">
-                    {r.status === "sent" ? (
-                      <CheckCircle2
-                        className="w-4 h-4 text-[var(--verified)]"
-                        strokeWidth={1.5}
-                      />
-                    ) : r.status === "failed" ? (
-                      <AlertCircle
-                        className="w-4 h-4 text-[var(--danger)]"
-                        strokeWidth={1.5}
-                      />
-                    ) : r.status === "scheduled" ? (
-                      <Clock
-                        className="w-4 h-4 text-[var(--accent)]"
-                        strokeWidth={1.5}
-                      />
-                    ) : (
-                      <Bell
-                        className="w-4 h-4 text-[var(--ink-muted)]"
-                        strokeWidth={1.5}
-                      />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline gap-2 flex-wrap">
-                      <span className="text-sm font-medium text-[var(--ink)] truncate">
-                        {r.subject || "(no subject)"}
-                      </span>
-                      <span className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)]">
-                        {r.source}
-                      </span>
-                    </div>
-                    <div className="text-[11px] text-[var(--ink-subtle)] truncate mt-0.5">
-                      To {r.to_email || "—"} · {fmtDateTime(r.send_at)}
-                      {r.reason ? ` · ${r.reason}` : ""}
-                    </div>
-                    {r.send_error && (
-                      <div className="text-[11px] text-[var(--danger)] mt-0.5 truncate">
-                        {r.send_error}
+        {(() => {
+          if (items === null) {
+            return (
+              <div className="flex items-center justify-center py-24">
+                <Loader2
+                  className="w-6 h-6 animate-spin text-[var(--ink-subtle)]"
+                  strokeWidth={1.5}
+                />
+              </div>
+            );
+          }
+          const visible =
+            filter === "all" ? items : items.filter((r) => categorize(r) === filter);
+          if (visible.length === 0) {
+            return (
+              <div className="card-flat py-16 text-center">
+                <Bell
+                  className="w-8 h-8 text-[var(--ink-subtle)] mx-auto mb-3"
+                  strokeWidth={1.5}
+                />
+                <p className="text-sm text-[var(--ink-muted)]">
+                  {filter !== "all"
+                    ? "No matches in this filter."
+                    : tab === "draft"
+                    ? `No drafts. Ask ${assistantName} or wait for the daily auto-scan.`
+                    : tab === "scheduled"
+                    ? "Nothing scheduled."
+                    : "Nothing sent yet."}
+                </p>
+              </div>
+            );
+          }
+          return (
+            <div className="card-flat overflow-hidden">
+              <ul className="divide-y divide-[var(--rule)]">
+                {visible.map((r) => {
+                  const cat = categorize(r);
+                  // Pick the most-specific badge available. Renewals
+                  // surface the doc kind + property; appointments
+                  // surface the contact + appointment time; manual
+                  // surfaces the contact alone.
+                  const BadgeIcon =
+                    cat === "renewals" ? Home :
+                    cat === "appointments" ? CalendarClock :
+                    Users;
+                  const badgeBits: string[] = [];
+                  if (r.document_kind) badgeBits.push(r.document_kind);
+                  if (r.property_address) badgeBits.push(r.property_address);
+                  if (r.contact_name && !r.property_address) badgeBits.push(r.contact_name);
+                  return (
+                    <li
+                      key={r.id}
+                      onClick={() => setEditing(r)}
+                      className="py-4 px-6 flex items-center gap-4 hover:bg-[var(--canvas-subtle)] transition cursor-pointer"
+                    >
+                      <div className="shrink-0">
+                        {r.status === "sent" ? (
+                          <CheckCircle2
+                            className="w-4 h-4 text-[var(--verified)]"
+                            strokeWidth={1.5}
+                          />
+                        ) : r.status === "failed" ? (
+                          <AlertCircle
+                            className="w-4 h-4 text-[var(--danger)]"
+                            strokeWidth={1.5}
+                          />
+                        ) : r.status === "scheduled" ? (
+                          <Clock
+                            className="w-4 h-4 text-[var(--accent)]"
+                            strokeWidth={1.5}
+                          />
+                        ) : (
+                          <Bell
+                            className="w-4 h-4 text-[var(--ink-muted)]"
+                            strokeWidth={1.5}
+                          />
+                        )}
                       </div>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline gap-2 flex-wrap">
+                          <span className="text-sm font-medium text-[var(--ink)] truncate">
+                            {r.subject || "(no subject)"}
+                          </span>
+                          <span className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)]">
+                            {r.source}
+                          </span>
+                        </div>
+                        {badgeBits.length > 0 && (
+                          <div className="inline-flex items-center gap-1.5 mt-1 px-2 py-0.5 rounded-[4px] bg-[var(--canvas-subtle)] border border-[var(--rule)] text-[10px] text-[var(--ink-muted)]">
+                            <BadgeIcon className="w-3 h-3" strokeWidth={1.5} />
+                            <span className="mono uppercase tracking-wider truncate max-w-[280px]">
+                              {badgeBits.join(" · ")}
+                            </span>
+                          </div>
+                        )}
+                        <div className="text-[11px] text-[var(--ink-subtle)] truncate mt-0.5">
+                          To {r.to_email || "—"} · {fmtDateTime(r.send_at)}
+                          {r.reason ? ` · ${r.reason}` : ""}
+                        </div>
+                        {r.send_error && (
+                          <div className="text-[11px] text-[var(--danger)] mt-0.5 truncate">
+                            {r.send_error}
+                          </div>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Edit drawer */}
