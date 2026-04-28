@@ -91,6 +91,9 @@ export async function PATCH(
   if (body.property_id === null || typeof body.property_id === "string") {
     updates.property_id = body.property_id || null;
   }
+  if (body.project_id === null || typeof body.project_id === "string") {
+    updates.project_id = body.project_id || null;
+  }
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "No fields" }, { status: 400 });

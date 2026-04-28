@@ -102,6 +102,7 @@ export async function POST(request: Request) {
     file_type: body.file_type || null,
     content: body.content || null,
     property_id: body.property_id || null,
+    project_id: body.project_id || null,
   };
 
   const { data, error } = await supabase
