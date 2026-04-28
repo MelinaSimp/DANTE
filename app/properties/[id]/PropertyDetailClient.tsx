@@ -20,6 +20,9 @@ import {
   X,
   UserPlus,
   Search,
+  FileText,
+  ExternalLink,
+  CalendarClock,
 } from "lucide-react";
 
 interface Property {
@@ -38,6 +41,16 @@ interface Property {
   listed_at: string | null;
   sold_at: string | null;
   notes: string | null;
+  description: string | null;
+  interior_features: string[] | null;
+  exterior_features: string[] | null;
+  year_built: number | null;
+  lot_size_sqft: number | null;
+  lease_term_months: number | null;
+  lease_start_date: string | null;
+  lease_end_date: string | null;
+  monthly_rent_cents: number | null;
+  tenant_contact_id: string | null;
   clients: Array<{
     contact_id: string;
     role: string;
@@ -45,6 +58,17 @@ interface Property {
     email: string | null;
     phone: string | null;
   }>;
+}
+
+interface PropertyDocument {
+  id: string;
+  title: string;
+  doc_kind: string;
+  file_path: string | null;
+  external_url: string | null;
+  expires_at: string | null;
+  notes: string | null;
+  created_at: string;
 }
 
 interface Contact {
@@ -68,6 +92,18 @@ const KIND_OPTIONS = [
   { value: "commercial", label: "Commercial" },
   { value: "rental", label: "Rental" },
   { value: "land", label: "Land" },
+  { value: "other", label: "Other" },
+] as const;
+
+const DOC_KIND_OPTIONS = [
+  { value: "lease", label: "Lease" },
+  { value: "insurance", label: "Insurance" },
+  { value: "inspection", label: "Inspection" },
+  { value: "disclosure", label: "Disclosure" },
+  { value: "deed", label: "Deed" },
+  { value: "hoa", label: "HOA" },
+  { value: "comp", label: "Comp" },
+  { value: "photo", label: "Photo" },
   { value: "other", label: "Other" },
 ] as const;
 
@@ -107,7 +143,35 @@ export default function PropertyDetailClient({
     list_price_dollars: "",
     status: "active",
     notes: "",
+    description: "",
+    interior_features: [] as string[],
+    exterior_features: [] as string[],
+    year_built: "",
+    lot_size_sqft: "",
+    lease_term_months: "",
+    lease_start_date: "",
+    lease_end_date: "",
+    monthly_rent_dollars: "",
+    tenant_contact_id: "",
   });
+
+  // Feature-chip input buffers — local typing state that flushes to
+  // form arrays on Enter / comma.
+  const [interiorBuf, setInteriorBuf] = useState("");
+  const [exteriorBuf, setExteriorBuf] = useState("");
+
+  // Documents state.
+  const [documents, setDocuments] = useState<PropertyDocument[]>([]);
+  const [docFormOpen, setDocFormOpen] = useState(false);
+  const [docDraft, setDocDraft] = useState({
+    title: "",
+    doc_kind: "lease",
+    external_url: "",
+    expires_at: "",
+    notes: "",
+  });
+  const [docError, setDocError] = useState<string | null>(null);
+  const [savingDoc, setSavingDoc] = useState(false);
 
   // Client linking state.
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -139,6 +203,20 @@ export default function PropertyDetailClient({
             : "",
         status: p.status,
         notes: p.notes || "",
+        description: p.description || "",
+        interior_features: Array.isArray(p.interior_features) ? p.interior_features : [],
+        exterior_features: Array.isArray(p.exterior_features) ? p.exterior_features : [],
+        year_built: p.year_built != null ? String(p.year_built) : "",
+        lot_size_sqft: p.lot_size_sqft != null ? String(p.lot_size_sqft) : "",
+        lease_term_months:
+          p.lease_term_months != null ? String(p.lease_term_months) : "",
+        lease_start_date: p.lease_start_date || "",
+        lease_end_date: p.lease_end_date || "",
+        monthly_rent_dollars:
+          p.monthly_rent_cents != null
+            ? (p.monthly_rent_cents / 100).toString()
+            : "",
+        tenant_contact_id: p.tenant_contact_id || "",
       });
     } catch (e: any) {
       setLoadError(e.message || "Failed to load");
@@ -174,9 +252,46 @@ export default function PropertyDetailClient({
           : "",
       status: property.status,
       notes: property.notes || "",
+      description: property.description || "",
+      interior_features: Array.isArray(property.interior_features)
+        ? property.interior_features
+        : [],
+      exterior_features: Array.isArray(property.exterior_features)
+        ? property.exterior_features
+        : [],
+      year_built: property.year_built != null ? String(property.year_built) : "",
+      lot_size_sqft:
+        property.lot_size_sqft != null ? String(property.lot_size_sqft) : "",
+      lease_term_months:
+        property.lease_term_months != null ? String(property.lease_term_months) : "",
+      lease_start_date: property.lease_start_date || "",
+      lease_end_date: property.lease_end_date || "",
+      monthly_rent_dollars:
+        property.monthly_rent_cents != null
+          ? (property.monthly_rent_cents / 100).toString()
+          : "",
+      tenant_contact_id: property.tenant_contact_id || "",
     };
     return JSON.stringify(orig) !== JSON.stringify(form);
   }, [property, form]);
+
+  const loadDocuments = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/properties/${propertyId}/documents`, {
+        credentials: "include",
+      });
+      if (r.ok) {
+        const d = await r.json();
+        setDocuments(Array.isArray(d) ? d : []);
+      }
+    } catch {
+      /* non-fatal */
+    }
+  }, [propertyId]);
+
+  useEffect(() => {
+    loadDocuments();
+  }, [loadDocuments]);
 
   const save = async () => {
     setSaving(true);
@@ -198,6 +313,20 @@ export default function PropertyDetailClient({
             : Math.round(parseFloat(form.list_price_dollars) * 100),
         status: form.status,
         notes: form.notes,
+        description: form.description.trim() || null,
+        interior_features: form.interior_features,
+        exterior_features: form.exterior_features,
+        year_built: form.year_built === "" ? null : Number(form.year_built),
+        lot_size_sqft: form.lot_size_sqft === "" ? null : Number(form.lot_size_sqft),
+        lease_term_months:
+          form.lease_term_months === "" ? null : Number(form.lease_term_months),
+        lease_start_date: form.lease_start_date || null,
+        lease_end_date: form.lease_end_date || null,
+        monthly_rent_cents:
+          form.monthly_rent_dollars === ""
+            ? null
+            : Math.round(parseFloat(form.monthly_rent_dollars) * 100),
+        tenant_contact_id: form.tenant_contact_id || null,
       };
       const r = await fetch(`/api/properties/${propertyId}`, {
         method: "PATCH",
@@ -245,6 +374,96 @@ export default function PropertyDetailClient({
       { method: "DELETE", credentials: "include" }
     );
     if (r.ok) await loadProperty();
+  };
+
+  // Feature chip helpers — lowercase, dedupe, cap at 40.
+  const addFeature = (kind: "interior" | "exterior", raw: string) => {
+    const v = raw.trim();
+    if (!v) return;
+    setForm((f) => {
+      const key = kind === "interior" ? "interior_features" : "exterior_features";
+      const existing = f[key];
+      if (existing.length >= 40) return f;
+      if (existing.some((x) => x.toLowerCase() === v.toLowerCase())) return f;
+      return { ...f, [key]: [...existing, v] };
+    });
+    if (kind === "interior") setInteriorBuf("");
+    else setExteriorBuf("");
+  };
+  const removeFeature = (kind: "interior" | "exterior", value: string) => {
+    setForm((f) => {
+      const key = kind === "interior" ? "interior_features" : "exterior_features";
+      return { ...f, [key]: f[key].filter((x) => x !== value) };
+    });
+  };
+
+  const addDocument = async () => {
+    setDocError(null);
+    if (!docDraft.title.trim()) {
+      setDocError("Title is required");
+      return;
+    }
+    setSavingDoc(true);
+    try {
+      const r = await fetch(`/api/properties/${propertyId}/documents`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          title: docDraft.title.trim(),
+          doc_kind: docDraft.doc_kind,
+          external_url: docDraft.external_url.trim() || null,
+          expires_at: docDraft.expires_at || null,
+          notes: docDraft.notes.trim() || null,
+        }),
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        throw new Error(j.error || "Failed");
+      }
+      setDocDraft({
+        title: "",
+        doc_kind: "lease",
+        external_url: "",
+        expires_at: "",
+        notes: "",
+      });
+      setDocFormOpen(false);
+      await loadDocuments();
+    } catch (e: any) {
+      setDocError(e.message || "Failed to attach");
+    } finally {
+      setSavingDoc(false);
+    }
+  };
+  const removeDocument = async (docId: string) => {
+    if (!confirm("Remove this document?")) return;
+    const r = await fetch(`/api/properties/${propertyId}/documents/${docId}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (r.ok) await loadDocuments();
+  };
+
+  // expiry status — used to highlight rows in the documents table.
+  const expiryClass = (iso: string | null): string => {
+    if (!iso) return "text-[var(--ink-subtle)]";
+    const now = Date.now();
+    const exp = new Date(iso).getTime();
+    const days = Math.floor((exp - now) / 86400_000);
+    if (days < 0) return "text-[var(--danger)] font-medium";
+    if (days <= 30) return "text-[var(--accent)] font-medium";
+    return "text-[var(--ink-muted)]";
+  };
+  const expiryLabel = (iso: string | null): string => {
+    if (!iso) return "—";
+    const now = Date.now();
+    const exp = new Date(iso).getTime();
+    const days = Math.floor((exp - now) / 86400_000);
+    if (days < 0) return `Expired ${Math.abs(days)}d ago`;
+    if (days === 0) return "Expires today";
+    if (days <= 60) return `In ${days}d`;
+    return new Date(iso).toLocaleDateString();
   };
 
   if (loadError) {
@@ -463,6 +682,210 @@ export default function PropertyDetailClient({
           </div>
         </section>
 
+        {/* Description */}
+        <section className="card-flat p-6">
+          <div className="label-section mb-4">Description</div>
+          <textarea
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+            rows={5}
+            placeholder="What's in the property — rooms, finishes, condition, recent renovations, neighbourhood notes."
+            className={`${inputClass} resize-y`}
+          />
+        </section>
+
+        {/* Features */}
+        <section className="card-flat p-6">
+          <div className="label-section mb-4">Features</div>
+          <div className="grid md:grid-cols-2 gap-6">
+            <div>
+              <div className="text-xs text-[var(--ink-muted)] mb-2">
+                Interior
+              </div>
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {form.interior_features.map((f) => (
+                  <span
+                    key={f}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-[4px] bg-[var(--canvas-subtle)] border border-[var(--rule)] text-xs text-[var(--ink)]"
+                  >
+                    {f}
+                    <button
+                      onClick={() => removeFeature("interior", f)}
+                      className="text-[var(--ink-subtle)] hover:text-[var(--danger)]"
+                    >
+                      <X className="w-3 h-3" strokeWidth={1.5} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <input
+                value={interiorBuf}
+                onChange={(e) => setInteriorBuf(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === ",") {
+                    e.preventDefault();
+                    addFeature("interior", interiorBuf);
+                  }
+                }}
+                onBlur={() => addFeature("interior", interiorBuf)}
+                placeholder="hardwood floors, fireplace, in-unit laundry…"
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <div className="text-xs text-[var(--ink-muted)] mb-2">
+                Exterior
+              </div>
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {form.exterior_features.map((f) => (
+                  <span
+                    key={f}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-[4px] bg-[var(--canvas-subtle)] border border-[var(--rule)] text-xs text-[var(--ink)]"
+                  >
+                    {f}
+                    <button
+                      onClick={() => removeFeature("exterior", f)}
+                      className="text-[var(--ink-subtle)] hover:text-[var(--danger)]"
+                    >
+                      <X className="w-3 h-3" strokeWidth={1.5} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <input
+                value={exteriorBuf}
+                onChange={(e) => setExteriorBuf(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === ",") {
+                    e.preventDefault();
+                    addFeature("exterior", exteriorBuf);
+                  }
+                }}
+                onBlur={() => addFeature("exterior", exteriorBuf)}
+                placeholder="fenced yard, pool, two-car garage…"
+                className={inputClass}
+              />
+            </div>
+          </div>
+          <div className="grid md:grid-cols-2 gap-3 mt-5">
+            <label className="block">
+              <div className="text-xs text-[var(--ink-muted)] mb-1">
+                Year built
+              </div>
+              <input
+                value={form.year_built}
+                onChange={(e) => setForm({ ...form, year_built: e.target.value })}
+                type="number"
+                min="1700"
+                max="2100"
+                placeholder="e.g. 1998"
+                className={inputClass}
+              />
+            </label>
+            <label className="block">
+              <div className="text-xs text-[var(--ink-muted)] mb-1">
+                Lot size (sqft)
+              </div>
+              <input
+                value={form.lot_size_sqft}
+                onChange={(e) =>
+                  setForm({ ...form, lot_size_sqft: e.target.value })
+                }
+                type="number"
+                min="0"
+                className={inputClass}
+              />
+            </label>
+          </div>
+        </section>
+
+        {/* Lease — only meaningful for rentals, but always render so
+            the field is reachable if the user mistakenly set the kind
+            to something else and is now correcting course. */}
+        {form.kind === "rental" && (
+          <section className="card-flat p-6">
+            <div className="label-section mb-4">Lease</div>
+            <div className="grid md:grid-cols-2 gap-3">
+              <label className="block">
+                <div className="text-xs text-[var(--ink-muted)] mb-1">
+                  Term (months)
+                </div>
+                <input
+                  value={form.lease_term_months}
+                  onChange={(e) =>
+                    setForm({ ...form, lease_term_months: e.target.value })
+                  }
+                  type="number"
+                  min="0"
+                  placeholder="e.g. 12"
+                  className={inputClass}
+                />
+              </label>
+              <label className="block">
+                <div className="text-xs text-[var(--ink-muted)] mb-1">
+                  Monthly rent (USD)
+                </div>
+                <input
+                  value={form.monthly_rent_dollars}
+                  onChange={(e) =>
+                    setForm({ ...form, monthly_rent_dollars: e.target.value })
+                  }
+                  type="number"
+                  min="0"
+                  step="50"
+                  placeholder="e.g. 2500"
+                  className={inputClass}
+                />
+              </label>
+              <label className="block">
+                <div className="text-xs text-[var(--ink-muted)] mb-1">
+                  Lease start
+                </div>
+                <input
+                  value={form.lease_start_date}
+                  onChange={(e) =>
+                    setForm({ ...form, lease_start_date: e.target.value })
+                  }
+                  type="date"
+                  className={inputClass}
+                />
+              </label>
+              <label className="block">
+                <div className="text-xs text-[var(--ink-muted)] mb-1">
+                  Lease end
+                </div>
+                <input
+                  value={form.lease_end_date}
+                  onChange={(e) =>
+                    setForm({ ...form, lease_end_date: e.target.value })
+                  }
+                  type="date"
+                  className={inputClass}
+                />
+              </label>
+              <label className="block md:col-span-2">
+                <div className="text-xs text-[var(--ink-muted)] mb-1">
+                  Tenant
+                </div>
+                <select
+                  value={form.tenant_contact_id}
+                  onChange={(e) =>
+                    setForm({ ...form, tenant_contact_id: e.target.value })
+                  }
+                  className={inputClass}
+                >
+                  <option value="">— Pick a contact —</option>
+                  {contacts.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name || c.email || c.phone || c.id}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </section>
+        )}
+
         {/* Notes */}
         <section className="card-flat p-6">
           <div className="label-section mb-4">Notes</div>
@@ -617,6 +1040,168 @@ export default function PropertyDetailClient({
                     onClick={() => unlinkContact(c.contact_id, c.role)}
                     className="p-1.5 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--danger)] hover:bg-[var(--danger-soft)] transition"
                     title="Remove link"
+                  >
+                    <X className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* Documents — files / links attached to this property.
+            Anything with expires_at flows into the renewal-reminder
+            cron, which drops a draft reminder ahead of expiry. */}
+        <section className="card-flat p-6">
+          <div className="flex items-baseline justify-between mb-4">
+            <div>
+              <div className="label-section mb-1">Documents</div>
+              <h2 className="text-base font-semibold">Attached documents</h2>
+              <p className="text-xs text-[var(--ink-muted)] mt-0.5 max-w-xl">
+                Lease, inspection, disclosure, deed, HOA, insurance — anything
+                tied to this address. Documents with an expiry date trigger
+                automatic renewal reminders.
+              </p>
+            </div>
+            <button
+              onClick={() => setDocFormOpen((v) => !v)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-[4px] border border-[var(--rule)] hover:bg-[var(--canvas-subtle)] text-xs font-medium text-[var(--ink)] transition"
+            >
+              {docFormOpen ? (
+                <>
+                  <X className="w-3.5 h-3.5" strokeWidth={1.5} /> Cancel
+                </>
+              ) : (
+                <>
+                  <Plus className="w-3.5 h-3.5" strokeWidth={1.5} /> Attach
+                </>
+              )}
+            </button>
+          </div>
+
+          {docFormOpen && (
+            <div className="mb-5 border border-[var(--rule)] rounded-[4px] p-4 bg-[var(--canvas-subtle)] space-y-3">
+              <div className="grid md:grid-cols-2 gap-3">
+                <input
+                  value={docDraft.title}
+                  onChange={(e) =>
+                    setDocDraft({ ...docDraft, title: e.target.value })
+                  }
+                  placeholder="Title — e.g. 2026 Lease — Smith"
+                  className={inputClass}
+                />
+                <select
+                  value={docDraft.doc_kind}
+                  onChange={(e) =>
+                    setDocDraft({ ...docDraft, doc_kind: e.target.value })
+                  }
+                  className={inputClass}
+                >
+                  {DOC_KIND_OPTIONS.map((d) => (
+                    <option key={d.value} value={d.value}>
+                      {d.label}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={docDraft.external_url}
+                  onChange={(e) =>
+                    setDocDraft({ ...docDraft, external_url: e.target.value })
+                  }
+                  placeholder="Link (Google Drive, MLS, vault…)"
+                  className={inputClass}
+                />
+                <label className="block">
+                  <div className="text-[11px] text-[var(--ink-muted)] mb-1">
+                    Expires
+                  </div>
+                  <input
+                    value={docDraft.expires_at}
+                    onChange={(e) =>
+                      setDocDraft({ ...docDraft, expires_at: e.target.value })
+                    }
+                    type="date"
+                    className={inputClass}
+                  />
+                </label>
+              </div>
+              <textarea
+                value={docDraft.notes}
+                onChange={(e) =>
+                  setDocDraft({ ...docDraft, notes: e.target.value })
+                }
+                rows={2}
+                placeholder="Notes (optional)"
+                className={`${inputClass} resize-y`}
+              />
+              {docError && (
+                <p className="text-xs text-[var(--danger)]">{docError}</p>
+              )}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={addDocument}
+                  disabled={savingDoc || !docDraft.title.trim()}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-[4px] bg-[var(--ink)] hover:opacity-90 text-[var(--canvas)] text-xs font-semibold transition disabled:opacity-40"
+                >
+                  {savingDoc ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.5} />
+                  ) : (
+                    <Plus className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  )}
+                  Attach
+                </button>
+              </div>
+            </div>
+          )}
+
+          {documents.length === 0 ? (
+            <p className="text-xs text-[var(--ink-subtle)]">
+              No documents attached yet.
+            </p>
+          ) : (
+            <ul className="divide-y divide-[var(--rule)] border-t border-[var(--rule)]">
+              {documents.map((d) => (
+                <li
+                  key={d.id}
+                  className="py-3 flex items-center gap-3"
+                >
+                  <FileText
+                    className="w-4 h-4 text-[var(--ink-subtle)] shrink-0"
+                    strokeWidth={1.5}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-[var(--ink)] truncate">
+                      {d.title}
+                    </div>
+                    <div className="text-[11px] text-[var(--ink-subtle)] flex items-center gap-3 mt-0.5">
+                      <span className="mono uppercase tracking-wider">
+                        {d.doc_kind.replace("_", " ")}
+                      </span>
+                      {d.expires_at && (
+                        <span
+                          className={`inline-flex items-center gap-1 ${expiryClass(d.expires_at)}`}
+                        >
+                          <CalendarClock className="w-3 h-3" strokeWidth={1.5} />
+                          {expiryLabel(d.expires_at)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {d.external_url && (
+                    <a
+                      href={d.external_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="p-1.5 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition"
+                      title="Open link"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" strokeWidth={1.5} />
+                    </a>
+                  )}
+                  <button
+                    onClick={() => removeDocument(d.id)}
+                    className="p-1.5 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--danger)] hover:bg-[var(--danger-soft)] transition"
+                    title="Remove document"
                   >
                     <X className="w-3.5 h-3.5" strokeWidth={1.5} />
                   </button>

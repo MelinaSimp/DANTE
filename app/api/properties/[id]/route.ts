@@ -107,6 +107,47 @@ export async function PATCH(
   if (typeof body.sold_at === "string" || body.sold_at === null) updates.sold_at = body.sold_at;
   if (typeof body.notes === "string") updates.notes = body.notes;
 
+  // New descriptive fields.
+  if (typeof body.description === "string" || body.description === null) {
+    updates.description =
+      typeof body.description === "string" ? body.description.trim() || null : null;
+  }
+  if (Array.isArray(body.interior_features)) {
+    updates.interior_features = body.interior_features
+      .map((v: unknown) => (typeof v === "string" ? v.trim() : ""))
+      .filter((v: string) => v.length > 0)
+      .slice(0, 40);
+  }
+  if (Array.isArray(body.exterior_features)) {
+    updates.exterior_features = body.exterior_features
+      .map((v: unknown) => (typeof v === "string" ? v.trim() : ""))
+      .filter((v: string) => v.length > 0)
+      .slice(0, 40);
+  }
+  if (typeof body.year_built === "number" || body.year_built === null) {
+    updates.year_built = body.year_built;
+  }
+  if (typeof body.lot_size_sqft === "number" || body.lot_size_sqft === null) {
+    updates.lot_size_sqft = body.lot_size_sqft;
+  }
+
+  // Lease block.
+  if (typeof body.lease_term_months === "number" || body.lease_term_months === null) {
+    updates.lease_term_months = body.lease_term_months;
+  }
+  if (typeof body.lease_start_date === "string" || body.lease_start_date === null) {
+    updates.lease_start_date = body.lease_start_date || null;
+  }
+  if (typeof body.lease_end_date === "string" || body.lease_end_date === null) {
+    updates.lease_end_date = body.lease_end_date || null;
+  }
+  if (typeof body.monthly_rent_cents === "number" || body.monthly_rent_cents === null) {
+    updates.monthly_rent_cents = body.monthly_rent_cents;
+  }
+  if (typeof body.tenant_contact_id === "string" || body.tenant_contact_id === null) {
+    updates.tenant_contact_id = body.tenant_contact_id || null;
+  }
+
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "No valid fields" }, { status: 400 });
   }
