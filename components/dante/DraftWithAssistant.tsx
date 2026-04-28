@@ -30,6 +30,7 @@ import {
   ChevronDown,
   Check,
   Wand2,
+  PenLine,
 } from "lucide-react";
 import {
   consumeAgentStream,
@@ -38,6 +39,7 @@ import {
 } from "@/app/dante/streamClient";
 import MarkdownRenderer from "@/app/dante/MarkdownRenderer";
 import { useAssistantBrand } from "./AssistantNameProvider";
+import DraftEditor from "./DraftEditor";
 
 interface Contact {
   id: string;
@@ -68,6 +70,9 @@ export default function DraftWithAssistant({
   const [stream, setStream] = useState<StreamState>(initialStreamState());
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [matchedContact, setMatchedContact] = useState<Contact | null>(null);
+  // When the user opts to refine the draft beyond a single revision,
+  // we hand off to the full DraftEditor (revision stack + Show Edits).
+  const [editorOpen, setEditorOpen] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -399,6 +404,15 @@ export default function DraftWithAssistant({
             )}
             <button
               type="button"
+              onClick={() => setEditorOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] border border-[var(--rule)] hover:bg-[var(--canvas)] text-xs font-medium text-[var(--ink)] transition"
+              title="Open in revision-tracking editor"
+            >
+              <PenLine className="w-3.5 h-3.5" strokeWidth={1.5} />
+              Refine in editor
+            </button>
+            <button
+              type="button"
               onClick={() => {
                 setStream(initialStreamState());
                 setPrompt("");
@@ -411,6 +425,37 @@ export default function DraftWithAssistant({
           </div>
         )}
       </div>
+
+      {/* Full revision-tracking editor — opens on demand, hands the
+          finalised content back to the composer when the user
+          clicks Apply. */}
+      {editorOpen && (
+        <DraftEditor
+          initialContent={
+            (() => {
+              const out = parseDraft(stream.finalContent);
+              return out.body;
+            })()
+          }
+          filenameStem={
+            matchedContact?.name
+              ? `draft-${matchedContact.name.toLowerCase().replace(/\s+/g, "-")}`
+              : "draft"
+          }
+          contextContactId={matchedContact?.id}
+          contextContactName={matchedContact?.name || undefined}
+          onApply={(content) => {
+            const cleaned = stripCitations(content);
+            const parsed = parseDraft(stream.finalContent);
+            onApply(cleaned, parsed.subject || undefined);
+            setStream(initialStreamState());
+            setPrompt("");
+            setOpen(false);
+            setEditorOpen(false);
+          }}
+          onClose={() => setEditorOpen(false)}
+        />
+      )}
     </div>
   );
 }

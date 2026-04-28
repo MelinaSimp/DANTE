@@ -42,7 +42,8 @@ import {
   X,
   Search,
 } from "lucide-react";
-import DocumentPanel, { deriveFilenameStem } from "./DocumentPanel";
+import { deriveFilenameStem } from "./DocumentPanel";
+import DraftEditor from "@/components/dante/DraftEditor";
 import { useAssistantBrand } from "@/components/dante/AssistantNameProvider";
 import {
   consumeAgentStream,
@@ -502,7 +503,7 @@ export default function AskDante({
         />
       )}
       {editorContent != null && (
-        <DocumentPanel
+        <DraftEditor
           initialContent={editorContent}
           filenameStem={deriveFilenameStem(editorContent)}
           onClose={() => setEditorContent(null)}

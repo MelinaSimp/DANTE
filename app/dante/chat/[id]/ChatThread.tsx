@@ -13,7 +13,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Send, Loader2 } from "lucide-react";
-import DocumentPanel, { deriveFilenameStem } from "@/app/dante/DocumentPanel";
+import { deriveFilenameStem } from "@/app/dante/DocumentPanel";
+import DraftEditor from "@/components/dante/DraftEditor";
 import {
   consumeAgentStream,
   initialStreamState,
@@ -174,7 +175,7 @@ export default function ChatThread({
       </div>
 
       {editorContent != null && (
-        <DocumentPanel
+        <DraftEditor
           initialContent={editorContent}
           filenameStem={deriveFilenameStem(editorContent)}
           onClose={() => setEditorContent(null)}
