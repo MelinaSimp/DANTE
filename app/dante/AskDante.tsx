@@ -43,6 +43,7 @@ import {
   Search,
 } from "lucide-react";
 import DocumentPanel, { deriveFilenameStem } from "./DocumentPanel";
+import { useAssistantBrand } from "@/components/dante/AssistantNameProvider";
 import {
   consumeAgentStream,
   type StreamState,
@@ -127,6 +128,11 @@ export default function AskDante({
   /** Brand name of the assistant — "Dante" for FA, "Vergil" for RE. */
   assistantName?: string;
 }) {
+  // Brand info (name + iconPath) flows from /dante/layout.tsx via the
+  // AssistantNameProvider context. The prop above is a legacy override
+  // — we keep it for the InputBar placeholder, but the hero icon
+  // reads from context so it always matches the breadcrumb gate.
+  const brand = useAssistantBrand();
   const router = useRouter();
   const [input, setInput] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -292,10 +298,13 @@ export default function AskDante({
             : "opacity-100 max-h-[400px]"
         }`}
       >
-        <div className="text-center mb-8">
-          <h1 className="heading-display text-7xl md:text-8xl text-[var(--ink)] font-bold tracking-tight leading-none">
-            D
-          </h1>
+        <div className="text-center mb-8 flex items-center justify-center">
+          <img
+            src={brand.iconPath}
+            alt={brand.name}
+            className="h-24 md:h-32 w-auto object-contain select-none"
+            draggable={false}
+          />
         </div>
 
         <div className="flex items-center justify-center gap-3 mb-3">
