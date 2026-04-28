@@ -28,6 +28,7 @@ import { supabase } from "@/lib/supabase/client";
 import { pickGreeting, pickSubtitle } from "@/lib/dashboard/greetings";
 import DanteGateLink from "@/components/dante/DanteGateLink";
 import { getIndustryConfig } from "@/lib/industry/config";
+import AppShell from "@/components/shell/AppShell";
 import {
   ArrowUpRight,
   ShieldCheck,
@@ -148,120 +149,17 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
   );
 
   return (
-    <div className="min-h-screen bg-white text-[#151515]">
-      {/* Top bar — kept minimal. Logo left, sign-out right. */}
-      <header className="sticky top-0 z-30 flex items-center justify-between px-6 md:px-10 py-4 bg-white border-b border-[var(--rule)]">
-        <div className="flex items-center gap-3">
-          <img
-            src="/brand/logo-circle.png"
-            alt="Drift"
-            className="w-6 h-6 rounded-full object-cover"
-          />
-          <span className="text-sm font-medium tracking-tight">Drift</span>
-          <span className="text-[var(--ink-subtle)]">·</span>
-          <span className="text-xs mono text-[var(--ink-muted)]">
-            {data.workspaceName}
-          </span>
-        </div>
-        <nav className="flex items-center gap-1">
-          <Link
-            href="/client-details-overview"
-            className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
-          >
-            Clients
-          </Link>
-          <Link
-            href="/calendar"
-            className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
-          >
-            Calendar
-          </Link>
-          <Link
-            href="/inbox"
-            className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
-          >
-            Email
-          </Link>
-          <Link
-            href="/agent"
-            className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
-          >
-            Agent
-          </Link>
-          <Link
-            href="/vault"
-            className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
-          >
-            Vault
-          </Link>
-          <Link
-            href="/library"
-            className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
-          >
-            Library
-          </Link>
-          <Link
-            href="/review-tables"
-            className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
-          >
-            Review tables
-          </Link>
-          <Link
-            href="/reminders"
-            className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
-          >
-            Reminders
-          </Link>
-          {data.industry === "real_estate" && (
-            // Properties is RE-only — financial-advisor workspaces have
-            // no concept of a property-as-noun, so we keep the nav clean.
-            <Link
-              href="/properties"
-              className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
-            >
-              Properties
-            </Link>
-          )}
-          {data.features.includes("dante") && (
-            // Dante gets a distinct visual treatment: the double-gate
-            // mark + passing-through animation make entering Dante feel
-            // like crossing a threshold instead of clicking a nav link.
-            // Every other nav item here is plain text — that's the
-            // point. Dante is meant to stand out.
-            <DanteGateLink
-              variant="nav-primary"
-              label={getIndustryConfig(data.industry).assistantName}
-              iconSrc={getIndustryConfig(data.industry).assistantIconPath}
-            />
-          )}
-          <Link
-            href="/settings"
-            className="px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
-          >
-            Settings
-          </Link>
-          {/* Superadmin-only: the admin console lives at /admin and is
-              always gated server-side too — this is purely a nav hint. */}
-          {data.isSuperadmin && (
-            <Link
-              href="/admin"
-              className="px-3 py-1.5 text-sm text-[var(--accent)] hover:text-[var(--ink)] transition"
-            >
-              Admin
-            </Link>
-          )}
-          <button
-            onClick={async () => {
-              await supabase.auth.signOut();
-              router.push("/auth");
-            }}
-            className="ml-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            Sign out
-          </button>
-        </nav>
-      </header>
+    <AppShell
+      workspaceName={data.workspaceName}
+      industry={data.industry}
+      features={data.features}
+      isSuperadmin={data.isSuperadmin}
+    >
+      <div className="bg-white text-[#151515]">
+        {/* Top nav has been replaced by the persistent left sidebar
+            in AppShell. Sign-out, settings, and module nav now live
+            in the sidebar; this page just renders the dashboard
+            content. */}
 
       <div className="max-w-6xl mx-auto px-6 md:px-10 py-12 md:py-16">
         {/* Editorial header */}
@@ -488,6 +386,7 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
 
       </div>
     </div>
+    </AppShell>
   );
 }
 
