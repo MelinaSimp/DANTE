@@ -6,6 +6,7 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
+import { logAuditEvent } from "@/lib/audit/log";
 
 const VALID_KINDS = [
   "lease",
@@ -95,7 +96,7 @@ export async function DELETE(
   // delete, which will no-op.
   const { data: existing } = await ctx.supabase
     .from("property_documents")
-    .select("file_path")
+    .select("file_path, title, doc_kind")
     .eq("id", docId)
     .eq("property_id", id)
     .eq("workspace_id", ctx.workspaceId)
@@ -125,6 +126,21 @@ export async function DELETE(
       console.error("[property_documents.delete] orphaned blob:", err);
     }
   }
+
+  await logAuditEvent({
+    workspaceId: ctx.workspaceId,
+    actorUserId: ctx.user.id,
+    actorKind: "user",
+    action: "document.delete",
+    entityType: "property_document",
+    entityId: docId,
+    metadata: {
+      property_id: id,
+      title: existing?.title ?? null,
+      doc_kind: existing?.doc_kind ?? null,
+      had_file: Boolean(existing?.file_path),
+    },
+  });
 
   return NextResponse.json({ success: true });
 }

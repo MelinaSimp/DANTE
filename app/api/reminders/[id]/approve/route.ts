@@ -6,6 +6,7 @@
 
 import { createServerSupabase } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { logAuditEvent } from "@/lib/audit/log";
 
 export async function POST(
   request: Request,
@@ -66,5 +67,21 @@ export async function POST(
     .select()
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  await logAuditEvent({
+    workspaceId: profile.workspace_id,
+    actorUserId: user.id,
+    actorKind: "user",
+    action: "reminder.approve",
+    entityType: "reminder",
+    entityId: id,
+    metadata: {
+      subject: reminder.subject,
+      send_at: finalSendAt,
+      to_email: reminder.to_email,
+    },
+    request,
+  });
+
   return NextResponse.json(data);
 }

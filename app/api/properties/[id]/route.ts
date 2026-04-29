@@ -6,6 +6,7 @@
 
 import { createServerSupabase } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { logAuditEvent } from "@/lib/audit/log";
 
 const VALID_STATUSES = ["active", "pending", "sold", "withdrawn", "off_market"];
 const VALID_KINDS = ["residential", "commercial", "rental", "land", "other"];
@@ -176,6 +177,15 @@ export async function PATCH(
     return NextResponse.json({ error: "No valid fields" }, { status: 400 });
   }
 
+  // Read the prior row before the update so we can record stage
+  // transitions (from → to) faithfully in the audit row.
+  const { data: prior } = await ctx.supabase
+    .from("properties")
+    .select("transaction_stage, address_line1, city")
+    .eq("id", id)
+    .eq("workspace_id", ctx.workspaceId)
+    .maybeSingle();
+
   const { data, error } = await ctx.supabase
     .from("properties")
     .update(updates)
@@ -188,6 +198,32 @@ export async function PATCH(
     console.error("Properties PATCH:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // Stage changes get a dedicated audit action — they're the
+  // load-bearing pipeline events. Other field edits roll up into
+  // a generic property.update.
+  const stageChanged =
+    "transaction_stage" in updates &&
+    prior?.transaction_stage !== updates.transaction_stage;
+  await logAuditEvent({
+    workspaceId: ctx.workspaceId,
+    actorUserId: ctx.user.id,
+    actorKind: "user",
+    action: stageChanged ? "property.stage_change" : "property.update",
+    entityType: "property",
+    entityId: id,
+    metadata: stageChanged
+      ? {
+          from: prior?.transaction_stage ?? null,
+          to: updates.transaction_stage,
+          address: [prior?.address_line1, prior?.city]
+            .filter(Boolean)
+            .join(", "),
+        }
+      : { fields: Object.keys(updates) },
+    request,
+  });
+
   return NextResponse.json(data);
 }
 

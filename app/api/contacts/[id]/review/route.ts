@@ -18,6 +18,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { remember } from "@/lib/dante/memory/write";
+import { logAuditEvent } from "@/lib/audit/log";
 
 export const dynamic = "force-dynamic";
 
@@ -115,6 +116,24 @@ export async function PATCH(
     console.error("[contacts.review] update failed:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // Audit row — review-cycle moves are first-class compliance
+  // events for advisor workspaces.
+  await logAuditEvent({
+    workspaceId: wid,
+    actorUserId: user.id,
+    actorKind: "user",
+    action: "contact.review_advance",
+    entityType: "contact",
+    entityId: id,
+    metadata: {
+      from: contact.review_stage ?? null,
+      to: newStage ?? null,
+      next_review_date: data.next_review_date ?? null,
+      contact_name: data.name ?? null,
+    },
+    request: req,
+  });
 
   // Memory write — stage transitions are useful retrieval signal.
   // "Where are we in the Smith review cycle?" should resolve from

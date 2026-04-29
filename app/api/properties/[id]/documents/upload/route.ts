@@ -19,6 +19,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { logAuditEvent } from "@/lib/audit/log";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -164,6 +165,24 @@ export async function POST(
     console.error("[property_documents.upload] insert error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  await logAuditEvent({
+    workspaceId,
+    actorUserId: user.id,
+    actorKind: "user",
+    action: "document.upload",
+    entityType: "property_document",
+    entityId: data.id,
+    metadata: {
+      property_id: propertyId,
+      title,
+      doc_kind,
+      file_name: file.name,
+      file_size: file.size,
+      expires_at,
+    },
+    request: req,
+  });
 
   return NextResponse.json(data);
 }

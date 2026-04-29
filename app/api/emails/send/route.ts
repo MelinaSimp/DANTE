@@ -7,6 +7,7 @@ import { emitEvent } from "@/lib/automations";
 import { recordEmailUsage } from "@/lib/usage/track";
 import { remember } from "@/lib/dante/memory/write";
 import { scanForCompliance } from "@/lib/compliance/scan";
+import { logAuditEvent } from "@/lib/audit/log";
 
 // Crude HTML → text for memory storage. The email itself ships HTML
 // to the recipient; this stripped form is what D/V's memory.search
@@ -193,7 +194,24 @@ export async function POST(req: NextRequest) {
         }
       })();
 
-      await Promise.allSettled([memoryWrite, complianceScan]);
+      // Audit row — fire-and-forget alongside memory + compliance.
+      // No await chaining here; logAuditEvent is itself best-effort.
+      const auditWrite = logAuditEvent({
+        workspaceId,
+        actorUserId: user.id,
+        actorKind: "user",
+        action: "email.send",
+        entityType: "email",
+        entityId: messageId,
+        metadata: {
+          subject: String(subject).slice(0, 200),
+          recipients,
+          recipient_count: recipients.length,
+        },
+        request: req,
+      });
+
+      await Promise.allSettled([memoryWrite, complianceScan, auditWrite]);
     }
 
     return NextResponse.json({

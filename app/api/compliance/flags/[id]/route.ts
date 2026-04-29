@@ -15,6 +15,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { logAuditEvent } from "@/lib/audit/log";
 
 export const dynamic = "force-dynamic";
 
@@ -71,6 +72,20 @@ export async function PATCH(
   if (updErr) {
     return NextResponse.json({ error: updErr.message }, { status: 500 });
   }
+
+  await logAuditEvent({
+    workspaceId: existing.workspace_id,
+    actorUserId: user.id,
+    actorKind: "user",
+    action: "compliance_flag.review",
+    entityType: "compliance_flag",
+    entityId: id,
+    metadata: {
+      resolution: action,
+      note,
+    },
+    request: req,
+  });
 
   return NextResponse.json({ ok: true });
 }

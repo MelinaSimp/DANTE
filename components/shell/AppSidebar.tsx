@@ -28,6 +28,7 @@ import {
   LayoutDashboard,
   Plus,
   Inbox,
+  ScrollText,
 } from "lucide-react";
 import { getIndustryConfig } from "@/lib/industry/config";
 import GlobalSearchModal from "./GlobalSearchModal";
@@ -127,6 +128,7 @@ export default function AppSidebar({
     { href: "/review-tables", label: "Review tables", icon: Table2 },
     { href: "/library", label: "Library", icon: BookOpen },
     { href: "/reminders", label: "Reminders", icon: Bell },
+    { href: "/audit", label: "Audit log", icon: ScrollText },
     {
       href: "/properties",
       label: "Properties",

@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { logAuditEvent } from "@/lib/audit/log";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +54,21 @@ export async function POST(
     return NextResponse.json({ error: "Bad action" }, { status: 400 });
   }
 
+  // Audit row helper — same signature for every successful path
+  // below. Fired AFTER the mutation lands so failed mutations don't
+  // pollute the trail.
+  const logSuccess = (extra: Record<string, unknown> = {}) =>
+    logAuditEvent({
+      workspaceId: wid,
+      actorUserId: user.id,
+      actorKind: "user",
+      action: `work.${action}.${kind}`,
+      entityType: kind === "flag" ? "compliance_flag" : "reminder",
+      entityId: sourceId,
+      metadata: { kind, action, ...extra },
+      request: req,
+    });
+
   // ── Reminders (drafts + scheduled) ──────────────────────────
   if (kind === "draft" || kind === "scheduled") {
     const { data: r } = await supabaseAdmin
@@ -83,6 +99,7 @@ export async function POST(
         .eq("id", sourceId)
         .eq("workspace_id", wid);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      await logSuccess({ send_at: sendAt });
       return NextResponse.json({ ok: true });
     }
 
@@ -97,6 +114,7 @@ export async function POST(
         .eq("id", sourceId)
         .eq("workspace_id", wid);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      await logSuccess({ snooze_days: snoozeDays, new_send_at: next });
       return NextResponse.json({ ok: true, send_at: next });
     }
 
@@ -107,6 +125,7 @@ export async function POST(
         .eq("id", sourceId)
         .eq("workspace_id", wid);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      await logSuccess();
       return NextResponse.json({ ok: true });
     }
   }
@@ -130,6 +149,7 @@ export async function POST(
       .eq("id", sourceId)
       .eq("workspace_id", wid);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    await logSuccess({ resolution: status });
     return NextResponse.json({ ok: true });
   }
 
