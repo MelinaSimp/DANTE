@@ -387,7 +387,6 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
               {n && (
                 <BentoCard
                   label={`What ${assistantName} noticed today`}
-                  icon={<Sparkles className="w-3 h-3" />}
                   className="md:col-span-3 md:row-span-2"
                 >
                   <div className="grid md:grid-cols-2 gap-5">

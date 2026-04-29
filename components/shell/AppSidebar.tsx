@@ -6,11 +6,24 @@
 // "+ Create" primary action, then the module stack, then settings +
 // sign out at the bottom. Vergil/Dante gate is its own slot above
 // the footer so it stands apart.
+//
+// Dock magnification on the module stack — when the cursor is near
+// an icon it scales up subtly (max ~1.18×); neighbours scale less,
+// nothing within ~80px of the cursor stays at rest. Keeps the
+// macOS-dock delight without the cartoonish bounce. Spring-smoothed
+// via framer-motion so movement feels physical, not digital.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
+import {
+  motion,
+  useMotionValue,
+  useSpring,
+  useTransform,
+  type MotionValue,
+} from "framer-motion";
 import {
   Users,
   Calendar as CalendarIcon,
@@ -74,6 +87,56 @@ interface NavItem {
   industry?: string;
 }
 
+// DockIcon — wraps a nav item and scales it based on the cursor's
+// vertical distance from this item's centre. Mouse Y is supplied as
+// a shared MotionValue from the parent <nav> so all icons share one
+// pointer-tracking source. We snap-clamp the scale at ~1.18× and
+// reach rest by ~80px away — smaller than macOS's 1.6× because
+// Drift's icons are also smaller and the visual range needs to read
+// as "subtle delight," not "the cursor is doing something."
+const DOCK_DISTANCE_PX = 80;
+const DOCK_PEAK_SCALE = 1.18;
+function DockIcon({
+  mouseY,
+  children,
+}: {
+  mouseY: MotionValue<number>;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Distance from cursor to this icon's vertical centre. Recomputed
+  // every frame via useTransform — cheap because we only read DOM
+  // metrics inside the closure, not on every state update.
+  const distance = useTransform(mouseY, (val) => {
+    const bounds = ref.current?.getBoundingClientRect();
+    if (!bounds) return DOCK_DISTANCE_PX;
+    return val - (bounds.top + bounds.height / 2);
+  });
+
+  // Map distance → scale. Triangular falloff: peak at 0, 1.0 at
+  // ±DOCK_DISTANCE_PX, clamped outside that.
+  const scaleRaw = useTransform(
+    distance,
+    [-DOCK_DISTANCE_PX, 0, DOCK_DISTANCE_PX],
+    [1, DOCK_PEAK_SCALE, 1],
+  );
+
+  // Spring-smooth so the icon doesn't jitter on every pixel of mouse
+  // movement. Tuned light: high stiffness, low mass, decent damping.
+  const scale = useSpring(scaleRaw, {
+    mass: 0.1,
+    stiffness: 220,
+    damping: 14,
+  });
+
+  return (
+    <motion.div ref={ref} style={{ scale }} className="will-change-transform">
+      {children}
+    </motion.div>
+  );
+}
+
 function workspaceInitials(name: string): string {
   if (!name) return "?";
   // First letters of the first two words; e.g. "Loretta's Workspace" → "LW"
@@ -95,6 +158,11 @@ export default function AppSidebar({
   const [searchInitialMode, setSearchInitialMode] = useState<"search" | "ask">(
     "search",
   );
+
+  // Shared cursor-Y motion value for the dock magnification. Set to
+  // Infinity when the cursor leaves the nav so all icons settle
+  // back to rest immediately rather than holding their last scale.
+  const dockMouseY = useMotionValue(Number.POSITIVE_INFINITY);
 
   // ⌘K opens the palette in Search mode; ⌘/ opens it directly in
   // Ask mode (mnemonic: "ask"). Either shortcut closes the palette
@@ -205,23 +273,31 @@ export default function AppSidebar({
           tooltips that float to the right of each icon get clipped
           (overflow-y: auto silently sets overflow-x: auto in CSS).
           The sidebar fits ~15 icons at 36px each within any
-          reasonable viewport, so we don't need scroll here. */}
-      <nav className="flex-1 flex flex-col items-center gap-0.5 px-2">
+          reasonable viewport, so we don't need scroll here.
+          onMouseMove feeds the dock-magnification cursor tracker;
+          onMouseLeave snaps it to Infinity so all icons settle. */}
+      <nav
+        className="flex-1 flex flex-col items-center gap-0.5 px-2"
+        onMouseMove={(e) => dockMouseY.set(e.clientY)}
+        onMouseLeave={() => dockMouseY.set(Number.POSITIVE_INFINITY)}
+      >
         {items.map((item) => {
           if (item.feature && !features.includes(item.feature)) return null;
           if (item.industry && industry !== item.industry) return null;
           const active = isActive(item.href);
           const Icon = item.icon;
           return (
-            <SidebarTip key={item.href} label={item.label}>
-              <Link
-                href={item.href}
-                className={`${iconBtn(active)} hover:bg-[var(--canvas)]`}
-                style={iconBtnStyle(active)}
-              >
-              <Icon className="w-4 h-4" strokeWidth={active ? 1.75 : 1.5} />
-              </Link>
-            </SidebarTip>
+            <DockIcon key={item.href} mouseY={dockMouseY}>
+              <SidebarTip label={item.label}>
+                <Link
+                  href={item.href}
+                  className={`${iconBtn(active)} hover:bg-[var(--canvas)]`}
+                  style={iconBtnStyle(active)}
+                >
+                  <Icon className="w-4 h-4" strokeWidth={active ? 1.75 : 1.5} />
+                </Link>
+              </SidebarTip>
+            </DockIcon>
           );
         })}
 
@@ -231,13 +307,15 @@ export default function AppSidebar({
             {/* Vergil/Dante uses DanteGateLink so the ceremonial
                 "passing through" overlay animation fires when the
                 user clicks. Plain Link wouldn't trigger it. */}
-            <SidebarTip label={assistantConfig.assistantName}>
-              <DanteGateLink
-                variant="icon-only"
-                label={assistantConfig.assistantName}
-                iconSrc={assistantConfig.assistantIconPath}
-              />
-            </SidebarTip>
+            <DockIcon mouseY={dockMouseY}>
+              <SidebarTip label={assistantConfig.assistantName}>
+                <DanteGateLink
+                  variant="icon-only"
+                  label={assistantConfig.assistantName}
+                  iconSrc={assistantConfig.assistantIconPath}
+                />
+              </SidebarTip>
+            </DockIcon>
           </>
         )}
       </nav>
