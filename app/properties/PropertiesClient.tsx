@@ -103,12 +103,22 @@ export default function PropertiesClient() {
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
-  const [draft, setDraft] = useState({
+  const [draft, setDraft] = useState<{
+    address_line1: string;
+    city: string;
+    state: string;
+    zip: string;
+    list_price: string;
+    kind: string;
+    description: string;
+  }>({
     address_line1: "",
     city: "",
     state: "",
     zip: "",
     list_price: "",
+    kind: "",
+    description: "",
   });
 
   // Electron-only "Import from desktop" flow.
@@ -227,6 +237,8 @@ export default function PropertiesClient() {
           zip: draft.zip || null,
           list_price_cents,
           status: "active",
+          kind: draft.kind || null,
+          description: draft.description.trim() || null,
         }),
       });
       if (!res.ok) {
@@ -235,7 +247,15 @@ export default function PropertiesClient() {
       }
       const created = await res.json();
       setRows((prev) => (prev ? [created, ...prev] : [created]));
-      setDraft({ address_line1: "", city: "", state: "", zip: "", list_price: "" });
+      setDraft({
+        address_line1: "",
+        city: "",
+        state: "",
+        zip: "",
+        list_price: "",
+        kind: "",
+        description: "",
+      });
       setShowCreate(false);
       router.push(`/properties/${created.id}`);
     } catch (e: any) {
@@ -352,10 +372,31 @@ export default function PropertiesClient() {
                 placeholder="List price (USD)"
                 type="number"
                 step="1000"
-                className="md:col-span-2 w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
+                className="w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
+              />
+              <select
+                value={draft.kind}
+                onChange={(e) => setDraft({ ...draft, kind: e.target.value })}
+                className="w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
+              >
+                <option value="">Kind — pick one</option>
+                <option value="residential">Residential</option>
+                <option value="commercial">Commercial</option>
+                <option value="rental">Rental (unlocks lease block)</option>
+                <option value="land">Land</option>
+                <option value="other">Other</option>
+              </select>
+              <textarea
+                value={draft.description}
+                onChange={(e) =>
+                  setDraft({ ...draft, description: e.target.value })
+                }
+                placeholder="Description — what's in the property: rooms, finishes, condition, recent renovations, neighbourhood notes…"
+                rows={3}
+                className="md:col-span-2 w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)] resize-y leading-relaxed"
               />
             </div>
-            <div className="mt-4 flex items-center gap-3">
+            <div className="mt-4 flex items-center gap-3 flex-wrap">
               <button
                 onClick={submitCreate}
                 disabled={creating}
@@ -368,9 +409,11 @@ export default function PropertiesClient() {
                 )}
                 {creating ? "Creating…" : "Create property"}
               </button>
-              <span className="text-[11px] text-[var(--ink-subtle)]">
-                You can fill in beds, baths, sqft, and link clients on the
-                detail page after creation.
+              <span className="text-[11px] text-[var(--ink-subtle)] max-w-md">
+                After you create, the detail page lets you add features, lease
+                terms (when kind is Rental), the transaction-stage pipeline,
+                attached documents (PDFs, photos, leases), and link clients
+                — buyer, seller, tenant, etc.
               </span>
             </div>
           </section>
