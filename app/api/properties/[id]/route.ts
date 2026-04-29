@@ -131,6 +131,30 @@ export async function PATCH(
     updates.lot_size_sqft = body.lot_size_sqft;
   }
 
+  // Transaction pipeline stage. Auto-stamp stage_entered_at on
+  // change so the work-queue's "stuck in stage X" scan has a clean
+  // timestamp. The DB trigger backstops this for direct updates.
+  const VALID_TXN_STAGES = [
+    "listed",
+    "showing",
+    "offer",
+    "pending",
+    "closed",
+    "withdrawn",
+    "expired",
+  ];
+  if (
+    body.transaction_stage === null ||
+    (typeof body.transaction_stage === "string" &&
+      VALID_TXN_STAGES.includes(body.transaction_stage))
+  ) {
+    updates.transaction_stage = body.transaction_stage;
+    updates.stage_entered_at = new Date().toISOString();
+  }
+  if (typeof body.expected_close_date === "string" || body.expected_close_date === null) {
+    updates.expected_close_date = body.expected_close_date || null;
+  }
+
   // Lease block.
   if (typeof body.lease_term_months === "number" || body.lease_term_months === null) {
     updates.lease_term_months = body.lease_term_months;

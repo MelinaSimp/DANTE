@@ -25,13 +25,28 @@ export const dynamic = "force-dynamic";
 const HORIZON_DAYS = 60;
 const STALE_DAYS = 60;
 const MAX_STALE = 10; // cap so the queue isn't 200 stale clients
+const REVIEW_HORIZON_DAYS = 14; // surface a review N days before due
+
+// "Stuck in stage X" thresholds — dwell time past which we flag the
+// deal in the work queue. These match common real-estate cadences
+// rather than absolute hard limits; advisors can override per
+// workspace once we surface configuration.
+const STAGE_DWELL_DAYS: Record<string, number> = {
+  listed: 30,    // listed but never showed → marketing problem
+  showing: 30,   // shown but no offers → pricing problem
+  offer: 7,      // offer in motion → don't let it cool
+  pending: 21,   // in escrow longer than typical → escalate
+  // closed / withdrawn / expired are terminal — never "stuck"
+};
 
 export type WorkKind =
   | "renewal"
   | "draft"
   | "scheduled"
   | "flag"
-  | "stale";
+  | "stale"
+  | "stuck_deal"   // property in a transaction stage past its expected dwell time
+  | "review_due";  // contact whose next_review_date is within REVIEW_HORIZON_DAYS
 
 export type Urgency = "overdue" | "today" | "this_week" | "later";
 
@@ -80,13 +95,16 @@ const URGENCY_RANK: Record<Urgency, number> = {
 
 const STAKE_RANK: Record<WorkKind, number> = {
   // Within an urgency bucket, compliance > drafts (about-to-send) >
-  // renewals (fixed deadline) > scheduled (already user-approved) >
+  // stuck deals (revenue at risk) > renewals (fixed deadline) >
+  // review_due (calendar-bound) > scheduled (already user-approved) >
   // stale (no hard deadline).
   flag: 0,
   draft: 1,
-  renewal: 2,
-  scheduled: 3,
-  stale: 4,
+  stuck_deal: 2,
+  renewal: 3,
+  review_due: 4,
+  scheduled: 5,
+  stale: 6,
 };
 
 export async function GET() {
@@ -109,6 +127,10 @@ export async function GET() {
     .slice(0, 10);
   const staleCutoff = new Date(Date.now() - STALE_DAYS * 86400_000).toISOString();
 
+  const reviewHorizonIso = new Date(Date.now() + REVIEW_HORIZON_DAYS * 86400_000)
+    .toISOString()
+    .slice(0, 10);
+
   const [
     { data: expiringDocs },
     { data: drafts },
@@ -116,6 +138,8 @@ export async function GET() {
     { data: flags },
     { data: contacts },
     { data: recentNotes },
+    { data: pipelineProps },
+    { data: dueReviews },
   ] = await Promise.all([
     supabaseAdmin
       .from("property_documents")
@@ -158,6 +182,24 @@ export async function GET() {
       .select("contact_id, created_at")
       .eq("workspace_id", wid)
       .gte("created_at", staleCutoff),
+    supabaseAdmin
+      .from("properties")
+      .select(
+        "id, address_line1, city, transaction_stage, stage_entered_at, expected_close_date",
+      )
+      .eq("workspace_id", wid)
+      .in("transaction_stage", Object.keys(STAGE_DWELL_DAYS))
+      .not("stage_entered_at", "is", null)
+      .limit(50),
+    supabaseAdmin
+      .from("contacts")
+      .select(
+        "id, name, email, review_stage, next_review_date, last_review_completed_at",
+      )
+      .eq("workspace_id", wid)
+      .lte("next_review_date", reviewHorizonIso)
+      .not("next_review_date", "is", null)
+      .limit(50),
   ]);
 
   // Resolve names/labels for foreign keys we'll surface as chips.
@@ -285,6 +327,87 @@ export async function GET() {
       href: `/dante/compliance/${f.id}`,
       actions: ["dismiss", "open"],
       preview: f.message,
+    });
+  }
+
+  // ── Stuck deals (transaction pipeline) ──────────────────────
+  // A property is "stuck" when stage_entered_at is older than the
+  // dwell threshold for its current stage. We surface revenue-at-
+  // risk deals so the user nudges them along.
+  for (const p of pipelineProps || []) {
+    if (!p.transaction_stage || !p.stage_entered_at) continue;
+    const dwell = STAGE_DWELL_DAYS[p.transaction_stage];
+    if (!dwell) continue;
+    const enteredMs = new Date(p.stage_entered_at).getTime();
+    const ageDays = Math.floor((Date.now() - enteredMs) / 86400_000);
+    if (ageDays < dwell) continue; // not stuck yet
+
+    const overshoot = ageDays - dwell;
+    const addr = [p.address_line1, p.city].filter(Boolean).join(", ") ||
+      "(unknown property)";
+
+    // Map dwell overshoot to urgency: heavy overshoot = today, light = this_week.
+    let urgency: Urgency;
+    if (overshoot >= 14) urgency = "today";
+    else if (overshoot >= 3) urgency = "this_week";
+    else urgency = "later";
+
+    const stageLabel = p.transaction_stage.toUpperCase();
+    items.push({
+      id: `stuck_deal:${p.id}`,
+      kind: "stuck_deal",
+      urgency,
+      title: `Nudge ${stageLabel} deal — ${addr}`,
+      deadline: p.expected_close_date,
+      chips: [
+        { label: stageLabel, tone: overshoot >= 14 ? "danger" : "warn" },
+        { label: `${ageDays}d in stage` },
+        { label: addr },
+      ],
+      stake: `In '${p.transaction_stage}' for ${ageDays} days — typical is ${dwell}. Deal cooling off without movement.`,
+      href: `/properties/${p.id}`,
+      actions: ["open"],
+    });
+  }
+
+  // ── Reviews due ─────────────────────────────────────────────
+  for (const c of dueReviews || []) {
+    // Skip rows where the review cycle is already complete and the
+    // next_review_date hasn't yet caught up — those rolled-forward
+    // dates land outside the horizon naturally.
+    if (c.review_stage === "done") continue;
+
+    const stage = c.review_stage || "due";
+    const stageLabel = stage.replace(/_/g, " ").toUpperCase();
+    items.push({
+      id: `review_due:${c.id}`,
+      kind: "review_due",
+      urgency: deriveUrgency(c.next_review_date),
+      title:
+        stage === "due"
+          ? `Schedule review — ${c.name || "(unnamed contact)"}`
+          : stage === "prep"
+          ? `Finish review prep — ${c.name || "(unnamed contact)"}`
+          : stage === "meeting"
+          ? `Send recap — ${c.name || "(unnamed contact)"}`
+          : `Close out review — ${c.name || "(unnamed contact)"}`,
+      deadline: c.next_review_date,
+      chips: [
+        { label: stageLabel },
+        { label: c.name || c.email || "" },
+      ],
+      stake:
+        stage === "due"
+          ? "No prep started for this review cycle yet."
+          : stage === "prep"
+          ? "Prep is in flight — meeting not yet held."
+          : stage === "meeting"
+          ? "Meeting happened; recap email is the missing piece."
+          : "Recap sent; mark complete to roll the cycle forward.",
+      href: c.email
+        ? `/client-details-overview?contact=${encodeURIComponent(c.name || "")}`
+        : `/client-details-overview`,
+      actions: ["open"],
     });
   }
 

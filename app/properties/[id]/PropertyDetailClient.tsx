@@ -25,6 +25,7 @@ import {
   CalendarClock,
   Upload,
   Download,
+  ChevronRight,
 } from "lucide-react";
 import ContextualAskPanel from "@/components/dante/ContextualAskPanel";
 
@@ -54,6 +55,9 @@ interface Property {
   lease_end_date: string | null;
   monthly_rent_cents: number | null;
   tenant_contact_id: string | null;
+  transaction_stage: string | null;
+  stage_entered_at: string | null;
+  expected_close_date: string | null;
   clients: Array<{
     contact_id: string;
     role: string;
@@ -156,6 +160,7 @@ export default function PropertyDetailClient({
     lease_end_date: "",
     monthly_rent_dollars: "",
     tenant_contact_id: "",
+    expected_close_date_or_empty: "",
   });
 
   // Feature-chip input buffers — local typing state that flushes to
@@ -220,6 +225,7 @@ export default function PropertyDetailClient({
             ? (p.monthly_rent_cents / 100).toString()
             : "",
         tenant_contact_id: p.tenant_contact_id || "",
+        expected_close_date_or_empty: p.expected_close_date || "",
       });
     } catch (e: any) {
       setLoadError(e.message || "Failed to load");
@@ -274,6 +280,7 @@ export default function PropertyDetailClient({
           ? (property.monthly_rent_cents / 100).toString()
           : "",
       tenant_contact_id: property.tenant_contact_id || "",
+      expected_close_date_or_empty: property.expected_close_date || "",
     };
     return JSON.stringify(orig) !== JSON.stringify(form);
   }, [property, form]);
@@ -330,6 +337,7 @@ export default function PropertyDetailClient({
             ? null
             : Math.round(parseFloat(form.monthly_rent_dollars) * 100),
         tenant_contact_id: form.tenant_contact_id || null,
+        expected_close_date: form.expected_close_date_or_empty || null,
       };
       const r = await fetch(`/api/properties/${propertyId}`, {
         method: "PATCH",
@@ -404,6 +412,33 @@ export default function PropertyDetailClient({
   // POST to the upload endpoint as multipart instead of a JSON
   // payload to /documents — same row shape lands either way.
   const [docFile, setDocFile] = useState<File | null>(null);
+
+  // Pipeline stepper — direct-save on click rather than waiting for
+  // the main Save button. Stage transitions are first-class events
+  // (the work queue scans them), so a half-saved stage is worse
+  // than no stage; we commit immediately.
+  const [stagingStage, setStagingStage] = useState<string | null>(null);
+  const setStage = async (stage: string | null) => {
+    if (!property) return;
+    setStagingStage(stage);
+    try {
+      const r = await fetch(`/api/properties/${propertyId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ transaction_stage: stage }),
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        throw new Error(j.error || "Failed to update stage");
+      }
+      await loadProperty();
+    } catch (e: any) {
+      alert(e.message || "Stage update failed");
+    } finally {
+      setStagingStage(null);
+    }
+  };
 
   const addDocument = async () => {
     setDocError(null);
@@ -738,6 +773,145 @@ export default function PropertyDetailClient({
                   </option>
                 ))}
               </select>
+            </label>
+          </div>
+        </section>
+
+        {/* Transaction pipeline — stepper. Each stage is clickable;
+            clicking sets the stage immediately (the work queue scans
+            stage_entered_at to flag stuck deals). */}
+        <section className="card-flat p-6">
+          <div className="flex items-baseline justify-between mb-4 gap-3 flex-wrap">
+            <div>
+              <div className="label-section mb-1">Pipeline</div>
+              <h2 className="text-base font-semibold">Transaction stage</h2>
+              <p className="text-xs text-[var(--ink-muted)] mt-0.5 max-w-xl">
+                Drift watches each stage and flags deals stuck longer than
+                typical. {property.transaction_stage && property.stage_entered_at && (
+                  <>
+                    Currently in{" "}
+                    <span className="text-[var(--ink)] mono uppercase">
+                      {property.transaction_stage}
+                    </span>{" "}
+                    for{" "}
+                    {Math.max(
+                      0,
+                      Math.floor(
+                        (Date.now() -
+                          new Date(property.stage_entered_at).getTime()) /
+                          86400_000,
+                      ),
+                    )}
+                    {" "}days.
+                  </>
+                )}
+              </p>
+            </div>
+            {property.transaction_stage && (
+              <button
+                onClick={() => setStage(null)}
+                className="text-[11px] text-[var(--ink-subtle)] hover:text-[var(--danger)] transition"
+              >
+                Clear stage
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1 flex-wrap">
+            {(
+              [
+                "listed",
+                "showing",
+                "offer",
+                "pending",
+                "closed",
+              ] as const
+            ).map((s, i, arr) => {
+              const active = property.transaction_stage === s;
+              const isPast = (() => {
+                if (!property.transaction_stage) return false;
+                const cur = arr.indexOf(property.transaction_stage as typeof arr[number]);
+                return cur > -1 && i < cur;
+              })();
+              return (
+                <div key={s} className="flex items-center">
+                  <button
+                    onClick={() => setStage(s)}
+                    disabled={stagingStage !== null}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-[4px] text-xs font-medium transition border"
+                    style={{
+                      background: active
+                        ? "var(--ink)"
+                        : isPast
+                        ? "var(--canvas-subtle)"
+                        : "transparent",
+                      color: active
+                        ? "var(--canvas)"
+                        : isPast
+                        ? "var(--ink)"
+                        : "var(--ink-muted)",
+                      borderColor: active ? "var(--ink)" : "var(--rule)",
+                    }}
+                  >
+                    {stagingStage === s && (
+                      <Loader2 className="w-3 h-3 animate-spin" strokeWidth={1.5} />
+                    )}
+                    {s.charAt(0).toUpperCase() + s.slice(1)}
+                  </button>
+                  {i < arr.length - 1 && (
+                    <ChevronRight
+                      className="w-3 h-3 mx-0.5"
+                      strokeWidth={1.5}
+                      style={{
+                        color: isPast || active
+                          ? "var(--ink)"
+                          : "var(--ink-subtle)",
+                      }}
+                    />
+                  )}
+                </div>
+              );
+            })}
+            <span className="mx-2 text-[var(--ink-subtle)] text-xs">·</span>
+            {(["withdrawn", "expired"] as const).map((s) => {
+              const active = property.transaction_stage === s;
+              return (
+                <button
+                  key={s}
+                  onClick={() => setStage(s)}
+                  disabled={stagingStage !== null}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-[4px] text-xs font-medium transition border"
+                  style={{
+                    background: active ? "var(--danger)" : "transparent",
+                    color: active ? "var(--canvas)" : "var(--ink-muted)",
+                    borderColor: active ? "var(--danger)" : "var(--rule)",
+                  }}
+                >
+                  {stagingStage === s && (
+                    <Loader2 className="w-3 h-3 animate-spin" strokeWidth={1.5} />
+                  )}
+                  {s.charAt(0).toUpperCase() + s.slice(1)}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-5 grid md:grid-cols-2 gap-3">
+            <label className="block">
+              <div className="text-xs text-[var(--ink-muted)] mb-1">
+                Expected close date
+              </div>
+              <input
+                value={form.expected_close_date_or_empty}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    expected_close_date_or_empty: e.target.value,
+                  })
+                }
+                type="date"
+                className={inputClass}
+              />
             </label>
           </div>
         </section>

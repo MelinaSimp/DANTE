@@ -31,10 +31,19 @@ import {
   ChevronRight,
   ChevronDown,
   RefreshCw,
+  Home,
+  ClipboardCheck,
 } from "lucide-react";
 import { useAssistantName } from "@/components/dante/AssistantNameProvider";
 
-type WorkKind = "renewal" | "draft" | "scheduled" | "flag" | "stale";
+type WorkKind =
+  | "renewal"
+  | "draft"
+  | "scheduled"
+  | "flag"
+  | "stale"
+  | "stuck_deal"
+  | "review_due";
 type Urgency = "overdue" | "today" | "this_week" | "later";
 
 interface Chip {
@@ -70,6 +79,8 @@ const KIND_ICON: Record<WorkKind, React.ComponentType<any>> = {
   scheduled: Clock,
   flag: ShieldAlert,
   stale: Users,
+  stuck_deal: Home,
+  review_due: ClipboardCheck,
 };
 
 const KIND_LABEL: Record<WorkKind, string> = {
@@ -78,12 +89,16 @@ const KIND_LABEL: Record<WorkKind, string> = {
   scheduled: "Scheduled",
   flag: "Compliance",
   stale: "Stale",
+  stuck_deal: "Stuck deal",
+  review_due: "Review due",
 };
 
 type Filter = WorkKind | "all";
 
 const FILTERS: Array<{ value: Filter; label: string }> = [
   { value: "all", label: "All" },
+  { value: "stuck_deal", label: "Deals" },
+  { value: "review_due", label: "Reviews" },
   { value: "renewal", label: "Renewals" },
   { value: "draft", label: "Drafts" },
   { value: "scheduled", label: "Scheduled" },
@@ -151,6 +166,8 @@ export default function WorkClient() {
       scheduled: 0,
       flag: 0,
       stale: 0,
+      stuck_deal: 0,
+      review_due: 0,
     };
     for (const it of items || []) c[it.kind]++;
     return c;
