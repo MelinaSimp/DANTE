@@ -30,6 +30,7 @@ import DanteGateLink from "@/components/dante/DanteGateLink";
 import { getIndustryConfig } from "@/lib/industry/config";
 import AppShell from "@/components/shell/AppShell";
 import EntityAsk from "@/components/dante/EntityAsk";
+import { BentoGrid, BentoCard } from "@/components/ui/bento-grid";
 import {
   ArrowUpRight,
   ShieldCheck,
@@ -251,29 +252,147 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
           );
         })()}
 
-        {/* What I noticed today — D/V's daily voice on the dashboard.
-            Always rendered so the assistant has visible presence even
-            on a clean queue: an "all clear" greeting beats a hidden
-            section, especially on a fresh workspace where ANY signal
-            of D/V being awake matters. */}
+        {/* Bento — main dashboard surface. Mixes hero + small + wide
+            tiles so the eye lands on TODAY first, then sweeps right
+            for status counters, down for D/V's daily noticing, and
+            across for recent calls. Replaces what used to be a flat
+            stack of sections. AgentOutputsSection sits below as its
+            own row since it self-hides on empty.
+
+            Layout (md+):
+              Row 1-2: [   Today 2×2   ][Awaiting 1×1]
+                                        [Flagged  1×1]
+              Row 3-4: [   Noticed today 3×2 (full row)   ]
+              Row 5-6: [   Recent calls 3×2 (full row)    ]
+        */}
         {(() => {
           const n = data.noticedToday;
-          if (!n) return null;
+          const hasCompliance = data.features.includes("compliance_scanner");
           const assistantName = getIndustryConfig(data.industry).assistantName;
           return (
-            <section className="mb-12 border border-[var(--rule)] rounded-[6px] overflow-hidden">
-              <div className="px-5 py-3 border-b border-[var(--rule)] bg-[var(--canvas-subtle)] flex items-center gap-2">
-                <Sparkles
-                  className="w-3.5 h-3.5 text-[var(--ink-muted)]"
-                  strokeWidth={1.5}
-                />
-                <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)]">
-                  What {assistantName} noticed today
-                </div>
-              </div>
-              <div className="grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[var(--rule)]">
-                {/* Pending drafts */}
-                <div className="p-5">
+            <BentoGrid cols={3} className="mb-12">
+              {/* Today — hero (2×2) */}
+              <BentoCard
+                label="Today"
+                icon={<CalendarClock className="w-3 h-3" />}
+                href="/calendar"
+                className="md:col-span-2 md:row-span-2"
+              >
+                {data.today.length === 0 ? (
+                  <EmptyNote>No meetings scheduled.</EmptyNote>
+                ) : (
+                  <ul className="divide-y divide-[var(--rule)] border-t border-[var(--rule)]">
+                    {data.today.map((m) => (
+                      <li key={m.id} className="py-3">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <div className="text-[15px] font-medium mb-0.5">
+                              {m.contactName}
+                            </div>
+                            <div className="text-xs text-[var(--ink-muted)] mono">
+                              {formatTimeOnly(m.scheduledAt)} · {m.serviceType}
+                            </div>
+                          </div>
+                          <Link
+                            href={`/client-details-overview?contact=${encodeURIComponent(
+                              m.contactName,
+                            )}`}
+                            className="inline-flex items-center gap-1 text-xs text-[var(--accent)] hover:underline"
+                          >
+                            Prep
+                            <ArrowUpRight className="w-3 h-3" />
+                          </Link>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </BentoCard>
+
+              {/* Awaiting your review — small counter (1×1) */}
+              {hasCompliance && (
+                <BentoCard
+                  label="Awaiting review"
+                  icon={<ShieldCheck className="w-3 h-3" />}
+                  href={data.awaitingReview > 0 ? "/compliance/queue" : undefined}
+                  className="md:col-span-1"
+                >
+                  {data.awaitingReview === 0 ? (
+                    <div className="text-xs text-[var(--ink-muted)]">
+                      Queue is clear.
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="flex items-baseline gap-2">
+                        <div className="heading-display text-4xl">
+                          {data.awaitingReview}
+                        </div>
+                        <div className="text-xs text-[var(--ink-muted)]">
+                          pending review
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </BentoCard>
+              )}
+
+              {/* Quiet clients — small alert (1×1). Folds in the old
+                  "Needs attention" section: top 3 stale, link out
+                  for the rest. */}
+              <BentoCard
+                label="Quiet clients"
+                icon={
+                  <AlertTriangle
+                    className="w-3 h-3"
+                    style={{
+                      color: data.flagged.length > 0 ? "var(--flag)" : undefined,
+                    }}
+                  />
+                }
+                tone={data.flagged.length > 0 ? "alert" : "default"}
+                className={
+                  hasCompliance ? "md:col-span-1" : "md:col-span-1 md:row-span-2"
+                }
+              >
+                {data.flagged.length === 0 ? (
+                  <div className="text-xs text-[var(--ink-muted)]">
+                    No clients need attention right now.
+                  </div>
+                ) : (
+                  <div>
+                    <div className="flex items-baseline gap-2 mb-2">
+                      <div className="heading-display text-3xl">
+                        {data.flagged.length}
+                      </div>
+                      <div className="text-xs text-[var(--ink-muted)]">
+                        going quiet
+                      </div>
+                    </div>
+                    <ul className="space-y-1">
+                      {data.flagged.slice(0, 3).map((f) => (
+                        <li
+                          key={f.id}
+                          className="text-xs text-[var(--ink)] truncate"
+                        >
+                          <span className="text-[var(--ink-subtle)]">·</span>{" "}
+                          {f.client}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </BentoCard>
+
+              {/* What X noticed today — wide row (3×2) */}
+              {n && (
+                <BentoCard
+                  label={`What ${assistantName} noticed today`}
+                  icon={<Sparkles className="w-3 h-3" />}
+                  className="md:col-span-3 md:row-span-2"
+                >
+                  <div className="grid md:grid-cols-2 gap-5">
+                    {/* Pending drafts */}
+                    <div>
                   <div className="flex items-baseline justify-between mb-3 gap-3">
                     <div>
                       <div className="text-sm font-medium text-[var(--ink)]">
@@ -361,7 +480,7 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
                 </div>
 
                 {/* Expiring documents */}
-                <div className="p-5">
+                <div>
                   <div className="flex items-baseline justify-between mb-3 gap-3">
                     <div>
                       <div className="text-sm font-medium text-[var(--ink)]">
@@ -425,174 +544,64 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
                   )}
                 </div>
               </div>
-            </section>
-          );
-        })()}
+                </BentoCard>
+              )}
 
-        {/* Today / Awaiting — second column collapses when the
-            compliance_scanner feature is off; Today then spans full
-            width so the dashboard doesn't look half-empty. */}
-        {(() => {
-          const hasCompliance = data.features.includes("compliance_scanner");
-          const gridCols = hasCompliance ? "md:grid-cols-2" : "md:grid-cols-1";
-          return (
-            <section className={`grid grid-cols-1 ${gridCols} gap-10 mb-16`}>
-              <DashSection
-                label="Today"
-                icon={<CalendarClock className="w-3.5 h-3.5" />}
+              {/* Recent calls — wide row (3×2) */}
+              <BentoCard
+                label="Recent calls"
+                icon={<FileCheck2 className="w-3 h-3" />}
+                className="md:col-span-3 md:row-span-2"
               >
-                {data.today.length === 0 ? (
-                  <EmptyNote>No meetings scheduled.</EmptyNote>
+                {data.recentCalls.length === 0 ? (
+                  <EmptyNote>No call recordings yet.</EmptyNote>
                 ) : (
-                  <ul className="divide-y divide-[var(--rule)] border-t border-b border-[var(--rule)]">
-                    {data.today.map((m) => (
-                      <li key={m.id} className="py-4">
+                  <ul className="divide-y divide-[var(--rule)] border-t border-[var(--rule)]">
+                    {data.recentCalls.slice(0, 6).map((c) => (
+                      <li key={c.id} className="py-3">
                         <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1">
-                            <div className="text-[15px] font-medium mb-0.5">
-                              {m.contactName}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-baseline gap-2 mb-1">
+                              <div className="text-[15px] font-medium truncate">
+                                {c.contact_name || "Unknown"}
+                              </div>
+                              <div className="text-xs mono text-[var(--ink-subtle)]">
+                                {formatRelativeDate(c.created_at)}
+                              </div>
                             </div>
-                            <div className="text-xs text-[var(--ink-muted)] mono">
-                              {formatTimeOnly(m.scheduledAt)} · {m.serviceType}
+                            <div className="text-sm text-[var(--ink-muted)] line-clamp-1">
+                              {c.body
+                                .replace(/^📞 Call with [^\n]*\n?/, "")
+                                .slice(0, 180)}
                             </div>
                           </div>
-                          <Link
-                            href={`/client-details-overview?contact=${encodeURIComponent(
-                              m.contactName
-                            )}`}
-                            className="inline-flex items-center gap-1 text-xs text-[var(--accent)] hover:underline"
-                          >
-                            Prep
-                            <ArrowUpRight className="w-3 h-3" />
-                          </Link>
+                          {c.has_audit && (
+                            <Link
+                              href={`/client-details-overview?contact=${c.contact_id}&audit=${c.id}`}
+                              className="chip-citation hover:bg-[var(--accent)] hover:text-white transition whitespace-nowrap"
+                            >
+                              <FileCheck2 className="w-3 h-3" />
+                              View audit
+                            </Link>
+                          )}
                         </div>
                       </li>
                     ))}
                   </ul>
                 )}
-              </DashSection>
-
-              {hasCompliance && (
-                <DashSection
-                  label="Awaiting your review"
-                  icon={<ShieldCheck className="w-3.5 h-3.5" />}
-                >
-                  {data.awaitingReview === 0 ? (
-                    <EmptyNote>Queue is clear.</EmptyNote>
-                  ) : (
-                    <div className="py-4 border-t border-b border-[var(--rule)]">
-                      <div className="flex items-baseline gap-3">
-                        <div className="heading-display text-4xl">
-                          {data.awaitingReview}
-                        </div>
-                        <div className="text-sm text-[var(--ink-muted)]">
-                          item{data.awaitingReview === 1 ? "" : "s"} pending
-                          compliance review
-                        </div>
-                      </div>
-                      <Link
-                        href="/compliance/queue"
-                        className="mt-3 inline-flex items-center gap-1 text-xs text-[var(--accent)] hover:underline"
-                      >
-                        Open queue
-                        <ArrowUpRight className="w-3 h-3" />
-                      </Link>
-                    </div>
-                  )}
-                </DashSection>
-              )}
-            </section>
+              </BentoCard>
+            </BentoGrid>
           );
         })()}
-
-        {/* Recent calls */}
-        <section className="mb-16">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-2">
-              <span className="label-section">Recent calls</span>
-              <FileCheck2 className="w-3.5 h-3.5 text-[var(--ink-muted)]" />
-            </div>
-          </div>
-          {data.recentCalls.length === 0 ? (
-            <EmptyNote>No call recordings yet.</EmptyNote>
-          ) : (
-            <ul className="divide-y divide-[var(--rule)] border-t border-b border-[var(--rule)]">
-              {data.recentCalls.map((c) => (
-                <li key={c.id} className="py-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-baseline gap-2 mb-1">
-                        <div className="text-[15px] font-medium truncate">
-                          {c.contact_name || "Unknown"}
-                        </div>
-                        <div className="text-xs mono text-[var(--ink-subtle)]">
-                          {formatRelativeDate(c.created_at)}
-                        </div>
-                      </div>
-                      <div className="text-sm text-[var(--ink-muted)] line-clamp-1">
-                        {c.body.replace(/^📞 Call with [^\n]*\n?/, "").slice(0, 180)}
-                      </div>
-                    </div>
-                    {c.has_audit && (
-                      <Link
-                        href={`/client-details-overview?contact=${c.contact_id}&audit=${c.id}`}
-                        className="chip-citation hover:bg-[var(--accent)] hover:text-white transition whitespace-nowrap"
-                      >
-                        <FileCheck2 className="w-3 h-3" />
-                        View audit
-                      </Link>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
 
         {/* Agent outputs — pending recommendations/insights from the
             autonomous roster. Click the card to jump to where the advice
             lives; Approve/Dismiss acts inline. Outputs with a
             scheduled_for date in the past are filtered client-side ("if a
             selected date for a recommendation is passed, the
-            recommendation should fall from the dashboard"). */}
+            recommendation should fall from the dashboard"). Sits below
+            the bento as a separate row because it self-hides on empty. */}
         <AgentOutputsSection />
-
-        {/* Needs attention — clients going quiet. Not compliance; this
-            is a relationship-at-risk signal ("no activity in 60 days").
-            Kept honest: one real signal instead of four advertised ones. */}
-        <section className="mb-16">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-2">
-              <span className="label-section">Needs attention</span>
-              <AlertTriangle className="w-3.5 h-3.5 text-[var(--flag)]" />
-            </div>
-            <span className="text-xs text-[var(--ink-subtle)]">
-              Clients going quiet
-            </span>
-          </div>
-          {data.flagged.length === 0 ? (
-            <EmptyNote>No clients need attention right now.</EmptyNote>
-          ) : (
-            <ul className="divide-y divide-[var(--rule)] border-t border-b border-[var(--rule)]">
-              {data.flagged.map((f) => (
-                <li key={f.id} className="py-4 flex items-start gap-4">
-                  <span className="chip-flag mt-0.5 shrink-0">quiet</span>
-                  <div className="flex-1">
-                    <div className="text-[15px] font-medium">{f.client}</div>
-                    <div className="text-sm text-[var(--ink-muted)]">
-                      {f.detail}
-                    </div>
-                    {f.dueAt && (
-                      <div className="text-xs mono text-[var(--ink-subtle)] mt-0.5">
-                        {formatDateTime(f.dueAt)}
-                      </div>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
 
       </div>
     </div>
