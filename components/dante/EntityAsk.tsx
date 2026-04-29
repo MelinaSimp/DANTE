@@ -2,7 +2,7 @@
 
 // EntityAsk — the "hover any meaningful thing in the app and a tiny
 // D/V handle slides in" pattern. Wraps a child element (typically an
-// entity name or label); on hover, a faint Sparkles icon appears
+// entity name or label); on hover, a small "ASK" handle appears
 // next to it; clicking opens an inline popover with a chat input
 // scoped to that entity.
 //
@@ -28,11 +28,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  Sparkles,
   X,
   Send,
   Loader2,
-  ExternalLink,
 } from "lucide-react";
 import {
   consumeAgentStream,
@@ -240,10 +238,10 @@ export default function EntityAsk({
         }}
         aria-label={`Ask ${assistantName} about ${label}`}
         title={`Ask ${assistantName} about this ${kind}`}
-        className="entity-ask__icon inline-flex items-center justify-center w-3.5 h-3.5 ml-0.5 rounded-[3px] text-[var(--ink-subtle)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] opacity-0 group-hover:opacity-100 transition"
+        className="entity-ask__handle inline-flex items-center px-1.5 py-0.5 ml-1 rounded-[3px] text-[9px] mono uppercase tracking-wider text-[var(--ink-subtle)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] opacity-0 group-hover:opacity-100 transition"
         style={{ verticalAlign: "middle" }}
       >
-        <Sparkles className="w-2.5 h-2.5" strokeWidth={1.75} />
+        ask
       </button>
 
       {open && anchor && typeof document !== "undefined"
@@ -256,10 +254,6 @@ export default function EntityAsk({
               aria-label={`Ask ${assistantName}`}
             >
               <div className="px-3 py-2 border-b border-[var(--rule)] bg-[var(--canvas-subtle)] flex items-center gap-2">
-                <Sparkles
-                  className="w-3 h-3 text-[var(--ink-muted)]"
-                  strokeWidth={1.5}
-                />
                 <div className="flex-1 min-w-0">
                   <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)]">
                     {assistantName} · {kind}
