@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAssistantName } from "@/components/dante/AssistantNameProvider";
+import EntityAsk from "@/components/dante/EntityAsk";
 import {
   ArrowLeft,
   Bell,
@@ -411,7 +412,13 @@ export default function RemindersClient() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-baseline gap-2 flex-wrap">
                           <span className="text-sm font-medium text-[var(--ink)] truncate">
-                            {r.subject || "(no subject)"}
+                            <EntityAsk
+                              kind="reminder"
+                              id={r.id}
+                              label={r.subject || "(no subject)"}
+                            >
+                              {r.subject || "(no subject)"}
+                            </EntityAsk>
                           </span>
                           <span className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)]">
                             {r.source}

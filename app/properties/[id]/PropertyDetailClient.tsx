@@ -28,6 +28,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import ContextualAskPanel from "@/components/dante/ContextualAskPanel";
+import EntityAsk from "@/components/dante/EntityAsk";
 
 interface Property {
   id: string;
@@ -1261,7 +1262,13 @@ export default function PropertyDetailClient({
                 >
                   <div className="flex-1 min-w-0">
                     <div className="text-sm text-[var(--ink)] truncate">
-                      {c.name || "(no name)"}
+                      <EntityAsk
+                        kind="contact"
+                        id={c.contact_id}
+                        label={c.name || "(no name)"}
+                      >
+                        {c.name || "(no name)"}
+                      </EntityAsk>
                     </div>
                     <div className="text-[11px] text-[var(--ink-subtle)] truncate">
                       {[c.email, c.phone].filter(Boolean).join(" · ") || "—"}
@@ -1471,7 +1478,13 @@ export default function PropertyDetailClient({
                   />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm text-[var(--ink)] truncate">
-                      {d.title}
+                      <EntityAsk
+                        kind="document"
+                        id={d.id}
+                        label={d.title}
+                      >
+                        {d.title}
+                      </EntityAsk>
                     </div>
                     <div className="text-[11px] text-[var(--ink-subtle)] flex items-center gap-3 mt-0.5">
                       <span className="mono uppercase tracking-wider">

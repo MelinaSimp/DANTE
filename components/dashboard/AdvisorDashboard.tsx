@@ -29,6 +29,7 @@ import { pickGreeting, pickSubtitle } from "@/lib/dashboard/greetings";
 import DanteGateLink from "@/components/dante/DanteGateLink";
 import { getIndustryConfig } from "@/lib/industry/config";
 import AppShell from "@/components/shell/AppShell";
+import EntityAsk from "@/components/dante/EntityAsk";
 import {
   ArrowUpRight,
   ShieldCheck,
@@ -322,7 +323,13 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
                               />
                               <div className="flex-1 min-w-0">
                                 <div className="text-sm text-[var(--ink)] truncate">
-                                  {d.subject || "(no subject)"}
+                                  <EntityAsk
+                                    kind="draft"
+                                    id={d.id}
+                                    label={d.subject || "(no subject)"}
+                                  >
+                                    {d.subject || "(no subject)"}
+                                  </EntityAsk>
                                 </div>
                                 <div className="text-[11px] text-[var(--ink-subtle)] truncate mt-0.5 flex items-center gap-2 flex-wrap">
                                   {d.contact_name && <span>{d.contact_name}</span>}
@@ -390,7 +397,13 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
                               />
                               <div className="flex-1 min-w-0">
                                 <div className="text-sm text-[var(--ink)] truncate">
-                                  {e.title}
+                                  <EntityAsk
+                                    kind="document"
+                                    id={e.id}
+                                    label={e.title}
+                                  >
+                                    {e.title}
+                                  </EntityAsk>
                                 </div>
                                 <div className="text-[11px] text-[var(--ink-subtle)] truncate mt-0.5 flex items-center gap-2 flex-wrap">
                                   <span className="mono uppercase tracking-wider">
