@@ -547,7 +547,11 @@ export default function InboxClient() {
                   )}
                   {selected.contact && (
                     <Link
-                      href={`/contacts`}
+                      href={`/client-details-overview${
+                        selected.contact.name
+                          ? `?contact=${encodeURIComponent(selected.contact.name)}`
+                          : ""
+                      }`}
                       className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border border-[var(--rule)] hover:bg-[var(--canvas-subtle)] transition"
                     >
                       <User className="w-2.5 h-2.5" strokeWidth={1.5} />

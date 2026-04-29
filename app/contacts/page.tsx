@@ -1,49 +1,18 @@
 // app/contacts/page.tsx
-import { createServerSupabase } from "@/lib/supabase/server";
+//
+// Permanent redirect to the modern client overview. /contacts shipped
+// in an earlier era of the app with a different design system; the
+// canonical path is now /client-details-overview. Anyone who bookmarks
+// /contacts or follows an old link lands cleanly on the modern page.
+//
+// The old ContactsClient component is left in components/contacts/ as
+// dead code for now — the redirect makes it unreachable, but trimming
+// it can land in a follow-up cleanup.
+
 import { redirect } from "next/navigation";
-import ContactsClient from "@/components/contacts/ContactsClient";
 
-export default async function ContactsPage() {
-  const supabase = await createServerSupabase();
-  
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+export const dynamic = "force-dynamic";
 
-  if (!user) redirect("/auth");
-
-  // Get user's workspace
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("workspace_id")
-    .eq("id", user.id)
-    .single();
-
-  if (!profile?.workspace_id) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold mb-4">Contacts</h1>
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <p className="text-yellow-800">No workspace found. Please contact your administrator.</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Get contacts for this workspace
-  const { data: contacts } = await supabase
-    .from("contacts")
-    .select("*")
-    .eq("workspace_id", profile.workspace_id)
-    .order("name", { ascending: true });
-
-  return (
-    <div className="mx-auto max-w-6xl px-4 py-8 text-[#151515]">
-      <h1 className="mb-6 text-3xl font-semibold text-[#151515]">Contacts</h1>
-      <ContactsClient 
-        initialContacts={contacts || []} 
-        workspaceId={profile.workspace_id}
-      />
-    </div>
-  );
+export default function ContactsPage() {
+  redirect("/client-details-overview");
 }
