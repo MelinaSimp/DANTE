@@ -9,6 +9,7 @@ import { remember } from "@/lib/dante/memory/write";
 import { normalizePhone } from "@/lib/phone";
 import { recordSmsUsage } from "@/lib/usage/track";
 import { decryptSecret } from "@/lib/crypto/secrets";
+import { hasWorkspaceFeature } from "@/lib/features/server";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60; // 60 seconds for batch processing
@@ -80,6 +81,22 @@ export async function GET(req: NextRequest) {
           .eq("id", sms.id);
         skippedBilling++;
         continue;
+      }
+      // Feature gate — only workspaces with the SMS Outreach add-on
+      // enabled are allowed to send scheduled SMS through Drift.
+      if (sms.workspace_id) {
+        const smsOk = await hasWorkspaceFeature(sms.workspace_id, "sms_outreach");
+        if (!smsOk) {
+          await supabaseAdmin
+            .from("scheduled_sms")
+            .update({
+              status: "failed",
+              error_message: "SMS Outreach add-on not enabled for this workspace",
+              error_code: "feature_disabled",
+            })
+            .eq("id", sms.id);
+          continue;
+        }
       }
       try {
         // Get Twilio credentials

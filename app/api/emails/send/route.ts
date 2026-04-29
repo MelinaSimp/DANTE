@@ -8,6 +8,7 @@ import { recordEmailUsage } from "@/lib/usage/track";
 import { remember } from "@/lib/dante/memory/write";
 import { scanForCompliance } from "@/lib/compliance/scan";
 import { logAuditEvent } from "@/lib/audit/log";
+import { hasWorkspaceFeature } from "@/lib/features/server";
 
 // Crude HTML → text for memory storage. The email itself ships HTML
 // to the recipient; this stripped form is what D/V's memory.search
@@ -165,13 +166,16 @@ export async function POST(req: NextRequest) {
 
       // Compliance scan — surfaces FINRA/SEC red flags for sent
       // emails. The /work queue picks these up under the Compliance
-      // filter; nothing about the send itself is blocked.
+      // filter; nothing about the send itself is blocked. The rules
+      // layer always runs (free, deterministic). The LLM layer only
+      // runs when the workspace has the compliance_plus add-on.
       const complianceScan = (async () => {
         try {
+          const llmEnabled = await hasWorkspaceFeature(workspaceId, "compliance_plus");
           const scan = await scanForCompliance({
             text: `${subject}\n\n${bodyText}`,
             contextLabel: `Sent email to ${recipientLine}`,
-            anthropicKey: process.env.ANTHROPIC_API_KEY,
+            anthropicKey: llmEnabled ? process.env.ANTHROPIC_API_KEY : undefined,
           });
           if (scan.flags.length > 0) {
             await supabaseAdmin.from("compliance_flags").insert(

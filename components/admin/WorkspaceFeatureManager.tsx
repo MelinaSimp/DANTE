@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { FEATURE_DEFINITIONS, ALL_FEATURE_IDS, type FeatureId } from "@/lib/features";
+import {
+  FEATURE_DEFINITIONS,
+  ALL_FEATURE_IDS,
+  BASE_PLAN_PRICE_USD,
+  computeMonthlyBillUsd,
+  type FeatureId,
+} from "@/lib/features";
 import { Check, X, Loader2, Shield, ChevronDown, ChevronUp, CreditCard, ExternalLink, Copy } from "lucide-react";
 import { reportError } from "@/lib/report-error";
 
@@ -150,9 +156,14 @@ export default function WorkspaceFeatureManager() {
     <div className="space-y-3">
       {workspaces.map((ws) => {
         const isExpanded = expandedId === ws.id;
-        const enabledCount = (ws.enabled_features || []).length;
+        const enabled = (ws.enabled_features || []) as FeatureId[];
+        const enabledCount = enabled.length;
         const totalCount = ALL_FEATURE_IDS.length;
         const statusOption = PLAN_STATUS_OPTIONS.find((o) => o.value === ws.plan_status) || PLAN_STATUS_OPTIONS[0];
+        const monthlyBill = computeMonthlyBillUsd(enabled);
+        const enabledAddonCount = enabled.filter(
+          (id) => FEATURE_DEFINITIONS[id].tier === "addon",
+        ).length;
 
         return (
           <div key={ws.id} className="rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] overflow-hidden transition-all">
@@ -165,11 +176,23 @@ export default function WorkspaceFeatureManager() {
                 <div>
                   <div className="font-medium text-[var(--ink)]">{ws.name}</div>
                   <div className="text-xs text-[var(--ink-subtle)] mt-0.5">
-                    {enabledCount}/{totalCount} features enabled
+                    {enabledCount}/{totalCount} features
+                    {enabledAddonCount > 0 && (
+                      <>
+                        {" · "}
+                        <span className="text-[var(--ink-muted)]">
+                          {enabledAddonCount} add-on
+                          {enabledAddonCount === 1 ? "" : "s"}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
               <div className="flex items-center gap-3">
+                <span className="text-sm font-semibold text-[var(--ink)] mono">
+                  ${monthlyBill}/mo
+                </span>
                 <span className={`px-2.5 py-1 rounded-[4px] text-xs font-medium border ${statusOption.color}`}>
                   {statusOption.label}
                 </span>
@@ -278,10 +301,22 @@ export default function WorkspaceFeatureManager() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {ALL_FEATURE_IDS.map((featureId) => {
+                  {/* Feature toggles, grouped by tier. Base features are
+                      bundled into the $400/mo plan (toggling them off is
+                      meant for trial/demo only); add-ons surcharge on
+                      top with the monthly_price shown. */}
+                  {(() => {
+                    const baseIds = ALL_FEATURE_IDS.filter(
+                      (id) => FEATURE_DEFINITIONS[id].tier === "base",
+                    );
+                    const addonIds = ALL_FEATURE_IDS.filter(
+                      (id) => FEATURE_DEFINITIONS[id].tier === "addon",
+                    );
+
+                    const renderToggle = (featureId: FeatureId) => {
                       const feature = FEATURE_DEFINITIONS[featureId];
-                      const enabled = (ws.enabled_features || []).includes(featureId);
+                      const isEnabled = (ws.enabled_features || []).includes(featureId);
+                      const price = feature.monthly_price;
 
                       return (
                         <button
@@ -289,30 +324,73 @@ export default function WorkspaceFeatureManager() {
                           onClick={() => toggleFeature(ws.id, featureId)}
                           disabled={saving === ws.id}
                           className={`flex items-center gap-3 px-4 py-3 rounded-[4px] border text-left transition-all ${
-                            enabled
+                            isEnabled
                               ? "border-[var(--rule-strong)] bg-[var(--canvas-subtle)] hover:bg-[var(--canvas-subtle)]"
                               : "border-[var(--rule)] bg-[var(--canvas)] hover:bg-[var(--canvas-subtle)]"
                           }`}
                         >
                           <div
                             className={`w-5 h-5 rounded-[4px] flex items-center justify-center border transition-all shrink-0 ${
-                              enabled
+                              isEnabled
                                 ? "bg-[var(--ink)] border-[var(--ink)]"
                                 : "border-[var(--rule)] bg-transparent"
                             }`}
                           >
-                            {enabled && <Check strokeWidth={1.5} className="h-3 w-3 text-[var(--canvas)]" />}
+                            {isEnabled && (
+                              <Check strokeWidth={1.5} className="h-3 w-3 text-[var(--canvas)]" />
+                            )}
                           </div>
-                          <div className="min-w-0">
-                            <div className={`text-sm font-medium ${enabled ? "text-[var(--ink)]" : "text-[var(--ink-muted)]"}`}>
-                              {feature.name}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-baseline gap-2">
+                              <div
+                                className={`text-sm font-medium ${
+                                  isEnabled ? "text-[var(--ink)]" : "text-[var(--ink-muted)]"
+                                }`}
+                              >
+                                {feature.name}
+                              </div>
+                              {price > 0 && (
+                                <div
+                                  className={`text-[11px] mono ${
+                                    isEnabled ? "text-[var(--ink-muted)]" : "text-[var(--ink-subtle)]"
+                                  }`}
+                                >
+                                  +${price}/mo
+                                </div>
+                              )}
                             </div>
-                            <div className="text-[11px] text-[var(--ink-subtle)] truncate">{feature.description}</div>
+                            <div className="text-[11px] text-[var(--ink-subtle)]">
+                              {feature.description}
+                            </div>
                           </div>
                         </button>
                       );
-                    })}
-                  </div>
+                    };
+
+                    return (
+                      <div className="space-y-5">
+                        <div>
+                          <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] mb-2 flex items-center gap-2">
+                            <span>Included with Drift core</span>
+                            <span className="text-[var(--ink-subtle)]">·</span>
+                            <span className="mono">${BASE_PLAN_PRICE_USD}/mo</span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {baseIds.map(renderToggle)}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] mb-2">
+                            Add-ons (à la carte)
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {addonIds.map(renderToggle)}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
               </div>
