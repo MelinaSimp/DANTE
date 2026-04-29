@@ -20,6 +20,7 @@
 import AppSidebar, { type AppSidebarProps } from "./AppSidebar";
 import { AssistantNameProvider } from "@/components/dante/AssistantNameProvider";
 import { getIndustryConfig } from "@/lib/industry/config";
+import GlobalAssistantFab from "@/components/dante/GlobalAssistantFab";
 
 interface Props extends AppSidebarProps {
   children: React.ReactNode;
@@ -39,6 +40,7 @@ export default function AppShell({ children, ...sidebarProps }: Props) {
         <AppSidebar {...sidebarProps} />
         <main className="flex-1 min-w-0">{children}</main>
       </div>
+      <GlobalAssistantFab />
     </AssistantNameProvider>
   );
 }

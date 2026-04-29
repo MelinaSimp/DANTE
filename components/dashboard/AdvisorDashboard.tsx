@@ -251,14 +251,13 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
         })()}
 
         {/* What I noticed today — D/V's daily voice on the dashboard.
-            Surfaces draft reminders awaiting approval and property
-            documents expiring in the next 30 days. Hidden when there's
-            nothing to surface so we don't render an "empty noticing"
-            shell on a fresh workspace. */}
+            Always rendered so the assistant has visible presence even
+            on a clean queue: an "all clear" greeting beats a hidden
+            section, especially on a fresh workspace where ANY signal
+            of D/V being awake matters. */}
         {(() => {
           const n = data.noticedToday;
           if (!n) return null;
-          if (n.pendingDraftsCount === 0 && n.expiringDocsCount === 0) return null;
           const assistantName = getIndustryConfig(data.industry).assistantName;
           return (
             <section className="mb-12 border border-[var(--rule)] rounded-[6px] overflow-hidden">
@@ -295,7 +294,20 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
                       </Link>
                     )}
                   </div>
-                  {n.topDrafts.length > 0 ? (
+                  {n.topDrafts.length === 0 ? (
+                    <div className="rounded-[4px] border border-dashed border-[var(--rule)] bg-[var(--canvas-subtle)] px-3 py-4 text-center">
+                      <div className="text-[11px] text-[var(--ink-muted)]">
+                        {assistantName} is watching for renewal drafts and
+                        scheduled follow-ups.
+                      </div>
+                      <Link
+                        href="/work"
+                        className="inline-block mt-2 text-[10px] mono uppercase tracking-wider text-[var(--accent)] hover:underline"
+                      >
+                        Open work queue →
+                      </Link>
+                    </div>
+                  ) : (
                     <ul className="space-y-2">
                       {n.topDrafts.map((d) => (
                         <li key={d.id}>
@@ -338,7 +350,7 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
                         </li>
                       ))}
                     </ul>
-                  ) : null}
+                  )}
                 </div>
 
                 {/* Expiring documents */}
@@ -355,7 +367,15 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
                       </div>
                     </div>
                   </div>
-                  {n.topExpiring.length > 0 ? (
+                  {n.topExpiring.length === 0 ? (
+                    <div className="rounded-[4px] border border-dashed border-[var(--rule)] bg-[var(--canvas-subtle)] px-3 py-4 text-center">
+                      <div className="text-[11px] text-[var(--ink-muted)]">
+                        Attach a lease, insurance policy, or HOA doc to a
+                        property and {assistantName} will flag it 30 days
+                        before expiry.
+                      </div>
+                    </div>
+                  ) : (
                     <ul className="space-y-2">
                       {n.topExpiring.map((e) => (
                         <li key={e.id}>
@@ -389,7 +409,7 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
                         </li>
                       ))}
                     </ul>
-                  ) : null}
+                  )}
                 </div>
               </div>
             </section>
