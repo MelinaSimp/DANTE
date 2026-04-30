@@ -342,15 +342,47 @@ export default function PlanningClient() {
             Loading signals…
           </div>
         ) : filtered.length === 0 ? (
-          <CreativeCard className="p-8 text-center">
-            <p className="text-sm text-[var(--ink-muted)]">
-              No active signals
-              {filterType !== "all" ? ` for ${SIGNAL_META[filterType].label}` : ""}.
+          <CreativeCard className="p-8">
+            <p className="text-sm text-[var(--ink)] font-semibold mb-3 text-center">
+              {filterType === "all"
+                ? "No active signals."
+                : `No ${SIGNAL_META[filterType].label} signals.`}
             </p>
-            <p className="text-xs text-[var(--ink-subtle)] mt-1.5 max-w-md mx-auto">
-              Make sure clients have parsed documents in their Holdings
-              section — the analyzers can only flag what they can read.
-            </p>
+            <div className="max-w-xl mx-auto space-y-2 text-xs text-[var(--ink-muted)] leading-relaxed">
+              <p>
+                Each analyzer needs specific parsed data to fire. If you're
+                seeing zero findings on a vertical you'd expect, the most
+                likely cause is missing data for that analyzer:
+              </p>
+              <ul className="space-y-1.5 mt-2 text-[11px]">
+                <li>
+                  <strong className="text-[var(--ink)]">Roth conversion</strong>{" "}
+                  — needs a recent <span className="mono">Form 1040</span> to
+                  anchor bracket math, plus pre-tax balances from{" "}
+                  <span className="mono">5498</span> or a retirement statement.
+                </li>
+                <li>
+                  <strong className="text-[var(--ink)]">RMD</strong> — needs the
+                  contact's <span className="mono">date_of_birth</span> set, plus
+                  a 5498 (Box 5 prior-year FMV) or retirement statement.
+                </li>
+                <li>
+                  <strong className="text-[var(--ink)]">Tax-loss harvesting</strong>{" "}
+                  — needs a current-year <span className="mono">1099-B</span>{" "}
+                  with realized losses or wash-sale flags.
+                </li>
+                <li>
+                  <strong className="text-[var(--ink)]">Beneficiaries</strong> —
+                  needs at least one parsed <span className="mono">beneficiary form</span>
+                  {" "}or insurance policy declarations page; trust mismatch needs
+                  a <span className="mono">trust document</span> too.
+                </li>
+              </ul>
+              <p className="pt-2 text-[var(--ink-subtle)]">
+                Upload + extract docs on each client's profile → Holdings.
+                Analyzers re-run weekly (Mon 5 UTC) or now via the button above.
+              </p>
+            </div>
           </CreativeCard>
         ) : (
           <div className="border border-[var(--rule)] rounded-[4px] divide-y divide-[var(--rule)]">

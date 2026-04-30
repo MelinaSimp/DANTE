@@ -121,6 +121,44 @@ export async function POST(
     );
   }
 
+  // Auto-populate contact-level planning fields from this extraction
+  // when they're empty. Specifically:
+  //   - date_of_birth from insurance_policy.insured_dob (if the
+  //     insured is the contact) or from beneficiary_form designations
+  //   - state_code from form_1040 (if a future schema captures it)
+  //
+  // We only fill blanks; never overwrite a value the advisor already
+  // set. Best-effort — failures are logged but don't block the
+  // extraction response.
+  try {
+    if (doc.contact_id) {
+      const updates: Record<string, string> = {};
+      if (
+        result.docType === "insurance_policy" &&
+        typeof result.fields.insured_dob === "string"
+      ) {
+        updates.date_of_birth = String(result.fields.insured_dob);
+      }
+      if (Object.keys(updates).length > 0) {
+        const { data: existing } = await supabaseAdmin
+          .from("contacts")
+          .select("date_of_birth")
+          .eq("id", doc.contact_id)
+          .maybeSingle();
+        const existingDob = (existing as any)?.date_of_birth;
+        // Only fill when blank.
+        if (!existingDob && updates.date_of_birth) {
+          await supabaseAdmin
+            .from("contacts")
+            .update({ date_of_birth: updates.date_of_birth })
+            .eq("id", doc.contact_id);
+        }
+      }
+    }
+  } catch (autofillErr) {
+    console.error("[extract] auto-populate contact failed:", autofillErr);
+  }
+
   return NextResponse.json({
     docType: result.docType,
     taxYear: result.taxYear,

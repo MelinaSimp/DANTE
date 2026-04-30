@@ -15,15 +15,16 @@
 //   - Plain-English summary. No jargon the advisor has to translate
 //     for the client.
 
+import * as Sentry from "@sentry/nextjs";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import {
   ageFromDob,
   bracketHeadroom,
   CURRENT_TAX_YEAR,
-  marginalRate,
   rmdAge,
+  rmdDivisor,
   STANDARD_DEDUCTION_2025,
-  UNIFORM_LIFETIME_TABLE,
+  stateTopRate,
   type FilingStatus,
 } from "./constants";
 
@@ -65,6 +66,13 @@ type Contact = {
   name: string | null;
   date_of_birth: string | null;
   spouse_date_of_birth: string | null;
+  is_planning_subject: boolean | null;
+  state_code: string | null;
+};
+
+type Workspace = {
+  id: string;
+  default_state_code: string | null;
 };
 
 function num(v: unknown): number | null {
@@ -102,6 +110,7 @@ function fmtPercent(rate: number): string {
 function analyzeRothConversion(
   extractions: Extraction[],
   contact: Contact,
+  workspace: Workspace,
 ): PlanningSignalDraft | null {
   // Most recent 1040
   const f1040 = extractions
@@ -189,30 +198,46 @@ function analyzeRothConversion(
   );
   if (recommendedConversion < 5_000) return null;
 
-  const taxAtCurrentRate = recommendedConversion * bracket.current_rate;
-  const taxAtNextRate = recommendedConversion * (bracket.next_rate ?? 0);
-  const savingsVsNextBracket = taxAtNextRate - taxAtCurrentRate;
+  // Layer state tax onto federal — gives the advisor "true cost" of
+  // conversion. Uses contact.state_code, falling back to workspace
+  // default. Zero for AK/FL/NV/SD/TN/TX/WA/WY/NH (no income tax).
+  const stateCode = contact.state_code || workspace.default_state_code || null;
+  const stateRate = stateTopRate(stateCode);
+  const fedTax = recommendedConversion * bracket.current_rate;
+  const stateTax = recommendedConversion * stateRate;
+  const totalTax = fedTax + stateTax;
+  const taxAtNextRate = recommendedConversion * ((bracket.next_rate ?? 0) + stateRate);
+  const savingsVsNextBracket = taxAtNextRate - totalTax;
+  const combinedRate = bracket.current_rate + stateRate;
 
   return {
     signal_type: "roth_conversion",
     severity: "action",
-    title: `Convert up to ${fmtMoney(recommendedConversion)} to fill the ${fmtPercent(bracket.current_rate)} bracket`,
+    title: `Convert up to ${fmtMoney(recommendedConversion)} to fill the ${fmtPercent(bracket.current_rate)} federal bracket`,
     summary:
       `Based on ${f1040.tax_year ?? "the most recent"} 1040 (${status.toUpperCase()}, taxable income ${fmtMoney(ti)}), ` +
-      `there's about ${fmtMoney(bracket.headroom)} of headroom before this client crosses into the ${fmtPercent(bracket.next_rate ?? 0)} bracket. ` +
+      `there's about ${fmtMoney(bracket.headroom)} of federal headroom before crossing into the ${fmtPercent(bracket.next_rate ?? 0)} bracket. ` +
       `Pre-tax retirement balance is roughly ${fmtMoney(pretaxBalance)}. ` +
-      `A Roth conversion of ${fmtMoney(recommendedConversion)} taxed at ${fmtPercent(bracket.current_rate)} ` +
-      `(≈${fmtMoney(taxAtCurrentRate)} federal) saves about ${fmtMoney(savingsVsNextBracket)} versus paying tomorrow's rate at the next bracket.`,
+      `A Roth conversion of ${fmtMoney(recommendedConversion)} costs about ${fmtMoney(totalTax)} ` +
+      (stateRate > 0
+        ? `(${fmtMoney(fedTax)} federal at ${fmtPercent(bracket.current_rate)} + ${fmtMoney(stateTax)} ${stateCode || "state"} at ${fmtPercent(stateRate)}, combined ${fmtPercent(combinedRate)})`
+        : `at ${fmtPercent(bracket.current_rate)} federal (no state income tax)`) +
+      `, saving roughly ${fmtMoney(savingsVsNextBracket)} versus paying at the next bracket later.`,
     payload: {
       tax_year_anchor: f1040.tax_year,
       filing_status: status,
       taxable_income: ti,
-      current_rate: bracket.current_rate,
-      next_rate: bracket.next_rate,
+      federal_rate: bracket.current_rate,
+      state_code: stateCode,
+      state_rate: stateRate,
+      combined_rate: combinedRate,
+      next_federal_rate: bracket.next_rate,
       bracket_headroom: bracket.headroom,
       pretax_balance: pretaxBalance,
       recommended_conversion: recommendedConversion,
-      tax_at_current_rate: taxAtCurrentRate,
+      tax_federal: fedTax,
+      tax_state: stateTax,
+      tax_total: totalTax,
       savings_vs_next_bracket: savingsVsNextBracket,
     },
     citations: sources,
@@ -290,7 +315,15 @@ function analyzeRmd(
 
   if (pretaxBalance < 1_000) return null;
 
-  const divisor = UNIFORM_LIFETIME_TABLE[age] || UNIFORM_LIFETIME_TABLE[120];
+  // Joint and Last Survivor table when sole spouse beneficiary is
+  // more than 10 years younger. Falls back to Uniform Lifetime
+  // otherwise. v1 of beneficiary detection: assume spouse is the
+  // sole beneficiary if spouse_date_of_birth is set — close enough
+  // for the "you owe roughly $X" finding. The advisor reviews and
+  // confirms before acting.
+  const spouseAge = ageFromDob(contact.spouse_date_of_birth);
+  const divisor = rmdDivisor(age, spouseAge ?? undefined);
+  const usingJointTable = spouseAge !== null && age - spouseAge > 10;
   const requiredRmd = Math.round(pretaxBalance / divisor);
 
   // YTD distributions from 1099-R for the current tax year.
@@ -313,7 +346,7 @@ function analyzeRmd(
     summary:
       `At age ${age} (RMD age ${triggerAge}), the required minimum distribution against an estimated ` +
       `${fmtMoney(pretaxBalance)} in pre-tax balances is ${fmtMoney(requiredRmd)} ` +
-      `(uniform lifetime divisor ${divisor.toFixed(1)}). ` +
+      `(${usingJointTable ? `joint life divisor ${divisor.toFixed(1)} — spouse age ${spouseAge}` : `uniform lifetime divisor ${divisor.toFixed(1)}`}). ` +
       (distributedYtd > 0
         ? `Distributions taken so far this year: ${fmtMoney(distributedYtd)}. `
         : `No distributions recorded yet this year. `) +
@@ -322,6 +355,8 @@ function analyzeRmd(
         : `On track.`),
     payload: {
       age,
+      spouse_age: spouseAge,
+      using_joint_table: usingJointTable,
       trigger_age: triggerAge,
       pretax_balance: pretaxBalance,
       divisor,
@@ -467,6 +502,65 @@ function analyzeTLH(extractions: Extraction[]): PlanningSignalDraft | null {
 //      should receive. (Not always wrong — sometimes intentional —
 //      but worth surfacing.)
 //   3. Primary tier doesn't sum to 100%, OR no contingent named.
+// Common nicknames and variants that string-equality misses. The
+// pairs are bidirectional — both directions register a match.
+const NICKNAME_PAIRS: Array<[string, string]> = [
+  ["robert", "bob"], ["robert", "rob"], ["robert", "bobby"],
+  ["william", "bill"], ["william", "will"], ["william", "billy"],
+  ["james", "jim"], ["james", "jimmy"], ["james", "jamie"],
+  ["john", "jack"], ["john", "johnny"],
+  ["richard", "rick"], ["richard", "dick"], ["richard", "richie"],
+  ["michael", "mike"], ["michael", "mickey"],
+  ["charles", "chuck"], ["charles", "charlie"],
+  ["thomas", "tom"], ["thomas", "tommy"],
+  ["edward", "ed"], ["edward", "eddie"], ["edward", "ted"],
+  ["margaret", "maggie"], ["margaret", "meg"], ["margaret", "peggy"],
+  ["elizabeth", "liz"], ["elizabeth", "beth"], ["elizabeth", "betty"], ["elizabeth", "eliza"],
+  ["katherine", "kate"], ["katherine", "kathy"], ["katherine", "kat"], ["katherine", "katie"],
+  ["jennifer", "jenny"], ["jennifer", "jen"],
+  ["jonathan", "jon"], ["jonathan", "jonny"],
+  ["christopher", "chris"], ["nicholas", "nick"],
+  ["alexander", "alex"], ["alexander", "xander"],
+  ["benjamin", "ben"], ["samuel", "sam"], ["daniel", "dan"], ["daniel", "danny"],
+  ["matthew", "matt"], ["andrew", "andy"], ["anthony", "tony"],
+  ["frederick", "fred"], ["theodore", "ted"], ["timothy", "tim"],
+  ["patricia", "patty"], ["patricia", "tricia"], ["patricia", "trish"],
+  ["susan", "sue"], ["barbara", "barb"], ["deborah", "deb"], ["deborah", "debbie"],
+  ["pamela", "pam"], ["sandra", "sandy"], ["rebecca", "becky"],
+];
+
+function normalizeName(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/\b(jr\.?|sr\.?|iii|iv|the|of|and|&)\b/g, "")
+    .replace(/[.,'"]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Split into first-name tokens for matching. We don't try to match
+// last names because account beneficiary forms often use just first
+// names ("Robert" instead of "Robert Smith") while trust documents
+// list full names — last-name matching gives false negatives.
+function firstNameTokens(name: string): Set<string> {
+  const norm = normalizeName(name);
+  const tokens = norm.split(" ").filter((t) => t.length > 1);
+  const all = new Set<string>(tokens);
+  // Add nickname pairs in both directions.
+  for (const [a, b] of NICKNAME_PAIRS) {
+    if (all.has(a)) all.add(b);
+    if (all.has(b)) all.add(a);
+  }
+  return all;
+}
+
+function namesOverlap(a: string, b: string): boolean {
+  const aTokens = firstNameTokens(a);
+  const bTokens = firstNameTokens(b);
+  for (const t of aTokens) if (bTokens.has(t)) return true;
+  return false;
+}
+
 function analyzeBeneficiaries(
   extractions: Extraction[],
 ): PlanningSignalDraft | null {
@@ -567,34 +661,46 @@ function analyzeBeneficiaries(
     if (!acc.has_contingent) accountsMissingContingent.push(label);
   }
 
-  // Cross-check against trust_document beneficiaries.
+  // Cross-check against trust_document beneficiaries. We tokenize
+  // the trust's primary_beneficiaries field, expand nicknames, and
+  // check whether each account's designations share any first-name
+  // token with the trust's intended recipients. This is robust to
+  // "Robert Smith" (trust) vs "Bob" (account form), and to formatting
+  // differences ("the Smith Family Trust" vs "Smith Family Trust").
   const trust = extractions.find((e) => e.doc_type === "trust_document");
   let trustMismatches: string[] = [];
   if (trust) {
-    const trustBeneficiaries = String(trust.fields.primary_beneficiaries || "")
-      .split(",")
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean);
-    if (trustBeneficiaries.length > 0) {
-      // For each account, check if any trust beneficiary appears in
-      // the designation roster (or if the account names the trust).
+    const trustBenString = String(trust.fields.primary_beneficiaries || "");
+    const trustNameRaw = String(trust.fields.trust_name || "");
+    const trustNameKeywords = normalizeName(trustNameRaw)
+      .split(" ")
+      .filter((t) => t.length > 3 && t !== "trust" && t !== "family" && t !== "revocable" && t !== "irrevocable")
+      .slice(0, 3); // Use up to 3 distinctive tokens for trust-name matching
+
+    if (trustBenString.trim().length > 0) {
       for (const acc of accounts.values()) {
         const accDesignations = designations.filter(
           (d) => d.source_extraction === acc.ext_id,
         );
-        const namesTrust = accDesignations.some(
-          (d) =>
-            d.is_trust ||
-            d.name.toLowerCase().includes("trust") ||
-            d.name.toLowerCase().includes(
-              String(trust.fields.trust_name || "").toLowerCase().slice(0, 20),
-            ),
-        );
-        if (namesTrust) continue; // Account routes to the trust — fine.
+        if (accDesignations.length === 0) continue;
+
+        // Account routes to the trust → fine.
+        const namesTrust = accDesignations.some((d) => {
+          if (d.is_trust) return true;
+          const nname = normalizeName(d.name);
+          if (nname.includes("trust") || nname.includes("living")) return true;
+          // Check if account names the actual trust (token overlap)
+          return trustNameKeywords.some((kw) => nname.includes(kw));
+        });
+        if (namesTrust) continue;
+
+        // Otherwise check if any account beneficiary first-name
+        // overlaps with any trust beneficiary first-name (with
+        // nickname expansion).
         const overlapsAnyTrustBeneficiary = accDesignations.some((d) =>
-          trustBeneficiaries.some((tb) => d.name.toLowerCase().includes(tb)),
+          namesOverlap(d.name, trustBenString),
         );
-        if (!overlapsAnyTrustBeneficiary && accDesignations.length > 0) {
+        if (!overlapsAnyTrustBeneficiary) {
           trustMismatches.push(
             `${acc.custodian} ${acc.account_type}`.trim() || "Account",
           );
@@ -666,12 +772,20 @@ function analyzeBeneficiaries(
 // RUNNER
 // ============================================================
 
-const ANALYZERS = [
-  analyzeRothConversion,
-  analyzeRmd,
-  analyzeTLH,
-  analyzeBeneficiaries,
-] as const;
+// Each analyzer takes (extractions, contact, workspace) — keeps the
+// signature uniform so the runner can iterate without special cases.
+type AnalyzerFn = (
+  extractions: Extraction[],
+  contact: Contact,
+  workspace: Workspace,
+) => PlanningSignalDraft | null;
+
+const ANALYZERS: Array<{ name: string; fn: AnalyzerFn }> = [
+  { name: "roth_conversion", fn: (ext, c, w) => analyzeRothConversion(ext, c, w) },
+  { name: "rmd_due", fn: (ext, c) => analyzeRmd(ext, c) },
+  { name: "tax_loss_harvest", fn: (ext) => analyzeTLH(ext) },
+  { name: "beneficiary_mismatch", fn: (ext) => analyzeBeneficiaries(ext) },
+];
 
 export async function runPlanningForContact(
   workspaceId: string,
@@ -680,12 +794,36 @@ export async function runPlanningForContact(
 ): Promise<PlanningSignalDraft[]> {
   const { data: contactRow } = await supabaseAdmin
     .from("contacts")
-    .select("id, workspace_id, name, date_of_birth, spouse_date_of_birth")
+    .select(
+      "id, workspace_id, name, date_of_birth, spouse_date_of_birth, is_planning_subject, state_code",
+    )
     .eq("id", contactId)
     .eq("workspace_id", workspaceId)
     .maybeSingle();
   if (!contactRow) return [];
   const contact = contactRow as Contact;
+
+  // Skip household admins / kids / non-subjects. The flag defaults
+  // to true via the migration so existing rows behave as before.
+  if (contact.is_planning_subject === false) {
+    // Clear any prior signals so dismissed/active rows don't linger.
+    await supabaseAdmin
+      .from("planning_signals")
+      .delete()
+      .eq("workspace_id", workspaceId)
+      .eq("contact_id", contactId);
+    return [];
+  }
+
+  const { data: workspaceRow } = await supabaseAdmin
+    .from("workspaces")
+    .select("id, default_state_code")
+    .eq("id", workspaceId)
+    .maybeSingle();
+  const workspace = (workspaceRow || {
+    id: workspaceId,
+    default_state_code: null,
+  }) as Workspace;
 
   const { data: docs } = await supabaseAdmin
     .from("documents")
@@ -711,12 +849,30 @@ export async function runPlanningForContact(
   }) as Extraction[];
 
   const drafts: PlanningSignalDraft[] = [];
-  for (const fn of ANALYZERS) {
+  for (const a of ANALYZERS) {
     try {
-      const r = (fn as any)(extractions, contact);
+      const r = a.fn(extractions, contact, workspace);
       if (r) drafts.push(r);
-    } catch (err) {
-      console.error(`[planning] ${fn.name} failed for contact ${contactId}:`, err);
+    } catch (err: any) {
+      // Per-contact analyzer failures shouldn't kill the whole run.
+      // Capture in Sentry so we get visibility, also log to console
+      // and persist to the planning_runs.error_text on the run row.
+      console.error(`[planning] ${a.name} failed for contact ${contactId}:`, err);
+      try {
+        Sentry.captureException(err, {
+          tags: {
+            domain: "planning",
+            analyzer: a.name,
+          },
+          extra: {
+            workspace_id: workspaceId,
+            contact_id: contactId,
+            run_id: runId,
+          },
+        });
+      } catch {
+        // Sentry init shouldn't block the run.
+      }
     }
   }
 

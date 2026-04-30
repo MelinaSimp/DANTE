@@ -33,6 +33,7 @@ import CallAuditView, {
 import type { Annotation } from "@/components/documents/PdfViewerWithAnnotations";
 import DocumentExtractionPanel from "@/components/documents/DocumentExtractionPanel";
 import HoldingsSection from "@/components/contacts/HoldingsSection";
+import PlanningProfileEditor from "@/components/contacts/PlanningProfileEditor";
 
 const PdfViewerWithAnnotations = dynamic(
   () => import("@/components/documents/PdfViewerWithAnnotations"),
@@ -1136,6 +1137,14 @@ export default function ClientDetailsOverviewClient({
               they flagged about this person. */}
           {selected?.type === "client" && selected.id && (
             <DanteNoticed kind="contact" id={selected.id} prominent />
+          )}
+
+          {/* Planning profile — DOB, spouse DOB, state, planning
+              subject flag. Powers the analyzers on /planning. */}
+          {selected?.type === "client" && selected.id && (
+            <section id="planning-profile" className="scroll-mt-24">
+              <PlanningProfileEditor contactId={selected.id} />
+            </section>
           )}
 
           {/* Holdings — accounts, holdings, insurance, beneficiaries

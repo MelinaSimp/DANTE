@@ -32,7 +32,16 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { name, email, phone, notes } = body;
+    const {
+      name,
+      email,
+      phone,
+      notes,
+      date_of_birth,
+      spouse_date_of_birth,
+      state_code,
+      is_planning_subject,
+    } = body;
 
     // Validate required fields
     if (!name || !phone) {
@@ -66,13 +75,30 @@ export async function PUT(
       }
     }
 
-    // Update contact (omit notes if column not present in schema)
+    // Update contact. Planning fields (DOB, state, planning_subject)
+    // are optional — only included when the body contains them, so
+    // existing PUT callers that don't know about these fields
+    // continue to work unchanged.
     const updatePayload: Record<string, unknown> = {
       name: name.trim(),
       email: email?.trim() || null,
       phone: phone.trim(),
       updated_at: new Date().toISOString(),
     };
+    if (typeof date_of_birth === "string" || date_of_birth === null) {
+      updatePayload.date_of_birth = date_of_birth || null;
+    }
+    if (typeof spouse_date_of_birth === "string" || spouse_date_of_birth === null) {
+      updatePayload.spouse_date_of_birth = spouse_date_of_birth || null;
+    }
+    if (typeof state_code === "string" || state_code === null) {
+      updatePayload.state_code = state_code
+        ? state_code.toUpperCase().slice(0, 2)
+        : null;
+    }
+    if (typeof is_planning_subject === "boolean") {
+      updatePayload.is_planning_subject = is_planning_subject;
+    }
     const { data: contact, error } = await supabase
       .from("contacts")
       .update(updatePayload)
