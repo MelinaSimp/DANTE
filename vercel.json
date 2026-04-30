@@ -57,6 +57,10 @@
     {
       "path": "/api/compliance/cron/oba-reminders",
       "schedule": "0 11 * * *"
+    },
+    {
+      "path": "/api/integrations/cron",
+      "schedule": "0 8 * * *"
     }
   ]
 }
