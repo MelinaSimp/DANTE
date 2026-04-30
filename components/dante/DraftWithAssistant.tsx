@@ -38,6 +38,7 @@ import {
   type StreamState,
 } from "@/app/dante/streamClient";
 import MarkdownRenderer from "@/app/dante/MarkdownRenderer";
+import AgentPlan from "./AgentPlan";
 import { useAssistantBrand } from "./AssistantNameProvider";
 import DraftEditor from "./DraftEditor";
 
@@ -375,6 +376,7 @@ export default function DraftWithAssistant({
                         trace={stream.trace}
                       />
                     </div>
+                    {!stream.streaming && <AgentPlan trace={stream.trace} />}
                   </div>
                 );
               })()}

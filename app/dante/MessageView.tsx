@@ -31,6 +31,7 @@ import MarkdownRenderer from "./MarkdownRenderer";
 import { looksLikeDraft, deriveFilenameStem } from "./DocumentPanel";
 import type { StreamState } from "./streamClient";
 import { buildCitationMap } from "@/lib/dante/citations";
+import AgentPlan from "@/components/dante/AgentPlan";
 
 const REWRITE_PRESETS = [
   { label: "Shorter", instruction: "Make it shorter — half the length, same key facts." },
@@ -171,6 +172,8 @@ export function AssistantMessage({
           </button>
         </div>
       </div>
+
+      <AgentPlan trace={trace} />
 
       <SourcesBlock trace={trace} />
 

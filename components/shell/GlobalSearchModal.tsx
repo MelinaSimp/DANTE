@@ -40,6 +40,7 @@ import {
 } from "@/app/dante/streamClient";
 import MarkdownRenderer from "@/app/dante/MarkdownRenderer";
 import { useAssistantBrand } from "@/components/dante/AssistantNameProvider";
+import AgentPlan from "@/components/dante/AgentPlan";
 import type { StepLogEntry } from "@/lib/dante/workflow-types";
 
 type Kind =
@@ -503,6 +504,7 @@ export default function GlobalSearchModal({
                       <span className="whitespace-pre-wrap">{t.content}</span>
                     )}
                   </div>
+                  {t.role === "assistant" && <AgentPlan trace={t.trace} />}
                 </div>
               ))}
               {stream.streaming && (
@@ -538,9 +540,12 @@ export default function GlobalSearchModal({
                       )}
                     </div>
                   ) : (
-                    <div className="text-sm text-[var(--ink)] leading-relaxed">
-                      <MarkdownRenderer content={stream.finalContent} trace={stream.trace} />
-                    </div>
+                    <>
+                      <div className="text-sm text-[var(--ink)] leading-relaxed">
+                        <MarkdownRenderer content={stream.finalContent} trace={stream.trace} />
+                      </div>
+                      {!stream.streaming && <AgentPlan trace={stream.trace} />}
+                    </>
                   )}
                 </div>
               )}

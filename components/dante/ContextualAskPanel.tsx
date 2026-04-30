@@ -39,6 +39,7 @@ import {
 } from "@/app/dante/streamClient";
 import { useAssistantBrand } from "./AssistantNameProvider";
 import MarkdownRenderer from "@/app/dante/MarkdownRenderer";
+import AgentPlan from "./AgentPlan";
 import type { StepLogEntry } from "@/lib/dante/workflow-types";
 
 export type EntityKind = "property" | "contact";
@@ -282,6 +283,7 @@ export default function ContextualAskPanel({
                     <span className="whitespace-pre-wrap">{t.content}</span>
                   )}
                 </div>
+                {t.role === "assistant" && <AgentPlan trace={t.trace} />}
               </div>
             ))}
 
@@ -311,9 +313,12 @@ export default function ContextualAskPanel({
                     )}
                   </div>
                 ) : (
-                  <div className="text-sm text-[var(--ink)] leading-relaxed">
-                    <MarkdownRenderer content={liveAssistantContent} trace={stream.trace} />
-                  </div>
+                  <>
+                    <div className="text-sm text-[var(--ink)] leading-relaxed">
+                      <MarkdownRenderer content={liveAssistantContent} trace={stream.trace} />
+                    </div>
+                    {!stream.streaming && <AgentPlan trace={stream.trace} />}
+                  </>
                 )}
               </div>
             )}
