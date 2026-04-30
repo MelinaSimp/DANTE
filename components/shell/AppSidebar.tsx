@@ -201,6 +201,12 @@ export default function AppSidebar({
       icon: Compass,
       industry: "financial_advisor",
     },
+    {
+      href: "/compliance",
+      label: "Compliance",
+      icon: ShieldCheck,
+      industry: "financial_advisor",
+    },
     { href: "/client-details-overview", label: "Clients", icon: Users },
     { href: "/calendar", label: "Calendar", icon: CalendarIcon },
     { href: "/inbox", label: "Email", icon: Mail },
