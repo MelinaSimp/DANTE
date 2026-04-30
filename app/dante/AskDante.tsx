@@ -26,6 +26,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   Send,
   Loader2,
@@ -38,6 +39,7 @@ import {
   BookOpen,
   Users,
   CalendarDays,
+  Workflow,
   History,
   X,
   Search,
@@ -107,11 +109,18 @@ const QUICK_PROMPTS: Array<{ label: string; prompt: string }> = [
   },
 ];
 
+// Quick-jump pills under the landing input. Each routes to its real
+// page so the "Memory" / "Vault" / etc. labels aren't decorative —
+// click them and you land on the workspace's archive, vault docs,
+// contacts list, calendar, or workflows builder. Workflows added
+// because the user uses it daily; without it the pill row was just
+// a passive legend.
 const KNOWLEDGE_SOURCES = [
-  { label: "Memory", icon: Database },
-  { label: "Vault", icon: BookOpen },
-  { label: "Contacts", icon: Users },
-  { label: "Calendar", icon: CalendarDays },
+  { label: "Memory", icon: Database, href: "/dante/archive" },
+  { label: "Vault", icon: BookOpen, href: "/vault" },
+  { label: "Contacts", icon: Users, href: "/client-details-overview" },
+  { label: "Calendar", icon: CalendarDays, href: "/calendar" },
+  { label: "Workflows", icon: Workflow, href: "/dante/workflows" },
 ] as const;
 
 const REWRITE_PRESETS = [
@@ -300,16 +309,15 @@ export default function AskDante({
         }`}
       >
         <div className="text-center mb-8">
-          {/* Giant single-letter wordmark — V for Vergil, D for Dante.
-              Mirrors Harvey's serif "Harvey" pattern but uses the
-              assistant's first letter so the brand reads at glance.
-              The full echo / gate icon stays in the breadcrumb +
-              sidebar; the hero is the letter so the page has weight. */}
+          {/* Wordmark — full assistant name. Mirrors Harvey's serif
+              wordmark pattern; reads as a brand the moment the page
+              loads. Sized down from the single-letter version so
+              "Vergil" / "Dante" both fit cleanly without crowding
+              the input below. */}
           <h1
-            className="heading-display text-7xl md:text-8xl text-[var(--ink)] font-bold tracking-tight leading-none"
-            aria-label={brand.name}
+            className="heading-display text-6xl md:text-7xl text-[var(--ink)] font-bold tracking-tight leading-none"
           >
-            {brand.name.charAt(0)}
+            {brand.name}
           </h1>
         </div>
 
@@ -374,19 +382,21 @@ export default function AskDante({
 
       {/* Knowledge source pills — only on landing. Once the user has
           sent a message we unmount them entirely (not just fade) so
-          there's no chance of them lingering across the transition. */}
+          there's no chance of them lingering across the transition.
+          Clickable now: each pill links to its real surface. */}
       {!inExpandedMode && (
         <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
           {KNOWLEDGE_SOURCES.map((s) => {
             const Icon = s.icon;
             return (
-              <span
+              <Link
                 key={s.label}
-                className="inline-flex items-center gap-2 rounded-full border border-[var(--rule)] bg-[var(--canvas)] px-3.5 py-2 text-[13px] text-[var(--ink)] shadow-[0_1px_0_rgba(0,0,0,0.02)]"
+                href={s.href}
+                className="inline-flex items-center gap-2 rounded-full border border-[var(--rule)] bg-[var(--canvas)] px-3.5 py-2 text-[13px] text-[var(--ink)] shadow-[0_1px_0_rgba(0,0,0,0.02)] hover:bg-[var(--canvas-subtle)] hover:border-[var(--rule-strong)] transition"
               >
                 <Icon className="w-3.5 h-3.5 text-[var(--ink-muted)]" strokeWidth={1.5} />
                 {s.label}
-              </span>
+              </Link>
             );
           })}
         </div>
