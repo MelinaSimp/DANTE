@@ -22,21 +22,44 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status");
 
-  let q = supabase
-    .from("reminders")
-    .select(
-      "id, source, contact_id, property_id, appointment_id, property_document_id, channel, to_email, subject, body, send_at, status, sent_at, send_error, reason, created_at, updated_at"
-    )
-    .eq("workspace_id", profile.workspace_id)
-    .order("send_at", { ascending: true, nullsFirst: false })
-    .order("created_at", { ascending: false });
+  // Some realtor-vertical columns (property_document_id,
+  // appointment_id, source, channel, send_error, reason) may not
+  // exist on advisor-only Supabase instances that never ran the
+  // realtor migrations. We try the rich SELECT first; on any
+  // column-mismatch error we fall back to the core columns so the
+  // page renders instead of 500-ing.
+  const RICH_SELECT =
+    "id, source, contact_id, property_id, appointment_id, property_document_id, channel, to_email, subject, body, send_at, status, sent_at, send_error, reason, created_at, updated_at";
+  const CORE_SELECT =
+    "id, contact_id, to_email, subject, body, send_at, status, sent_at, created_at, updated_at";
 
-  if (status && VALID_STATUSES.includes(status)) q = q.eq("status", status);
+  async function runQuery(selectCols: string) {
+    let q = supabase
+      .from("reminders")
+      .select(selectCols)
+      .eq("workspace_id", profile!.workspace_id)
+      .order("send_at", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: false });
+    if (status && VALID_STATUSES.includes(status)) q = q.eq("status", status);
+    return q;
+  }
 
-  const { data, error } = await q;
+  let { data, error } = await runQuery(RICH_SELECT);
+  if (error) {
+    console.warn(
+      "reminders GET: rich select failed, retrying with core columns:",
+      error.message,
+    );
+    const fallback = await runQuery(CORE_SELECT);
+    data = fallback.data;
+    error = fallback.error;
+  }
   if (error) {
     console.error("reminders GET:", error);
-    return NextResponse.json({ error: "Failed" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed", detail: error.message },
+      { status: 500 },
+    );
   }
 
   // Enrich with related entity labels so the triage list can render
@@ -55,24 +78,36 @@ export async function GET(request: Request) {
     new Set(rows.map((r: any) => r.property_document_id).filter(Boolean)),
   ) as string[];
 
-  const [{ data: relContacts }, { data: relProperties }, { data: relDocs }] =
-    await Promise.all([
-      contactIds.length > 0
-        ? supabase.from("contacts").select("id, name").in("id", contactIds)
-        : Promise.resolve({ data: [] as any[] }),
-      propertyIds.length > 0
-        ? supabase
-            .from("properties")
-            .select("id, address_line1, city")
-            .in("id", propertyIds)
-        : Promise.resolve({ data: [] as any[] }),
-      docIds.length > 0
-        ? supabase
-            .from("property_documents")
-            .select("id, title, doc_kind")
-            .in("id", docIds)
-        : Promise.resolve({ data: [] as any[] }),
-    ]);
+  // Each related-table query is wrapped so a missing table or
+  // column on this workspace's schema doesn't blow up the whole
+  // response. Contacts is the only table required to exist.
+  async function safeIn<T>(
+    table: string,
+    select: string,
+    ids: string[],
+  ): Promise<T[]> {
+    if (ids.length === 0) return [];
+    const { data, error } = await supabase.from(table).select(select).in("id", ids);
+    if (error) {
+      console.warn(`reminders GET: ${table} lookup failed:`, error.message);
+      return [];
+    }
+    return (data || []) as unknown as T[];
+  }
+
+  const [relContacts, relProperties, relDocs] = await Promise.all([
+    safeIn<{ id: string; name: string }>("contacts", "id, name", contactIds),
+    safeIn<{ id: string; address_line1: string | null; city: string | null }>(
+      "properties",
+      "id, address_line1, city",
+      propertyIds,
+    ),
+    safeIn<{ id: string; title: string; doc_kind: string }>(
+      "property_documents",
+      "id, title, doc_kind",
+      docIds,
+    ),
+  ]);
 
   const contactName = new Map<string, string>(
     (relContacts || []).map((c: any) => [c.id, c.name as string]),

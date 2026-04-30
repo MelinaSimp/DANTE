@@ -23,6 +23,7 @@ import {
   Pencil,
 } from "lucide-react";
 import ComposeDrawer from "./ComposeDrawer";
+import EntityAsk from "@/components/dante/EntityAsk";
 
 type Urgency = "urgent" | "needs_attention" | "normal" | "low";
 
@@ -546,26 +547,38 @@ export default function InboxClient() {
                     </span>
                   )}
                   {selected.contact && (
-                    <Link
-                      href={`/client-details-overview${
-                        selected.contact.name
-                          ? `?contact=${encodeURIComponent(selected.contact.name)}`
-                          : ""
-                      }`}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border border-[var(--rule)] hover:bg-[var(--canvas-subtle)] transition"
+                    <EntityAsk
+                      kind="contact"
+                      id={selected.contact.id}
+                      label={selected.contact.name || selected.contact.email || "Contact"}
                     >
-                      <User className="w-2.5 h-2.5" strokeWidth={1.5} />
-                      {selected.contact.name || selected.contact.email}
-                    </Link>
+                      <Link
+                        href={`/client-details-overview${
+                          selected.contact.name
+                            ? `?contact=${encodeURIComponent(selected.contact.name)}`
+                            : ""
+                        }`}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border border-[var(--rule)] hover:bg-[var(--canvas-subtle)] transition"
+                      >
+                        <User className="w-2.5 h-2.5" strokeWidth={1.5} />
+                        {selected.contact.name || selected.contact.email}
+                      </Link>
+                    </EntityAsk>
                   )}
                   {selected.property && (
-                    <Link
-                      href={`/properties/${selected.property.id}`}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border border-[var(--rule)] hover:bg-[var(--canvas-subtle)] transition"
+                    <EntityAsk
+                      kind="property"
+                      id={selected.property.id}
+                      label={selected.property.address_line1 || "Property"}
                     >
-                      <Home className="w-2.5 h-2.5" strokeWidth={1.5} />
-                      {selected.property.address_line1}
-                    </Link>
+                      <Link
+                        href={`/properties/${selected.property.id}`}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border border-[var(--rule)] hover:bg-[var(--canvas-subtle)] transition"
+                      >
+                        <Home className="w-2.5 h-2.5" strokeWidth={1.5} />
+                        {selected.property.address_line1}
+                      </Link>
+                    </EntityAsk>
                   )}
                 </div>
 

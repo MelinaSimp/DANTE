@@ -1,6 +1,7 @@
 "use client";
 
 import { Search, Filter, Users, MoreHorizontal } from "lucide-react";
+import EntityAsk from "@/components/dante/EntityAsk";
 
 interface ClientRow {
   id: string;
@@ -100,7 +101,13 @@ export function ClientsPageClient({ clients }: { clients: ClientRow[] }) {
                           {getInitials(client.name)}
                         </div>
                         <div className="flex flex-col">
-                          <span className="font-medium">{client.name}</span>
+                          <EntityAsk
+                            kind="contact"
+                            id={client.id}
+                            label={client.name}
+                          >
+                            <span className="font-medium">{client.name}</span>
+                          </EntityAsk>
                           <span className="text-[10px] text-[var(--ink-subtle)] mt-0.5 mono">
                             {client.id.slice(0, 8)}
                           </span>

@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import CreativeCard from "@/components/ui/creative-card";
+import EntityAsk from "@/components/dante/EntityAsk";
 
 type SignalType =
   | "roth_conversion"
@@ -404,12 +405,18 @@ export default function PlanningClient() {
                         </span>
                         <span className="text-[var(--ink-subtle)]">·</span>
                         {s.contact_id ? (
-                          <Link
-                            href={`/client-details-overview?id=${s.contact_id}`}
-                            className="text-sm text-[var(--ink)] font-medium hover:underline underline-offset-2"
+                          <EntityAsk
+                            kind="contact"
+                            id={s.contact_id}
+                            label={s.contact_name || "Client"}
                           >
-                            {s.contact_name || "(unnamed contact)"}
-                          </Link>
+                            <Link
+                              href={`/client-details-overview?id=${s.contact_id}`}
+                              className="text-sm text-[var(--ink)] font-medium hover:underline underline-offset-2"
+                            >
+                              {s.contact_name || "(unnamed contact)"}
+                            </Link>
+                          </EntityAsk>
                         ) : (
                           <span className="text-sm text-[var(--ink)] font-medium">
                             {s.contact_name || "(unnamed contact)"}
