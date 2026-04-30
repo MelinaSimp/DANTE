@@ -71,11 +71,13 @@ const ADAPTERS: Record<string, () => Promise<IntegrationAdapter>> = {
   holistiplan: async () => (await import("./holistiplan/adapter")).default,
   nitrogen: async () => (await import("./nitrogen/adapter")).default,
   rightcapital: async () => (await import("./rightcapital/adapter")).default,
-  // Phase 5 — return a stub adapter that throws "partner approval required".
-  schwab: async () => (await import("./_partner-stub")).makeStub("schwab"),
+  // Phase 5 — Schwab and Altruist have real adapters that error
+  // cleanly when partner credentials aren't in env. The remaining
+  // partner-only providers fall back to the stub.
+  schwab: async () => (await import("./custodians/schwab")).default,
+  altruist: async () => (await import("./custodians/altruist")).default,
   fidelity: async () => (await import("./_partner-stub")).makeStub("fidelity"),
   pershing: async () => (await import("./_partner-stub")).makeStub("pershing"),
-  altruist: async () => (await import("./_partner-stub")).makeStub("altruist"),
   orion: async () => (await import("./_partner-stub")).makeStub("orion"),
   tamarac: async () => (await import("./_partner-stub")).makeStub("tamarac"),
   addepar: async () => (await import("./_partner-stub")).makeStub("addepar"),

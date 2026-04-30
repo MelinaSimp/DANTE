@@ -276,6 +276,119 @@ export async function GET(
     }
   }
 
+  // ── Custodian-fed accounts (Phase 5 portfolio data model) ──
+  // These come from portfolio_accounts/positions/balances. When a
+  // Schwab / Fidelity / Altruist connection is wired up, custodian
+  // accounts join the same Holdings view alongside the
+  // extraction-fed accounts. They're additive — never replace
+  // extraction data, just complement it.
+  const { data: custodianAccountRows } = await supabase
+    .from("portfolio_accounts")
+    .select(
+      "id, source, display_name, account_type, registration, external_account_id, account_number_masked"
+    )
+    .eq("contact_id", contactId)
+    .eq("is_active", true);
+
+  if ((custodianAccountRows || []).length > 0) {
+    const custIds = (custodianAccountRows || []).map((a: any) => a.id);
+    const [{ data: latestBalances }, { data: latestPositions }] =
+      await Promise.all([
+        supabase
+          .from("portfolio_balances")
+          .select("account_id, total_value, cash_value, market_value, as_of_date")
+          .in("account_id", custIds)
+          .order("as_of_date", { ascending: false })
+          .limit(custIds.length * 2),
+        supabase
+          .from("portfolio_positions")
+          .select(
+            "account_id, security_id, quantity, market_value, cost_basis, unrealized_gain_loss, as_of_date"
+          )
+          .in("account_id", custIds)
+          .order("as_of_date", { ascending: false })
+          .limit(1000),
+      ]);
+
+    const balanceByAccount = new Map<string, any>();
+    for (const b of latestBalances || []) {
+      const k = (b as any).account_id;
+      if (!balanceByAccount.has(k)) balanceByAccount.set(k, b);
+    }
+
+    for (const ca of custodianAccountRows || []) {
+      const balance = balanceByAccount.get((ca as any).id);
+      accounts.push({
+        extraction_id: `custodian:${(ca as any).id}`,
+        document_id: "",
+        document_name: `${(ca as any).source} feed`,
+        custodian: String((ca as any).source || "")
+          .replace("_", " ")
+          .replace(/\b\w/g, (c) => c.toUpperCase()),
+        plan_name: (ca as any).display_name,
+        account_type: (ca as any).account_type,
+        period_end: balance?.as_of_date || null,
+        ending_balance: balance ? Number(balance.total_value) : null,
+        beginning_balance: null,
+        employee_contributions_ytd: null,
+        employer_match_ytd: null,
+        deferral_rate: null,
+        vested_balance: null,
+        vesting_percent: null,
+        roth_balance: null,
+        pretax_balance: null,
+        after_tax_balance: null,
+        loan_balance: null,
+        rmd_due: null,
+        verified: true, // custodian-fed = source of truth
+        confidence: 1.0,
+      });
+    }
+
+    // Add custodian positions to holdings list
+    const positionsByAccount = new Map<string, any[]>();
+    for (const p of latestPositions || []) {
+      const k = (p as any).account_id;
+      if (!positionsByAccount.has(k)) positionsByAccount.set(k, []);
+      positionsByAccount.get(k)!.push(p);
+    }
+    // Resolve security names
+    const allSecurityIds = (latestPositions || [])
+      .map((p: any) => p.security_id)
+      .filter(Boolean);
+    if (allSecurityIds.length > 0) {
+      const { data: secs } = await supabase
+        .from("security_master")
+        .select("id, ticker, name, asset_class")
+        .in("id", allSecurityIds);
+      const secMap = new Map(
+        (secs || []).map((s: any) => [s.id, s])
+      );
+      for (const ca of custodianAccountRows || []) {
+        const positions = positionsByAccount.get((ca as any).id) || [];
+        for (const p of positions) {
+          const sec = secMap.get((p as any).security_id);
+          holdings.push({
+            document_id: "",
+            custodian: String((ca as any).source || ""),
+            account_type: (ca as any).account_type,
+            fund_name: (sec as any)?.name || null,
+            ticker: (sec as any)?.ticker || null,
+            shares: Number((p as any).quantity || 0),
+            price:
+              (p as any).quantity && (p as any).market_value
+                ? Number((p as any).market_value) / Number((p as any).quantity)
+                : null,
+            market_value: Number((p as any).market_value || 0),
+            allocation_percent: null,
+            asset_class: (sec as any)?.asset_class || null,
+          });
+        }
+      }
+    }
+  }
+  holdings.sort((a, b) => (b.market_value || 0) - (a.market_value || 0));
+
   const totalAssets = accounts.reduce(
     (s, a) => s + (a.ending_balance || 0),
     0
