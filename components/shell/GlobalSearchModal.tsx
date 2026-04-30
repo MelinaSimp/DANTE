@@ -41,6 +41,7 @@ import {
 import MarkdownRenderer from "@/app/dante/MarkdownRenderer";
 import { useAssistantBrand } from "@/components/dante/AssistantNameProvider";
 import AgentPlan from "@/components/dante/AgentPlan";
+import CreativeCard from "@/components/ui/creative-card";
 import type { StepLogEntry } from "@/lib/dante/workflow-types";
 
 type Kind =
@@ -309,14 +310,27 @@ export default function GlobalSearchModal({
 
   const showThinking = stream.streaming && !stream.finalContent;
 
+  // Ask mode wears the Creative Card chrome — rounded-2xl outer, top-
+  // left glow, gradient padding ring — to match the entity hover
+  // surface and signal "this is where Dante speaks." Search mode keeps
+  // the existing rectangle since it's a utilitarian palette, not a
+  // chat. ⌘D anchors Ask mode to a more centred vertical position
+  // since the user hits it expecting Dante front-and-center, not a
+  // top-of-page strip.
+  const isAsk = mode === "ask";
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-start justify-center bg-[var(--ink)]/30 backdrop-blur-sm pt-24 px-4"
+      className={`fixed inset-0 z-[60] flex justify-center bg-[var(--ink)]/30 backdrop-blur-sm px-4 ${
+        isAsk
+          ? "items-center"
+          : "items-start pt-24"
+      }`}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-[var(--canvas)] border border-[var(--rule)] rounded-[8px] shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden max-h-[80vh]">
+      <CreativeCard className="w-full max-w-2xl">
+        <div className="flex flex-col max-h-[80vh] overflow-hidden">
         {/* Mode toggle row */}
         <div className="flex items-center gap-1 px-3 pt-2.5 border-b border-[var(--rule)]">
           <button
@@ -614,7 +628,8 @@ export default function GlobalSearchModal({
             </div>
           </>
         )}
-      </div>
+        </div>
+      </CreativeCard>
     </div>
   );
 }

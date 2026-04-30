@@ -164,9 +164,15 @@ export default function AppSidebar({
   // back to rest immediately rather than holding their last scale.
   const dockMouseY = useMotionValue(Number.POSITIVE_INFINITY);
 
-  // ⌘K opens the palette in Search mode; ⌘/ opens it directly in
-  // Ask mode (mnemonic: "ask"). Either shortcut closes the palette
-  // if already open, so the user can mash the key to dismiss it.
+  // ⌘K   opens the palette in Search mode
+  // ⌘/   opens it in Ask mode  (mnemonic: "ask")
+  // ⌘D   opens it in Ask mode  (mnemonic: "Dante" / "Drift")
+  // All three shortcuts close the palette if already open, so the
+  // user can mash the key to dismiss. ⌘D collides with the browser
+  // bookmark dialog — since Drift ships primarily as a desktop app
+  // (Electron) where browser shortcuts don't apply, that's fine;
+  // we preventDefault either way so the bookmark dialog doesn't
+  // briefly flash for any web users.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey)) return;
@@ -175,7 +181,7 @@ export default function AppSidebar({
         e.preventDefault();
         setSearchInitialMode("search");
         setSearchOpen((v) => !v);
-      } else if (k === "/") {
+      } else if (k === "/" || k === "d") {
         e.preventDefault();
         setSearchInitialMode("ask");
         setSearchOpen((v) => !v);
