@@ -35,6 +35,7 @@ import {
 import MarkdownRenderer from "@/app/dante/MarkdownRenderer";
 import { useAssistantBrand } from "./AssistantNameProvider";
 import DanteNoticed from "./DanteNoticed";
+import CreativeCard from "@/components/ui/creative-card";
 
 type Kind = "contact" | "property";
 
@@ -262,7 +263,7 @@ export default function EntityHoverCard({ kind, id, label, children }: Props) {
         ? createPortal(
             <div
               ref={cardRef}
-              className="fixed z-[70] w-[320px] rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] shadow-2xl overflow-hidden"
+              className="fixed z-[70] w-[340px]"
               style={{ left: anchor.left, top: anchor.top }}
               onMouseEnter={() => {
                 if (leaveTimer.current) {
@@ -273,8 +274,9 @@ export default function EntityHoverCard({ kind, id, label, children }: Props) {
               onMouseLeave={scheduleLeave}
               role="dialog"
             >
+              <CreativeCard className="max-w-none">
               {/* Header */}
-              <div className="px-3 py-2 border-b border-[var(--rule)] bg-[var(--canvas-subtle)]">
+              <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-800 bg-white/50 dark:bg-black/30">
                 <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)]">
                   {kind}
                 </div>
@@ -324,6 +326,7 @@ export default function EntityHoverCard({ kind, id, label, children }: Props) {
                   </div>
                 </>
               )}
+              </CreativeCard>
             </div>,
             document.body,
           )

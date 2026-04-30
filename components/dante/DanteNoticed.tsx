@@ -23,6 +23,7 @@ import {
   Clock,
 } from "lucide-react";
 import { useAssistantBrand } from "./AssistantNameProvider";
+import CreativeCard from "@/components/ui/creative-card";
 
 type Kind = "contact" | "property";
 
@@ -269,18 +270,14 @@ export default function DanteNoticed({
 
   if (rows.length === 0) return null;
 
-  return (
-    <div
-      className={`rounded-[6px] border border-[var(--rule)] overflow-hidden ${
-        prominent ? "shadow-sm" : ""
-      }`}
-      style={{
-        background: prominent
-          ? "linear-gradient(180deg, var(--canvas-subtle) 0%, var(--canvas) 70%)"
-          : "var(--canvas)",
-      }}
-    >
-      <div className="px-4 py-3 border-b border-[var(--rule)] flex items-center gap-2">
+  // Prominent mode (detail-page placement) wraps the body in the
+  // Creative Card chrome — rounded-2xl outer, top-left glow,
+  // gradient padding ring. Compact mode (used inside the hover
+  // preview) renders a flat bordered card so it doesn't double up
+  // chrome that the hover wrapper already provides.
+  const body = (
+    <>
+      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center gap-2 bg-white/50 dark:bg-black/30">
         <div className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]" />
         <div className="flex-1 min-w-0">
           <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)]">
@@ -293,11 +290,25 @@ export default function DanteNoticed({
           )}
         </div>
       </div>
-      <ul className="divide-y divide-[var(--rule)]">
+      <ul className="divide-y divide-gray-200 dark:divide-gray-800">
         {rows.map((row, i) => (
           <li key={i}>{row}</li>
         ))}
       </ul>
+    </>
+  );
+
+  if (prominent) {
+    return (
+      <CreativeCard className="max-w-none">
+        {body}
+      </CreativeCard>
+    );
+  }
+
+  return (
+    <div className="rounded-[6px] border border-[var(--rule)] overflow-hidden bg-[var(--canvas)]">
+      {body}
     </div>
   );
 }
