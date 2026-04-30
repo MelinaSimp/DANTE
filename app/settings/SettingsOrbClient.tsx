@@ -12,6 +12,8 @@ import {
   ArrowUpRight,
   Mail,
   Sparkles,
+  Plug,
+  Activity,
 } from "lucide-react";
 
 const PhoneNumbersCard = lazy(() => import("./PhoneNumbersCard"));
@@ -179,16 +181,34 @@ export default function SettingsOrbClient({
                 {/* External links sit under Workspace — they leave the
                     orb rather than opening a panel. Kept as Links so
                     they behave like the rest of the app nav. */}
-                {group === "Workspace" && features.includes("ai_receptionist") && (
+                {group === "Workspace" && (
                   <>
                     <Link
-                      href="/agent"
+                      href="/settings/integrations"
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-[4px] transition text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
                     >
-                      <Bot className="w-4 h-4" strokeWidth={1.5} />
-                      <span className="flex-1 text-left">Voice AI config</span>
+                      <Plug className="w-4 h-4" strokeWidth={1.5} />
+                      <span className="flex-1 text-left">Integrations</span>
                       <ArrowUpRight className="w-3 h-3 text-[var(--ink-subtle)]" strokeWidth={1.5} />
                     </Link>
+                    <Link
+                      href="/settings/usage"
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-[4px] transition text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
+                    >
+                      <Activity className="w-4 h-4" strokeWidth={1.5} />
+                      <span className="flex-1 text-left">Usage &amp; cost</span>
+                      <ArrowUpRight className="w-3 h-3 text-[var(--ink-subtle)]" strokeWidth={1.5} />
+                    </Link>
+                    {features.includes("ai_receptionist") && (
+                      <Link
+                        href="/agent"
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-[4px] transition text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
+                      >
+                        <Bot className="w-4 h-4" strokeWidth={1.5} />
+                        <span className="flex-1 text-left">Voice AI config</span>
+                        <ArrowUpRight className="w-3 h-3 text-[var(--ink-subtle)]" strokeWidth={1.5} />
+                      </Link>
+                    )}
                   </>
                 )}
               </nav>
