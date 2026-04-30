@@ -82,7 +82,10 @@ export async function GET(
     );
   }
 
-  // Documents for this contact
+  // Documents for this contact. Don't early-return when empty —
+  // a contact may have zero parsed docs but still have custodian-
+  // fed portfolio_accounts (Phase 5). The custodian UNION below
+  // handles that case.
   const { data: docs, error: docErr } = await supabase
     .from("documents")
     .select("id, file_name, contact_id")
@@ -92,25 +95,20 @@ export async function GET(
   }
 
   const documents = (docs || []) as DocumentRow[];
-  if (documents.length === 0) {
-    return NextResponse.json({
-      accounts: [],
-      holdings: [],
-      insurance: [],
-      beneficiaries: [],
-      summary: { total_assets: 0, document_count: 0 },
-    });
-  }
 
-  // Pull extractions for all of those documents
+  // Pull extractions for all of those documents (skip the query
+  // when there are no documents to avoid a `.in` with empty array).
   const docIds = documents.map((d) => d.id);
-  const { data: rawExtractions, error: extErr } = await supabase
-    .from("document_extractions")
-    .select(
-      "id, document_id, doc_type, tax_year, fields, rows, confidence, verified_at, created_at"
-    )
-    .in("document_id", docIds)
-    .order("created_at", { ascending: false });
+  const { data: rawExtractions, error: extErr } =
+    docIds.length === 0
+      ? { data: [], error: null }
+      : await supabase
+          .from("document_extractions")
+          .select(
+            "id, document_id, doc_type, tax_year, fields, rows, confidence, verified_at, created_at"
+          )
+          .in("document_id", docIds)
+          .order("created_at", { ascending: false });
   if (extErr) {
     return NextResponse.json({ error: extErr.message }, { status: 500 });
   }
