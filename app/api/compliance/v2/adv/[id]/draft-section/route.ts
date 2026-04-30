@@ -57,19 +57,37 @@ export async function POST(
     return NextResponse.json({ error: "Draft not found" }, { status: 404 });
   }
 
-  // Pull workspace facts to ground the draft. Caller may override
-  // any of these via body.facts (the UI exposes a small "facts"
-  // editor for AUM, principal owners, custodians).
-  const { data: ws } = await supabaseAdmin
-    .from("workspaces")
-    .select("name")
-    .eq("id", workspaceId)
-    .maybeSingle();
+  // Pull workspace facts to ground the draft. Three layers, last
+  // wins:
+  //   1. workspaces.name (basic fallback)
+  //   2. workspace_compliance_facts (CCO-maintained, reused across
+  //      drafts and items)
+  //   3. body.facts (per-call override the UI may pass)
+  const [{ data: ws }, { data: factsRow }] = await Promise.all([
+    supabaseAdmin
+      .from("workspaces")
+      .select("name")
+      .eq("id", workspaceId)
+      .maybeSingle(),
+    supabaseAdmin
+      .from("workspace_compliance_facts")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .maybeSingle(),
+  ]);
 
-  const facts = {
+  const facts: Record<string, unknown> = {
     firm_name: (ws as any)?.name || "[FIRM]",
-    ...(body.facts || {}),
   };
+  if (factsRow) {
+    for (const [k, v] of Object.entries(factsRow as Record<string, unknown>)) {
+      if (k === "workspace_id" || k === "updated_at" || k === "updated_by") continue;
+      if (v !== null && v !== undefined && v !== "") {
+        facts[k] = v;
+      }
+    }
+  }
+  Object.assign(facts, body.facts || {});
 
   const factLines = Object.entries(facts)
     .map(([k, v]) => `  - ${k}: ${v ?? "[TO BE COMPLETED]"}`)

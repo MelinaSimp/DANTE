@@ -125,9 +125,144 @@ const RMD_UNSUPPORTED_STATEMENT: ComplianceRule = {
   ],
 };
 
+// ────────────────────────────────────────────────────────────
+// Marketing-specific rules — FINRA 2210 nuances + SEC Marketing
+// Rule 206(4)-1 (the "modernized marketing rule," eff. Nov 2022).
+// These fire on /compliance marketing submissions in addition to
+// the general rules above. They focus on patterns that are MORE
+// problematic in marketing context than in 1:1 advisor email.
+// ────────────────────────────────────────────────────────────
+
+// FINRA 2210(d)(1)(A) requires content to be "fair and balanced".
+// Single-sided benefit claims without risk language are the most
+// common violation in marketing pieces.
+const FINRA_2210_MISSING_RISK_DISCLOSURE: ComplianceRule = {
+  id: "finra-2210-missing-risk",
+  severity: "warn",
+  description:
+    "Flags marketing copy that promotes specific securities or strategies without an offsetting risk disclosure nearby.",
+  patterns: [
+    // "buy/own/invest in [X]" without "risk" within ~300 chars.
+    // Approximated with a negative lookahead — overly aggressive
+    // matching is preferred to silent passes for marketing content.
+    /\b(?:buy|invest in|own|add) [A-Z][A-Za-z0-9 &]{2,40}(?:[.,!?]|$)(?![\s\S]{0,300}\b(?:risk|loss|volatil))/i,
+    /\b(?:double|triple|10x|100x) (?:your money|returns?|portfolio)\b/i,
+  ],
+  message:
+    "Marketing piece appears to promote a specific security or strategy without an accompanying risk-of-loss disclosure. FINRA 2210(d)(1)(A) requires fair and balanced presentation. Add a sentence acknowledging the risk of loss or principal volatility.",
+  citations: [
+    {
+      source_key: "finra-2210",
+      quote:
+        "All member communications must be fair and balanced and must provide a sound basis for evaluating the facts in regard to any particular security or type of security.",
+    },
+  ],
+};
+
+// FINRA 2210 retail vs institutional — superlatives and exaggerated
+// claims are restricted in retail communications.
+const FINRA_2210_SUPERLATIVES: ComplianceRule = {
+  id: "finra-2210-superlatives",
+  severity: "warn",
+  description:
+    "Flags superlative or exaggerated claims that require principal pre-approval for retail audiences.",
+  patterns: [
+    /\b(?:the best|#1|number one|the only|the safest|the most successful) (?:advisor|firm|strategy|investment|portfolio|fund)\b/i,
+    /\b(?:unmatched|unrivaled|unparalleled|industry-leading) (?:performance|returns?|expertise)\b/i,
+  ],
+  message:
+    "Superlative or exaggerated claim detected. FINRA 2210(d)(1)(B) prohibits exaggerated claims; retail-targeted communications also require principal pre-approval per 2210(b)(1). Either rephrase or escalate to a registered principal for sign-off.",
+  citations: [
+    {
+      source_key: "finra-2210",
+      quote:
+        "Communications may not contain any false, exaggerated, unwarranted, promissory or misleading statement or claim.",
+    },
+  ],
+};
+
+// SEC Marketing Rule 206(4)-1 — testimonials/endorsements require
+// clear and prominent disclosure of (i) testimonial/endorsement
+// status, (ii) any cash/non-cash compensation, and (iii) material
+// conflicts of interest.
+const SEC_MARKETING_RULE_MISSING_DISCLOSURE: ComplianceRule = {
+  id: "sec-marketing-rule-missing-disclosure",
+  severity: "warn",
+  description:
+    "Flags testimonial/endorsement language without the SEC-required disclosures within the same piece.",
+  patterns: [
+    /\b(?:client|customer)s? (?:say|testify|told us|love us|highly recommend)\b(?![\s\S]{0,400}\b(?:disclos|compensat|conflict))/i,
+    /"[^"]{20,}"(?![\s\S]{0,400}\b(?:disclos|compensat|conflict|paid|free))/i,
+  ],
+  message:
+    "Testimonial/endorsement detected without nearby disclosure language. SEC Rule 206(4)-1 requires clear and prominent disclosure of testimonial status, any compensation paid, and material conflicts of interest. Add the disclosure or use the /compliance Advertising tab to track it formally.",
+  citations: [
+    {
+      source_key: "sec-marketing-rule",
+      quote:
+        "An adviser may not use a testimonial or endorsement unless certain conditions are met, including clear and prominent disclosure of testimonial/endorsement status, compensation, and material conflicts.",
+    },
+  ],
+};
+
+// Hypothetical performance — illustrations using projected or
+// hypothetical returns require specific conditions under the
+// modernized marketing rule.
+const SEC_MARKETING_RULE_HYPOTHETICAL: ComplianceRule = {
+  id: "sec-marketing-rule-hypothetical",
+  severity: "warn",
+  description:
+    "Flags hypothetical / projected / model performance claims that trigger Rule 206(4)-1 hypothetical-performance conditions.",
+  patterns: [
+    /\b(?:hypothetical|projected|targeted|model|backtest(?:ed)?|simulated) (?:returns?|performance|results?)\b/i,
+    /\bif you (?:had|invested) \$[\d,]+ (?:in|with) us\b/i,
+    /\bcould have (?:earned|made) [\$\d]/i,
+  ],
+  message:
+    "Hypothetical or projected performance claim detected. SEC Rule 206(4)-1(d) limits hypothetical performance to audiences with the financial sophistication to assess it, and requires policies and procedures, plus prominent disclosure of methodology and risks.",
+  citations: [
+    {
+      source_key: "sec-marketing-rule",
+      quote:
+        "Advertisements may not include hypothetical performance unless the adviser adopts policies reasonably designed to ensure the performance is relevant to the likely financial situation and investment objectives of the intended audience and provides specified information.",
+    },
+  ],
+};
+
+// Performance display without time period and net-of-fees disclosure
+// is one of the top SEC exam findings.
+const SEC_MARKETING_RULE_PERFORMANCE_FORMAT: ComplianceRule = {
+  id: "sec-marketing-rule-performance-format",
+  severity: "warn",
+  description:
+    "Flags performance figures (e.g. '12.4%') that don't appear next to a time period and a gross/net qualifier.",
+  patterns: [
+    // A standalone percent figure without "1-year/5-year/since inception" within 80 chars
+    /\b\d{1,3}(?:\.\d+)?%\b(?![\s\S]{0,80}\b(?:1[- ]year|3[- ]year|5[- ]year|10[- ]year|since inception|annualized|YTD|month|quarter))/i,
+    // Performance without "net of fees" / "gross of fees"
+    /\b(?:annualized|return|performance) of \d/i,
+  ],
+  message:
+    "Performance figure may be missing a time-period label and/or gross-vs-net-of-fees qualifier. Rule 206(4)-1(d)(2) requires presenting net performance alongside gross, and SEC FAQ requires time-period disclosure.",
+  citations: [
+    {
+      source_key: "sec-marketing-rule",
+      quote:
+        "Advertisements may not include any presentation of gross performance unless the adviser also presents net performance with at least equal prominence and over an equal time period.",
+    },
+  ],
+};
+
 export const RULES: ComplianceRule[] = [
   FINRA_GUARANTEES,
   REG_BI_BLANKET_RECOMMENDATION,
   UNQUALIFIED_TAX_ADVICE,
   RMD_UNSUPPORTED_STATEMENT,
+  // Marketing-specific rules below — fire on the same scanner; the
+  // marketing UI shows them next to the inline rules.
+  FINRA_2210_MISSING_RISK_DISCLOSURE,
+  FINRA_2210_SUPERLATIVES,
+  SEC_MARKETING_RULE_MISSING_DISCLOSURE,
+  SEC_MARKETING_RULE_HYPOTHETICAL,
+  SEC_MARKETING_RULE_PERFORMANCE_FORMAT,
 ];

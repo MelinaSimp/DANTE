@@ -47,6 +47,50 @@ export async function PATCH(
 
   const body = await req.json().catch(() => ({}));
   const isAdmin = isWorkspaceAdmin(ctx.role);
+
+  // For approval actions on marketing/advertising, enforce
+  // approver != submitter — FINRA 2210(b) requires a registered
+  // principal who didn't author the piece. Read the existing row
+  // first so we can compare.
+  const isApprovalAttempt =
+    typeof body.status === "string" &&
+    ["approved", "rejected", "changes_requested", "filed"].includes(body.status);
+
+  if (isApprovalAttempt && !isAdmin) {
+    return NextResponse.json(
+      { error: "Workspace admin role required to change review status" },
+      { status: 403 }
+    );
+  }
+
+  if (isApprovalAttempt) {
+    const submitterColumn =
+      config.table === "compliance_marketing_reviews" ||
+      config.table === "compliance_advertising_reviews"
+        ? "submitted_by"
+        : config.table === "compliance_adv_drafts"
+        ? "created_by"
+        : null;
+    if (submitterColumn) {
+      const { data: existing } = await supabaseAdmin
+        .from(config.table)
+        .select(`id, ${submitterColumn}`)
+        .eq("id", id)
+        .eq("workspace_id", ctx.workspaceId)
+        .maybeSingle();
+      const submitter = (existing as any)?.[submitterColumn];
+      if (submitter && submitter === ctx.user.id) {
+        return NextResponse.json(
+          {
+            error:
+              "You can't approve a piece you submitted. FINRA 2210(b) requires a different registered principal to perform the review.",
+          },
+          { status: 403 }
+        );
+      }
+    }
+  }
+
   const allowed = isAdmin
     ? [...config.selfUpdateFields, ...config.reviewUpdateFields]
     : config.selfUpdateFields;

@@ -23,7 +23,7 @@ import {
   X,
 } from "lucide-react";
 
-type Tab = "flags" | "marketing" | "advertising" | "adv" | "oba";
+type Tab = "flags" | "marketing" | "advertising" | "adv" | "oba" | "facts";
 
 const TAB_META: Record<
   Tab,
@@ -59,6 +59,12 @@ const TAB_META: Record<
     description:
       "Advisor-disclosed OBAs (board seats, consulting, rentals) with annual attestation cycle.",
   },
+  facts: {
+    label: "Firm facts",
+    icon: FileText,
+    description:
+      "Firm facts (AUM, services, owners, custodians) used to ground ADV draft generation. Maintain once, reuse across drafts.",
+  },
 };
 
 // ── Marketing review row ─────────────────────────────────────
@@ -75,6 +81,7 @@ interface MarketingRow {
   approved_for_use_until: string | null;
   reviewed_at: string | null;
   created_at: string;
+  submitted_by?: string;
 }
 
 interface AdvertisingRow {
@@ -91,6 +98,7 @@ interface AdvertisingRow {
   retention_until: string | null;
   approved_for_use_until: string | null;
   created_at: string;
+  submitted_by?: string;
 }
 
 interface AdvRow {
@@ -194,14 +202,33 @@ function formatDate(d: string | null) {
 
 export default function ComplianceClient() {
   const [activeTab, setActiveTab] = useState<Tab>("flags");
+  const [me, setMe] = useState<{ userId: string; role: string | null; isAdmin: boolean }>({
+    userId: "",
+    role: null,
+    isAdmin: false,
+  });
   const [flags, setFlags] = useState<FlagRow[]>([]);
-  const [marketing, setMarketing] = useState<MarketingRow[]>([]);
-  const [advertising, setAdvertising] = useState<AdvertisingRow[]>([]);
-  const [adv, setAdv] = useState<AdvRow[]>([]);
+  const [marketing, setMarketing] = useState<(MarketingRow & { submitted_by?: string })[]>([]);
+  const [advertising, setAdvertising] = useState<(AdvertisingRow & { submitted_by?: string })[]>([]);
+  const [adv, setAdv] = useState<(AdvRow & { created_by?: string })[]>([]);
   const [oba, setOba] = useState<ObaRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/me", { credentials: "include" })
+      .then((r) => r.ok ? r.json() : null)
+      .then((j) => {
+        if (j) {
+          const role = j.role || null;
+          // Owner / admin / cco roles can review
+          const isAdmin = role === "owner" || role === "admin" || role === "cco";
+          setMe({ userId: j.userId, role, isAdmin });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Inline new-row forms
   const [showNewMarketing, setShowNewMarketing] = useState(false);
@@ -285,6 +312,7 @@ export default function ComplianceClient() {
       if (!o.next_attestation_due) return false;
       return new Date(o.next_attestation_due).getTime() < Date.now() + 30 * 24 * 60 * 60 * 1000;
     }).length,
+    facts: 0,
   };
 
   return (
@@ -425,7 +453,7 @@ export default function ComplianceClient() {
                 }}
               />
             )}
-            <MarketingList rows={marketing} reload={reload} />
+            <MarketingList rows={marketing} reload={reload} me={me} />
           </section>
         )}
 
@@ -455,7 +483,7 @@ export default function ComplianceClient() {
                 }}
               />
             )}
-            <AdvertisingList rows={advertising} reload={reload} />
+            <AdvertisingList rows={advertising} reload={reload} me={me} />
           </section>
         )}
 
@@ -487,6 +515,10 @@ export default function ComplianceClient() {
             )}
             <AdvList rows={adv} reload={reload} />
           </section>
+        )}
+
+        {activeTab === "facts" && (
+          <FirmFactsEditor canEdit={me.isAdmin} />
         )}
 
         {activeTab === "oba" && (
@@ -909,9 +941,11 @@ function NewObaForm({ onCreated }: { onCreated: () => void }) {
 function MarketingList({
   rows,
   reload,
+  me,
 }: {
   rows: MarketingRow[];
   reload: () => void;
+  me: { userId: string; isAdmin: boolean };
 }) {
   if (rows.length === 0)
     return (
@@ -945,6 +979,14 @@ function MarketingList({
                 id={m.id}
                 current={m.status}
                 reload={reload}
+                canReview={me.isAdmin && m.submitted_by !== me.userId}
+                disabledReason={
+                  !me.isAdmin
+                    ? "Workspace admin role required to review"
+                    : m.submitted_by === me.userId
+                    ? "Cannot review your own submission (FINRA 2210(b))"
+                    : undefined
+                }
               />
             </div>
           </div>
@@ -957,9 +999,11 @@ function MarketingList({
 function AdvertisingList({
   rows,
   reload,
+  me,
 }: {
   rows: AdvertisingRow[];
   reload: () => void;
+  me: { userId: string; isAdmin: boolean };
 }) {
   if (rows.length === 0)
     return (
@@ -1008,6 +1052,14 @@ function AdvertisingList({
               id={a.id}
               current={a.status}
               reload={reload}
+              canReview={me.isAdmin && a.submitted_by !== me.userId}
+              disabledReason={
+                !me.isAdmin
+                  ? "Workspace admin role required to review"
+                  : a.submitted_by === me.userId
+                  ? "Cannot review your own submission (FINRA 2210(b))"
+                  : undefined
+              }
             />
           </div>
         </details>
@@ -1183,12 +1235,250 @@ function ObaList({
                 current={o.disclosure_status}
                 reload={reload}
                 isOba
+                canReview={true}
               />
             </div>
           </div>
         );
       })}
     </div>
+  );
+}
+
+// ───────────────────────── Firm facts editor ─────────────────────────
+
+const FACTS_FIELDS: Array<{
+  key: string;
+  label: string;
+  type: "text" | "number" | "date" | "boolean" | "longtext";
+  hint?: string;
+}> = [
+  { key: "firm_legal_name", label: "Firm legal name", type: "text" },
+  { key: "firm_dba", label: "Doing-business-as name", type: "text" },
+  { key: "firm_address", label: "Office address", type: "longtext" },
+  { key: "firm_phone", label: "Phone", type: "text" },
+  { key: "firm_website", label: "Website", type: "text" },
+  { key: "firm_iard_crd", label: "IARD/CRD #", type: "text", hint: "from FINRA" },
+  { key: "aum_regulatory", label: "Regulatory AUM (USD)", type: "number" },
+  { key: "aum_discretionary", label: "Discretionary AUM (USD)", type: "number" },
+  {
+    key: "aum_non_discretionary",
+    label: "Non-discretionary AUM (USD)",
+    type: "number",
+  },
+  { key: "aum_as_of", label: "AUM as of", type: "date" },
+  { key: "client_count", label: "Client count", type: "number" },
+  {
+    key: "principal_owners",
+    label: "Principal owners",
+    type: "longtext",
+    hint: "one per line: Name, % ownership",
+  },
+  { key: "cco_name", label: "CCO name", type: "text" },
+  {
+    key: "services_offered",
+    label: "Services offered",
+    type: "longtext",
+  },
+  {
+    key: "primary_custodians",
+    label: "Primary custodians",
+    type: "text",
+    hint: "comma-separated",
+  },
+  {
+    key: "fee_schedule_summary",
+    label: "Fee schedule summary",
+    type: "longtext",
+  },
+  { key: "account_minimum_usd", label: "Account minimum (USD)", type: "number" },
+  {
+    key: "has_material_disciplinary_events",
+    label: "Has material disciplinary events?",
+    type: "boolean",
+  },
+  {
+    key: "disciplinary_summary",
+    label: "Disciplinary summary",
+    type: "longtext",
+    hint: "if any",
+  },
+  { key: "is_sec_registered", label: "SEC-registered?", type: "boolean" },
+  {
+    key: "state_registrations",
+    label: "State registrations",
+    type: "text",
+    hint: "comma-separated state codes",
+  },
+  { key: "has_performance_fees", label: "Charges performance fees?", type: "boolean" },
+  { key: "has_custody", label: "Has custody?", type: "boolean" },
+  {
+    key: "custody_basis",
+    label: "Custody basis",
+    type: "text",
+    hint: "fee deduction / general partner / qualified custodian only",
+  },
+  { key: "votes_proxies", label: "Votes proxies?", type: "boolean" },
+  { key: "notes", label: "Notes", type: "longtext" },
+];
+
+function FirmFactsEditor({ canEdit }: { canEdit: boolean }) {
+  const [facts, setFacts] = useState<Record<string, any>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/compliance/v2/facts", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => setFacts((j?.facts as Record<string, any>) || {}))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const setField = (k: string, v: any) =>
+    setFacts((prev) => ({ ...prev, [k]: v }));
+
+  const save = async () => {
+    setSaving(true);
+    setErr(null);
+    try {
+      const r = await fetch("/api/compliance/v2/facts", {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(facts),
+      });
+      const j = await r.json();
+      if (!r.ok) {
+        setErr(j?.error || "Save failed");
+        return;
+      }
+      setSavedAt(Date.now());
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="text-xs text-[var(--ink-subtle)] flex items-center gap-2">
+        <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.5} />
+        Loading facts…
+      </div>
+    );
+  }
+
+  return (
+    <section className="card-flat p-6 space-y-4">
+      <div>
+        <div className="label-section mb-1">Firm facts</div>
+        <h2 className="text-base font-semibold">
+          Reused across ADV drafts
+        </h2>
+        <p className="text-xs text-[var(--ink-muted)] mt-1 max-w-prose">
+          The ADV section drafter pulls these to ground each generated
+          item. Maintain once; the next ADV cycle re-uses everything.
+          Anything left blank lands as <span className="mono">[TO BE COMPLETED]</span>{" "}
+          in the draft.
+          {!canEdit && (
+            <span className="text-[var(--ink-subtle)] block mt-2">
+              Read-only — workspace admin role required to edit.
+            </span>
+          )}
+        </p>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {FACTS_FIELDS.map((f) => {
+          const val = facts[f.key];
+          if (f.type === "longtext") {
+            return (
+              <label key={f.key} className="block md:col-span-2">
+                <div className="text-xs font-medium text-[var(--ink-muted)] mb-1.5">
+                  {f.label}
+                  {f.hint && (
+                    <span className="text-[10px] text-[var(--ink-subtle)] font-normal ml-1">
+                      — {f.hint}
+                    </span>
+                  )}
+                </div>
+                <textarea
+                  value={val ?? ""}
+                  onChange={(e) => setField(f.key, e.target.value)}
+                  rows={2}
+                  disabled={!canEdit}
+                  className="w-full text-xs px-2 py-1.5 border border-[var(--rule)] rounded-[4px] bg-[var(--canvas)] resize-y disabled:opacity-60"
+                />
+              </label>
+            );
+          }
+          if (f.type === "boolean") {
+            return (
+              <label key={f.key} className="flex items-center gap-2 mt-6 select-none">
+                <input
+                  type="checkbox"
+                  checked={!!val}
+                  onChange={(e) => setField(f.key, e.target.checked)}
+                  disabled={!canEdit}
+                  className="w-3.5 h-3.5"
+                />
+                <span className="text-xs text-[var(--ink)]">{f.label}</span>
+              </label>
+            );
+          }
+          return (
+            <label key={f.key} className="block">
+              <div className="text-xs font-medium text-[var(--ink-muted)] mb-1.5">
+                {f.label}
+                {f.hint && (
+                  <span className="text-[10px] text-[var(--ink-subtle)] font-normal ml-1">
+                    — {f.hint}
+                  </span>
+                )}
+              </div>
+              <input
+                type={f.type === "number" ? "number" : f.type}
+                value={val ?? ""}
+                onChange={(e) =>
+                  setField(
+                    f.key,
+                    f.type === "number"
+                      ? e.target.value === ""
+                        ? null
+                        : parseFloat(e.target.value)
+                      : e.target.value,
+                  )
+                }
+                disabled={!canEdit}
+                className="w-full text-xs px-2 py-1.5 border border-[var(--rule)] rounded-[4px] bg-[var(--canvas)] disabled:opacity-60"
+              />
+            </label>
+          );
+        })}
+      </div>
+      {canEdit && (
+        <div className="flex items-center gap-3">
+          <button
+            onClick={save}
+            disabled={saving}
+            className="text-xs inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] disabled:opacity-50"
+          >
+            {saving ? (
+              <Loader2 className="w-3 h-3 animate-spin" strokeWidth={1.5} />
+            ) : (
+              <CheckCircle2 className="w-3 h-3" strokeWidth={1.5} />
+            )}
+            {saving ? "Saving…" : "Save firm facts"}
+          </button>
+          {savedAt && !saving && !err && (
+            <span className="text-[11px] text-[var(--verified)]">Saved</span>
+          )}
+          {err && (
+            <span className="text-[11px] text-[var(--danger)]">{err}</span>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -1200,14 +1490,26 @@ function ReviewButtons({
   current,
   reload,
   isOba,
+  canReview = true,
+  disabledReason,
 }: {
   resource: "marketing" | "advertising" | "adv" | "oba";
   id: string;
   current: string;
   reload: () => void;
   isOba?: boolean;
+  canReview?: boolean;
+  disabledReason?: string;
 }) {
   const [updating, setUpdating] = useState<string | null>(null);
+
+  if (!canReview) {
+    return (
+      <div className="text-[11px] text-[var(--ink-subtle)] italic">
+        {disabledReason || "Review unavailable for this user."}
+      </div>
+    );
+  }
 
   const update = async (status: string) => {
     setUpdating(status);
