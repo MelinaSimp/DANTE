@@ -263,7 +263,7 @@ export default function EntityHoverCard({ kind, id, label, children }: Props) {
         ? createPortal(
             <div
               ref={cardRef}
-              className="fixed z-[70] w-[340px]"
+              className="fixed z-[9998] w-[340px]"
               style={{ left: anchor.left, top: anchor.top }}
               onMouseEnter={() => {
                 if (leaveTimer.current) {
@@ -274,7 +274,7 @@ export default function EntityHoverCard({ kind, id, label, children }: Props) {
               onMouseLeave={scheduleLeave}
               role="dialog"
             >
-              <CreativeCard className="max-w-none">
+              <CreativeCard solid className="max-w-none">
               {/* Header */}
               <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-800 bg-white/50 dark:bg-black/30">
                 <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)]">

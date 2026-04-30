@@ -30,6 +30,14 @@ interface CreativeCardProps {
   onTagClick?: (tag: string) => void;
   /** Layout overrides for the outer container (max-width, etc.). */
   className?: string;
+  /**
+   * Solid mode — opaque background + heavier shadow. Use when the
+   * card is inside a modal / popover that should clearly sit on top
+   * of the page (Cmd+D Ask Dante, EntityHoverCard expanded state).
+   * The default semi-transparent look is right for inline usage
+   * where the card visually overlaps an entity in the page.
+   */
+  solid?: boolean;
 }
 
 const CreativeCard: React.FC<CreativeCardProps> = ({
@@ -37,6 +45,7 @@ const CreativeCard: React.FC<CreativeCardProps> = ({
   tags,
   onTagClick,
   className,
+  solid = false,
 }) => {
   return (
     <div
@@ -49,7 +58,13 @@ const CreativeCard: React.FC<CreativeCardProps> = ({
         <div className="pointer-events-none absolute -top-2 -left-2 w-8 h-8 rounded-full bg-gradient-radial from-white via-white/30 via-white/10 to-transparent blur-sm" />
 
         {/* Body */}
-        <div className="flex flex-col dark:bg-black/50 bg-white/40 backdrop-blur-sm rounded-xl w-full overflow-hidden border border-gray-200 dark:border-gray-800 shadow-sm">
+        <div
+          className={`flex flex-col rounded-xl w-full overflow-hidden border ${
+            solid
+              ? "bg-[var(--canvas)] dark:bg-[var(--canvas)] border-[var(--rule)] shadow-[0_24px_60px_-12px_rgba(0,0,0,0.45),0_8px_16px_-4px_rgba(0,0,0,0.25)]"
+              : "dark:bg-black/50 bg-white/40 backdrop-blur-sm border-gray-200 dark:border-gray-800 shadow-sm"
+          }`}
+        >
           {children}
         </div>
 

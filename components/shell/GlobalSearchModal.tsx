@@ -320,7 +320,7 @@ export default function GlobalSearchModal({
   const isAsk = mode === "ask";
   return (
     <div
-      className={`fixed inset-0 z-[60] flex justify-center bg-[var(--ink)]/30 backdrop-blur-sm px-4 ${
+      className={`fixed inset-0 z-[9999] flex justify-center bg-[var(--ink)]/60 backdrop-blur-md px-4 ${
         isAsk
           ? "items-center"
           : "items-start pt-24"
@@ -329,7 +329,7 @@ export default function GlobalSearchModal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <CreativeCard className="w-full max-w-2xl">
+      <CreativeCard solid className="w-full max-w-2xl">
         <div className="flex flex-col max-h-[80vh] overflow-hidden">
         {/* Mode toggle row */}
         <div className="flex items-center gap-1 px-3 pt-2.5 border-b border-[var(--rule)]">
