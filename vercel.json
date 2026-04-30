@@ -49,6 +49,10 @@
     {
       "path": "/api/integrations/microsoft-calendar/sync",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/planning/cron",
+      "schedule": "0 5 * * 1"
     }
   ]
 }
