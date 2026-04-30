@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import ContextualAskPanel from "@/components/dante/ContextualAskPanel";
 import EntityAsk from "@/components/dante/EntityAsk";
+import DanteNoticed from "@/components/dante/DanteNoticed";
 
 interface Property {
   id: string;
@@ -645,6 +646,12 @@ export default function PropertyDetailClient({
             />
           </div>
         </div>
+
+        {/* What Vergil/Dante noticed about this property — only
+            renders when there's an active signal (expiring docs,
+            stuck deal, pending drafts). Self-hides on a clean
+            property so the page doesn't show empty noticing. */}
+        <DanteNoticed kind="property" id={property.id} prominent />
 
         {/* Address */}
         <section className="card-flat p-6">

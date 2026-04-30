@@ -47,6 +47,8 @@ const ContactImporter = dynamic(
 );
 import ConfirmationModal from "@/components/frontend/ConfirmationModal";
 import { reportError } from "@/lib/report-error";
+import DanteNoticed from "@/components/dante/DanteNoticed";
+import EntityAsk from "@/components/dante/EntityAsk";
 
 type Contact = { id: string; name: string; phone?: string; email?: string };
 
@@ -1107,13 +1109,33 @@ export default function ClientDetailsOverviewClient({
           {/* Overview section */}
           <section id="overview" className="scroll-mt-24">
             <div className="label-section mb-2">Overview</div>
-            <h2 className="heading-display text-3xl text-[var(--ink)] mb-3">{displayName}</h2>
+            <h2 className="heading-display text-3xl text-[var(--ink)] mb-3">
+              {selected?.type === "client" && selected.id ? (
+                <EntityAsk
+                  kind="contact"
+                  id={selected.id}
+                  label={displayName}
+                >
+                  {displayName}
+                </EntityAsk>
+              ) : (
+                displayName
+              )}
+            </h2>
             <p className="prose-body text-[var(--ink-muted)]">
               {document
                 ? `${templates.length} template${templates.length !== 1 ? "s" : ""} available, one primary document on file.`
                 : `No documents uploaded yet. Upload a PDF below to start building templates.`}
             </p>
           </section>
+
+          {/* What Dante/Vergil noticed about this contact — only
+              renders when there's an active signal. The detail page
+              becomes the surface where the assistant explains what
+              they flagged about this person. */}
+          {selected?.type === "client" && selected.id && (
+            <DanteNoticed kind="contact" id={selected.id} prominent />
+          )}
 
           {/* Documents section — combines templates and uploads */}
           <section id="documents" className="scroll-mt-24">

@@ -34,6 +34,7 @@ import {
 } from "@/app/dante/streamClient";
 import MarkdownRenderer from "@/app/dante/MarkdownRenderer";
 import { useAssistantBrand } from "./AssistantNameProvider";
+import DanteNoticed from "./DanteNoticed";
 
 type Kind = "contact" | "property";
 
@@ -302,6 +303,13 @@ export default function EntityHoverCard({ kind, id, label, children }: Props) {
                     preview={preview}
                     loading={loading}
                   />
+                  {/* DanteNoticed slides in beneath the facts when D/V
+                      has anything actively flagged about this entity.
+                      Self-hides on no-signal so the hover card stays
+                      tight when nothing's pressing. */}
+                  <div className="px-3 pb-3">
+                    <DanteNoticed kind={kind} id={id} />
+                  </div>
                   {/* Ask <Name> button — flips to chat without
                       closing the card. */}
                   <div className="border-t border-[var(--rule)] px-3 py-2">
