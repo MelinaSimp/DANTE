@@ -32,6 +32,7 @@ import CallAuditView, {
 } from "@/components/call/CallAuditView";
 import type { Annotation } from "@/components/documents/PdfViewerWithAnnotations";
 import DocumentExtractionPanel from "@/components/documents/DocumentExtractionPanel";
+import HoldingsSection from "@/components/contacts/HoldingsSection";
 
 const PdfViewerWithAnnotations = dynamic(
   () => import("@/components/documents/PdfViewerWithAnnotations"),
@@ -1135,6 +1136,15 @@ export default function ClientDetailsOverviewClient({
               they flagged about this person. */}
           {selected?.type === "client" && selected.id && (
             <DanteNoticed kind="contact" id={selected.id} prominent />
+          )}
+
+          {/* Holdings — accounts, holdings, insurance, beneficiaries
+              aggregated from parsed documents. Renders an empty state
+              if nothing has been extracted yet, so it self-onboards. */}
+          {selected?.type === "client" && selected.id && (
+            <section id="holdings" className="scroll-mt-24">
+              <HoldingsSection contactId={selected.id} />
+            </section>
           )}
 
           {/* Documents section — combines templates and uploads */}

@@ -23,17 +23,23 @@ import {
   AlertTriangle,
   ShieldCheck,
 } from "lucide-react";
+import {
+  DOC_TYPE_GROUPS,
+  DOC_TYPE_LABELS,
+  type DocType,
+} from "@/lib/documents/schemas";
 
-type DocTypeOption = {
-  value: "form_1099_b" | "form_1099_div" | "form_1099_r";
-  label: string;
-};
+// Doc-type dropdown is built from DOC_TYPE_GROUPS so adding a new
+// schema in lib/documents/schemas.ts surfaces here automatically.
+// We exclude "other" because there's no schema to extract against.
+const DOC_TYPE_OPTGROUPS = DOC_TYPE_GROUPS.map((g) => ({
+  label: g.label,
+  options: g.types
+    .filter((t) => t !== "other")
+    .map((t) => ({ value: t, label: DOC_TYPE_LABELS[t] })),
+})).filter((g) => g.options.length > 0);
 
-const DOC_TYPES: DocTypeOption[] = [
-  { value: "form_1099_b", label: "1099-B (Broker proceeds)" },
-  { value: "form_1099_div", label: "1099-DIV (Dividends)" },
-  { value: "form_1099_r", label: "1099-R (Retirement distributions)" },
-];
+const DEFAULT_DOC_TYPE: DocType = "form_1099_b";
 
 type Extraction = {
   id: string;
@@ -81,7 +87,7 @@ export default function DocumentExtractionPanel({
   const [loading, setLoading] = useState(false);
   const [extractions, setExtractions] = useState<Extraction[]>([]);
   const [selectedDocType, setSelectedDocType] =
-    useState<DocTypeOption["value"]>("form_1099_b");
+    useState<DocType>(DEFAULT_DOC_TYPE);
   const [running, setRunning] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -209,7 +215,7 @@ export default function DocumentExtractionPanel({
             <select
               value={selectedDocType}
               onChange={(e) =>
-                setSelectedDocType(e.target.value as DocTypeOption["value"])
+                setSelectedDocType(e.target.value as DocType)
               }
               className="flex-1 text-xs px-2 py-1.5 outline-none"
               style={{
@@ -219,10 +225,14 @@ export default function DocumentExtractionPanel({
                 borderRadius: "var(--r-input)",
               }}
             >
-              {DOC_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
+              {DOC_TYPE_OPTGROUPS.map((group) => (
+                <optgroup key={group.label} label={group.label}>
+                  {group.options.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
             <button
@@ -292,7 +302,10 @@ export default function DocumentExtractionPanel({
                 className="flex items-center gap-2 text-[10px] mono uppercase tracking-wider"
                 style={{ color: "var(--ink-subtle)" }}
               >
-                <span>{formatLabel(latest.doc_type)}</span>
+                <span>
+                  {DOC_TYPE_LABELS[latest.doc_type as DocType] ||
+                    formatLabel(latest.doc_type)}
+                </span>
                 {latest.tax_year && <span>· TY {latest.tax_year}</span>}
                 <span>· {latest.model}</span>
               </div>
