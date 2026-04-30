@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CreditCard, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { CreditCard, Loader2, Activity, ArrowUpRight } from "lucide-react";
 
 interface BillingState {
   priceCents: number | null;
@@ -138,6 +139,17 @@ export default function BillingCard() {
           </button>
         </>
       )}
+
+      <div className="mt-5 pt-4 border-t border-[var(--rule)]">
+        <Link
+          href="/settings/usage"
+          className="inline-flex items-center gap-1.5 text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
+        >
+          <Activity className="w-3.5 h-3.5" strokeWidth={1.5} />
+          View usage &amp; cost breakdown
+          <ArrowUpRight className="w-3 h-3" strokeWidth={1.5} />
+        </Link>
+      </div>
     </div>
   );
 }
