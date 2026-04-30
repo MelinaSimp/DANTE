@@ -101,7 +101,8 @@ export default function RemindersClient() {
   const [error, setError] = useState<string | null>(null);
 
   // Inline Vergil-ask
-  const [askOpen, setAskOpen] = useState(false);
+  // askOpen used to gate the draft section behind a toggle button;
+  // the button has been removed and the section now always renders.
   const [askPrompt, setAskPrompt] = useState("");
   const [drafting, setDrafting] = useState(false);
   const assistantName = useAssistantName();
@@ -148,7 +149,7 @@ export default function RemindersClient() {
       if (!r.ok) throw new Error((await r.json()).error || "Draft failed");
       const created = await r.json();
       setAskPrompt("");
-      setAskOpen(false);
+      // (no-op — the section is always visible now)
       setEditing(created);
       if (tab !== "draft") setTab("draft");
       else load("draft");
@@ -234,27 +235,20 @@ export default function RemindersClient() {
       </div>
 
       <div className="max-w-6xl mx-auto px-6 md:px-10 py-10">
-        <div className="flex items-baseline justify-between mb-8 gap-6 flex-wrap">
-          <div>
-            <div className="label-section mb-1">Drafts you'll review</div>
-            <h1 className="heading-display text-4xl text-[var(--ink)]">Reminders</h1>
-            <p className="text-sm text-[var(--ink-muted)] mt-1 max-w-xl">
-              Auto-suggested from your calendar and explicitly asked-for
-              follow-ups. Every reminder is a draft until you approve it —
-              nothing sends without your say-so.
-            </p>
-          </div>
-          <button
-            onClick={() => setAskOpen((v) => !v)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-sm font-semibold hover:opacity-90 transition"
-          >
-            <Sparkles className="w-4 h-4" strokeWidth={1.5} />
-            Ask {assistantName}
-          </button>
+        <div className="mb-8">
+          <div className="label-section mb-1">Drafts you'll review</div>
+          <h1 className="heading-display text-4xl text-[var(--ink)]">Reminders</h1>
+          <p className="text-sm text-[var(--ink-muted)] mt-1 max-w-xl">
+            Auto-suggested from your calendar and explicitly asked-for
+            follow-ups. Every reminder is a draft until you approve it —
+            nothing sends without your say-so.
+          </p>
         </div>
 
-        {askOpen && (
-          <section className="card-flat p-5 mb-8">
+        {/* Draft form is now always visible — the redundant "Ask Dante"
+            toggle button at the top-right was removed; the inline
+            textarea + Generate is the real UX. */}
+        <section className="card-flat p-5 mb-8">
             <div className="label-section mb-2">Draft a reminder</div>
             <textarea
               value={askPrompt}
@@ -281,7 +275,6 @@ export default function RemindersClient() {
               </span>
             </div>
           </section>
-        )}
 
         {error && (
           <div className="mb-4 px-3 py-2 text-sm text-[var(--danger)] bg-[var(--danger-soft)] border border-[var(--danger)]/30 rounded-[4px] flex items-center gap-2">
