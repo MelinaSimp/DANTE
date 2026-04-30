@@ -39,6 +39,7 @@ import {
 } from "@/app/dante/streamClient";
 import MarkdownRenderer from "@/app/dante/MarkdownRenderer";
 import { useAssistantBrand } from "./AssistantNameProvider";
+import EntityHoverCard from "./EntityHoverCard";
 
 export type EntityAskKind =
   | "contact"
@@ -125,7 +126,22 @@ function buildAskBody(
   return { message: `${preamble}\n\n${message}` };
 }
 
-export default function EntityAsk({
+// Public entry point. Routes to the rich hover-card for entity kinds
+// that have preview-worthy summary data; routes to the simple "ASK"
+// pill for the rest. Each branch is its own component so React's
+// rules-of-hooks aren't violated by a conditional return.
+export default function EntityAsk(props: Props) {
+  if (props.kind === "contact" || props.kind === "property") {
+    return (
+      <EntityHoverCard kind={props.kind} id={props.id} label={props.label}>
+        {props.children}
+      </EntityHoverCard>
+    );
+  }
+  return <EntityAskPill {...props} />;
+}
+
+function EntityAskPill({
   kind,
   id,
   label,
