@@ -61,6 +61,10 @@
     {
       "path": "/api/integrations/cron",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/sms/cron/briefing",
+      "schedule": "0 13 * * *"
     }
   ]
 }
