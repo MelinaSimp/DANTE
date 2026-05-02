@@ -139,11 +139,12 @@ export async function sendTypingIndicator(toPhone: string): Promise<void> {
 }
 
 /**
- * Verifies the SendBlue webhook signature header.
- * SendBlue signs requests with HMAC-SHA256 over the raw body.
+ * Verifies a SendBlue webhook request.
+ * SendBlue forwards the configured shared secret as-is in the
+ * `sb-signing-secret` header (per the SendBlue dashboard).
  */
 export function verifySendBlueSignature(
-  rawBody: string,
+  _rawBody: string,
   signatureHeader: string | null,
 ): boolean {
   const secret = process.env.SENDBLUE_WEBHOOK_SECRET;
@@ -153,16 +154,11 @@ export function verifySendBlueSignature(
   }
   if (!signatureHeader) return false;
   const crypto = require("crypto");
-  const computed = crypto
-    .createHmac("sha256", secret)
-    .update(rawBody)
-    .digest("hex");
-  // Constant-time compare
+  const a = Buffer.from(signatureHeader);
+  const b = Buffer.from(secret);
+  if (a.length !== b.length) return false;
   try {
-    return crypto.timingSafeEqual(
-      Buffer.from(computed, "hex"),
-      Buffer.from(signatureHeader.replace(/^sha256=/, ""), "hex"),
-    );
+    return crypto.timingSafeEqual(a, b);
   } catch {
     return false;
   }

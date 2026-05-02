@@ -41,7 +41,9 @@ function parseIncoming(body: any): SendBlueIncoming {
 
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
-  const signature = req.headers.get("x-sendblue-signature");
+  const signature =
+    req.headers.get("sb-signing-secret") ||
+    req.headers.get("x-sendblue-signature");
   if (!verifySendBlueSignature(rawBody, signature)) {
     return NextResponse.json({ error: "Bad signature" }, { status: 401 });
   }
