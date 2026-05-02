@@ -86,13 +86,17 @@ export async function sendMessage(
   const trimmed = content.trim();
   if (!trimmed) return;
 
+  const fromNumber = process.env.SENDBLUE_FROM_NUMBER || undefined;
+
   const chunks = splitMessage(trimmed);
   for (let i = 0; i < chunks.length; i++) {
-    await postWithRetry({
+    const body: Record<string, unknown> = {
       number: toPhone,
       content: chunks[i],
       send_style: "invisible",
-    });
+    };
+    if (fromNumber) body.from_number = fromNumber;
+    await postWithRetry(body);
     if (i < chunks.length - 1) await sleep(300);
   }
 
@@ -114,6 +118,12 @@ export async function sendMessage(
 export async function sendTypingIndicator(toPhone: string): Promise<void> {
   try {
     const { id, secret } = getCreds();
+    const fromNumber = process.env.SENDBLUE_FROM_NUMBER || undefined;
+    const body: Record<string, unknown> = {
+      number: toPhone,
+      send_style: "typing",
+    };
+    if (fromNumber) body.from_number = fromNumber;
     await fetch(BASE_URL + "/send-message", {
       method: "POST",
       headers: {
@@ -121,10 +131,7 @@ export async function sendTypingIndicator(toPhone: string): Promise<void> {
         "sb-api-secret-key": secret,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        number: toPhone,
-        send_style: "typing",
-      }),
+      body: JSON.stringify(body),
     });
   } catch {
     // Typing is non-essential — never throw.
