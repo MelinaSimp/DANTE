@@ -144,7 +144,24 @@ The latest user text just arrived. Respond to it.`
       log,
     });
   } catch (err: any) {
-    console.error("[sms.agent] runAgent threw:", err?.message);
+    console.error("[sms.agent] runAgent threw:", err?.message, err?.stack);
+    // Persist the failure into sms_messages so we can debug from Supabase
+    // when CLI log streaming is unreliable.
+    await supabaseAdmin
+      .from("sms_messages")
+      .insert({
+        workspace_id: input.workspaceId,
+        user_id: input.userId,
+        phone: input.phone,
+        direction: "outbound",
+        body: "[agent error fallback]",
+        agent_run_id: agentRunId,
+        metadata: {
+          error: String(err?.message || err),
+          stack: String(err?.stack || "").slice(0, 4000),
+        },
+      })
+      .then(() => null, () => null);
     return {
       reply:
         "Hit a snag on my end — try again in a minute? If it keeps happening, the team gets pinged automatically.",
