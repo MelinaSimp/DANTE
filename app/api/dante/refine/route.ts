@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       messages: [
         { role: "system", content: kind === "answer" ? ANSWER_SYSTEM : PROMPT_SYSTEM },
         { role: "user", content: userMessage },

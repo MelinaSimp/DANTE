@@ -180,7 +180,7 @@ Produce three distinct, grounded proposals.`;
   }
 
   if (args.openaiKey) {
-    const model = "gpt-4o-mini";
+    const model = "gpt-5";
     const r = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {

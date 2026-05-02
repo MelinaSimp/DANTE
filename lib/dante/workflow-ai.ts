@@ -70,7 +70,7 @@ RULES
      config: { "url": "https://...", "method": "GET"|"POST"|"PUT"|"PATCH"|"DELETE",
                "headers": {...}, "body": {...} }
    - "openai" (chat completion → emits { text }):
-     config: { "model": "gpt-4o-mini", "system": "...", "prompt": "...", "max_tokens": 800 }
+     config: { "model": "gpt-5", "system": "...", "prompt": "...", "max_tokens": 800 }
    - "query_clients" (Supabase select on contacts table → emits { contacts: [...], count }):
      config: { "filter": { "column": "value" }, "limit": 25 }
      Available columns on contacts: id, name, email, phone, created_at.
@@ -280,7 +280,7 @@ export async function generateWorkflow(
     },
     body: JSON.stringify({
       // GPT-4o is worth the ~3× cost over mini for structured graph output.
-      model: "gpt-4o",
+      model: "gpt-5",
       temperature: 0.2,
       response_format: { type: "json_object" },
       messages: [

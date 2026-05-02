@@ -520,7 +520,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
   const tools: ToolDef[] = [...builtinDefs, ...mcpDefs];
 
   const maxSteps = Math.min(Math.max(Number(cfg.max_steps) || 8, 1), HARD_MAX_STEPS);
-  const model = cfg.model || "gpt-4o";
+  const model = cfg.model || "gpt-5";
 
   const messages: ChatMessage[] = [];
   const systemPrompt = [

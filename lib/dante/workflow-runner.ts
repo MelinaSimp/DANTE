@@ -146,7 +146,7 @@ async function runOpenAI(cfg: {
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: cfg.model || "gpt-4o-mini",
+      model: cfg.model || "gpt-5",
       messages,
       max_tokens: Number(cfg.max_tokens) || 800,
     }),

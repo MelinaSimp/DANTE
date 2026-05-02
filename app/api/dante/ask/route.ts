@@ -351,7 +351,7 @@ async function generateFollowups(question: string, answer: string): Promise<stri
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: "gpt-4o-mini",
+      model: "gpt-5",
       response_format: { type: "json_object" },
       messages: [
         {
