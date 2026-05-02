@@ -28,6 +28,7 @@ import { remember } from "@/lib/dante/memory/write";
 import { searchArchive, formatHitsForPrompt } from "@/lib/dante/archive/search";
 import { expandMcpTools, callMcpTool, parseMcpToolName } from "@/lib/mcp/registry";
 import { runSkill } from "@/lib/dante/skills";
+import { getWorkspaceModel } from "@/lib/dante/model";
 import type { MemoryKind } from "@/lib/dante/memory/types";
 import type {
   AgentStep,
@@ -520,7 +521,10 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
   const tools: ToolDef[] = [...builtinDefs, ...mcpDefs];
 
   const maxSteps = Math.min(Math.max(Number(cfg.max_steps) || 8, 1), HARD_MAX_STEPS);
-  const model = cfg.model || "gpt-5";
+  // Workspace-set model wins over the per-step config so an admin can
+  // flip the dial in Settings → Agent model without touching code.
+  const workspaceModel = await getWorkspaceModel(input.workspaceId);
+  const model = workspaceModel || cfg.model || "gpt-5";
 
   const messages: ChatMessage[] = [];
   const systemPrompt = [

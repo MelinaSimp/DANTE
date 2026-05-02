@@ -15,17 +15,19 @@ import {
   Plug,
   Activity,
   MessageSquare,
+  Cpu,
 } from "lucide-react";
 
 const PhoneNumbersCard = lazy(() => import("./PhoneNumbersCard"));
 const ZoomCard = lazy(() => import("./ZoomCard"));
 const MailboxCard = lazy(() => import("./MailboxCard"));
 const SkillsCard = lazy(() => import("./SkillsCard"));
+const ModelCard = lazy(() => import("./ModelCard"));
 
 import BillingCard from "./BillingCard";
 import ExportDataCard from "./ExportDataCard";
 
-type PanelId = "phone_numbers" | "zoom" | "google" | "microsoft" | "skills" | "billing" | "export";
+type PanelId = "phone_numbers" | "zoom" | "google" | "microsoft" | "skills" | "billing" | "export" | "model";
 
 const PANEL_TITLES: Record<PanelId, string> = {
   phone_numbers: "Phone numbers",
@@ -35,6 +37,7 @@ const PANEL_TITLES: Record<PanelId, string> = {
   skills: "Dante skills",
   billing: "Billing & subscription",
   export: "Export data",
+  model: "Agent model",
 };
 
 const PANEL_SUBTITLES: Record<PanelId, string> = {
@@ -50,6 +53,8 @@ const PANEL_SUBTITLES: Record<PanelId, string> = {
     "Reusable agent recipes Dante can invoke. Each skill is a named prompt + tool whitelist that workflows and the in-app assistant can call.",
   billing: "Manage subscription, payment methods, and invoices.",
   export: "Download all workspace records as a single JSON file.",
+  model:
+    "Choose the model that powers Dante, Vergil, SMS, and every workflow agent step in this workspace.",
 };
 
 interface NavItem {
@@ -70,6 +75,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { name: "Microsoft", icon: Mail, panelId: "microsoft", group: "Workspace" },
   { name: "Dante skills", icon: Sparkles, panelId: "skills", group: "Workspace" },
   { name: "Billing", icon: CreditCard, panelId: "billing", group: "Workspace" },
+  { name: "Agent model", icon: Cpu, panelId: "model", adminOnly: true, group: "Administration" },
   { name: "Export", icon: Download, panelId: "export", adminOnly: true, group: "Administration" },
 ];
 
@@ -132,6 +138,8 @@ export default function SettingsOrbClient({
         return <BillingCard />;
       case "export":
         return <ExportDataCard />;
+      case "model":
+        return <ModelCard isAdmin={isAdmin} />;
       default:
         return null;
     }
