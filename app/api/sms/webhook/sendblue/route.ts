@@ -30,12 +30,24 @@ interface SendBlueIncoming {
 }
 
 function parseIncoming(body: any): SendBlueIncoming {
-  // SendBlue payload shapes vary slightly between v1/v2; tolerate both.
+  // SendBlue inbound webhook fields:
+  //   from_number / number — the contact who texted us
+  //   to_number — our Drift number
+  //   message_handle — the unique id (used for dedup)
+  //   is_outbound — true iff we sent it; we drop those
   return {
     phone: body?.from_number || body?.number || body?.fromNumber || null,
     content: String(body?.content || body?.text || "").trim(),
-    message_id: body?.message_uuid || body?.messageId || body?.message_id || null,
-    is_from_me: body?.is_from_me === true || body?.fromMe === true,
+    message_id:
+      body?.message_handle ||
+      body?.message_uuid ||
+      body?.messageId ||
+      body?.message_id ||
+      null,
+    is_from_me:
+      body?.is_outbound === true ||
+      body?.is_from_me === true ||
+      body?.fromMe === true,
   };
 }
 
