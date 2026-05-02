@@ -25,6 +25,10 @@ import { NextRequest } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { runAgent, type AgentEvent } from "@/lib/dante/agent";
+import {
+  buildDanteSystemPrompt,
+  getAssistantName,
+} from "@/lib/dante/system-prompt";
 import type { AgentStep, AgentToolEntry, StepLogEntry } from "@/lib/dante/workflow-types";
 
 export const dynamic = "force-dynamic";
@@ -38,25 +42,9 @@ const DEFAULT_TOOLS: AgentToolEntry[] = [
   "skill.run",
 ];
 
-const SYSTEM_PROMPT = `You are Dante, an AI assistant for a financial advisor. You have access to:
-
-- The advisor's persistent memory (facts, summaries, and email/call episodes about specific clients) via memory.search
-- The firm's document vault (Form ADVs, policies, IPS templates, compliance memos, leases, contracts) via archive.search and vault.cite
-- The contacts database via clients.query
-- Named workspace skills (preconfigured agent recipes) via skill.run
-
-Default behavior:
-- For questions about a specific client, start with memory.search to gather context.
-- For multi-step asks (e.g. "draft a follow-up to John recapping last week"), check whether a workspace skill matches first via skill.run.
-- When you have enough context, return a clear, concise final answer in markdown. Bullet lists for multi-point answers, prose for narrative.
-- If the user's question is ambiguous (e.g. "summarize my recent emails" with no contact), ask one clarifying question before tool-calling.
-
-Citation rule — load-bearing:
-- Any factual claim grounded in a workspace document MUST carry an inline citation. Cite by calling vault.cite to retrieve the section, then reference the result inline as [v1], [v2], etc. tied to specific sentences (not just dumped at the end).
-- Any factual claim about a specific client (their lease terms, balances, deadlines, prior decisions, recorded preferences) MUST cite the memory.search hit it came from in the same way.
-- If you cannot find a supporting document or memory hit for a factual claim, do NOT invent a citation and do NOT state the fact. Instead, say plainly: "I don't have that in your vault / memory yet." Offer what you'd need (e.g. "upload the lease and I can pull that section").
-- General knowledge or your own reasoning (definitions, summaries of what the user just said, generic best-practice guidance) does NOT need a citation, but be explicit when you are NOT citing — phrase it as your own take, not as workspace fact.
-- Never paraphrase a document without citing the section. The advisor's compliance posture depends on every document-grounded answer being traceable back to the source.`;
+// System prompt is now built per-workspace inside POST() so realtor
+// workspaces get the Vergil/realtor flavor instead of advisor copy.
+// See lib/dante/system-prompt.ts.
 
 export async function POST(req: NextRequest) {
   const supabase = await createServerSupabase();
@@ -71,6 +59,14 @@ export async function POST(req: NextRequest) {
     .eq("id", user.id)
     .maybeSingle();
   if (!profile?.workspace_id) return jsonError(400, "no workspace");
+
+  const { data: workspace } = await supabaseAdmin
+    .from("workspaces")
+    .select("industry")
+    .eq("id", profile.workspace_id)
+    .maybeSingle();
+  const industry = (workspace?.industry as string | null) ?? null;
+  const assistantName = getAssistantName(industry);
 
   const body = (await req.json().catch(() => ({}))) as {
     chat_id?: string;
@@ -136,7 +132,7 @@ export async function POST(req: NextRequest) {
 
   const priorTranscript = (priorMessages || [])
     .slice(0, -1)
-    .map((m) => `${m.role === "user" ? "User" : "Dante"}: ${m.content}`)
+    .map((m) => `${m.role === "user" ? "User" : assistantName}: ${m.content}`)
     .join("\n\n");
 
   // Entity scope is prepended so the model treats it as load-bearing
@@ -231,15 +227,16 @@ export async function POST(req: NextRequest) {
     ? "\n\nDEEP RESEARCH MODE: take more time. If a tool call returns thin results, refine the query and try again. Cross-check across memory and the vault before writing the final answer. Aim for thoroughness over speed."
     : "";
 
+  const systemPrompt = buildDanteSystemPrompt({ industry });
   const step: AgentStep = {
     id: `chat:${chatId}`,
     type: "agent",
-    name: deep ? "Ask Dante (deep)" : "Ask Dante",
+    name: deep ? `Ask ${assistantName} (deep)` : `Ask ${assistantName}`,
     config: {
       objective,
       tools: DEFAULT_TOOLS,
       max_steps: deep ? 20 : 10,
-      system: SYSTEM_PROMPT + deepNote,
+      system: systemPrompt + deepNote,
     },
   };
 
@@ -309,7 +306,11 @@ export async function POST(req: NextRequest) {
       // the UI just doesn't show suggestions.
       if (!runError && assistantContent) {
         try {
-          const suggestions = await generateFollowups(message, assistantContent);
+          const suggestions = await generateFollowups(
+            message,
+            assistantContent,
+            industry,
+          );
           if (suggestions.length > 0) {
             send({ type: "followups", suggestions });
           }
@@ -346,9 +347,16 @@ function jsonError(status: number, error: string) {
  * array on any failure — follow-ups are nice-to-have, never load-
  * bearing for the chat experience.
  */
-async function generateFollowups(question: string, answer: string): Promise<string[]> {
+async function generateFollowups(
+  question: string,
+  answer: string,
+  industry: string | null,
+): Promise<string[]> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return [];
+
+  const verticalNoun =
+    industry === "real_estate" ? "real estate agent" : "financial advisor";
 
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -362,8 +370,7 @@ async function generateFollowups(question: string, answer: string): Promise<stri
       messages: [
         {
           role: "system",
-          content:
-            'You suggest follow-up questions a financial advisor might ask their AI assistant next. Given a question and an answer, return JSON of the shape { "questions": [string, string, string] } with exactly three short, specific, actionable follow-ups (8-15 words each, end with a question mark). They should build on the answer — extend it, drill into a specific point, or pivot to a related concrete next step. Do not repeat the original question.',
+          content: `You suggest follow-up questions a ${verticalNoun} might ask their AI assistant next. Given a question and an answer, return JSON of the shape { "questions": [string, string, string] } with exactly three short, specific, actionable follow-ups (8-15 words each, end with a question mark). They should build on the answer — extend it, drill into a specific point, or pivot to a related concrete next step. Do not repeat the original question.`,
         },
         {
           role: "user",
