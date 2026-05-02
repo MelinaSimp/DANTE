@@ -79,10 +79,14 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { name: "Export", icon: Download, panelId: "export", adminOnly: true, group: "Administration" },
 ];
 
+const TetrisLoading = lazy(() => import("@/components/ui/tetris-loader"));
+
 function PanelLoader() {
   return (
-    <div className="flex items-center justify-center h-64 text-[var(--ink-subtle)] text-sm">
-      Loading…
+    <div className="flex items-center justify-center h-64">
+      <Suspense fallback={null}>
+        <TetrisLoading size="sm" speed="fast" />
+      </Suspense>
     </div>
   );
 }

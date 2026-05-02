@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import TetrisLoading from "@/components/ui/tetris-loader";
 
 const SUGGESTIONS = ["gpt-5", "gpt-4o", "gpt-4o-mini", "o3-mini"];
 
@@ -51,7 +52,9 @@ export default function ModelCard({ isAdmin }: Props) {
 
   if (loading) {
     return (
-      <div className="text-sm text-[var(--ink-subtle)]">Loading…</div>
+      <div className="flex items-center justify-center py-8">
+        <TetrisLoading size="sm" speed="fast" />
+      </div>
     );
   }
 

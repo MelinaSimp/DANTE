@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { CreditCard, Loader2, Activity, ArrowUpRight } from "lucide-react";
+import TetrisLoading from "@/components/ui/tetris-loader";
 
 interface BillingState {
   priceCents: number | null;
@@ -83,9 +84,8 @@ export default function BillingCard() {
       </h2>
 
       {fetching ? (
-        <div className="flex items-center gap-2 text-sm text-[var(--ink-muted)] py-2">
-          <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
-          Loading…
+        <div className="flex items-center justify-center py-8">
+          <TetrisLoading size="sm" speed="fast" />
         </div>
       ) : showSubscribe ? (
         <>

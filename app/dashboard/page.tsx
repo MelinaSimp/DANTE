@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import AdvisorDashboard from "@/components/dashboard/AdvisorDashboard";
+import TetrisLoading from "@/components/ui/tetris-loader";
 
 type DashboardData = React.ComponentProps<typeof AdvisorDashboard>["data"];
 
@@ -67,12 +68,7 @@ export default function DashboardPage() {
   if (!data) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-6 h-6 border-2 border-[var(--rule)] border-t-[var(--ink)] rounded-full animate-spin" />
-          <span className="text-xs mono text-[var(--ink-muted)]">
-            Loading…
-          </span>
-        </div>
+        <TetrisLoading size="sm" speed="fast" />
       </div>
     );
   }
