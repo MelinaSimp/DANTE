@@ -7,15 +7,13 @@
 // "I couldn't find any Medina rent rolls" with a Medina rent roll
 // sitting right there in the vault.
 //
-// Today: PDF (via pdf-parse, already a dep) + plain-text formats.
-// docx / xlsx will need mammoth + sheetjs and can be added the same
-// way — return text or empty, don't throw, and ingest will record
-// "no extractable text" gracefully for unsupported types.
-
-// Dynamic import for pdf-parse: importing it at module-load time
-// triggers a webpack interop error ("Object.defineProperty called on
-// non-object") because the package mixes ESM/CJS and pulls pdfjs-dist
-// in eagerly. Loading it lazily inside the function dodges that.
+// PDF: uses unpdf, which bundles a pdfjs-dist build stripped of the
+// browser-only canvas dependencies (DOMMatrix, Path2D, etc) that
+// crash pdf-parse / vanilla pdfjs-dist in Node / Vercel serverless.
+//
+// Plain text: decoded directly. docx / xlsx will need mammoth +
+// sheetjs and can be added as new branches — return text or empty,
+// don't throw, and ingest will record "unsupported file type" cleanly.
 
 export interface ExtractResult {
   text: string;
@@ -39,14 +37,11 @@ export async function extractText(
   const mt = (mimeType || "").toLowerCase();
 
   if (mt === "application/pdf") {
-    const { PDFParse } = await import("pdf-parse");
-    const parser = new PDFParse({ data: new Uint8Array(buffer) });
-    try {
-      const result = await parser.getText();
-      return { text: result.text || "", pageCount: result.total };
-    } finally {
-      await parser.destroy().catch(() => {});
-    }
+    const { extractText: unpdfExtract } = await import("unpdf");
+    const { totalPages, text } = await unpdfExtract(new Uint8Array(buffer), {
+      mergePages: true,
+    });
+    return { text: text || "", pageCount: totalPages };
   }
 
   if (PLAIN_TEXT_MIMES.has(mt) || mt.startsWith("text/")) {

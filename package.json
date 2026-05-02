@@ -49,7 +49,8 @@
     "stripe": "^20.4.0",
     "tailwind-merge": "^3.3.1",
     "three": "^0.183.2",
-    "twilio": "^5.10.2"
+    "twilio": "^5.10.2",
+    "unpdf": "^1.6.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
