@@ -123,7 +123,7 @@ The latest user text just arrived. Respond to it.`
     id: `sms_${agentRunId.slice(0, 8)}`,
     type: "agent",
     config: {
-      model: "claude-sonnet-4-5",
+      model: "gpt-4o-mini",
       system: systemPrompt,
       objective,
       tools: SMS_TOOLS,
