@@ -85,10 +85,12 @@ function CitationChip({
   disabled?: boolean;
   onClick: () => void;
 }) {
+  // Neutral ink-on-canvas chip — citations are present-but-quiet so
+  // the prose reads first, the chip second. Tone is conveyed in the
+  // popover header (Vault citation vs Memory citation), not via color.
   const palette =
-    tone === "vault"
-      ? "bg-amber-500/10 border-amber-500/30 text-amber-200/90 hover:bg-amber-500/20"
-      : "bg-cyan-500/10 border-cyan-500/30 text-cyan-200/90 hover:bg-cyan-500/20";
+    "bg-[var(--ink)]/[0.04] border-[var(--rule)] text-[var(--ink)] hover:bg-[var(--ink)]/[0.08]";
+  void tone;
   return (
     <button
       onClick={onClick}
