@@ -128,7 +128,14 @@ export async function POST(request: Request) {
   // Failures are logged but don't fail the upload — the user-facing
   // happy path is "file is in vault", and ingestion is recoverable via
   // POST /api/vault/[id]/ingest or /api/vault/reingest.
-  if (data?.id && typeof body.content === "string" && body.content.trim()) {
+  //
+  // Triggers on EITHER inline content (e.g. a typed note) OR a file_url
+  // (uploaded PDF/etc) — the ingest pipeline now downloads + extracts
+  // text from file_url when content is empty.
+  const hasContent =
+    typeof body.content === "string" && body.content.trim().length > 0;
+  const hasFile = typeof body.file_url === "string" && body.file_url.length > 0;
+  if (data?.id && (hasContent || hasFile)) {
     void import("@/lib/vault/ingest")
       .then(({ ingestVaultItem }) => ingestVaultItem(data.id))
       .catch((err) =>

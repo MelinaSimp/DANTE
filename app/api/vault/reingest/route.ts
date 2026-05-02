@@ -36,12 +36,14 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const force = body?.force === true;
 
-  // Pick targets: items with content but not yet ingested (or all, if forced).
+  // Pick targets: items with EITHER inline content OR an uploaded
+  // file (the ingest pipeline downloads + extracts the file when
+  // content is empty). Filter to not-yet-ingested unless force=true.
   let query = supabaseAdmin
     .from("vault_items")
-    .select("id, content, text_extracted")
+    .select("id, content, file_url, text_extracted")
     .eq("workspace_id", profile.workspace_id)
-    .not("content", "is", null);
+    .or("content.not.is.null,file_url.not.is.null");
   if (!force) query = query.eq("text_extracted", false);
 
   const { data: items, error } = await query;
