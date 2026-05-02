@@ -124,5 +124,17 @@ export async function POST(request: Request) {
     await supabase.from("vault_item_clients").insert(rows);
   }
 
+  // Fire-and-forget: chunk + embed the document so Dante can search it.
+  // Failures are logged but don't fail the upload — the user-facing
+  // happy path is "file is in vault", and ingestion is recoverable via
+  // POST /api/vault/[id]/ingest or /api/vault/reingest.
+  if (data?.id && typeof body.content === "string" && body.content.trim()) {
+    void import("@/lib/vault/ingest")
+      .then(({ ingestVaultItem }) => ingestVaultItem(data.id))
+      .catch((err) =>
+        console.error("[vault.create] ingest failed:", err?.message),
+      );
+  }
+
   return NextResponse.json(data);
 }
