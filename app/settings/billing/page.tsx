@@ -29,7 +29,9 @@ export default async function BillingSettingsPage() {
 
   const { data: workspace } = await supabaseAdmin
     .from("workspaces")
-    .select("id, name, industry, plan_tier, plan_seats, plan_renewed_at")
+    .select(
+      "id, name, industry, plan_tier, plan_seats, plan_renewed_at, stripe_price_id, stripe_subscription_id, custom_price_cents, custom_plan_label",
+    )
     .eq("id", profile.workspace_id)
     .maybeSingle();
 
@@ -49,6 +51,10 @@ export default async function BillingSettingsPage() {
           plan_tier: "starter" | "pro" | "enterprise";
           plan_seats: number;
           plan_renewed_at: string | null;
+          stripe_price_id: string | null;
+          stripe_subscription_id: string | null;
+          custom_price_cents: number | null;
+          custom_plan_label: string | null;
         }
       }
       canManage={canManage}

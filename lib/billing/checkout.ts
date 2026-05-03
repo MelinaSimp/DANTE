@@ -1,70 +1,58 @@
 // lib/billing/checkout.ts
 //
-// Phase 5 W5.5 — Stripe checkout wrapper.
+// Per-workspace pricing checkout wrapper.
 //
-// The plan-tier helper (lib/billing/plan-tiers.ts) gates features
-// by reading workspaces.plan_tier. This file is the upgrade path
-// users take to flip that column: a Stripe Checkout session per
-// (tier, vertical), webhook updates plan_tier on success.
+// Drift bills enterprise-style: each workspace has a negotiated
+// price assigned by superadmin (workspaces.stripe_price_id). This
+// helper looks up the workspace's assigned price and creates a
+// Stripe Checkout session against it. There are no global tier
+// prices — every customer is custom.
 //
 // Configuration (env):
-//   STRIPE_SECRET_KEY                — server-side Stripe key
-//   STRIPE_PRICE_STARTER_ADVISOR     — price id ($300/mo)
-//   STRIPE_PRICE_PRO_ADVISOR         — price id ($800/mo)
-//   STRIPE_PRICE_ENTERPRISE_ADVISOR  — price id ($1500/mo + per-seat)
-//   STRIPE_PRICE_STARTER_REALTOR     — price id ($300/mo)
-//   STRIPE_PRICE_PRO_REALTOR         — price id ($800/mo)
-//   STRIPE_PRICE_ENTERPRISE_REALTOR  — price id ($1500/mo)
-//   STRIPE_WEBHOOK_SECRET            — webhook signing secret
-//   APP_URL                          — public base url for return urls
+//   STRIPE_SECRET_KEY        — server-side Stripe key
+//   STRIPE_WEBHOOK_SECRET    — webhook signing secret
+//   APP_URL                  — public base url for return urls
 //
-// Without these env vars, checkout falls back to a "pricing not
-// yet configured" error so the rest of the app keeps working.
+// No more STRIPE_PRICE_* env vars — those were for the deprecated
+// fixed-tier model.
 
-import type { PlanTier } from "./plan-tiers";
-
-export type Vertical = "advisor" | "realtor";
-
-interface PriceMap {
-  starter: string | undefined;
-  pro: string | undefined;
-  enterprise: string | undefined;
-}
-
-function priceMap(vertical: Vertical): PriceMap {
-  if (vertical === "advisor") {
-    return {
-      starter: process.env.STRIPE_PRICE_STARTER_ADVISOR,
-      pro: process.env.STRIPE_PRICE_PRO_ADVISOR,
-      enterprise: process.env.STRIPE_PRICE_ENTERPRISE_ADVISOR,
-    };
-  }
-  return {
-    starter: process.env.STRIPE_PRICE_STARTER_REALTOR,
-    pro: process.env.STRIPE_PRICE_PRO_REALTOR,
-    enterprise: process.env.STRIPE_PRICE_ENTERPRISE_REALTOR,
-  };
-}
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export interface CheckoutInput {
   workspaceId: string;
   customerEmail: string;
-  tier: PlanTier;
-  vertical: Vertical;
-  /** Number of seats for enterprise tier; ignored for starter/pro. */
+  /** Quantity for per-seat pricing. Ignored for flat-rate prices. */
   seats?: number;
 }
 
-export async function createCheckoutSession(
-  input: CheckoutInput,
-): Promise<{ url: string } | { error: string }> {
+export type CheckoutResult =
+  | { url: string }
+  | { error: string };
+
+export async function createCheckoutSession(input: CheckoutInput): Promise<CheckoutResult> {
   const secret = process.env.STRIPE_SECRET_KEY;
   if (!secret) return { error: "billing_not_configured" };
-  const prices = priceMap(input.vertical);
-  const priceId = prices[input.tier];
-  if (!priceId) return { error: `price_not_configured:${input.tier}` };
 
-  // Lazy import to keep stripe out of cold-start for non-billing paths.
+  // Pull the workspace's assigned price + customer record. Both
+  // are negotiated/created externally by superadmin during the
+  // sales process; we never auto-assign.
+  const { data: ws, error: wsErr } = await supabaseAdmin
+    .from("workspaces")
+    .select("stripe_price_id, stripe_customer_id")
+    .eq("id", input.workspaceId)
+    .maybeSingle();
+  if (wsErr) return { error: `workspace_lookup_failed: ${wsErr.message}` };
+  if (!ws) return { error: "workspace_not_found" };
+
+  const priceId = (ws as { stripe_price_id?: string }).stripe_price_id;
+  if (!priceId) {
+    // No price assigned → caller shows "Contact sales" UI instead
+    // of a self-serve checkout button.
+    return { error: "no_price_assigned" };
+  }
+
+  const customerId = (ws as { stripe_customer_id?: string }).stripe_customer_id;
+
   const StripeMod = (await import("stripe")).default as unknown as new (
     k: string,
     o?: unknown,
@@ -81,20 +69,24 @@ export async function createCheckoutSession(
   try {
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
-      customer_email: input.customerEmail,
+      // If we already have a customer for this workspace, reuse —
+      // renewals + seat changes hit the same record. Otherwise
+      // Stripe creates one and the webhook back-fills.
+      ...(customerId ? { customer: customerId } : { customer_email: input.customerEmail }),
       line_items: [
         {
           price: priceId,
-          quantity: input.tier === "enterprise" ? Math.max(1, input.seats ?? 1) : 1,
+          quantity: Math.max(1, input.seats ?? 1),
         },
       ],
-      // The webhook reads these to flip workspaces.plan_tier on
-      // checkout.session.completed.
       metadata: {
         workspace_id: input.workspaceId,
-        tier: input.tier,
-        vertical: input.vertical,
         seats: String(input.seats ?? 1),
+      },
+      subscription_data: {
+        metadata: {
+          workspace_id: input.workspaceId,
+        },
       },
       success_url: `${appUrl}/settings/billing?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${appUrl}/settings/billing?cancelled=1`,

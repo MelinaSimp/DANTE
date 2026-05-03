@@ -2,73 +2,24 @@
 
 // app/settings/billing/BillingClient.tsx
 //
-// Three tier cards with current-tier highlighted; "Upgrade" CTA
-// on higher tiers, "Downgrade" on lower (subject to Stripe rules);
-// per-tier feature list pulled from lib/billing/plan-tiers.ts.
+// Per-workspace pricing display. Drift bills enterprise-style —
+// every customer has a negotiated rate assigned by the sales /
+// admin team. This view shows:
+//
+//   1. The workspace's assigned plan (if any) — label + price.
+//   2. A "Subscribe" button when stripe_price_id is set but no
+//      active subscription yet.
+//   3. A "Manage" button when subscribed (Stripe portal).
+//   4. A "Contact sales" prompt when no price is assigned yet.
+//
+// Plan tier (starter / pro / enterprise) drives feature gates and
+// is shown for transparency, but the dollar amount is whatever the
+// negotiation produced.
 
 import { useState } from "react";
-import { Check, Zap, Building2, Crown } from "lucide-react";
+import { Mail, Crown, Check } from "lucide-react";
 
 type PlanTier = "starter" | "pro" | "enterprise";
-
-interface TierCard {
-  tier: PlanTier;
-  label: string;
-  priceLabel: string;
-  description: string;
-  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
-  features: string[];
-}
-
-const TIERS: TierCard[] = [
-  {
-    tier: "starter",
-    label: "Starter",
-    priceLabel: "$300 / month",
-    description: "Solo advisors and individual realtors. Chat, memory, vault, basic workflows.",
-    icon: Zap,
-    features: [
-      "Citation-grounded chat",
-      "AI memory + review queue",
-      "Vault (document indexing)",
-      "Basic workflows",
-      "1 seat",
-    ],
-  },
-  {
-    tier: "pro",
-    label: "Pro",
-    priceLabel: "$800 / month",
-    description: "Small firms. Full workflow engine, autonomous agents, MCP integrations.",
-    icon: Building2,
-    features: [
-      "Everything in Starter",
-      "Advanced workflows + agent nodes",
-      "Autonomous agents",
-      "Supervisor review queue",
-      "MCP integrations",
-      "Up to 5 seats",
-    ],
-  },
-  {
-    tier: "enterprise",
-    label: "Enterprise",
-    priceLabel: "$1,500+ / seat / month",
-    description: "Large RIAs and brokerages. Compliance exports, SSO, BYOK, dedicated CSM.",
-    icon: Crown,
-    features: [
-      "Everything in Pro",
-      "SSO / SAML",
-      "SCIM provisioning",
-      "BYOK encryption",
-      "Compliance audit pack export",
-      "Strong-only citation attestation",
-      "Public API access",
-      "Dedicated customer success",
-      "Per-seat pricing",
-    ],
-  },
-];
 
 interface Workspace {
   id: string;
@@ -77,113 +28,207 @@ interface Workspace {
   plan_tier: PlanTier;
   plan_seats: number;
   plan_renewed_at: string | null;
+  stripe_price_id: string | null;
+  stripe_subscription_id: string | null;
+  custom_price_cents: number | null;
+  custom_plan_label: string | null;
+}
+
+const TIER_FEATURES: Record<PlanTier, string[]> = {
+  starter: [
+    "Citation-grounded chat",
+    "AI memory + review queue",
+    "Vault (document indexing)",
+    "Basic workflows",
+  ],
+  pro: [
+    "Everything in Starter",
+    "Advanced workflows + agent nodes",
+    "Autonomous agents",
+    "Supervisor review queue",
+    "MCP integrations",
+  ],
+  enterprise: [
+    "Everything in Pro",
+    "SSO / SCIM",
+    "BYOK encryption",
+    "Compliance audit pack export",
+    "Strong-only citation attestation",
+    "Public API access",
+    "Dedicated customer success",
+    "Examiner credentials",
+    "E-discovery legal hold",
+  ],
+};
+
+function formatPrice(cents: number | null): string {
+  if (cents == null) return "Custom";
+  const dollars = cents / 100;
+  if (dollars >= 1000) {
+    return `$${dollars.toLocaleString("en-US")}/mo`;
+  }
+  return `$${dollars.toFixed(2)}/mo`;
 }
 
 export default function BillingClient({
   workspace,
   canManage,
-  userEmail,
 }: {
   workspace: Workspace | null;
   canManage: boolean;
   userEmail: string;
 }) {
-  const [busy, setBusy] = useState<PlanTier | null>(null);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  void userEmail;
+  if (!workspace) {
+    return (
+      <div className="max-w-2xl mx-auto px-6 py-12">
+        <p className="text-sm text-[var(--ink-muted)]">Workspace not found.</p>
+      </div>
+    );
+  }
 
-  const upgrade = async (tier: PlanTier) => {
+  const hasPrice = !!workspace.stripe_price_id;
+  const isSubscribed = !!workspace.stripe_subscription_id;
+  const features = TIER_FEATURES[workspace.plan_tier];
+
+  const startCheckout = async () => {
     setError(null);
-    setBusy(tier);
+    setBusy(true);
     try {
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tier, seats: tier === "enterprise" ? 1 : undefined }),
+        body: JSON.stringify({ seats: workspace.plan_seats }),
       });
       const json = (await res.json()) as { url?: string; error?: string };
       if (!res.ok || !json.url) {
         setError(json.error ?? "checkout_failed");
-        setBusy(null);
+        setBusy(false);
         return;
       }
       window.location.href = json.url;
     } catch (err) {
       setError(err instanceof Error ? err.message : "checkout_failed");
-      setBusy(null);
+      setBusy(false);
     }
   };
 
-  const currentTier = workspace?.plan_tier ?? "starter";
-
   return (
-    <div className="max-w-5xl mx-auto px-6 md:px-8 py-10">
+    <div className="max-w-3xl mx-auto px-6 md:px-8 py-10">
       <h1 className="font-display text-3xl text-[var(--ink)] mb-2">Billing</h1>
       <p className="text-sm text-[var(--ink-muted)] mb-8">
-        {workspace?.name ?? "Your workspace"} is on the{" "}
-        <span className="font-medium text-[var(--ink)]">{currentTier.toUpperCase()}</span> plan.
-        {workspace?.plan_renewed_at &&
-          ` Last renewed ${new Date(workspace.plan_renewed_at).toLocaleDateString()}.`}
+        {workspace.name} · {workspace.plan_tier.toUpperCase()} plan
       </p>
 
       {error && (
         <div className="mb-6 p-3 rounded-[4px] border border-amber-300 bg-amber-50 text-amber-800 text-sm">
           {error === "billing_not_configured"
             ? "Billing isn't yet configured for this deployment. Contact your administrator."
-            : `Couldn't start checkout: ${error}`}
+            : error === "no_price_assigned"
+              ? "No pricing assigned to this workspace yet. Contact sales to set one up."
+              : `Couldn't start checkout: ${error}`}
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        {TIERS.map((t) => {
-          const isCurrent = t.tier === currentTier;
-          const Icon = t.icon;
-          return (
-            <div
-              key={t.tier}
-              className={`relative rounded-[6px] border p-6 ${
-                isCurrent
-                  ? "border-[var(--ink)] bg-[var(--canvas)] shadow-sm"
-                  : "border-[var(--rule)] bg-[var(--canvas-subtle)]"
-              }`}
-            >
-              {isCurrent && (
-                <div className="absolute -top-3 left-6 px-2 py-0.5 rounded-full bg-[var(--ink)] text-[var(--canvas)] text-[10px] font-semibold tracking-wider uppercase">
-                  Current
-                </div>
-              )}
-              <Icon className="w-5 h-5 text-[var(--ink-muted)] mb-3" strokeWidth={1.5} />
-              <div className="font-display text-xl text-[var(--ink)] mb-1">{t.label}</div>
-              <div className="text-sm font-mono text-[var(--ink)] mb-3">{t.priceLabel}</div>
-              <p className="text-xs text-[var(--ink-muted)] mb-5 leading-relaxed">{t.description}</p>
-              <ul className="space-y-1.5 mb-6">
-                {t.features.map((f) => (
-                  <li key={f} className="flex items-start gap-1.5 text-xs text-[var(--ink-muted)]">
-                    <Check className="w-3 h-3 mt-0.5 text-emerald-600 flex-shrink-0" strokeWidth={2} />
-                    <span>{f}</span>
-                  </li>
-                ))}
-              </ul>
-              {canManage && !isCurrent && (
-                <button
-                  onClick={() => upgrade(t.tier)}
-                  disabled={busy !== null}
-                  className="w-full px-3 py-2 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-sm font-semibold hover:opacity-90 transition disabled:opacity-50"
-                >
-                  {busy === t.tier ? "Redirecting…" : `Switch to ${t.label}`}
-                </button>
+      <div
+        className={`rounded-[6px] border p-6 mb-6 ${
+          hasPrice
+            ? "border-[var(--ink)] bg-[var(--canvas)]"
+            : "border-[var(--rule)] bg-[var(--canvas-subtle)]"
+        }`}
+      >
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <Crown className="w-5 h-5 text-[var(--ink-muted)] mb-2" strokeWidth={1.5} />
+            <div className="font-display text-2xl text-[var(--ink)] mb-1">
+              {workspace.custom_plan_label ?? `${workspace.plan_tier.toUpperCase()} plan`}
+            </div>
+            <div className="text-sm text-[var(--ink-muted)]">
+              {hasPrice ? (
+                <>
+                  <span className="font-mono text-[var(--ink)]">
+                    {formatPrice(workspace.custom_price_cents)}
+                  </span>
+                  {workspace.plan_seats > 1 && ` · ${workspace.plan_seats} seats`}
+                </>
+              ) : (
+                "No pricing assigned yet"
               )}
             </div>
-          );
-        })}
+          </div>
+          <div className="text-right text-xs text-[var(--ink-subtle)]">
+            {isSubscribed ? (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <Check className="w-3 h-3" strokeWidth={2} />
+                Active subscription
+              </span>
+            ) : hasPrice ? (
+              <span className="text-amber-700">Ready to subscribe</span>
+            ) : (
+              <span>Awaiting setup</span>
+            )}
+            {workspace.plan_renewed_at && (
+              <div className="mt-1">
+                Last renewed {new Date(workspace.plan_renewed_at).toLocaleDateString()}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <ul className="space-y-1.5 mb-5">
+          {features.map((f) => (
+            <li key={f} className="flex items-start gap-1.5 text-xs text-[var(--ink-muted)]">
+              <Check className="w-3 h-3 mt-0.5 text-emerald-600 flex-shrink-0" strokeWidth={2} />
+              <span>{f}</span>
+            </li>
+          ))}
+        </ul>
+
+        {canManage && hasPrice && !isSubscribed && (
+          <button
+            onClick={startCheckout}
+            disabled={busy}
+            className="w-full px-3 py-2.5 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-sm font-semibold hover:opacity-90 transition disabled:opacity-50"
+          >
+            {busy ? "Redirecting…" : `Subscribe — ${formatPrice(workspace.custom_price_cents)}`}
+          </button>
+        )}
+
+        {canManage && isSubscribed && (
+          <a
+            href="https://billing.stripe.com/p/login"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block text-center w-full px-3 py-2.5 rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] text-sm font-medium text-[var(--ink-muted)] hover:text-[var(--ink)] hover:border-[var(--ink)]/30 transition"
+          >
+            Manage subscription in Stripe
+          </a>
+        )}
+
+        {!hasPrice && (
+          <a
+            href="mailto:sales@driftai.studio"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-sm font-semibold hover:opacity-90 transition"
+          >
+            <Mail className="w-4 h-4" strokeWidth={1.5} />
+            Contact sales
+          </a>
+        )}
       </div>
 
       {!canManage && (
-        <p className="mt-6 text-xs text-[var(--ink-subtle)]">
-          Only workspace admins can change the plan. Ask an admin to upgrade or downgrade.
+        <p className="text-xs text-[var(--ink-subtle)]">
+          Only workspace admins can manage billing.
         </p>
       )}
+
+      <div className="mt-10 text-xs text-[var(--ink-subtle)] leading-relaxed">
+        Drift bills enterprise-style — every workspace has a negotiated rate. Pricing reflects
+        seat count, vertical, and integration depth. Contact sales to adjust your plan or to
+        discuss volume agreements.
+      </div>
     </div>
   );
 }
