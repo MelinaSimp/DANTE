@@ -605,11 +605,29 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
     // and emit as the iteration summary so the streaming UI can
     // render Harvey-style "Searching memory for X..." headings.
     const preamble = trimPreamble(assistantMsg.content);
+    const iterationSummary = preamble || synthesizeSummary(assistantMsg.tool_calls);
     await fire({
       type: "iteration_thinking",
       iteration: thisIteration,
-      summary: preamble || synthesizeSummary(assistantMsg.tool_calls),
+      summary: iterationSummary,
     });
+    // Persist the preamble alongside the tool calls so the post-hoc
+    // ReasoningDisclosure can render the agent's narrative rationale
+    // (not just the per-tool engineer log). step_type "thinking" is
+    // filtered out of the AgentPlan view by name and surfaced by the
+    // reasoning component instead.
+    {
+      const tsNow = new Date().toISOString();
+      input.log.push({
+        step_id: `${input.step.id}:thinking:${thisIteration}`,
+        step_type: "agent",
+        step_name: `${input.step.name || "agent"} → thinking`,
+        status: "success",
+        started_at: tsNow,
+        finished_at: tsNow,
+        output: { summary: iterationSummary, iteration: thisIteration },
+      });
+    }
 
     // Otherwise dispatch each tool call. The loop appends a log
     // entry per call BEFORE the actual call so a thrown error still

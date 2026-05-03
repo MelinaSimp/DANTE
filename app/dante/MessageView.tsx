@@ -26,12 +26,14 @@ import {
   ThumbsDown,
   Check,
   ArrowRight,
+  ShieldCheck,
 } from "lucide-react";
 import MarkdownRenderer from "./MarkdownRenderer";
 import { looksLikeDraft, deriveFilenameStem } from "./DocumentPanel";
 import type { StreamState, CitationReportState } from "./streamClient";
 import { buildCitationMap } from "@/lib/dante/citations";
 import AgentPlan from "@/components/dante/AgentPlan";
+import ReasoningDisclosure from "@/components/dante/ReasoningDisclosure";
 
 const REWRITE_PRESETS = [
   { label: "Shorter", instruction: "Make it shorter — half the length, same key facts." },
@@ -67,6 +69,9 @@ export function AssistantMessage({
   onRewrite,
   onFollowup,
   rewriting,
+  chatId,
+  messageId,
+  contactId,
 }: {
   content: string;
   trace: unknown;
@@ -81,11 +86,37 @@ export function AssistantMessage({
   onRewrite: (instruction: string) => void;
   onFollowup: (q: string) => void;
   rewriting: boolean;
+  /** Optional context for the "Queue for review" action — if provided,
+   *  the queued payload deep-links back to the originating chat for the
+   *  reviewer. AskDante (ephemeral) leaves this undefined; ChatThread
+   *  passes its persisted ids. */
+  chatId?: string;
+  messageId?: string;
+  contactId?: string;
 }) {
   const [copied, setCopied] = useState(false);
   const [rewriteOpen, setRewriteOpen] = useState(false);
   const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
+  const [queueState, setQueueState] = useState<"idle" | "queueing" | "queued" | "error">("idle");
   const isDraft = looksLikeDraft(content);
+
+  const onQueueForReview = async () => {
+    if (queueState !== "idle") return;
+    setQueueState("queueing");
+    try {
+      const res = await fetch("/api/dante/queue-message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content, chatId, messageId, contactId }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      setQueueState("queued");
+      setTimeout(() => setQueueState("idle"), 3500);
+    } catch {
+      setQueueState("error");
+      setTimeout(() => setQueueState("idle"), 3500);
+    }
+  };
 
   const onCopy = async () => {
     try {
@@ -114,7 +145,15 @@ export function AssistantMessage({
 
   return (
     <div>
-      <div className="text-[var(--ink)]">
+      {/* Machinery first — collapsed strips that show "what Dante did
+       *  and why" before the answer itself. Both default closed; the
+       *  user reads the answer first unless they want the work shown.
+       *  This ordering matches the regulated-professional UX: provenance
+       *  is always one click away, never two. */}
+      <ReasoningDisclosure trace={trace} />
+      <AgentPlan trace={trace} />
+
+      <div className="mt-4 text-[var(--ink)]">
         <MarkdownRenderer content={content} trace={trace} citationReport={citationReport} />
       </div>
 
@@ -122,7 +161,7 @@ export function AssistantMessage({
         <GroundingBadge grounding={grounding} />
       )}
 
-      <div className="mt-4 flex items-center gap-3 text-xs text-[var(--ink-muted)]">
+      <div className="mt-4 flex items-center gap-3 text-xs text-[var(--ink-muted)] flex-wrap">
         <button onClick={onCopy} className="inline-flex items-center gap-1 hover:text-[var(--ink)]">
           {copied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
           {copied ? "Copied" : "Copy"}
@@ -167,6 +206,25 @@ export function AssistantMessage({
             Open in editor
           </button>
         )}
+        <button
+          onClick={onQueueForReview}
+          disabled={queueState !== "idle"}
+          className="inline-flex items-center gap-1 hover:text-[var(--ink)] disabled:opacity-60"
+          title="Stage this response for principal/supervisor review"
+        >
+          {queueState === "queueing" ? (
+            <Loader2 className="w-3 h-3 animate-spin" />
+          ) : queueState === "queued" ? (
+            <Check className="w-3 h-3 text-emerald-600" />
+          ) : (
+            <ShieldCheck className="w-3 h-3" />
+          )}
+          {queueState === "queued"
+            ? "Queued"
+            : queueState === "error"
+              ? "Failed"
+              : "Queue for review"}
+        </button>
         <div className="ml-auto flex items-center gap-2">
           <button
             onClick={() => setFeedback(feedback === "up" ? null : "up")}
@@ -184,8 +242,6 @@ export function AssistantMessage({
           </button>
         </div>
       </div>
-
-      <AgentPlan trace={trace} />
 
       <SourcesBlock trace={trace} />
 

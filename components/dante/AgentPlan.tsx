@@ -86,7 +86,11 @@ function summarizeStep(step: StepLogEntry): string {
 // the "iteration_thinking" / scaffolding steps (step_type that's not
 // a real tool) into the count but don't render them as their own
 // rows — they read as noise to a non-engineer.
+//
+// "thinking" preamble steps live in <ReasoningDisclosure /> so they
+// don't show up as engineer-style rows here.
 function isVisibleStep(step: StepLogEntry): boolean {
+  if (/→\s*thinking$/.test(step.step_name)) return false;
   // Heuristic: render anything that has a recognisable tool prefix.
   // The agent step ids look like "memory_search_3" / "vault_cite_1";
   // skip the wrapper "agent_loop" / "iteration_thinking" scaffolding.

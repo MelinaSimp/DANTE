@@ -199,6 +199,8 @@ export default function ChatThread({
               onRewrite={(instruction) => onRewriteLast(instruction)}
               onFollowup={(q) => submit(q)}
               rewriting={refining}
+              chatId={chatId}
+              messageId={m.id}
             />
           ),
         )}
