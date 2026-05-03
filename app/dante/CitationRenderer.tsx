@@ -289,12 +289,13 @@ function CitationPopover({
               </div>
             )}
 
-            {/* Deep link into the document at the cited page. The
-                /dante/archive/[id] route reads ?page= to jump the
-                viewer to the relevant page on load. */}
+            {/* Deep link into the source document. vault.cite returns
+                document_ids that resolve in vault_items, so the right
+                viewer is /vault/[id]. /dante/archive/[id] reads from
+                the empty dante_archive_* tables and would 404. */}
             {popover.data.document_id && (
               <Link
-                href={`/dante/archive/${popover.data.document_id}${
+                href={`/vault/${popover.data.document_id}${
                   popover.data.page != null ? `?page=${popover.data.page}` : ""
                 }`}
                 onClick={onClose}
