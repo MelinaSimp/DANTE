@@ -21,6 +21,7 @@ import {
   CheckCircle2,
   Copy,
 } from "lucide-react";
+import { StaggerContainer, StaggerItem } from "@/components/ui/stagger";
 
 interface Prompt {
   id: string;
@@ -222,9 +223,9 @@ export default function LibraryClient() {
             )}
           </div>
         ) : (
-          <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <StaggerContainer className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {filtered.map((p) => (
-              <li
+              <StaggerItem
                 key={p.id}
                 className="rounded-[8px] border border-[var(--rule)] hover:border-[var(--rule-strong)] bg-[var(--canvas)] p-4 flex flex-col gap-2 transition"
               >
@@ -267,9 +268,9 @@ export default function LibraryClient() {
                 <pre className="whitespace-pre-wrap text-[12px] text-[var(--ink-muted)] leading-relaxed font-sans line-clamp-4">
                   {p.prompt}
                 </pre>
-              </li>
+              </StaggerItem>
             ))}
-          </ul>
+          </StaggerContainer>
         )}
       </div>
 

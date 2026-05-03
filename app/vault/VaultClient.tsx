@@ -23,6 +23,7 @@ import {
   Sparkles,
   ScrollText,
 } from "lucide-react";
+import { StaggerContainer, StaggerItem } from "@/components/ui/stagger";
 
 interface Project {
   id: string;
@@ -192,12 +193,12 @@ export default function VaultClient() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <StaggerContainer className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filtered.map((p) => (
+              <StaggerItem key={p.id}>
               <button
-                key={p.id}
                 onClick={() => router.push(`/vault/projects/${p.id}`)}
-                className="group text-left transition flex flex-col hover:border-[var(--rule-strong)]"
+                className="group text-left transition flex flex-col hover:border-[var(--rule-strong)] w-full h-full"
                 style={{
                   background: "var(--canvas)",
                   border: "1px solid var(--rule)",
@@ -246,14 +247,16 @@ export default function VaultClient() {
                   </div>
                 </div>
               </button>
+              </StaggerItem>
             ))}
 
             {/* Loose-files virtual card — shown only when there are
                 items with no project, so users can find + move them. */}
             {(data?.loose_count ?? 0) > 0 && (
+              <StaggerItem>
               <button
                 onClick={() => router.push("/vault/projects/loose")}
-                className="group text-left transition flex flex-col hover:border-[var(--rule-strong)]"
+                className="group text-left transition flex flex-col hover:border-[var(--rule-strong)] w-full h-full"
                 style={{
                   background: "var(--canvas)",
                   border: "1px dashed var(--rule-strong)",
@@ -286,8 +289,9 @@ export default function VaultClient() {
                   </div>
                 </div>
               </button>
+              </StaggerItem>
             )}
-          </div>
+          </StaggerContainer>
         )}
       </div>
 

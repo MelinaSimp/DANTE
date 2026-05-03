@@ -31,6 +31,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { CountUp } from "@/components/ui/count-up";
 
 const container: Variants = {
   hidden: { opacity: 0 },
@@ -187,7 +188,7 @@ function MetricCard({
         </div>
       </div>
       <div className="text-3xl font-bold tracking-tight text-zinc-50 leading-none">
-        {value}
+        <CountUp value={value} />
       </div>
       <div className="mt-3">{sub}</div>
     </div>
