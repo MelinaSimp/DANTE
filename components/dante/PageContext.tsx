@@ -1,11 +1,13 @@
 "use client";
 
 // PageContext — the global "what's the user looking at right now"
-// registry that lets the AgentDock condition its behavior on the
-// current page. Every authenticated page that has meaningful context
-// (an entity it represents, a list it's filtering, a search query
-// active) registers via usePageContext(...) at mount and clears on
-// unmount. The dock reads from useCurrentPageContext().
+// registry. The existing ⌘D Ask mode (GlobalSearchModal) reads from
+// this so a question typed on a contact or property detail page is
+// automatically scoped to that entity — no separate dock or floating
+// orb; the summon affordance the user already knows just becomes
+// page-aware. Every authenticated page that has meaningful context
+// (an entity it represents, a list it's filtering) registers via
+// usePageContext(...) at mount and clears on unmount.
 //
 // Design rules:
 //

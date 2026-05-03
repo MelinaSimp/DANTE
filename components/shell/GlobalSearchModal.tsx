@@ -43,6 +43,7 @@ import { useAssistantBrand } from "@/components/dante/AssistantNameProvider";
 import AgentPlan from "@/components/dante/AgentPlan";
 import CreativeCard from "@/components/ui/creative-card";
 import type { StepLogEntry } from "@/lib/dante/workflow-types";
+import { useCurrentPageContext } from "@/components/dante/PageContext";
 
 type Kind =
   | "vault_item"
@@ -102,6 +103,7 @@ export default function GlobalSearchModal({
 }) {
   const router = useRouter();
   const { name: assistantName } = useAssistantBrand();
+  const pageContext = useCurrentPageContext();
 
   const [mode, setMode] = useState<Mode>(initialMode);
 
@@ -235,9 +237,27 @@ export default function GlobalSearchModal({
       const controller = new AbortController();
       abortRef.current = controller;
 
+      // Page-aware scoping. When the user opens ⌘D from a page that
+      // registered an entity (a contact, a property), thread that into
+      // the agent body so context_contact_id / context_property_id are
+      // already set — the same fields the per-detail-page
+      // ContextualAskPanel + EntityAsk use. The agent's tool whitelist
+      // and citation pipeline already understand these scopes.
+      const body: Parameters<typeof consumeAgentStream>[0]["body"] = {
+        message: qn,
+        chat_id: chatId,
+      };
+      if (pageContext?.entity?.kind === "contact") {
+        body.context_contact_id = pageContext.entity.id;
+        body.context_contact_name = pageContext.entity.label;
+      } else if (pageContext?.entity?.kind === "property") {
+        body.context_property_id = pageContext.entity.id;
+        body.context_property_label = pageContext.entity.label;
+      }
+
       try {
         await consumeAgentStream({
-          body: { message: qn, chat_id: chatId },
+          body,
           signal: controller.signal,
           onUpdate: (s) => {
             setStream(s);
@@ -367,6 +387,18 @@ export default function GlobalSearchModal({
             </span>
           </button>
           <div className="flex-1" />
+          {/* Page-scope indicator — visible only in ask mode, only when
+           *  a page has registered an entity. Tells the user that
+           *  ⌘D is automatically scoped to what they're looking at. */}
+          {mode === "ask" && pageContext?.entity && (
+            <span
+              className="hidden sm:inline-flex items-center gap-1.5 self-center mr-1 px-2 py-0.5 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] text-[10px] mono uppercase tracking-wider"
+              title={`Questions are scoped to this ${pageContext.entity.kind.replace("_", " ")}`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]" />
+              <span className="truncate max-w-[160px]">{pageContext.entity.label}</span>
+            </span>
+          )}
           <button
             onClick={onClose}
             className="p-1 mt-1 rounded text-[var(--ink-muted)] hover:bg-[var(--canvas-subtle)] transition"
@@ -588,7 +620,13 @@ export default function GlobalSearchModal({
                     }
                   }}
                   rows={1}
-                  placeholder={`Ask ${assistantName}…`}
+                  placeholder={
+                    pageContext?.entity
+                      ? `Ask ${assistantName} about ${pageContext.entity.label}…`
+                      : pageContext?.title && pageContext.title !== "Dashboard"
+                        ? `Ask ${assistantName} about ${pageContext.title}…`
+                        : `Ask ${assistantName}…`
+                  }
                   className="flex-1 resize-none bg-transparent text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none max-h-32 py-2"
                 />
                 <button
