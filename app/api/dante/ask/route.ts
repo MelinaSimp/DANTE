@@ -294,6 +294,10 @@ export async function POST(req: NextRequest) {
         const result = await runAgent({
           step,
           workspaceId: profile.workspace_id!,
+          // Identifies "me" for tools like reminder.schedule that need
+          // to know who to text. Workflow / cron runs into runAgent
+          // leave userId undefined and the tool refuses self-actions.
+          userId: user.id,
           simulate: true,
           runId,
           log,

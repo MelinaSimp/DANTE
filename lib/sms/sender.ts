@@ -76,19 +76,47 @@ interface SendOpts {
   userId?: string | null;
   /** Best-effort source label for usage tracking. */
   source?: string;
+  /** Override the workspace's default sender. Used by workflow's
+   *  send_sms node to honor an explicit `from_number` config. */
+  fromNumber?: string;
+}
+
+export interface SendResult {
+  /** What SendBlue actually delivered. iMessage when the recipient is
+   *  on Apple, "sms" when SendBlue had to fall back to green-bubble.
+   *  Audit-relevant — the workflow runner stores this so we know what
+   *  channel a reminder fired through. */
+  delivery_channel: "imessage" | "sms" | "unknown";
+  /** SendBlue's message_handle (or the first chunk's, if the body
+   *  was split). NULL if the response shape didn't include one — we
+   *  don't fail the send for missing telemetry. */
+  message_id: string | null;
+  /** Number of chunks delivered. >1 when the body exceeded MAX_CHUNK. */
+  segments: number;
+}
+
+interface SendBlueResponse {
+  message_handle?: string;
+  was_downgraded?: boolean;
+  status?: string;
 }
 
 export async function sendMessage(
   toPhone: string,
   content: string,
   opts: SendOpts = {},
-): Promise<void> {
+): Promise<SendResult> {
   const trimmed = content.trim();
-  if (!trimmed) return;
+  if (!trimmed) {
+    return { delivery_channel: "unknown", message_id: null, segments: 0 };
+  }
 
-  const fromNumber = process.env.SENDBLUE_FROM_NUMBER || undefined;
+  const fromNumber =
+    opts.fromNumber || process.env.SENDBLUE_FROM_NUMBER || undefined;
 
   const chunks = splitMessage(trimmed);
+  let firstHandle: string | null = null;
+  let downgraded = false;
   for (let i = 0; i < chunks.length; i++) {
     const body: Record<string, unknown> = {
       number: toPhone,
@@ -96,7 +124,15 @@ export async function sendMessage(
       send_style: "invisible",
     };
     if (fromNumber) body.from_number = fromNumber;
-    await postWithRetry(body);
+    const raw = (await postWithRetry(body)) as SendBlueResponse;
+    if (i === 0 && typeof raw?.message_handle === "string") {
+      firstHandle = raw.message_handle;
+    }
+    // SendBlue marks `was_downgraded: true` when an iMessage attempt
+    // fell back to green-bubble SMS. Track at the message level: if
+    // ANY chunk fell back, we report "sms" (the user's experience is
+    // "I got a green bubble"), not a per-chunk channel.
+    if (raw?.was_downgraded) downgraded = true;
     if (i < chunks.length - 1) await sleep(300);
   }
 
@@ -113,6 +149,12 @@ export async function sendMessage(
       // never block send on usage logging
     }
   }
+
+  return {
+    delivery_channel: downgraded ? "sms" : "imessage",
+    message_id: firstHandle,
+    segments: chunks.length,
+  };
 }
 
 export async function sendTypingIndicator(toPhone: string): Promise<void> {

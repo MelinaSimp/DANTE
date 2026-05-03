@@ -204,6 +204,24 @@ async function runSendEmail(cfg: {
   return { email_id: json.id, to: cfg.to };
 }
 
+// SMS / iMessage delivery via SendBlue. Returns the delivery channel
+// SendBlue actually used (iMessage if the recipient is on Apple,
+// otherwise green-bubble SMS) so the audit log records what was
+// actually sent — not just what was attempted.
+async function runSendSms(cfg: { to_phone: string; body: string; from_number?: string }) {
+  // Local import keeps lib/dante/ free of an SMS-stack dependency
+  // until it's actually invoked at run time.
+  const { sendMessage } = await import("@/lib/sms/sender");
+  const result = await sendMessage(cfg.to_phone, cfg.body, {
+    fromNumber: cfg.from_number,
+  });
+  return {
+    to_phone: cfg.to_phone,
+    delivery_channel: result.delivery_channel,
+    message_id: result.message_id,
+  };
+}
+
 async function runDelay(cfg: { seconds: number }) {
   const seconds = Math.min(60, Math.max(0, Number(cfg.seconds) || 0));
   await new Promise((r) => setTimeout(r, seconds * 1000));
@@ -317,6 +335,21 @@ async function executeNode(
         };
       }
       return runSendEmail(emailCfg);
+    }
+    case "send_sms": {
+      const smsCfg = cfg as Parameters<typeof runSendSms>[0];
+      if (ctx.simulate) {
+        return {
+          simulated: true,
+          would_have: {
+            action: "send_sms",
+            to_phone: smsCfg.to_phone,
+            body_preview:
+              typeof smsCfg.body === "string" ? smsCfg.body.slice(0, 400) : "",
+          },
+        };
+      }
+      return runSendSms(smsCfg);
     }
     case "condition": {
       const expr = String(cfg.expression ?? "");

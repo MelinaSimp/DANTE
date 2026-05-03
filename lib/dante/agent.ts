@@ -215,6 +215,42 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
       },
     },
   },
+  "reminder.schedule": {
+    type: "function",
+    function: {
+      name: "reminder_schedule",
+      description:
+        "Schedule a one-shot reminder for the user. Use this whenever the user asks to be reminded at a specific time (e.g. 'text me tomorrow at 3 to follow up'). Creates a workflow that fires once at the given timestamp and delivers via SendBlue (iMessage, falls back to SMS). v1 supports recipient='self' only — for client-facing reminders the agent should refuse and tell the user this needs principal review wiring (not yet built).",
+      parameters: {
+        type: "object",
+        properties: {
+          when: {
+            type: "string",
+            description:
+              "ISO 8601 timestamp the reminder should fire. Resolve relative phrasings ('tomorrow at 3pm') against the current time before calling. Must be in the future.",
+          },
+          body: {
+            type: "string",
+            description:
+              "The text the user should receive. First-person from the user's perspective ('Follow up with Hartmans on Q3 rebalance').",
+          },
+          recipient: {
+            type: "string",
+            enum: ["self"],
+            description:
+              "v1 only supports 'self'. The reminder is delivered to the authenticated user's sms_phone on file.",
+          },
+          channel: {
+            type: "string",
+            enum: ["sms"],
+            description:
+              "v1 only supports 'sms' (SendBlue iMessage / SMS fallback). Email reminders go through the legacy /api/reminders system.",
+          },
+        },
+        required: ["when", "body", "recipient"],
+      },
+    },
+  },
 };
 
 // Inverse map: function-name string → AgentToolName. The OpenAI API
@@ -230,12 +266,15 @@ const NAME_TO_TOOL: Record<string, AgentToolName> = {
   email_send: "email.send",
   http_fetch: "http.fetch",
   skill_run: "skill.run",
+  reminder_schedule: "reminder.schedule",
 };
 
 // ── Tool executor adapters ────────────────────────────────────
 
 interface AgentToolCtx {
   workspaceId: string;
+  /** Optional authenticated user driving the run. See AgentRunInput. */
+  userId?: string;
   simulate: boolean;
   /**
    * Per-tool counters; the loop checks these against PER_TOOL_BUDGET
@@ -256,6 +295,7 @@ const PER_TOOL_BUDGET: Partial<Record<AgentToolName, number>> = {
   "memory.write": 20,
   "skill.run": 5,        // skills can be expensive; 5 is generous
   "vault.cite": 10,
+  "reminder.schedule": 5, // bound the runaway-reminders failure mode
 };
 
 async function dispatchTool(
@@ -436,6 +476,146 @@ async function dispatchTool(
         return { error: err instanceof Error ? err.message : "skill error" };
       }
     }
+    case "reminder.schedule": {
+      // v1: self-reminders only. Creates a one-shot workflow with a
+      // trigger_at + send_sms pair, sets next_fire_at on the row so
+      // the cron tick picks it up at the scheduled moment.
+      //
+      // Refusal cases (return { error } so the model can recover):
+      //   - simulate mode: scheduling without committing is a no-op,
+      //     but report what we would have done so the trace is honest.
+      //   - missing userId: not invoked from a chat (e.g. workflow
+      //     run); we have no "self" to text. Refuse cleanly.
+      //   - recipient !== self: client-facing reminders need
+      //     supervisor-queue routing, not built yet.
+      //   - sms_phone missing: user hasn't enrolled their phone.
+      //   - when not a future ISO timestamp.
+      const recipient = String(args.recipient || "self");
+      if (recipient !== "self") {
+        return {
+          error:
+            "reminder.schedule v1 supports recipient='self' only. Client-facing reminders need principal review wiring (not yet built). Tell the user this and offer to draft an email or memo instead.",
+        };
+      }
+      const channel = String(args.channel || "sms");
+      if (channel !== "sms") {
+        return { error: "reminder.schedule v1 supports channel='sms' only." };
+      }
+      const whenStr = String(args.when || "");
+      const when = new Date(whenStr);
+      if (!whenStr || Number.isNaN(when.getTime())) {
+        return { error: "reminder.schedule: 'when' must be an ISO 8601 timestamp." };
+      }
+      if (when.getTime() <= Date.now() + 30_000) {
+        return {
+          error:
+            "reminder.schedule: 'when' must be at least 30 seconds in the future.",
+        };
+      }
+      const body = String(args.body || "").trim();
+      if (!body) return { error: "reminder.schedule: 'body' required." };
+
+      if (!ctx.userId) {
+        return {
+          error:
+            "reminder.schedule: no authenticated user in this run, cannot schedule a self-reminder. Tell the user this needs to be requested from a Dante chat, not a workflow.",
+        };
+      }
+
+      // Look up the user's enrolled phone. profiles.sms_phone is set
+      // via /settings → Phone enrollment + verification flow.
+      const { data: prof } = await supabaseAdmin
+        .from("profiles")
+        .select("sms_phone, full_name")
+        .eq("id", ctx.userId)
+        .maybeSingle();
+      const phone = (prof as { sms_phone?: string } | null)?.sms_phone;
+      if (!phone) {
+        return {
+          error:
+            "reminder.schedule: this user hasn't enrolled an SMS phone number. Tell them to set one up in Settings → SMS & iMessage, then ask again.",
+        };
+      }
+
+      if (ctx.simulate) {
+        return {
+          simulated: true,
+          would_have: {
+            action: "reminder.schedule",
+            recipient: "self",
+            phone_redacted: phone.replace(/\d(?=\d{4})/g, "•"),
+            channel: "sms",
+            when: when.toISOString(),
+            body_preview: body.slice(0, 200),
+          },
+        };
+      }
+
+      // Build the workflow graph: trigger_at → send_sms.
+      const triggerId = `trig_${ctx.runId.slice(0, 6)}`;
+      const sendId = `sms_${ctx.runId.slice(0, 6)}`;
+      const graph = {
+        nodes: [
+          {
+            id: triggerId,
+            type: "trigger_at" as const,
+            position: { x: 100, y: 100 },
+            data: {
+              step: {
+                id: triggerId,
+                type: "trigger_at" as const,
+                name: "Scheduled fire",
+                config: { scheduled_for: when.toISOString() },
+              },
+            },
+          },
+          {
+            id: sendId,
+            type: "send_sms" as const,
+            position: { x: 320, y: 100 },
+            data: {
+              step: {
+                id: sendId,
+                type: "send_sms" as const,
+                name: "Send reminder",
+                config: { to_phone: phone, body },
+              },
+            },
+          },
+        ],
+        edges: [
+          { id: `${triggerId}-${sendId}`, source: triggerId, target: sendId },
+        ],
+      };
+      const name = `Reminder · ${when.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+
+      const { data: wf, error: insertErr } = await supabaseAdmin
+        .from("dante_workflows")
+        .insert({
+          workspace_id: ctx.workspaceId,
+          created_by: ctx.userId,
+          name,
+          description: body.slice(0, 200),
+          enabled: true,
+          trigger: { type: "trigger_at" },
+          steps: graph.nodes.map((n) => n.data.step),
+          graph,
+          next_fire_at: when.toISOString(),
+        })
+        .select("id")
+        .single();
+      if (insertErr) {
+        return { error: `reminder.schedule: ${insertErr.message}` };
+      }
+      return {
+        ok: true,
+        workflow_id: (wf as { id: string }).id,
+        delivery: "self_sms",
+        scheduled_for: when.toISOString(),
+        message:
+          "Scheduled. The user can edit or cancel from /reminders.",
+      };
+    }
   }
 }
 
@@ -470,6 +650,12 @@ export type AgentEvent =
 export interface AgentRunInput {
   step: AgentStep;
   workspaceId: string;
+  /** The authenticated user driving this run, when applicable.
+   *  Populated by /api/dante/ask (chat owner). Workflow / cron runs
+   *  leave it undefined — anything the agent does that requires
+   *  "self" identity (e.g. reminder.schedule with recipient="self")
+   *  refuses to execute when this isn't set. */
+  userId?: string;
   simulate: boolean;
   runId: string;
   /**
@@ -548,6 +734,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
 
   const ctx: AgentToolCtx = {
     workspaceId: input.workspaceId,
+    userId: input.userId,
     simulate: input.simulate,
     runId: input.runId,
     log: input.log,
@@ -562,6 +749,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       "email.send": 0,
       "http.fetch": 0,
       "skill.run": 0,
+      "reminder.schedule": 0,
     },
   };
 

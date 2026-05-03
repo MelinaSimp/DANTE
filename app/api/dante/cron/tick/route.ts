@@ -70,6 +70,10 @@ function findCronTrigger(graph: WorkflowGraph): GraphNode | null {
   return graph.nodes.find((n) => n.type === "trigger_cron") ?? null;
 }
 
+function findAtTrigger(graph: WorkflowGraph): GraphNode | null {
+  return graph.nodes.find((n) => n.type === "trigger_at") ?? null;
+}
+
 // ── Handler ───────────────────────────────────────────────────
 
 async function handle(request: Request) {
@@ -131,6 +135,65 @@ async function handle(request: Request) {
       // double-tick; the real status arrives when the worker finishes.
       await supabaseAdmin.from("dante_workflows").update({
         last_run_at: new Date().toISOString(),
+      }).eq("id", wf.id);
+    }
+  }
+
+  // ── Second pass: trigger_at one-shots ─────────────────────────
+  // Scheduling primitive for "remind me at X" — workflows with a
+  // trigger_at node carry next_fire_at on the row. When that elapses
+  // we fire once, then NULL next_fire_at and stamp fired_at so the
+  // same run never repeats. Indexed on (next_fire_at) WHERE
+  // next_fire_at IS NOT NULL — see the trigger_at migration.
+  const nowIso = now.toISOString();
+  const { data: dueAt, error: atErr } = await supabaseAdmin
+    .from("dante_workflows")
+    .select("*")
+    .eq("enabled", true)
+    .not("next_fire_at", "is", null)
+    .lte("next_fire_at", nowIso);
+
+  if (atErr) {
+    // Don't fail the whole tick on this — cron pass already ran.
+    console.warn("[cron tick] trigger_at sweep failed:", atErr.message);
+  } else {
+    for (const wf of dueAt || []) {
+      const def = definitionFromRow(wf);
+      const trig = findAtTrigger(def.graph);
+      if (!trig) {
+        // next_fire_at set but no trigger_at node — defensive disarm
+        // so the row doesn't keep showing up in the sweep.
+        await supabaseAdmin.from("dante_workflows").update({
+          next_fire_at: null,
+        }).eq("id", wf.id);
+        skipped.push({ id: wf.id, reason: "trigger_at_missing_node" });
+        continue;
+      }
+      const enq = await enqueueRun({
+        workflow_id: wf.id,
+        workspace_id: wf.workspace_id,
+        triggered_by: null,
+        payload: {
+          triggered_by: "trigger_at",
+          scheduled_for: wf.next_fire_at,
+          fired_at: nowIso,
+        },
+      });
+      if ("error" in enq) {
+        fired.push({ id: wf.id, status: "enqueue_failed" });
+        // Leave next_fire_at set so the next tick retries.
+        continue;
+      }
+      fired.push({ id: wf.id, status: "queued" });
+      // Disarm immediately on successful enqueue. We accept a tiny
+      // window where the queue could fail post-enqueue and the
+      // workflow won't retry — same risk as cron, the alternative
+      // (clear after run completes) re-fires on every tick until
+      // the worker drains, which is worse.
+      await supabaseAdmin.from("dante_workflows").update({
+        next_fire_at: null,
+        fired_at: nowIso,
+        last_run_at: nowIso,
       }).eq("id", wf.id);
     }
   }

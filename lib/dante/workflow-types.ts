@@ -18,6 +18,7 @@ export type StepType =
   // Trigger nodes (exactly one per graph; defines how a run starts):
   | "trigger_manual"  // kicked off from the UI "Run" button
   | "trigger_cron"    // scheduled; config.cron = crontab expression
+  | "trigger_at"      // one-shot future timestamp; fires once and disarms
   | "trigger_webhook" // fires on POST to /api/dante/hooks/<token>
   // Action / flow-control nodes:
   | "http"            // fetch() against any URL
@@ -25,6 +26,7 @@ export type StepType =
   | "query_clients"   // Supabase select on contacts, with filters
   | "update_contact"  // Supabase update on a single contact
   | "send_email"      // Resend email
+  | "send_sms"        // SendBlue iMessage / SMS fallback
   | "condition"       // branches to outgoing `true` / `false` edges
   | "delay"           // pause N seconds
   | "archive_lookup"  // vector-search the Dante archive → {hits, context}
@@ -84,6 +86,24 @@ export interface SendEmailStep extends BaseStep {
   };
 }
 
+// SMS / iMessage delivery via SendBlue. Mirrors send_email shape
+// (recipient + body) but omits subject/html since SMS is plain-text.
+// `to_phone` is an E.164 phone number; the runner normalizes before
+// dispatch. `from_number` is optional — when omitted, SendBlue picks
+// the workspace's default sender.
+//
+// SendBlue routes blue-bubble (iMessage) when the recipient is on an
+// Apple device, falls back to green-bubble SMS otherwise. The runner
+// records which channel actually fired in step output for audit.
+export interface SendSmsStep extends BaseStep {
+  type: "send_sms";
+  config: {
+    to_phone: string;
+    body: string;
+    from_number?: string;
+  };
+}
+
 export interface ConditionStep extends BaseStep {
   type: "condition";
   config: {
@@ -123,7 +143,8 @@ export type AgentToolName =
   | "clients.update"
   | "email.send"
   | "http.fetch"
-  | "skill.run";        // invoke a named skill (Phase 3)
+  | "skill.run"         // invoke a named skill (Phase 3)
+  | "reminder.schedule"; // create a one-shot trigger_at workflow (SMS/email)
 
 export type AgentToolEntry =
   | AgentToolName
@@ -188,6 +209,23 @@ export interface TriggerCronStep extends BaseStep {
   };
 }
 
+// One-shot future timestamp. The cron tick treats workflows whose
+// trigger is `trigger_at` AND whose `dante_workflows.next_fire_at`
+// has elapsed as ready to fire — runs them once, then sets
+// next_fire_at = NULL and writes fired_at so the same run never
+// repeats. Used for "remind me at X" — schedule_reminder creates
+// these on demand.
+export interface TriggerAtStep extends BaseStep {
+  type: "trigger_at";
+  config: {
+    /** ISO 8601 timestamp the run should fire at. Written verbatim
+     *  to dante_workflows.next_fire_at when the workflow is saved.
+     *  After fire, next_fire_at is cleared and fired_at is recorded. */
+    scheduled_for: string;
+    timezone?: string;
+  };
+}
+
 export interface TriggerWebhookStep extends BaseStep {
   type: "trigger_webhook";
   config: {
@@ -200,12 +238,14 @@ export interface TriggerWebhookStep extends BaseStep {
 export type WorkflowStep =
   | TriggerManualStep
   | TriggerCronStep
+  | TriggerAtStep
   | TriggerWebhookStep
   | HttpStep
   | OpenAIStep
   | QueryClientsStep
   | UpdateContactStep
   | SendEmailStep
+  | SendSmsStep
   | ConditionStep
   | DelayStep
   | ArchiveLookupStep

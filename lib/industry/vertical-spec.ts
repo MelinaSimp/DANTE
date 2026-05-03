@@ -113,6 +113,7 @@ const ADVISOR_SPEC: VerticalSpec = {
       "vault.cite",
       "clients.query",
       "skill.run",
+      "reminder.schedule",
     ],
     promoted_skills: [
       "draft_review_meeting_recap",
@@ -178,6 +179,7 @@ const REALTOR_SPEC: VerticalSpec = {
       "vault.cite",
       "clients.query",
       "skill.run",
+      "reminder.schedule",
     ],
     promoted_skills: [
       "draft_listing_prep_recap",
