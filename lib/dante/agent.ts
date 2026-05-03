@@ -537,19 +537,18 @@ async function dispatchTool(
         };
       }
 
-      if (ctx.simulate) {
-        return {
-          simulated: true,
-          would_have: {
-            action: "reminder.schedule",
-            recipient: "self",
-            phone_redacted: phone.replace(/\d(?=\d{4})/g, "•"),
-            channel: "sms",
-            when: when.toISOString(),
-            body_preview: body.slice(0, 200),
-          },
-        };
-      }
+      // NOTE: this tool deliberately ignores ctx.simulate.
+      // The chat route runs the agent with simulate=true so unsafe
+      // tools (email.send, update_contact, memory.write) don't take
+      // real action during a Q&A turn. reminder.schedule is the
+      // exception — it's a tool the user EXPLICITLY asked to fire
+      // ("text me in 3 minutes"), and the action is internal-only
+      // (a row in dante_workflows targeting the user's own phone).
+      // Its own guardrails — recipient must be "self", target time
+      // must be >= 30s future, sms_phone must be verified — already
+      // make it safe to commit. Without this override, the agent
+      // would always return simulated:true, the model would summarize
+      // "Set!", and no workflow would be created.
 
       // Build the workflow graph: trigger_at → send_sms.
       const triggerId = `trig_${ctx.runId.slice(0, 6)}`;
