@@ -49,10 +49,27 @@ ALTER TABLE profiles
   ADD COLUMN IF NOT EXISTS role text NOT NULL DEFAULT 'advisor'
     CHECK (role IN ('admin', 'supervisor', 'advisor', 'read_only'));
 
--- Backfill: existing is_workspace_admin → role='admin'
-UPDATE profiles
-SET role = 'admin'
-WHERE is_workspace_admin = true AND role = 'advisor';
+-- Backfill: existing is_workspace_admin → role='admin', if that
+-- legacy column exists. Drift's `profiles` shape varies across
+-- workspaces (some predate the boolean), so we guard the UPDATE.
+-- Workspaces without is_workspace_admin get all rows defaulting
+-- to 'advisor'; promote your workspace admin manually:
+--   UPDATE profiles SET role = 'admin' WHERE id = '<user_id>';
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'profiles'
+      AND column_name = 'is_workspace_admin'
+  ) THEN
+    EXECUTE $sql$
+      UPDATE profiles
+      SET role = 'admin'
+      WHERE is_workspace_admin = true AND role = 'advisor'
+    $sql$;
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS idx_profiles_role
   ON profiles (workspace_id, role);

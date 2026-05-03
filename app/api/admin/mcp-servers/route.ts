@@ -38,11 +38,13 @@ export async function GET(req: NextRequest) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("workspace_id, is_workspace_admin, is_superadmin")
+    .select("workspace_id, role, is_superadmin")
     .eq("id", user.id)
     .maybeSingle();
   if (!profile?.workspace_id) return jsonError(400, "no_workspace");
-  if (!profile.is_workspace_admin && !profile.is_superadmin) {
+  // Use the new RBAC role column (Phase 3+ migration). Workspace
+  // admin = role='admin'; cross-workspace superadmin still bypasses.
+  if ((profile as { role?: string }).role !== "admin" && !(profile as { is_superadmin?: boolean }).is_superadmin) {
     return jsonError(403, "admin_only");
   }
 
@@ -72,11 +74,13 @@ export async function POST(req: NextRequest) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("workspace_id, is_workspace_admin, is_superadmin")
+    .select("workspace_id, role, is_superadmin")
     .eq("id", user.id)
     .maybeSingle();
   if (!profile?.workspace_id) return jsonError(400, "no_workspace");
-  if (!profile.is_workspace_admin && !profile.is_superadmin) {
+  // Use the new RBAC role column (Phase 3+ migration). Workspace
+  // admin = role='admin'; cross-workspace superadmin still bypasses.
+  if ((profile as { role?: string }).role !== "admin" && !(profile as { is_superadmin?: boolean }).is_superadmin) {
     return jsonError(403, "admin_only");
   }
 
