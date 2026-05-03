@@ -94,10 +94,17 @@ export async function searchMemory(input: MemorySearchInput): Promise<MemoryHit[
   // Optional category boost — explicit > inferred > none.
   const category = input.category ?? inferCategory(input.query);
 
-  // Phase 6 W6.11 — prefer hybrid (vector + keyword) when the
-  // RPC is deployed. Falls through to pure-vector when not. We
-  // deliberately swallow only the "function does not exist" error
-  // class — anything else is a real failure that should bubble.
+  // Phase 6 W6.11 — prefer hybrid (vector + keyword) when the RPC
+  // is deployed and healthy. The hybrid path is decorative: it adds
+  // a keyword-rank boost on top of vector similarity. The pure-vector
+  // RPC below is the workhorse and the source of truth for recall.
+  //
+  // Policy: any error from the hybrid call falls through to vector.
+  // Earlier we tried to distinguish "function missing" from "real
+  // error", but in practice the failure modes (PGRST202, 42883,
+  // 42P01, 42804 type-mismatch from migration drift) all have the
+  // same right answer: skip hybrid, use vector, log so we know.
+  // The user-facing tool log no longer surfaces hybrid failures.
   const hybrid = await supabaseAdmin.rpc("dante_memory_search_hybrid", {
     p_workspace_id: input.workspaceId,
     p_query_text: input.query,
@@ -110,18 +117,11 @@ export async function searchMemory(input: MemorySearchInput): Promise<MemoryHit[
   if (!hybrid.error) {
     return (hybrid.data || []) as MemoryHit[];
   }
-  const hybridCode = (hybrid.error as { code?: string }).code;
-  // Function-missing classes we tolerate by falling through to the
-  // pure-vector RPC: 42883 (postgres "function does not exist"),
-  // 42P01 (postgres "relation does not exist"), and PGRST202
-  // (PostgREST "Could not find the function ... in the schema cache",
-  // returned when the migration hasn't been applied or the args don't
-  // match a known overload). Anything else is real and bubbles.
-  const fallthroughCodes = new Set(["42883", "42P01", "PGRST202"]);
-  if (!hybridCode || !fallthroughCodes.has(hybridCode)) {
-    throw new Error(`Memory search (hybrid): ${hybrid.error.message}`);
-  }
-  // Hybrid RPC missing — fall through to vector-only path.
+  // Log once per call so we can spot persistent hybrid breakage in
+  // server logs without surfacing it to the agent's tool transcript.
+  console.warn(
+    `[memory] hybrid search degraded → vector fallback (${(hybrid.error as { code?: string }).code ?? "?"}): ${hybrid.error.message}`,
+  );
 
   const { data, error } = await supabaseAdmin.rpc("dante_memory_search", {
     p_workspace_id: input.workspaceId,
