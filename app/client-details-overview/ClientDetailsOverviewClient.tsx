@@ -51,6 +51,7 @@ import ConfirmationModal from "@/components/frontend/ConfirmationModal";
 import { reportError } from "@/lib/report-error";
 import DanteNoticed from "@/components/dante/DanteNoticed";
 import EntityAsk from "@/components/dante/EntityAsk";
+import { usePageContext } from "@/components/dante/PageContext";
 
 type Contact = { id: string; name: string; phone?: string; email?: string };
 
@@ -107,6 +108,24 @@ export default function ClientDetailsOverviewClient({
   const [view, setView] = useState<View>("select");
   const [selected, setSelected] = useState<SelectedEntity>(null);
   const [activeSection, setActiveSection] = useState("account-overview");
+
+  // Register page context with the AgentDock. When a contact is
+  // selected, scope the dock to that contact (questions hit
+  // /api/dante/ask with context_contact_id set). Otherwise, fall
+  // back to a generic "Clients" page-level context.
+  usePageContext(
+    selected?.type === "client" && (selected as { name?: string }).name
+      ? {
+          title: (selected as { name: string }).name,
+          subtitle: "Client",
+          entity: {
+            kind: "contact",
+            id: selected.id,
+            label: (selected as { name: string }).name,
+          },
+        }
+      : { title: "Clients" },
+  );
   const [clientSearchQuery, setClientSearchQuery] = useState("");
   const [actionsOpen, setActionsOpen] = useState(false);
   const [document, setDocument] = useState<{

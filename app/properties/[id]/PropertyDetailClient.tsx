@@ -30,6 +30,7 @@ import {
 import ContextualAskPanel from "@/components/dante/ContextualAskPanel";
 import EntityAsk from "@/components/dante/EntityAsk";
 import DanteNoticed from "@/components/dante/DanteNoticed";
+import { usePageContext } from "@/components/dante/PageContext";
 
 interface Property {
   id: string;
@@ -137,6 +138,24 @@ export default function PropertyDetailClient({
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Register this page's primary entity with the AgentDock so the
+  // floating ⌘J presence is automatically scoped to this property —
+  // questions like "summarize", "expiring docs", "who's linked" route
+  // through /api/dante/ask with context_property_id set.
+  usePageContext(
+    property
+      ? {
+          title: property.address_line1,
+          subtitle: [property.city, property.state].filter(Boolean).join(", ") || undefined,
+          entity: {
+            kind: "property",
+            id: propertyId,
+            label: property.address_line1,
+          },
+        }
+      : null,
+  );
 
   // Editable form state.
   const [form, setForm] = useState({

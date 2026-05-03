@@ -31,6 +31,7 @@ import { getIndustryConfig } from "@/lib/industry/config";
 import AppShell from "@/components/shell/AppShell";
 import EntityAsk from "@/components/dante/EntityAsk";
 import { BentoGrid, BentoCard } from "@/components/ui/bento-grid";
+import { usePageContext } from "@/components/dante/PageContext";
 import {
   ArrowUpRight,
   ShieldCheck,
@@ -162,6 +163,11 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
     () => data.advisorName.split(" ")[0] || "there",
     [data.advisorName]
   );
+
+  usePageContext({
+    title: "Dashboard",
+    subtitle: `${data.stats.clients} client${data.stats.clients === 1 ? "" : "s"} · ${data.stats.calls7d} call${data.stats.calls7d === 1 ? "" : "s"} this week`,
+  });
 
   // Greeting + subtitle rotate from pools in lib/dashboard/greetings
   // seeded on (firstName, today's date). Same copy all day, fresh

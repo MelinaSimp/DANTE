@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useIsRealtor } from "@/lib/industry/use-industry";
 import { RealtorListingsEmpty } from "@/components/empty-states/RealtorEmptyStates";
+import { usePageContext } from "@/components/dante/PageContext";
 
 // Augments the Window type so TypeScript stops complaining about the
 // IPC bridge our Electron preload exposes. Web users see undefined.
@@ -103,6 +104,11 @@ export default function PropertiesClient() {
   const router = useRouter();
   const isRealtor = useIsRealtor();
   const [rows, setRows] = useState<PropertyRow[] | null>(null);
+
+  usePageContext({
+    title: "Properties",
+    subtitle: rows ? `${rows.length} listing${rows.length === 1 ? "" : "s"}` : undefined,
+  });
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [showCreate, setShowCreate] = useState(false);

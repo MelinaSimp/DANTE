@@ -24,6 +24,7 @@ import {
   ScrollText,
 } from "lucide-react";
 import { StaggerContainer, StaggerItem } from "@/components/ui/stagger";
+import { usePageContext } from "@/components/dante/PageContext";
 
 interface Project {
   id: string;
@@ -42,6 +43,11 @@ interface ProjectsPayload {
 export default function VaultClient() {
   const router = useRouter();
   const [data, setData] = useState<ProjectsPayload | null>(null);
+
+  usePageContext({
+    title: "Vault",
+    subtitle: "Document projects",
+  });
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);

@@ -22,6 +22,7 @@ import {
   Copy,
 } from "lucide-react";
 import { StaggerContainer, StaggerItem } from "@/components/ui/stagger";
+import { usePageContext } from "@/components/dante/PageContext";
 
 interface Prompt {
   id: string;
@@ -34,6 +35,12 @@ interface Prompt {
 
 export default function LibraryClient() {
   const [items, setItems] = useState<Prompt[] | null>(null);
+
+  usePageContext({
+    title: "Library",
+    subtitle: "Saved prompts",
+  });
+
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Prompt | "new" | null>(null);

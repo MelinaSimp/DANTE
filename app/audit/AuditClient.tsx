@@ -15,6 +15,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { usePageContext } from "@/components/dante/PageContext";
 import {
   ArrowLeft,
   Loader2,
@@ -81,6 +82,9 @@ function fmtTime(iso: string): { date: string; time: string } {
 
 export default function AuditClient() {
   const [events, setEvents] = useState<AuditEvent[] | null>(null);
+
+  usePageContext({ title: "Audit log", subtitle: "Immutable event stream" });
+
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [actionNs, setActionNs] = useState("");

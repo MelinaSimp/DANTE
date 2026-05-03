@@ -19,6 +19,8 @@
 
 import AppSidebar, { type AppSidebarProps } from "./AppSidebar";
 import { AssistantNameProvider } from "@/components/dante/AssistantNameProvider";
+import { PageContextProvider } from "@/components/dante/PageContext";
+import AgentDock from "@/components/dante/AgentDock";
 import { getIndustryConfig } from "@/lib/industry/config";
 
 interface Props extends AppSidebarProps {
@@ -35,10 +37,16 @@ export default function AppShell({ children, ...sidebarProps }: Props) {
       name={brand.assistantName}
       iconPath={brand.assistantIconPath}
     >
-      <div className="flex min-h-screen bg-[var(--canvas)]">
-        <AppSidebar {...sidebarProps} />
-        <main className="flex-1 min-w-0">{children}</main>
-      </div>
+      <PageContextProvider>
+        <div className="flex min-h-screen bg-[var(--canvas)]">
+          <AppSidebar {...sidebarProps} />
+          <main className="flex-1 min-w-0">{children}</main>
+        </div>
+        {/* Always-on agent presence — floating orb in lower-right,
+         *  ⌘J summons. Reads PageContext to scope the conversation
+         *  to whatever the user is currently looking at. */}
+        <AgentDock />
+      </PageContextProvider>
     </AssistantNameProvider>
   );
 }
