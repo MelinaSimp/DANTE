@@ -276,6 +276,7 @@ async function executeNode(
   switch (step.type) {
     case "trigger_manual":
     case "trigger_cron":
+    case "trigger_at":
     case "trigger_webhook":
       // Triggers expose the run input so downstream can template off
       // {{steps.<trigger_id>.input.<field>}}.
