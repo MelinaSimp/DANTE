@@ -94,6 +94,29 @@ export async function searchMemory(input: MemorySearchInput): Promise<MemoryHit[
   // Optional category boost — explicit > inferred > none.
   const category = input.category ?? inferCategory(input.query);
 
+  // Phase 6 W6.11 — prefer hybrid (vector + keyword) when the
+  // RPC is deployed. Falls through to pure-vector when not. We
+  // deliberately swallow only the "function does not exist" error
+  // class — anything else is a real failure that should bubble.
+  const hybrid = await supabaseAdmin.rpc("dante_memory_search_hybrid", {
+    p_workspace_id: input.workspaceId,
+    p_query_text: input.query,
+    p_query_embedding: queryVec,
+    p_contact_id: input.contactId ?? null,
+    p_kinds: input.kinds && input.kinds.length > 0 ? input.kinds : null,
+    p_limit: k,
+    p_category: category ?? null,
+  });
+  if (!hybrid.error) {
+    return (hybrid.data || []) as MemoryHit[];
+  }
+  const hybridCode = (hybrid.error as { code?: string }).code;
+  if (hybridCode !== "42883" && hybridCode !== "42P01") {
+    // Real error — don't swallow.
+    throw new Error(`Memory search (hybrid): ${hybrid.error.message}`);
+  }
+  // Hybrid RPC missing — fall through to vector-only path.
+
   const { data, error } = await supabaseAdmin.rpc("dante_memory_search", {
     p_workspace_id: input.workspaceId,
     p_query_embedding: queryVec,

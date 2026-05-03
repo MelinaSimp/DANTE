@@ -108,8 +108,26 @@ export async function runRetention(opts: {
     );
   if (policyErr) throw new Error(`retention: policy load failed: ${policyErr.message}`);
 
+  // Phase 7 W7.8 — legal hold pulls workspaces out of retention
+  // entirely. Set in response to litigation notice or examination.
+  const { data: heldWorkspaces } = await supabaseAdmin
+    .from("workspaces")
+    .select("id")
+    .eq("legal_hold", true);
+  const onHold = new Set(
+    ((heldWorkspaces || []) as Array<{ id: string }>).map((w) => w.id),
+  );
+
   for (const p of (policies || []) as PolicyRow[]) {
     if (!p.hard_delete_enabled) continue;
+    if (onHold.has(p.workspace_id)) {
+      result.errors.push({
+        workspace_id: p.workspace_id,
+        table: "_policy",
+        error: "skipped_legal_hold",
+      });
+      continue;
+    }
     result.workspaces_touched += 1;
 
     await processWorkspace(p, result, opts.dryRun ?? false);
