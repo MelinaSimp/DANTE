@@ -59,6 +59,7 @@ const SMS_TOOLS: AgentToolEntry[] = [
   "vault.cite",
   "clients.query",
   "skill.run",
+  "reminder.schedule",
 ];
 
 const HISTORY_TURNS = 20;
@@ -139,6 +140,11 @@ The latest user text just arrived. Respond to it.`
     result = await runAgent({
       step,
       workspaceId: input.workspaceId,
+      // SMS sender's user identity is in the input — pass it through
+      // so reminder.schedule (and any future "self"-aware tool) can
+      // resolve who's texting. Without this, the agent would refuse
+      // to schedule reminders requested via SMS.
+      userId: input.userId,
       simulate: false,
       runId: agentRunId,
       log,
