@@ -4,22 +4,6 @@ import { withSentryConfig } from "@sentry/nextjs";
 const nextConfig: NextConfig = {
   eslint: { ignoreDuringBuilds: false },
   typescript: { ignoreBuildErrors: false },
-  // The desktop chat agent reads its system prompt from prompts/*.md
-  // at runtime via lib/dante/system-prompt.ts (readFileSync). Next.js's
-  // serverless bundler doesn't trace those reads automatically because
-  // the path is constructed at runtime — without this hint the file is
-  // missing from /var/task on Vercel and the agent silently falls back
-  // to a minimal stub (which then misbehaves and the function returns
-  // status -1 mid-stream). Ship the prompts dir alongside any route
-  // that touches the agent loop.
-  outputFileTracingIncludes: {
-    "/api/dante/ask/route": ["./prompts/**/*.md"],
-    "/api/evals/nightly/route": ["./prompts/**/*.md"],
-    "/api/sms/webhook/sendblue/route": ["./prompts/**/*.md"],
-    "/api/sms/cron/briefing/route": ["./prompts/**/*.md"],
-    "/api/dante/cron/tick/route": ["./prompts/**/*.md"],
-    "/api/dante/queue/tick/route": ["./prompts/**/*.md"],
-  },
   redirects: async () => [
     // /dashboard/legacy was the old dark-theme analytics page. The
     // Harvey-styled /dashboard now covers the same ground; this 301
