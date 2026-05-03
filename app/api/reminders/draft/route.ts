@@ -7,10 +7,8 @@
 // user can review + approve before it sends.
 
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
+import { complete as llmComplete } from "@/lib/llm/client";
 import { createServerSupabase } from "@/lib/supabase/server";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(request: Request) {
   const supabase = await createServerSupabase();
@@ -79,18 +77,20 @@ ${prompt}`;
 
   let parsed: any = {};
   try {
-    const resp = await openai.chat.completions.create({
+    const resp = await llmComplete({
       model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
+      responseFormat: { type: "json_object" },
       temperature: 0.3,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
+      feature: "reminders.draft",
+      workspaceId,
     });
-    parsed = JSON.parse(resp.choices[0]?.message?.content || "{}");
+    parsed = JSON.parse(resp.message.content || "{}");
   } catch (e: any) {
-    console.error("reminders draft openai error:", e);
+    console.error("reminders draft llm error:", e);
     return NextResponse.json({ error: "AI draft failed" }, { status: 502 });
   }
 

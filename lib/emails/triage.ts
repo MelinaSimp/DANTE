@@ -12,9 +12,7 @@
 //      and picks the final level. This keeps cost low: 80%+ of emails
 //      never hit the API.
 
-import OpenAI from "openai";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+import { complete as llmComplete } from "@/lib/llm/client";
 
 export type UrgencyLevel = "urgent" | "needs_attention" | "normal" | "low";
 
@@ -196,16 +194,17 @@ Rules:
   }));
 
   try {
-    const resp = await openai.chat.completions.create({
+    const resp = await llmComplete({
       model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
+      responseFormat: { type: "json_object" },
       temperature: 0.1,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: JSON.stringify(payload, null, 2) },
       ],
+      feature: "emails.triage",
     });
-    const parsed = JSON.parse(resp.choices[0]?.message?.content || "{}");
+    const parsed = JSON.parse(resp.message.content || "{}");
     const results: any[] = Array.isArray(parsed.results) ? parsed.results : [];
     return results
       .filter(

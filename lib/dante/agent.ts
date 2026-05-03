@@ -29,6 +29,8 @@ import { searchArchive, formatHitsForPrompt } from "@/lib/dante/archive/search";
 import { expandMcpTools, callMcpTool, parseMcpToolName } from "@/lib/mcp/registry";
 import { runSkill } from "@/lib/dante/skills";
 import { getWorkspaceModel } from "@/lib/dante/model";
+import { complete as llmComplete } from "@/lib/llm/client";
+import type { LlmMessage, LlmToolDef } from "@/lib/llm/types";
 import type { MemoryKind } from "@/lib/dante/memory/types";
 import type {
   AgentStep,
@@ -499,9 +501,6 @@ export interface AgentRunResult {
 const HARD_MAX_STEPS = 20;
 
 export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
-
   const cfg = input.step.config;
   const entries: AgentToolEntry[] = cfg.tools || [];
 
@@ -583,35 +582,16 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
 
   while (stepIdx < maxSteps) {
     const thisIteration = iterationIdx++;
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        tools: tools.length > 0 ? tools : undefined,
-        // tool_choice="auto" is the default; explicit for clarity.
-        tool_choice: tools.length > 0 ? "auto" : undefined,
-      }),
+    const completion = await llmComplete({
+      model,
+      messages: messages as LlmMessage[],
+      tools: tools.length > 0 ? (tools as LlmToolDef[]) : undefined,
+      toolChoice: tools.length > 0 ? "auto" : undefined,
+      feature: "agent.loop",
+      workspaceId: input.workspaceId,
     });
 
-    if (!res.ok) {
-      const errBody = await res.text();
-      throw new Error(`OpenAI ${res.status}: ${errBody.slice(0, 400)}`);
-    }
-    const json = (await res.json()) as {
-      choices: Array<{
-        message: ChatMessage;
-        finish_reason: string;
-      }>;
-    };
-
-    const choice = json.choices?.[0];
-    if (!choice) throw new Error("OpenAI returned no choices");
-    const assistantMsg = choice.message;
+    const assistantMsg = completion.message as ChatMessage;
     messages.push(assistantMsg);
 
     // No tool calls → the model has produced a final answer. Done.
@@ -735,19 +715,17 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       content:
         "You've hit your tool-call budget. Give your best final answer using only what you've gathered so far. Do not call any more tools.",
     });
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({ model, messages, tool_choice: "none" }),
-    });
-    if (res.ok) {
-      const json = (await res.json()) as {
-        choices: Array<{ message: ChatMessage }>;
-      };
-      finalText = (json.choices?.[0]?.message?.content as string) || "";
+    try {
+      const wrap = await llmComplete({
+        model,
+        messages: messages as LlmMessage[],
+        toolChoice: "none",
+        feature: "agent.loop.truncated",
+        workspaceId: input.workspaceId,
+      });
+      finalText = (wrap.message.content as string) || "";
+    } catch (err) {
+      console.warn("[agent] truncated wrap-up failed:", err);
     }
   }
 

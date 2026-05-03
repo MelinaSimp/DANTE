@@ -8,10 +8,8 @@
 // when the user explicitly confirms.
 
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
+import { complete as llmComplete } from "@/lib/llm/client";
 import { createServerSupabase } from "@/lib/supabase/server";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -88,18 +86,20 @@ Rules:
 
   let parsed: any = {};
   try {
-    const resp = await openai.chat.completions.create({
+    const resp = await llmComplete({
       model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
+      responseFormat: { type: "json_object" },
       temperature: 0.1,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: corpus },
       ],
+      feature: "properties.intake",
+      workspaceId: profile.workspace_id,
     });
-    parsed = JSON.parse(resp.choices[0]?.message?.content || "{}");
+    parsed = JSON.parse(resp.message.content || "{}");
   } catch (e: any) {
-    console.error("property intake openai error:", e);
+    console.error("property intake llm error:", e);
     return NextResponse.json(
       { error: "Extraction failed — try again." },
       { status: 502 }

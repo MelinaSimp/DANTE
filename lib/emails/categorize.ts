@@ -5,9 +5,7 @@
 // property_id + confidence. Pure function — callable from a manual
 // admin trigger, the daily cron, or piggybacked on a sync run.
 
-import OpenAI from "openai";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+import { complete as llmComplete } from "@/lib/llm/client";
 
 interface CategorizeResult {
   processed: number;
@@ -114,19 +112,21 @@ ${JSON.stringify(emailPayload, null, 2)}`;
 
   let parsed: { results: Array<{ email_id: string; category: string; property_id: string | null; confidence: number }> } = { results: [] };
   try {
-    const resp = await openai.chat.completions.create({
+    const resp = await llmComplete({
       model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
+      responseFormat: { type: "json_object" },
       temperature: 0.1,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
+      feature: "emails.categorize",
+      workspaceId,
     });
-    parsed = JSON.parse(resp.choices[0]?.message?.content || "{}");
+    parsed = JSON.parse(resp.message.content || "{}");
     if (!Array.isArray(parsed.results)) parsed.results = [];
   } catch (e) {
-    console.error("emails categorize openai error:", e);
+    console.error("emails categorize llm error:", e);
     return { processed: emails.length, updated: 0, skipped: emails.length };
   }
 

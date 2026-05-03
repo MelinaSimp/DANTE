@@ -4,6 +4,13 @@ import { withSentryConfig } from "@sentry/nextjs";
 const nextConfig: NextConfig = {
   eslint: { ignoreDuringBuilds: false },
   typescript: { ignoreBuildErrors: false },
+  redirects: async () => [
+    // /dashboard/legacy was the old dark-theme analytics page. The
+    // Harvey-styled /dashboard now covers the same ground; this 301
+    // keeps any lingering external bookmarks alive while we kill the
+    // dual-implementation surface for good. (Phase 0, W0.2.)
+    { source: "/dashboard/legacy", destination: "/dashboard", permanent: true },
+  ],
   headers: async () => [
     {
       source: "/(.*)",

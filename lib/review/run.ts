@@ -6,9 +6,7 @@
 // Each call is structured-output JSON; we parse + persist the cell
 // row inline. Failures don't block the rest of the batch.
 
-import OpenAI from "openai";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+import { complete as llmComplete } from "@/lib/llm/client";
 
 export type ColumnKind =
   | "text"
@@ -83,16 +81,17 @@ Rules:
   const userPrompt = `## Document: ${docTitle}\n\n${docContent.slice(0, 14000)}\n\n## Question\n${column.prompt}`;
 
   try {
-    const resp = await openai.chat.completions.create({
+    const resp = await llmComplete({
       model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
+      responseFormat: { type: "json_object" },
       temperature: 0.1,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
+      feature: "review.extract",
     });
-    const parsed = JSON.parse(resp.choices[0]?.message?.content || "{}");
+    const parsed = JSON.parse(resp.message.content || "{}");
     const value =
       typeof parsed.value === "string" && parsed.value.trim().length > 0
         ? parsed.value

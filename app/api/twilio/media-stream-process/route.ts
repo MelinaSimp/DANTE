@@ -6,8 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { mulaw } from "alawmulaw";
-import { Readable } from "stream";
-import OpenAI from "openai";
+import { transcribe as llmTranscribe } from "@/lib/llm/client";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -25,9 +24,6 @@ export async function POST(req: NextRequest) {
         console.error("[Media Stream Process] No OpenAI API key");
         return NextResponse.json({ text: "", confidence: 0 });
       }
-
-      // Initialize OpenAI client
-      const openai = new OpenAI({ apiKey });
 
     // Convert base64 mulaw audio to PCM 16kHz for Whisper
     // 1. Decode mulaw 8kHz to PCM 8kHz
@@ -164,20 +160,19 @@ export async function POST(req: NextRequest) {
       const headerPreview = Array.from(wavFile.slice(0, 12)).map(b => b.toString(16).padStart(2, '0')).join(' ');
       console.log(`[Media Stream Process] WAV header preview (hex): ${headerPreview}`);
       
-      // Use OpenAI SDK for Whisper API - handles FormData/multipart correctly
-      // Convert Buffer to Readable stream (OpenAI SDK expects a File or Readable)
-      const audioStream = Readable.from(wavFile);
-      (audioStream as any).path = 'audio.wav'; // Set path so SDK treats it as a file
-      
+      // Whisper transcription via the LLM adapter (lib/llm/client.ts).
+      // We hand it a Blob built from the WAV buffer; the adapter wraps
+      // multipart/form-data and FormData posting.
+      const audioBlob = new Blob([new Uint8Array(wavFile)], { type: "audio/wav" });
+
       const whisperStartTime = Date.now();
-      console.log(`[Media Stream Process] 📤 Sending to Whisper via OpenAI SDK: ${wavFile.length} bytes WAV, ${audioDurationSeconds.toFixed(2)}s duration`);
-      
+      console.log(`[Media Stream Process] 📤 Sending to Whisper via LLM adapter: ${wavFile.length} bytes WAV, ${audioDurationSeconds.toFixed(2)}s duration`);
+
       try {
-        const transcription = await openai.audio.transcriptions.create({
-          file: audioStream as any,
-          model: 'whisper-1',
-          language: 'en',
-          response_format: 'json',
+        const transcription = await llmTranscribe({
+          audio: audioBlob,
+          model: "whisper-1",
+          language: "en",
         });
         
         const whisperEndTime = Date.now();

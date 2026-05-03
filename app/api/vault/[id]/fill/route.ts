@@ -11,10 +11,8 @@
 // (original | filled) and to generate a downloadable PDF client-side.
 
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
+import { complete as llmComplete } from "@/lib/llm/client";
 import { createServerSupabase } from "@/lib/supabase/server";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 interface Field {
   /** Short field label as it appears in the template (e.g. "Buyer Name", "Closing Date"). */
@@ -188,22 +186,23 @@ Rules:
   let parsed: { fields: Field[]; filled_text: string };
   let totalTokens = 0;
   try {
-    const resp = await openai.chat.completions.create({
+    const resp = await llmComplete({
       model: "gpt-4o-mini",
-      response_format: { type: "json_object" },
+      responseFormat: { type: "json_object" },
       temperature: 0.2,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
+      feature: "vault.fill",
     });
-    totalTokens = resp.usage?.total_tokens ?? 0;
-    const raw = resp.choices[0]?.message?.content ?? "{}";
+    totalTokens = resp.usage.totalTokens;
+    const raw = resp.message.content ?? "{}";
     parsed = JSON.parse(raw);
     if (!Array.isArray(parsed.fields)) parsed.fields = [];
     if (typeof parsed.filled_text !== "string") parsed.filled_text = "";
   } catch (e: any) {
-    console.error("vault fill openai error:", e);
+    console.error("vault fill llm error:", e);
     return NextResponse.json(
       { error: "AI failed to fill — try again or simplify the template." },
       { status: 502 }
