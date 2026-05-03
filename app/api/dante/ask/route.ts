@@ -37,7 +37,12 @@ import { computeGroundingScore } from "@/lib/dante/grounding";
 import type { AgentStep, AgentToolEntry, StepLogEntry } from "@/lib/dante/workflow-types";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+// Vercel Hobby caps function duration at 60s regardless of declared
+// value. Setting to 60 explicitly so we don't silently get clamped
+// (which produced "(no response)" failures with no log line because
+// the kill happens before pending logs flush). When upgrading to
+// Pro, bump this to 300.
+export const maxDuration = 60;
 
 // Fallback for workspaces with no industry set yet. Per-vertical
 // tool whitelists come from lib/industry/vertical-spec.ts and are
@@ -251,7 +256,15 @@ export async function POST(req: NextRequest) {
     ? "\n\nDEEP RESEARCH MODE: take more time. If a tool call returns thin results, refine the query and try again. Cross-check across memory and the vault before writing the final answer. Aim for thoroughness over speed."
     : "";
 
-  const systemPrompt = buildDanteSystemPrompt({ industry });
+  // Inject the current UTC time so the agent can resolve relative
+  // phrasings ("in 3 minutes", "tomorrow at 3pm") without guessing
+  // from its training cutoff. Without this, reminder.schedule and
+  // any time-sensitive tool gets passed timestamps from months ago
+  // and rejects them — the loop retries and times out.
+  const nowIso = new Date().toISOString();
+  const timeNote = `\n\n---\n\nCurrent UTC time: ${nowIso}\nUse this as your anchor for any "now"-relative or "in X minutes/hours/days" computation. Do not guess the time from your training data.`;
+
+  const systemPrompt = buildDanteSystemPrompt({ industry }) + timeNote;
 
   // Per-vertical tool whitelist (Phase 3 W3.5). Defaults match
   // DEFAULT_TOOLS but the indirection is live so future vertical-

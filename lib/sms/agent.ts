@@ -103,14 +103,19 @@ export async function runSmsAgent(input: SmsAgentInput): Promise<SmsAgentResult>
     content: `User texted: ${input.body}`,
   }).catch((err) => console.error("[sms.agent] memory write inbound failed:", err));
 
-  // 3. Build the AgentStep
-  const systemPrompt = buildSmsSystemPrompt({
-    industry: input.industry,
-    assistantName: input.assistantName,
-    userName: input.userName,
-    workspaceName: input.workspaceName,
-    userTimezone: input.userTimezone,
-  });
+  // 3. Build the AgentStep — inject current UTC time so reminder.schedule
+  // and any other time-sensitive tool gets a real timestamp anchor
+  // instead of having the model guess from training data.
+  const nowIso = new Date().toISOString();
+  const timeNote = `\n\n---\n\nCurrent UTC time: ${nowIso}\nUse this as your anchor for any "now"-relative or "in X minutes/hours/days" computation. Do not guess the time from your training data.`;
+  const systemPrompt =
+    buildSmsSystemPrompt({
+      industry: input.industry,
+      assistantName: input.assistantName,
+      userName: input.userName,
+      workspaceName: input.workspaceName,
+      userTimezone: input.userTimezone,
+    }) + timeNote;
 
   const objective =
     history.length > 0
