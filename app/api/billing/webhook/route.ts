@@ -56,6 +56,23 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Idempotency check — see /api/stripe/webhook for the rationale.
+  // The Stripe SDK type used here doesn't expose `id` directly, but
+  // the underlying event always carries one; cast narrowly for the
+  // ledger write.
+  const eventId = (event as unknown as { id?: string }).id;
+  if (eventId) {
+    const { error: ledgerErr } = await supabaseAdmin
+      .from("stripe_processed_events")
+      .insert({ event_id: eventId, event_type: event.type });
+    if (ledgerErr) {
+      if ((ledgerErr as { code?: string }).code === "23505") {
+        return NextResponse.json({ received: true, idempotent: true });
+      }
+      console.error("[Billing Webhook] idempotency ledger insert failed:", ledgerErr.message);
+    }
+  }
+
   // checkout.session.completed → first checkout. Back-fill the
   // customer + subscription ids so future renewals reuse them.
   // plan_tier is NOT inferred from the price (per-workspace

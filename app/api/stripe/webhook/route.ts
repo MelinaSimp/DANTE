@@ -25,6 +25,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
+  // Idempotency check. Signature verification proves the event came
+  // from Stripe; it does NOT prove we haven't already processed it.
+  // A captured signed payload is replayable forever until the secret
+  // rotates. The ledger has event_id as PRIMARY KEY, so a duplicate
+  // insert raises 23505 — that's our "already processed" signal.
+  // Any other error is logged and the handler proceeds (fail-open is
+  // safer here than fail-closed: missing a real event is worse than
+  // double-processing in the rare connection-error case).
+  {
+    const { error: ledgerErr } = await supabaseAdmin
+      .from("stripe_processed_events")
+      .insert({ event_id: event.id, event_type: event.type });
+    if (ledgerErr) {
+      if ((ledgerErr as { code?: string }).code === "23505") {
+        return NextResponse.json({ received: true, idempotent: true });
+      }
+      console.error("[Stripe Webhook] idempotency ledger insert failed:", ledgerErr.message);
+    }
+  }
+
   try {
     switch (event.type) {
       case "checkout.session.completed": {
