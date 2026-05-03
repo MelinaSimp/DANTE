@@ -1,79 +1,104 @@
 // Desktop chat system prompt for Dante / Vergil.
 //
-// Two responsibilities, both load-bearing:
-//   1. Vertical-flavor the persona (Dante = financial advisor,
-//      Vergil = realtor) so realtor workspaces don't get a prompt
-//      that introduces itself as Dante and lists Form ADV / IPS as
-//      example documents.
-//   2. Default to *searching first*. The earlier prompt told the
-//      model to "ask one clarifying question first if ambiguous,"
-//      which the model over-applied — a question like "give me a
-//      rundown of the Medina rent roll" got a clarifying question
-//      back instead of an archive.search call. Search is cheap;
-//      asking is a dead turn.
+// Authoritative source: `prompts/dante-v3.md` and `prompts/vergil-v3.md`.
+// We load and cache them at module level so the disk file IS the
+// production prompt — no inlined copy can drift.
 //
-// Mirrors the SMS builder in lib/sms/system-prompt.ts but is keyed
-// off industry rather than channel.
+// Phase 3+ panel finding (Priya): "the disk prompts are not yet
+// authoritative" — runtime builder used to inline its own copy.
+// This file is now the single seam: edit the markdown, redeploy,
+// behavior changes. `getActivePromptVersion()` is logged on every
+// agent run for traceability so an audit can match an output to
+// the prompt rev that produced it.
 
+import { readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { getIndustryConfig } from "@/lib/industry/config";
 
 interface BuildDantePromptInput {
   industry: string | null;
 }
 
-interface VerticalCopy {
-  verticalNoun: string;
-  vaultExamples: string;
-  citationExample: string;
+// Cache parsed prompt bodies to avoid disk hits on every chat turn.
+// Cache key: file mtime — re-reads only when the file changes,
+// which is what we want for hot-reloading in dev and a stable
+// production read.
+interface CachedPrompt {
+  mtimeMs: number;
+  body: string;
+  version: string;
 }
 
-function verticalCopy(industry: string | null): VerticalCopy {
-  if (industry === "real_estate") {
-    return {
-      verticalNoun: "real estate agent",
-      vaultExamples:
-        "listing agreements, buyer-rep agreements, leases, rent rolls, disclosures, inspection reports, MLS sheets, HOA docs",
-      citationExample: '"the 2024 Medina rent roll, page 3"',
-    };
-  }
-  return {
-    verticalNoun: "financial advisor",
-    vaultExamples:
-      "Form ADVs, policies, IPS templates, compliance memos, custodian statements, contracts",
-    citationExample: '"the IPS, section 4.2"',
+const promptCache = new Map<string, CachedPrompt>();
+
+const PROMPT_FILES: Record<"financial_advisor" | "real_estate", string> = {
+  financial_advisor: "prompts/dante-v3.md",
+  real_estate: "prompts/vergil-v3.md",
+};
+
+function loadPrompt(relPath: string): CachedPrompt {
+  const abs = join(process.cwd(), relPath);
+  const stat = statSync(abs);
+  const cached = promptCache.get(relPath);
+  if (cached && cached.mtimeMs === stat.mtimeMs) return cached;
+
+  const raw = readFileSync(abs, "utf8");
+  // Pull the version line out of the frontmatter-ish header. Both
+  // markdown files start with "**Version:** N.N" on a known line —
+  // we tag every agent run with this so an audit can match output
+  // to prompt rev. If parsing fails we fall back to the file
+  // mtime, which is monotonically increasing and good enough.
+  const versionMatch = raw.match(/\*\*Version:\*\*\s*([\w.-]+)/);
+  const version = versionMatch?.[1] ?? `mtime-${stat.mtimeMs}`;
+
+  const cache: CachedPrompt = {
+    mtimeMs: stat.mtimeMs,
+    body: raw,
+    version,
   };
+  promptCache.set(relPath, cache);
+  return cache;
 }
 
 export function buildDanteSystemPrompt(input: BuildDantePromptInput): string {
   const config = getIndustryConfig(input.industry);
-  const { assistantName } = config;
-  const { verticalNoun, vaultExamples, citationExample } = verticalCopy(
-    input.industry,
-  );
+  const key: keyof typeof PROMPT_FILES =
+    input.industry === "real_estate" ? "real_estate" : "financial_advisor";
+  try {
+    const { body } = loadPrompt(PROMPT_FILES[key]);
+    return body;
+  } catch (err) {
+    // If the prompt file is missing (corrupted deploy, etc.), fall
+    // back to a minimal prompt so the chat surface stays operational.
+    // We log loudly so observability catches it.
+    console.error(
+      `[system-prompt] failed to load ${PROMPT_FILES[key]}, using fallback:`,
+      err,
+    );
+    return fallbackPrompt(config.assistantName);
+  }
+}
 
-  return `You are ${assistantName}, an AI assistant for a ${verticalNoun}. You have access to:
-
-- The ${verticalNoun}'s persistent memory (facts, summaries, and email/call episodes about specific clients) via memory.search
-- The firm's document vault (${vaultExamples}) via archive.search and vault.cite
-- The contacts database via clients.query
-- Named workspace skills (preconfigured agent recipes) via skill.run
-
-Default behavior — SEARCH FIRST, ask second:
-- Your first move on almost any substantive question is a tool call, not a question back to the user. If the message names a person, address, document, deal, or topic, take the most plausible interpretation and run the search immediately.
-  - "rundown of the Medina rent roll" → archive.search with "Medina rent roll" (and memory.search if Medina is a known client). Read the chunks. Then answer.
-  - "what did I last talk to John about" → memory.search for John, then summarize.
-  - "draft a follow-up to John recapping last week" → check skill.run for a matching workspace skill, then memory.search.
-- Only ask a clarifying question when EITHER (a) you have already searched and the results are empty or genuinely too ambiguous to act on, OR (b) the request literally cannot be searched without more info (e.g. "summarize my recent emails" with no contact name — there is nothing concrete to search for). Don't ask just because the request is short or could mean a couple of things — pick the most likely meaning, search, and course-correct from results.
-- When you have enough context, return a clear, concise final answer in markdown. Bullet lists for multi-point answers, prose for narrative.
-
-Citation rule — load-bearing:
-- Any factual claim grounded in a workspace document MUST carry an inline citation. Cite by calling vault.cite to retrieve the section, then reference the result inline as [v1], [v2], etc. tied to specific sentences (not just dumped at the end). Phrase citations naturally — e.g. ${citationExample}.
-- Any factual claim about a specific client (their lease terms, balances, deadlines, prior decisions, recorded preferences) MUST cite the memory.search hit it came from in the same way.
-- If you cannot find a supporting document or memory hit for a factual claim, do NOT invent a citation and do NOT state the fact. Instead, say plainly: "I don't have that in your vault / memory yet." Offer what you'd need (e.g. "upload the lease and I can pull that section").
-- General knowledge or your own reasoning (definitions, summaries of what the user just said, generic best-practice guidance) does NOT need a citation, but be explicit when you are NOT citing — phrase it as your own take, not as workspace fact.
-- Never paraphrase a document without citing the section. The ${verticalNoun}'s compliance posture depends on every document-grounded answer being traceable back to the source.`;
+/** Returns the version string of the currently-loaded prompt for a
+ *  given industry. Used by telemetry / audit logging so every agent
+ *  run carries the prompt rev it executed against. */
+export function getActivePromptVersion(industry: string | null): string {
+  const key: keyof typeof PROMPT_FILES =
+    industry === "real_estate" ? "real_estate" : "financial_advisor";
+  try {
+    return loadPrompt(PROMPT_FILES[key]).version;
+  } catch {
+    return "fallback";
+  }
 }
 
 export function getAssistantName(industry: string | null): string {
   return getIndustryConfig(industry).assistantName;
+}
+
+// Last-resort fallback for catastrophic file-loading failure. Kept
+// minimal — the real prompt lives in prompts/*.md and edits there
+// are what production sees.
+function fallbackPrompt(assistantName: string): string {
+  return `You are ${assistantName}, an AI assistant. Search workspace memory and the document vault before answering. Cite every document-grounded claim inline using [v1] / [mem:abc] markers. If you cannot find supporting context for a claim, say so plainly — never invent citations or facts.`;
 }

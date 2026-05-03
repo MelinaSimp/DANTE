@@ -17,6 +17,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { canApprove, type Role } from "@/lib/auth/rbac";
 
 export const dynamic = "force-dynamic";
 
@@ -74,10 +75,20 @@ export async function POST(req: NextRequest) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("workspace_id")
+    .select("workspace_id, role, is_superadmin")
     .eq("id", user.id)
     .maybeSingle();
   if (!profile?.workspace_id) return jsonError(400, "no_workspace");
+
+  // Phase 3+ panel fix #9 — only supervisors and admins can approve
+  // / reject autonomous outputs. RIA principals and realtor
+  // designated brokers map onto the supervisor role; advisors
+  // and read_only stakeholders cannot.
+  const role = ((profile as { role?: string }).role ?? "advisor") as Role;
+  const isSuper = !!(profile as { is_superadmin?: boolean }).is_superadmin;
+  if (!isSuper && !canApprove(role)) {
+    return jsonError(403, "supervisor_or_admin_only");
+  }
 
   const body = (await req.json().catch(() => null)) as ReviewBody | null;
   if (!body || !Array.isArray(body.ids) || body.ids.length === 0) {

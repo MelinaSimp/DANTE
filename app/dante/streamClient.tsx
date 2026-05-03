@@ -58,6 +58,14 @@ export interface CitationReportState {
   counts: { total: number; valid: number; failed: number; unverifiable: number };
 }
 
+/** Grounding score state — populated by the `grounding` SSE frame.
+ *  Mirrors lib/dante/grounding.ts's GroundingScore. */
+export interface GroundingState {
+  score: number;
+  tier: "strong" | "partial" | "general" | "none";
+  summary: string;
+}
+
 export interface StreamState {
   streaming: boolean;
   events: StreamEvent[];
@@ -69,6 +77,8 @@ export interface StreamState {
   /** Citation validator output, populated by the citation_report SSE
    *  frame after final. Null while still verifying. */
   citationReport?: CitationReportState | null;
+  /** Grounding score, populated by the `grounding` SSE frame. */
+  grounding?: GroundingState | null;
   chatId?: string;
   messageId?: string;
   error?: string;
@@ -249,6 +259,14 @@ function reduce(state: StreamState, raw: unknown): StreamState {
         return state;
       }
       return { ...state, citationReport: report };
+    }
+
+    case "grounding": {
+      const g = ev.grounding as GroundingState | undefined;
+      if (!g || typeof g.score !== "number" || typeof g.tier !== "string") {
+        return state;
+      }
+      return { ...state, grounding: g };
     }
 
     case "error":

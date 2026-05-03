@@ -31,9 +31,11 @@ const ALLOWLIST = [
 ];
 // Recorded baseline of remaining violations. PARITY-001. Decrement
 // this number when migrating raw-fetch sites; never increment.
-// Today: 49 (mix of raw `fetch("api.openai.com")` calls in app/api
-// routes and lib/* helpers). Goal: 0.
-const BASELINE = 49;
+// Phase 3+ panel-followup batch dropped this from 49 → 42 by
+// migrating workflow-runner, workflow-ai, workflow-proposals,
+// briefs, calls/sentiment, receptionist-knowledge, receptionist-
+// analysis. Goal: 0.
+const BASELINE = 42;
 
 const PATTERNS: RegExp[] = [
   /from\s+["']openai["']/,

@@ -1,6 +1,6 @@
 import { ReceptionistAnswer } from "@/lib/receptionist";
+import { complete as llmComplete } from "@/lib/llm/client";
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const ANALYSIS_MODEL =
   process.env.RECEPTIONIST_ANALYSIS_MODEL ||
   process.env.RECEPTIONIST_COMPLETION_MODEL ||
@@ -13,7 +13,7 @@ export async function generateCallAnalysis(params: {
 }): Promise<string> {
   const { answers, aiResponse, appointmentSummary } = params;
 
-  if (!OPENAI_API_KEY) {
+  if (!process.env.OPENAI_API_KEY) {
     return "Unable to generate analysis because OPENAI_API_KEY is not configured.";
   }
 
@@ -43,35 +43,20 @@ ${appointmentSummary ?? "None"}
 `.trim();
 
   try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: ANALYSIS_MODEL,
-        temperature: 0.4,
-        messages: [
-          {
-            role: "system",
-            content:
-              "You create concise internal summaries for receptionist calls. Focus on facts and next steps.",
-          },
-          { role: "user", content: prompt },
-        ],
-      }),
+    const response = await llmComplete({
+      model: ANALYSIS_MODEL,
+      temperature: 0.4,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You create concise internal summaries for receptionist calls. Focus on facts and next steps.",
+        },
+        { role: "user", content: prompt },
+      ],
+      feature: "receptionist.analysis",
     });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("[receptionist] analysis generation failed:", errText);
-      return "Analysis unavailable due to an upstream error.";
-    }
-
-    const data = await response.json();
-    const content = data?.choices?.[0]?.message?.content?.trim();
-    return content || "Analysis unavailable.";
+    return response.message.content?.trim() || "Analysis unavailable.";
   } catch (error) {
     console.error("[receptionist] analysis generation exception:", error);
     return "Analysis unavailable due to an unexpected error.";

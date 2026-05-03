@@ -24,6 +24,7 @@
 
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { fetchRecentEvents } from "./churn-events";
+import { complete as llmComplete } from "@/lib/llm/client";
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -506,34 +507,25 @@ async function callModel(args: {
   if (args.openaiKey) {
     try {
       const model = "gpt-5";
-      const r = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${args.openaiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model,
-          temperature: 0.2,
-          max_tokens: 1200,
-          response_format: { type: "json_object" },
-          messages: [{ role: "user", content: prompt }],
-        }),
+      const result = await llmComplete({
+        model,
+        temperature: 0.2,
+        maxTokens: 1200,
+        responseFormat: { type: "json_object" },
+        messages: [{ role: "user", content: prompt }],
+        feature: "briefs.generate",
       });
-      if (r.ok) {
-        const d = await r.json();
-        const text = (d.choices?.[0]?.message?.content || "").trim();
-        if (text) {
-          return {
-            text,
-            model,
-            inputTokens: d.usage?.prompt_tokens ?? 0,
-            outputTokens: d.usage?.completion_tokens ?? 0,
-          };
-        }
+      const text = (result.message.content || "").trim();
+      if (text) {
+        return {
+          text,
+          model,
+          inputTokens: result.usage.promptTokens,
+          outputTokens: result.usage.completionTokens,
+        };
       }
     } catch (e) {
-      console.warn("[briefs] openai threw:", e instanceof Error ? e.message : e);
+      console.warn("[briefs] llm threw:", e instanceof Error ? e.message : e);
     }
   }
 

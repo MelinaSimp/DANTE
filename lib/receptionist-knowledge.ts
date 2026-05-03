@@ -1,6 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { complete as llmComplete } from "@/lib/llm/client";
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const KNOWLEDGE_MODEL =
   process.env.RECEPTIONIST_KNOWLEDGE_MODEL ||
   process.env.HOME_CHAT_MODEL ||
@@ -31,7 +31,7 @@ export async function answerKnowledgeQuestion(
     return "At the moment I don’t have that information handy, but a teammate will gladly help you shortly.";
   }
 
-  if (!OPENAI_API_KEY) {
+  if (!process.env.OPENAI_API_KEY) {
     return "Our assistant can’t access the knowledge base right now, but we’ll follow up with the answer.";
   }
 
@@ -57,30 +57,17 @@ Answer using a friendly, concise tone.
 `.trim();
 
   try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: KNOWLEDGE_MODEL,
-        temperature: 0.4,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-      }),
+    const response = await llmComplete({
+      model: KNOWLEDGE_MODEL,
+      temperature: 0.4,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      feature: "receptionist.knowledge",
+      workspaceId,
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("[receptionist] Knowledge answer error:", errorText);
-      return "I’ll make sure a teammate follows up with those details shortly.";
-    }
-
-    const data = await response.json();
-    const answer = data?.choices?.[0]?.message?.content?.trim();
+    const answer = response.message.content?.trim();
     if (!answer) {
       return "I’ll make sure a teammate follows up with those details shortly.";
     }

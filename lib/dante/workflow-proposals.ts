@@ -23,6 +23,7 @@
 
 import type { BookSummary } from "./book-summary";
 import { renderBookSummaryText } from "./book-summary";
+import { complete as llmComplete } from "@/lib/llm/client";
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -181,35 +182,25 @@ Produce three distinct, grounded proposals.`;
 
   if (args.openaiKey) {
     const model = "gpt-5";
-    const r = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${args.openaiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        temperature: 0.5,
-        max_tokens: 2500,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: PROPOSE_SYSTEM_PROMPT },
-          { role: "user", content: userMessage },
-        ],
-      }),
+    const result = await llmComplete({
+      model,
+      temperature: 0.5,
+      maxTokens: 2500,
+      responseFormat: { type: "json_object" },
+      messages: [
+        { role: "system", content: PROPOSE_SYSTEM_PROMPT },
+        { role: "user", content: userMessage },
+      ],
+      feature: "workflow.propose",
     });
-    if (!r.ok) {
-      throw new Error(`OpenAI ${r.status}: ${await r.text()}`);
-    }
-    const d = await r.json();
-    const text = d.choices?.[0]?.message?.content || "";
+    const text = result.message.content || "";
     const parsed = parseProposals(text);
     if (parsed) {
       return {
         proposals: parsed,
         model,
-        input_tokens: d.usage?.prompt_tokens ?? 0,
-        output_tokens: d.usage?.completion_tokens ?? 0,
+        input_tokens: result.usage.promptTokens,
+        output_tokens: result.usage.completionTokens,
       };
     }
   }

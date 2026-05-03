@@ -28,10 +28,12 @@ import { runAgent, type AgentEvent } from "@/lib/dante/agent";
 import {
   buildDanteSystemPrompt,
   getAssistantName,
+  getActivePromptVersion,
 } from "@/lib/dante/system-prompt";
 import { validateCitations } from "@/lib/dante/citation-validator";
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit/limiter";
 import { getVerticalSpecLoose } from "@/lib/industry/vertical-spec";
+import { computeGroundingScore } from "@/lib/dante/grounding";
 import type { AgentStep, AgentToolEntry, StepLogEntry } from "@/lib/dante/workflow-types";
 
 export const dynamic = "force-dynamic";
@@ -306,10 +308,46 @@ export async function POST(req: NextRequest) {
         send({ type: "error", error: runError });
       }
 
-      // Persist the assistant turn and emit a `final` event with the
-      // canonical data so the client can replace its in-memory
-      // streaming state with the persisted version (matches what
-      // /chat/[id] would show on a hard refresh).
+      // Citation validation runs BEFORE persistence now (Phase 3+
+      // panel fix #2: persisted threads need the report attached so
+      // chips render decorated when the user opens yesterday's
+      // chat). Cost is small — one validator pass before insert
+      // instead of after — and the user sees no latency change
+      // because the validator runs in parallel with the insert
+      // resolution either way.
+      let report: import("@/lib/dante/citation-validator").CitationValidationReport | null = null;
+      if (!runError && assistantContent) {
+        try {
+          report = await validateCitations({
+            workspaceId: profile.workspace_id!,
+            responseText: assistantContent,
+            trace: log as Array<{
+              step_id: string;
+              step_name: string;
+              status: string;
+              output?: unknown;
+            }>,
+          });
+        } catch (err) {
+          console.warn("[ask] citation validation failed:", err);
+        }
+      }
+
+      // Compute grounding score (panel fix #7). Surfaces below the
+      // response and persists alongside the message so audits can
+      // answer "what % of advisor answers were strongly grounded
+      // last week."
+      const grounding = computeGroundingScore({
+        responseText: assistantContent,
+        trace: log as Array<{ step_name?: string }>,
+        citationReport: report,
+      });
+
+      const promptVersion = getActivePromptVersion(industry);
+
+      // Persist the assistant turn with citation report + prompt
+      // version + grounding score. /chat/[id] reads these on
+      // refresh so chips render decorated even hours later.
       const { data: persisted } = await supabaseAdmin
         .from("dante_chat_messages")
         .insert({
@@ -317,6 +355,9 @@ export async function POST(req: NextRequest) {
           role: "assistant",
           content: assistantContent,
           trace: log,
+          citation_report: report,
+          prompt_version: promptVersion,
+          grounding_score: grounding.score,
         })
         .select("id")
         .single();
@@ -328,31 +369,11 @@ export async function POST(req: NextRequest) {
         content: assistantContent,
         trace: log,
         error: runError,
+        prompt_version: promptVersion,
       });
 
-      // Citation validation (Phase 1 W1.1) — runs after the final
-      // frame so the UI shows the answer immediately, then decorates
-      // citation chips with verified / unverified state when this
-      // returns. Validator never throws on the happy path; on DB
-      // error every check ships as `unverifiable` and the UI shows
-      // a "couldn't verify" badge instead of a red flag.
-      if (!runError && assistantContent) {
-        try {
-          const report = await validateCitations({
-            workspaceId: profile.workspace_id!,
-            responseText: assistantContent,
-            trace: log as Array<{
-              step_id: string;
-              step_name: string;
-              status: string;
-              output?: unknown;
-            }>,
-          });
-          send({ type: "citation_report", report });
-        } catch (err) {
-          console.warn("[ask] citation validation failed:", err);
-        }
-      }
+      if (report) send({ type: "citation_report", report });
+      send({ type: "grounding", grounding });
 
       // Suggested follow-ups — fire AFTER `final` so the UI renders
       // the answer immediately and the suggestions populate a moment

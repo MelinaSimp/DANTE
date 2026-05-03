@@ -30,6 +30,52 @@ export interface MemorySearchInput {
   kinds?: MemoryKind[];
   /** Top-K cap. RPC clamps to [1, 25]. */
   k?: number;
+  /**
+   * Phase 3+ panel fix #5 — boost rows whose metadata.category
+   * matches. Detected from the query when callers don't pass it
+   * explicitly (queries like "what are the Marlows' dealbreakers"
+   * resolve to category="dealbreaker"). Boost is +0.15 on
+   * similarity — small enough that semantic ranking still wins on
+   * a clearly-better non-category hit, large enough to break ties
+   * in favor of the right taxonomy.
+   */
+  category?: string;
+}
+
+// Lightweight intent detection for the optional category boost.
+// Catches the obvious cases — explicit category words in the query.
+// Sophisticated intent extraction is a Phase 4 LLM-classifier job.
+const CATEGORY_KEYWORDS: Record<string, string> = {
+  dealbreaker: "dealbreaker",
+  "deal breaker": "dealbreaker",
+  preference: "preference",
+  preferences: "preference",
+  timeline: "timeline",
+  financing: "financing_status",
+  "pre-approval": "financing_status",
+  preapproval: "financing_status",
+  objection: "objection_handled",
+  "tour feedback": "tour_feedback",
+  showing: "tour_feedback",
+  neighborhood: "neighborhood_interest",
+  // Advisor side
+  risk: "risk_profile",
+  "risk profile": "risk_profile",
+  "life event": "life_event",
+  goal: "goal_change",
+  goals: "goal_change",
+  compliance: "compliance_note",
+  family: "family_context",
+  tax: "tax_situation",
+  estate: "estate_plan",
+};
+
+function inferCategory(query: string): string | undefined {
+  const q = query.toLowerCase();
+  for (const [kw, cat] of Object.entries(CATEGORY_KEYWORDS)) {
+    if (q.includes(kw)) return cat;
+  }
+  return undefined;
 }
 
 const ZERO_VECTOR_1536 = `[${new Array(1536).fill(0).join(",")}]`;
@@ -45,12 +91,16 @@ export async function searchMemory(input: MemorySearchInput): Promise<MemoryHit[
     ? toPgVector(await embedOne(input.query))
     : ZERO_VECTOR_1536;
 
+  // Optional category boost — explicit > inferred > none.
+  const category = input.category ?? inferCategory(input.query);
+
   const { data, error } = await supabaseAdmin.rpc("dante_memory_search", {
     p_workspace_id: input.workspaceId,
     p_query_embedding: queryVec,
     p_contact_id: input.contactId ?? null,
     p_kinds: input.kinds && input.kinds.length > 0 ? input.kinds : null,
     p_limit: k,
+    p_category: category ?? null,
   });
 
   if (error) {

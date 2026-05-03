@@ -10,6 +10,21 @@ const nextConfig: NextConfig = {
     // keeps any lingering external bookmarks alive while we kill the
     // dual-implementation surface for good. (Phase 0, W0.2.)
     { source: "/dashboard/legacy", destination: "/dashboard", permanent: true },
+
+    // Phase 3+ panel fix #12 — soft-rename `/api/dante/*` →
+    // `/api/assistant/*`. We keep the old paths working as 308
+    // redirects so external integrations and the desktop client
+    // (which may have older URLs cached) survive. Both sets of URLs
+    // resolve while consumers migrate; ADR 0003 owns the kill date.
+    //
+    // 308 (not 301) preserves the request method on POST routes —
+    // 301 downgrades POST to GET in some clients, which would break
+    // the streaming /ask endpoint.
+    {
+      source: "/api/assistant/:path*",
+      destination: "/api/dante/:path*",
+      permanent: false, // 307 — preserve method
+    },
   ],
   headers: async () => [
     {

@@ -35,10 +35,14 @@ interface Message {
    *  messages don't have these (we only persist content + trace
    *  today), so older turns render with no follow-ups. */
   followups?: string[];
-  /** Citation validator output, captured from the streaming session.
-   *  Persisted messages don't have these (yet); rendered as null
-   *  when reloaded — chips render without verification decoration. */
+  /** Citation validator output. Phase 3+ panel fix #2: this is now
+   *  persisted on dante_chat_messages.citation_report and read on
+   *  page load via app/dante/chat/[id]/page.tsx. The page passes
+   *  the snake_case column through; we bridge to camelCase here. */
+  citation_report?: unknown;
   citationReport?: import("@/app/dante/streamClient").CitationReportState | null;
+  grounding_score?: number | null;
+  prompt_version?: string | null;
   created_at: string;
 }
 
@@ -164,7 +168,13 @@ export default function ChatThread({
               content={m.content}
               trace={m.trace}
               followups={m.followups || []}
-              citationReport={m.citationReport ?? null}
+              citationReport={
+                // Bridge persisted snake_case → in-memory camelCase
+                // shape so chips decorate identically on reload.
+                (m.citationReport as import("@/app/dante/streamClient").CitationReportState | null | undefined) ??
+                (m.citation_report as import("@/app/dante/streamClient").CitationReportState | null | undefined) ??
+                null
+              }
               onOpenEditor={(c) => setEditorContent(c)}
               onRewrite={(instruction) => onRewriteLast(instruction)}
               onFollowup={(q) => submit(q)}

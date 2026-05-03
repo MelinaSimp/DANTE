@@ -30,6 +30,7 @@ import type {
 import { loadWorkspaceSecrets, redactSecrets, type SecretMap } from "./secrets";
 import { searchArchive, formatHitsForPrompt } from "./archive/search";
 import { runAgent } from "./agent";
+import { complete as llmComplete } from "@/lib/llm/client";
 
 // ── Template resolver ─────────────────────────────────────────
 
@@ -134,27 +135,16 @@ async function runHttp(cfg: {
 async function runOpenAI(cfg: {
   model?: string; system?: string; prompt: string; max_tokens?: number;
 }) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
-  const messages: Array<{ role: string; content: string }> = [];
+  const messages: Array<{ role: "system" | "user"; content: string }> = [];
   if (cfg.system) messages.push({ role: "system", content: cfg.system });
   messages.push({ role: "user", content: cfg.prompt });
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: cfg.model || "gpt-5",
-      messages,
-      max_tokens: Number(cfg.max_tokens) || 800,
-    }),
+  const result = await llmComplete({
+    model: cfg.model || "gpt-5",
+    messages,
+    maxTokens: Number(cfg.max_tokens) || 800,
+    feature: "workflow.openai_node",
   });
-  if (!res.ok) throw new Error(`OpenAI ${res.status}: ${await res.text()}`);
-  const json = await res.json();
-  const text = json.choices?.[0]?.message?.content ?? "";
-  return { text, raw: json };
+  return { text: result.message.content ?? "", raw: result.raw };
 }
 
 async function runQueryClients(

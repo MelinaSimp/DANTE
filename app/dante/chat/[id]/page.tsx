@@ -34,9 +34,14 @@ export default async function ChatPage({
     .maybeSingle();
   if (!chat || chat.user_id !== user.id) redirect("/dante");
 
+  // Phase 3+ panel fix #2 — pull citation_report so chips render
+  // decorated when the user opens yesterday's thread. grounding_score
+  // and prompt_version come along for the ride (audit trail).
   const { data: messages } = await supabaseAdmin
     .from("dante_chat_messages")
-    .select("id, role, content, trace, created_at")
+    .select(
+      "id, role, content, trace, citation_report, grounding_score, prompt_version, created_at",
+    )
     .eq("chat_id", id)
     .order("created_at", { ascending: true });
 
@@ -80,6 +85,9 @@ export default async function ChatPage({
               role: "user" | "assistant" | "tool";
               content: string;
               trace: unknown;
+              citation_report?: unknown;
+              grounding_score?: number | null;
+              prompt_version?: string | null;
               created_at: string;
             }>
           }

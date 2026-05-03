@@ -15,6 +15,8 @@
 // sentiment is a lightweight add-on, and failures here shouldn't affect
 // the grounded summary.
 
+import { complete as llmComplete } from "@/lib/llm/client";
+
 export type SentimentLabel =
   | "positive"
   | "neutral"
@@ -136,25 +138,20 @@ export async function classifyCallSentiment(args: {
     }
     if (!raw && openaiKey) {
       model = "gpt-4o-mini";
-      const r = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${openaiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      try {
+        const result = await llmComplete({
           model,
           temperature: 0,
-          max_tokens: 50,
-          response_format: { type: "json_object" },
+          maxTokens: 50,
+          responseFormat: { type: "json_object" },
           messages: [{ role: "user", content: prompt }],
-        }),
-      });
-      if (r.ok) {
-        const d = await r.json();
-        raw = (d.choices?.[0]?.message?.content || "").trim();
-        inputTokens = d.usage?.prompt_tokens ?? 0;
-        outputTokens = d.usage?.completion_tokens ?? 0;
+          feature: "sentiment.classify",
+        });
+        raw = (result.message.content || "").trim();
+        inputTokens = result.usage.promptTokens;
+        outputTokens = result.usage.completionTokens;
+      } catch {
+        /* fall through to null */
       }
     }
   } catch (e) {

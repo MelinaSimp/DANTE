@@ -27,6 +27,7 @@ import type {
 import type { BookSummary } from "./book-summary";
 import { renderBookSummaryText } from "./book-summary";
 import type { WorkflowProposal } from "./workflow-proposals";
+import { complete as llmComplete } from "@/lib/llm/client";
 
 export interface GeneratedWorkflow {
   name: string;
@@ -257,9 +258,6 @@ export async function generateWorkflow(
         bookSummary?: BookSummary;
       }
 ): Promise<GeneratedWorkflow> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
-
   const prompt = (typeof input === "string" ? input : input.prompt).trim();
   if (!prompt) throw new Error("Prompt required");
   const proposal = typeof input === "string" ? undefined : input.proposal;
@@ -272,28 +270,19 @@ export async function generateWorkflow(
   // seat.
   const userMessage = buildUserMessage(prompt, proposal, bookSummary);
 
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      // GPT-4o is worth the ~3× cost over mini for structured graph output.
-      model: "gpt-5",
-      temperature: 0.2,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: userMessage },
-      ],
-    }),
+  const result = await llmComplete({
+    // GPT-5 is worth the cost over mini for structured graph output.
+    model: "gpt-5",
+    temperature: 0.2,
+    responseFormat: { type: "json_object" },
+    messages: [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: userMessage },
+    ],
+    feature: "workflow.generate",
   });
-
-  if (!res.ok) throw new Error(`OpenAI ${res.status}: ${await res.text()}`);
-  const json = await res.json();
-  const content = json.choices?.[0]?.message?.content;
-  if (typeof content !== "string") throw new Error("OpenAI returned no content");
+  const content = result.message.content;
+  if (typeof content !== "string") throw new Error("LLM returned no content");
 
   let parsed: unknown;
   try { parsed = JSON.parse(content); }
