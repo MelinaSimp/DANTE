@@ -18,6 +18,7 @@ import { ToastProvider } from "@/components/ui/toast";
 import { ConfirmDialogProvider } from "@/components/ui/confirm-dialog";
 import QueryProvider from "@/lib/query/provider";
 import CommandPalette from "@/components/command-palette/CommandPalette";
+import { ThemeProvider, ThemeScript } from "@/components/theme/ThemeProvider";
 // FloatingDashboardButton was removed in the IA sweep — every workspace
 // page now has an inline "← Dashboard" link at the top, so the floating
 // chip was a duplicate affordance. If you need one-off back-chip for a
@@ -67,8 +68,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html
       lang="en"
       className={`${fontUi.variable} ${fontDisplay.variable} ${fontMono.variable}`}
+      suppressHydrationWarning
     >
-      <body className="bg-white min-h-screen antialiased text-[#151515]">
+      <head>
+        {/* Anti-flash: must run before <body> so the .dark class is on
+         * <html> for first paint. See ThemeProvider for the source. */}
+        <ThemeScript />
+      </head>
+      <body className="bg-[var(--canvas)] min-h-screen antialiased text-[var(--ink)]">
+        <ThemeProvider>
         <QueryProvider>
           <ToastProvider>
             <ConfirmDialogProvider>
@@ -78,7 +86,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <Header />
                 </div>
                 <ErrorBoundary>
-                  <main className="relative z-0 bg-white">{children}</main>
+                  <main className="relative z-0 bg-[var(--canvas)]">{children}</main>
                 </ErrorBoundary>
                 <CommandPalette />
                 <PushNotificationManager />
@@ -86,6 +94,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </ConfirmDialogProvider>
           </ToastProvider>
         </QueryProvider>
+        </ThemeProvider>
         <script
           dangerouslySetInnerHTML={{
             __html: `

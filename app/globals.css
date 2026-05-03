@@ -56,6 +56,39 @@
   --font-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
 }
 
+/* Dark theme — applied when <html> carries .dark, set by ThemeProvider's
+ * pre-hydration inline script (anti-flash) and updated when the user
+ * changes the toggle in Settings. The palette aims for a calm, low-
+ * contrast graphite rather than absolute black, with warm-leaning
+ * accents to match the light mode's character. */
+.dark {
+  --canvas: #0b0b0c;
+  --canvas-subtle: #131316;
+  --canvas-muted: #1a1a1f;
+
+  --ink: #ededed;
+  --ink-muted: #a8a8a3;
+  --ink-subtle: #6f6f6a;
+
+  --rule: #232328;
+  --rule-strong: #35353f;
+
+  --accent: #6f8df0;
+  --accent-soft: #1c2540;
+
+  --verified: #4ade80;
+  --verified-soft: #13291a;
+  --flag: #f5b041;
+  --flag-soft: #2b1e0d;
+  --danger: #ef4444;
+  --danger-soft: #2a1010;
+}
+
+/* Make the system honor color-scheme so native scrollbars + form
+ * controls flip too. */
+:root { color-scheme: light; }
+.dark { color-scheme: dark; }
+
 /* Default body: white + UI sans. Individual pages override as needed. */
 html,
 body {

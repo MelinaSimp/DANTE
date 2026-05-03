@@ -16,6 +16,7 @@ import {
   Activity,
   MessageSquare,
   Cpu,
+  Palette,
 } from "lucide-react";
 
 const PhoneNumbersCard = lazy(() => import("./PhoneNumbersCard"));
@@ -23,11 +24,21 @@ const ZoomCard = lazy(() => import("./ZoomCard"));
 const MailboxCard = lazy(() => import("./MailboxCard"));
 const SkillsCard = lazy(() => import("./SkillsCard"));
 const ModelCard = lazy(() => import("./ModelCard"));
+const AppearanceCard = lazy(() => import("./AppearanceCard"));
 
 import BillingCard from "./BillingCard";
 import ExportDataCard from "./ExportDataCard";
 
-type PanelId = "phone_numbers" | "zoom" | "google" | "microsoft" | "skills" | "billing" | "export" | "model";
+type PanelId =
+  | "phone_numbers"
+  | "zoom"
+  | "google"
+  | "microsoft"
+  | "skills"
+  | "billing"
+  | "export"
+  | "model"
+  | "appearance";
 
 const PANEL_TITLES: Record<PanelId, string> = {
   phone_numbers: "Phone numbers",
@@ -38,6 +49,7 @@ const PANEL_TITLES: Record<PanelId, string> = {
   billing: "Billing & subscription",
   export: "Export data",
   model: "Agent model",
+  appearance: "Appearance",
 };
 
 const PANEL_SUBTITLES: Record<PanelId, string> = {
@@ -55,6 +67,8 @@ const PANEL_SUBTITLES: Record<PanelId, string> = {
   export: "Download all workspace records as a single JSON file.",
   model:
     "Choose the model that powers Dante, Vergil, SMS, and every workflow agent step in this workspace.",
+  appearance:
+    "Light, dark, or follow your system. Persists per-device.",
 };
 
 interface NavItem {
@@ -75,6 +89,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { name: "Microsoft", icon: Mail, panelId: "microsoft", group: "Workspace" },
   { name: "Dante skills", icon: Sparkles, panelId: "skills", group: "Workspace" },
   { name: "Billing", icon: CreditCard, panelId: "billing", group: "Workspace" },
+  { name: "Appearance", icon: Palette, panelId: "appearance", group: "Workspace" },
   { name: "Agent model", icon: Cpu, panelId: "model", adminOnly: true, group: "Administration" },
   { name: "Export", icon: Download, panelId: "export", adminOnly: true, group: "Administration" },
 ];
@@ -144,6 +159,8 @@ export default function SettingsOrbClient({
         return <ExportDataCard />;
       case "model":
         return <ModelCard isAdmin={isAdmin} />;
+      case "appearance":
+        return <AppearanceCard />;
       default:
         return null;
     }
