@@ -10,7 +10,7 @@ is the standing review at sprint planning.
 - Δ = `|advisor − realtor|`. Δ ≥ 2 is a parity flag.
 - Status: ✅ on track | ⚠️ flagged | ❌ blocked
 
-**Last reviewed:** 2026-05-02 (Phase 0 baseline)
+**Last reviewed:** 2026-05-02 (Phase 0–3 execution snapshot)
 
 ---
 
@@ -18,24 +18,28 @@ is the standing review at sprint planning.
 
 | Surface | Advisor | Realtor | Δ | Status | Notes |
 |---|---:|---:|---:|---|---|
-| Industry config (`lib/industry/config.ts`) | 4 | 4 | 0 | ✅ | Marketing copy + starter questions at parity. Tool whitelists per-vertical pending (Phase 3 W3.5). |
-| Assistant chat (`/dante`) | 4 | 3 | 1 | ✅ | Same route, persona flips on `workspace.industry`. URL rename to `/assistant` deferred (ADR 0003). |
-| Dashboard surface | 4 | 2 | 2 | ⚠️ | Advisor metrics (AUM, churn, retention) shipped. Realtor pipeline metrics (DOM, GCI, listings) pending. |
-| Heavy entities schema | 4 | 1 | 3 | ❌ | `wm_*` tables (opportunities, tax insights, intelligence profiles) deep. `re_*` tables not yet created (Phase 2 W2.4). |
-| Polymorphic contacts | 2 | 2 | 0 | ⚠️ | `contacts` table shared. `contact_extensions` JSONB pending (Phase 2). |
-| Onboarding empty states | 3 | 2 | 1 | ⚠️ | Both ask industry; advisor has clearer first-step guidance. |
-| Memory taxonomy | 3 | 3 | 0 | ✅ | `dante_memory.kind` is generic. Per-vertical `category` extension pending (Phase 3 W3.5). |
-| Skills library | 3 | 3 | 0 | ✅ | 3 seeded per vertical. Target: 20+ each (Phase 3 W3.5). |
-| Document vault | 4 | 3 | 1 | ✅ | Vault works for both. Versioning pending (Phase 2 W2.3). |
-| System prompt depth | 4 | 3 | 1 | ⚠️ | Dante prompt more iterated than Vergil. Parity rewrite pending (Phase 3 W3.5). |
-| Eval coverage | 0 | 0 | 0 | ❌ | No eval suite yet. Scaffold pending (Phase 1 W1.4). |
-| Compliance flag taxonomies | 2 | 0 | 2 | ❌ | RIA flags exist informally; realtor (fair housing, disclosure) not built. |
-| Integrations | 2 | 1 | 1 | ⚠️ | Advisor: gmail, holistiplan, wealthbox adapters. Realtor: MLS pending. |
-| Retention defaults | 1 | 1 | 0 | ❌ | No per-workspace retention policy yet. Both verticals affected. |
-| Notification surface | 0 | 0 | 0 | ❌ | No notification center; planned Phase 3. |
-| Per-vertical telemetry | 1 | 1 | 0 | ⚠️ | LLM adapter now logs `feature` tag. Per-vertical segmentation in dashboards TBD. |
-| Supervisor / review queue | 0 | 0 | 0 | ❌ | Phase 1 W1.2/W1.3 builds for both verticals. |
-| Citation validator | 0 | 0 | 0 | ❌ | Phase 1 W1.1 priority — must validate both vault types. |
+| Industry config (`lib/industry/config.ts` + `vertical-spec.ts`) | 5 | 5 | 0 | ✅ | Marketing copy at parity; per-vertical tool whitelists, memory taxonomy, compliance flags, retention defaults shipped (vertical-spec.ts). |
+| Assistant chat (`/dante`) | 4 | 4 | 0 | ✅ | Same route, persona flips on `workspace.industry`. Tool whitelist now per-vertical. URL rename to `/assistant` deferred (ADR 0003). |
+| Dashboard surface | 4 | 2 | 2 | ⚠️ | Advisor metrics shipped. Realtor pipeline metrics (DOM, GCI, listings) pending (PARITY-004). |
+| Heavy entities schema | 4 | 4 | 0 | ✅ | `wm_*` advisor tables + `re_*` realtor tables (re_listings/tours/offers/transactions) at parity. |
+| Polymorphic contacts | 4 | 4 | 0 | ✅ | `contact_extensions` JSONB shipped — RIA: AUM/risk; realtor: stage/price range. |
+| Onboarding empty states | 3 | 2 | 1 | ⚠️ | Realtor empty states pending (PARITY-010). |
+| Memory taxonomy | 5 | 5 | 0 | ✅ | Per-vertical category lists in vertical-spec.ts. Persisted via `dante_memory.metadata.category`. |
+| Skills library | 3 | 3 | 0 | ✅ | 3 seeded per vertical; expansion targets registered. Full 20+ pending (PARITY-005 follow-up). |
+| Document vault | 5 | 5 | 0 | ✅ | Vault works for both. Versioning shipped (`dante_archive_versions`). |
+| System prompt depth | 5 | 5 | 0 | ✅ | `prompts/dante-v3.md` and `prompts/vergil-v3.md` at parity depth (length, sections, exemplars). Versioned in repo. |
+| Eval coverage | 4 | 4 | 0 | ✅ | 10 advisor + 10 realtor tasks. Runner with parity-delta flag at Δ ≥ 10%. Expansion to 100/100 pending. |
+| Compliance flag taxonomies | 4 | 4 | 0 | ✅ | RIA (4 codes) + realtor (4 codes incl. fair-housing-risk) defined in vertical-spec.ts. Scanner wiring pending (PARITY-007/008). |
+| Integrations | 2 | 1 | 1 | ⚠️ | Advisor adapters present. MLS adapter pending (PARITY-009). |
+| Retention defaults | 4 | 4 | 0 | ✅ | `workspace_retention_policies` shipped; per-vertical defaults defined in vertical-spec.ts. |
+| Notification surface | 0 | 0 | 0 | ❌ | No notification center; planned future Phase 4. |
+| Per-vertical telemetry | 2 | 2 | 0 | ⚠️ | LLM adapter logs `feature` tag. Billing meters carry `vertical` column. Per-vertical dashboards pending. |
+| Supervisor / review queue | 5 | 5 | 0 | ✅ | `outbound_review_queue` for autonomous outputs + memory `review_status` for AI-written facts. Both verticals at parity. |
+| Citation validator | 5 | 5 | 0 | ✅ | Page-bound + quote-substring validation against `dante_archive_chunks`. Wired into `/api/dante/ask` as final SSE frame. |
+| Soft deletes | 4 | 4 | 0 | ✅ | `deleted_at` on contacts, documents, memories, conversations. Retention worker pending. |
+| LLM provider abstraction | 5 | 5 | 0 | ✅ | `lib/llm/client.ts` adapter; 10 SDK sites migrated. ~28 raw-fetch sites tracked under PARITY-001. |
+| Rate limiting | 4 | 4 | 0 | ✅ | Token-bucket per (workspace, route). Wired into `/api/dante/ask`. |
+| Stripe metered billing | 3 | 3 | 0 | ⚠️ | Aggregator skeleton + schema shipped. Live submission gated behind `STRIPE_METERED_ENABLED=1` until SKU surface finalized. |
 
 ---
 

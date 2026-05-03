@@ -31,11 +31,16 @@ import {
 } from "@/lib/dante/system-prompt";
 import { validateCitations } from "@/lib/dante/citation-validator";
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit/limiter";
+import { getVerticalSpecLoose } from "@/lib/industry/vertical-spec";
 import type { AgentStep, AgentToolEntry, StepLogEntry } from "@/lib/dante/workflow-types";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
+// Fallback for workspaces with no industry set yet. Per-vertical
+// tool whitelists come from lib/industry/vertical-spec.ts and are
+// resolved per-request below — keeps the chat surface aligned with
+// whatever the workspace's vertical specifies.
 const DEFAULT_TOOLS: AgentToolEntry[] = [
   "memory.search",
   "archive.search",
@@ -245,13 +250,21 @@ export async function POST(req: NextRequest) {
     : "";
 
   const systemPrompt = buildDanteSystemPrompt({ industry });
+
+  // Per-vertical tool whitelist (Phase 3 W3.5). Defaults match
+  // DEFAULT_TOOLS but the indirection is live so future vertical-
+  // specific tools (mls.search for realtor; portfolio.summarize
+  // for advisor) drop in here without route surgery.
+  const verticalSpec = getVerticalSpecLoose(industry);
+  const tools = verticalSpec.toolWhitelist.builtin as AgentToolEntry[];
+
   const step: AgentStep = {
     id: `chat:${chatId}`,
     type: "agent",
     name: deep ? `Ask ${assistantName} (deep)` : `Ask ${assistantName}`,
     config: {
       objective,
-      tools: DEFAULT_TOOLS,
+      tools: tools.length > 0 ? tools : DEFAULT_TOOLS,
       max_steps: deep ? 20 : 10,
       system: systemPrompt + deepNote,
     },
