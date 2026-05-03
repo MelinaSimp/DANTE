@@ -19,6 +19,8 @@ import {
   Sparkles,
   AlertCircle,
 } from "lucide-react";
+import { useIsRealtor } from "@/lib/industry/use-industry";
+import { RealtorListingsEmpty } from "@/components/empty-states/RealtorEmptyStates";
 
 // Augments the Window type so TypeScript stops complaining about the
 // IPC bridge our Electron preload exposes. Web users see undefined.
@@ -99,6 +101,7 @@ function formatDollars(cents: number | null): string {
 
 export default function PropertiesClient() {
   const router = useRouter();
+  const isRealtor = useIsRealtor();
   const [rows, setRows] = useState<PropertyRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -434,23 +437,29 @@ export default function PropertiesClient() {
             />
           </div>
         ) : rows.length === 0 ? (
-          <div className="card-flat py-16 text-center">
-            <Home
-              className="w-8 h-8 text-[var(--ink-subtle)] mx-auto mb-3"
-              strokeWidth={1.5}
-            />
-            <p className="text-sm text-[var(--ink-muted)] mb-4">
-              No properties yet — add your first listing.
-            </p>
-            {!showCreate && (
-              <button
-                onClick={() => setShowCreate(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-sm font-semibold hover:opacity-90 transition"
-              >
-                <Plus className="w-4 h-4" strokeWidth={1.5} /> New property
-              </button>
-            )}
-          </div>
+          isRealtor ? (
+            <div className="card-flat">
+              <RealtorListingsEmpty />
+            </div>
+          ) : (
+            <div className="card-flat py-16 text-center">
+              <Home
+                className="w-8 h-8 text-[var(--ink-subtle)] mx-auto mb-3"
+                strokeWidth={1.5}
+              />
+              <p className="text-sm text-[var(--ink-muted)] mb-4">
+                No properties yet — add your first listing.
+              </p>
+              {!showCreate && (
+                <button
+                  onClick={() => setShowCreate(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-sm font-semibold hover:opacity-90 transition"
+                >
+                  <Plus className="w-4 h-4" strokeWidth={1.5} /> New property
+                </button>
+              )}
+            </div>
+          )
         ) : (
           <div className="card-flat overflow-hidden">
             <div className="overflow-x-auto">

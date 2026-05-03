@@ -65,6 +65,14 @@
     {
       "path": "/api/sms/cron/briefing",
       "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/admin/retention/run",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/evals/nightly",
+      "schedule": "0 4 * * *"
     }
   ]
 }

@@ -40,10 +40,13 @@ type CitationStatus =
   | "doc_missing"
   | "unverifiable";
 
+type CitationLevel = "strong" | "confirmed" | "provenance";
+
 interface CitationCheckLike {
   marker: string;
   type: "vault" | "memory";
   status: CitationStatus;
+  level?: CitationLevel;
   detail?: string;
 }
 
@@ -117,6 +120,7 @@ export default function CitationRenderer({ content, trace, citationReport }: Pro
                 label={t.raw}
                 tone="vault"
                 status={check?.status}
+                level={check?.level}
                 detail={check?.detail}
                 disabled={!data}
                 onClick={() =>
@@ -133,6 +137,7 @@ export default function CitationRenderer({ content, trace, citationReport }: Pro
               label={t.raw}
               tone="memory"
               status={check?.status}
+              level={check?.level}
               detail={check?.detail}
               disabled={!data}
               onClick={() =>
@@ -182,6 +187,7 @@ function CitationChip({
   disabled,
   onClick,
   status,
+  level,
   detail,
 }: {
   label: string;
@@ -189,33 +195,45 @@ function CitationChip({
   disabled?: boolean;
   onClick: () => void;
   status?: CitationStatus;
+  level?: CitationLevel;
   detail?: string;
 }) {
-  // Base palette is the neutral ink-on-canvas — citations stay quiet
-  // so the prose reads first. Validator status decorates with a
-  // subtle ring (verified) or border tint (failed). Anything not
-  // verified or not failed (unverifiable, no report) renders neutral.
-  const ring =
-    status === "valid"
-      ? "ring-1 ring-emerald-600/30"
-      : status === "missing" ||
-          status === "quote_mismatch" ||
-          status === "page_mismatch" ||
-          status === "doc_missing"
-        ? "border-amber-500/60 bg-amber-50/40"
-        : "";
+  // Phase 4 W4.8 — graduated verification colors.
+  //
+  //   strong       → emerald ring (verified verbatim against cited page/chunk)
+  //   confirmed    → light gold ring (verified verbatim somewhere in doc)
+  //   provenance   → neutral / no ring (document confirmed, quote drifted)
+  //   failed       → amber border + tinted bg (genuine problem)
+  //   no level     → neutral
+  const decoration =
+    status === "valid" && level === "strong"
+      ? "ring-1 ring-emerald-600/40"
+      : status === "valid" && level === "confirmed"
+        ? "ring-1 ring-amber-500/30"
+        : status === "missing" ||
+            status === "quote_mismatch" ||
+            status === "page_mismatch" ||
+            status === "doc_missing"
+          ? "border-amber-500/60 bg-amber-50/40"
+          : "";
   const title = disabled
     ? "Source not in trace"
     : detail
       ? `${detail} — click for source`
-      : "Click to view source";
+      : level === "strong"
+        ? "Verified against cited page — click for source"
+        : level === "confirmed"
+          ? "Verified somewhere in source — click for details"
+          : level === "provenance"
+            ? "Source document confirmed — click for details"
+            : "Click to view source";
   void tone;
   return (
     <button
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className={`mx-0.5 align-baseline inline-flex items-center rounded-[3px] border px-1 py-0 text-[10px] font-mono transition disabled:opacity-50 disabled:cursor-not-allowed bg-[var(--ink)]/[0.04] border-[var(--rule)] text-[var(--ink)] hover:bg-[var(--ink)]/[0.08] ${ring}`}
+      className={`mx-0.5 align-baseline inline-flex items-center rounded-[3px] border px-1 py-0 text-[10px] font-mono transition disabled:opacity-50 disabled:cursor-not-allowed bg-[var(--ink)]/[0.04] border-[var(--rule)] text-[var(--ink)] hover:bg-[var(--ink)]/[0.08] ${decoration}`}
     >
       {label}
     </button>

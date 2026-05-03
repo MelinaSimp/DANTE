@@ -50,10 +50,30 @@ export type CitationStatus =
   | "doc_missing"     // referenced document_id no longer exists
   | "unverifiable";   // DB error / network — could not check
 
+/**
+ * Verification strength tier (Phase 4 W4.8). The validator runs
+ * three nested quote checks; the highest one that succeeds
+ * determines the level surfaced in the audit trail and the chip
+ * ring color:
+ *
+ *   strong       — quote substring matched a chunk on the cited page
+ *   confirmed    — quote substring matched some chunk in the doc
+ *                  (any-chunk or cross-chunk match)
+ *   provenance   — document_id resolves but quote drifted too much
+ *                  to substring-match. Still valid (real doc, real
+ *                  retrieval); soft state for the UI.
+ *
+ * Enterprise tier compliance attestation can require strong-only;
+ * lower tiers accept any non-failed level.
+ */
+export type CitationLevel = "strong" | "confirmed" | "provenance";
+
 export interface CitationCheck {
   marker: string;             // raw marker as it appeared, e.g. "[v1]"
   type: "vault" | "memory";
   status: CitationStatus;
+  /** Verification strength when status is "valid". Undefined for failed states. */
+  level?: CitationLevel;
   /** Free-form note shown in the UI tooltip (`Quote not found in cited chunk`). */
   detail?: string;
   /** Resolved citation (when available) — useful for surfacing source title. */
@@ -413,26 +433,35 @@ function checkVaultMarker(
     }
   }
 
-  // Quote match: multi-tier, best-effort. Used to choose the
-  // strength badge in the detail string, not to fail the check.
+  // Quote match: multi-tier, best-effort. The level reflects which
+  // tier matched. Used to color the chip ring + drive enterprise
+  // strong-only attestation.
   const onPageChunks = cite.page != null
     ? doc.chunks.filter((c) => c.page_number === cite.page)
     : [];
   if (onPageChunks.some((c) => quoteAppearsIn(cite.quote, c.content))) {
-    return base; // strongest: page-scoped chunk match
+    return { ...base, level: "strong" };
   }
   if (doc.chunks.some((c) => quoteAppearsIn(cite.quote, c.content))) {
-    return { ...base, detail: "Verified — quote matched a different chunk than cited page." };
+    return {
+      ...base,
+      level: "confirmed",
+      detail: "Verified — quote matched a different chunk than cited page.",
+    };
   }
   if (quoteAppearsInDocument(cite.quote, doc.chunks)) {
-    return { ...base, detail: "Verified — quote matched across chunk boundaries." };
+    return {
+      ...base,
+      level: "confirmed",
+      detail: "Verified — quote matched across chunk boundaries.",
+    };
   }
 
-  // Document resolved but no quote match. Still valid — the agent
-  // pulled this citation from a real workspace document. Detail
-  // surfaces the soft state for users who care to dig in.
+  // Document resolved but no quote match. Still valid; level
+  // downgrades to "provenance" so the UI ring goes neutral.
   return {
     ...base,
+    level: "provenance",
     detail: `Source document confirmed in vault. Quote text drift between index and chunks (${doc.chunks.length} chunks scanned).`,
   };
 }
@@ -476,7 +505,9 @@ function checkMemoryMarker(
       detail: "Trace memory content diverges from persisted memory.",
     };
   }
-  return base;
+  // Memory verification is binary — content matches or doesn't.
+  // When it does, the level is "strong" (quote IS the persisted row).
+  return { ...base, level: "strong" };
 }
 
 function summarize(checks: CitationCheck[]): CitationValidationReport {

@@ -62,6 +62,7 @@ export function AssistantMessage({
   trace,
   followups,
   citationReport,
+  grounding,
   onOpenEditor,
   onRewrite,
   onFollowup,
@@ -71,6 +72,11 @@ export function AssistantMessage({
   trace: unknown;
   followups: string[];
   citationReport?: CitationReportState | null;
+  /** Phase 4 W4.9 — grounding score from the SSE `grounding` frame
+   *  or persisted on the chat message. Surfaced as a small badge
+   *  below the response so users see "Strongly grounded" / "General
+   *  knowledge" without clicking anything. */
+  grounding?: { tier: "strong" | "partial" | "general" | "none"; score: number; summary: string } | null;
   onOpenEditor: (content: string) => void;
   onRewrite: (instruction: string) => void;
   onFollowup: (q: string) => void;
@@ -111,6 +117,10 @@ export function AssistantMessage({
       <div className="text-[var(--ink)]">
         <MarkdownRenderer content={content} trace={trace} citationReport={citationReport} />
       </div>
+
+      {grounding && grounding.tier !== "none" && (
+        <GroundingBadge grounding={grounding} />
+      )}
 
       <div className="mt-4 flex items-center gap-3 text-xs text-[var(--ink-muted)]">
         <button onClick={onCopy} className="inline-flex items-center gap-1 hover:text-[var(--ink)]">
@@ -347,6 +357,50 @@ export function LiveThinking({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// ── Grounding badge ─────────────────────────────────────────────
+//
+// Phase 4 W4.9. Surfaces lib/dante/grounding.ts's tier as a small
+// chip below the response. Strong = emerald; partial = amber;
+// general = neutral. Click toggles the parts breakdown for users
+// who want to know why the score is what it is.
+
+function GroundingBadge({
+  grounding,
+}: {
+  grounding: { tier: "strong" | "partial" | "general" | "none"; score: number; summary: string };
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const tone =
+    grounding.tier === "strong"
+      ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+      : grounding.tier === "partial"
+        ? "text-amber-700 bg-amber-50 border-amber-200"
+        : "text-[var(--ink-muted)] bg-[var(--canvas-subtle)] border-[var(--rule)]";
+  const label =
+    grounding.tier === "strong"
+      ? "Strongly grounded"
+      : grounding.tier === "partial"
+        ? "Partially grounded"
+        : "General knowledge";
+  return (
+    <div className="mt-3">
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[3px] border text-[10px] font-medium ${tone}`}
+        title={grounding.summary}
+      >
+        <span className="font-mono">{Math.round(grounding.score * 100)}</span>
+        <span>{label}</span>
+      </button>
+      {expanded && (
+        <div className="mt-1.5 text-[11px] text-[var(--ink-muted)] leading-relaxed max-w-prose">
+          {grounding.summary}
+        </div>
+      )}
     </div>
   );
 }

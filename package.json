@@ -12,6 +12,8 @@
     "start": "next start -p 3000",
     "lint": "next lint",
     "check:llm": "tsx scripts/check-llm-imports.ts",
+    "check:schema": "tsx scripts/check-schema.ts",
+    "smoke": "tsx tests/smoke/run.ts",
     "evals": "tsx evals/runner.ts",
     "eval:call-summary": "npx tsx evals/call-summary/runner.ts",
     "electron": "electron .",

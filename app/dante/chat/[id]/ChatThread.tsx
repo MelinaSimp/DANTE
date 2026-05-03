@@ -41,6 +41,7 @@ interface Message {
    *  the snake_case column through; we bridge to camelCase here. */
   citation_report?: unknown;
   citationReport?: import("@/app/dante/streamClient").CitationReportState | null;
+  grounding?: import("@/app/dante/streamClient").GroundingState | null;
   grounding_score?: number | null;
   prompt_version?: string | null;
   created_at: string;
@@ -102,6 +103,7 @@ export default function ChatThread({
         trace: captured.trace,
         followups: captured.followups || [],
         citationReport: captured.citationReport ?? null,
+        grounding: captured.grounding ?? null,
         created_at: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, assistant]);
@@ -174,6 +176,24 @@ export default function ChatThread({
                 (m.citationReport as import("@/app/dante/streamClient").CitationReportState | null | undefined) ??
                 (m.citation_report as import("@/app/dante/streamClient").CitationReportState | null | undefined) ??
                 null
+              }
+              grounding={
+                // For persisted messages we only have grounding_score (numeric);
+                // synthesize a minimal GroundingState so the badge still renders
+                // on reload. Full breakdown only available for live turns.
+                m.grounding ??
+                (typeof m.grounding_score === "number"
+                  ? {
+                      score: m.grounding_score,
+                      tier:
+                        m.grounding_score >= 0.7
+                          ? "strong"
+                          : m.grounding_score >= 0.4
+                            ? "partial"
+                            : "general",
+                      summary: "Persisted grounding score from when this turn was generated.",
+                    }
+                  : null)
               }
               onOpenEditor={(c) => setEditorContent(c)}
               onRewrite={(instruction) => onRewriteLast(instruction)}

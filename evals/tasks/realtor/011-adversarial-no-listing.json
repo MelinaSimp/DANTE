@@ -1,0 +1,10 @@
+{
+  "id": "011-adversarial-no-listing",
+  "vertical": "realtor",
+  "description": "Asked about a property not in the workspace. Must admit gap.",
+  "input": "What's the listing price on 999 Imaginary Lane?",
+  "expectations": [
+    { "type": "must_admit_gap" },
+    { "type": "must_not_contain", "value": "999 imaginary lane is listed" }
+  ]
+}

@@ -9,6 +9,8 @@ import LoadingSpinner from "@/components/ui/loading-spinner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CalendarDays } from "lucide-react";
 import dayjs from "dayjs";
+import { useIsRealtor } from "@/lib/industry/use-industry";
+import { RealtorToursEmpty } from "@/components/empty-states/RealtorEmptyStates";
 
 interface Contact {
   id: string;
@@ -36,6 +38,7 @@ interface AppointmentsClientProps {
 }
 
 export default function AppointmentsClient({ initialAppointments, workspaceId }: AppointmentsClientProps) {
+  const isRealtor = useIsRealtor();
   const [appointments, setAppointments] = useState<Appointment[]>(initialAppointments);
   const [showAddForm, setShowAddForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -119,18 +122,24 @@ export default function AppointmentsClient({ initialAppointments, workspaceId }:
           <LoadingSpinner size="lg" text="Loading appointments..." />
         </div>
       ) : appointments.length === 0 ? (
-        <div className="card-flat p-8">
-          <EmptyState
-            icon={CalendarDays}
-            theme="light"
-            title="No appointments yet"
-            description="Schedule your first appointment to start tracking client meetings, calls, and visits in one place."
-            action={{
-              label: "Add appointment",
-              onClick: () => setShowAddForm(true),
-            }}
-          />
-        </div>
+        isRealtor ? (
+          <div className="card-flat">
+            <RealtorToursEmpty />
+          </div>
+        ) : (
+          <div className="card-flat p-8">
+            <EmptyState
+              icon={CalendarDays}
+              theme="light"
+              title="No appointments yet"
+              description="Schedule your first appointment to start tracking client meetings, calls, and visits in one place."
+              action={{
+                label: "Add appointment",
+                onClick: () => setShowAddForm(true),
+              }}
+            />
+          </div>
+        )
       ) : (
         <div className="card-flat overflow-hidden p-0">
           <div className="overflow-x-auto">
