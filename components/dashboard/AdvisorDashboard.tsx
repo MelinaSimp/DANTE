@@ -32,6 +32,7 @@ import AppShell from "@/components/shell/AppShell";
 import EntityAsk from "@/components/dante/EntityAsk";
 import { BentoGrid, BentoCard } from "@/components/ui/bento-grid";
 import { usePageContext } from "@/components/dante/PageContext";
+import WhatChanged from "@/components/dashboard/WhatChanged";
 import {
   ArrowUpRight,
   ShieldCheck,
@@ -218,6 +219,15 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
             {subtitle}
           </p>
         </div>
+
+        {/* "Since you were last here" — the work-unit panel that
+            answers the question every advisor opens the dashboard
+            with: what needs me today? Self-hides when empty so a
+            quiet morning doesn't render an apologetic empty state.
+            Sits above the stat strip and bento grid because the
+            answer to "what's new" should land before the answer to
+            "how big is my book." */}
+        <WhatChanged />
 
         {/* Stat strip — stripped down, no giant cards. Verified % is
             only meaningful when the grounded_summaries feature is on;
