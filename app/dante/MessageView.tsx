@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 import MarkdownRenderer from "./MarkdownRenderer";
 import { looksLikeDraft, deriveFilenameStem } from "./DocumentPanel";
-import type { StreamState } from "./streamClient";
+import type { StreamState, CitationReportState } from "./streamClient";
 import { buildCitationMap } from "@/lib/dante/citations";
 import AgentPlan from "@/components/dante/AgentPlan";
 
@@ -61,6 +61,7 @@ export function AssistantMessage({
   content,
   trace,
   followups,
+  citationReport,
   onOpenEditor,
   onRewrite,
   onFollowup,
@@ -69,6 +70,7 @@ export function AssistantMessage({
   content: string;
   trace: unknown;
   followups: string[];
+  citationReport?: CitationReportState | null;
   onOpenEditor: (content: string) => void;
   onRewrite: (instruction: string) => void;
   onFollowup: (q: string) => void;
@@ -107,7 +109,7 @@ export function AssistantMessage({
   return (
     <div>
       <div className="text-[var(--ink)]">
-        <MarkdownRenderer content={content} trace={trace} />
+        <MarkdownRenderer content={content} trace={trace} citationReport={citationReport} />
       </div>
 
       <div className="mt-4 flex items-center gap-3 text-xs text-[var(--ink-muted)]">

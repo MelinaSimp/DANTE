@@ -77,6 +77,8 @@ interface AssistantTurn {
   content: string;
   trace: unknown;
   followups: string[];
+  /** Captured from streamState.citationReport at turn finalization. */
+  citationReport?: import("./streamClient").CitationReportState | null;
 }
 
 interface UserTurn {
@@ -220,6 +222,7 @@ export default function AskDante({
         content: captured.finalContent || "(no response)",
         trace: captured.trace,
         followups: captured.followups || [],
+        citationReport: captured.citationReport ?? null,
       };
       setTurns((prev) => [...prev, assistantTurn]);
       setStreamState(initialStreamState());
@@ -414,6 +417,7 @@ export default function AskDante({
                 content={t.content}
                 trace={t.trace}
                 followups={t.followups}
+                citationReport={t.citationReport ?? null}
                 onOpenEditor={(c) => setEditorContent(c)}
                 onRewrite={(instruction) => onRewriteLast(instruction)}
                 onFollowup={(q) => useFollowup(q)}

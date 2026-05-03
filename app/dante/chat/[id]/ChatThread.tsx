@@ -35,6 +35,10 @@ interface Message {
    *  messages don't have these (we only persist content + trace
    *  today), so older turns render with no follow-ups. */
   followups?: string[];
+  /** Citation validator output, captured from the streaming session.
+   *  Persisted messages don't have these (yet); rendered as null
+   *  when reloaded — chips render without verification decoration. */
+  citationReport?: import("@/app/dante/streamClient").CitationReportState | null;
   created_at: string;
 }
 
@@ -93,6 +97,7 @@ export default function ChatThread({
         content: captured.finalContent || "(no response)",
         trace: captured.trace,
         followups: captured.followups || [],
+        citationReport: captured.citationReport ?? null,
         created_at: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, assistant]);
@@ -159,6 +164,7 @@ export default function ChatThread({
               content={m.content}
               trace={m.trace}
               followups={m.followups || []}
+              citationReport={m.citationReport ?? null}
               onOpenEditor={(c) => setEditorContent(c)}
               onRewrite={(instruction) => onRewriteLast(instruction)}
               onFollowup={(q) => submit(q)}

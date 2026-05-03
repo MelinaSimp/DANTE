@@ -16,6 +16,32 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { embedOne, toPgVector } from "@/lib/dante/archive/embed";
 import type { MemoryKind } from "./types";
 
+// Vertical-aware memory category vocabularies. The remember() helper
+// validates a passed `category` against these so a stray category
+// string doesn't silently end up in dante_memory.metadata.category
+// where the eval suite + scorecard wouldn't catch it.
+const ADVISOR_CATEGORIES = new Set([
+  "risk_profile",
+  "life_event",
+  "goal_change",
+  "compliance_note",
+  "family_context",
+  "tax_situation",
+  "estate_plan",
+  "advisor_preference",
+]);
+const REALTOR_CATEGORIES = new Set([
+  "preference",
+  "dealbreaker",
+  "financing_status",
+  "timeline",
+  "objection_handled",
+  "tour_feedback",
+  "neighborhood_interest",
+  "realtor_preference",
+]);
+const ALL_CATEGORIES = new Set([...ADVISOR_CATEGORIES, ...REALTOR_CATEGORIES]);
+
 export interface RememberInput {
   workspaceId: string;
   kind: MemoryKind;
@@ -62,6 +88,22 @@ export interface RememberInput {
    * can override either way via this field.
    */
   reviewStatus?: "pending" | "approved" | "rejected";
+
+  /**
+   * Phase 3 W3.5 — vertical-specific memory category. Validated
+   * against the per-vertical category lists from
+   * lib/industry/vertical-spec.ts. Persisted into
+   * dante_memory.metadata.category so the eval suite, scorecard,
+   * and review-queue UI can group + filter by category.
+   *
+   * Examples:
+   *   advisor: "risk_profile", "life_event", "tax_situation"
+   *   realtor: "preference", "dealbreaker", "tour_feedback"
+   *
+   * Unrecognised categories are dropped silently with a console
+   * warning — the write still succeeds, just without the tag.
+   */
+  category?: string;
 }
 
 const FACT_EMBED_MIN_LEN = 80;
@@ -96,6 +138,18 @@ export async function remember(input: RememberInput): Promise<RememberResult> {
     input.reviewStatus ??
     (input.sourceKind === "manual" ? "approved" : "pending");
 
+  // Validate + serialize the vertical category into metadata.
+  let metadata: Record<string, unknown> | null = null;
+  if (input.category) {
+    if (ALL_CATEGORIES.has(input.category)) {
+      metadata = { category: input.category };
+    } else {
+      console.warn(
+        `[remember] dropping unrecognised category "${input.category}" — see lib/industry/vertical-spec.ts for valid values`,
+      );
+    }
+  }
+
   const { data, error } = await supabaseAdmin
     .from("dante_memory")
     .insert({
@@ -109,6 +163,7 @@ export async function remember(input: RememberInput): Promise<RememberResult> {
       expires_at: input.expiresAt?.toISOString() ?? null,
       embedding,
       review_status: reviewStatus,
+      metadata,
     })
     .select("id")
     .single();

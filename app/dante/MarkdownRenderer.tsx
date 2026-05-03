@@ -14,11 +14,14 @@
 // passthrough is plenty, and avoiding the dependency keeps the
 // bundle slim.
 
-import CitationRenderer from "./CitationRenderer";
+import CitationRenderer, { type CitationReport } from "./CitationRenderer";
 
 interface Props {
   content: string;
   trace: unknown;
+  /** Validator output — passed through to CitationRenderer for chip
+   *  decoration. Null/undefined while validating or unsupported. */
+  citationReport?: CitationReport | null;
 }
 
 interface Segment {
@@ -26,14 +29,21 @@ interface Segment {
   content: string;
 }
 
-export default function MarkdownRenderer({ content, trace }: Props) {
+export default function MarkdownRenderer({ content, trace, citationReport }: Props) {
   const segments = splitTablesOut(content);
 
   return (
     <div className="space-y-4">
       {segments.map((seg, i) =>
         seg.type === "text" ? (
-          <CitationRenderer key={i} content={seg.content} trace={trace} />
+          <CitationRenderer
+            key={i}
+            content={seg.content}
+            trace={trace}
+            // Only attach the report to the first text segment so the
+            // overall summary line appears once, not per-segment.
+            citationReport={i === 0 ? citationReport : null}
+          />
         ) : (
           <TableSegment key={i} markdown={seg.content} trace={trace} />
         ),

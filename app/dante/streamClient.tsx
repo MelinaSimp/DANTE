@@ -38,6 +38,26 @@ export type StreamEvent =
       summary?: string;
     };
 
+/** Citation validator report — populated by the citation_report SSE
+ *  frame. The chat UI decorates citation chips with per-marker
+ *  status using this. See lib/dante/citation-validator.ts. */
+export interface CitationReportState {
+  overall: "valid" | "partial" | "invalid" | "unverifiable" | "no_citations";
+  checks: Array<{
+    marker: string;
+    type: "vault" | "memory";
+    status:
+      | "valid"
+      | "missing"
+      | "quote_mismatch"
+      | "page_mismatch"
+      | "doc_missing"
+      | "unverifiable";
+    detail?: string;
+  }>;
+  counts: { total: number; valid: number; failed: number; unverifiable: number };
+}
+
 export interface StreamState {
   streaming: boolean;
   events: StreamEvent[];
@@ -46,6 +66,9 @@ export interface StreamState {
   /** Suggested follow-up questions, populated by the followups SSE
    *  event a moment after the final answer lands. */
   followups: string[];
+  /** Citation validator output, populated by the citation_report SSE
+   *  frame after final. Null while still verifying. */
+  citationReport?: CitationReportState | null;
   chatId?: string;
   messageId?: string;
   error?: string;
@@ -215,6 +238,17 @@ function reduce(state: StreamState, raw: unknown): StreamState {
         ...state,
         followups: arr.filter((s): s is string => typeof s === "string"),
       };
+    }
+
+    case "citation_report": {
+      // Validator output — quietly attaches to state; renderer picks
+      // it up. If the shape doesn't match what we expect (provider
+      // change), we skip rather than crash.
+      const report = ev.report as CitationReportState | undefined;
+      if (!report || typeof report !== "object" || !Array.isArray(report.checks)) {
+        return state;
+      }
+      return { ...state, citationReport: report };
     }
 
     case "error":

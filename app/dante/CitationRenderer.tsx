@@ -6,12 +6,24 @@
 // markdown text passes through; [v1] / [mem:abc12345] tokens become
 // clickable chips that open a popover with the source row.
 //
-// We resolve citations from the same trace the message was written
-// with — no extra API call. See lib/dante/citations.ts for the
-// tokenizer + lookup builder.
+// Phase 3+ additions:
+//   - Optional `citationReport` prop (from validateCitations() —
+//     surfaced as a `citation_report` SSE frame) decorates each
+//     chip with a per-marker status badge (verified / unverified /
+//     mismatch / missing). Without the report the chips render
+//     as before (no decoration).
+//   - The vault popover now includes a "View source" link that
+//     deep-links into /dante/archive/[id]?page=N so the reviewer
+//     can read the cited page in context.
+//
+// We resolve the per-chip status by walking the report's `checks`
+// array in document order and keying by marker text. The report
+// preserves order so first [v1] in the response maps to the first
+// vault check, etc. Memory markers are keyed the same way.
 
-import { useState } from "react";
-import { BookOpen, Sparkles, X } from "lucide-react";
+import Link from "next/link";
+import { useMemo, useState } from "react";
+import { BookOpen, ExternalLink, Sparkles, X } from "lucide-react";
 import {
   buildCitationMap,
   tokenize,
@@ -20,27 +32,83 @@ import {
   type MemoryCitation,
 } from "@/lib/dante/citations";
 
+type CitationStatus =
+  | "valid"
+  | "missing"
+  | "quote_mismatch"
+  | "page_mismatch"
+  | "doc_missing"
+  | "unverifiable";
+
+interface CitationCheckLike {
+  marker: string;
+  type: "vault" | "memory";
+  status: CitationStatus;
+  detail?: string;
+}
+
+export interface CitationReport {
+  overall:
+    | "valid"
+    | "partial"
+    | "invalid"
+    | "unverifiable"
+    | "no_citations";
+  checks: CitationCheckLike[];
+  counts: {
+    total: number;
+    valid: number;
+    failed: number;
+    unverifiable: number;
+  };
+}
+
 interface Props {
   content: string;
   trace: unknown;
+  /** Validator output — when set, chips decorate with verified state. */
+  citationReport?: CitationReport | null;
 }
 
-export default function CitationRenderer({ content, trace }: Props) {
+export default function CitationRenderer({ content, trace, citationReport }: Props) {
   const map: CitationMap = buildCitationMap(
     Array.isArray(trace) ? (trace as Parameters<typeof buildCitationMap>[0]) : [],
   );
   const tokens = tokenize(content);
   const [popover, setPopover] = useState<
-    | { type: "vault"; data: VaultCitation }
-    | { type: "memory"; data: MemoryCitation }
+    | { type: "vault"; data: VaultCitation; status?: CitationStatus; detail?: string }
+    | { type: "memory"; data: MemoryCitation; status?: CitationStatus; detail?: string }
     | null
   >(null);
+
+  // Walk the report in order, peeling off the next vault/memory
+  // check as we hit each marker in document order. Maps each chip
+  // occurrence to its check (handles repeat markers correctly).
+  const statusByOccurrence = useMemo(() => {
+    if (!citationReport?.checks?.length) return null;
+    const vaultChecks = citationReport.checks.filter((c) => c.type === "vault");
+    const memoryChecks = citationReport.checks.filter((c) => c.type === "memory");
+    let vaultIdx = 0;
+    let memoryIdx = 0;
+    const map: Map<number, CitationCheckLike> = new Map();
+    tokens.forEach((t, i) => {
+      if (t.kind !== "citation") return;
+      if (t.type === "vault" && vaultIdx < vaultChecks.length) {
+        map.set(i, vaultChecks[vaultIdx++]);
+      } else if (t.type === "memory" && memoryIdx < memoryChecks.length) {
+        map.set(i, memoryChecks[memoryIdx++]);
+      }
+    });
+    return map;
+    // tokens is derived from content; safe to depend on the strings.
+  }, [citationReport, tokens]);
 
   return (
     <>
       <div className="text-[var(--ink)] text-sm whitespace-pre-wrap leading-relaxed">
         {tokens.map((t, i) => {
           if (t.kind === "text") return <span key={i}>{t.value}</span>;
+          const check = statusByOccurrence?.get(i);
           if (t.type === "vault") {
             const data = map.vault[t.key];
             return (
@@ -48,8 +116,12 @@ export default function CitationRenderer({ content, trace }: Props) {
                 key={i}
                 label={t.raw}
                 tone="vault"
+                status={check?.status}
+                detail={check?.detail}
                 disabled={!data}
-                onClick={() => data && setPopover({ type: "vault", data })}
+                onClick={() =>
+                  data && setPopover({ type: "vault", data, status: check?.status, detail: check?.detail })
+                }
               />
             );
           }
@@ -60,12 +132,22 @@ export default function CitationRenderer({ content, trace }: Props) {
               key={i}
               label={t.raw}
               tone="memory"
+              status={check?.status}
+              detail={check?.detail}
               disabled={!data}
-              onClick={() => data && setPopover({ type: "memory", data })}
+              onClick={() =>
+                data && setPopover({ type: "memory", data, status: check?.status, detail: check?.detail })
+              }
             />
           );
         })}
       </div>
+
+      {/* Validator summary line — quiet when everything verified, more
+          prominent when something failed. */}
+      {citationReport && citationReport.overall !== "no_citations" && (
+        <CitationSummary report={citationReport} />
+      )}
 
       {popover && (
         <CitationPopover popover={popover} onClose={() => setPopover(null)} />
@@ -74,29 +156,66 @@ export default function CitationRenderer({ content, trace }: Props) {
   );
 }
 
+function CitationSummary({ report }: { report: CitationReport }) {
+  const tone =
+    report.overall === "valid"
+      ? "text-emerald-700/70"
+      : report.overall === "partial" || report.overall === "invalid"
+        ? "text-amber-700"
+        : "text-[var(--ink-subtle)]";
+  const label =
+    report.overall === "valid"
+      ? `All ${report.counts.total} citation${report.counts.total === 1 ? "" : "s"} verified against source.`
+      : report.overall === "partial"
+        ? `${report.counts.valid} of ${report.counts.total} citations verified — ${report.counts.failed} need review.`
+        : report.overall === "invalid"
+          ? `${report.counts.failed} of ${report.counts.total} citations failed verification.`
+          : `${report.counts.total} citation${report.counts.total === 1 ? "" : "s"} could not be verified (system unavailable).`;
+  return (
+    <div className={`mt-2 text-[11px] ${tone}`}>{label}</div>
+  );
+}
+
 function CitationChip({
   label,
   tone,
   disabled,
   onClick,
+  status,
+  detail,
 }: {
   label: string;
   tone: "vault" | "memory";
   disabled?: boolean;
   onClick: () => void;
+  status?: CitationStatus;
+  detail?: string;
 }) {
-  // Neutral ink-on-canvas chip — citations are present-but-quiet so
-  // the prose reads first, the chip second. Tone is conveyed in the
-  // popover header (Vault citation vs Memory citation), not via color.
-  const palette =
-    "bg-[var(--ink)]/[0.04] border-[var(--rule)] text-[var(--ink)] hover:bg-[var(--ink)]/[0.08]";
+  // Base palette is the neutral ink-on-canvas — citations stay quiet
+  // so the prose reads first. Validator status decorates with a
+  // subtle ring (verified) or border tint (failed). Anything not
+  // verified or not failed (unverifiable, no report) renders neutral.
+  const ring =
+    status === "valid"
+      ? "ring-1 ring-emerald-600/30"
+      : status === "missing" ||
+          status === "quote_mismatch" ||
+          status === "page_mismatch" ||
+          status === "doc_missing"
+        ? "border-amber-500/60 bg-amber-50/40"
+        : "";
+  const title = disabled
+    ? "Source not in trace"
+    : detail
+      ? `${detail} — click for source`
+      : "Click to view source";
   void tone;
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      title={disabled ? "Source not in trace" : "Click to view source"}
-      className={`mx-0.5 align-baseline inline-flex items-center rounded-[3px] border px-1 py-0 text-[10px] font-mono transition disabled:opacity-50 disabled:cursor-not-allowed ${palette}`}
+      title={title}
+      className={`mx-0.5 align-baseline inline-flex items-center rounded-[3px] border px-1 py-0 text-[10px] font-mono transition disabled:opacity-50 disabled:cursor-not-allowed bg-[var(--ink)]/[0.04] border-[var(--rule)] text-[var(--ink)] hover:bg-[var(--ink)]/[0.08] ${ring}`}
     >
       {label}
     </button>
@@ -108,8 +227,8 @@ function CitationPopover({
   onClose,
 }: {
   popover:
-    | { type: "vault"; data: VaultCitation }
-    | { type: "memory"; data: MemoryCitation };
+    | { type: "vault"; data: VaultCitation; status?: CitationStatus; detail?: string }
+    | { type: "memory"; data: MemoryCitation; status?: CitationStatus; detail?: string };
   onClose: () => void;
 }) {
   return (
@@ -156,6 +275,35 @@ function CitationPopover({
             <blockquote className="text-sm text-[var(--ink-muted)] border-l-2 border-amber-500/40 pl-3 whitespace-pre-wrap">
               {popover.data.quote}
             </blockquote>
+
+            {/* Validator badge — only renders when the popover has a
+                status (i.e. the chat surface ran the validator). */}
+            {popover.status && popover.status !== "valid" && (
+              <div className="mt-3 text-xs text-amber-700 border-l-2 border-amber-500 pl-3">
+                {popover.detail ?? `Verification: ${popover.status}`}
+              </div>
+            )}
+            {popover.status === "valid" && (
+              <div className="mt-3 text-xs text-emerald-700/80">
+                Verified against source document.
+              </div>
+            )}
+
+            {/* Deep link into the document at the cited page. The
+                /dante/archive/[id] route reads ?page= to jump the
+                viewer to the relevant page on load. */}
+            {popover.data.document_id && (
+              <Link
+                href={`/dante/archive/${popover.data.document_id}${
+                  popover.data.page != null ? `?page=${popover.data.page}` : ""
+                }`}
+                onClick={onClose}
+                className="mt-4 inline-flex items-center gap-1.5 text-xs text-[var(--ink)] hover:text-[var(--accent)] underline-offset-2 hover:underline"
+              >
+                <ExternalLink className="w-3 h-3" strokeWidth={1.5} />
+                View in source document
+              </Link>
+            )}
           </div>
         ) : (
           <div>

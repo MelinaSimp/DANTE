@@ -10,7 +10,7 @@ is the standing review at sprint planning.
 - Δ = `|advisor − realtor|`. Δ ≥ 2 is a parity flag.
 - Status: ✅ on track | ⚠️ flagged | ❌ blocked
 
-**Last reviewed:** 2026-05-02 (Phase 0–3 execution snapshot)
+**Last reviewed:** 2026-05-02 (Phase 0–3+ execution snapshot, post panel check-in)
 
 ---
 
@@ -40,6 +40,13 @@ is the standing review at sprint planning.
 | LLM provider abstraction | 5 | 5 | 0 | ✅ | `lib/llm/client.ts` adapter; 10 SDK sites migrated. ~28 raw-fetch sites tracked under PARITY-001. |
 | Rate limiting | 4 | 4 | 0 | ✅ | Token-bucket per (workspace, route). Wired into `/api/dante/ask`. |
 | Stripe metered billing | 3 | 3 | 0 | ⚠️ | Aggregator skeleton + schema shipped. Live submission gated behind `STRIPE_METERED_ENABLED=1` until SKU surface finalized. |
+| Fair-housing scanner | n/a | 5 | 0 | ✅ | Deterministic regex pass shipped (lib/compliance/fair-housing-scanner.ts). 7 protected classes covered. Model pass stubbed for Phase 4. Tests pass. |
+| Memory category persistence | 5 | 5 | 0 | ✅ | `remember()` writes validated `metadata.category`; per-vertical taxonomy enforced. Indexed jsonb expression. |
+| Citation chip → source viewer | 5 | 5 | 0 | ✅ | Validator report threads from SSE → streamClient → MarkdownRenderer → CitationRenderer. Chips decorate w/ verified state; popover deep-links to /dante/archive/[id]?page=N. |
+| Caching layer | 4 | 4 | 0 | ✅ | TanStack Query mounted at root. Dashboard route migrated as the pattern; other routes opt in opportunistically. |
+| MCP allowlist | 5 | 5 | 0 | ✅ | mcp_servers gains approval_status (pending default). expandMcpTools filters to approved. Admin API at /api/admin/mcp-servers; audit-logged. |
+| Unread tracking | 4 | 4 | 0 | ✅ | user_read_markers table + /api/unread for counts and mark-read. Nav-badge consumers slot in. |
+| OpenAI direct-usage guard | 4 | 4 | 0 | ✅ | scripts/check-llm-imports.ts catches new violations against baseline (49). Decrement-only baseline locks in migrations. |
 
 ---
 
@@ -47,7 +54,7 @@ is the standing review at sprint planning.
 
 | ID | Title | Phase | Owner |
 |---|---|---|---|
-| PARITY-001 | Migrate ~28 remaining raw-fetch OpenAI sites to LLM adapter | Phase 2 cleanup | Backend |
+| PARITY-001 | Drive `check:llm` baseline (currently 49) down to 0 | Ongoing | Backend |
 | PARITY-002 | Rename `/api/dante/*` → `/api/assistant/*` | Phase 2 | Backend |
 | PARITY-003 | Build `re_listings`, `re_tours`, `re_offers`, `re_transactions` schema | Phase 2 W2.4 | Backend |
 | PARITY-004 | Realtor pipeline dashboard metrics (DOM, GCI, listings) | Phase 3 W3.4 | Frontend |

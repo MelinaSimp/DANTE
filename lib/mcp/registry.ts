@@ -27,6 +27,10 @@ async function loadServer(workspaceId: string, name: string): Promise<McpServerR
     .eq("workspace_id", workspaceId)
     .eq("name", name)
     .eq("enabled", true)
+    // Phase 3 W3.8 — workspace-admin allowlist gate. Pending /
+    // rejected servers contribute zero tools and reject calls.
+    // Existing rows were auto-approved by the migration.
+    .eq("approval_status", "approved")
     .maybeSingle();
   if (error || !data) return null;
   return data as McpServerRow;

@@ -16,6 +16,7 @@ import { OnboardingProvider } from "@/components/onboarding/OnboardingProvider";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { ToastProvider } from "@/components/ui/toast";
 import { ConfirmDialogProvider } from "@/components/ui/confirm-dialog";
+import QueryProvider from "@/lib/query/provider";
 // FloatingDashboardButton was removed in the IA sweep — every workspace
 // page now has an inline "← Dashboard" link at the top, so the floating
 // chip was a duplicate affordance. If you need one-off back-chip for a
@@ -67,20 +68,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${fontUi.variable} ${fontDisplay.variable} ${fontMono.variable}`}
     >
       <body className="bg-white min-h-screen antialiased text-[#151515]">
-        <ToastProvider>
-          <ConfirmDialogProvider>
-            <OnboardingProvider>
-              <OfflineIndicator />
-              <div className="hidden">
-                <Header />
-              </div>
-              <ErrorBoundary>
-                <main className="relative z-0 bg-white">{children}</main>
-              </ErrorBoundary>
-              <PushNotificationManager />
-            </OnboardingProvider>
-          </ConfirmDialogProvider>
-        </ToastProvider>
+        <QueryProvider>
+          <ToastProvider>
+            <ConfirmDialogProvider>
+              <OnboardingProvider>
+                <OfflineIndicator />
+                <div className="hidden">
+                  <Header />
+                </div>
+                <ErrorBoundary>
+                  <main className="relative z-0 bg-white">{children}</main>
+                </ErrorBoundary>
+                <PushNotificationManager />
+              </OnboardingProvider>
+            </ConfirmDialogProvider>
+          </ToastProvider>
+        </QueryProvider>
         <script
           dangerouslySetInnerHTML={{
             __html: `
