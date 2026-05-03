@@ -30,6 +30,7 @@ import {
   getAssistantName,
 } from "@/lib/dante/system-prompt";
 import { validateCitations } from "@/lib/dante/citation-validator";
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit/limiter";
 import type { AgentStep, AgentToolEntry, StepLogEntry } from "@/lib/dante/workflow-types";
 
 export const dynamic = "force-dynamic";
@@ -81,6 +82,21 @@ export async function POST(req: NextRequest) {
   const message = (body.message || "").trim();
   if (!message) return jsonError(400, "message required");
   const deep = body.deep === true;
+
+  // Phase 2 W2.5 — workspace-scoped rate limit on the chat surface.
+  // Deep-research turns are more expensive; charge them more tokens
+  // from the same bucket. Default 60 tokens/minute → roughly 1
+  // chat turn per second sustained, with bursts up to 60. Tier
+  // limits land when the SKU surface ships.
+  const rl = await rateLimit({
+    workspaceId: profile.workspace_id,
+    bucket: "dante.ask",
+    cost: deep ? 5 : 1,
+    capacity: 60,
+    refillPerMin: 60,
+  });
+  const rlResp = rateLimitResponse(rl);
+  if (rlResp) return rlResp;
   const contextContactId = body.context_contact_id?.trim() || null;
   const contextContactName = body.context_contact_name?.trim() || null;
   const contextPropertyId = body.context_property_id?.trim() || null;
