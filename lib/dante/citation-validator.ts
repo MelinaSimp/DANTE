@@ -179,8 +179,18 @@ interface ArchiveChunkLookup {
 /**
  * Pulls the chunks referenced in vault citations and the page_count
  * of their parent documents in one round-trip. Returns a map keyed
- * by document_id. Caller passes the unique document_ids from the
- * citation map.
+ * by document_id (which for Drift's current schema is vault_items.id).
+ *
+ * Drift's archive surface is called "archive" but the underlying
+ * tables are vault_items + vault_item_chunks (the older naming
+ * survives in the schema). The dante_archive_search RPC reads from
+ * these, so document_ids the validator receives from vault.cite
+ * are vault_items.id values.
+ *
+ * vault_items has no page_count column — we derive it from
+ * max(page_number) across chunks, falling back to null when no
+ * chunk has a page_number set. The page-bound check in the caller
+ * tolerates null page_count gracefully.
  */
 async function fetchVaultContext(
   workspaceId: string,
@@ -189,43 +199,55 @@ async function fetchVaultContext(
   const result = new Map<string, { page_count: number | null; chunks: ArchiveChunkLookup[] }>();
   if (documentIds.length === 0) return result;
 
-  // Documents — for page_count and existence check.
+  // Documents — confirm the cited document_ids exist in this
+  // workspace's vault. vault_items is the canonical table.
   const { data: docs, error: docErr } = await supabaseAdmin
-    .from("dante_archive_documents")
-    .select("id, page_count")
+    .from("vault_items")
+    .select("id")
     .eq("workspace_id", workspaceId)
     .in("id", documentIds);
   if (docErr) {
-    // Bubble up; caller catches and emits "unverifiable".
     throw new Error(`citation-validator: docs lookup failed: ${docErr.message}`);
   }
   for (const d of docs || []) {
-    result.set((d as { id: string }).id, {
-      page_count: (d as { page_count: number | null }).page_count ?? null,
-      chunks: [],
-    });
+    result.set((d as { id: string }).id, { page_count: null, chunks: [] });
   }
 
-  // Chunks — content + page_number for the quote/page checks.
+  // Chunks — content + page_number for the quote/page checks. FK
+  // column is `item_id`, not `document_id`.
   const { data: chunks, error: chunkErr } = await supabaseAdmin
-    .from("dante_archive_chunks")
-    .select("document_id, page_number, content")
+    .from("vault_item_chunks")
+    .select("item_id, page_number, content")
     .eq("workspace_id", workspaceId)
-    .in("document_id", documentIds);
+    .in("item_id", documentIds);
   if (chunkErr) {
     throw new Error(`citation-validator: chunks lookup failed: ${chunkErr.message}`);
   }
   for (const c of chunks || []) {
-    const row = c as { document_id: string; page_number: number | null; content: string };
-    const entry = result.get(row.document_id);
+    const row = c as { item_id: string; page_number: number | null; content: string };
+    const entry = result.get(row.item_id);
     if (!entry) continue;
     entry.chunks.push({
-      document_id: row.document_id,
+      document_id: row.item_id,
       page_number: row.page_number,
       content: row.content,
-      document_page_count: entry.page_count,
+      document_page_count: null,
     });
   }
+
+  // Derive page_count from observed chunks. Useful for the
+  // page-bound sanity check; null when no chunk has a page_number.
+  for (const entry of result.values()) {
+    const maxPage = entry.chunks.reduce(
+      (max, c) => (c.page_number != null && c.page_number > max ? c.page_number : max),
+      0,
+    );
+    if (maxPage > 0) {
+      entry.page_count = maxPage;
+      for (const c of entry.chunks) c.document_page_count = maxPage;
+    }
+  }
+
   return result;
 }
 
