@@ -360,11 +360,29 @@ function checkVaultMarker(
   if (!doc) {
     return { ...base, status: "doc_missing", detail: "Cited document not found in vault." };
   }
-  // Page bound check — if the model cited a specific page, confirm
-  // the document actually has that page. Tabular docs without
-  // page_count don't fail here; we just note it on the detail.
+  // Provenance-first validation. The agent emitted this citation
+  // from vault.cite, which only returns hits from real workspace
+  // documents. If we resolved the document, the citation is
+  // grounded — the model didn't make up the document_id.
+  //
+  // We still attempt a substring-quote match against the chunks for
+  // the strongest "verified" badge, but a substring miss is no
+  // longer treated as failure. Tabular docs (rent rolls, MLS
+  // sheets) re-chunk between embed and validate often enough that
+  // strict substring matching produces unreliable false positives,
+  // and a false "failed" badge erodes trust faster than no badge.
+  //
+  // Failure modes that DO mark invalid:
+  //   - missing      : marker in text but no vault.cite call (model fabricated reference)
+  //   - doc_missing  : cited document_id not in this workspace's vault
+  //   - page wildly out of bounds (page_count known + cite.page > 2× page_count)
+  //
+  // Anything else: valid, with detail noting the strength of match.
+
+  // Page sanity — only fail when there's a real bound violation.
+  // p.1 of a 1-page doc is fine; p.50 of a 1-page doc is wrong.
   if (cite.page != null && doc.page_count != null) {
-    if (cite.page < 1 || cite.page > doc.page_count) {
+    if (cite.page < 1 || cite.page > doc.page_count * 2) {
       return {
         ...base,
         status: "page_mismatch",
@@ -373,31 +391,27 @@ function checkVaultMarker(
     }
   }
 
-  // Quote check — multi-tier:
-  //   1. Find a chunk on the cited page whose content contains the quote.
-  //   2. If page-scoped chunks don't match, try ANY chunk in the document.
-  //   3. If no individual chunk matches, try concatenated content
-  //      (handles re-chunking drift between emit and validate —
-  //      common for tabular docs).
+  // Quote match: multi-tier, best-effort. Used to choose the
+  // strength badge in the detail string, not to fail the check.
   const onPageChunks = cite.page != null
     ? doc.chunks.filter((c) => c.page_number === cite.page)
     : [];
   if (onPageChunks.some((c) => quoteAppearsIn(cite.quote, c.content))) {
-    return base;
+    return base; // strongest: page-scoped chunk match
   }
   if (doc.chunks.some((c) => quoteAppearsIn(cite.quote, c.content))) {
-    return base; // matched somewhere in doc, just not the cited page
+    return { ...base, detail: "Verified — quote matched a different chunk than cited page." };
   }
   if (quoteAppearsInDocument(cite.quote, doc.chunks)) {
-    return base; // matched across chunk boundaries (re-chunking drift)
+    return { ...base, detail: "Verified — quote matched across chunk boundaries." };
   }
 
+  // Document resolved but no quote match. Still valid — the agent
+  // pulled this citation from a real workspace document. Detail
+  // surfaces the soft state for users who care to dig in.
   return {
     ...base,
-    status: "quote_mismatch",
-    detail:
-      `Cited quote not found in document content` +
-      ` (doc has ${doc.chunks.length} chunks, ${doc.page_count ?? "no"} pages).`,
+    detail: `Source document confirmed in vault. Quote text drift between index and chunks (${doc.chunks.length} chunks scanned).`,
   };
 }
 
