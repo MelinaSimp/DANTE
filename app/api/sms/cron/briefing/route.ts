@@ -27,10 +27,11 @@ Use memory.search and clients.query to ground each line. No greeting, no sign-of
 
 async function handle(request: NextRequest) {
   const url = new URL(request.url);
+  // Header-only cron auth — query-param fallback removed (logs leak).
   const auth = request.headers.get("authorization") || "";
   const bearer = auth.replace(/^Bearer\s+/i, "");
   const secret = process.env.CRON_SECRET;
-  if (secret && bearer !== secret && url.searchParams.get("key") !== secret) {
+  if (secret && bearer !== secret) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

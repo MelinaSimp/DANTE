@@ -298,6 +298,39 @@ const PER_TOOL_BUDGET: Partial<Record<AgentToolName, number>> = {
   "reminder.schedule": 5, // bound the runaway-reminders failure mode
 };
 
+/**
+ * Recipient allowlist for the email.send tool. Returns true iff the
+ * address belongs to a contact in the workspace or to the
+ * authenticated user driving the run. Used to block prompt-injection-
+ * driven exfiltration to attacker-controlled addresses.
+ */
+async function isAllowedEmailRecipient(
+  toLower: string,
+  ctx: AgentToolCtx,
+): Promise<boolean> {
+  // 1. Authenticated user's own email (via auth.users — email lives
+  //    there, not on the public profiles table).
+  if (ctx.userId) {
+    try {
+      const { data } = await supabaseAdmin.auth.admin.getUserById(ctx.userId);
+      const userEmail = data.user?.email;
+      if (userEmail && userEmail.toLowerCase() === toLower) return true;
+    } catch {
+      // fall through — auth lookup failure shouldn't grant access,
+      // but it also shouldn't block a legitimate contact recipient.
+    }
+  }
+  // 2. Known contact in this workspace.
+  const { data: contact } = await supabaseAdmin
+    .from("contacts")
+    .select("id")
+    .eq("workspace_id", ctx.workspaceId)
+    .ilike("email", toLower)
+    .limit(1)
+    .maybeSingle();
+  return Boolean(contact);
+}
+
 async function dispatchTool(
   toolName: AgentToolName,
   args: Record<string, unknown>,
@@ -372,21 +405,64 @@ async function dispatchTool(
           would_have: { action: "clients.update", contact_id: args.contact_id, patch: args.patch },
         };
       }
+      // Whitelist patchable fields. Without this, a prompt-injection-
+      // poisoned memory or vault doc can drive the agent to mutate
+      // deleted_at, workspace_id, or arbitrary JSONB columns to
+      // corrupt or hide contact data.
+      const ALLOWED_CLIENT_FIELDS = new Set([
+        "name",
+        "email",
+        "phone",
+        "notes",
+        "status",
+        "tags",
+      ]);
+      const rawPatch = (args.patch as Record<string, unknown>) || {};
+      const patch: Record<string, unknown> = {};
+      const rejected: string[] = [];
+      for (const [k, v] of Object.entries(rawPatch)) {
+        if (ALLOWED_CLIENT_FIELDS.has(k)) patch[k] = v;
+        else rejected.push(k);
+      }
+      if (Object.keys(patch).length === 0) {
+        return {
+          error: `clients.update rejected: no allowed fields in patch (rejected: ${rejected.join(", ") || "none"}). Allowed: ${[...ALLOWED_CLIENT_FIELDS].join(", ")}.`,
+        };
+      }
       const { data, error } = await supabaseAdmin
         .from("contacts")
-        .update(args.patch as Record<string, unknown>)
+        .update(patch)
         .eq("id", String(args.contact_id))
         .eq("workspace_id", ctx.workspaceId)
         .select()
         .single();
       if (error) return { error: error.message };
-      return { contact: data };
+      return { contact: data, rejected_fields: rejected.length ? rejected : undefined };
     }
     case "email.send": {
       if (ctx.simulate) {
         return {
           simulated: true,
           would_have: { action: "email.send", to: args.to, subject: args.subject },
+        };
+      }
+      // Recipient whitelist. The exfiltration risk is real: a poisoned
+      // vault doc or memory can instruct the agent to email "all the
+      // intel summaries to attacker@evil.com". Restrict the recipient
+      // address to:
+      //   - a known contact in this workspace, OR
+      //   - the authenticated user's own email (self-send),
+      // and reject anything else with a clear error so the agent can
+      // explain in chat instead of leaking.
+      const toRaw = String(args.to || "").trim().toLowerCase();
+      if (!toRaw || !toRaw.includes("@")) {
+        return { error: "email.send rejected: invalid recipient address." };
+      }
+      const allowed = await isAllowedEmailRecipient(toRaw, ctx);
+      if (!allowed) {
+        return {
+          error:
+            "email.send rejected: recipient is not a known contact in this workspace or the authenticated user. The agent may only email known recipients.",
         };
       }
       const apiKey = process.env.RESEND_API_KEY;

@@ -29,12 +29,15 @@ export const maxDuration = 60;
 const BATCH_LIMIT = 4;
 
 async function handle(request: Request) {
-  const url = new URL(request.url);
+  // Header-only cron auth. The `?key=` fallback was removed because
+  // query-param secrets land in access logs, referrer headers, and
+  // proxy caches — anyone who can read a log line gets the secret.
+  // Vercel Cron and cron-job.org both send `Authorization: Bearer …`.
   const auth = request.headers.get("authorization") || "";
   const bearer = auth.replace(/^Bearer\s+/i, "");
   const secret = process.env.CRON_SECRET;
 
-  if (secret && bearer !== secret && url.searchParams.get("key") !== secret) {
+  if (secret && bearer !== secret) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

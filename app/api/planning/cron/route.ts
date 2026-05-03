@@ -2,8 +2,10 @@
 // contact in every workspace. Wired in vercel.json to fire weekly
 // on Mondays at 5am UTC.
 //
-// Auth: Authorization: Bearer <CRON_SECRET> (or ?key=…). Same
-// guardrail as /api/dante/cron/tick.
+// Auth: Authorization: Bearer <CRON_SECRET> (header only — the
+// `?key=` query-param fallback was removed because query-string
+// secrets land in access logs and referrer headers). Same guardrail
+// as /api/dante/cron/tick.
 //
 // We iterate workspaces because the analyzers are workspace-scoped
 // (they read planning_signals + planning_runs, both scoped). One
@@ -18,12 +20,11 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 async function handle(request: NextRequest) {
-  const url = new URL(request.url);
   const auth = request.headers.get("authorization") || "";
   const bearer = auth.replace(/^Bearer\s+/i, "");
   const secret = process.env.CRON_SECRET;
 
-  if (secret && bearer !== secret && url.searchParams.get("key") !== secret) {
+  if (secret && bearer !== secret) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

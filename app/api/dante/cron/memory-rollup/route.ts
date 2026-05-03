@@ -38,12 +38,13 @@ const MAX_CONTACTS_PER_WORKSPACE = 50;
 const MAX_EPISODES_PER_CONTACT = 30;
 
 function authOk(request: Request): boolean {
-  const url = new URL(request.url);
+  // Header-only cron auth — the `?key=` fallback was removed because
+  // query-param secrets get logged.
   const auth = request.headers.get("authorization") || "";
   const bearer = auth.replace(/^Bearer\s+/i, "");
   const secret = process.env.CRON_SECRET;
   if (!secret) return true; // dev: open
-  return bearer === secret || url.searchParams.get("key") === secret;
+  return bearer === secret;
 }
 
 function isoWeekKey(d: Date): string {

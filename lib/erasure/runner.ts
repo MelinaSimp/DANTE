@@ -51,6 +51,21 @@ export async function executeErasure(
 ): Promise<ErasureResult> {
   const initiatedAt = new Date().toISOString();
 
+  // Legal hold short-circuits erasure for both scopes. A workspace
+  // under hold (litigation, examination, regulatory inquiry) must
+  // preserve records even if a user files a GDPR/CCPA right-to-
+  // erasure request — the hold is the higher-priority obligation.
+  // The retention worker already respects this; the erasure path
+  // did not, which is the gap this guard closes.
+  const { data: ws } = await supabaseAdmin
+    .from("workspaces")
+    .select("legal_hold")
+    .eq("id", input.workspaceId)
+    .maybeSingle();
+  if ((ws as { legal_hold?: boolean } | null)?.legal_hold) {
+    throw new Error("erasure_blocked_legal_hold");
+  }
+
   if (input.scope === "user") {
     return executeUserErasure(input, initiatedAt);
   }

@@ -13,8 +13,10 @@
 //      and send_at <= now(), fire via Resend, mark sent (or failed
 //      with the error captured for the user to see).
 //
-// Auth: Authorization: Bearer <CRON_SECRET> (or ?key=). Set
-// CRON_SECRET in env, configure Vercel Cron in vercel.json.
+// Auth: Authorization: Bearer <CRON_SECRET> (header only — `?key=`
+// fallback was removed because query-param secrets leak via access
+// logs and referrer headers). Set CRON_SECRET in env, configure
+// Vercel Cron in vercel.json.
 
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
@@ -24,12 +26,12 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 function authOk(request: Request) {
-  const url = new URL(request.url);
+  // Header-only cron auth — `?key=` fallback removed (logs leak).
   const auth = request.headers.get("authorization") || "";
   const bearer = auth.replace(/^Bearer\s+/i, "");
   const secret = process.env.CRON_SECRET;
   if (!secret) return true; // dev: open
-  return bearer === secret || url.searchParams.get("key") === secret;
+  return bearer === secret;
 }
 
 async function scan(): Promise<{ proposed: number }> {

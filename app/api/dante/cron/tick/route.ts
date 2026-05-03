@@ -6,9 +6,11 @@
 // UTC minute, and fire the run if it matches.
 //
 // Guardrails:
-//   • Requires `Authorization: Bearer <CRON_SECRET>` (or ?key=… query).
-//     Set CRON_SECRET in the environment and reference it from the
-//     Vercel Cron config so nobody else can stampede the tick.
+//   • Requires `Authorization: Bearer <CRON_SECRET>` (header only —
+//     the `?key=` query-param fallback was removed because query
+//     secrets leak via access logs / referrer headers). Set
+//     CRON_SECRET in the environment and reference it from the
+//     Vercel Cron / cron-job.org config so nobody can stampede.
 //   • Per-workflow de-dupe: if `last_run_at` is within the last 50s we
 //     skip, so a double-hit inside the same minute can't fire twice.
 //   • Each workflow runs sequentially here — the Hobby plan caps route
@@ -77,12 +79,13 @@ function findAtTrigger(graph: WorkflowGraph): GraphNode | null {
 // ── Handler ───────────────────────────────────────────────────
 
 async function handle(request: Request) {
-  const url = new URL(request.url);
+  // Header-only cron auth — query-param fallback removed because
+  // `?key=…` secrets land in access logs and referrer headers.
   const auth = request.headers.get("authorization") || "";
   const bearer = auth.replace(/^Bearer\s+/i, "");
   const secret = process.env.CRON_SECRET;
 
-  if (secret && bearer !== secret && url.searchParams.get("key") !== secret) {
+  if (secret && bearer !== secret) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

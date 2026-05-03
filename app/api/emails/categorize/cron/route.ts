@@ -14,12 +14,12 @@ export const maxDuration = 60;
 const MAX_BATCHES_PER_WORKSPACE = 4; // 4 × 25 = 100 emails / workspace / day
 
 function authOk(request: Request) {
-  const url = new URL(request.url);
+  // Header-only cron auth — `?key=` fallback removed (logs leak).
   const auth = request.headers.get("authorization") || "";
   const bearer = auth.replace(/^Bearer\s+/i, "");
   const secret = process.env.CRON_SECRET;
   if (!secret) return true;
-  return bearer === secret || url.searchParams.get("key") === secret;
+  return bearer === secret;
 }
 
 async function handle(request: Request) {
