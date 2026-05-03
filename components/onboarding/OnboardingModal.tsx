@@ -190,8 +190,8 @@ export default function OnboardingModal({ isOpen, onClose, onComplete }: Onboard
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/30 backdrop-blur-xl backdrop-saturate-150 flex items-center justify-center p-4 z-50 animate-fade-in">
+      <div className="bg-white/95 backdrop-blur-sm rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-floating border border-[#A67B5B]/20 animate-fade-up">
         <div className="p-6">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">

@@ -323,8 +323,19 @@ export function LiveThinking({
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2 text-xs text-[var(--ink-muted)]">
-        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-        Working…
+        <span
+          className="relative inline-flex w-2 h-2 rounded-full bg-gradient-to-br from-[#3351ff] to-[#70d4b4] animate-glow-pulse"
+          aria-hidden
+        />
+        <span
+          className="relative inline-block text-transparent bg-clip-text bg-[length:200%_100%] animate-shimmer"
+          style={{
+            backgroundImage:
+              "linear-gradient(90deg, rgb(115,115,115) 0%, rgb(20,20,20) 50%, rgb(115,115,115) 100%)",
+          }}
+        >
+          Working…
+        </span>
         {deep && (
           <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-black/10 px-2 py-0.5 text-[10px] text-[var(--ink)]">
             <Telescope className="w-2.5 h-2.5" />
@@ -352,7 +363,19 @@ export function LiveThinking({
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 )}
               </span>
-              <span className="text-[var(--ink)] flex-1">{phase.summary}</span>
+              {ticked ? (
+                <span className="text-[var(--ink)] flex-1">{phase.summary}</span>
+              ) : (
+                <span
+                  className="flex-1 text-transparent bg-clip-text bg-[length:200%_100%] animate-shimmer"
+                  style={{
+                    backgroundImage:
+                      "linear-gradient(90deg, rgb(20,20,20) 0%, rgb(140,140,140) 40%, rgb(20,20,20) 60%, rgb(20,20,20) 100%)",
+                  }}
+                >
+                  {phase.summary}
+                </span>
+              )}
             </div>
           );
         })}

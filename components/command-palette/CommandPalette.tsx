@@ -124,11 +124,11 @@ export default function CommandPalette() {
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-start justify-center pt-[10vh] bg-black/40"
+      className="fixed inset-0 z-[60] flex items-start justify-center pt-[10vh] bg-black/30 backdrop-blur-xl backdrop-saturate-150 animate-fade-in"
       onClick={() => setOpen(false)}
     >
       <div
-        className="w-full max-w-[600px] mx-4 bg-[var(--canvas)] border border-[var(--rule)] rounded-[6px] shadow-xl overflow-hidden"
+        className="w-full max-w-[600px] mx-4 bg-[var(--canvas)]/95 backdrop-blur-sm border border-[var(--rule)] rounded-[6px] shadow-floating overflow-hidden animate-fade-up"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--rule)]">

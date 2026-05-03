@@ -1,16 +1,26 @@
 import * as React from "react";
 
-type CardProps = React.HTMLAttributes<HTMLDivElement>;
+type CardProps = React.HTMLAttributes<HTMLDivElement> & {
+  /**
+   * Adds hover lift + raised shadow on hover. Use for clickable cards
+   * (link cards, button-like surfaces). Don't use for static content
+   * cards — the lift implies "this does something" and is a lie if
+   * the card has no onClick / wrapping <a>.
+   */
+  interactive?: boolean;
+};
 
-export function Card({ className = "", ...props }: CardProps) {
-  return (
-    <div
-      className={
-        "rounded-2xl border border-[#A67B5B]/20 bg-white/70 shadow-sm " + className
-      }
-      {...props}
-    />
-  );
+export function Card({
+  className = "",
+  interactive = false,
+  ...props
+}: CardProps) {
+  const base =
+    "rounded-2xl border border-[#A67B5B]/20 bg-white/85 shadow-ground transition-[transform,box-shadow] duration-150 ease-out-quart";
+  const hover = interactive
+    ? "hover:-translate-y-0.5 hover:shadow-raised cursor-pointer active:translate-y-0 active:shadow-ground"
+    : "";
+  return <div className={`${base} ${hover} ${className}`} {...props} />;
 }
 
 export function CardContent({ className = "", ...props }: CardProps) {

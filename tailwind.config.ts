@@ -70,7 +70,48 @@ const config: Config = {
         xl2: "1rem",
       },
       boxShadow: {
-        soft: "0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.06)",
+        // Legacy alias — kept for back-compat. Prefer the hierarchy below.
+        soft: "0 1px 2px rgba(60,40,20,0.04), 0 4px 12px rgba(60,40,20,0.06)",
+        // ── Drift depth hierarchy ───────────────────────────────────
+        // Four layers, warm-tinted (rgba(60,40,20) = warm umber, not
+        // neutral gray). Use these consistently for a calm, considered
+        // surface system. See ADR on UI motion + depth.
+        recessed:
+          "inset 0 1px 0 rgba(255,255,255,0.5), inset 0 -1px 0 rgba(60,40,20,0.04)",
+        ground:
+          "inset 0 1px 0 rgba(255,255,255,0.6), 0 1px 2px rgba(60,40,20,0.04), 0 4px 10px -2px rgba(60,40,20,0.05)",
+        raised:
+          "inset 0 1px 0 rgba(255,255,255,0.7), 0 2px 4px rgba(60,40,20,0.05), 0 12px 24px -6px rgba(60,40,20,0.10)",
+        floating:
+          "inset 0 1px 0 rgba(255,255,255,0.8), 0 8px 16px -4px rgba(60,40,20,0.10), 0 24px 48px -12px rgba(60,40,20,0.18)",
+      },
+      keyframes: {
+        "fade-up": {
+          "0%": { opacity: "0", transform: "translateY(8px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        "fade-in": {
+          "0%": { opacity: "0" },
+          "100%": { opacity: "1" },
+        },
+        "glow-pulse": {
+          "0%, 100%": { opacity: "0.55", transform: "scale(1)" },
+          "50%": { opacity: "1", transform: "scale(1.15)" },
+        },
+        shimmer: {
+          "0%": { backgroundPosition: "-200% 0" },
+          "100%": { backgroundPosition: "200% 0" },
+        },
+      },
+      animation: {
+        "fade-up": "fade-up 240ms cubic-bezier(0.22, 1, 0.36, 1) both",
+        "fade-in": "fade-in 200ms ease-out both",
+        "glow-pulse": "glow-pulse 1.6s ease-in-out infinite",
+        shimmer: "shimmer 2.4s linear infinite",
+      },
+      transitionTimingFunction: {
+        "out-expo": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "out-quart": "cubic-bezier(0.22, 1, 0.36, 1)",
       },
     },
   },

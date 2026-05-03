@@ -53,16 +53,20 @@ const CreativeCard: React.FC<CreativeCardProps> = ({
         className || "max-w-[350px]"
       }`}
     >
-      <div className="relative flex flex-col rounded-2xl p-[2px] overflow-hidden w-full">
-        {/* Glow effect at top-left — the Creative Card's signature */}
-        <div className="pointer-events-none absolute -top-2 -left-2 w-8 h-8 rounded-full bg-gradient-radial from-white via-white/30 via-white/10 to-transparent blur-sm" />
+      <div className="group/cc relative flex flex-col rounded-2xl p-[2px] overflow-hidden w-full">
+        {/* Signature top-left glow — intensifies when the card has focus */}
+        <div className="pointer-events-none absolute -top-2 -left-2 w-8 h-8 rounded-full bg-gradient-radial from-white via-white/30 via-white/10 to-transparent blur-sm transition-[opacity,transform,filter] duration-300 ease-out-quart opacity-70 group-focus-within/cc:opacity-100 group-focus-within/cc:scale-150 group-focus-within/cc:blur-md" />
+
+        {/* Focus-only ambient glow on the right side — gives the input
+            a sense of being "on" without distracting at rest */}
+        <div className="pointer-events-none absolute -top-3 -right-3 w-12 h-12 rounded-full bg-gradient-radial from-[#3351ff]/40 via-[#3351ff]/10 to-transparent blur-md opacity-0 group-focus-within/cc:opacity-90 transition-opacity duration-500 ease-out-quart" />
 
         {/* Body */}
         <div
-          className={`flex flex-col rounded-xl w-full overflow-hidden border ${
+          className={`relative flex flex-col rounded-xl w-full overflow-hidden border transition-[box-shadow,border-color] duration-300 ease-out-quart ${
             solid
-              ? "bg-[var(--canvas)] dark:bg-[var(--canvas)] border-[var(--rule)] shadow-[0_24px_60px_-12px_rgba(0,0,0,0.45),0_8px_16px_-4px_rgba(0,0,0,0.25)]"
-              : "dark:bg-black/50 bg-white/40 backdrop-blur-sm border-gray-200 dark:border-gray-800 shadow-sm"
+              ? "bg-[var(--canvas)] dark:bg-[var(--canvas)] border-[var(--rule)] shadow-[0_24px_60px_-12px_rgba(0,0,0,0.45),0_8px_16px_-4px_rgba(0,0,0,0.25)] group-focus-within/cc:border-[#3351ff]/30"
+              : "dark:bg-black/50 bg-white/40 backdrop-blur-sm border-gray-200 dark:border-gray-800 shadow-ground group-focus-within/cc:shadow-raised group-focus-within/cc:border-[#3351ff]/30"
           }`}
         >
           {children}
