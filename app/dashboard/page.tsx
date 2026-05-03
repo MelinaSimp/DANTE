@@ -64,7 +64,7 @@ export default function DashboardPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center px-6">
+      <div className="min-h-screen bg-[var(--canvas)] flex items-center justify-center px-6">
         <div className="text-center">
           <p className="prose-body text-[var(--ink-muted)] mb-4">
             Couldn&apos;t load your dashboard.
@@ -82,7 +82,7 @@ export default function DashboardPage() {
 
   if (isLoading || !data) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="min-h-screen bg-[var(--canvas)] flex items-center justify-center">
         <TetrisLoading size="sm" speed="fast" />
       </div>
     );

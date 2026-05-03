@@ -188,7 +188,7 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
       features={data.features}
       isSuperadmin={data.isSuperadmin}
     >
-      <div className="bg-white text-[#151515]">
+      <div className="bg-[var(--canvas)] text-[var(--ink)]">
         {/* Top nav has been replaced by the persistent left sidebar
             in AppShell. Sign-out, settings, and module nav now live
             in the sidebar; this page just renders the dashboard
@@ -622,7 +622,7 @@ function StatCell({
   hint?: string;
 }) {
   const body = (
-    <div className="bg-white px-5 py-4 h-full hover:bg-[var(--canvas-subtle)] transition">
+    <div className="bg-[var(--canvas)] px-5 py-4 h-full hover:bg-[var(--canvas-subtle)] transition">
       <div className="label-section mb-2">{label}</div>
       <div className="flex items-baseline gap-2">
         <div className="heading-display text-3xl">{value}</div>
