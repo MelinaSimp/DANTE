@@ -285,21 +285,104 @@ export function scanFairHousing(text: string): FairHousingScanResult {
   };
 }
 
-// ── Model pass (stub) ────────────────────────────────────────────
+// ── Model pass ───────────────────────────────────────────────────
 //
-// Future: a model pass for context-sensitive cases — "quiet street"
-// can be fine or coded; "great schools" without quality assertions
-// can be fine. The deterministic pass catches the obvious cases;
-// the model pass refines the rest.
+// Phase 5 W5.10. The deterministic pass catches the obvious 90% —
+// explicit phrases that almost always indicate fair-housing risk.
+// The model pass refines the long tail: "quiet street" can be fine
+// or coded depending on context; "good schools" without quality
+// assertions might be fine; subtle steering language is hard to
+// regex.
 //
-// Hooked here so the public API is stable. Today returns the
-// deterministic result unchanged.
+// Tightly-prompted gpt-4o-mini call. JSON-mode response. Findings
+// merge with the deterministic ones — the deterministic always
+// wins on known phrases (lower latency, free, no false negatives
+// on obvious risks).
+//
+// Enterprise-tier-gated — lower tiers see deterministic-only.
+
+import { complete as llmComplete } from "@/lib/llm/client";
 
 export interface FairHousingScanOptions {
-  /** Run the model pass after the deterministic pass. */
+  /** Run the model pass after the deterministic pass. Enterprise tier only. */
   enableModelPass?: boolean;
   /** Workspace context — passed to the model pass for telemetry. */
   workspaceId?: string;
+}
+
+const MODEL_SYSTEM_PROMPT = `You are a fair-housing risk reviewer. The user pastes drafted real-estate copy (a listing description, marketing email, or buyer follow-up). Your job is to identify SUBTLE language that risks fair-housing violations under the Fair Housing Act and state extensions, beyond the obvious phrases a regex would catch.
+
+Focus on:
+- Steering language ("quiet street," "exclusive," "stable area") that COULD imply demographic preference depending on neighborhood context
+- School quality assertions without verifiable facts ("good schools," "top-rated district") — name the district without rating instead
+- Religious / cultural proximity ("near St. Mary's") that could imply preferred buyer religion / heritage
+- Subtle class signaling ("professional neighborhood," "discerning buyer")
+- Implicit familial-status language ("perfect for the family lifestyle") that a regex might miss
+
+DO NOT flag:
+- Verifiable property facts (bedrooms, bathrooms, year built, appliances, square footage)
+- Verifiable neighborhood facts (named amenities, walking distance, school district name without rating)
+- Generic positive marketing that doesn't single out a class ("beautifully renovated," "sun-filled")
+- HOPA-qualified 55+ community language when explicitly stated
+
+Output ONLY this JSON:
+
+{
+  "findings": [
+    {
+      "snippet": "<exact substring of input that's risky>",
+      "severity": "low" | "medium" | "high",
+      "rationale": "<one sentence why>",
+      "suggestion": "<a neutral rewrite, or null>"
+    }
+  ]
+}
+
+If there are no subtle issues, return { "findings": [] }.`;
+
+interface ModelFinding {
+  snippet: string;
+  severity: "low" | "medium" | "high";
+  rationale: string;
+  suggestion: string | null;
+}
+
+async function modelPassFor(text: string, workspaceId?: string): Promise<FairHousingFinding[]> {
+  try {
+    const resp = await llmComplete({
+      model: "gpt-4o-mini",
+      responseFormat: { type: "json_object" },
+      temperature: 0.1,
+      messages: [
+        { role: "system", content: MODEL_SYSTEM_PROMPT },
+        { role: "user", content: text.slice(0, 8000) },
+      ],
+      feature: "fair_housing.model_pass",
+      workspaceId,
+    });
+    const parsed = JSON.parse(resp.message.content || "{}") as {
+      findings?: ModelFinding[];
+    };
+    const out: FairHousingFinding[] = [];
+    for (const f of parsed.findings || []) {
+      if (!f.snippet) continue;
+      const idx = text.toLowerCase().indexOf(f.snippet.toLowerCase());
+      if (idx < 0) continue;
+      out.push({
+        index: idx,
+        length: f.snippet.length,
+        match: f.snippet.toLowerCase(),
+        category: "general",
+        severity: f.severity ?? "medium",
+        rationale: `[model] ${f.rationale}`,
+        suggestions: f.suggestion ? [f.suggestion] : undefined,
+      });
+    }
+    return out;
+  } catch (err) {
+    console.warn("[fair-housing] model pass failed:", err);
+    return [];
+  }
 }
 
 export async function scanFairHousingWithModel(
@@ -308,9 +391,33 @@ export async function scanFairHousingWithModel(
 ): Promise<FairHousingScanResult> {
   const det = scanFairHousing(text);
   if (!opts?.enableModelPass) return det;
-  // TODO(Phase 4): model-pass implementation. Will use lib/llm/client.ts
-  // with a tightly-prompted gpt-4o-mini call returning structured
-  // findings. For now we return the deterministic result so callers
-  // can flip the flag without breaking.
-  return det;
+
+  const modelFindings = await modelPassFor(text, opts.workspaceId);
+  if (modelFindings.length === 0) return det;
+
+  // Merge: deduplicate model findings whose snippet is already
+  // covered by a deterministic finding (deterministic wins because
+  // it has the curated rationale + suggestion list).
+  const detIndexes = new Set(det.findings.map((f) => f.index));
+  const merged = [...det.findings];
+  for (const mf of modelFindings) {
+    if (detIndexes.has(mf.index)) continue;
+    merged.push(mf);
+  }
+  merged.sort((a, b) => a.index - b.index);
+
+  const severityRank: Record<Severity, number> = { low: 1, medium: 2, high: 3 };
+  const worst = merged.length === 0
+    ? null
+    : merged.reduce((acc, f) => (severityRank[f.severity] > severityRank[acc] ? f.severity : acc), "low" as Severity);
+
+  return {
+    flagged: merged.length > 0,
+    worst,
+    findings: merged,
+    summary:
+      merged.length === 0
+        ? "No fair-housing risk language detected."
+        : `${merged.length} finding${merged.length === 1 ? "" : "s"} (${det.findings.length} deterministic + ${modelFindings.length} model) — worst: ${worst}.`,
+  };
 }

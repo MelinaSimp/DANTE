@@ -17,6 +17,7 @@ import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { ToastProvider } from "@/components/ui/toast";
 import { ConfirmDialogProvider } from "@/components/ui/confirm-dialog";
 import QueryProvider from "@/lib/query/provider";
+import CommandPalette from "@/components/command-palette/CommandPalette";
 // FloatingDashboardButton was removed in the IA sweep — every workspace
 // page now has an inline "← Dashboard" link at the top, so the floating
 // chip was a duplicate affordance. If you need one-off back-chip for a
@@ -79,6 +80,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <ErrorBoundary>
                   <main className="relative z-0 bg-white">{children}</main>
                 </ErrorBoundary>
+                <CommandPalette />
                 <PushNotificationManager />
               </OnboardingProvider>
             </ConfirmDialogProvider>
