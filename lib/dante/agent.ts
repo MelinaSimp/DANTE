@@ -220,31 +220,31 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
     function: {
       name: "reminder_schedule",
       description:
-        "Schedule a one-shot reminder for the user. Use this whenever the user asks to be reminded at a specific time (e.g. 'text me tomorrow at 3 to follow up'). Creates a workflow that fires once at the given timestamp and delivers via SendBlue (iMessage, falls back to SMS). v1 supports recipient='self' only — for client-facing reminders the agent should refuse and tell the user this needs principal review wiring (not yet built).",
+        "Schedule a one-shot self-reminder for the user via SMS / iMessage. CALL THIS IMMEDIATELY when the user asks to be reminded at any time — do NOT ask the user to confirm time or content first. Resolve relative phrasings ('in 2 minutes', 'tomorrow at 3pm', 'end of day') against the current UTC time yourself, assuming the user's local timezone if relevant, and just fire the call. After the tool returns, summarize what you scheduled (e.g. 'Set — I'll text you at 2:56 PM ET'). Only ask the user to clarify if the time is genuinely ambiguous (e.g. 'remind me later' with no specific window). v1 supports recipient='self' only; for client-facing reminders refuse and explain that supervisor review wiring isn't built yet.",
       parameters: {
         type: "object",
         properties: {
           when: {
             type: "string",
             description:
-              "ISO 8601 timestamp the reminder should fire. Resolve relative phrasings ('tomorrow at 3pm') against the current time before calling. Must be in the future.",
+              "ISO 8601 UTC timestamp the reminder should fire. Compute this BEFORE calling — do not pass a relative phrasing. Must be at least 30 seconds in the future.",
           },
           body: {
             type: "string",
             description:
-              "The text the user should receive. First-person from the user's perspective ('Follow up with Hartmans on Q3 rebalance').",
+              "The text the user will receive. First-person from the user's perspective, short, action-oriented ('Read rent rolls in Medina before first meeting').",
           },
           recipient: {
             type: "string",
             enum: ["self"],
             description:
-              "v1 only supports 'self'. The reminder is delivered to the authenticated user's sms_phone on file.",
+              "Always 'self' in v1. The reminder is delivered to the authenticated user's sms_phone on file.",
           },
           channel: {
             type: "string",
             enum: ["sms"],
             description:
-              "v1 only supports 'sms' (SendBlue iMessage / SMS fallback). Email reminders go through the legacy /api/reminders system.",
+              "Always 'sms' in v1. SendBlue handles iMessage/SMS routing automatically.",
           },
         },
         required: ["when", "body", "recipient"],
