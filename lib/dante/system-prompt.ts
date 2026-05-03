@@ -14,9 +14,14 @@
 import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { getIndustryConfig } from "@/lib/industry/config";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 interface BuildDantePromptInput {
   industry: string | null;
+  /** Phase 7 W7.5 — when set, append per-firm custom instructions
+   *  loaded from workspace_firm_prompts. Audit-visible additions to
+   *  the standard prompt. Optional. */
+  workspaceId?: string;
 }
 
 // Cache parsed prompt bodies to avoid disk hits on every chat turn.
@@ -76,6 +81,40 @@ export function buildDanteSystemPrompt(input: BuildDantePromptInput): string {
       err,
     );
     return fallbackPrompt(config.assistantName);
+  }
+}
+
+/**
+ * Async variant that includes per-firm prompt customization (Phase 7
+ * W7.5). Loads workspace_firm_prompts.custom_instructions and
+ * appends them after the canonical persona prompt under a clearly
+ * labeled "Firm-specific instructions" section so audits can tell
+ * what the firm added vs. what's stock.
+ *
+ * Use this in production routes; the sync version is for tests and
+ * places that don't have workspace context.
+ */
+export async function buildDanteSystemPromptWithFirm(
+  input: BuildDantePromptInput,
+): Promise<string> {
+  const base = buildDanteSystemPrompt(input);
+  if (!input.workspaceId) return base;
+  try {
+    const { data } = await supabaseAdmin
+      .from("workspace_firm_prompts")
+      .select("custom_instructions")
+      .eq("workspace_id", input.workspaceId)
+      .maybeSingle();
+    const custom = (data as { custom_instructions?: string } | null)?.custom_instructions;
+    if (!custom || !custom.trim()) return base;
+    return (
+      base +
+      "\n\n---\n\nFirm-specific instructions (added by workspace admin):\n" +
+      custom.trim()
+    );
+  } catch (err) {
+    console.warn("[system-prompt] firm-prompts load failed:", err);
+    return base;
   }
 }
 
