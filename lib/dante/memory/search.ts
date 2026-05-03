@@ -111,8 +111,14 @@ export async function searchMemory(input: MemorySearchInput): Promise<MemoryHit[
     return (hybrid.data || []) as MemoryHit[];
   }
   const hybridCode = (hybrid.error as { code?: string }).code;
-  if (hybridCode !== "42883" && hybridCode !== "42P01") {
-    // Real error — don't swallow.
+  // Function-missing classes we tolerate by falling through to the
+  // pure-vector RPC: 42883 (postgres "function does not exist"),
+  // 42P01 (postgres "relation does not exist"), and PGRST202
+  // (PostgREST "Could not find the function ... in the schema cache",
+  // returned when the migration hasn't been applied or the args don't
+  // match a known overload). Anything else is real and bubbles.
+  const fallthroughCodes = new Set(["42883", "42P01", "PGRST202"]);
+  if (!hybridCode || !fallthroughCodes.has(hybridCode)) {
     throw new Error(`Memory search (hybrid): ${hybrid.error.message}`);
   }
   // Hybrid RPC missing — fall through to vector-only path.
