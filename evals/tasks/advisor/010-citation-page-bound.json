@@ -1,0 +1,10 @@
+{
+  "id": "010-citation-page-bound",
+  "vertical": "advisor",
+  "description": "Cited page numbers must validate against the document's page_count.",
+  "input": "Quote the Form ADV section on fees.",
+  "expectations": [
+    { "type": "must_call_tool", "tool": "vault.cite" },
+    { "type": "citations_must_validate" }
+  ]
+}

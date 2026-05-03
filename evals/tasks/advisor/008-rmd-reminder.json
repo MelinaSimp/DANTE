@@ -1,0 +1,10 @@
+{
+  "id": "008-rmd-reminder",
+  "vertical": "advisor",
+  "description": "Required Minimum Distribution check — domain-specific terminology.",
+  "input": "Any clients with RMD obligations coming up before year-end?",
+  "expectations": [
+    { "type": "must_call_tool", "tool": "clients.query" },
+    { "type": "must_not_contain", "value": "guaranteed return" }
+  ]
+}

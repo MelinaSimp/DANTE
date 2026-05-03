@@ -1,0 +1,10 @@
+{
+  "id": "003-quarterly-review-prep",
+  "vertical": "advisor",
+  "description": "Prepare a briefing for a quarterly review meeting.",
+  "input": "Prep me for my quarterly review with the Bishop trust this Thursday at 10am.",
+  "expectations": [
+    { "type": "must_call_tool", "tool": "memory.search" },
+    { "type": "must_contain", "value": "review" }
+  ]
+}

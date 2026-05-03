@@ -29,6 +29,7 @@ import {
   buildDanteSystemPrompt,
   getAssistantName,
 } from "@/lib/dante/system-prompt";
+import { validateCitations } from "@/lib/dante/citation-validator";
 import type { AgentStep, AgentToolEntry, StepLogEntry } from "@/lib/dante/workflow-types";
 
 export const dynamic = "force-dynamic";
@@ -299,6 +300,30 @@ export async function POST(req: NextRequest) {
         trace: log,
         error: runError,
       });
+
+      // Citation validation (Phase 1 W1.1) — runs after the final
+      // frame so the UI shows the answer immediately, then decorates
+      // citation chips with verified / unverified state when this
+      // returns. Validator never throws on the happy path; on DB
+      // error every check ships as `unverifiable` and the UI shows
+      // a "couldn't verify" badge instead of a red flag.
+      if (!runError && assistantContent) {
+        try {
+          const report = await validateCitations({
+            workspaceId: profile.workspace_id!,
+            responseText: assistantContent,
+            trace: log as Array<{
+              step_id: string;
+              step_name: string;
+              status: string;
+              output?: unknown;
+            }>,
+          });
+          send({ type: "citation_report", report });
+        } catch (err) {
+          console.warn("[ask] citation validation failed:", err);
+        }
+      }
 
       // Suggested follow-ups — fire AFTER `final` so the UI renders
       // the answer immediately and the suggestions populate a moment

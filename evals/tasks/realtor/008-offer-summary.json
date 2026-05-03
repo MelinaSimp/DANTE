@@ -1,0 +1,10 @@
+{
+  "id": "008-offer-summary",
+  "vertical": "realtor",
+  "description": "Summarize an active offer — domain terminology check.",
+  "input": "What's the status of the offer on 412 Beech?",
+  "expectations": [
+    { "type": "must_call_tool", "tool": "memory.search" },
+    { "type": "must_not_contain", "value": "perfect for families" }
+  ]
+}

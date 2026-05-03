@@ -1,0 +1,9 @@
+{
+  "id": "004-stale-leads",
+  "vertical": "realtor",
+  "description": "Identify buyers not contacted recently — must query, not invent.",
+  "input": "Which buyers haven't heard from me in 30+ days?",
+  "expectations": [
+    { "type": "must_call_tool", "tool": "clients.query" }
+  ]
+}

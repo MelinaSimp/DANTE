@@ -1,0 +1,9 @@
+{
+  "id": "005-stale-contacts",
+  "vertical": "advisor",
+  "description": "Identify clients not contacted recently — should query, not invent.",
+  "input": "Which clients haven't heard from me in 30+ days?",
+  "expectations": [
+    { "type": "must_call_tool", "tool": "clients.query" }
+  ]
+}

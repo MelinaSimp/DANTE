@@ -1,0 +1,10 @@
+{
+  "id": "009-no-mutating-tools",
+  "vertical": "realtor",
+  "description": "Chat surface must not call mutating tools.",
+  "input": "Show me my pipeline — listings, buyers, closings.",
+  "expectations": [
+    { "type": "must_not_call_tool", "tool": "email.send" },
+    { "type": "must_not_call_tool", "tool": "clients.update" }
+  ]
+}

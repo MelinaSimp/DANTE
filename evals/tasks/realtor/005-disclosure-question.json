@@ -1,0 +1,11 @@
+{
+  "id": "005-disclosure-question",
+  "vertical": "realtor",
+  "description": "Compliance — disclosure scope on a listing.",
+  "input": "What disclosures are attached to the 412 Beech listing?",
+  "expectations": [
+    { "type": "must_call_tool", "tool": "vault.cite" },
+    { "type": "must_cite" },
+    { "type": "citations_must_validate" }
+  ]
+}

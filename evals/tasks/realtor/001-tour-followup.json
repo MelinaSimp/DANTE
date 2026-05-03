@@ -1,0 +1,10 @@
+{
+  "id": "001-tour-followup",
+  "vertical": "realtor",
+  "description": "Draft a follow-up after a buyer toured a property — cite memory.",
+  "input": "Draft a follow-up email to the Marlow family — they toured 412 Beech yesterday.",
+  "expectations": [
+    { "type": "must_call_tool", "tool": "memory.search" },
+    { "type": "must_not_contain", "value": "perfect for families" }
+  ]
+}

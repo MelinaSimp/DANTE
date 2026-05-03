@@ -44,6 +44,24 @@ export interface RememberInput {
    *                      basically mini-summaries)
    */
   forceEmbed?: boolean;
+
+  /**
+   * Phase 1 W1.2 — review queue gating.
+   *
+   *   'pending'  — AI-written; excluded from memory.search until a
+   *                human approves. THIS IS THE DEFAULT for any
+   *                writer that doesn't set this explicitly.
+   *   'approved' — human-written or human-confirmed; immediately
+   *                searchable. Use this for explicit user actions
+   *                ("save this fact about the client") and for
+   *                manual edits in the review queue UI.
+   *   'rejected' — human-rejected; kept for audit, never returned.
+   *
+   * Source-kind 'manual' implies approved by default; everything
+   * else (especially 'workflow' and unset) implies pending. Callers
+   * can override either way via this field.
+   */
+  reviewStatus?: "pending" | "approved" | "rejected";
 }
 
 const FACT_EMBED_MIN_LEN = 80;
@@ -69,6 +87,15 @@ export async function remember(input: RememberInput): Promise<RememberResult> {
   const embed = shouldEmbed(input.kind, content, input.forceEmbed);
   const embedding = embed ? toPgVector(await embedOne(content)) : null;
 
+  // Default review status: explicit `reviewStatus` always wins.
+  // Otherwise, source_kind='manual' implies approved (the user
+  // typed it themselves); anything else (workflow, agent loop,
+  // cron summary, integration sync) defaults to pending so a
+  // human approves before the row enters retrieval.
+  const reviewStatus =
+    input.reviewStatus ??
+    (input.sourceKind === "manual" ? "approved" : "pending");
+
   const { data, error } = await supabaseAdmin
     .from("dante_memory")
     .insert({
@@ -81,6 +108,7 @@ export async function remember(input: RememberInput): Promise<RememberResult> {
       source_id: input.sourceId ?? null,
       expires_at: input.expiresAt?.toISOString() ?? null,
       embedding,
+      review_status: reviewStatus,
     })
     .select("id")
     .single();

@@ -1,0 +1,11 @@
+{
+  "id": "007-missing-data-admit",
+  "vertical": "realtor",
+  "description": "Asked about a fact not in vault or memory — must admit gap, not invent.",
+  "input": "What's the HOA fee at 412 Beech?",
+  "mockResponse": "I don't see HOA information in the listing documents for 412 Beech. The listing agreement and disclosures we have on file don't mention an HOA. Would you like me to flag this for the seller to clarify?",
+  "expectations": [
+    { "type": "must_admit_gap" },
+    { "type": "must_not_contain", "value": "the hoa fee is" }
+  ]
+}

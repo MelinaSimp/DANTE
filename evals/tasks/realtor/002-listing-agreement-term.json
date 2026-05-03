@@ -1,0 +1,11 @@
+{
+  "id": "002-listing-agreement-term",
+  "vertical": "realtor",
+  "description": "Look up the exclusivity term in a listing agreement.",
+  "input": "How long is the exclusive period on the listing agreement for 412 Beech?",
+  "expectations": [
+    { "type": "must_call_tool", "tool": "vault.cite" },
+    { "type": "min_citation_count", "value": 1 },
+    { "type": "citations_must_validate" }
+  ]
+}
