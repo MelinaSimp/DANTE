@@ -41,6 +41,7 @@ The user has chosen the local-only path because they don't want their content re
 
 export default function HermesClient() {
   const [isElectron, setIsElectron] = useState(false);
+  const [hasBridge, setHasBridge] = useState(false);
   const [probe, setProbe] = useState<ProbeResult | null>(null);
   const [model, setModel] = useState<string>("hermes3:8b");
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -54,6 +55,7 @@ export default function HermesClient() {
   // ─── Capability detection ────────────────────────────────────
   useEffect(() => {
     setIsElectron(!!window.electronAPI?.isElectron);
+    setHasBridge(!!window.driftLocal?.probe);
     if (window.driftLocal?.probe) {
       window.driftLocal
         .probe()
@@ -163,12 +165,14 @@ export default function HermesClient() {
   // ─── Render ──────────────────────────────────────────────────
   const status = useMemo(() => {
     if (!isElectron) return { label: "Desktop only", tone: "muted" as const };
+    if (!hasBridge)
+      return { label: "Update Drift to use Hermes", tone: "warn" as const };
     if (!probe) return { label: "Probing…", tone: "muted" as const };
     if (!probe.reachable) return { label: "Ollama not running", tone: "warn" as const };
     if (!probe.hermes_pulled)
       return { label: "Hermes not pulled — run `ollama pull hermes3:8b`", tone: "warn" as const };
     return { label: `Connected · ${model} · local`, tone: "ok" as const };
-  }, [isElectron, probe, model]);
+  }, [isElectron, hasBridge, probe, model]);
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-8 flex flex-col h-[calc(100vh-4rem)]">
@@ -199,7 +203,32 @@ export default function HermesClient() {
         </div>
       )}
 
-      {isElectron && probe && !probe.reachable && (
+      {isElectron && !hasBridge && (
+        <div className="border border-amber-500/40 bg-amber-500/5 rounded-md p-6 text-sm">
+          <strong className="text-[var(--ink)] block mb-1">
+            Your desktop app needs to update
+          </strong>
+          <p className="text-[var(--ink-muted)] mb-3 leading-relaxed">
+            The local-LLM bridge ships in Drift v1.1.0+. The version you&rsquo;re
+            running doesn&rsquo;t expose <code>window.driftLocal</code>, so this
+            page can&rsquo;t reach Hermes. The auto-updater should be downloading
+            the new version in the background — quit and relaunch Drift to
+            speed it up. After the update banner appears, click &ldquo;Update now&rdquo;.
+          </p>
+          <div className="flex gap-2">
+            <a
+              href="https://github.com/MelinaSimp/drift-crm/releases/latest"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs px-3 py-1.5 rounded border border-[var(--rule)] hover:bg-[var(--rule)]/30"
+            >
+              View latest release →
+            </a>
+          </div>
+        </div>
+      )}
+
+      {isElectron && hasBridge && probe && !probe.reachable && (
         <div className="mb-4 border border-amber-500/40 bg-amber-500/5 rounded-md p-4 text-sm">
           <p className="mb-2">
             Ollama isn&rsquo;t reachable at <code>{probe.base_url}</code>.
@@ -224,7 +253,7 @@ export default function HermesClient() {
         </div>
       )}
 
-      {isElectron && (
+      {isElectron && hasBridge && (
         <div className="mb-3 flex items-center gap-3 text-xs">
           {probe?.models_available && probe.models_available.length > 0 ? (
             <select
@@ -336,16 +365,18 @@ export default function HermesClient() {
           }}
           rows={2}
           placeholder={
-            isElectron
-              ? "Ask Hermes anything. Attached files are in context."
-              : "Open the desktop app to chat with Hermes."
+            !isElectron
+              ? "Open the desktop app to chat with Hermes."
+              : !hasBridge
+                ? "Update Drift to v1.1.0 to chat with Hermes."
+                : "Ask Hermes anything. Attached files are in context."
           }
-          disabled={!isElectron || busy}
+          disabled={!isElectron || !hasBridge || busy}
           className="flex-1 px-3 py-2 rounded border border-[var(--rule)] bg-transparent text-sm focus-within:ring-1 focus-within:ring-[var(--accent)] disabled:opacity-50"
         />
         <button
           onClick={send}
-          disabled={!isElectron || busy || !input.trim()}
+          disabled={!isElectron || !hasBridge || busy || !input.trim()}
           className="px-4 py-2 rounded bg-[var(--accent)] text-white hover:opacity-90 disabled:opacity-40"
         >
           Send
