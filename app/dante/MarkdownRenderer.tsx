@@ -13,8 +13,17 @@
 // output is constrained enough that table detection + bold/italic
 // passthrough is plenty, and avoiding the dependency keeps the
 // bundle slim.
+//
+// In addition to plain text and tables, we recognise ```reasoning
+// fenced code blocks. The agent emits these to render math /
+// step-by-step logic / scenario comparison as Drift's "graphic
+// organizer" — see ReasoningBlock.tsx for the schema and rendering.
 
 import CitationRenderer, { type CitationReport } from "./CitationRenderer";
+import ReasoningBlock, {
+  parseReasoningBlock,
+  type ReasoningBlockData,
+} from "./ReasoningBlock";
 
 interface Props {
   content: string;
@@ -25,8 +34,10 @@ interface Props {
 }
 
 interface Segment {
-  type: "text" | "table";
+  type: "text" | "table" | "reasoning";
   content: string;
+  /** Pre-parsed reasoning data when type === 'reasoning'. */
+  reasoning?: ReasoningBlockData;
 }
 
 export default function MarkdownRenderer({ content, trace, citationReport }: Props) {
@@ -34,20 +45,24 @@ export default function MarkdownRenderer({ content, trace, citationReport }: Pro
 
   return (
     <div className="space-y-4">
-      {segments.map((seg, i) =>
-        seg.type === "text" ? (
-          <CitationRenderer
-            key={i}
-            content={seg.content}
-            trace={trace}
-            // Only attach the report to the first text segment so the
-            // overall summary line appears once, not per-segment.
-            citationReport={i === 0 ? citationReport : null}
-          />
-        ) : (
-          <TableSegment key={i} markdown={seg.content} trace={trace} />
-        ),
-      )}
+      {segments.map((seg, i) => {
+        if (seg.type === "text") {
+          return (
+            <CitationRenderer
+              key={i}
+              content={seg.content}
+              trace={trace}
+              // Only attach the report to the first text segment so
+              // the overall summary line appears once, not per-segment.
+              citationReport={i === 0 ? citationReport : null}
+            />
+          );
+        }
+        if (seg.type === "reasoning" && seg.reasoning) {
+          return <ReasoningBlock key={i} data={seg.reasoning} />;
+        }
+        return <TableSegment key={i} markdown={seg.content} trace={trace} />;
+      })}
     </div>
   );
 }
@@ -97,9 +112,10 @@ function TableSegment({ markdown, trace }: { markdown: string; trace: unknown })
 // ── Parsing ──────────────────────────────────────────────────────
 
 /**
- * Walks content line-by-line, accumulating runs of either text or
- * table lines. A "table" run is a header row, a separator row
- * (`|---|---|`), and at least one data row. Anything else is text.
+ * Walks content line-by-line, accumulating runs of text, tables, or
+ * reasoning blocks. Reasoning blocks are fenced ```reasoning code
+ * blocks containing a JSON object — see ReasoningBlock.tsx. Tables
+ * are standard markdown pipe tables.
  */
 function splitTablesOut(content: string): Segment[] {
   const lines = content.split("\n");
@@ -116,16 +132,35 @@ function splitTablesOut(content: string): Segment[] {
   };
 
   while (i < lines.length) {
+    // 1. Reasoning fenced block — ```reasoning ... ```
+    if (/^\s*```\s*reasoning\s*$/i.test(lines[i])) {
+      flushText();
+      const start = i + 1;
+      let end = start;
+      while (end < lines.length && !/^\s*```\s*$/.test(lines[end])) end++;
+      const body = lines.slice(start, end).join("\n").trim();
+      const parsed = parseReasoningBlock(body);
+      if (parsed) {
+        segments.push({ type: "reasoning", content: body, reasoning: parsed });
+      } else {
+        // Fall back to rendering the JSON as plain text so the user
+        // can see what the agent emitted (and we can debug the
+        // schema mismatch).
+        segments.push({ type: "text", content: "```\n" + body + "\n```" });
+      }
+      i = end + 1; // skip past the closing fence
+      continue;
+    }
+    // 2. Pipe table.
     if (looksLikeTableStart(lines, i)) {
       flushText();
-      // Greedily consume table lines.
       const start = i;
       while (i < lines.length && /^\s*\|/.test(lines[i])) i++;
       segments.push({ type: "table", content: lines.slice(start, i).join("\n") });
-    } else {
-      textBuf.push(lines[i]);
-      i++;
+      continue;
     }
+    textBuf.push(lines[i]);
+    i++;
   }
   flushText();
 
