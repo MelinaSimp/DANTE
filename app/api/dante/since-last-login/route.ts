@@ -23,10 +23,15 @@
 // so the next visit only shows newer items in the time-scoped
 // groups. The always-on groups don't depend on that timestamp.
 //
-// Vertical-aware: realtor-side surfaces (listing DOM, escrow timers)
-// would slot in as additional groups once the underlying data
-// exists. For wealth-only workspaces those groups stay empty and
-// auto-hide.
+// Vertical-aware: shared groups (drafts, contact reviews, workflow
+// runs, compliance flags, memory queue) fan out for both verticals.
+// Wealth-only group: OBA attestations (compliance_oba_records is a
+// FINRA/RIA outside-business-activity surface, irrelevant for
+// realtors). Realtor-only groups: properties closing soon,
+// properties stuck in a transaction stage, new properties since
+// last visit — all keyed off the `properties` table's
+// transaction_stage / expected_close_date / stage_entered_at
+// fields.
 
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
@@ -41,7 +46,10 @@ type Group = {
     | "workflow_runs"
     | "oba_due"
     | "compliance_flags"
-    | "memories_pending";
+    | "memories_pending"
+    | "closings_soon"
+    | "stuck_properties"
+    | "new_properties";
   title: string;
   count: number;
   href?: string;
@@ -79,6 +87,18 @@ export async function GET() {
     );
   }
 
+  // Industry drives which vertical-specific groups we fan out for.
+  // Default to financial_advisor on null (matches getIndustryConfig).
+  const { data: ws } = await supabaseAdmin
+    .from("workspaces")
+    .select("industry")
+    .eq("id", workspaceId)
+    .maybeSingle();
+  const industry =
+    (ws as { industry?: string | null } | null)?.industry === "real_estate"
+      ? "real_estate"
+      : "financial_advisor";
+
   const lastSeenAt = (profile as { last_seen_at?: string | null }).last_seen_at;
   const since = lastSeenAt ?? null;
   const isFirstVisit = !since;
@@ -88,6 +108,15 @@ export async function GET() {
   const in7d = new Date(now.getTime() + 7 * 86400_000).toISOString().slice(0, 10);
   const in30d = new Date(now.getTime() + 30 * 86400_000).toISOString().slice(0, 10);
   const todayDate = now.toISOString().slice(0, 10);
+  const stuckCutoff = new Date(now.getTime() - 21 * 86400_000).toISOString();
+
+  const isRealtor = industry === "real_estate";
+
+  // Fan out the queries in parallel. Cross-vertical groups always
+  // run; OBA is wealth-only; closings/stuck/new-property are
+  // realtor-only. The unused-side queries resolve to null promises
+  // so the destructuring stays positional.
+  const noop = Promise.resolve({ data: null, count: 0 });
 
   // Fan out the queries in parallel. Each one is workspace-scoped
   // and uses an existing index. None of these is heavy (LIMIT 5
@@ -99,6 +128,9 @@ export async function GET() {
     obaDue,
     complianceFlags,
     memoriesPending,
+    closingsSoon,
+    stuckProperties,
+    newProperties,
   ] = await Promise.all([
     // Drafts the advisor needs to clear. Always-on (a 3-week-old
     // draft still demands attention).
@@ -135,18 +167,22 @@ export async function GET() {
       .order("started_at", { ascending: false })
       .limit(ITEMS_PER_GROUP),
 
-    // OBA attestations due in next 30 days. Always-on.
-    supabaseAdmin
-      .from("compliance_oba_records")
-      .select("id, advisor_name, activity_name, next_attestation_due", {
-        count: "exact",
-      })
-      .eq("workspace_id", workspaceId)
-      .not("next_attestation_due", "is", null)
-      .lte("next_attestation_due", in30d)
-      .gte("next_attestation_due", todayDate)
-      .order("next_attestation_due", { ascending: true })
-      .limit(ITEMS_PER_GROUP),
+    // OBA attestations due in next 30 days. Wealth-only — outside
+    // business activity tracking is FINRA/RIA. Realtors don't have
+    // an analogous concept here; skip the round-trip entirely.
+    isRealtor
+      ? noop
+      : supabaseAdmin
+          .from("compliance_oba_records")
+          .select("id, advisor_name, activity_name, next_attestation_due", {
+            count: "exact",
+          })
+          .eq("workspace_id", workspaceId)
+          .not("next_attestation_due", "is", null)
+          .lte("next_attestation_due", in30d)
+          .gte("next_attestation_due", todayDate)
+          .order("next_attestation_due", { ascending: true })
+          .limit(ITEMS_PER_GROUP),
 
     // Compliance flags raised since last visit, still pending.
     // Time-scoped (older pending flags belong on the compliance
@@ -175,6 +211,56 @@ export async function GET() {
       .gt("created_at", sinceClause)
       .order("created_at", { ascending: false })
       .limit(ITEMS_PER_GROUP),
+
+    // Realtor-only: properties whose expected close date is within
+    // the next 7 days and whose stage is offer/pending. Always-on
+    // — closing dates don't expire when you log out.
+    isRealtor
+      ? supabaseAdmin
+          .from("properties")
+          .select("id, address_line1, transaction_stage, expected_close_date", {
+            count: "exact",
+          })
+          .eq("workspace_id", workspaceId)
+          .in("transaction_stage", ["offer", "pending"])
+          .not("expected_close_date", "is", null)
+          .lte("expected_close_date", in7d)
+          .gte("expected_close_date", todayDate)
+          .order("expected_close_date", { ascending: true })
+          .limit(ITEMS_PER_GROUP)
+      : noop,
+
+    // Realtor-only: properties stuck in a non-terminal transaction
+    // stage (listed/showing/offer) for >21 days. Catches the
+    // listings going quiet, the offers without a counter, the
+    // showings that didn't convert. Always-on.
+    isRealtor
+      ? supabaseAdmin
+          .from("properties")
+          .select("id, address_line1, transaction_stage, stage_entered_at", {
+            count: "exact",
+          })
+          .eq("workspace_id", workspaceId)
+          .in("transaction_stage", ["listed", "showing", "offer"])
+          .not("stage_entered_at", "is", null)
+          .lt("stage_entered_at", stuckCutoff)
+          .order("stage_entered_at", { ascending: true })
+          .limit(ITEMS_PER_GROUP)
+      : noop,
+
+    // Realtor-only: new properties created since last visit. Time-
+    // scoped — first-time login already shows everything elsewhere.
+    isRealtor
+      ? supabaseAdmin
+          .from("properties")
+          .select("id, address_line1, transaction_stage, created_at, status", {
+            count: "exact",
+          })
+          .eq("workspace_id", workspaceId)
+          .gt("created_at", sinceClause)
+          .order("created_at", { ascending: false })
+          .limit(ITEMS_PER_GROUP)
+      : noop,
   ]);
 
   const groups: Group[] = [];
@@ -324,6 +410,70 @@ export async function GET() {
           href: "/dante/memory/review",
         };
       }),
+    });
+  }
+
+  if ((closingsSoon.count ?? 0) > 0) {
+    groups.push({
+      kind: "closings_soon",
+      title: "Closings in the next 7 days",
+      count: closingsSoon.count ?? 0,
+      href: "/properties",
+      items: ((closingsSoon.data || []) as Array<{
+        id: string;
+        address_line1: string;
+        transaction_stage: string;
+        expected_close_date: string;
+      }>).map((row) => ({
+        id: row.id,
+        label: row.address_line1,
+        sublabel: row.transaction_stage,
+        when: `${row.expected_close_date}T00:00:00Z`,
+        href: `/properties/${row.id}`,
+      })),
+    });
+  }
+
+  if ((stuckProperties.count ?? 0) > 0) {
+    groups.push({
+      kind: "stuck_properties",
+      title: "Properties stuck in stage > 3 weeks",
+      count: stuckProperties.count ?? 0,
+      href: "/properties",
+      items: ((stuckProperties.data || []) as Array<{
+        id: string;
+        address_line1: string;
+        transaction_stage: string;
+        stage_entered_at: string;
+      }>).map((row) => ({
+        id: row.id,
+        label: row.address_line1,
+        sublabel: `in ${row.transaction_stage}`,
+        when: row.stage_entered_at,
+        href: `/properties/${row.id}`,
+      })),
+    });
+  }
+
+  if ((newProperties.count ?? 0) > 0) {
+    groups.push({
+      kind: "new_properties",
+      title: "Properties added since you were last here",
+      count: newProperties.count ?? 0,
+      href: "/properties",
+      items: ((newProperties.data || []) as Array<{
+        id: string;
+        address_line1: string;
+        transaction_stage?: string | null;
+        status?: string | null;
+        created_at: string;
+      }>).map((row) => ({
+        id: row.id,
+        label: row.address_line1,
+        sublabel: row.transaction_stage || row.status || null,
+        when: row.created_at,
+        href: `/properties/${row.id}`,
+      })),
     });
   }
 

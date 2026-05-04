@@ -113,20 +113,17 @@ const CONFIGS: Record<Industry, IndustryConfig> = {
 export const ALL_INDUSTRIES: Industry[] = ["financial_advisor", "real_estate"];
 
 // SIGNUP_INDUSTRIES — the subset shown to NEW users on the signup
-// industry picker. ALL_INDUSTRIES stays unchanged so existing
-// real_estate workspaces continue to function (their per-vertical
-// prompts, memory taxonomy, fair-housing scanner, and all Vergil-
-// flavored copy still work via getIndustryConfig). This narrows the
-// front door without killing the back rooms.
+// industry picker. Currently mirrors ALL_INDUSTRIES (both verticals
+// are open for new signups). Kept as a separate constant so the
+// front door can be narrowed in the future without touching every
+// call site that enumerates industries — flip this list, the
+// signup form picks up the change.
 //
-// Why: per the panel review of 2026-05-03, the team picked wealth-
-// only as the focus call. Vergil isn't being deleted — it's being
-// removed from public acquisition surfaces so net-new signups go
-// to the advisor vertical where the credibility hire, custodian
-// integrations, and regulatory data corpus all compound. If the
-// realtor side comes back as a primary acquisition channel later,
-// flip this constant back to ALL_INDUSTRIES.
-export const SIGNUP_INDUSTRIES: Industry[] = ["financial_advisor"];
+// Brief history: was wealth-only for ~hour on 2026-05-03 as part
+// of the panel-review focus debate, then reverted because the team
+// elected to keep dual-vertical (Dante + Vergil) rather than
+// sunset Vergil's acquisition channel.
+export const SIGNUP_INDUSTRIES: Industry[] = ["financial_advisor", "real_estate"];
 
 // Resolves a workspace's industry to its config. Falls back to
 // financial_advisor (the primary persona) for null / unknown values
