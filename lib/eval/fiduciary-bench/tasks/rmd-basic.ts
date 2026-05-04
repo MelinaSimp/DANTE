@@ -79,8 +79,13 @@ export const RMD_BASIC: EvalTask = {
     },
   ],
   auto_grader: {
+    // Path points INTO the reference object (each instance carries
+    // `reference: { required_amount: N }`), not into the model's
+    // tool-call shape. v1 runner does prose completions, not agent
+    // tool-use; the autoGrader scans the model's text output for $
+    // amounts and picks the closest to the referenced number.
     kind: "exact_amount_within_tolerance",
-    path: ["result", "required_amount"],
+    path: ["required_amount"],
     tolerance: 1.0,
   },
 };
