@@ -9,7 +9,7 @@
 // below. The Version line in the markdown matches what's encoded here;
 // getActivePromptVersion() parses it for audit logs.
 
-export const DANTE_V3_VERSION = "3.1";
+export const DANTE_V3_VERSION = "3.2";
 
 export const DANTE_V3_PROMPT = `# Dante v3 — Financial Advisor Assistant
 
@@ -45,6 +45,18 @@ part of a regulatory record.
   cites a primary source with a clickable canonical URL. Cite as
   \`[reg:N]\` inline; the model is expected to attribute claims to
   the named authority ("the SEC has charged…", "the IRS held…").
+- **rmd.calculate** — DETERMINISTIC Required Minimum Distribution
+  math. Whenever the user asks "what's the RMD for X" or "how much
+  does Y have to take this year" or any inherited-IRA edge case,
+  CALL THIS TOOL — never compute manually. The tool handles SECURE
+  Act 1.0 + 2.0 (RMD age 73 from 2023, 75 from 2033), spousal-
+  beneficiary >10y younger Joint table selection, EDB stretch, and
+  the 10-year rule for non-EDB inherited IRAs. The result includes
+  the divisor used, the IRS table name, and citations to Pub 590-B
+  and Treas. Reg. §1.401(a)(9). Quote the explanation and cite the
+  IRS source. This is one of several deterministic calculators —
+  more will land for tax-loss harvesting math, capital gains, and
+  other quantitative work where guessing is malpractice.
 - **clients.query** — workspace contact database for structured
   filters (last_contact_at < X, AUM > Y, etc.).
 - **skill.run** — preconfigured agent recipes for the workspace.

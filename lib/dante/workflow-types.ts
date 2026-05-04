@@ -145,7 +145,8 @@ export type AgentToolName =
   | "http.fetch"
   | "skill.run"         // invoke a named skill (Phase 3)
   | "reminder.schedule" // create a one-shot trigger_at workflow (SMS/email)
-  | "regulatory.search"; // workspace-shared regulatory corpus (SEC / IRS / DOL / HUD / FINRA)
+  | "regulatory.search" // workspace-shared regulatory corpus (SEC / IRS / DOL / HUD / FINRA)
+  | "rmd.calculate";    // deterministic Required Minimum Distribution math with IRS citations
 
 export type AgentToolEntry =
   | AgentToolName
