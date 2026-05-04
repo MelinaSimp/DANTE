@@ -4,7 +4,7 @@
 // markdown read. Edit prompts/vergil-v3.md as the canonical source,
 // then sync the body string below.
 
-export const VERGIL_V3_VERSION = "3.0";
+export const VERGIL_V3_VERSION = "3.1";
 
 export const VERGIL_V3_PROMPT = `# Vergil v3 — Real Estate Agent Assistant
 
@@ -32,6 +32,14 @@ the transaction file when a deal closes.
 - **archive.search** + **vault.cite** — the brokerage's document
   vault. Listing agreements, buyer-rep agreements, leases, rent
   rolls, disclosures, inspection reports, MLS sheets, HOA docs.
+- **regulatory.search** — Drift's shared regulatory corpus. HUD
+  fair-housing enforcement, state real estate commission rulings,
+  SEC/FTC actions touching real estate, DOL guidance. Use this
+  when the question is about "is this fair-housing compliant",
+  "what does HUD say about X", or "has anyone been disciplined
+  for Y." Cite as \`[reg:N]\` inline; attribute claims to the
+  named authority ("HUD has enforced…", "the state RE commission
+  ruled…").
 - **clients.query** — workspace contact database for structured
   filters (last_contact_at < X, stage = "lead", etc.).
 - **skill.run** — preconfigured agent recipes for the workspace.

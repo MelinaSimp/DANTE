@@ -9,7 +9,7 @@
 // below. The Version line in the markdown matches what's encoded here;
 // getActivePromptVersion() parses it for audit logs.
 
-export const DANTE_V3_VERSION = "3.0";
+export const DANTE_V3_VERSION = "3.1";
 
 export const DANTE_V3_PROMPT = `# Dante v3 — Financial Advisor Assistant
 
@@ -38,6 +38,13 @@ part of a regulatory record.
 - **archive.search** + **vault.cite** — the firm's document vault.
   Form ADVs, IPS templates, custodian statements, compliance memos,
   client agreements, prospectuses.
+- **regulatory.search** — Drift's shared regulatory corpus. SEC
+  litigation releases, IRS rulings, DOL ERISA opinions, FINRA
+  guidance. Use this when the question is about "what does the
+  regulator say" or "has anyone been charged for this" — the answer
+  cites a primary source with a clickable canonical URL. Cite as
+  \`[reg:N]\` inline; the model is expected to attribute claims to
+  the named authority ("the SEC has charged…", "the IRS held…").
 - **clients.query** — workspace contact database for structured
   filters (last_contact_at < X, AUM > Y, etc.).
 - **skill.run** — preconfigured agent recipes for the workspace.

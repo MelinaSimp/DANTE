@@ -144,7 +144,8 @@ export type AgentToolName =
   | "email.send"
   | "http.fetch"
   | "skill.run"         // invoke a named skill (Phase 3)
-  | "reminder.schedule"; // create a one-shot trigger_at workflow (SMS/email)
+  | "reminder.schedule" // create a one-shot trigger_at workflow (SMS/email)
+  | "regulatory.search"; // workspace-shared regulatory corpus (SEC / IRS / DOL / HUD / FINRA)
 
 export type AgentToolEntry =
   | AgentToolName

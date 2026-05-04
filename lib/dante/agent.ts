@@ -26,6 +26,10 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { searchMemory, formatMemoryHitsForPrompt } from "@/lib/dante/memory/search";
 import { remember } from "@/lib/dante/memory/write";
 import { searchArchive, formatHitsForPrompt } from "@/lib/dante/archive/search";
+import {
+  searchRegulatoryCorpus,
+  formatRegulatoryHitsForPrompt,
+} from "@/lib/dante/regulatory/search";
 import { expandMcpTools, callMcpTool, parseMcpToolName } from "@/lib/mcp/registry";
 import { runSkill } from "@/lib/dante/skills";
 import { getWorkspaceModel } from "@/lib/dante/model";
@@ -109,6 +113,22 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
           query: { type: "string" },
           k: { type: "number", description: "Top-K (1-20, default 5)." },
           kind: { type: "string", description: "Optional ArchiveKind filter." },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  "regulatory.search": {
+    type: "function",
+    function: {
+      name: "regulatory_search",
+      description:
+        "Vector-search Drift's workspace-shared regulatory corpus — SEC litigation releases, IRS rulings, DOL ERISA opinions, HUD fair-housing enforcement, etc. Use this when the user asks 'what does the SEC say about X', 'has anyone been charged for Y', 'is Z compliant', or anytime your answer would benefit from a primary-source regulatory citation. Cite results inline as [reg:N] and let the user click through to the canonical source URL. Industry filtering is automatic based on the workspace vertical (financial advisor sees SEC/IRS/DOL/FINRA; realtor sees HUD/state RE plus shared SEC/FTC).",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Natural-language query — describe the situation or rule, not just keywords." },
+          k: { type: "number", description: "Top-K (1-25, default 5)." },
         },
         required: ["query"],
       },
@@ -260,6 +280,7 @@ const NAME_TO_TOOL: Record<string, AgentToolName> = {
   memory_search: "memory.search",
   memory_write: "memory.write",
   archive_search: "archive.search",
+  regulatory_search: "regulatory.search",
   vault_cite: "vault.cite",
   clients_query: "clients.query",
   clients_update: "clients.update",
@@ -296,6 +317,7 @@ const PER_TOOL_BUDGET: Partial<Record<AgentToolName, number>> = {
   "skill.run": 5,        // skills can be expensive; 5 is generous
   "vault.cite": 10,
   "reminder.schedule": 5, // bound the runaway-reminders failure mode
+  "regulatory.search": 8, // bounded: a single answer rarely needs >3-4 SEC/IRS lookups
 };
 
 /**
@@ -382,6 +404,27 @@ async function dispatchTool(
         kindFilter: args.kind ? String(args.kind) : undefined,
       });
       return { hits, formatted: formatHitsForPrompt(hits) };
+    }
+    case "regulatory.search": {
+      // Industry filter so a realtor workspace doesn't get FINRA OBA
+      // guidance and an advisor workspace doesn't get HUD fair-
+      // housing case law. One small lookup per call, bounded by the
+      // tool budget (8) so cost is negligible.
+      const { data: ws } = await supabaseAdmin
+        .from("workspaces")
+        .select("industry")
+        .eq("id", ctx.workspaceId)
+        .maybeSingle();
+      const industry =
+        (ws as { industry?: string | null } | null)?.industry === "real_estate"
+          ? "real_estate"
+          : "financial_advisor";
+      const hits = await searchRegulatoryCorpus({
+        query: String(args.query || ""),
+        industry,
+        k: Number(args.k) || 5,
+      });
+      return { hits, formatted: formatRegulatoryHitsForPrompt(hits) };
     }
     case "clients.query": {
       let q = supabaseAdmin
@@ -818,6 +861,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       "memory.search": 0,
       "memory.write": 0,
       "archive.search": 0,
+      "regulatory.search": 0,
       "vault.cite": 0,
       "clients.query": 0,
       "clients.update": 0,
