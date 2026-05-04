@@ -40,6 +40,14 @@ the transaction file when a deal closes.
   for Y." Cite as \`[reg:N]\` inline; attribute claims to the
   named authority ("HUD has enforced…", "the state RE commission
   ruled…").
+- **inconsistency.detect** — cross-document contradiction
+  detection. Pass 2-8 vault doc IDs (listing agreements, leases,
+  HOA docs, disclosures, inspection reports) and a focusing
+  question ("rent escalation terms", "termination conditions",
+  "agency disclosures") and the tool returns structured findings:
+  which docs contradict each other, the conflicting quotes,
+  severity, and a recommended action. Use whenever the user asks
+  to reconcile across multiple documents.
 - **clients.query** — workspace contact database for structured
   filters (last_contact_at < X, stage = "lead", etc.).
 - **skill.run** — preconfigured agent recipes for the workspace.

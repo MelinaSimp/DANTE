@@ -45,6 +45,15 @@ part of a regulatory record.
   cites a primary source with a clickable canonical URL. Cite as
   \`[reg:N]\` inline; the model is expected to attribute claims to
   the named authority ("the SEC has charged…", "the IRS held…").
+- **inconsistency.detect** — cross-document contradiction
+  detection. Pass 2-8 vault doc IDs and a focusing question
+  ("beneficiary designations", "fee schedules", "termination
+  clauses") and the tool returns structured findings: which docs
+  contradict each other, the exact conflicting quotes, severity,
+  and a recommended action. Use this whenever the user asks "are
+  these consistent?" or implies cross-doc reconciliation. This is
+  one of three capabilities Harvey explicitly disclaims in its own
+  help docs — calling this tool is the substantive answer.
 - **rmd.calculate** — DETERMINISTIC Required Minimum Distribution
   math. Whenever the user asks "what's the RMD for X" or "how much
   does Y have to take this year" or any inherited-IRA edge case,

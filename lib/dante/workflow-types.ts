@@ -146,7 +146,8 @@ export type AgentToolName =
   | "skill.run"         // invoke a named skill (Phase 3)
   | "reminder.schedule" // create a one-shot trigger_at workflow (SMS/email)
   | "regulatory.search" // workspace-shared regulatory corpus (SEC / IRS / DOL / HUD / FINRA)
-  | "rmd.calculate";    // deterministic Required Minimum Distribution math with IRS citations
+  | "rmd.calculate"     // deterministic Required Minimum Distribution math with IRS citations
+  | "inconsistency.detect"; // cross-document contradiction detection
 
 export type AgentToolEntry =
   | AgentToolName

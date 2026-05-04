@@ -35,6 +35,10 @@ import {
   formatAgenticHitsForPrompt,
 } from "@/lib/dante/regulatory/agentic-search";
 import { calculateRmd } from "@/lib/dante/calculators/rmd";
+import {
+  detectInconsistencies,
+  formatInconsistenciesForPrompt,
+} from "@/lib/dante/tools/inconsistency-detect";
 import { expandMcpTools, callMcpTool, parseMcpToolName } from "@/lib/mcp/registry";
 import { runSkill } from "@/lib/dante/skills";
 import { getWorkspaceModel } from "@/lib/dante/model";
@@ -137,6 +141,29 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
           agentic: { type: "boolean", description: "Enable iterative refinement (3-4 rounds, refines the query against gaps). Default false. Use for hard questions; skip for direct lookups." },
         },
         required: ["query"],
+      },
+    },
+  },
+  "inconsistency.detect": {
+    type: "function",
+    function: {
+      name: "inconsistency_detect",
+      description:
+        "Compare 2-8 vault documents for contradictions on a specific question. Use this when the user asks 'are these consistent?', 'do these match?', 'is there a beneficiary mismatch across X / Y / Z', or any 'compare these docs' question. Harvey explicitly says it cannot detect inconsistencies across multiple documents — this tool exists specifically to do that. Returns structured findings with severity (high/medium/low), per-document quotes, and recommended actions. Use vault.cite or archive.search FIRST to identify which doc IDs are relevant; pass them in. The tool only flags real contradictions — empty findings means the docs are consistent on the question, not that the tool is broken.",
+      parameters: {
+        type: "object",
+        properties: {
+          doc_ids: {
+            type: "array",
+            items: { type: "string" },
+            description: "Vault document IDs (vault_items.id, UUIDs). 2-8 docs. Identify these via vault.cite or archive.search first.",
+          },
+          question: {
+            type: "string",
+            description: "The dimension to compare on — 'beneficiary designations', 'fee schedules', 'termination clauses', 'distribution standard', etc. Without this the tool has to guess what to compare.",
+          },
+        },
+        required: ["doc_ids", "question"],
       },
     },
   },
@@ -310,6 +337,7 @@ const NAME_TO_TOOL: Record<string, AgentToolName> = {
   archive_search: "archive.search",
   regulatory_search: "regulatory.search",
   rmd_calculate: "rmd.calculate",
+  inconsistency_detect: "inconsistency.detect",
   vault_cite: "vault.cite",
   clients_query: "clients.query",
   clients_update: "clients.update",
@@ -348,6 +376,7 @@ const PER_TOOL_BUDGET: Partial<Record<AgentToolName, number>> = {
   "reminder.schedule": 5, // bound the runaway-reminders failure mode
   "regulatory.search": 8, // bounded: a single answer rarely needs >3-4 SEC/IRS lookups
   "rmd.calculate": 10,    // a multi-account briefing might compute several at once
+  "inconsistency.detect": 4, // expensive (full doc content in prompt); rarely needs more
 };
 
 /**
@@ -473,6 +502,30 @@ async function dispatchTool(
         k,
       });
       return { hits, formatted: formatRegulatoryHitsForPrompt(hits) };
+    }
+    case "inconsistency.detect": {
+      // Cross-document contradiction detection — the thing Harvey
+      // explicitly disclaims. See lib/dante/tools/inconsistency-
+      // detect.ts for the design rationale.
+      try {
+        const docIds = Array.isArray(args.doc_ids)
+          ? (args.doc_ids as unknown[]).map((x) => String(x)).filter(Boolean)
+          : [];
+        const question = String(args.question || "");
+        const result = await detectInconsistencies({
+          workspaceId: ctx.workspaceId,
+          doc_ids: docIds,
+          question,
+        });
+        return {
+          ...result,
+          formatted: formatInconsistenciesForPrompt(result),
+        };
+      } catch (err) {
+        return {
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
     }
     case "rmd.calculate": {
       // Deterministic math — no LLM, no DB, just IRS-table lookup.
@@ -945,6 +998,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       "archive.search": 0,
       "regulatory.search": 0,
       "rmd.calculate": 0,
+      "inconsistency.detect": 0,
       "vault.cite": 0,
       "clients.query": 0,
       "clients.update": 0,
