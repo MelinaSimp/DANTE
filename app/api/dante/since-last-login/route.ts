@@ -70,6 +70,19 @@ type Group = {
     sublabel?: string | null;
     when?: string | null; // ISO
     href?: string;
+    /** Brief-only: the agent's recommended action this week.
+     *  Renders as an italic line below the row when present. */
+    recommended_action?: string | null;
+    /** Brief-only: list of affected clients the agent named.
+     *  Renders as small chips beneath the row. contact_id is a
+     *  best-effort link target — null when the agent didn't name
+     *  a specific contact (generic "all clients with retirement
+     *  accounts" findings). */
+    affected_clients?: Array<{
+      contact_id?: string | null;
+      name: string;
+      why: string;
+    }>;
   }>;
 };
 
@@ -505,7 +518,85 @@ export async function GET() {
     });
   }
 
-  if ((regulatoryUpdates.count ?? 0) > 0) {
+  // Latest auto-generated regulatory brief — when one exists, the
+  // dashboard shows the agent's already-completed analysis instead
+  // of a raw list of items. The "find raw items + click to analyze"
+  // path remains as a fallback for workspaces where the brief cron
+  // hasn't run yet.
+  const { data: latestBrief } = await supabaseAdmin
+    .from("regulatory_briefs")
+    .select(
+      "id, generated_at, items_considered, items_relevant, findings, read_at",
+    )
+    .eq("workspace_id", workspaceId)
+    .order("generated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const briefData = latestBrief as
+    | {
+        id: string;
+        generated_at: string;
+        items_considered: number;
+        items_relevant: number;
+        findings: unknown;
+        read_at: string | null;
+      }
+    | null;
+
+  if (briefData && Array.isArray(briefData.findings) && briefData.findings.length > 0) {
+    const findings = briefData.findings as Array<{
+      item_id: string;
+      authority: string;
+      title: string;
+      source_url: string;
+      relevance: "high" | "medium" | "low" | "none";
+      summary: string;
+      affected_clients?: Array<{
+        contact_id?: string | null;
+        name: string;
+        why: string;
+      }>;
+      recommended_action: string | null;
+    }>;
+    // Surface only relevant findings on the dashboard. The 'none'
+    // ones stay in the brief for audit but don't clutter the panel.
+    const visible = findings.filter((f) => f.relevance !== "none");
+    if (visible.length > 0) {
+      groups.push({
+        kind: "regulatory_updates",
+        title: briefData.read_at
+          ? "Regulatory analysis · Dante's findings"
+          : "Regulatory analysis · new findings from Dante",
+        count: visible.length,
+        action: {
+          label: "Open the full briefing",
+          ask_prompt:
+            `Walk me through your most recent regulatory briefing in detail. ` +
+            `For each finding, expand on the implication, name any clients I ` +
+            `should look at by hand, and tell me what to do this week. ` +
+            `Cite the regulatory source for every claim.`,
+        },
+        items: visible.slice(0, 5).map((f) => ({
+          id: f.item_id,
+          label: f.summary,
+          sublabel: [
+            f.authority,
+            f.relevance.toUpperCase(),
+          ]
+            .filter(Boolean)
+            .join(" · "),
+          when: briefData.generated_at,
+          href: f.source_url,
+          recommended_action: f.recommended_action,
+          affected_clients: f.affected_clients ?? [],
+        })),
+      });
+    }
+  } else if ((regulatoryUpdates.count ?? 0) > 0) {
+    // Fallback: no brief generated yet (cron hasn't run since these
+    // items landed) but raw items exist. Show the old-style list +
+    // ask-button so the user isn't blind until the next cron tick.
     const items = ((regulatoryUpdates.data || []) as Array<{
       id: string;
       authority: string;
@@ -518,12 +609,8 @@ export async function GET() {
       label: row.title,
       sublabel: `${row.authority} · ${row.source_kind.replace(/_/g, " ")}`,
       when: row.published_at,
-      // Source URL opens in a new tab via target=_blank handling on
-      // the client (it's an external link, not an internal route).
       href: row.source_url,
     }));
-    // Build the "Ask Dante" prompt from the actual titles so the
-    // model has the concrete list to analyze, not a generic prompt.
     const titleList = items
       .map((it, i) => `${i + 1}. ${it.label} (${it.sublabel})`)
       .join("\n");
@@ -556,9 +643,24 @@ export async function GET() {
       if (error) console.warn("[since-last-login] last_seen_at bump failed:", error.message);
     });
 
+  // Unread regulatory briefs for this workspace — drives the
+  // AppTopBar Ask button badge. Cheap count query.
+  const { count: unreadBriefCount } = await supabaseAdmin
+    .from("regulatory_briefs")
+    .select("id", { count: "exact", head: true })
+    .eq("workspace_id", workspaceId)
+    .is("read_at", null);
+
+  // Also surface the latest brief's id so the mark-read endpoint
+  // can be called against a specific row when the user opens the
+  // panel.
+  const latest_brief_id = briefData?.id ?? null;
+
   return NextResponse.json({
     since,
     is_first_visit: isFirstVisit,
     groups,
+    unread_brief_count: unreadBriefCount ?? 0,
+    latest_brief_id,
   });
 }

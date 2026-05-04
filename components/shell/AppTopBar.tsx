@@ -72,6 +72,20 @@ export default function AppTopBar() {
     return () => window.removeEventListener("drift:open-ask", onOpenAsk);
   }, []);
 
+  // Unread regulatory briefs badge. WhatChanged dispatches
+  // `drift:regulatory-unread` on each data load with the current
+  // count, so the badge stays in sync as briefs are read or
+  // generated. Default to 0 — the badge only renders when > 0.
+  const [unreadCount, setUnreadCount] = useState(0);
+  useEffect(() => {
+    function onUnread(e: Event) {
+      const n = (e as CustomEvent<{ count?: number }>).detail?.count ?? 0;
+      setUnreadCount(Math.max(0, n));
+    }
+    window.addEventListener("drift:regulatory-unread", onUnread);
+    return () => window.removeEventListener("drift:regulatory-unread", onUnread);
+  }, []);
+
   // Detect platform for the keyboard hint label. macOS / iOS shows
   // ⌘; everywhere else shows Ctrl. Best-effort, runs on mount.
   const [isMac, setIsMac] = useState(false);
@@ -95,11 +109,24 @@ export default function AppTopBar() {
             setInitialMode("ask");
             setOpen(true);
           }}
-          className="inline-flex items-center gap-2.5 rounded-[6px] border border-[var(--ink)] bg-[var(--ink)] text-[var(--canvas)] px-4 py-2 text-sm font-medium transition hover:opacity-90 active:scale-[0.99]"
+          className="relative inline-flex items-center gap-2.5 rounded-[6px] border border-[var(--ink)] bg-[var(--ink)] text-[var(--canvas)] px-4 py-2 text-sm font-medium transition hover:opacity-90 active:scale-[0.99]"
           aria-keyshortcuts={isMac ? "Meta+D" : "Control+D"}
+          aria-label={
+            unreadCount > 0
+              ? `Ask ${name}. ${unreadCount} new regulatory finding${unreadCount === 1 ? "" : "s"} from ${name}.`
+              : `Ask ${name}`
+          }
         >
           <Sparkles className="w-4 h-4" strokeWidth={1.75} />
           <span>Ask {name}</span>
+          {unreadCount > 0 && (
+            <span
+              className="ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5 rounded-full bg-[var(--accent,#2563eb)] text-[var(--canvas)] text-[11px] font-semibold leading-none"
+              title={`${unreadCount} new regulatory finding${unreadCount === 1 ? "" : "s"}`}
+            >
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          )}
           <span
             className="ml-1 mono text-[11px] opacity-70"
             aria-hidden="true"

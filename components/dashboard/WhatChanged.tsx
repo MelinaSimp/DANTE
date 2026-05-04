@@ -25,6 +25,7 @@
 // shows only newer items in the time-scoped groups.
 
 import Link from "next/link";
+import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 type Group = {
@@ -46,6 +47,16 @@ type Group = {
     sublabel?: string | null;
     when?: string | null;
     href?: string;
+    /** Brief-only: agent's recommended action. Rendered below the
+     *  row in italic. Null/absent for non-brief items. */
+    recommended_action?: string | null;
+    /** Brief-only: list of clients the agent flagged. Rendered as
+     *  chips that link to the contact page when contact_id is set. */
+    affected_clients?: Array<{
+      contact_id?: string | null;
+      name: string;
+      why: string;
+    }>;
   }>;
 };
 
@@ -53,6 +64,13 @@ type Payload = {
   since: string | null;
   is_first_visit: boolean;
   groups: Group[];
+  /** Unread regulatory briefs for the workspace. Emitted up via the
+   *  `drift:regulatory-unread` window event so the AppTopBar Ask
+   *  button can render a count badge. */
+  unread_brief_count?: number;
+  /** Most recent brief id; we mark-read when the panel actually
+   *  renders the findings. */
+  latest_brief_id?: string | null;
 };
 
 async function fetchSinceLastLogin(): Promise<Payload> {
@@ -116,6 +134,50 @@ export default function WhatChanged() {
     // Don't auto-refresh aggressively; this is a session-start surface.
     staleTime: 60_000,
   });
+
+  // Bubble the unread brief count up to the AppTopBar so it can
+  // render a badge on the Ask button. We dispatch on every data
+  // change (initial load + refetches) so the badge stays in sync.
+  useEffect(() => {
+    if (!data) return;
+    window.dispatchEvent(
+      new CustomEvent("drift:regulatory-unread", {
+        detail: { count: data.unread_brief_count ?? 0 },
+      }),
+    );
+  }, [data]);
+
+  // Mark the latest brief as read once we've actually rendered
+  // findings to the user. Idempotent (the API guards on read_at IS
+  // NULL) so subsequent renders are no-ops. We track the brief id
+  // we last marked so the effect doesn't fire repeatedly when
+  // React Query refetches return the same brief.
+  const markedReadRef = useRef<string | null>(null);
+  useEffect(() => {
+    const briefId = data?.latest_brief_id;
+    if (!briefId) return;
+    if (markedReadRef.current === briefId) return;
+    const hasFindings = data!.groups.some(
+      (g) => g.kind === "regulatory_updates" && g.items.length > 0,
+    );
+    if (!hasFindings) return;
+    markedReadRef.current = briefId;
+    fetch(`/api/dante/regulatory-briefs/${briefId}/read`, {
+      method: "POST",
+      credentials: "include",
+    })
+      .then((res) => {
+        if (res.ok) {
+          // Tell the AppTopBar the count just dropped.
+          window.dispatchEvent(
+            new CustomEvent("drift:regulatory-unread", {
+              detail: { count: 0 },
+            }),
+          );
+        }
+      })
+      .catch(() => undefined);
+  }, [data]);
 
   // Loading / error states are deliberately silent. The dashboard
   // hero rendering should never block on this panel.
@@ -202,6 +264,9 @@ export default function WhatChanged() {
             </div>
             <ul className="space-y-2">
               {g.items.map((item) => {
+                const hasMeta =
+                  (item.recommended_action && item.recommended_action.trim()) ||
+                  (item.affected_clients && item.affected_clients.length > 0);
                 const inner = (
                   <div className="flex items-baseline justify-between gap-4">
                     <div className="min-w-0">
@@ -249,6 +314,50 @@ export default function WhatChanged() {
                       )
                     ) : (
                       <div className="py-1 px-2">{inner}</div>
+                    )}
+                    {hasMeta && (
+                      <div className="ml-2 mt-1 mb-2 space-y-1.5">
+                        {item.recommended_action && (
+                          <div className="text-sm italic text-[var(--ink-muted)]">
+                            <span className="not-italic font-medium text-[var(--ink)]">
+                              Do this week:
+                            </span>{" "}
+                            {item.recommended_action}
+                          </div>
+                        )}
+                        {item.affected_clients && item.affected_clients.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 items-baseline">
+                            <span className="text-xs text-[var(--ink-subtle)] mr-1">
+                              Affected:
+                            </span>
+                            {item.affected_clients.map((c, i) => {
+                              const chip = (
+                                <span
+                                  className="inline-flex items-center rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-2 py-0.5 text-xs text-[var(--ink)] hover:border-[var(--ink-muted)] transition-colors"
+                                  title={c.why}
+                                >
+                                  {c.name}
+                                </span>
+                              );
+                              return c.contact_id ? (
+                                <Link
+                                  key={`${c.contact_id}-${i}`}
+                                  href={`/contact/${c.contact_id}`}
+                                >
+                                  {chip}
+                                </Link>
+                              ) : (
+                                <span
+                                  key={`${c.name}-${i}`}
+                                  className="inline-block"
+                                >
+                                  {chip}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
                     )}
                   </li>
                 );
