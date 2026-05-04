@@ -12,7 +12,6 @@ import "./globals.css";
 import Header from "@/components/Header";
 import PushNotificationManager from "@/components/PushNotificationManager";
 import OfflineIndicator from "@/components/OfflineIndicator";
-import UpdateBanner from "@/components/desktop/UpdateBanner";
 import { OnboardingProvider } from "@/components/onboarding/OnboardingProvider";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { ToastProvider } from "@/components/ui/toast";
@@ -87,7 +86,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <ConfirmDialogProvider>
               <OnboardingProvider>
                 <OfflineIndicator />
-                <UpdateBanner />
                 <div className="hidden">
                   <Header />
                 </div>

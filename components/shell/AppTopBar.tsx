@@ -20,6 +20,7 @@ import { useEffect, useState } from "react";
 import { Sparkles } from "lucide-react";
 import { useAssistantBrand } from "@/components/dante/AssistantNameProvider";
 import GlobalSearchModal from "./GlobalSearchModal";
+import UpdateAffordance from "@/components/desktop/UpdateAffordance";
 
 export default function AppTopBar() {
   const { name } = useAssistantBrand();
@@ -102,6 +103,7 @@ export default function AppTopBar() {
         className="sticky top-0 z-50 flex items-center justify-end gap-3 px-4 md:px-8 py-3 border-b border-[var(--rule)] bg-[var(--canvas)]/95 backdrop-blur"
         aria-label="Page header"
       >
+        <UpdateAffordance />
         <button
           type="button"
           onClick={() => {
