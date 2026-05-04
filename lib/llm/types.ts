@@ -49,6 +49,11 @@ export interface LlmCompleteOptions {
   feature?: string;
   /** Workspace context for telemetry / future per-tenant routing. */
   workspaceId?: string | null;
+  /** Pre-resolved processing mode (Hermes integration, Phase 1).
+   *  When set to 'local_only', getProvider() returns the Hermes
+   *  provider instead of the cloud default. Callers compute this
+   *  via resolveProcessingMode() in lib/llm/processing-mode.ts. */
+  processingMode?: "cloud" | "local_only";
 }
 
 export interface LlmUsage {

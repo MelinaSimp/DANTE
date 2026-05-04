@@ -17,6 +17,7 @@ import {
   MessageSquare,
   Cpu,
   Palette,
+  ShieldCheck,
 } from "lucide-react";
 
 const PhoneNumbersCard = lazy(() => import("./PhoneNumbersCard"));
@@ -25,6 +26,7 @@ const MailboxCard = lazy(() => import("./MailboxCard"));
 const SkillsCard = lazy(() => import("./SkillsCard"));
 const ModelCard = lazy(() => import("./ModelCard"));
 const AppearanceCard = lazy(() => import("./AppearanceCard"));
+const PrivacyModeCard = lazy(() => import("./PrivacyModeCard"));
 
 import BillingCard from "./BillingCard";
 import ExportDataCard from "./ExportDataCard";
@@ -38,7 +40,8 @@ type PanelId =
   | "billing"
   | "export"
   | "model"
-  | "appearance";
+  | "appearance"
+  | "privacy_mode";
 
 const PANEL_TITLES: Record<PanelId, string> = {
   phone_numbers: "Phone numbers",
@@ -50,6 +53,7 @@ const PANEL_TITLES: Record<PanelId, string> = {
   export: "Export data",
   model: "Agent model",
   appearance: "Appearance",
+  privacy_mode: "Privacy mode",
 };
 
 const PANEL_SUBTITLES: Record<PanelId, string> = {
@@ -69,6 +73,8 @@ const PANEL_SUBTITLES: Record<PanelId, string> = {
     "Choose the model that powers Dante, Vergil, SMS, and every workflow agent step in this workspace.",
   appearance:
     "Light, dark, or follow your system. Persists per-device.",
+  privacy_mode:
+    "Cloud vs. local-only processing. Local mode runs Hermes 3 on each user's machine via the Drift desktop app — content never leaves the laptop.",
 };
 
 interface NavItem {
@@ -90,6 +96,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { name: "Dante skills", icon: Sparkles, panelId: "skills", group: "Workspace" },
   { name: "Billing", icon: CreditCard, panelId: "billing", group: "Workspace" },
   { name: "Appearance", icon: Palette, panelId: "appearance", group: "Workspace" },
+  { name: "Privacy mode", icon: ShieldCheck, panelId: "privacy_mode", adminOnly: true, group: "Administration" },
   { name: "Agent model", icon: Cpu, panelId: "model", adminOnly: true, group: "Administration" },
   { name: "Export", icon: Download, panelId: "export", adminOnly: true, group: "Administration" },
 ];
@@ -161,6 +168,8 @@ export default function SettingsOrbClient({
         return <ModelCard isAdmin={isAdmin} />;
       case "appearance":
         return <AppearanceCard />;
+      case "privacy_mode":
+        return <PrivacyModeCard />;
       default:
         return null;
     }

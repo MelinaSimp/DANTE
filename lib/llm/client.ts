@@ -36,21 +36,45 @@ import type {
   LlmTranscribeOptions,
 } from "./types";
 import { openaiProvider } from "./providers/openai";
+import { hermesProvider } from "./providers/hermes";
+
+interface ProviderSelectorOpts {
+  model?: string;
+  workspaceId?: string | null;
+  /** Pre-resolved processing mode from lib/llm/processing-mode.ts.
+   *  When set to 'local_only' the router returns the Hermes
+   *  provider regardless of model name. The caller is responsible
+   *  for resolving the mode (workspace → contact → doc → chat
+   *  hierarchy); this router just honors the result. */
+  processingMode?: "cloud" | "local_only";
+}
 
 /**
- * Returns the LlmProvider that should serve this call. Today
- * always OpenAI; future iterations can route by model name (claude*
- * → anthropic provider), per-workspace config (workspace.llm_provider
- * column), or per-feature policy. The router lives here so call
- * sites never know which backend served them — that's the whole
- * point of the seam.
+ * Returns the LlmProvider that should serve this call.
+ *
+ * Routing today:
+ *   1. Explicit processingMode='local_only' → HermesProvider
+ *      (local Ollama). This is the path that bypasses Drift
+ *      servers entirely IN PRODUCTION (when the call originates
+ *      in the Electron app's renderer, not Vercel — see Phase 2
+ *      of the Hermes roadmap). The server-side stub here exists
+ *      for development / self-hosted Ollama configurations.
+ *   2. Default → OpenAIProvider.
+ *
+ * Future routing logic lands here:
+ *   • if (opts?.model?.startsWith("claude")) → anthropicProvider
+ *   • if (opts?.model?.startsWith("gemini")) → geminiProvider
+ *   • Per-workspace config column for preferred cloud provider
+ *
+ * Callers pass `processingMode` from resolveProcessingMode() in
+ * lib/llm/processing-mode.ts. Most callers shouldn't think about
+ * this — the agent loop and brief generator pass it through
+ * automatically.
  */
-export function getProvider(_opts?: { model?: string; workspaceId?: string | null }): LlmProvider {
-  // Future routing logic lands here. e.g.:
-  //   if (opts?.model?.startsWith("claude")) return anthropicProvider;
-  //   if (opts?.model?.startsWith("gemini")) return geminiProvider;
-  //   const cfg = await loadWorkspaceLlmConfig(opts?.workspaceId);
-  //   if (cfg.preferred === "anthropic") return anthropicProvider;
+export function getProvider(opts?: ProviderSelectorOpts): LlmProvider {
+  if (opts?.processingMode === "local_only") {
+    return hermesProvider;
+  }
   return openaiProvider;
 }
 
@@ -63,7 +87,11 @@ export function getProvider(_opts?: { model?: string; workspaceId?: string | nul
 export async function complete(
   opts: LlmCompleteOptions,
 ): Promise<LlmCompleteResult> {
-  const provider = getProvider({ model: opts.model, workspaceId: opts.workspaceId ?? null });
+  const provider = getProvider({
+    model: opts.model,
+    workspaceId: opts.workspaceId ?? null,
+    processingMode: opts.processingMode,
+  });
   return provider.complete(opts);
 }
 
