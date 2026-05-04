@@ -44,6 +44,29 @@ contextBridge.exposeInMainWorld("electronAPI", {
   /** Get this installation's persistent device identity.
    *  Returns { device_id, device_label, created_at }. */
   getDevice: () => ipcRenderer.invoke("device:get"),
+
+  /** Auto-updater bridge. The dashboard's UpdateBanner uses this
+   *  to render the "update available / update now" UX in-app
+   *  instead of a native dialog box. */
+  updates: {
+    /** Snapshot of the current update state. Useful on mount
+     *  to render the banner immediately if an update was already
+     *  downloaded before the renderer attached. */
+    getState: () => ipcRenderer.invoke("updates:getState"),
+    /** Force a check now. The dashboard calls this on login so
+     *  users see the banner without waiting for the 4h interval. */
+    check: () => ipcRenderer.invoke("updates:check"),
+    /** Quit + relaunch into the new version. Only valid after the
+     *  state has reached 'downloaded'. */
+    apply: () => ipcRenderer.invoke("updates:apply"),
+    /** Subscribe to state-change broadcasts. Returns an
+     *  unsubscribe function. */
+    onState: (handler) => {
+      const wrapped = (_event, data) => handler(data);
+      ipcRenderer.on("updates:state", wrapped);
+      return () => ipcRenderer.off("updates:state", wrapped);
+    },
+  },
 });
 
 // Hermes Phase 2 — local LLM. Separated namespace from electronAPI

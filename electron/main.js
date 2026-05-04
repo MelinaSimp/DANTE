@@ -23,25 +23,70 @@ autoUpdater.setFeedURL({
   provider: "generic",
   url: "https://driftai.studio/api/desktop-download",
 });
-autoUpdater.on("error", (err) => console.error("[Drift updater]", err?.message || err));
-autoUpdater.on("update-available", (info) =>
-  console.log("[Drift updater] update available:", info?.version)
-);
+
+// Update state, broadcast to the renderer so the in-app UpdateBanner
+// can show "Update now" without us having to render a native dialog.
+// The renderer subscribes via window.electronAPI.updates.onState.
+let updateState = {
+  status: "idle", // idle | checking | available | downloading | downloaded | not_available | error
+  version: null,
+  downloaded_version: null,
+  progress_percent: null,
+  error: null,
+};
+
+function emitUpdateState() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("updates:state", updateState);
+  }
+}
+
+autoUpdater.on("checking-for-update", () => {
+  updateState = { ...updateState, status: "checking", error: null };
+  emitUpdateState();
+});
+autoUpdater.on("update-available", (info) => {
+  console.log("[Drift updater] update available:", info?.version);
+  updateState = {
+    ...updateState,
+    status: "downloading",
+    version: info?.version || null,
+    error: null,
+  };
+  emitUpdateState();
+});
+autoUpdater.on("update-not-available", () => {
+  updateState = { ...updateState, status: "not_available", error: null };
+  emitUpdateState();
+});
+autoUpdater.on("download-progress", (p) => {
+  updateState = {
+    ...updateState,
+    status: "downloading",
+    progress_percent:
+      typeof p?.percent === "number" ? Math.round(p.percent) : null,
+  };
+  emitUpdateState();
+});
 autoUpdater.on("update-downloaded", (info) => {
   console.log("[Drift updater] downloaded:", info?.version);
-  dialog
-    .showMessageBox({
-      type: "info",
-      buttons: ["Restart now", "Later"],
-      defaultId: 0,
-      cancelId: 1,
-      title: "Update ready",
-      message: `Drift ${info?.version || ""} has been downloaded.`,
-      detail: "Restart the app to apply the update.",
-    })
-    .then((result) => {
-      if (result.response === 0) autoUpdater.quitAndInstall();
-    });
+  updateState = {
+    ...updateState,
+    status: "downloaded",
+    downloaded_version: info?.version || updateState.version || null,
+    progress_percent: 100,
+    error: null,
+  };
+  emitUpdateState();
+});
+autoUpdater.on("error", (err) => {
+  console.error("[Drift updater]", err?.message || err);
+  updateState = {
+    ...updateState,
+    status: "error",
+    error: err?.message || String(err),
+  };
+  emitUpdateState();
 });
 // Desktop app boots into /dashboard: middleware bounces unauthed users
 // to /auth for sign-in; signed-in users land straight in the app. The
@@ -313,6 +358,33 @@ ipcMain.handle("ollama:embed", async (_e, opts) => ollama.embed(opts || {}));
 ipcMain.handle("ollama:ensureRunning", async () => ollama.ensureRunning());
 
 ipcMain.handle("device:get", async () => device.load(app.getPath("userData")));
+
+// Update flow — renderer-driven. The dashboard's UpdateBanner
+// subscribes to updates:state, calls updates:check on login, and
+// updates:apply when the user clicks "Update now."
+ipcMain.handle("updates:getState", async () => updateState);
+ipcMain.handle("updates:check", async () => {
+  if (isDev) {
+    return { ok: false, reason: "skipped_in_dev" };
+  }
+  try {
+    const result = await autoUpdater.checkForUpdates();
+    return {
+      ok: true,
+      version: result?.updateInfo?.version || null,
+    };
+  } catch (err) {
+    return { ok: false, reason: err?.message || String(err) };
+  }
+});
+ipcMain.handle("updates:apply", async () => {
+  if (updateState.status !== "downloaded") {
+    return { ok: false, reason: "no_update_downloaded" };
+  }
+  // quitAndInstall doesn't return — the app shuts down and relaunches.
+  setTimeout(() => autoUpdater.quitAndInstall(), 200);
+  return { ok: true };
+});
 
 app.whenReady().then(async () => {
   // Pre-warm device identity (creates device.json on first run).

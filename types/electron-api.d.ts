@@ -9,7 +9,20 @@
 // Keep this file as the single source — duplicate `declare global`
 // blocks across components fight each other for the canonical type.
 
-export {};
+export type UpdateState = {
+  status:
+    | "idle"
+    | "checking"
+    | "available"
+    | "downloading"
+    | "downloaded"
+    | "not_available"
+    | "error";
+  version: string | null;
+  downloaded_version: string | null;
+  progress_percent: number | null;
+  error: string | null;
+};
 
 declare global {
   interface Window {
@@ -51,6 +64,16 @@ declare global {
         device_label: string;
         created_at?: string;
       }>;
+
+      /** Auto-updater bridge. The renderer-side UpdateBanner uses
+       *  this to render the "update available / update now" flow
+       *  in-app instead of via a native dialog box. */
+      updates?: {
+        getState: () => Promise<UpdateState>;
+        check: () => Promise<{ ok: boolean; version?: string | null; reason?: string }>;
+        apply: () => Promise<{ ok: boolean; reason?: string }>;
+        onState: (handler: (state: UpdateState) => void) => () => void;
+      };
     };
 
     /** Hermes Phase 2 — local LLM bridge. Bypasses the cloud
