@@ -96,10 +96,16 @@ export default function GlobalSearchModal({
   open,
   onClose,
   initialMode = "search",
+  seedPrompt,
 }: {
   open: boolean;
   onClose: () => void;
   initialMode?: Mode;
+  /** Optional pre-filled question. When set and the modal opens in
+   *  Ask mode, the textarea is seeded so the user can edit or submit
+   *  the suggested prompt. Used by surfaces like the WhatChanged
+   *  panel's "Ask Dante what these mean for my book" button. */
+  seedPrompt?: string;
 }) {
   const router = useRouter();
   const { name: assistantName } = useAssistantBrand();
@@ -124,22 +130,32 @@ export default function GlobalSearchModal({
   const [chatId, setChatId] = useState<string | undefined>(undefined);
   const abortRef = useRef<AbortController | null>(null);
 
-  // Reset on every fresh open. Honor the requested initial mode.
+  // Reset on every fresh open. Honor the requested initial mode and
+  // seed the Ask textarea if a seedPrompt was passed in.
   useEffect(() => {
     if (!open) return;
     setMode(initialMode);
     setQ("");
     setResults([]);
     setActiveIndex(0);
-    setAskInput("");
+    setAskInput(seedPrompt ?? "");
     setTurns([]);
     setStream(initialStreamState());
     setChatId(undefined);
     setTimeout(() => {
-      if (initialMode === "ask") askInputRef.current?.focus();
-      else inputRef.current?.focus();
+      if (initialMode === "ask") {
+        const ta = askInputRef.current;
+        if (ta) {
+          ta.focus();
+          // Move cursor to end so the user can either edit or just
+          // press Enter to submit the suggested prompt.
+          if (seedPrompt) ta.setSelectionRange(seedPrompt.length, seedPrompt.length);
+        }
+      } else {
+        inputRef.current?.focus();
+      }
     }, 0);
-  }, [open, initialMode]);
+  }, [open, initialMode, seedPrompt]);
 
   // Refocus the right input when the user toggles modes.
   useEffect(() => {

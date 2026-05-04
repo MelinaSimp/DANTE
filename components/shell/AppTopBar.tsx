@@ -25,6 +25,7 @@ export default function AppTopBar() {
   const { name } = useAssistantBrand();
   const [open, setOpen] = useState(false);
   const [initialMode, setInitialMode] = useState<"search" | "ask">("ask");
+  const [seedPrompt, setSeedPrompt] = useState<string | undefined>(undefined);
 
   // Keep the same global keyboard shortcuts working when the user
   // is anywhere on an authenticated page. The sidebar already wires
@@ -40,17 +41,35 @@ export default function AppTopBar() {
         // we'd never see this.
         if (e.defaultPrevented) return;
         e.preventDefault();
+        setSeedPrompt(undefined);
         setInitialMode("search");
         setOpen(true);
       } else if (e.key === "/" || e.key === "d") {
         if (e.defaultPrevented) return;
         e.preventDefault();
+        setSeedPrompt(undefined);
         setInitialMode("ask");
         setOpen(true);
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Other surfaces (the WhatChanged "Ask Dante what these mean for
+  // my book" button, future contextual quick-asks) dispatch
+  // `drift:open-ask` with an optional seed prompt. We open the
+  // modal in Ask mode and pass the seed through so the user lands
+  // on a pre-filled question they can edit or just submit.
+  useEffect(() => {
+    function onOpenAsk(e: Event) {
+      const detail = (e as CustomEvent<{ prompt?: string }>).detail;
+      setSeedPrompt(detail?.prompt);
+      setInitialMode("ask");
+      setOpen(true);
+    }
+    window.addEventListener("drift:open-ask", onOpenAsk);
+    return () => window.removeEventListener("drift:open-ask", onOpenAsk);
   }, []);
 
   // Detect platform for the keyboard hint label. macOS / iOS shows
@@ -72,6 +91,7 @@ export default function AppTopBar() {
         <button
           type="button"
           onClick={() => {
+            setSeedPrompt(undefined);
             setInitialMode("ask");
             setOpen(true);
           }}
@@ -93,6 +113,7 @@ export default function AppTopBar() {
         open={open}
         onClose={() => setOpen(false)}
         initialMode={initialMode}
+        seedPrompt={seedPrompt}
       />
     </>
   );

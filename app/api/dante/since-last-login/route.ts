@@ -49,10 +49,21 @@ type Group = {
     | "memories_pending"
     | "closings_soon"
     | "stuck_properties"
-    | "new_properties";
+    | "new_properties"
+    | "regulatory_updates";
   title: string;
   count: number;
   href?: string;
+  /** Optional secondary action surfaced in the panel header. Used by
+   *  regulatory_updates to offer "Ask Dante what these mean for my
+   *  book" — the panel dispatches a window event the AppTopBar
+   *  listens for, opening the Ask modal pre-filled. */
+  action?: {
+    label: string;
+    /** A natural-language prompt the panel will pre-fill into the
+     *  Ask modal when the user clicks. */
+    ask_prompt: string;
+  };
   items: Array<{
     id: string;
     label: string;
@@ -131,6 +142,7 @@ export async function GET() {
     closingsSoon,
     stuckProperties,
     newProperties,
+    regulatoryUpdates,
   ] = await Promise.all([
     // Drafts the advisor needs to clear. Always-on (a 3-week-old
     // draft still demands attention).
@@ -261,6 +273,22 @@ export async function GET() {
           .order("created_at", { ascending: false })
           .limit(ITEMS_PER_GROUP)
       : noop,
+
+    // Regulatory updates published since last visit. Workspace-
+    // shared corpus (no workspace_id filter) but scoped by
+    // industry_scope so a realtor doesn't see FINRA OBA news and
+    // an advisor doesn't see HUD enforcement. Time-scoped: this
+    // is the "what's new at the regulators since I logged in"
+    // surface — the killer-feature ask Luca flagged.
+    supabaseAdmin
+      .from("regulatory_corpus_items")
+      .select("id, authority, source_kind, source_url, title, published_at", {
+        count: "exact",
+      })
+      .contains("industry_scope", [industry])
+      .gt("published_at", sinceClause)
+      .order("published_at", { ascending: false })
+      .limit(ITEMS_PER_GROUP),
   ]);
 
   const groups: Group[] = [];
@@ -474,6 +502,46 @@ export async function GET() {
         when: row.created_at,
         href: `/properties/${row.id}`,
       })),
+    });
+  }
+
+  if ((regulatoryUpdates.count ?? 0) > 0) {
+    const items = ((regulatoryUpdates.data || []) as Array<{
+      id: string;
+      authority: string;
+      source_kind: string;
+      source_url: string;
+      title: string;
+      published_at: string | null;
+    }>).map((row) => ({
+      id: row.id,
+      label: row.title,
+      sublabel: `${row.authority} · ${row.source_kind.replace(/_/g, " ")}`,
+      when: row.published_at,
+      // Source URL opens in a new tab via target=_blank handling on
+      // the client (it's an external link, not an internal route).
+      href: row.source_url,
+    }));
+    // Build the "Ask Dante" prompt from the actual titles so the
+    // model has the concrete list to analyze, not a generic prompt.
+    const titleList = items
+      .map((it, i) => `${i + 1}. ${it.label} (${it.sublabel})`)
+      .join("\n");
+    groups.push({
+      kind: "regulatory_updates",
+      title: "Regulatory updates since you were last here",
+      count: regulatoryUpdates.count ?? 0,
+      action: {
+        label: "Ask Dante what these mean for my book",
+        ask_prompt:
+          `These regulatory updates landed since I last logged in:\n\n${titleList}\n\n` +
+          `For each one that's relevant to my firm, briefly explain (a) what changed, ` +
+          `(b) which of my clients or households it might affect (use memory.search and ` +
+          `clients.query if needed), and (c) what concrete action — if any — I should ` +
+          `take this week. Cite the regulatory source for each claim. Skip any that ` +
+          `aren't actually relevant to my book.`,
+      },
+      items,
     });
   }
 

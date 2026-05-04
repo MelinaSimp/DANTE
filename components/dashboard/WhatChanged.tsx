@@ -32,6 +32,14 @@ type Group = {
   title: string;
   count: number;
   href?: string;
+  /** Optional secondary action surfaced as a button in the group
+   *  header. Used today by regulatory_updates to offer "Ask Dante
+   *  what these mean for my book" — clicking dispatches the
+   *  drift:open-ask CustomEvent with ask_prompt as the seed. */
+  action?: {
+    label: string;
+    ask_prompt: string;
+  };
   items: Array<{
     id: string;
     label: string;
@@ -166,14 +174,31 @@ export default function WhatChanged() {
                   ({g.count})
                 </span>
               </h3>
-              {g.href && g.count > g.items.length && (
-                <Link
-                  href={g.href}
-                  className="text-sm text-[var(--accent)] hover:underline shrink-0"
-                >
-                  See all {g.count} →
-                </Link>
-              )}
+              <div className="flex items-baseline gap-3 shrink-0">
+                {g.action && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      window.dispatchEvent(
+                        new CustomEvent("drift:open-ask", {
+                          detail: { prompt: g.action!.ask_prompt },
+                        }),
+                      )
+                    }
+                    className="text-sm font-medium text-[var(--accent,#2563eb)] hover:underline"
+                  >
+                    {g.action.label} →
+                  </button>
+                )}
+                {g.href && g.count > g.items.length && (
+                  <Link
+                    href={g.href}
+                    className="text-sm text-[var(--accent)] hover:underline"
+                  >
+                    See all {g.count} →
+                  </Link>
+                )}
+              </div>
             </div>
             <ul className="space-y-2">
               {g.items.map((item) => {
@@ -196,15 +221,32 @@ export default function WhatChanged() {
                     )}
                   </div>
                 );
+                // External links (regulatory source URLs) open in a
+                // new tab. Internal hrefs (`/contact/...`,
+                // `/properties/...`) use Next's Link for client-side
+                // nav. Heuristic: starts with http(s):// → external.
+                const isExternal =
+                  item.href !== undefined && /^https?:\/\//i.test(item.href);
                 return (
                   <li key={item.id}>
                     {item.href ? (
-                      <Link
-                        href={item.href}
-                        className="block py-1 -my-1 px-2 -mx-2 rounded hover:bg-[var(--canvas)] transition-colors"
-                      >
-                        {inner}
-                      </Link>
+                      isExternal ? (
+                        <a
+                          href={item.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block py-1 -my-1 px-2 -mx-2 rounded hover:bg-[var(--canvas)] transition-colors"
+                        >
+                          {inner}
+                        </a>
+                      ) : (
+                        <Link
+                          href={item.href}
+                          className="block py-1 -my-1 px-2 -mx-2 rounded hover:bg-[var(--canvas)] transition-colors"
+                        >
+                          {inner}
+                        </Link>
+                      )
                     ) : (
                       <div className="py-1 px-2">{inner}</div>
                     )}
