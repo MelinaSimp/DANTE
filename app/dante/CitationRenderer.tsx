@@ -23,13 +23,14 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { BookOpen, ExternalLink, Sparkles, X } from "lucide-react";
+import { BookOpen, ExternalLink, Sparkles, ScrollText, X } from "lucide-react";
 import {
   buildCitationMap,
   tokenize,
   type CitationMap,
   type VaultCitation,
   type MemoryCitation,
+  type RegulatoryCitation,
 } from "@/lib/dante/citations";
 
 type CitationStatus =
@@ -81,6 +82,7 @@ export default function CitationRenderer({ content, trace, citationReport }: Pro
   const [popover, setPopover] = useState<
     | { type: "vault"; data: VaultCitation; status?: CitationStatus; detail?: string }
     | { type: "memory"; data: MemoryCitation; status?: CitationStatus; detail?: string }
+    | { type: "regulatory"; data: RegulatoryCitation }
     | null
   >(null);
 
@@ -126,6 +128,22 @@ export default function CitationRenderer({ content, trace, citationReport }: Pro
                 onClick={() =>
                   data && setPopover({ type: "vault", data, status: check?.status, detail: check?.detail })
                 }
+              />
+            );
+          }
+          if (t.type === "regulatory") {
+            const data = map.regulatory[t.key];
+            // Render the authority short label (SEC / IRS / DOL /
+            // HUD) instead of the [reg:1] marker so the user
+            // immediately sees what kind of source is being cited.
+            const label = data ? data.authority : t.raw;
+            return (
+              <CitationChip
+                key={i}
+                label={label}
+                tone="regulatory"
+                disabled={!data}
+                onClick={() => data && setPopover({ type: "regulatory", data })}
               />
             );
           }
@@ -191,7 +209,7 @@ function CitationChip({
   detail,
 }: {
   label: string;
-  tone: "vault" | "memory";
+  tone: "vault" | "memory" | "regulatory";
   disabled?: boolean;
   onClick: () => void;
   status?: CitationStatus;
@@ -216,24 +234,36 @@ function CitationChip({
             status === "doc_missing"
           ? "border-amber-500/60 bg-amber-50/40"
           : "";
+  // Regulatory chips render the authority short label (SEC / IRS /
+  // DOL / HUD) at slightly larger size with a distinct accent so
+  // the user can scan a paragraph and see "this answer cites the
+  // SEC and the IRS" at a glance — the moat made visible. No
+  // verification badge yet (the validator doesn't run on reg
+  // citations); the canonical source URL in the popover is the
+  // ground truth.
+  const isRegulatory = tone === "regulatory";
+  const baseClasses = isRegulatory
+    ? "mx-0.5 align-baseline inline-flex items-center rounded-[4px] border px-1.5 py-0 text-[10px] font-semibold tracking-wide transition disabled:opacity-50 disabled:cursor-not-allowed bg-[var(--accent-soft,rgba(37,99,235,0.08))] border-[var(--accent,rgba(37,99,235,0.4))] text-[var(--accent,#2563eb)] hover:bg-[var(--accent-soft-hover,rgba(37,99,235,0.14))]"
+    : "mx-0.5 align-baseline inline-flex items-center rounded-[3px] border px-1 py-0 text-[10px] font-mono transition disabled:opacity-50 disabled:cursor-not-allowed bg-[var(--ink)]/[0.04] border-[var(--rule)] text-[var(--ink)] hover:bg-[var(--ink)]/[0.08]";
   const title = disabled
     ? "Source not in trace"
-    : detail
-      ? `${detail} — click for source`
-      : level === "strong"
-        ? "Verified against cited page — click for source"
-        : level === "confirmed"
-          ? "Verified somewhere in source — click for details"
-          : level === "provenance"
-            ? "Source document confirmed — click for details"
-            : "Click to view source";
-  void tone;
+    : isRegulatory
+      ? "Click to view the regulatory source"
+      : detail
+        ? `${detail} — click for source`
+        : level === "strong"
+          ? "Verified against cited page — click for source"
+          : level === "confirmed"
+            ? "Verified somewhere in source — click for details"
+            : level === "provenance"
+              ? "Source document confirmed — click for details"
+              : "Click to view source";
   return (
     <button
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className={`mx-0.5 align-baseline inline-flex items-center rounded-[3px] border px-1 py-0 text-[10px] font-mono transition disabled:opacity-50 disabled:cursor-not-allowed bg-[var(--ink)]/[0.04] border-[var(--rule)] text-[var(--ink)] hover:bg-[var(--ink)]/[0.08] ${decoration}`}
+      className={`${baseClasses} ${decoration}`}
     >
       {label}
     </button>
@@ -246,7 +276,8 @@ function CitationPopover({
 }: {
   popover:
     | { type: "vault"; data: VaultCitation; status?: CitationStatus; detail?: string }
-    | { type: "memory"; data: MemoryCitation; status?: CitationStatus; detail?: string };
+    | { type: "memory"; data: MemoryCitation; status?: CitationStatus; detail?: string }
+    | { type: "regulatory"; data: RegulatoryCitation };
   onClose: () => void;
 }) {
   return (
@@ -265,6 +296,17 @@ function CitationPopover({
                 <BookOpen className="w-3.5 h-3.5" strokeWidth={1.5} />
                 Vault citation
               </>
+            ) : popover.type === "regulatory" ? (
+              <>
+                <ScrollText className="w-3.5 h-3.5" strokeWidth={1.5} />
+                {popover.data.authority} ·{" "}
+                {popover.data.source_kind.replace(/_/g, " ")}
+                {popover.data.published_at &&
+                  ` · ${new Date(popover.data.published_at).toLocaleDateString(
+                    "en-US",
+                    { year: "numeric", month: "short", day: "numeric" },
+                  )}`}
+              </>
             ) : (
               <>
                 <Sparkles className="w-3.5 h-3.5" strokeWidth={1.5} />
@@ -280,7 +322,25 @@ function CitationPopover({
           </button>
         </div>
 
-        {popover.type === "vault" ? (
+        {popover.type === "regulatory" ? (
+          <div>
+            <div className="text-sm text-[var(--ink)] font-medium mb-1">
+              {popover.data.title}
+            </div>
+            <blockquote className="text-sm text-[var(--ink-muted)] border-l-2 border-[var(--accent,rgba(37,99,235,0.4))] pl-3 whitespace-pre-wrap mt-3">
+              {popover.data.content}
+            </blockquote>
+            <a
+              href={popover.data.source_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 inline-flex items-center gap-1.5 text-xs text-[var(--accent,#2563eb)] hover:underline underline-offset-2"
+            >
+              <ExternalLink className="w-3 h-3" strokeWidth={1.5} />
+              Read the full {popover.data.authority} release
+            </a>
+          </div>
+        ) : popover.type === "vault" ? (
           <div>
             <div className="text-sm text-[var(--ink)] font-medium mb-1">
               {popover.data.source}

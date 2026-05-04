@@ -1,7 +1,7 @@
 // lib/dante/citations.ts
 //
-// Citation parsing helpers for the chat surface. The agent emits two
-// kinds of inline markers in its output:
+// Citation parsing helpers for the chat surface. The agent emits
+// three kinds of inline markers in its output:
 //
 //   [v1], [v2], ...           — vault.cite citations. The matching
 //                                source row lives in the trace under
@@ -13,13 +13,22 @@
 //                                dante_memory.id. We resolve these by
 //                                scanning trace memory.search outputs.
 //
+//   [reg:1], [reg:2], ...     — regulatory.search citations from the
+//                                workspace-shared corpus (SEC, IRS,
+//                                DOL, HUD, FINRA). Resolved by walking
+//                                trace regulatory_search outputs in
+//                                document order — same positional
+//                                lookup the formatRegulatoryHitsForPrompt
+//                                helper uses to assign [reg:N].
+//
 // We do all resolution client-side from the trace, no extra fetch.
 // The trace already carries everything needed because the agent
 // loop persists tool outputs verbatim.
 
 export interface CitationMap {
-  vault: Record<string, VaultCitation>;        // "v1" → details
-  memory: Record<string, MemoryCitation>;      // "mem:abc12345" → details
+  vault: Record<string, VaultCitation>;            // "v1" → details
+  memory: Record<string, MemoryCitation>;          // "mem:abc12345" → details
+  regulatory: Record<string, RegulatoryCitation>;  // "reg:1" → details
 }
 
 export interface VaultCitation {
@@ -39,6 +48,17 @@ export interface MemoryCitation {
   source_id?: string | null;
 }
 
+export interface RegulatoryCitation {
+  marker: string;          // "[reg:1]"
+  index: number;           // 1-based position in the agent's hit list
+  authority: string;       // "SEC" | "IRS" | "DOL" | "HUD" | etc.
+  source_kind: string;     // "press_release" | "rev_ruling" | etc.
+  source_url: string;      // canonical link to the primary source
+  title: string;
+  content: string;         // the chunk content used for grounding
+  published_at: string | null;
+}
+
 interface TraceEntry {
   step_id: string;
   step_name: string;
@@ -53,7 +73,7 @@ interface TraceEntry {
  * one tool call per response so collisions are rare.
  */
 export function buildCitationMap(trace: TraceEntry[] | undefined): CitationMap {
-  const out: CitationMap = { vault: {}, memory: {} };
+  const out: CitationMap = { vault: {}, memory: {}, regulatory: {} };
   if (!Array.isArray(trace)) return out;
 
   for (const entry of trace) {
@@ -108,6 +128,41 @@ export function buildCitationMap(trace: TraceEntry[] | undefined): CitationMap {
         };
       }
     }
+
+    // regulatory.search returns { hits: [...], formatted }. The
+    // formatter assigns [reg:N] in 1-based document order; we
+    // reproduce that ordering here so the tokenizer's "reg:1" key
+    // resolves to the first hit, "reg:2" to the second, etc. The
+    // most recent regulatory_search call wins on key collisions
+    // (model usually emits citations from one call per response).
+    const regHits = (result as { hits?: unknown[] }).hits;
+    if (Array.isArray(regHits) && entry.step_name.includes("regulatory_search")) {
+      let i = 1;
+      for (const h of regHits as Array<{
+        item_id?: string;
+        chunk_id?: string;
+        authority?: string;
+        source_kind?: string;
+        source_url?: string;
+        title?: string;
+        content?: string;
+        published_at?: string | null;
+      }>) {
+        if (!h.source_url) continue;
+        const key = `reg:${i}`;
+        out.regulatory[key] = {
+          marker: `[${key}]`,
+          index: i,
+          authority: h.authority || "OTHER",
+          source_kind: h.source_kind || "guidance",
+          source_url: h.source_url,
+          title: h.title || "(untitled)",
+          content: h.content || "",
+          published_at: h.published_at ?? null,
+        };
+        i += 1;
+      }
+    }
   }
   return out;
 }
@@ -120,14 +175,20 @@ export function buildCitationMap(trace: TraceEntry[] | undefined): CitationMap {
  * Markers we recognize:
  *   [v\d+]          → vault citation
  *   [mem:[0-9a-f]+] → memory citation
+ *   [reg:\d+]       → regulatory corpus citation (SEC/IRS/DOL/HUD)
  *
  * Everything else is opaque text.
  */
 export type Token =
   | { kind: "text"; value: string }
-  | { kind: "citation"; raw: string; key: string; type: "vault" | "memory" };
+  | {
+      kind: "citation";
+      raw: string;
+      key: string;
+      type: "vault" | "memory" | "regulatory";
+    };
 
-const CITATION_RE = /\[(v\d+|mem:[0-9a-f]{4,32})\]/g;
+const CITATION_RE = /\[(v\d+|mem:[0-9a-f]{4,32}|reg:\d+)\]/g;
 
 export function tokenize(input: string): Token[] {
   if (!input) return [{ kind: "text", value: "" }];
@@ -139,12 +200,12 @@ export function tokenize(input: string): Token[] {
       out.push({ kind: "text", value: input.slice(lastIndex, start) });
     }
     const key = match[1];
-    out.push({
-      kind: "citation",
-      raw: match[0],
-      key,
-      type: key.startsWith("mem:") ? "memory" : "vault",
-    });
+    const type: "vault" | "memory" | "regulatory" = key.startsWith("mem:")
+      ? "memory"
+      : key.startsWith("reg:")
+        ? "regulatory"
+        : "vault";
+    out.push({ kind: "citation", raw: match[0], key, type });
     lastIndex = start + match[0].length;
   }
   if (lastIndex < input.length) {
