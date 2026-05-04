@@ -23,18 +23,7 @@ import { useIsRealtor } from "@/lib/industry/use-industry";
 import { RealtorListingsEmpty } from "@/components/empty-states/RealtorEmptyStates";
 import { usePageContext } from "@/components/dante/PageContext";
 
-// Augments the Window type so TypeScript stops complaining about the
-// IPC bridge our Electron preload exposes. Web users see undefined.
-declare global {
-  interface Window {
-    electronAPI?: {
-      isElectron: boolean;
-      pickAndExtractPdfs: () => Promise<
-        Array<{ name: string; text: string; size?: number; error?: string }>
-      >;
-    };
-  }
-}
+// Window.electronAPI is declared globally in types/electron-api.d.ts.
 
 interface IntakeProposed {
   address_line1?: string | null;
