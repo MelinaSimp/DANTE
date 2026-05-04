@@ -1,7 +1,19 @@
-const { app, BrowserWindow, shell, Tray, Menu, nativeImage, dialog, ipcMain } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  shell,
+  Tray,
+  Menu,
+  nativeImage,
+  dialog,
+  ipcMain,
+} = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { autoUpdater } = require("electron-updater");
+const ollama = require("./ollama");
+const watchers = require("./watchers");
+const device = require("./device");
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -163,7 +175,59 @@ ipcMain.handle("pdfs:pickAndExtract", async () => {
   return out;
 });
 
-app.whenReady().then(() => {
+// ─── Hermes Phase 2: Watched folders + local LLM ─────────────────
+//
+// IPC contract:
+//   watched:pickFolder — open OS folder picker, return path
+//   watched:sync(folders) — replace active watcher set
+//   watched:fileEvent — sent FROM main TO renderer when a file is
+//     detected; renderer is responsible for calling /api/electron/
+//     watched-folders/[id]/notify with its session cookies
+//   ollama:probe — capability check
+//   ollama:complete(opts) — local chat completion (privacy mode)
+//   ollama:embed(opts) — local embedding (privacy mode)
+//   ollama:ensureRunning — try to spawn Ollama if installed but down
+//   device:get — return persistent device_id + label
+
+ipcMain.handle("watched:pickFolder", async () => {
+  if (!mainWindow) return { canceled: true };
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: "Pick a folder for Drift to watch",
+    properties: ["openDirectory", "createDirectory"],
+  });
+  if (result.canceled || result.filePaths.length === 0) {
+    return { canceled: true };
+  }
+  return { canceled: false, folder_path: result.filePaths[0] };
+});
+
+ipcMain.handle("watched:sync", async (_e, folders) => {
+  watchers.syncWatchers(Array.isArray(folders) ? folders : [], (event) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("watched:fileEvent", event);
+    }
+  });
+  return { ok: true, active: Array.isArray(folders) ? folders.length : 0 };
+});
+
+ipcMain.handle("ollama:probe", async () => ollama.probe());
+ipcMain.handle("ollama:complete", async (_e, opts) => ollama.complete(opts || {}));
+ipcMain.handle("ollama:embed", async (_e, opts) => ollama.embed(opts || {}));
+ipcMain.handle("ollama:ensureRunning", async () => ollama.ensureRunning());
+
+ipcMain.handle("device:get", async () => device.load(app.getPath("userData")));
+
+app.whenReady().then(async () => {
+  // Pre-warm device identity (creates device.json on first run).
+  device.load(app.getPath("userData"));
+
+  // Best-effort: if Ollama is installed but not running, start it
+  // silently. Doesn't block window creation — the privacy-mode
+  // panel will reflect the real state by the time the user opens it.
+  ollama.ensureRunning().catch((err) =>
+    console.warn("[Drift] ollama.ensureRunning failed:", err?.message || err),
+  );
+
   createWindow();
   createTray();
   app.on("activate", () => {
@@ -177,6 +241,10 @@ app.whenReady().then(() => {
       autoUpdater.checkForUpdates().catch(() => {});
     }, 4 * 60 * 60 * 1000);
   }
+});
+
+app.on("before-quit", () => {
+  watchers.stopAll();
 });
 
 app.on("window-all-closed", () => {

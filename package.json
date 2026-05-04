@@ -33,6 +33,7 @@
     "@tanstack/react-query": "^5.100.8",
     "@xyflow/react": "^12.10.2",
     "alawmulaw": "^6.0.0",
+    "chokidar": "^5.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dayjs": "^1.11.18",
