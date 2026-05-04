@@ -73,6 +73,14 @@
     {
       "path": "/api/evals/nightly",
       "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/dante/cron/ingest-sec-press-releases",
+      "schedule": "30 6 * * *"
+    },
+    {
+      "path": "/api/dante/cron/ingest-federal-register",
+      "schedule": "0 7 * * *"
     }
   ]
 }
