@@ -312,10 +312,10 @@ export default async function FiduciaryBenchPage() {
               with regulatory or examination experience and want to grade,
               email{" "}
               <a
-                href="mailto:graders@driftai.studio"
+                href="mailto:driftaillc@gmail.com"
                 className="text-[var(--accent)] hover:underline"
               >
-                graders@driftai.studio
+                driftaillc@gmail.com
               </a>
               .
             </p>
