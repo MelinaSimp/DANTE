@@ -30,6 +30,10 @@ import {
   searchRegulatoryCorpus,
   formatRegulatoryHitsForPrompt,
 } from "@/lib/dante/regulatory/search";
+import {
+  agenticSearchRegulatoryCorpus,
+  formatAgenticHitsForPrompt,
+} from "@/lib/dante/regulatory/agentic-search";
 import { expandMcpTools, callMcpTool, parseMcpToolName } from "@/lib/mcp/registry";
 import { runSkill } from "@/lib/dante/skills";
 import { getWorkspaceModel } from "@/lib/dante/model";
@@ -123,12 +127,13 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
     function: {
       name: "regulatory_search",
       description:
-        "Vector-search Drift's workspace-shared regulatory corpus — SEC litigation releases, IRS rulings, DOL ERISA opinions, HUD fair-housing enforcement, etc. Use this when the user asks 'what does the SEC say about X', 'has anyone been charged for Y', 'is Z compliant', or anytime your answer would benefit from a primary-source regulatory citation. Cite results inline as [reg:N] and let the user click through to the canonical source URL. Industry filtering is automatic based on the workspace vertical (financial advisor sees SEC/IRS/DOL/FINRA; realtor sees HUD/state RE plus shared SEC/FTC).",
+        "Vector-search Drift's workspace-shared regulatory corpus — SEC litigation releases, IRS rulings, DOL ERISA opinions, HUD fair-housing enforcement, etc. Use this when the user asks 'what does the SEC say about X', 'has anyone been charged for Y', 'is Z compliant', or anytime your answer would benefit from a primary-source regulatory citation. Cite results inline as [reg:N] and let the user click through to the canonical source URL. Industry filtering is automatic based on the workspace vertical (financial advisor sees SEC/IRS/DOL/FINRA; realtor sees HUD/state RE plus shared SEC/FTC). Set `agentic: true` for hard or open-ended questions where the first query might not surface everything — the search will iterate (up to 4 rounds), refining the query against gaps in the results before returning. Costs slightly more but typically lifts recall noticeably; use it for the harder questions, not every lookup.",
       parameters: {
         type: "object",
         properties: {
           query: { type: "string", description: "Natural-language query — describe the situation or rule, not just keywords." },
           k: { type: "number", description: "Top-K (1-25, default 5)." },
+          agentic: { type: "boolean", description: "Enable iterative refinement (3-4 rounds, refines the query against gaps). Default false. Use for hard questions; skip for direct lookups." },
         },
         required: ["query"],
       },
@@ -419,10 +424,28 @@ async function dispatchTool(
         (ws as { industry?: string | null } | null)?.industry === "real_estate"
           ? "real_estate"
           : "financial_advisor";
+      const k = Number(args.k) || 5;
+      // When the agent flags this as a hard question, run the
+      // iterative refinement loop (Patrick's call: free recall lift
+      // before custom embeddings ever land). Default path remains
+      // the single-shot search.
+      if (args.agentic === true) {
+        const result = await agenticSearchRegulatoryCorpus({
+          query: String(args.query || ""),
+          industry,
+          k,
+        });
+        return {
+          hits: result.hits,
+          rounds: result.rounds,
+          stop_reason: result.stop_reason,
+          formatted: formatAgenticHitsForPrompt(result),
+        };
+      }
       const hits = await searchRegulatoryCorpus({
         query: String(args.query || ""),
         industry,
-        k: Number(args.k) || 5,
+        k,
       });
       return { hits, formatted: formatRegulatoryHitsForPrompt(hits) };
     }
