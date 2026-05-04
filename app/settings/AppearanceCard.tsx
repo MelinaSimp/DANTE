@@ -1,13 +1,16 @@
 "use client";
 
-// AppearanceCard — settings panel for theme preference.
+// AppearanceCard — settings panel for theme + display-density.
 //
-// Three-way segmented toggle: Light · Dark · System. "System" follows
-// the OS preference and updates live when the user flips their OS
-// theme. The choice persists to localStorage via ThemeProvider.
+// Theme: three-way segmented toggle (Light · Dark · System).
+// Density: two-way (Comfortable · Large). Density is a per-device
+// preference like theme, not a workspace setting — older advisors
+// might want larger sizing on their daily desktop while staff on
+// the same workspace use comfortable on a larger monitor.
 
-import { Sun, Moon, Monitor } from "lucide-react";
+import { Sun, Moon, Monitor, Type } from "lucide-react";
 import { useTheme, type Theme } from "@/components/theme/ThemeProvider";
+import { useDensity, type Density } from "@/components/theme/DensityProvider";
 
 interface Option {
   value: Theme;
@@ -37,8 +40,28 @@ const OPTIONS: Option[] = [
   },
 ];
 
+interface DensityOption {
+  value: Density;
+  label: string;
+  description: string;
+}
+
+const DENSITY_OPTIONS: DensityOption[] = [
+  {
+    value: "comfortable",
+    label: "Comfortable",
+    description: "Default 16px base. Tighter information density.",
+  },
+  {
+    value: "large",
+    label: "Large",
+    description: "17.5px base. Easier to read at arm's length.",
+  },
+];
+
 export default function AppearanceCard() {
   const { theme, resolvedTheme, setTheme } = useTheme();
+  const { density, setDensity } = useDensity();
 
   return (
     <div className="space-y-6">
@@ -109,6 +132,59 @@ export default function AppearanceCard() {
         dashboard chart panels) are still being migrated and may render
         with light-mode chrome regardless of your selection.
       </p>
+
+      <div className="border-t border-[var(--rule)] pt-6">
+        <div className="label-section mb-2">Display size</div>
+        <div
+          role="radiogroup"
+          aria-label="Display density"
+          className="grid grid-cols-2 gap-2"
+        >
+          {DENSITY_OPTIONS.map((opt) => {
+            const active = density === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => setDensity(opt.value)}
+                className={`group flex flex-col items-start gap-2 rounded-[6px] border p-4 text-left transition-[background-color,border-color,box-shadow,transform] duration-150 ease-out-quart active:scale-[0.99] ${
+                  active
+                    ? "border-[var(--accent)] bg-[var(--accent-soft)] shadow-ground"
+                    : "border-[var(--rule)] bg-[var(--canvas)] hover:border-[var(--rule-strong)] hover:bg-[var(--canvas-subtle)]"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Type
+                    className={`h-4 w-4 ${
+                      active
+                        ? "text-[var(--accent)]"
+                        : "text-[var(--ink-muted)]"
+                    }`}
+                    strokeWidth={1.5}
+                  />
+                  <span
+                    className={`text-sm font-medium ${
+                      active ? "text-[var(--accent)]" : "text-[var(--ink)]"
+                    }`}
+                  >
+                    {opt.label}
+                  </span>
+                </div>
+                <p className="text-[12px] leading-relaxed text-[var(--ink-muted)]">
+                  {opt.description}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-3 text-[12px] leading-relaxed text-[var(--ink-muted)]">
+          Display size scales most text proportionally. Per-device, not
+          synced. Pick Large if you read the screen at arm&apos;s length
+          or share the desktop with someone who does.
+        </p>
+      </div>
     </div>
   );
 }

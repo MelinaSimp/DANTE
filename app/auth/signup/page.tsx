@@ -9,7 +9,7 @@ import Link from "next/link";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { isValidEmail, normalizeToken } from "@/lib/invite";
-import { ALL_INDUSTRIES, getIndustryConfig } from "@/lib/industry/config";
+import { SIGNUP_INDUSTRIES, getIndustryConfig } from "@/lib/industry/config";
 
 export const dynamic = "force-dynamic";
 
@@ -30,8 +30,12 @@ export default async function SignupPage({
 
     if (!first_name) throw new Error("First name is required.");
     if (!last_name) throw new Error("Last name is required.");
-    if (industry !== "financial_advisor" && industry !== "real_estate") {
-      throw new Error("Please pick whether you're a financial advisor or real estate agent.");
+    // Net-new signups are wealth-only as of 2026-05-03 — see
+    // SIGNUP_INDUSTRIES in lib/industry/config.ts. Existing
+    // real_estate workspaces keep working; the front door is
+    // closed, the back rooms aren't.
+    if (!(SIGNUP_INDUSTRIES as readonly string[]).includes(industry)) {
+      throw new Error("Please confirm you're a financial advisor.");
     }
 
     if (!token) throw new Error("Invite token is required.");
@@ -233,8 +237,8 @@ export default async function SignupPage({
                 >
                   I am a…
                 </legend>
-                <div className="grid grid-cols-2 gap-2">
-                  {ALL_INDUSTRIES.map((id, idx) => {
+                <div className={`grid gap-2 ${SIGNUP_INDUSTRIES.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
+                  {SIGNUP_INDUSTRIES.map((id, idx) => {
                     const cfg = getIndustryConfig(id);
                     return (
                       <label

@@ -101,6 +101,16 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Display density — set by DensityProvider on <html>. The 17.5px
+ * base scales every rem-based Tailwind text-* class proportionally
+ * (text-sm → 13.1px, text-base → 17.5px, text-lg → 19.7px), giving
+ * older readers a measurably-larger surface without forcing it on
+ * users who don't need it. Per-pixel arbitrary sizes (text-[15px])
+ * don't scale and are tracked as a follow-up cleanup. */
+html.density-large {
+  font-size: 17.5px;
+}
+
 /* Pages that explicitly want the legacy dark theme (e.g. /app agent canvas)
  * set their own background in page components via useEffect. We do NOT
  * force it here — the default is the new white canvas. */

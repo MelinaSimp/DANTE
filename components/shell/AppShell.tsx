@@ -18,6 +18,7 @@
 // pages render full-width. A top mobile nav lands in a follow-up.
 
 import AppSidebar, { type AppSidebarProps } from "./AppSidebar";
+import AppTopBar from "./AppTopBar";
 import { AssistantNameProvider } from "@/components/dante/AssistantNameProvider";
 import { PageContextProvider } from "@/components/dante/PageContext";
 import { getIndustryConfig } from "@/lib/industry/config";
@@ -45,7 +46,15 @@ export default function AppShell({ children, ...sidebarProps }: Props) {
       <PageContextProvider>
         <div className="flex min-h-screen bg-[var(--canvas)]">
           <AppSidebar {...sidebarProps} />
-          <main className="flex-1 min-w-0">{children}</main>
+          <div className="flex-1 min-w-0 flex flex-col">
+            {/* AppTopBar gives every page a labeled "Ask Dante"
+                button that's visible without keyboard knowledge.
+                The sidebar's icon-only search affordance stays for
+                power users; this strip is the discoverable one for
+                everyone else. */}
+            <AppTopBar />
+            <main className="flex-1 min-w-0">{children}</main>
+          </div>
         </div>
       </PageContextProvider>
     </AssistantNameProvider>
