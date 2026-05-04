@@ -99,7 +99,7 @@ export default function AppTopBar() {
   return (
     <>
       <header
-        className="sticky top-0 z-30 flex items-center justify-end gap-3 px-4 md:px-8 py-3 border-b border-[var(--rule)] bg-[var(--canvas)]/95 backdrop-blur"
+        className="sticky top-0 z-50 flex items-center justify-end gap-3 px-4 md:px-8 py-3 border-b border-[var(--rule)] bg-[var(--canvas)]/95 backdrop-blur"
         aria-label="Page header"
       >
         <button

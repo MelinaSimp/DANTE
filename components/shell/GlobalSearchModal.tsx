@@ -543,14 +543,17 @@ export default function GlobalSearchModal({
               className="flex-1 overflow-y-auto px-5 py-4 space-y-5 min-h-[200px]"
             >
               {turns.length === 0 && !stream.streaming && (
-                <div className="text-xs text-[var(--ink-muted)] space-y-2">
-                  <p>
-                    Ask {assistantName} anything across your workspace —
-                    clients, properties, vault, recent emails. Replies are
-                    streamed and grounded in your data.
+                <div className="flex flex-col items-center justify-center text-center py-8 px-4">
+                  <Sparkles
+                    className="w-6 h-6 text-[var(--ink-subtle)] mb-3"
+                    strokeWidth={1.5}
+                  />
+                  <p className="text-sm text-[var(--ink)] font-medium mb-1">
+                    Ask {assistantName} anything about your workspace
                   </p>
-                  <p className="text-[var(--ink-subtle)]">
-                    Tip: open a property or client first to ask in context.
+                  <p className="text-xs text-[var(--ink-muted)] max-w-md">
+                    Clients, properties, vault docs, regulatory updates —
+                    Dante grounds every reply in your actual data.
                   </p>
                 </div>
               )}
@@ -617,7 +620,7 @@ export default function GlobalSearchModal({
             </div>
 
             {/* Ask composer */}
-            <div className="border-t border-[var(--rule)] px-4 py-3">
+            <div className="border-t border-[var(--rule)] bg-[var(--canvas-subtle,rgba(0,0,0,0.02))] px-4 py-3">
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -625,39 +628,46 @@ export default function GlobalSearchModal({
                 }}
                 className="flex items-end gap-2"
               >
-                <textarea
-                  ref={askInputRef}
-                  value={askInput}
-                  onChange={(e) => setAskInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      ask(askInput);
+                {/* Bordered input shell — gives the textarea a clear
+                    visual footprint so users see "type here" without
+                    having to find a transparent area. The border
+                    deepens on focus-within for a clear active state. */}
+                <div className="flex-1 flex items-end gap-2 rounded-[8px] border border-[var(--rule-strong,var(--rule))] bg-[var(--canvas)] px-3 py-2 transition focus-within:border-[var(--ink)] focus-within:shadow-[0_0_0_3px_rgba(51,81,255,0.08)]">
+                  <textarea
+                    ref={askInputRef}
+                    value={askInput}
+                    onChange={(e) => setAskInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        ask(askInput);
+                      }
+                    }}
+                    rows={1}
+                    placeholder={
+                      pageContext?.entity
+                        ? `Ask ${assistantName} about ${pageContext.entity.label}…`
+                        : pageContext?.title && pageContext.title !== "Dashboard"
+                          ? `Ask ${assistantName} about ${pageContext.title}…`
+                          : `Ask ${assistantName} anything…`
                     }
-                  }}
-                  rows={1}
-                  placeholder={
-                    pageContext?.entity
-                      ? `Ask ${assistantName} about ${pageContext.entity.label}…`
-                      : pageContext?.title && pageContext.title !== "Dashboard"
-                        ? `Ask ${assistantName} about ${pageContext.title}…`
-                        : `Ask ${assistantName}…`
-                  }
-                  className="flex-1 resize-none bg-transparent text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none max-h-32 py-2"
-                />
+                    className="flex-1 resize-none bg-transparent text-[15px] text-[var(--ink)] placeholder:text-[var(--ink-muted)] focus:outline-none max-h-40 leading-relaxed"
+                  />
+                </div>
                 <button
                   type="submit"
                   disabled={!askInput.trim() || stream.streaming}
-                  className="inline-flex items-center justify-center w-8 h-8 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] hover:opacity-90 disabled:opacity-40 transition"
-                  title="Send"
+                  className="inline-flex items-center justify-center w-10 h-10 rounded-[8px] bg-[var(--ink)] text-[var(--canvas)] hover:opacity-90 disabled:opacity-40 transition"
+                  title="Send (Enter)"
+                  aria-label="Send"
                 >
                   {stream.streaming ? (
                     <Loader2
-                      className="w-3.5 h-3.5 animate-spin"
+                      className="w-4 h-4 animate-spin"
                       strokeWidth={1.5}
                     />
                   ) : (
-                    <Send className="w-3.5 h-3.5" strokeWidth={1.5} />
+                    <Send className="w-4 h-4" strokeWidth={1.5} />
                   )}
                 </button>
               </form>

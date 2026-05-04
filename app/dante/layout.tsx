@@ -14,6 +14,8 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { requireFeature } from "@/lib/features/server";
 import { getIndustryConfig } from "@/lib/industry/config";
 import { AssistantNameProvider } from "@/components/dante/AssistantNameProvider";
+import AppShell from "@/components/shell/AppShell";
+import { getShellContext } from "@/lib/shell/workspace-context";
 
 export const dynamic = "force-dynamic";
 
@@ -69,12 +71,24 @@ export default async function DanteLayout({ children }: { children: React.ReactN
     .maybeSingle();
   const config = getIndustryConfig(workspace?.industry);
 
+  // Mount AppShell at the layout level so every /dante/* sub-route
+  // (archive, workflows, templates, churn, settings, etc.) gets the
+  // AppTopBar's "Ask Dante" button without each page wrapping
+  // separately. /dante/page.tsx used to wrap its own AppShell — that
+  // now happens here, and the page just renders content. Pages that
+  // need to know feature flags read from getShellContext themselves.
+  const shellCtx = await getShellContext();
+
   return (
     <AssistantNameProvider
       name={config.assistantName}
       iconPath={config.assistantIconPath}
     >
-      {children}
+      {shellCtx ? (
+        <AppShell {...shellCtx}>{children}</AppShell>
+      ) : (
+        children
+      )}
     </AssistantNameProvider>
   );
 }
