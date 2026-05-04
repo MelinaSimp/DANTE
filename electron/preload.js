@@ -59,6 +59,12 @@ contextBridge.exposeInMainWorld("driftLocal", {
    *  privacy-mode UI; cheap to call. */
   probe: () => ipcRenderer.invoke("ollama:probe"),
 
+  /** Open a multi-select file picker and read+extract text from
+   *  each picked file. Bytes never leave the machine — only the
+   *  extracted text crosses the IPC boundary. The Hermes direct-
+   *  chat page uses this to attach files into the chat context. */
+  pickAndReadFiles: () => ipcRenderer.invoke("hermes:pickAndReadFiles"),
+
   /** Complete a chat against local Ollama. Same shape as the
    *  server-side LlmProvider.complete result. */
   complete: (opts) => ipcRenderer.invoke("ollama:complete", opts),

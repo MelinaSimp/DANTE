@@ -175,6 +175,103 @@ ipcMain.handle("pdfs:pickAndExtract", async () => {
   return out;
 });
 
+// Hermes direct-chat — pick files from the user's filesystem and
+// extract their text in the main process so the renderer can stuff
+// the content into a local-only chat context. No bytes leave the
+// machine: the picked file is read by Node fs, parsed, and only
+// the extracted text crosses the IPC boundary back to the renderer,
+// which feeds it to localhost Ollama via window.driftLocal.complete().
+//
+// Supported formats:
+//   .pdf  — pdf-parse (already a dep)
+//   .docx — fast-parse via JSZip + a tiny xml strip (no extra dep)
+//   .txt .md .csv .log .json .yaml .yml — read as utf-8
+//
+// Per-file cap: 200_000 chars after extraction so a single huge PDF
+// can't blow up the context window. Files larger than that are
+// truncated with a marker; the renderer surfaces that to the user.
+ipcMain.handle("hermes:pickAndReadFiles", async () => {
+  const result = await dialog.showOpenDialog({
+    title: "Pick files for Hermes to read",
+    properties: ["openFile", "multiSelections"],
+    filters: [
+      {
+        name: "Text & docs",
+        extensions: [
+          "pdf",
+          "docx",
+          "txt",
+          "md",
+          "csv",
+          "log",
+          "json",
+          "yaml",
+          "yml",
+          "rtf",
+        ],
+      },
+      { name: "All files", extensions: ["*"] },
+    ],
+  });
+  if (result.canceled || result.filePaths.length === 0) return [];
+
+  const MAX_CHARS = 200_000;
+  const out = [];
+  for (const filePath of result.filePaths) {
+    const ext = (path.extname(filePath).slice(1) || "").toLowerCase();
+    const name = path.basename(filePath);
+    let size = 0;
+    let text = "";
+    let error = null;
+    try {
+      const stat = fs.statSync(filePath);
+      size = stat.size;
+      if (ext === "pdf") {
+        const pdfParse = require("pdf-parse");
+        const buf = fs.readFileSync(filePath);
+        const parsed = await pdfParse(buf);
+        text = parsed.text || "";
+      } else if (ext === "docx") {
+        text = await extractDocxText(filePath);
+      } else {
+        text = fs.readFileSync(filePath, "utf8");
+      }
+    } catch (err) {
+      error = err?.message || "read failed";
+    }
+    let truncated = false;
+    if (text.length > MAX_CHARS) {
+      text = text.slice(0, MAX_CHARS);
+      truncated = true;
+    }
+    out.push({ name, path: filePath, size, ext, text, error, truncated });
+  }
+  return out;
+});
+
+// Best-effort .docx text extraction. A docx is a zip with a
+// word/document.xml; we strip XML tags and decode basic entities.
+// Good enough for compliance memos and ADV drafts; not great for
+// tables or footnotes. If we ever care, swap for `mammoth`.
+async function extractDocxText(filePath) {
+  const JSZip = require("jszip");
+  const buf = fs.readFileSync(filePath);
+  const zip = await JSZip.loadAsync(buf);
+  const docXml = await zip.file("word/document.xml")?.async("string");
+  if (!docXml) return "";
+  return docXml
+    .replace(/<w:p[^>]*>/g, "\n")
+    .replace(/<w:tab[^/]*\/>/g, "\t")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 // ─── Hermes Phase 2: Watched folders + local LLM ─────────────────
 //
 // IPC contract:

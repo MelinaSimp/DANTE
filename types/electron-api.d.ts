@@ -64,6 +64,19 @@ declare global {
         hermes_pulled: boolean;
         error?: string;
       }>;
+      /** Multi-select file picker with text extraction in main
+       *  process. Returns extracted text only — bytes stay local. */
+      pickAndReadFiles: () => Promise<
+        Array<{
+          name: string;
+          path: string;
+          size: number;
+          ext: string;
+          text: string;
+          error: string | null;
+          truncated: boolean;
+        }>
+      >;
       complete: (opts: {
         messages: Array<{ role: string; content: string }>;
         model?: string;
