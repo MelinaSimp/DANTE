@@ -43,6 +43,10 @@ import { expandMcpTools, callMcpTool, parseMcpToolName } from "@/lib/mcp/registr
 import { runSkill } from "@/lib/dante/skills";
 import { getWorkspaceModel } from "@/lib/dante/model";
 import { complete as llmComplete } from "@/lib/llm/client";
+import {
+  resolveProcessingMode,
+  logResolution,
+} from "@/lib/llm/processing-mode";
 import type { LlmMessage, LlmToolDef } from "@/lib/llm/types";
 import type { MemoryKind } from "@/lib/dante/memory/types";
 import type {
@@ -924,6 +928,19 @@ export interface AgentRunInput {
    * the stream stays ordered with the actual loop progress.
    */
   onEvent?: (event: AgentEvent) => void | Promise<void>;
+  /**
+   * Optional context for processing-mode resolution. When the agent
+   * runs inside a chat scoped to a contact / vault doc / chat
+   * thread, the resolver walks workspace → contact → doc → chat
+   * (most-restrictive wins) to decide whether this loop should
+   * route to local Hermes or cloud OpenAI.
+   *
+   * Workflow / cron runs typically only set workspace context, so
+   * the resolver falls back to the workspace default.
+   */
+  contactId?: string | null;
+  docId?: string | null;
+  chatId?: string | null;
 }
 
 export interface AgentRunResult {
@@ -963,6 +980,26 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
   // flip the dial in Settings → Agent model without touching code.
   const workspaceModel = await getWorkspaceModel(input.workspaceId);
   const model = workspaceModel || cfg.model || "gpt-5";
+
+  // Resolve the binding processing mode for this run. Walks
+  // workspace → contact → doc → chat, most-restrictive wins.
+  // Logs only when the result is local_only (cloud is the
+  // default and would explode audit volume).
+  const modeCtx = {
+    workspaceId: input.workspaceId,
+    contactId: input.contactId ?? null,
+    docId: input.docId ?? null,
+    chatId: input.chatId ?? null,
+  };
+  const modeResult = await resolveProcessingMode(modeCtx);
+  if (modeResult.mode === "local_only") {
+    await logResolution(modeCtx, modeResult, {
+      run_id: input.runId,
+      step_id: input.step.id,
+      feature: "agent.loop",
+    });
+  }
+  const processingMode = modeResult.mode;
 
   const messages: ChatMessage[] = [];
   const systemPrompt = [
@@ -1033,6 +1070,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       toolChoice: tools.length > 0 ? "auto" : undefined,
       feature: "agent.loop",
       workspaceId: input.workspaceId,
+      processingMode,
     });
 
     const assistantMsg = completion.message as ChatMessage;
@@ -1184,6 +1222,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
         toolChoice: "none",
         feature: "agent.loop.truncated",
         workspaceId: input.workspaceId,
+        processingMode,
       });
       finalText = (wrap.message.content as string) || "";
     } catch (err) {

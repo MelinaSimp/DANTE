@@ -314,6 +314,15 @@ export async function POST(req: NextRequest) {
           simulate: true,
           runId,
           log,
+          // Processing-mode resolution context: the agent walks
+          // workspace → contact → doc → chat (most restrictive
+          // wins) to decide whether this loop runs against local
+          // Hermes or cloud OpenAI. Doc context is unset here
+          // because chat-level scoping doesn't bind to a single
+          // doc; per-tool calls (vault.cite) carry their own
+          // doc_id and would resolve at that layer.
+          contactId: contextContactId,
+          chatId,
           onEvent: (event: AgentEvent) => {
             send(event);
           },
