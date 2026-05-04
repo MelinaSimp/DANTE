@@ -9,6 +9,7 @@
 // view of pending files plus a "download the desktop app" prompt.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import UpdatePromptCard from "@/components/desktop/UpdatePromptCard";
 
 type WatchedFolder = {
   id: string;
@@ -292,17 +293,8 @@ export default function PendingFilesClient() {
       )}
 
       {isElectron && !hasBridge && (
-        <div className="mb-8 border border-amber-500/40 bg-amber-500/5 rounded-md p-5 text-sm">
-          <strong className="text-[var(--ink)] block mb-1">
-            Your desktop app needs to update
-          </strong>
-          <p className="text-[var(--ink-muted)] leading-relaxed">
-            The watched-folders pipeline ships in Drift v1.1.0+. The
-            version you&rsquo;re running doesn&rsquo;t expose the folder picker
-            or chokidar bridge yet. Quit and relaunch Drift — the
-            auto-updater will pick up v1.1.0 and the &ldquo;Update now&rdquo;
-            banner will appear in the bottom-right.
-          </p>
+        <div className="mb-8">
+          <UpdatePromptCard />
         </div>
       )}
 

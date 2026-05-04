@@ -15,6 +15,7 @@
 // window on big PDFs.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import UpdatePromptCard from "@/components/desktop/UpdatePromptCard";
 
 type Msg = { role: "user" | "assistant" | "system"; content: string };
 
@@ -203,30 +204,7 @@ export default function HermesClient() {
         </div>
       )}
 
-      {isElectron && !hasBridge && (
-        <div className="border border-amber-500/40 bg-amber-500/5 rounded-md p-6 text-sm">
-          <strong className="text-[var(--ink)] block mb-1">
-            Your desktop app needs to update
-          </strong>
-          <p className="text-[var(--ink-muted)] mb-3 leading-relaxed">
-            The local-LLM bridge ships in Drift v1.1.0+. The version you&rsquo;re
-            running doesn&rsquo;t expose <code>window.driftLocal</code>, so this
-            page can&rsquo;t reach Hermes. The auto-updater should be downloading
-            the new version in the background — quit and relaunch Drift to
-            speed it up. After the update banner appears, click &ldquo;Update now&rdquo;.
-          </p>
-          <div className="flex gap-2">
-            <a
-              href="https://github.com/MelinaSimp/drift-crm/releases/latest"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs px-3 py-1.5 rounded border border-[var(--rule)] hover:bg-[var(--rule)]/30"
-            >
-              View latest release →
-            </a>
-          </div>
-        </div>
-      )}
+      {isElectron && !hasBridge && <UpdatePromptCard />}
 
       {isElectron && hasBridge && probe && !probe.reachable && (
         <div className="mb-4 border border-amber-500/40 bg-amber-500/5 rounded-md p-4 text-sm">
