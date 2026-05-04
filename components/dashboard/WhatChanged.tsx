@@ -114,7 +114,33 @@ export default function WhatChanged() {
   if (isLoading || error || !data) return null;
 
   const visibleGroups = data.groups.filter((g) => g.items.length > 0);
-  if (visibleGroups.length === 0) return null;
+
+  // When everything is genuinely quiet, render a small reassurance
+  // line instead of nothing. The earlier behavior (return null) was
+  // hostile to verification and to the user — a quiet morning is a
+  // win, not an absence. Diane should see "All caught up" and feel
+  // good about closing the laptop, not wonder if the page broke.
+  if (visibleGroups.length === 0) {
+    return (
+      <section
+        aria-label="Since you were last here"
+        className="mb-12 border border-[var(--rule)] rounded-md overflow-hidden bg-[var(--surface,#fff)]"
+      >
+        <div className="px-6 md:px-8 py-5">
+          <div className="label-section mb-1">
+            Since {formatSince(data.since)}
+          </div>
+          <h2 className="heading-display text-2xl md:text-3xl">
+            All caught up.
+          </h2>
+          <p className="mt-2 text-sm text-[var(--ink-muted)]">
+            No drafts waiting on you, no reviews due in the next week, no
+            new flags. Anything that comes in will land here.
+          </p>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section
