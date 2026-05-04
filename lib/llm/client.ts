@@ -7,10 +7,20 @@
 // surface small enough that swapping providers, adding a Claude
 // fallback, or routing per-vertical becomes a localized change.
 //
-// Today the adapter is OpenAI-only. The shape of the public API
-// (`complete`, `embed`, `transcribe`) deliberately uses provider-
-// neutral names so a future Anthropic / Gemini / vLLM backend can be
-// added behind a `provider` config without touching call sites.
+// As of the post-Harvey-panel sprint, this file is now a *router*:
+// it picks an LlmProvider implementation (today only the OpenAI
+// one) and forwards. The provider-specific HTTP lives in
+// lib/llm/providers/*.ts. Call sites continue importing
+// { complete, embed, transcribe } from this file unchanged.
+//
+// Why the seam: the deep dive on Harvey's 2026 architecture
+// confirmed they moved off OpenAI-exclusive in May 2025 and now
+// route across Anthropic / OpenAI / Gemini. The structural risk of
+// any single provider hiking prices, deprecating models, or
+// changing terms is real, and Harvey paid the price to insure
+// against it. Drift is doing the same insurance — but we ship the
+// interface today and the second backend later, so the swap is
+// 2 days of work instead of 3 weeks.
 //
 // Telemetry note: token usage is returned on every call. Call sites
 // that care about per-feature cost attribution should pass a
@@ -22,15 +32,26 @@ import type {
   LlmCompleteOptions,
   LlmCompleteResult,
   LlmEmbedOptions,
+  LlmProvider,
   LlmTranscribeOptions,
 } from "./types";
+import { openaiProvider } from "./providers/openai";
 
-const OPENAI_BASE = "https://api.openai.com/v1";
-
-function getApiKey(): string {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) throw new Error("OPENAI_API_KEY not configured");
-  return key;
+/**
+ * Returns the LlmProvider that should serve this call. Today
+ * always OpenAI; future iterations can route by model name (claude*
+ * → anthropic provider), per-workspace config (workspace.llm_provider
+ * column), or per-feature policy. The router lives here so call
+ * sites never know which backend served them — that's the whole
+ * point of the seam.
+ */
+export function getProvider(_opts?: { model?: string; workspaceId?: string | null }): LlmProvider {
+  // Future routing logic lands here. e.g.:
+  //   if (opts?.model?.startsWith("claude")) return anthropicProvider;
+  //   if (opts?.model?.startsWith("gemini")) return geminiProvider;
+  //   const cfg = await loadWorkspaceLlmConfig(opts?.workspaceId);
+  //   if (cfg.preferred === "anthropic") return anthropicProvider;
+  return openaiProvider;
 }
 
 /**
@@ -42,53 +63,8 @@ function getApiKey(): string {
 export async function complete(
   opts: LlmCompleteOptions,
 ): Promise<LlmCompleteResult> {
-  const body: Record<string, unknown> = {
-    model: opts.model,
-    messages: opts.messages,
-  };
-  if (opts.tools && opts.tools.length > 0) {
-    body.tools = opts.tools;
-    // tool_choice="auto" is the default — explicit when caller asked.
-    body.tool_choice = opts.toolChoice ?? "auto";
-  } else if (opts.toolChoice) {
-    body.tool_choice = opts.toolChoice;
-  }
-  if (opts.responseFormat) body.response_format = opts.responseFormat;
-  if (opts.temperature !== undefined) body.temperature = opts.temperature;
-  if (opts.maxTokens !== undefined) body.max_tokens = opts.maxTokens;
-
-  const res = await fetch(`${OPENAI_BASE}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${getApiKey()}`,
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) {
-    const errBody = await res.text().catch(() => "");
-    throw new Error(`LLM ${res.status}: ${errBody.slice(0, 400)}`);
-  }
-
-  const json = (await res.json()) as {
-    choices: Array<{ message: LlmCompleteResult["message"]; finish_reason: string }>;
-    usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
-  };
-
-  const choice = json.choices?.[0];
-  if (!choice) throw new Error("LLM returned no choices");
-
-  return {
-    message: choice.message,
-    finishReason: choice.finish_reason ?? "stop",
-    usage: {
-      promptTokens: json.usage?.prompt_tokens ?? 0,
-      completionTokens: json.usage?.completion_tokens ?? 0,
-      totalTokens: json.usage?.total_tokens ?? 0,
-    },
-    raw: json,
-  };
+  const provider = getProvider({ model: opts.model, workspaceId: opts.workspaceId ?? null });
+  return provider.complete(opts);
 }
 
 /**
@@ -100,28 +76,8 @@ export async function complete(
  * per call); embed.ts batches at 96 to stay conservative.
  */
 export async function embed(opts: LlmEmbedOptions): Promise<number[][]> {
-  const inputs = Array.isArray(opts.input) ? opts.input : [opts.input];
-  if (inputs.length === 0) return [];
-
-  const res = await fetch(`${OPENAI_BASE}/embeddings`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${getApiKey()}`,
-    },
-    body: JSON.stringify({
-      model: opts.model ?? "text-embedding-3-small",
-      input: inputs,
-    }),
-  });
-
-  if (!res.ok) {
-    const errBody = await res.text().catch(() => "");
-    throw new Error(`LLM embed ${res.status}: ${errBody.slice(0, 200)}`);
-  }
-
-  const json = (await res.json()) as { data: Array<{ embedding: number[] }> };
-  return json.data.map((d) => d.embedding);
+  const provider = getProvider({ model: opts.model });
+  return provider.embed(opts);
 }
 
 /**
@@ -132,23 +88,8 @@ export async function embed(opts: LlmEmbedOptions): Promise<number[][]> {
 export async function transcribe(
   opts: LlmTranscribeOptions,
 ): Promise<{ text: string }> {
-  const form = new FormData();
-  form.append("file", opts.audio, "audio.wav");
-  form.append("model", opts.model ?? "whisper-1");
-  if (opts.language) form.append("language", opts.language);
-
-  const res = await fetch(`${OPENAI_BASE}/audio/transcriptions`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${getApiKey()}` },
-    body: form,
-  });
-
-  if (!res.ok) {
-    const errBody = await res.text().catch(() => "");
-    throw new Error(`LLM transcribe ${res.status}: ${errBody.slice(0, 200)}`);
-  }
-
-  return (await res.json()) as { text: string };
+  const provider = getProvider({ model: opts.model });
+  return provider.transcribe(opts);
 }
 
 /** Default embedding dim — exported so callers can validate vectors. */

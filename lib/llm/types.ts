@@ -77,3 +77,28 @@ export interface LlmTranscribeOptions {
   model?: string;
   language?: string;
 }
+
+/**
+ * Provider-neutral seam — every backend implements this interface,
+ * lib/llm/client.ts dispatches to whichever the workspace / env
+ * config selects. Today only the OpenAI provider exists; the seam
+ * exists so adding Anthropic, Gemini, or a vLLM endpoint is a new
+ * file plus a router entry, not a refactor of every call site.
+ *
+ * Why now: the panel review of Harvey called out their move from
+ * OpenAI-exclusive to multi-model orchestration as the structural
+ * insurance against any one provider's pricing/deprecation moves.
+ * We don't ship a second provider in the same change — we land the
+ * interface so the second one is a 2-day add later, not a 3-week
+ * refactor.
+ */
+export interface LlmProvider {
+  /** Provider identifier — "openai", "anthropic", etc. Used by
+   *  telemetry and the (future) router to log which backend served
+   *  a call. */
+  readonly id: string;
+
+  complete(opts: LlmCompleteOptions): Promise<LlmCompleteResult>;
+  embed(opts: LlmEmbedOptions): Promise<number[][]>;
+  transcribe(opts: LlmTranscribeOptions): Promise<{ text: string }>;
+}
