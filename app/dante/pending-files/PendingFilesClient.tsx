@@ -241,23 +241,88 @@ export default function PendingFilesClient() {
   // ─── Folder actions ──────────────────────────────────────────
   const pickAndAdd = useCallback(async () => {
     const e = window.electronAPI;
-    if (!e?.watched?.pickFolder || !device) return;
-    const { canceled, folder_path } = await e.watched.pickFolder();
-    if (canceled || !folder_path) return;
-    const r = await fetch("/api/electron/watched-folders", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        kind: "local_electron",
-        device_id: device.device_id,
-        device_label: device.device_label,
-        folder_path,
-      }),
-    });
-    if (!r.ok) {
-      const err = (await r.json()) as { error?: string };
-      alert(`Failed to add folder: ${err.error || r.status}`);
+    // Diagnose silently-broken paths so the user sees something
+    // when "Add folder" doesn't work, instead of nothing.
+    if (!e?.watched?.pickFolder) {
+      alert(
+        "The folder picker isn't available. You're likely on Drift v1.0.x — install v1.1.2 (or newer) from the Update pill in the top-right.",
+      );
+      return;
+    }
+    if (!device) {
+      // device loads asynchronously on mount via getDevice IPC.
+      // If the user clicks Add Folder before that resolves we
+      // have nothing to pass. Try one more time, fail loudly.
+      try {
+        const fresh = e.getDevice ? await e.getDevice() : null;
+        if (!fresh) {
+          alert(
+            "Drift couldn't determine this device's identity. Quit and relaunch the app, then try again.",
+          );
+          return;
+        }
+        setDevice(fresh);
+      } catch (err) {
+        alert(
+          `Couldn't load device identity: ${err instanceof Error ? err.message : "unknown"}.`,
+        );
+        return;
+      }
+    }
+    let folderPath: string | undefined;
+    try {
+      const result = await e.watched.pickFolder();
+      if (result.canceled) return;
+      folderPath = result.folder_path;
+    } catch (err) {
+      console.error("[pending-files] pickFolder threw:", err);
+      alert(
+        `The folder picker errored: ${err instanceof Error ? err.message : "unknown"}.`,
+      );
+      return;
+    }
+    if (!folderPath) {
+      alert(
+        "The folder picker closed without returning a path. Try again — and if it keeps happening, check Drift's permissions in System Settings → Privacy & Security → Files & Folders.",
+      );
+      return;
+    }
+
+    const dev = device || (e.getDevice ? await e.getDevice() : null);
+    if (!dev) {
+      alert("Device identity is still missing. Quit and relaunch Drift.");
+      return;
+    }
+
+    try {
+      const r = await fetch("/api/electron/watched-folders", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: "local_electron",
+          device_id: dev.device_id,
+          device_label: dev.device_label,
+          folder_path: folderPath,
+        }),
+      });
+      if (!r.ok) {
+        let detail = `${r.status}`;
+        try {
+          const err = (await r.json()) as { error?: string };
+          detail = err.error || detail;
+        } catch {
+          /* not JSON */
+        }
+        alert(`Failed to register folder: ${detail}`);
+        console.error("[pending-files] POST /api/electron/watched-folders failed:", detail);
+        return;
+      }
+    } catch (err) {
+      console.error("[pending-files] POST threw:", err);
+      alert(
+        `Network error registering folder: ${err instanceof Error ? err.message : "unknown"}.`,
+      );
       return;
     }
     await fetchFolders();
