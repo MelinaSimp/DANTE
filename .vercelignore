@@ -1,8 +1,15 @@
 # Vercel ignore file - exclude large directories from deployment
+#
+# Patterns use gitignore syntax — bare names (e.g. "electron")
+# match at any depth, which silently strips matching dirs from
+# the deploy. The bare "electron" entry was excluding both the
+# top-level Electron app folder AND app/api/electron/* (every
+# desktop-app API route). Pin to repo-root with a leading slash
+# to avoid the same footgun on future entries.
 node_modules
 .next
 dist-electron
-electron
+/electron
 *.log
 .DS_Store
 *.pem
