@@ -145,38 +145,98 @@ export default function PendingFilesClient() {
   }, [fetchFiles]);
 
   // ─── Watcher event subscription ──────────────────────────────
+  // Two paths fork on every file event:
+  //   • The file_path already maps to a CONFIRMED watched file
+  //     → auto-update path: extract text, hit /auto-update, server
+  //       re-chunks in place. User isn't asked to re-approve.
+  //   • Otherwise → notify path: create a pending row for the user
+  //     to confirm via the UI.
   useEffect(() => {
     if (!window.electronAPI?.watched?.onFileEvent) return;
+
+    // Build a quick lookup of "file_path → vault_item_id" from the
+    // current files state. We'd ideally hit the server for ground
+    // truth but this is good enough for the dedup gate; the server
+    // double-checks via the prior-confirmed lookup in /auto-update.
+    const knownConfirmed = new Set(
+      files
+        .filter((f) => f.vault_item_id && f.status === "confirmed")
+        .map((f) => `${f.folder_id}::${f.file_path}`),
+    );
+
     const unsub = window.electronAPI.watched.onFileEvent(async (event) => {
-      // Dedup by sha256 so chokidar's occasional duplicate emit
-      // doesn't double-post.
       const key = event.content_sha256 || `${event.folder_id}::${event.file_path}`;
       if (inFlightHashes.current.has(key)) return;
       inFlightHashes.current.add(key);
+
       try {
-        await fetch(
-          `/api/electron/watched-folders/${event.folder_id}/notify`,
-          {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              file_path: event.file_path,
-              file_name: event.file_name,
-              file_extension: event.file_extension,
-              file_size_bytes: event.file_size_bytes,
-              content_sha256: event.content_sha256,
-            }),
-          },
-        );
+        const folder = folders.find((f) => f.id === event.folder_id);
+        const isLocalOnly =
+          folder?.default_processing_mode === "local_only";
+        const pathKey = `${event.folder_id}::${event.file_path}`;
+        const isUpdate = knownConfirmed.has(pathKey);
+
+        // Extract text only when (a) we're going to send it
+        // somewhere AND (b) the folder isn't local_only. For
+        // local_only folders we skip extraction entirely — bytes
+        // never leave the machine.
+        let extractedText: string | null = null;
+        if (
+          !isLocalOnly &&
+          window.electronAPI?.watched?.extractFileText
+        ) {
+          try {
+            const result = await window.electronAPI.watched.extractFileText(
+              event.file_path,
+              event.file_extension,
+            );
+            if (result && "text" in result && result.text) {
+              extractedText = result.text;
+            }
+          } catch {
+            /* fall through — server still records the event */
+          }
+        }
+
+        if (isUpdate) {
+          await fetch(
+            `/api/electron/watched-folders/${event.folder_id}/files/auto-update`,
+            {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                file_path: event.file_path,
+                file_size_bytes: event.file_size_bytes,
+                content_sha256: event.content_sha256,
+                extracted_text: extractedText,
+              }),
+            },
+          );
+        } else {
+          await fetch(
+            `/api/electron/watched-folders/${event.folder_id}/notify`,
+            {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                file_path: event.file_path,
+                file_name: event.file_name,
+                file_extension: event.file_extension,
+                file_size_bytes: event.file_size_bytes,
+                content_sha256: event.content_sha256,
+              }),
+            },
+          );
+        }
         await fetchFiles();
       } finally {
-        // Allow re-post on a real second change after some time.
         setTimeout(() => inFlightHashes.current.delete(key), 60_000);
       }
     });
     return unsub;
-  }, [fetchFiles]);
+  }, [fetchFiles, files, folders]);
 
   // ─── Folder actions ──────────────────────────────────────────
   const pickAndAdd = useCallback(async () => {
@@ -220,9 +280,42 @@ export default function PendingFilesClient() {
     async (file: WatchedFile) => {
       setBusy((b) => ({ ...b, [file.id]: true }));
       try {
+        // Look up the folder to decide whether to extract text.
+        const folder = folders.find((f) => f.id === file.folder_id);
+        const isLocalOnly =
+          folder?.default_processing_mode === "local_only";
+
+        // For cloud folders, extract the file text in the main
+        // process before posting confirm. The server saves it on
+        // vault_items.content and runs the chunker so the file is
+        // searchable immediately.
+        let extractedText: string | null = null;
+        if (
+          !isLocalOnly &&
+          window.electronAPI?.watched?.extractFileText &&
+          file.file_extension
+        ) {
+          try {
+            const result = await window.electronAPI.watched.extractFileText(
+              file.file_path,
+              file.file_extension,
+            );
+            if (result && "text" in result && result.text) {
+              extractedText = result.text;
+            }
+          } catch {
+            /* fall through — confirm proceeds, ingest can be retried */
+          }
+        }
+
         const r = await fetch(
           `/api/electron/watched-folders/${file.folder_id}/files/${file.id}/confirm`,
-          { method: "POST", credentials: "include" },
+          {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ extracted_text: extractedText }),
+          },
         );
         if (!r.ok) {
           const j = (await r.json()) as { error?: string };
@@ -233,7 +326,7 @@ export default function PendingFilesClient() {
         setBusy((b) => ({ ...b, [file.id]: false }));
       }
     },
-    [fetchFiles],
+    [fetchFiles, folders],
   );
 
   const rejectFile = useCallback(

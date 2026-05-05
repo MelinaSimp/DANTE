@@ -39,6 +39,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("watched:fileEvent", wrapped);
       return () => ipcRenderer.off("watched:fileEvent", wrapped);
     },
+
+    /** Extract text from a specific file by path. Used by the
+     *  confirm + auto-update flow to ship extracted text to the
+     *  server for chunking. Returns { text, truncated, char_count }
+     *  on success or { error } on failure. NEVER call this for
+     *  files in local_only folders — the whole point is the bytes
+     *  stay on the user's machine. */
+    extractFileText: (path, ext) =>
+      ipcRenderer.invoke("watched:extractFileText", { path, ext }),
   },
 
   /** Get this installation's persistent device identity.

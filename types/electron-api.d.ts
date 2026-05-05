@@ -56,6 +56,13 @@ declare global {
             kind_of_event: "added" | "changed";
           }) => void,
         ) => () => void;
+        extractFileText: (
+          path: string,
+          ext: string,
+        ) => Promise<
+          | { text: string; truncated: boolean; char_count: number; error?: undefined }
+          | { error: string; text?: undefined; truncated?: undefined; char_count?: undefined }
+        >;
       };
 
       /** Persistent device identity for this Electron install. */

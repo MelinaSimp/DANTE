@@ -352,6 +352,43 @@ ipcMain.handle("watched:sync", async (_e, folders) => {
   return { ok: true, active: Array.isArray(folders) ? folders.length : 0 };
 });
 
+// Extract text from a file by path. Used by the watched-folders
+// confirm + auto-update flow: when the user approves a pending
+// file (or the watcher detects a change to an already-confirmed
+// file), we read the file in the main process, extract text via
+// pdf-parse / docx / plain-text, and hand the text back to the
+// renderer to ship to the server. Bytes never leave the machine
+// in any case where the user-flagged folder is local_only — that
+// callsite never invokes this IPC.
+ipcMain.handle("watched:extractFileText", async (_e, payload) => {
+  const filePath = payload?.path;
+  const ext = (payload?.ext || "").toLowerCase();
+  if (!filePath) return { error: "no path" };
+  const MAX_CHARS = 800_000;
+  try {
+    if (!fs.existsSync(filePath)) return { error: "file not found" };
+    let text = "";
+    if (ext === "pdf") {
+      const pdfParse = require("pdf-parse");
+      const buf = fs.readFileSync(filePath);
+      const parsed = await pdfParse(buf);
+      text = parsed.text || "";
+    } else if (ext === "docx") {
+      text = await extractDocxText(filePath);
+    } else {
+      text = fs.readFileSync(filePath, "utf8");
+    }
+    let truncated = false;
+    if (text.length > MAX_CHARS) {
+      text = text.slice(0, MAX_CHARS);
+      truncated = true;
+    }
+    return { text, truncated, char_count: text.length };
+  } catch (err) {
+    return { error: err?.message || String(err) };
+  }
+});
+
 ipcMain.handle("ollama:probe", async () => ollama.probe());
 ipcMain.handle("ollama:complete", async (_e, opts) => ollama.complete(opts || {}));
 ipcMain.handle("ollama:embed", async (_e, opts) => ollama.embed(opts || {}));

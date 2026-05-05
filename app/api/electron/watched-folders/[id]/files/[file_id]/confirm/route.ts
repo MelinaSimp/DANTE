@@ -1,29 +1,42 @@
 // app/api/electron/watched-folders/[id]/files/[file_id]/confirm/route.ts
 //
 // User confirmed a pending file should be ingested. Promotes the
-// watched_folder_files row into a real vault_items entry, links
-// them, and bumps the folder's files_indexed_count.
+// watched_folder_files row into a real vault_items entry, runs
+// the chunking pipeline so the file is searchable by Dante, and
+// bumps the folder's files_indexed_count.
 //
-// The file content itself is NOT uploaded to Supabase storage in
-// the watched-folder flow — the canonical bytes live on the user's
-// machine and are referenced by file_path. file_url is null on
-// these vault items; the Electron renderer is the only client that
-// can actually open them. (For cloud-folder kinds in Phase 3, the
-// file_url is the cloud-provider URL.)
+// The file BYTES themselves are not uploaded to Supabase storage
+// — the canonical bytes live on the user's machine and are
+// referenced by file_path. file_url stays null; the Electron
+// renderer is the only client that can actually open the file.
+// (For cloud-folder kinds in Phase 3, file_url will be the cloud-
+// provider URL.)
 //
-// processing_mode_override is inherited from the watched folder's
-// default — so a folder marked local_only on registration produces
-// vault items that resolve to local_only at chat time, without the
-// user having to flag each file individually.
+// EXTRACTED TEXT, however, IS sent to the server when the folder
+// is cloud-default. The renderer extracts text via the Electron
+// main process (pdf-parse / docx / plain-text) and POSTs it here
+// in `extracted_text`. We save it to vault_items.content and call
+// ingestVaultItem() — same chunker + embedder the regular Vault
+// upload route uses, so the file is queryable via vault.cite,
+// archive.search, and inconsistency.detect immediately after
+// confirmation.
+//
+// For local_only folders, we deliberately ignore extracted_text
+// even if the renderer mistakenly sent it. The point of local-only
+// is that file content does not reach Drift's servers; the file
+// stays path-only, and chat about it routes to local Hermes which
+// reads from disk via IPC instead of from the chunks table.
 
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { ingestVaultItem } from "@/lib/vault/ingest";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string; file_id: string }> },
 ) {
   const sb = await createServerSupabase();
@@ -44,6 +57,10 @@ export async function POST(
     return NextResponse.json({ error: "no_workspace" }, { status: 400 });
   }
   const { id: folderId, file_id: fileId } = await params;
+
+  const body = (await req.json().catch(() => ({}))) as {
+    extracted_text?: string;
+  };
 
   const { data: file } = await supabaseAdmin
     .from("watched_folder_files")
@@ -85,8 +102,18 @@ export async function POST(
     default_processing_mode: "cloud" | "local_only";
   } | null;
 
+  // For local_only folders, ignore extracted_text — the privacy
+  // contract is that content does not reach Drift's servers.
+  const isLocalOnly = fld?.default_processing_mode === "local_only";
+  const acceptedText =
+    !isLocalOnly && typeof body.extracted_text === "string"
+      ? body.extracted_text.trim()
+      : null;
+
   // Create the vault item. file_url is null — the file lives on
   // the user's machine, the Electron renderer opens it directly.
+  // content gets the extracted text (if cloud-default), so
+  // ingestVaultItem can chunk it without hitting file_url.
   const { data: vaultItem, error: vaultErr } = await supabaseAdmin
     .from("vault_items")
     .insert({
@@ -98,9 +125,9 @@ export async function POST(
       file_url: null,
       file_size: f.file_size_bytes,
       file_type: f.file_extension,
+      content: acceptedText || null,
       project_id: fld?.default_vault_project_id ?? null,
-      processing_mode_override:
-        fld?.default_processing_mode === "local_only" ? "local_only" : null,
+      processing_mode_override: isLocalOnly ? "local_only" : null,
     })
     .select("id")
     .single();
@@ -109,6 +136,27 @@ export async function POST(
     return NextResponse.json({ error: vaultErr.message }, { status: 500 });
   }
   const newVaultId = (vaultItem as { id: string }).id;
+
+  // Run the chunker + embedder on the new vault item so it's
+  // searchable immediately. Skip for local_only (no content stored)
+  // and for the no-text-extracted case (e.g., scanned PDF without
+  // OCR — caller can re-run later if they OCR the file separately).
+  let chunkCount = 0;
+  let ingestError: string | null = null;
+  if (acceptedText) {
+    try {
+      const result = await ingestVaultItem(newVaultId, { force: true });
+      chunkCount = result.chunkCount;
+    } catch (err) {
+      ingestError = err instanceof Error ? err.message : "ingest_failed";
+      console.warn(
+        `[watched-folder confirm] ingestVaultItem failed for ${newVaultId}:`,
+        ingestError,
+      );
+      // Don't fail the request — the vault item exists, the user
+      // can re-ingest later via /api/vault/[id]/ingest.
+    }
+  }
 
   // Link the watched_folder_files row to the new vault item.
   await supabaseAdmin
@@ -157,11 +205,17 @@ export async function POST(
       file_id: fileId,
       folder_id: folderId,
       file_path: f.file_path,
-      processing_mode_override:
-        fld?.default_processing_mode === "local_only" ? "local_only" : null,
+      processing_mode_override: isLocalOnly ? "local_only" : null,
+      chunk_count: chunkCount,
+      ingest_error: ingestError,
     },
     timestamp: new Date().toISOString(),
   });
 
-  return NextResponse.json({ vault_item_id: newVaultId, status: "confirmed" });
+  return NextResponse.json({
+    vault_item_id: newVaultId,
+    status: "confirmed",
+    chunk_count: chunkCount,
+    ingest_error: ingestError,
+  });
 }
