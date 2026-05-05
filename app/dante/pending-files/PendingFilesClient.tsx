@@ -266,9 +266,14 @@ export default function PendingFilesClient() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-10">
-      <header className="mb-8">
-        <h1 className="heading-display text-3xl mb-2">Pending files</h1>
-        <p className="text-sm text-[var(--ink-muted)] leading-relaxed max-w-2xl">
+      <header className="mb-10">
+        <div className="mono text-[11px] text-[var(--ink-muted)] mb-1 uppercase tracking-wide">
+          Watched folders · ingest queue
+        </div>
+        <h1 className="heading-display text-4xl md:text-5xl text-[var(--ink)] leading-tight">
+          Pending files
+        </h1>
+        <p className="text-sm text-[var(--ink-muted)] mt-3 max-w-2xl leading-relaxed">
           When Drift sees a new file in a folder you&rsquo;ve registered,
           it shows up here for your approval before being added to Vault.
           Folders marked local-only never send file content to Drift&rsquo;s
@@ -299,60 +304,72 @@ export default function PendingFilesClient() {
       )}
 
       {isElectron && hasBridge && (
-        <section className="mb-8">
-          <div className="flex items-baseline justify-between mb-3">
-            <h2 className="heading-display text-xl">Folders</h2>
+        <section className="mb-10">
+          <div className="flex items-baseline justify-between mb-4">
+            <h2 className="heading-display text-xl text-[var(--ink)]">
+              Folders
+            </h2>
             <button
               onClick={pickAndAdd}
-              className="text-sm px-3 py-1.5 rounded-md bg-[var(--accent)] text-white hover:opacity-90"
+              className="inline-flex items-center gap-1.5 rounded-[6px] border border-[var(--ink)] bg-[var(--ink)] text-[var(--canvas)] px-4 py-2 text-sm font-medium transition hover:opacity-90 active:scale-[0.99]"
             >
-              + Add folder
+              <span className="text-base leading-none">+</span> Add folder
             </button>
           </div>
           {folders.length === 0 ? (
-            <div className="text-sm text-[var(--ink-muted)] border border-dashed border-[var(--rule)] rounded-md p-6 text-center">
+            <div className="text-sm text-[var(--ink-muted)] border border-dashed border-[var(--rule)] rounded-md p-8 text-center">
               No folders registered yet. Click &ldquo;Add folder&rdquo; to start.
             </div>
           ) : (
-            <ul className="border border-[var(--rule)] rounded-md divide-y divide-[var(--rule)]">
+            <ul className="border border-[var(--rule)] rounded-md divide-y divide-[var(--rule)] bg-[var(--canvas)]">
               {folders.map((f) => (
                 <li
                   key={f.id}
-                  className="flex items-center justify-between px-4 py-3 text-sm"
+                  className="flex items-center justify-between px-4 py-3.5 text-sm gap-4"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="font-medium truncate">{f.folder_label}</div>
-                    <div className="text-xs text-[var(--ink-muted)] truncate">
+                    <div className="font-medium truncate text-[var(--ink)]">
+                      {f.folder_label}
+                    </div>
+                    <div className="mono text-[11px] text-[var(--ink-muted)] truncate mt-0.5">
                       {f.folder_path}
                     </div>
-                    <div className="text-xs text-[var(--ink-muted)] mt-1 flex gap-3">
-                      <span>
+                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                      <span
+                        className={`inline-flex items-center rounded-full border px-2 py-0.5 mono text-[10px] uppercase tracking-wide ${
+                          f.default_processing_mode === "local_only"
+                            ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                            : "border-[var(--rule)] text-[var(--ink-muted)]"
+                        }`}
+                      >
                         {f.default_processing_mode === "local_only"
                           ? "Local-only"
-                          : "Cloud-default"}
+                          : "Cloud"}
                       </span>
-                      <span>
+                      <span className="mono text-[11px] text-[var(--ink-muted)]">
                         {f.files_indexed_count ?? 0} ingested
                       </span>
-                      <span>{f.status}</span>
+                      <span className="mono text-[11px] text-[var(--ink-muted)]">
+                        {f.status}
+                      </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     <button
                       onClick={() =>
                         setSelectedFolderId((cur) => (cur === f.id ? null : f.id))
                       }
-                      className={`text-xs px-2 py-1 rounded border border-[var(--rule)] hover:bg-[var(--rule)]/30 ${
+                      className={`rounded-[6px] border px-3 py-1.5 text-xs transition ${
                         selectedFolderId === f.id
-                          ? "bg-[var(--rule)]/40"
-                          : ""
+                          ? "border-[var(--ink)] bg-[var(--rule)]/40"
+                          : "border-[var(--rule)] hover:bg-[var(--rule)]/30"
                       }`}
                     >
                       {selectedFolderId === f.id ? "Showing" : "Filter"}
                     </button>
                     <button
                       onClick={() => removeFolder(f.id)}
-                      className="text-xs px-2 py-1 rounded border border-[var(--rule)] text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20"
+                      className="rounded-[6px] border border-[var(--rule)] px-3 py-1.5 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 transition"
                     >
                       Remove
                     </button>
@@ -362,12 +379,13 @@ export default function PendingFilesClient() {
             </ul>
           )}
           {ollama && (
-            <p className="text-xs text-[var(--ink-muted)] mt-3">
-              Local LLM: {ollama.reachable ? "reachable" : "not reachable"}
+            <p className="mono text-[11px] text-[var(--ink-muted)] mt-3 uppercase tracking-wide">
+              Local LLM ·{" "}
+              {ollama.reachable ? "Reachable" : "Not reachable"}
               {ollama.reachable && ollama.hermes_pulled
                 ? " · Hermes pulled"
                 : ollama.reachable
-                  ? " · Hermes not pulled (run `ollama pull hermes3:8b`)"
+                  ? " · Hermes not pulled — run `ollama pull hermes3:8b`"
                   : ""}
             </p>
           )}
@@ -375,33 +393,35 @@ export default function PendingFilesClient() {
       )}
 
       <section>
-        <div className="flex items-baseline justify-between mb-3">
-          <h2 className="heading-display text-xl">
+        <div className="flex items-baseline justify-between mb-4">
+          <h2 className="heading-display text-xl text-[var(--ink)]">
             Pending {selectedFolderId ? "(filtered)" : ""}
           </h2>
           <button
             onClick={fetchFiles}
-            className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)]"
+            className="mono text-[11px] text-[var(--ink-muted)] hover:text-[var(--ink)] uppercase tracking-wide"
           >
             Refresh
           </button>
         </div>
         {files.length === 0 ? (
-          <div className="text-sm text-[var(--ink-muted)] border border-dashed border-[var(--rule)] rounded-md p-6 text-center">
+          <div className="text-sm text-[var(--ink-muted)] border border-dashed border-[var(--rule)] rounded-md p-8 text-center">
             All caught up — no files awaiting your approval.
           </div>
         ) : (
-          <ul className="border border-[var(--rule)] rounded-md divide-y divide-[var(--rule)]">
+          <ul className="border border-[var(--rule)] rounded-md divide-y divide-[var(--rule)] bg-[var(--canvas)]">
             {files.map((file) => {
               const folder = folderById[file.folder_id];
               return (
                 <li
                   key={file.id}
-                  className="flex items-center justify-between px-4 py-3 text-sm gap-3"
+                  className="flex items-center justify-between px-4 py-3.5 text-sm gap-4"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="font-medium truncate">{file.file_name}</div>
-                    <div className="text-xs text-[var(--ink-muted)] truncate">
+                    <div className="font-medium truncate text-[var(--ink)]">
+                      {file.file_name}
+                    </div>
+                    <div className="mono text-[11px] text-[var(--ink-muted)] truncate mt-0.5">
                       {folder?.folder_label || file.folder_id} ·{" "}
                       {file.file_extension || "no ext"} ·{" "}
                       {formatBytes(file.file_size_bytes)} ·{" "}
@@ -412,14 +432,14 @@ export default function PendingFilesClient() {
                     <button
                       onClick={() => rejectFile(file)}
                       disabled={busy[file.id]}
-                      className="text-xs px-3 py-1.5 rounded border border-[var(--rule)] hover:bg-[var(--rule)]/30 disabled:opacity-50"
+                      className="rounded-[6px] border border-[var(--rule)] px-3 py-1.5 text-sm hover:bg-[var(--rule)]/30 disabled:opacity-50 transition"
                     >
                       Reject
                     </button>
                     <button
                       onClick={() => confirmFile(file)}
                       disabled={busy[file.id]}
-                      className="text-xs px-3 py-1.5 rounded bg-[var(--accent)] text-white hover:opacity-90 disabled:opacity-50"
+                      className="inline-flex items-center rounded-[6px] border border-[var(--ink)] bg-[var(--ink)] text-[var(--canvas)] px-4 py-1.5 text-sm font-medium hover:opacity-90 active:scale-[0.99] disabled:opacity-50 transition"
                     >
                       Confirm
                     </button>

@@ -177,11 +177,17 @@ export default function HermesClient() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-8 flex flex-col h-[calc(100vh-4rem)]">
-      <header className="mb-4 flex items-baseline justify-between">
+      <header className="mb-6 flex items-end justify-between gap-4">
         <div>
-          <h1 className="heading-display text-2xl">Hermes</h1>
-          <p className="text-sm text-[var(--ink-muted)]">
-            Talk directly to local Hermes 3. Nothing leaves your machine.
+          <div className="mono text-[11px] text-[var(--ink-muted)] mb-1 uppercase tracking-wide">
+            Local AI · on-device
+          </div>
+          <h1 className="heading-display text-4xl md:text-5xl text-[var(--ink)] leading-tight">
+            Hermes
+          </h1>
+          <p className="text-sm text-[var(--ink-muted)] mt-2 max-w-xl leading-relaxed">
+            Talk directly to local Hermes 3. Anything you type, ask, or attach
+            stays on this machine — nothing routes through Drift&rsquo;s servers.
           </p>
         </div>
         <StatusPill {...status} />
@@ -207,23 +213,31 @@ export default function HermesClient() {
       {isElectron && !hasBridge && <UpdatePromptCard />}
 
       {isElectron && hasBridge && probe && !probe.reachable && (
-        <div className="mb-4 border border-amber-500/40 bg-amber-500/5 rounded-md p-4 text-sm">
-          <p className="mb-2">
-            Ollama isn&rsquo;t reachable at <code>{probe.base_url}</code>.
+        <div className="mb-5 border border-[var(--rule)] rounded-md p-5">
+          <div className="mono text-[11px] text-[var(--ink-muted)] mb-2 uppercase tracking-wide">
+            Ollama not reachable
+          </div>
+          <p className="text-sm text-[var(--ink)] mb-1">
+            Drift can&rsquo;t reach Ollama at <code className="mono text-[12px]">{probe.base_url}</code>.
           </p>
-          <div className="flex gap-2">
+          <p className="text-sm text-[var(--ink-muted)] mb-4 leading-relaxed">
+            Hermes runs through Ollama, a local model server. Install it once
+            (~150 MB), pull the model, and Drift connects automatically — no
+            sign-in, no API key.
+          </p>
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={tryStart}
-              className="text-xs px-3 py-1.5 rounded bg-[var(--accent)] text-white hover:opacity-90"
               disabled={busy}
+              className="inline-flex items-center gap-2 rounded-[6px] border border-[var(--ink)] bg-[var(--ink)] text-[var(--canvas)] px-4 py-2 text-sm font-medium transition hover:opacity-90 active:scale-[0.99] disabled:opacity-50"
             >
-              Try to start Ollama
+              {busy ? "Trying…" : "Try to start Ollama"}
             </button>
             <a
               href="https://ollama.com/download"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs px-3 py-1.5 rounded border border-[var(--rule)] hover:bg-[var(--rule)]/30"
+              className="inline-flex items-center gap-2 rounded-[6px] border border-[var(--rule)] px-4 py-2 text-sm font-medium hover:bg-[var(--rule)]/30 transition"
             >
               Install Ollama →
             </a>
@@ -232,12 +246,15 @@ export default function HermesClient() {
       )}
 
       {isElectron && hasBridge && (
-        <div className="mb-3 flex items-center gap-3 text-xs">
+        <div className="mb-3 flex items-center gap-2 text-sm">
+          <label className="mono text-[11px] text-[var(--ink-muted)] uppercase tracking-wide">
+            Model
+          </label>
           {probe?.models_available && probe.models_available.length > 0 ? (
             <select
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              className="px-2 py-1.5 rounded border border-[var(--rule)] bg-transparent"
+              className="rounded-[6px] border border-[var(--rule)] bg-transparent px-2.5 py-1.5 text-sm focus:outline-none focus:border-[var(--ink)]"
             >
               {probe.models_available.map((m) => (
                 <option key={m} value={m}>
@@ -249,25 +266,24 @@ export default function HermesClient() {
             <input
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              className="px-2 py-1.5 rounded border border-[var(--rule)] bg-transparent w-48"
+              className="rounded-[6px] border border-[var(--rule)] bg-transparent px-2.5 py-1.5 text-sm w-48 focus:outline-none focus:border-[var(--ink)]"
             />
           )}
           <button
             onClick={pickFiles}
-            className="px-3 py-1.5 rounded border border-[var(--rule)] hover:bg-[var(--rule)]/30"
-            disabled={!isElectron}
+            className="inline-flex items-center gap-1.5 rounded-[6px] border border-[var(--rule)] px-3 py-1.5 text-sm hover:bg-[var(--rule)]/30 transition"
           >
-            + Attach file
+            <span className="text-base leading-none">+</span> Attach file
           </button>
           <button
             onClick={() => setShowSystem((v) => !v)}
-            className="px-3 py-1.5 rounded border border-[var(--rule)] hover:bg-[var(--rule)]/30"
+            className="rounded-[6px] border border-[var(--rule)] px-3 py-1.5 text-sm hover:bg-[var(--rule)]/30 transition"
           >
             {showSystem ? "Hide" : "Show"} system prompt
           </button>
           <button
             onClick={clearChat}
-            className="px-3 py-1.5 rounded border border-[var(--rule)] hover:bg-[var(--rule)]/30 ml-auto"
+            className="ml-auto rounded-[6px] border border-[var(--rule)] px-3 py-1.5 text-sm hover:bg-[var(--rule)]/30 transition"
           >
             Clear
           </button>
@@ -331,33 +347,35 @@ export default function HermesClient() {
         )}
       </div>
 
-      <div className="flex gap-2">
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey && !e.metaKey) {
-              e.preventDefault();
-              send();
+      <div className="flex gap-2 items-stretch">
+        <div className="flex-1 rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] focus-within:border-[var(--ink)] transition-colors">
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey && !e.metaKey) {
+                e.preventDefault();
+                send();
+              }
+            }}
+            rows={2}
+            placeholder={
+              !isElectron
+                ? "Open the desktop app to chat with Hermes."
+                : !hasBridge
+                  ? "Update Drift to v1.1.0 to chat with Hermes."
+                  : "Ask Hermes anything. Attached files are in context."
             }
-          }}
-          rows={2}
-          placeholder={
-            !isElectron
-              ? "Open the desktop app to chat with Hermes."
-              : !hasBridge
-                ? "Update Drift to v1.1.0 to chat with Hermes."
-                : "Ask Hermes anything. Attached files are in context."
-          }
-          disabled={!isElectron || !hasBridge || busy}
-          className="flex-1 px-3 py-2 rounded border border-[var(--rule)] bg-transparent text-sm focus-within:ring-1 focus-within:ring-[var(--accent)] disabled:opacity-50"
-        />
+            disabled={!isElectron || !hasBridge || busy}
+            className="w-full px-3 py-2.5 bg-transparent text-sm focus:outline-none disabled:opacity-50 resize-none"
+          />
+        </div>
         <button
           onClick={send}
           disabled={!isElectron || !hasBridge || busy || !input.trim()}
-          className="px-4 py-2 rounded bg-[var(--accent)] text-white hover:opacity-90 disabled:opacity-40"
+          className="inline-flex items-center justify-center gap-2 rounded-[6px] border border-[var(--ink)] bg-[var(--ink)] text-[var(--canvas)] px-5 text-sm font-medium transition hover:opacity-90 active:scale-[0.99] disabled:opacity-40"
         >
-          Send
+          {busy ? "Sending…" : "Send"}
         </button>
       </div>
     </div>
