@@ -47,6 +47,7 @@ import {
   resolveProcessingMode,
   logResolution,
 } from "@/lib/llm/processing-mode";
+import { detectAutoLocalMode } from "@/lib/dante/auto-mode";
 import type { LlmMessage, LlmToolDef } from "@/lib/llm/types";
 import type { MemoryKind } from "@/lib/dante/memory/types";
 import type {
@@ -981,25 +982,76 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
   const workspaceModel = await getWorkspaceModel(input.workspaceId);
   const model = workspaceModel || cfg.model || "gpt-5";
 
-  // Resolve the binding processing mode for this run. Walks
-  // workspace → contact → doc → chat, most-restrictive wins.
-  // Logs only when the result is local_only (cloud is the
-  // default and would explode audit volume).
+  // Resolve the binding processing mode for this run. Two
+  // signals compose, most-restrictive wins:
+  //
+  //  1. Static hierarchy — workspace → contact → doc → chat. Set
+  //     by user/admin choice (Settings → Privacy mode, per-doc
+  //     local_only flags, etc.).
+  //
+  //  2. Auto-detection — embed the user's most recent question,
+  //     find the top-K vault hits, check whether any of those
+  //     hits live in vault items flagged local_only. If yes,
+  //     force local_only for the turn. This is what closes the
+  //     "client asked Dante about a local file → it should
+  //     route to Hermes" gap; the static resolver can't see the
+  //     question, only ambient state.
+  //
+  // We log every local_only decision (cloud is the default and
+  // would explode audit volume).
   const modeCtx = {
     workspaceId: input.workspaceId,
     contactId: input.contactId ?? null,
     docId: input.docId ?? null,
     chatId: input.chatId ?? null,
   };
-  const modeResult = await resolveProcessingMode(modeCtx);
-  if (modeResult.mode === "local_only") {
-    await logResolution(modeCtx, modeResult, {
-      run_id: input.runId,
-      step_id: input.step.id,
-      feature: "agent.loop",
-    });
+  const staticMode = await resolveProcessingMode(modeCtx);
+
+  // Auto-detection: only run when the static resolver said cloud
+  // (otherwise we already know we're going local). And only when
+  // we actually have a user message to inspect — workflow / cron
+  // runs without user input skip this step.
+  const lastUserMsg = (() => {
+    if (typeof cfg.objective === "string" && cfg.objective.trim())
+      return cfg.objective;
+    return "";
+  })();
+  let autoMode: { mode: "cloud" | "local_only"; reason: string; triggering_doc_title?: string } = {
+    mode: "cloud",
+    reason: "skipped",
+  };
+  if (staticMode.mode === "cloud" && lastUserMsg) {
+    try {
+      autoMode = await detectAutoLocalMode({
+        workspaceId: input.workspaceId,
+        query: lastUserMsg,
+      });
+    } catch {
+      /* fail-safe to cloud */
+    }
   }
-  const processingMode = modeResult.mode;
+
+  const processingMode: "cloud" | "local_only" =
+    staticMode.mode === "local_only" || autoMode.mode === "local_only"
+      ? "local_only"
+      : "cloud";
+
+  if (processingMode === "local_only") {
+    await logResolution(
+      modeCtx,
+      { mode: "local_only", decided_by: staticMode.decided_by },
+      {
+        run_id: input.runId,
+        step_id: input.step.id,
+        feature: "agent.loop",
+        static_mode: staticMode.mode,
+        static_decided_by: staticMode.decided_by,
+        auto_mode: autoMode.mode,
+        auto_reason: autoMode.reason,
+        auto_triggering_doc: autoMode.triggering_doc_title || null,
+      },
+    );
+  }
 
   const messages: ChatMessage[] = [];
   const systemPrompt = [

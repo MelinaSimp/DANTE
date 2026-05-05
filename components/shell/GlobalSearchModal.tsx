@@ -365,7 +365,7 @@ export default function GlobalSearchModal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <CreativeCard solid className="w-full max-w-2xl">
+      <CreativeCard className="w-full max-w-2xl">
         <div className="flex flex-col max-h-[80vh] overflow-hidden">
         {/* Mode toggle row */}
         <div className="flex items-center gap-1 px-3 pt-2.5 border-b border-[var(--rule)]">
