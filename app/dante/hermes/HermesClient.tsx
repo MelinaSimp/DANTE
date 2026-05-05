@@ -15,7 +15,6 @@
 // window on big PDFs.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Image from "next/image";
 import { ArrowUp, Paperclip, X } from "lucide-react";
 import UpdatePromptCard from "@/components/desktop/UpdatePromptCard";
 
@@ -403,15 +402,10 @@ export default function HermesClient() {
         </div>
 
         <div className="flex-1 flex flex-col items-center justify-center pt-12 pb-16">
-          <Image
-            src="/brand/Hermes.png"
-            alt="Hermes"
-            width={88}
-            height={88}
-            priority
-            className="rounded-2xl shadow-sm mb-7"
-          />
-          <h1 className="heading-display text-5xl text-[var(--ink)] leading-none mb-3 text-center">
+          <div className="mono text-[11px] text-[var(--ink-muted)] uppercase tracking-[0.18em] mb-4">
+            Local AI · Hermes 3 · 8B
+          </div>
+          <h1 className="heading-display text-6xl md:text-7xl text-[var(--ink)] leading-[0.95] mb-4 text-center">
             Hermes
           </h1>
           <p className="text-sm text-[var(--ink-muted)] text-center max-w-md leading-relaxed mb-10">
@@ -460,14 +454,12 @@ export default function HermesClient() {
   return (
     <div className="mx-auto max-w-3xl px-6 flex flex-col h-[calc(100vh-4rem)]">
       <div className="flex items-center gap-3 py-3 border-b border-[var(--rule)]">
-        <Image
-          src="/brand/Hermes.png"
-          alt="Hermes"
-          width={28}
-          height={28}
-          className="rounded-md"
-        />
-        <span className="font-medium text-[var(--ink)]">Hermes</span>
+        <span className="heading-display text-lg text-[var(--ink)] leading-none">
+          Hermes
+        </span>
+        <span className="mono text-[10px] text-[var(--ink-muted)] uppercase tracking-wide">
+          Local · {model}
+        </span>
         <span className="ml-auto">
           <StatusPill {...status} />
         </span>
@@ -481,14 +473,7 @@ export default function HermesClient() {
           <MessageBubble key={i} msg={m} />
         ))}
         {busy && (
-          <div className="flex items-start gap-2.5">
-            <Image
-              src="/brand/Hermes.png"
-              alt=""
-              width={24}
-              height={24}
-              className="rounded-md flex-shrink-0 mt-0.5"
-            />
+          <div className="flex justify-start">
             <div className="rounded-[12px] border border-[var(--rule)] bg-[var(--canvas)] px-3.5 py-2.5 text-sm text-[var(--ink-muted)] italic">
               Hermes is thinking…
             </div>
@@ -524,25 +509,15 @@ const SUGGESTED_PROMPTS = [
 
 function MessageBubble({ msg }: { msg: Msg }) {
   const isUser = msg.role === "user";
-  if (isUser) {
-    return (
-      <div className="flex justify-end">
-        <div className="max-w-[80%] rounded-[12px] bg-[var(--ink)] text-[var(--canvas)] px-3.5 py-2.5 text-sm whitespace-pre-wrap leading-relaxed">
-          {msg.content}
-        </div>
-      </div>
-    );
-  }
   return (
-    <div className="flex items-start gap-2.5 justify-start">
-      <Image
-        src="/brand/Hermes.png"
-        alt=""
-        width={24}
-        height={24}
-        className="rounded-md flex-shrink-0 mt-0.5"
-      />
-      <div className="max-w-[80%] rounded-[12px] border border-[var(--rule)] bg-[var(--canvas)] text-[var(--ink)] px-3.5 py-2.5 text-sm whitespace-pre-wrap leading-relaxed">
+    <div className={isUser ? "flex justify-end" : "flex justify-start"}>
+      <div
+        className={`max-w-[80%] rounded-[12px] px-3.5 py-2.5 text-sm whitespace-pre-wrap leading-relaxed ${
+          isUser
+            ? "bg-[var(--ink)] text-[var(--canvas)]"
+            : "border border-[var(--rule)] bg-[var(--canvas)] text-[var(--ink)]"
+        }`}
+      >
         {msg.content}
       </div>
     </div>
