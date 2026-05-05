@@ -15,6 +15,7 @@
 // window on big PDFs.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { ArrowUp, Paperclip, X } from "lucide-react";
 import UpdatePromptCard from "@/components/desktop/UpdatePromptCard";
 
@@ -203,24 +204,133 @@ export default function HermesClient() {
     return { label: `Connected · ${model} · local`, tone: "ok" as const };
   }, [isElectron, hasBridge, probe, model]);
 
-  return (
-    <div className="mx-auto max-w-5xl px-6 py-8 flex flex-col h-[calc(100vh-4rem)]">
-      <header className="mb-6 flex items-end justify-between gap-4">
-        <div>
-          <div className="mono text-[11px] text-[var(--ink-muted)] mb-1 uppercase tracking-wide">
-            Local AI · on-device
-          </div>
-          <h1 className="heading-display text-4xl md:text-5xl text-[var(--ink)] leading-tight">
-            Hermes
-          </h1>
-          <p className="text-sm text-[var(--ink-muted)] mt-2 max-w-xl leading-relaxed">
-            Talk directly to local Hermes 3. Anything you type, ask, or attach
-            stays on this machine — nothing routes through Drift&rsquo;s servers.
-          </p>
+  // ─── Composer card (used in both empty and active layouts) ─────
+  const composer = (
+    <div className="rounded-[14px] border border-[var(--rule)] bg-[var(--canvas)] focus-within:border-[var(--ink)] focus-within:shadow-md transition-all shadow-sm">
+      {attached.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 px-3 pt-3">
+          {attached.map((f) => (
+            <span
+              key={f.path}
+              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--rule)] bg-[var(--rule)]/10 pl-2.5 pr-1.5 py-1 text-xs"
+              title={`${f.path}\n${f.text.length} chars${f.truncated ? " (truncated to 200k)" : ""}${f.error ? `\nError: ${f.error}` : ""}`}
+            >
+              <span className="truncate max-w-[20ch]">{f.name}</span>
+              <span className="mono text-[10px] text-[var(--ink-muted)]">
+                {f.error
+                  ? "error"
+                  : `${Math.round(f.text.length / 1000)}k${f.truncated ? "*" : ""}`}
+              </span>
+              <button
+                onClick={() => removeAttachment(f.path)}
+                className="rounded-full p-0.5 text-[var(--ink-muted)] hover:bg-[var(--rule)]/40 hover:text-[var(--ink)] transition"
+                aria-label="Remove attachment"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
         </div>
-        <StatusPill {...status} />
-      </header>
+      )}
 
+      <textarea
+        ref={textareaRef}
+        value={input}
+        onChange={(e) => {
+          setInput(e.target.value);
+          adjustHeight();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey && !e.metaKey) {
+            e.preventDefault();
+            send();
+          }
+        }}
+        placeholder={
+          !isElectron
+            ? "Open the desktop app to chat with Hermes."
+            : !hasBridge
+              ? "Update Drift to chat with Hermes."
+              : "Ask Hermes anything. Attached files are in context."
+        }
+        disabled={!isElectron || !hasBridge || busy}
+        className="w-full px-4 py-3.5 bg-transparent text-[15px] focus:outline-none disabled:opacity-50 resize-none placeholder:text-[var(--ink-muted)]"
+        style={{ minHeight: 60, overflow: "hidden" }}
+      />
+
+      <div className="flex items-center justify-between gap-2 px-2 py-2 border-t border-[var(--rule)]">
+        <button
+          onClick={pickFiles}
+          disabled={!isElectron || !hasBridge}
+          className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-[var(--ink-muted)] hover:bg-[var(--rule)]/30 hover:text-[var(--ink)] transition disabled:opacity-50"
+          aria-label="Attach files"
+        >
+          <Paperclip className="w-3.5 h-3.5" />
+          <span>Attach</span>
+        </button>
+        <button
+          onClick={send}
+          disabled={!isElectron || !hasBridge || busy || !input.trim()}
+          aria-label="Send message"
+          className={`inline-flex items-center justify-center w-8 h-8 rounded-md transition active:scale-95 disabled:opacity-40 ${
+            input.trim() && !busy
+              ? "bg-[var(--ink)] text-[var(--canvas)] hover:opacity-90"
+              : "bg-[var(--rule)]/40 text-[var(--ink-muted)]"
+          }`}
+        >
+          <ArrowUp className="w-4 h-4" strokeWidth={2.25} />
+        </button>
+      </div>
+    </div>
+  );
+
+  // ─── Auxiliary controls under the composer ─────────────────────
+  const controls = isElectron && hasBridge && (
+    <div className="mt-3 flex items-center gap-4 text-xs">
+      <div className="inline-flex items-center gap-1.5">
+        <span className="mono text-[11px] text-[var(--ink-muted)] uppercase tracking-wide">
+          Model
+        </span>
+        {probe?.models_available && probe.models_available.length > 0 ? (
+          <select
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            className="rounded-md border border-[var(--rule)] bg-transparent px-1.5 py-0.5 text-xs focus:outline-none focus:border-[var(--ink)]"
+          >
+            {probe.models_available.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            className="rounded-md border border-[var(--rule)] bg-transparent px-1.5 py-0.5 text-xs w-40 focus:outline-none focus:border-[var(--ink)]"
+          />
+        )}
+      </div>
+      <button
+        onClick={() => setShowSystem((v) => !v)}
+        className="mono text-[11px] uppercase tracking-wide text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
+      >
+        {showSystem ? "Hide system prompt" : "System prompt"}
+      </button>
+      {messages.length > 0 && (
+        <button
+          onClick={clearChat}
+          className="ml-auto mono text-[11px] uppercase tracking-wide text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
+        >
+          Clear
+        </button>
+      )}
+    </div>
+  );
+
+  // ─── Setup blockers (rendered above the active layout) ─────────
+  const setupBlocker = (
+    <>
       {!isElectron && (
         <div className="border border-dashed border-[var(--rule)] rounded-md p-6 text-sm text-[var(--ink-muted)]">
           <strong className="text-[var(--ink)] block mb-1">
@@ -241,12 +351,13 @@ export default function HermesClient() {
       {isElectron && !hasBridge && <UpdatePromptCard />}
 
       {isElectron && hasBridge && probe && !probe.reachable && (
-        <div className="mb-5 border border-[var(--rule)] rounded-md p-5">
+        <div className="border border-[var(--rule)] rounded-md p-5">
           <div className="mono text-[11px] text-[var(--ink-muted)] mb-2 uppercase tracking-wide">
             Ollama not reachable
           </div>
           <p className="text-sm text-[var(--ink)] mb-1">
-            Drift can&rsquo;t reach Ollama at <code className="mono text-[12px]">{probe.base_url}</code>.
+            Drift can&rsquo;t reach Ollama at{" "}
+            <code className="mono text-[12px]">{probe.base_url}</code>.
           </p>
           <p className="text-sm text-[var(--ink-muted)] mb-4 leading-relaxed">
             Hermes runs through Ollama, a local model server. Install it once
@@ -272,185 +383,166 @@ export default function HermesClient() {
           </div>
         </div>
       )}
+    </>
+  );
 
-      {/* Auxiliary controls — model picker + system prompt + clear,
-          intentionally lightweight so the eye lands on the composer. */}
-      {isElectron && hasBridge && (
-        <div className="mb-4 flex items-center gap-3 text-xs">
-          <div className="inline-flex items-center gap-2">
-            <span className="mono text-[11px] text-[var(--ink-muted)] uppercase tracking-wide">
-              Model
-            </span>
-            {probe?.models_available && probe.models_available.length > 0 ? (
-              <select
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                className="rounded-[6px] border border-[var(--rule)] bg-transparent px-2 py-1 text-xs focus:outline-none focus:border-[var(--ink)]"
-              >
-                {probe.models_available.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                className="rounded-[6px] border border-[var(--rule)] bg-transparent px-2 py-1 text-xs w-40 focus:outline-none focus:border-[var(--ink)]"
+  const isEmpty = messages.length === 0;
+  const hasSetupBlocker =
+    !isElectron ||
+    (isElectron && !hasBridge) ||
+    (isElectron && hasBridge && !!probe && !probe.reachable);
+
+  // ─── EMPTY STATE: centered hero with brand mark + composer
+  //     (Harvey/Claude pattern — composer is the focus, not floating
+  //     to the bottom of an otherwise-empty page).
+  if (isEmpty) {
+    return (
+      <div className="relative mx-auto max-w-3xl px-6 flex flex-col min-h-[calc(100vh-4rem)]">
+        <div className="absolute right-6 top-4">
+          <StatusPill {...status} />
+        </div>
+
+        <div className="flex-1 flex flex-col items-center justify-center pt-12 pb-16">
+          <Image
+            src="/brand/Hermes.png"
+            alt="Hermes"
+            width={88}
+            height={88}
+            priority
+            className="rounded-2xl shadow-sm mb-7"
+          />
+          <h1 className="heading-display text-5xl text-[var(--ink)] leading-none mb-3 text-center">
+            Hermes
+          </h1>
+          <p className="text-sm text-[var(--ink-muted)] text-center max-w-md leading-relaxed mb-10">
+            On-device LLM. Anything you type, ask, or attach stays on your
+            machine — nothing routes through Drift&rsquo;s servers, OpenAI,
+            or any third party.
+          </p>
+
+          <div className="w-full max-w-2xl">
+            {hasSetupBlocker && <div className="mb-4">{setupBlocker}</div>}
+            {showSystem && (
+              <textarea
+                value={systemPrompt}
+                onChange={(e) => setSystemPrompt(e.target.value)}
+                rows={5}
+                className="mb-3 w-full px-3 py-2 rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] text-xs font-mono focus:outline-none focus:border-[var(--ink)]"
               />
             )}
+            {composer}
+            {controls}
           </div>
-          <button
-            onClick={() => setShowSystem((v) => !v)}
-            className="mono text-[11px] uppercase tracking-wide text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
-          >
-            {showSystem ? "Hide system prompt" : "Show system prompt"}
-          </button>
-          {messages.length > 0 && (
-            <button
-              onClick={clearChat}
-              className="ml-auto mono text-[11px] uppercase tracking-wide text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
-            >
-              Clear conversation
-            </button>
+
+          {!hasSetupBlocker && (
+            <div className="mt-12 flex flex-wrap gap-2 justify-center max-w-xl">
+              {SUGGESTED_PROMPTS.map((p) => (
+                <button
+                  key={p}
+                  onClick={() => {
+                    setInput(p);
+                    textareaRef.current?.focus();
+                    adjustHeight();
+                  }}
+                  className="rounded-full border border-[var(--rule)] bg-[var(--canvas)] px-3 py-1.5 text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] hover:border-[var(--ink)] transition"
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
           )}
         </div>
-      )}
+      </div>
+    );
+  }
 
-      {showSystem && (
-        <textarea
-          value={systemPrompt}
-          onChange={(e) => setSystemPrompt(e.target.value)}
-          rows={6}
-          className="mb-4 w-full px-3 py-2 rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] text-xs font-mono focus:outline-none focus:border-[var(--ink)]"
+  // ─── ACTIVE STATE: top bar + scrolling messages + bottom composer
+  return (
+    <div className="mx-auto max-w-3xl px-6 flex flex-col h-[calc(100vh-4rem)]">
+      <div className="flex items-center gap-3 py-3 border-b border-[var(--rule)]">
+        <Image
+          src="/brand/Hermes.png"
+          alt="Hermes"
+          width={28}
+          height={28}
+          className="rounded-md"
         />
-      )}
+        <span className="font-medium text-[var(--ink)]">Hermes</span>
+        <span className="ml-auto">
+          <StatusPill {...status} />
+        </span>
+      </div>
 
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto py-4 mb-4 space-y-4"
+        className="flex-1 overflow-y-auto py-6 space-y-5"
       >
-        {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center px-8">
-            <div className="mono text-[11px] text-[var(--ink-muted)] uppercase tracking-wide mb-3">
-              On-device · private
-            </div>
-            <p className="text-sm text-[var(--ink-muted)] max-w-md leading-relaxed">
-              Start a conversation. Anything you type or attach stays on this
-              machine — nothing is sent to Drift&rsquo;s servers, OpenAI, or
-              any third party.
-            </p>
-          </div>
-        )}
         {messages.map((m, i) => (
           <MessageBubble key={i} msg={m} />
         ))}
         {busy && (
-          <div className="flex justify-start">
-            <div className="rounded-[10px] border border-[var(--rule)] bg-[var(--canvas)] px-3.5 py-2.5 text-sm text-[var(--ink-muted)] italic">
+          <div className="flex items-start gap-2.5">
+            <Image
+              src="/brand/Hermes.png"
+              alt=""
+              width={24}
+              height={24}
+              className="rounded-md flex-shrink-0 mt-0.5"
+            />
+            <div className="rounded-[12px] border border-[var(--rule)] bg-[var(--canvas)] px-3.5 py-2.5 text-sm text-[var(--ink-muted)] italic">
               Hermes is thinking…
             </div>
           </div>
         )}
       </div>
 
-      {/* Unified composer card: textarea on top, attach + send buttons
-          inline at the bottom. Pattern adapted from the v0 chat input
-          (https://v0.dev/chat) — kept structural ideas (one card,
-          inline actions, auto-resize), discarded the dark skin since
-          Drift's design language is light/serif. */}
-      <div className="rounded-[10px] border border-[var(--rule)] bg-[var(--canvas)] focus-within:border-[var(--ink)] transition-colors shadow-sm">
-        {attached.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 px-3 pt-3">
-            {attached.map((f) => (
-              <span
-                key={f.path}
-                className="inline-flex items-center gap-1.5 rounded-full border border-[var(--rule)] bg-[var(--rule)]/10 pl-2.5 pr-1.5 py-1 text-xs"
-                title={`${f.path}\n${f.text.length} chars${f.truncated ? " (truncated to 200k)" : ""}${f.error ? `\nError: ${f.error}` : ""}`}
-              >
-                <span className="truncate max-w-[20ch]">{f.name}</span>
-                <span className="mono text-[10px] text-[var(--ink-muted)]">
-                  {f.error
-                    ? "error"
-                    : `${Math.round(f.text.length / 1000)}k${f.truncated ? "*" : ""}`}
-                </span>
-                <button
-                  onClick={() => removeAttachment(f.path)}
-                  className="rounded-full p-0.5 text-[var(--ink-muted)] hover:bg-[var(--rule)]/40 hover:text-[var(--ink)] transition"
-                  aria-label="Remove attachment"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            ))}
-          </div>
+      <div className="pb-4">
+        {showSystem && (
+          <textarea
+            value={systemPrompt}
+            onChange={(e) => setSystemPrompt(e.target.value)}
+            rows={5}
+            className="mb-3 w-full px-3 py-2 rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] text-xs font-mono focus:outline-none focus:border-[var(--ink)]"
+          />
         )}
-
-        <textarea
-          ref={textareaRef}
-          value={input}
-          onChange={(e) => {
-            setInput(e.target.value);
-            adjustHeight();
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey && !e.metaKey) {
-              e.preventDefault();
-              send();
-            }
-          }}
-          placeholder={
-            !isElectron
-              ? "Open the desktop app to chat with Hermes."
-              : !hasBridge
-                ? "Update Drift to v1.1.0 to chat with Hermes."
-                : "Ask Hermes anything. Attached files are in context."
-          }
-          disabled={!isElectron || !hasBridge || busy}
-          className="w-full px-4 py-3 bg-transparent text-sm focus:outline-none disabled:opacity-50 resize-none placeholder:text-[var(--ink-muted)]"
-          style={{ minHeight: 56, overflow: "hidden" }}
-        />
-
-        <div className="flex items-center justify-between gap-2 px-2 py-2 border-t border-[var(--rule)]">
-          <button
-            onClick={pickFiles}
-            disabled={!isElectron || !hasBridge}
-            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-[var(--ink-muted)] hover:bg-[var(--rule)]/30 hover:text-[var(--ink)] transition disabled:opacity-50"
-            aria-label="Attach files"
-          >
-            <Paperclip className="w-3.5 h-3.5" />
-            <span>Attach</span>
-          </button>
-          <button
-            onClick={send}
-            disabled={!isElectron || !hasBridge || busy || !input.trim()}
-            aria-label="Send message"
-            className={`inline-flex items-center justify-center w-8 h-8 rounded-md transition active:scale-95 disabled:opacity-40 ${
-              input.trim() && !busy
-                ? "bg-[var(--ink)] text-[var(--canvas)] hover:opacity-90"
-                : "bg-[var(--rule)]/40 text-[var(--ink-muted)]"
-            }`}
-          >
-            <ArrowUp className="w-4 h-4" strokeWidth={2.25} />
-          </button>
-        </div>
+        {composer}
+        {controls}
       </div>
     </div>
   );
 }
 
+// Suggested prompts for the empty state — generic enough to feel
+// at-home for a fiduciary user, not so on-the-nose that it screams
+// "demo content." Click pre-fills the composer.
+const SUGGESTED_PROMPTS = [
+  "Summarize the attached file",
+  "What's RMD age under SECURE 2.0?",
+  "Draft a follow-up note for a client meeting",
+  "Compare these two policies",
+];
+
 function MessageBubble({ msg }: { msg: Msg }) {
   const isUser = msg.role === "user";
+  if (isUser) {
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-[80%] rounded-[12px] bg-[var(--ink)] text-[var(--canvas)] px-3.5 py-2.5 text-sm whitespace-pre-wrap leading-relaxed">
+          {msg.content}
+        </div>
+      </div>
+    );
+  }
   return (
-    <div className={isUser ? "flex justify-end" : "flex justify-start"}>
-      <div
-        className={`max-w-[80%] rounded-[10px] px-3.5 py-2.5 text-sm whitespace-pre-wrap leading-relaxed ${
-          isUser
-            ? "bg-[var(--ink)] text-[var(--canvas)]"
-            : "border border-[var(--rule)] bg-[var(--canvas)] text-[var(--ink)]"
-        }`}
-      >
+    <div className="flex items-start gap-2.5 justify-start">
+      <Image
+        src="/brand/Hermes.png"
+        alt=""
+        width={24}
+        height={24}
+        className="rounded-md flex-shrink-0 mt-0.5"
+      />
+      <div className="max-w-[80%] rounded-[12px] border border-[var(--rule)] bg-[var(--canvas)] text-[var(--ink)] px-3.5 py-2.5 text-sm whitespace-pre-wrap leading-relaxed">
         {msg.content}
       </div>
     </div>
