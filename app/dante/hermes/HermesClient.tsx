@@ -15,7 +15,33 @@
 // window on big PDFs.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowUp, Paperclip, X } from "lucide-react";
 import UpdatePromptCard from "@/components/desktop/UpdatePromptCard";
+
+// Auto-resize hook for the composer textarea — grows with content
+// up to maxHeight, then scrolls. Imported pattern from the v0
+// composer; kept local because we only use it here.
+function useAutoResize(min: number, max: number) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const adjust = useCallback(
+    (reset?: boolean) => {
+      const el = ref.current;
+      if (!el) return;
+      if (reset) {
+        el.style.height = `${min}px`;
+        return;
+      }
+      el.style.height = `${min}px`;
+      const next = Math.max(min, Math.min(el.scrollHeight, max));
+      el.style.height = `${next}px`;
+    },
+    [min, max],
+  );
+  useEffect(() => {
+    if (ref.current) ref.current.style.height = `${min}px`;
+  }, [min]);
+  return { ref, adjust };
+}
 
 type Msg = { role: "user" | "assistant" | "system"; content: string };
 
@@ -52,6 +78,7 @@ export default function HermesClient() {
   const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM);
   const [showSystem, setShowSystem] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { ref: textareaRef, adjust: adjustHeight } = useAutoResize(56, 220);
 
   // ─── Capability detection ────────────────────────────────────
   useEffect(() => {
@@ -95,6 +122,7 @@ export default function HermesClient() {
     const newMessages = [...messages, newUser];
     setMessages(newMessages);
     setInput("");
+    adjustHeight(true);
 
     // Build system prompt with any attached files inlined.
     const sys = buildSystemWithAttachments(systemPrompt, attached);
@@ -245,48 +273,48 @@ export default function HermesClient() {
         </div>
       )}
 
+      {/* Auxiliary controls — model picker + system prompt + clear,
+          intentionally lightweight so the eye lands on the composer. */}
       {isElectron && hasBridge && (
-        <div className="mb-3 flex items-center gap-2 text-sm">
-          <label className="mono text-[11px] text-[var(--ink-muted)] uppercase tracking-wide">
-            Model
-          </label>
-          {probe?.models_available && probe.models_available.length > 0 ? (
-            <select
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              className="rounded-[6px] border border-[var(--rule)] bg-transparent px-2.5 py-1.5 text-sm focus:outline-none focus:border-[var(--ink)]"
-            >
-              {probe.models_available.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <input
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              className="rounded-[6px] border border-[var(--rule)] bg-transparent px-2.5 py-1.5 text-sm w-48 focus:outline-none focus:border-[var(--ink)]"
-            />
-          )}
-          <button
-            onClick={pickFiles}
-            className="inline-flex items-center gap-1.5 rounded-[6px] border border-[var(--rule)] px-3 py-1.5 text-sm hover:bg-[var(--rule)]/30 transition"
-          >
-            <span className="text-base leading-none">+</span> Attach file
-          </button>
+        <div className="mb-4 flex items-center gap-3 text-xs">
+          <div className="inline-flex items-center gap-2">
+            <span className="mono text-[11px] text-[var(--ink-muted)] uppercase tracking-wide">
+              Model
+            </span>
+            {probe?.models_available && probe.models_available.length > 0 ? (
+              <select
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                className="rounded-[6px] border border-[var(--rule)] bg-transparent px-2 py-1 text-xs focus:outline-none focus:border-[var(--ink)]"
+              >
+                {probe.models_available.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                className="rounded-[6px] border border-[var(--rule)] bg-transparent px-2 py-1 text-xs w-40 focus:outline-none focus:border-[var(--ink)]"
+              />
+            )}
+          </div>
           <button
             onClick={() => setShowSystem((v) => !v)}
-            className="rounded-[6px] border border-[var(--rule)] px-3 py-1.5 text-sm hover:bg-[var(--rule)]/30 transition"
+            className="mono text-[11px] uppercase tracking-wide text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
           >
-            {showSystem ? "Hide" : "Show"} system prompt
+            {showSystem ? "Hide system prompt" : "Show system prompt"}
           </button>
-          <button
-            onClick={clearChat}
-            className="ml-auto rounded-[6px] border border-[var(--rule)] px-3 py-1.5 text-sm hover:bg-[var(--rule)]/30 transition"
-          >
-            Clear
-          </button>
+          {messages.length > 0 && (
+            <button
+              onClick={clearChat}
+              className="ml-auto mono text-[11px] uppercase tracking-wide text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
+            >
+              Clear conversation
+            </button>
+          )}
         </div>
       )}
 
@@ -295,88 +323,118 @@ export default function HermesClient() {
           value={systemPrompt}
           onChange={(e) => setSystemPrompt(e.target.value)}
           rows={6}
-          className="mb-3 w-full px-3 py-2 rounded border border-[var(--rule)] bg-transparent text-sm font-mono"
+          className="mb-4 w-full px-3 py-2 rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] text-xs font-mono focus:outline-none focus:border-[var(--ink)]"
         />
-      )}
-
-      {attached.length > 0 && (
-        <div className="mb-3 flex flex-wrap gap-2">
-          {attached.map((f) => (
-            <span
-              key={f.path}
-              className="inline-flex items-center gap-2 px-2 py-1 rounded border border-[var(--rule)] text-xs bg-[var(--rule)]/10"
-              title={`${f.path}\n${f.text.length} chars${f.truncated ? " (truncated to 200k)" : ""}${f.error ? `\nError: ${f.error}` : ""}`}
-            >
-              <span className="truncate max-w-[20ch]">{f.name}</span>
-              <span className="text-[var(--ink-muted)]">
-                {f.error
-                  ? "error"
-                  : f.truncated
-                    ? `${Math.round(f.text.length / 1000)}k (trunc)`
-                    : `${Math.round(f.text.length / 1000)}k chars`}
-              </span>
-              <button
-                onClick={() => removeAttachment(f.path)}
-                className="text-[var(--ink-muted)] hover:text-red-500"
-                aria-label="Remove"
-              >
-                ×
-              </button>
-            </span>
-          ))}
-        </div>
       )}
 
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto border border-[var(--rule)] rounded-md p-4 mb-3 space-y-4 min-h-[300px]"
+        className="flex-1 overflow-y-auto py-4 mb-4 space-y-4"
       >
         {messages.length === 0 && (
-          <div className="text-center text-sm text-[var(--ink-muted)] mt-12">
-            Start a conversation. Anything you type or attach stays on this
-            machine.
+          <div className="flex flex-col items-center justify-center h-full text-center px-8">
+            <div className="mono text-[11px] text-[var(--ink-muted)] uppercase tracking-wide mb-3">
+              On-device · private
+            </div>
+            <p className="text-sm text-[var(--ink-muted)] max-w-md leading-relaxed">
+              Start a conversation. Anything you type or attach stays on this
+              machine — nothing is sent to Drift&rsquo;s servers, OpenAI, or
+              any third party.
+            </p>
           </div>
         )}
         {messages.map((m, i) => (
           <MessageBubble key={i} msg={m} />
         ))}
         {busy && (
-          <div className="text-sm text-[var(--ink-muted)] italic">
-            Hermes is thinking…
+          <div className="flex justify-start">
+            <div className="rounded-[10px] border border-[var(--rule)] bg-[var(--canvas)] px-3.5 py-2.5 text-sm text-[var(--ink-muted)] italic">
+              Hermes is thinking…
+            </div>
           </div>
         )}
       </div>
 
-      <div className="flex gap-2 items-stretch">
-        <div className="flex-1 rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] focus-within:border-[var(--ink)] transition-colors">
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey && !e.metaKey) {
-                e.preventDefault();
-                send();
-              }
-            }}
-            rows={2}
-            placeholder={
-              !isElectron
-                ? "Open the desktop app to chat with Hermes."
-                : !hasBridge
-                  ? "Update Drift to v1.1.0 to chat with Hermes."
-                  : "Ask Hermes anything. Attached files are in context."
+      {/* Unified composer card: textarea on top, attach + send buttons
+          inline at the bottom. Pattern adapted from the v0 chat input
+          (https://v0.dev/chat) — kept structural ideas (one card,
+          inline actions, auto-resize), discarded the dark skin since
+          Drift's design language is light/serif. */}
+      <div className="rounded-[10px] border border-[var(--rule)] bg-[var(--canvas)] focus-within:border-[var(--ink)] transition-colors shadow-sm">
+        {attached.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 px-3 pt-3">
+            {attached.map((f) => (
+              <span
+                key={f.path}
+                className="inline-flex items-center gap-1.5 rounded-full border border-[var(--rule)] bg-[var(--rule)]/10 pl-2.5 pr-1.5 py-1 text-xs"
+                title={`${f.path}\n${f.text.length} chars${f.truncated ? " (truncated to 200k)" : ""}${f.error ? `\nError: ${f.error}` : ""}`}
+              >
+                <span className="truncate max-w-[20ch]">{f.name}</span>
+                <span className="mono text-[10px] text-[var(--ink-muted)]">
+                  {f.error
+                    ? "error"
+                    : `${Math.round(f.text.length / 1000)}k${f.truncated ? "*" : ""}`}
+                </span>
+                <button
+                  onClick={() => removeAttachment(f.path)}
+                  className="rounded-full p-0.5 text-[var(--ink-muted)] hover:bg-[var(--rule)]/40 hover:text-[var(--ink)] transition"
+                  aria-label="Remove attachment"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        <textarea
+          ref={textareaRef}
+          value={input}
+          onChange={(e) => {
+            setInput(e.target.value);
+            adjustHeight();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey && !e.metaKey) {
+              e.preventDefault();
+              send();
             }
-            disabled={!isElectron || !hasBridge || busy}
-            className="w-full px-3 py-2.5 bg-transparent text-sm focus:outline-none disabled:opacity-50 resize-none"
-          />
+          }}
+          placeholder={
+            !isElectron
+              ? "Open the desktop app to chat with Hermes."
+              : !hasBridge
+                ? "Update Drift to v1.1.0 to chat with Hermes."
+                : "Ask Hermes anything. Attached files are in context."
+          }
+          disabled={!isElectron || !hasBridge || busy}
+          className="w-full px-4 py-3 bg-transparent text-sm focus:outline-none disabled:opacity-50 resize-none placeholder:text-[var(--ink-muted)]"
+          style={{ minHeight: 56, overflow: "hidden" }}
+        />
+
+        <div className="flex items-center justify-between gap-2 px-2 py-2 border-t border-[var(--rule)]">
+          <button
+            onClick={pickFiles}
+            disabled={!isElectron || !hasBridge}
+            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-[var(--ink-muted)] hover:bg-[var(--rule)]/30 hover:text-[var(--ink)] transition disabled:opacity-50"
+            aria-label="Attach files"
+          >
+            <Paperclip className="w-3.5 h-3.5" />
+            <span>Attach</span>
+          </button>
+          <button
+            onClick={send}
+            disabled={!isElectron || !hasBridge || busy || !input.trim()}
+            aria-label="Send message"
+            className={`inline-flex items-center justify-center w-8 h-8 rounded-md transition active:scale-95 disabled:opacity-40 ${
+              input.trim() && !busy
+                ? "bg-[var(--ink)] text-[var(--canvas)] hover:opacity-90"
+                : "bg-[var(--rule)]/40 text-[var(--ink-muted)]"
+            }`}
+          >
+            <ArrowUp className="w-4 h-4" strokeWidth={2.25} />
+          </button>
         </div>
-        <button
-          onClick={send}
-          disabled={!isElectron || !hasBridge || busy || !input.trim()}
-          className="inline-flex items-center justify-center gap-2 rounded-[6px] border border-[var(--ink)] bg-[var(--ink)] text-[var(--canvas)] px-5 text-sm font-medium transition hover:opacity-90 active:scale-[0.99] disabled:opacity-40"
-        >
-          {busy ? "Sending…" : "Send"}
-        </button>
       </div>
     </div>
   );
@@ -387,10 +445,10 @@ function MessageBubble({ msg }: { msg: Msg }) {
   return (
     <div className={isUser ? "flex justify-end" : "flex justify-start"}>
       <div
-        className={`max-w-[80%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap ${
+        className={`max-w-[80%] rounded-[10px] px-3.5 py-2.5 text-sm whitespace-pre-wrap leading-relaxed ${
           isUser
-            ? "bg-[var(--accent)] text-white"
-            : "bg-[var(--rule)]/20 text-[var(--ink)]"
+            ? "bg-[var(--ink)] text-[var(--canvas)]"
+            : "border border-[var(--rule)] bg-[var(--canvas)] text-[var(--ink)]"
         }`}
       >
         {msg.content}
