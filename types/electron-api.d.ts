@@ -72,6 +72,14 @@ declare global {
         created_at?: string;
       }>;
 
+      /** Open a macOS System Settings pane via deep-link. Used to
+       *  walk the user to the right place for folder/file access
+       *  permission. Pane keys: 'files_and_folders' |
+       *  'full_disk_access' | 'privacy'. */
+      openSystemSettings?: (
+        pane: "files_and_folders" | "full_disk_access" | "privacy",
+      ) => Promise<{ ok: boolean; error?: string }>;
+
       /** Auto-updater bridge. The renderer-side UpdateBanner uses
        *  this to render the "update available / update now" flow
        *  in-app instead of via a native dialog box. */

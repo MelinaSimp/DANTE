@@ -50,6 +50,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("watched:extractFileText", { path, ext }),
   },
 
+  /** Open a specific macOS System Settings pane to help the user
+   *  grant Drift the folder access it needs. macOS doesn't let
+   *  apps request access programmatically — we can only open the
+   *  right pane and explain. */
+  openSystemSettings: (pane) =>
+    ipcRenderer.invoke("system:openSettingsPane", pane),
+
   /** Get this installation's persistent device identity.
    *  Returns { device_id, device_label, created_at }. */
   getDevice: () => ipcRenderer.invoke("device:get"),

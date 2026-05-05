@@ -282,9 +282,12 @@ export default function PendingFilesClient() {
       return;
     }
     if (!folderPath) {
-      alert(
-        "The folder picker closed without returning a path. Try again — and if it keeps happening, check Drift's permissions in System Settings → Privacy & Security → Files & Folders.",
+      const grant = confirm(
+        "The folder picker closed without returning a path.\n\nThis usually means macOS hasn't granted Drift access to the folder you tried to pick (especially if it's in Documents, Desktop, Downloads, iCloud Drive, or an external volume).\n\nClick OK to open System Settings → Privacy & Security → Files and Folders, then enable Drift AI for the relevant categories.",
       );
+      if (grant && e.openSystemSettings) {
+        await e.openSystemSettings("files_and_folders");
+      }
       return;
     }
 
@@ -463,16 +466,34 @@ export default function PendingFilesClient() {
 
       {isElectron && hasBridge && (
         <section className="mb-10">
-          <div className="flex items-baseline justify-between mb-4">
+          <div className="flex items-baseline justify-between mb-4 gap-3">
             <h2 className="heading-display text-xl text-[var(--ink)]">
               Folders
             </h2>
-            <button
-              onClick={pickAndAdd}
-              className="inline-flex items-center gap-1.5 rounded-[6px] border border-[var(--ink)] bg-[var(--ink)] text-[var(--canvas)] px-4 py-2 text-sm font-medium transition hover:opacity-90 active:scale-[0.99]"
-            >
-              <span className="text-base leading-none">+</span> Add folder
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={async () => {
+                  const api = window.electronAPI;
+                  if (!api?.openSystemSettings) {
+                    alert(
+                      "This Drift version can't open System Settings directly. Open System Settings → Privacy & Security → Files and Folders → Drift AI manually.",
+                    );
+                    return;
+                  }
+                  await api.openSystemSettings("files_and_folders");
+                }}
+                className="mono text-[11px] uppercase tracking-wide text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
+                title="Open System Settings → Privacy & Security → Files and Folders so you can grant Drift access to protected folders (Documents, Desktop, Downloads, iCloud Drive, external volumes)."
+              >
+                Grant access →
+              </button>
+              <button
+                onClick={pickAndAdd}
+                className="inline-flex items-center gap-1.5 rounded-[6px] border border-[var(--ink)] bg-[var(--ink)] text-[var(--canvas)] px-4 py-2 text-sm font-medium transition hover:opacity-90 active:scale-[0.99]"
+              >
+                <span className="text-base leading-none">+</span> Add folder
+              </button>
+            </div>
           </div>
           {folders.length === 0 ? (
             <div className="text-sm text-[var(--ink-muted)] border border-dashed border-[var(--rule)] rounded-md p-8 text-center">

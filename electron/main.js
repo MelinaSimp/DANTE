@@ -396,6 +396,34 @@ ipcMain.handle("ollama:ensureRunning", async () => ollama.ensureRunning());
 
 ipcMain.handle("device:get", async () => device.load(app.getPath("userData")));
 
+// Open a specific macOS System Settings pane. The folder picker
+// from NSOpenPanel grants implicit access to whatever the user
+// selects, but a few "protected" locations on modern macOS
+// (Documents, Desktop, Downloads, iCloud Drive, external volumes)
+// require an explicit allow toggle the user has to flip themselves
+// in Privacy & Security. We can't grant it programmatically — we
+// can only open the right pane and explain.
+//
+// `pane` is a known string we map to the deep-link URL. Anything
+// unrecognized opens the top-level Privacy & Security pane.
+ipcMain.handle("system:openSettingsPane", async (_e, pane) => {
+  const map = {
+    files_and_folders:
+      "x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders",
+    full_disk_access:
+      "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles",
+    privacy:
+      "x-apple.systempreferences:com.apple.preference.security?Privacy",
+  };
+  const url = map[pane] || map.privacy;
+  try {
+    await shell.openExternal(url);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err?.message || String(err) };
+  }
+});
+
 // Update flow — renderer-driven. The dashboard's UpdateBanner
 // subscribes to updates:state, calls updates:check on login, and
 // updates:apply when the user clicks "Update now."
