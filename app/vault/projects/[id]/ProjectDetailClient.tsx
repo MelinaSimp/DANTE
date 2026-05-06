@@ -262,6 +262,45 @@ export default function ProjectDetailClient({
     if (r.ok) router.push("/vault");
   };
 
+  const [deletingSelected, setDeletingSelected] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
+  const deleteSelected = async () => {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    if (
+      !confirm(
+        `Delete ${ids.length} item${ids.length === 1 ? "" : "s"}? This removes the vault entries and any chunks Dante uses. The original files on disk are untouched.`,
+      )
+    ) {
+      return;
+    }
+    setDeletingSelected({ done: 0, total: ids.length });
+    setError(null);
+    // Run in batches of 8 — vault delete is light but RLS lookups
+    // add up; staying polite avoids overwhelming the connection pool.
+    let done = 0;
+    const queue = [...ids];
+    while (queue.length > 0) {
+      const batch = queue.splice(0, 8);
+      await Promise.allSettled(
+        batch.map((id) =>
+          fetch(`/api/vault/${id}`, {
+            method: "DELETE",
+            credentials: "include",
+          }),
+        ),
+      );
+      done += batch.length;
+      setDeletingSelected({ done, total: ids.length });
+    }
+    setDeletingSelected(null);
+    setSelected(new Set());
+    // Reload the items list so deleted rows disappear.
+    await load();
+  };
+
   const submitUpload = async () => {
     if (!pendingFile) return setError("Pick a file first");
     if (!uploadTitle.trim()) return setError("Title required");
@@ -507,8 +546,21 @@ export default function ProjectDetailClient({
             />
           </div>
           {selected.size > 0 && (
-            <div className="text-xs text-[var(--ink-muted)] mono">
-              {selected.size} selected
+            <div className="flex items-center gap-3">
+              <div className="text-xs text-[var(--ink-muted)] mono">
+                {deletingSelected
+                  ? `Deleting ${deletingSelected.done}/${deletingSelected.total}…`
+                  : `${selected.size} selected`}
+              </div>
+              {!deletingSelected && (
+                <button
+                  type="button"
+                  onClick={deleteSelected}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] border border-[var(--rule)] text-[var(--danger)] hover:bg-[var(--danger-soft)] text-xs font-medium transition"
+                >
+                  Delete selected
+                </button>
+              )}
             </div>
           )}
         </div>
