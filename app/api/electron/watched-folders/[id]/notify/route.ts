@@ -146,7 +146,8 @@ export async function POST(
         .insert({
           workspace_id: workspaceId,
           uploaded_by: user.id,
-          kind: "watched_folder_file",
+          // vault_items.kind is constrained to 'template' | 'document'.
+          kind: "document",
           title: body.file_name,
           description: `Auto-ingested from watched folder: ${body.file_path}`,
           file_url: null,
