@@ -352,6 +352,22 @@ ipcMain.handle("watched:sync", async (_e, folders) => {
   return { ok: true, active: Array.isArray(folders) ? folders.length : 0 };
 });
 
+// Force a full recursive rescan of a watched folder. Walks the
+// tree with Node fs, fires fileEvent for every file. Bypasses
+// chokidar's initial-scan entirely so it works even when FSEvents
+// is in a degraded state after repeated subscribe/unsubscribe
+// cycles. Server-side sha256 dedup makes this idempotent.
+ipcMain.handle("watched:rescan", async (_e, folder) => {
+  if (!folder || !folder.folder_path) {
+    return { ok: false, reason: "no_folder" };
+  }
+  return watchers.rescanFolder(folder, (event) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("watched:fileEvent", event);
+    }
+  });
+});
+
 // Extract text from a file by path. Used by the watched-folders
 // confirm + auto-update flow: when the user approves a pending
 // file (or the watcher detects a change to an already-confirmed

@@ -45,6 +45,14 @@ declare global {
           folder_path?: string;
         }>;
         sync: (folders: unknown[]) => Promise<{ ok: boolean }>;
+        rescan: (
+          folder: unknown,
+        ) => Promise<{
+          ok: boolean;
+          scanned?: number;
+          queued?: number;
+          reason?: string;
+        }>;
         onFileEvent: (
           handler: (event: {
             folder_id: string;

@@ -348,6 +348,39 @@ export default function PendingFilesClient() {
     [fetchFolders],
   );
 
+  const [rescanning, setRescanning] = useState<string | null>(null);
+  const rescanFolder = useCallback(
+    async (folder: WatchedFolder) => {
+      const api = window.electronAPI?.watched as
+        | { rescan?: (f: unknown) => Promise<{ ok: boolean; scanned?: number; queued?: number; reason?: string }> }
+        | undefined;
+      if (!api?.rescan) {
+        alert(
+          "Rescan needs Drift v1.1.6+. Update via the pill in the top-right.",
+        );
+        return;
+      }
+      setRescanning(folder.id);
+      try {
+        const result = await api.rescan(folder);
+        if (!result.ok) {
+          alert(`Rescan failed: ${result.reason || "unknown"}`);
+        } else {
+          // Files arrive via the existing fileEvent stream; the
+          // pending list will repopulate as notify POSTs land.
+          // Give the queue a moment to settle before refresh.
+          setTimeout(() => {
+            fetchFolders();
+            fetchFiles();
+          }, 1500);
+        }
+      } finally {
+        setRescanning(null);
+      }
+    },
+    [fetchFolders, fetchFiles],
+  );
+
   // ─── File actions ────────────────────────────────────────────
   const confirmFile = useCallback(
     async (file: WatchedFile) => {
@@ -576,6 +609,14 @@ export default function PendingFilesClient() {
                       }`}
                     >
                       {selectedFolderId === f.id ? "Showing" : "Filter"}
+                    </button>
+                    <button
+                      onClick={() => rescanFolder(f)}
+                      disabled={rescanning === f.id}
+                      className="rounded-[6px] border border-[var(--rule)] px-3 py-1.5 text-xs hover:bg-[var(--rule)]/30 transition disabled:opacity-50"
+                      title="Force a full recursive scan of this folder. Use if files are missing from the pending queue."
+                    >
+                      {rescanning === f.id ? "Scanning…" : "Rescan"}
                     </button>
                     <button
                       onClick={() => removeFolder(f.id)}

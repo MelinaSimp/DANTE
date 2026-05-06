@@ -30,6 +30,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
      *  returned. Idempotent — call after every fetch. */
     sync: (folders) => ipcRenderer.invoke("watched:sync", folders),
 
+    /** Force a full recursive rescan of a folder. Walks the tree
+     *  with Node fs and fires fileEvent for every file, bypassing
+     *  chokidar entirely. Use when chokidar's initial-scan missed
+     *  files (FSEvents degradation after rapid sub/unsub cycles).
+     *  Server-side sha256 dedup keeps this idempotent. */
+    rescan: (folder) => ipcRenderer.invoke("watched:rescan", folder),
+
     /** Subscribe to file-detected events. The handler receives
      *  { folder_id, file_path, file_name, file_extension,
      *    file_size_bytes, content_sha256, kind_of_event }.

@@ -202,6 +202,58 @@ function hashFileSha256(filePath) {
   });
 }
 
+/**
+ * Recursive on-demand scan. Walks the folder tree with Node fs and
+ * fires the same fileEvent the chokidar add handler would for every
+ * file found. Bypasses chokidar's initial-scan entirely — useful
+ * when FSEvents has gotten into a weird state after rapid
+ * subscribe/unsubscribe cycles and chokidar stops reporting all
+ * files.
+ *
+ * Reuses the same hash/extension/size logic as the live watcher,
+ * so the server sees identical events to a chokidar add. Server-
+ * side dedup by sha256 makes the scan idempotent.
+ */
+async function rescanFolder(folder, onFileEvent) {
+  const folderPath = folder.folder_path;
+  if (!folderPath || !fs.existsSync(folderPath)) {
+    return { ok: false, reason: "path_not_accessible" };
+  }
+  const allowed = (folder.allowed_extensions || []).map((e) =>
+    e.toLowerCase().replace(/^\./, ""),
+  );
+  let scanned = 0;
+  let queued = 0;
+
+  async function walk(dir, depth) {
+    if (depth > 8) return;
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (err) {
+      console.warn(`[watchers] readdir failed for ${dir}:`, err?.message);
+      return;
+    }
+    for (const ent of entries) {
+      const full = path.join(dir, ent.name);
+      if (ent.isDirectory()) {
+        await walk(full, depth + 1);
+      } else if (ent.isFile()) {
+        scanned++;
+        try {
+          await processFile(folder, full, "rescan", allowed, onFileEvent);
+          queued++;
+        } catch (err) {
+          console.warn(`[watchers] rescan processFile failed for ${full}:`, err?.message);
+        }
+      }
+    }
+  }
+
+  await walk(folderPath, 0);
+  return { ok: true, scanned, queued };
+}
+
 function stopAll() {
   for (const w of watchers.values()) {
     try {
@@ -215,4 +267,4 @@ function stopAll() {
   debouncers.clear();
 }
 
-module.exports = { syncWatchers, stopAll };
+module.exports = { syncWatchers, rescanFolder, stopAll };
