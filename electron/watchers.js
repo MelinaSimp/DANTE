@@ -73,7 +73,14 @@ function startWatcher(folder, onFileEvent) {
 
   const watcher = chokidar.watch(folderPath, {
     persistent: true,
-    ignoreInitial: true, // don't fire for files that already exist
+    // ignoreInitial=false fires `add` events for files that already
+    // exist when the watcher starts. Without this, a user who picks
+    // an existing folder full of compliance docs sees nothing happen
+    // — chokidar only notifies on changes, and the existing files
+    // never become "new." Server-side dedup by SHA256 makes the
+    // initial scan idempotent: re-registering the same folder
+    // doesn't double-ingest anything.
+    ignoreInitial: false,
     awaitWriteFinish: {
       stabilityThreshold: 2000,
       pollInterval: 200,
