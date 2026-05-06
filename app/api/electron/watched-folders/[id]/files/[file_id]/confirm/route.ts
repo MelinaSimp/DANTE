@@ -162,7 +162,11 @@ export async function POST(
   }
 
   // Link the watched_folder_files row to the new vault item.
-  await supabaseAdmin
+  // .select() forces the call to surface errors — a previous
+  // version had no error check here, and a CHECK constraint
+  // rejected status='confirmed' silently for weeks, leaving
+  // orphan vault_items in the DB.
+  const { error: linkErr } = await supabaseAdmin
     .from("watched_folder_files")
     .update({
       status: "confirmed",
@@ -170,7 +174,21 @@ export async function POST(
       confirmed_by: user.id,
       vault_item_id: newVaultId,
     })
-    .eq("id", fileId);
+    .eq("id", fileId)
+    .select("id");
+  if (linkErr) {
+    console.error(
+      `[confirm] FAILED to link watched_folder_files ${fileId} to vault_item ${newVaultId}:`,
+      linkErr.message,
+    );
+    return NextResponse.json(
+      {
+        error: `Vault item created (${newVaultId}) but linking back to watched_folder_files failed: ${linkErr.message}`,
+        vault_item_id: newVaultId,
+      },
+      { status: 500 },
+    );
+  }
 
   // Bump the folder counter and the last_seen_at.
   await supabaseAdmin.rpc("increment_watched_folder_count", {
