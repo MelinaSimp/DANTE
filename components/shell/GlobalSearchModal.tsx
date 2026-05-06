@@ -32,6 +32,8 @@ import {
   X,
   Send,
   ExternalLink,
+  Paperclip,
+  Lock,
 } from "lucide-react";
 import {
   consumeAgentStream,
@@ -129,6 +131,20 @@ export default function GlobalSearchModal({
   const [stream, setStream] = useState<StreamState>(initialStreamState());
   const [chatId, setChatId] = useState<string | undefined>(undefined);
   const abortRef = useRef<AbortController | null>(null);
+  // Composer attachments — extracted text from files the user
+  // picks via the paperclip. When present, the server forces the
+  // turn to local_only (Hermes composes the reply). Cleared after
+  // each successful send.
+  type Attachment = {
+    name: string;
+    path: string;
+    ext: string;
+    text: string;
+    truncated: boolean;
+    char_count: number;
+  };
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [attaching, setAttaching] = useState(false);
 
   // Reset on every fresh open. Honor the requested initial mode and
   // seed the Ask textarea if a seedPrompt was passed in.
@@ -270,6 +286,18 @@ export default function GlobalSearchModal({
         body.context_property_id = pageContext.entity.id;
         body.context_property_label = pageContext.entity.label;
       }
+      // Snapshot attachments at send-time and clear so the next
+      // turn starts clean. The server inlines them into the
+      // objective and forces local_only for the run.
+      if (attachments.length > 0) {
+        body.attachments = attachments.map((a) => ({
+          name: a.name,
+          ext: a.ext,
+          text: a.text,
+          truncated: a.truncated,
+        }));
+        setAttachments([]);
+      }
 
       try {
         await consumeAgentStream({
@@ -296,8 +324,56 @@ export default function GlobalSearchModal({
         return initialStreamState();
       });
     },
-    [stream.streaming, chatId],
+    [stream.streaming, chatId, attachments, pageContext],
   );
+
+  // Paperclip → OS file picker (multi-select). Each picked file is
+  // read in the Electron main process; only extracted text crosses
+  // back. Web (non-Electron) builds: the button is disabled and
+  // tooltipped to explain why.
+  const pickAttachments = useCallback(async () => {
+    const local = window.driftLocal;
+    if (!local?.pickAndReadFiles) {
+      alert(
+        "File attachments require the Drift desktop app — install from /download.",
+      );
+      return;
+    }
+    setAttaching(true);
+    try {
+      const picked = await local.pickAndReadFiles();
+      if (!picked || picked.length === 0) return;
+      // Skip files that errored on extraction; surface a count
+      // separately so the user knows we didn't silently drop them.
+      const ok = picked.filter((f) => !f.error && f.text);
+      const errored = picked.filter((f) => f.error || !f.text);
+      if (errored.length > 0) {
+        alert(
+          `Couldn't extract text from ${errored.length} file(s): ${errored.map((f) => f.name).join(", ")}.`,
+        );
+      }
+      setAttachments((prev) => {
+        const byPath = new Map(prev.map((p) => [p.path, p]));
+        for (const f of ok) {
+          byPath.set(f.path, {
+            name: f.name,
+            path: f.path,
+            ext: f.ext,
+            text: f.text,
+            truncated: f.truncated,
+            char_count: f.text.length,
+          });
+        }
+        return [...byPath.values()].slice(0, 8); // server caps at 8
+      });
+    } finally {
+      setAttaching(false);
+    }
+  }, []);
+
+  const removeAttachment = useCallback((path: string) => {
+    setAttachments((prev) => prev.filter((a) => a.path !== path));
+  }, []);
 
   // ── Keyboard ─────────────────────────────────────────────────
   // Search: ↑↓ to move, Enter to open, Esc to close, Tab to switch to Ask.
@@ -621,6 +697,34 @@ export default function GlobalSearchModal({
 
             {/* Ask composer */}
             <div className="border-t border-[var(--rule)] bg-[var(--canvas-subtle,rgba(0,0,0,0.02))] px-4 py-3">
+              {attachments.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {attachments.map((a) => (
+                    <span
+                      key={a.path}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-[var(--rule)] bg-[var(--canvas)] pl-2.5 pr-1 py-1 text-xs"
+                      title={`${a.path}\n${a.char_count} chars${a.truncated ? " (truncated)" : ""}`}
+                    >
+                      <Lock className="w-3 h-3 text-[var(--ink-muted)]" strokeWidth={1.75} />
+                      <span className="truncate max-w-[20ch]">{a.name}</span>
+                      <span className="mono text-[10px] text-[var(--ink-muted)]">
+                        {`${Math.max(1, Math.round(a.char_count / 1000))}k${a.truncated ? "*" : ""}`}
+                      </span>
+                      <button
+                        onClick={() => removeAttachment(a.path)}
+                        className="rounded-full p-0.5 text-[var(--ink-muted)] hover:bg-[var(--rule)]/40 hover:text-[var(--ink)]"
+                        aria-label={`Remove ${a.name}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                  <span className="inline-flex items-center gap-1 mono text-[10px] text-[var(--ink-muted)] uppercase tracking-wide pl-1">
+                    <Lock className="w-2.5 h-2.5" strokeWidth={2} />
+                    Routes through Hermes — bytes stay local
+                  </span>
+                </div>
+              )}
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -633,6 +737,20 @@ export default function GlobalSearchModal({
                     having to find a transparent area. The border
                     deepens on focus-within for a clear active state. */}
                 <div className="flex-1 flex items-end gap-2 rounded-[8px] border border-[var(--rule-strong,var(--rule))] bg-[var(--canvas)] px-3 py-2 transition focus-within:border-[var(--ink)] focus-within:shadow-[0_0_0_3px_rgba(51,81,255,0.08)]">
+                  <button
+                    type="button"
+                    onClick={pickAttachments}
+                    disabled={attaching || stream.streaming}
+                    title="Attach a file from your machine. Bytes stay local; the question routes through Hermes."
+                    aria-label="Attach file"
+                    className="flex-shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md text-[var(--ink-muted)] hover:bg-[var(--rule)]/30 hover:text-[var(--ink)] disabled:opacity-40 transition"
+                  >
+                    {attaching ? (
+                      <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.5} />
+                    ) : (
+                      <Paperclip className="w-4 h-4" strokeWidth={1.5} />
+                    )}
+                  </button>
                   <textarea
                     ref={askInputRef}
                     value={askInput}

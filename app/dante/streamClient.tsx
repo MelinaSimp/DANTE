@@ -106,6 +106,16 @@ interface ConsumeInput {
      *  and attached documents in the system prompt. */
     context_property_id?: string;
     context_property_label?: string;
+    /** Files the user attached via the composer's paperclip. Bytes
+     *  are extracted in the Electron main process — only the text
+     *  reaches the server. When present, the server forces local_only
+     *  for the turn (Hermes composes the reply). */
+    attachments?: Array<{
+      name: string;
+      ext?: string;
+      text: string;
+      truncated?: boolean;
+    }>;
   };
   signal?: AbortSignal;
   onUpdate: (state: StreamState) => void;

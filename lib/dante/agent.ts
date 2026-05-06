@@ -942,6 +942,15 @@ export interface AgentRunInput {
   contactId?: string | null;
   docId?: string | null;
   chatId?: string | null;
+  /**
+   * Hard override for the processing mode. When set, both the
+   * static resolver and the auto-detector are bypassed and the
+   * agent runs in this mode. Used by /api/dante/ask when the
+   * user attaches a file to their question — bytes are sensitive
+   * by definition (they came from disk and weren't ingested
+   * through Vault), so we route the turn through Hermes.
+   */
+  forcedProcessingMode?: "cloud" | "local_only";
 }
 
 export interface AgentRunResult {
@@ -1005,36 +1014,48 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
     docId: input.docId ?? null,
     chatId: input.chatId ?? null,
   };
-  const staticMode = await resolveProcessingMode(modeCtx);
-
-  // Auto-detection: only run when the static resolver said cloud
-  // (otherwise we already know we're going local). And only when
-  // we actually have a user message to inspect — workflow / cron
-  // runs without user input skip this step.
-  const lastUserMsg = (() => {
-    if (typeof cfg.objective === "string" && cfg.objective.trim())
-      return cfg.objective;
-    return "";
-  })();
+  // Forced mode short-circuits everything — used when the caller
+  // already knows the answer (e.g. attached a file to the chat,
+  // so the bytes are sensitive by construction).
+  let staticMode: Awaited<ReturnType<typeof resolveProcessingMode>> = {
+    mode: "cloud",
+    decided_by: "workspace_default",
+  };
   let autoMode: { mode: "cloud" | "local_only"; reason: string; triggering_doc_title?: string } = {
     mode: "cloud",
     reason: "skipped",
   };
-  if (staticMode.mode === "cloud" && lastUserMsg) {
-    try {
-      autoMode = await detectAutoLocalMode({
-        workspaceId: input.workspaceId,
-        query: lastUserMsg,
-      });
-    } catch {
-      /* fail-safe to cloud */
-    }
-  }
+  let processingMode: "cloud" | "local_only";
 
-  const processingMode: "cloud" | "local_only" =
-    staticMode.mode === "local_only" || autoMode.mode === "local_only"
-      ? "local_only"
-      : "cloud";
+  if (input.forcedProcessingMode) {
+    processingMode = input.forcedProcessingMode;
+  } else {
+    staticMode = await resolveProcessingMode(modeCtx);
+
+    // Auto-detection: only run when the static resolver said cloud
+    // (otherwise we already know we're going local). And only when
+    // we actually have a user message to inspect — workflow / cron
+    // runs without user input skip this step.
+    const lastUserMsg =
+      typeof cfg.objective === "string" && cfg.objective.trim()
+        ? cfg.objective
+        : "";
+    if (staticMode.mode === "cloud" && lastUserMsg) {
+      try {
+        autoMode = await detectAutoLocalMode({
+          workspaceId: input.workspaceId,
+          query: lastUserMsg,
+        });
+      } catch {
+        /* fail-safe to cloud */
+      }
+    }
+
+    processingMode =
+      staticMode.mode === "local_only" || autoMode.mode === "local_only"
+        ? "local_only"
+        : "cloud";
+  }
 
   if (processingMode === "local_only") {
     await logResolution(
@@ -1044,6 +1065,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
         run_id: input.runId,
         step_id: input.step.id,
         feature: "agent.loop",
+        forced: input.forcedProcessingMode || null,
         static_mode: staticMode.mode,
         static_decided_by: staticMode.decided_by,
         auto_mode: autoMode.mode,

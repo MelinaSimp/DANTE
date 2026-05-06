@@ -43,7 +43,6 @@ import {
   Inbox,
   ScrollText,
   Compass,
-  Lock,
   FileClock,
 } from "lucide-react";
 import { getIndustryConfig } from "@/lib/industry/config";
@@ -215,7 +214,6 @@ export default function AppSidebar({
     { href: "/agent", label: "Agent", icon: Mic },
     { href: "/vault", label: "Vault", icon: FolderClosed },
     { href: "/dante/pending-files", label: "Watched files", icon: FileClock },
-    { href: "/dante/hermes", label: "Hermes (local AI)", icon: Lock },
     { href: "/review-tables", label: "Review tables", icon: Table2 },
     { href: "/library", label: "Library", icon: BookOpen },
     { href: "/reminders", label: "Reminders", icon: Bell },

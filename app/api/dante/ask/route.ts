@@ -90,10 +90,37 @@ export async function POST(req: NextRequest) {
     context_contact_name?: string;
     context_property_id?: string;
     context_property_label?: string;
+    /** File attachments — extracted in the Electron main process
+     *  so bytes never leave the user's machine. The text gets
+     *  inlined into the agent's objective and the whole turn is
+     *  forced to local_only (Hermes), since by definition this
+     *  content didn't come through the cloud Vault pipeline. */
+    attachments?: Array<{
+      name: string;
+      ext?: string;
+      text: string;
+      truncated?: boolean;
+    }>;
   };
   const message = (body.message || "").trim();
   if (!message) return jsonError(400, "message required");
   const deep = body.deep === true;
+  const attachments = Array.isArray(body.attachments)
+    ? body.attachments
+        .filter(
+          (a) => a && typeof a.name === "string" && typeof a.text === "string",
+        )
+        .map((a) => ({
+          name: String(a.name).slice(0, 256),
+          ext: typeof a.ext === "string" ? a.ext.slice(0, 16) : "",
+          text: String(a.text).slice(0, 200_000),
+          truncated: a.truncated === true,
+        }))
+    : [];
+  // Hard cap so the objective doesn't balloon past Hermes' context.
+  const cappedAttachments = attachments.slice(0, 8);
+  const forcedProcessingMode: "cloud" | "local_only" | undefined =
+    cappedAttachments.length > 0 ? "local_only" : undefined;
 
   // Phase 2 W2.5 — workspace-scoped rate limit on the chat surface.
   // Deep-research turns are more expensive; charge them more tokens
@@ -244,9 +271,23 @@ export async function POST(req: NextRequest) {
     contextLine += lines.join("\n");
   }
 
+  // Inline attachments into the objective as <attachment> blocks
+  // so the agent sees them as first-class context. Truncation
+  // marker tells it to ask for the rest of the file if needed.
+  const attachmentBlock =
+    cappedAttachments.length > 0
+      ? "\n\nThe user attached the following files. Their full extracted text is below. Treat these as confidential local-machine content; cite filenames when referring to them.\n\n" +
+        cappedAttachments
+          .map(
+            (a) =>
+              `<attachment name="${a.name}"${a.ext ? ` ext="${a.ext}"` : ""}${a.truncated ? ' truncated="true"' : ""}>\n${a.text}\n</attachment>`,
+          )
+          .join("\n\n")
+      : "";
+
   const objective = priorTranscript
-    ? `Previous turns in this conversation:\n\n${priorTranscript}${contextLine}\n\n---\n\nLatest user message: ${message}`
-    : `${message}${contextLine}`;
+    ? `Previous turns in this conversation:\n\n${priorTranscript}${contextLine}\n\n---\n\nLatest user message: ${message}${attachmentBlock}`
+    : `${message}${contextLine}${attachmentBlock}`;
 
   // Deep research bumps the agent's tool-call budget and nudges the
   // system prompt toward iterative refinement — the model is told to
@@ -323,6 +364,7 @@ export async function POST(req: NextRequest) {
           // doc_id and would resolve at that layer.
           contactId: contextContactId,
           chatId,
+          forcedProcessingMode,
           onEvent: (event: AgentEvent) => {
             send(event);
           },
