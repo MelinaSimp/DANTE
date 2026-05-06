@@ -214,6 +214,10 @@ export default function PendingFilesClient() {
             },
           );
         } else {
+          // Send extracted_text upfront so the server can auto-confirm
+          // (cloud folders only — server ignores extracted_text for
+          // local_only). For local_only folders extractedText is null
+          // by design, server stays on pending path.
           await fetch(
             `/api/electron/watched-folders/${event.folder_id}/notify`,
             {
@@ -226,6 +230,7 @@ export default function PendingFilesClient() {
                 file_extension: event.file_extension,
                 file_size_bytes: event.file_size_bytes,
                 content_sha256: event.content_sha256,
+                extracted_text: extractedText,
               }),
             },
           );
@@ -396,6 +401,32 @@ export default function PendingFilesClient() {
     },
     [fetchFiles, folders],
   );
+
+  const [confirmingAll, setConfirmingAll] = useState<{ done: number; total: number } | null>(null);
+  const confirmAll = useCallback(async () => {
+    if (files.length === 0) return;
+    if (
+      !confirm(
+        `Confirm ${files.length} pending file${files.length === 1 ? "" : "s"}? Each will be ingested into Vault and made searchable by Dante. This may take a few minutes for large folders.`,
+      )
+    ) {
+      return;
+    }
+    setConfirmingAll({ done: 0, total: files.length });
+    // Run in batches of 4 — embeddings are rate-limited; flooding
+    // OpenAI tends to throttle the whole queue.
+    const queue = [...files];
+    let done = 0;
+    const BATCH = 4;
+    while (queue.length > 0) {
+      const batch = queue.splice(0, BATCH);
+      await Promise.allSettled(batch.map((f) => confirmFile(f)));
+      done += batch.length;
+      setConfirmingAll({ done, total: files.length });
+    }
+    setConfirmingAll(null);
+    await fetchFiles();
+  }, [files, confirmFile, fetchFiles]);
 
   const rejectFile = useCallback(
     async (file: WatchedFile) => {
@@ -572,16 +603,31 @@ export default function PendingFilesClient() {
       )}
 
       <section>
-        <div className="flex items-baseline justify-between mb-4">
+        <div className="flex items-baseline justify-between mb-4 gap-3">
           <h2 className="heading-display text-xl text-[var(--ink)]">
             Pending {selectedFolderId ? "(filtered)" : ""}
           </h2>
-          <button
-            onClick={fetchFiles}
-            className="mono text-[11px] text-[var(--ink-muted)] hover:text-[var(--ink)] uppercase tracking-wide"
-          >
-            Refresh
-          </button>
+          <div className="flex items-center gap-3">
+            {confirmingAll && (
+              <span className="mono text-[11px] text-[var(--ink-muted)] uppercase tracking-wide">
+                Confirming {confirmingAll.done}/{confirmingAll.total}…
+              </span>
+            )}
+            {files.length > 0 && !confirmingAll && (
+              <button
+                onClick={confirmAll}
+                className="inline-flex items-center rounded-[6px] border border-[var(--ink)] bg-[var(--ink)] text-[var(--canvas)] px-3 py-1.5 text-xs font-medium hover:opacity-90 active:scale-[0.99] transition"
+              >
+                Confirm all ({files.length})
+              </button>
+            )}
+            <button
+              onClick={fetchFiles}
+              className="mono text-[11px] text-[var(--ink-muted)] hover:text-[var(--ink)] uppercase tracking-wide"
+            >
+              Refresh
+            </button>
+          </div>
         </div>
         {files.length === 0 ? (
           <div className="text-sm text-[var(--ink-muted)] border border-dashed border-[var(--rule)] rounded-md p-8 text-center">
