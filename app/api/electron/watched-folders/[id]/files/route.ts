@@ -35,7 +35,11 @@ export async function GET(
 
   const url = new URL(req.url);
   const status = url.searchParams.get("status");
-  const limit = Math.min(parseInt(url.searchParams.get("limit") || "50", 10), 200);
+  // Cap at 1000 — a deal room with thousands of supporting docs
+  // shouldn't have to paginate. Bigger lists get truncated; if a
+  // user actually has a folder beyond 1000 pending files we'll add
+  // an explicit "load more" then.
+  const limit = Math.min(parseInt(url.searchParams.get("limit") || "500", 10), 1000);
 
   let q = supabaseAdmin
     .from("watched_folder_files")

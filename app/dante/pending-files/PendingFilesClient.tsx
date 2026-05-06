@@ -123,7 +123,7 @@ export default function PendingFilesClient() {
     const all: WatchedFile[] = [];
     for (const f of targets) {
       const r = await fetch(
-        `/api/electron/watched-folders/${f.id}/files?status=pending_user_confirm&limit=50`,
+        `/api/electron/watched-folders/${f.id}/files?status=pending_user_confirm&limit=500`,
         { credentials: "include" },
       );
       if (!r.ok) continue;
