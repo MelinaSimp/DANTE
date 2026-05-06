@@ -37,12 +37,18 @@ import { computeGroundingScore } from "@/lib/dante/grounding";
 import type { AgentStep, AgentToolEntry, StepLogEntry } from "@/lib/dante/workflow-types";
 
 export const dynamic = "force-dynamic";
+// Vercel kills the SSE lambda at maxDuration. With a 10-step agent
+// loop, multiple tool dispatches, and the auto-mode embed pre-flight,
+// 60s was leaving runs on the table — the stream would close before
+// the model emitted final text and the UI would render "(no response)"
+// with no error to debug from. 300s gives a comfortable ceiling for
+// deep mode (20 steps) without sacrificing tail-latency budget.
 // Vercel Hobby caps function duration at 60s regardless of declared
 // value. Setting to 60 explicitly so we don't silently get clamped
 // (which produced "(no response)" failures with no log line because
 // the kill happens before pending logs flush). When upgrading to
 // Pro, bump this to 300.
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 // Fallback for workspaces with no industry set yet. Per-vertical
 // tool whitelists come from lib/industry/vertical-spec.ts and are
@@ -370,10 +376,30 @@ export async function POST(req: NextRequest) {
           },
         });
         assistantContent = result.text || "";
+        // Empty-text without a thrown error has happened in prod —
+        // typically the model called tools but never returned a final
+        // answer message, or a streaming chunk got dropped. Don't let
+        // the UI silently render "(no response)" with no signal.
+        if (!assistantContent.trim()) {
+          const stepCount = log.length;
+          const lastStepName =
+            (log[log.length - 1] as { step_name?: string } | undefined)
+              ?.step_name || "(none)";
+          runError = "empty_model_output";
+          assistantContent = `I ran ${stepCount} steps (last: ${lastStepName}) but didn't produce a final answer. Try rephrasing — and if this keeps happening, paste the question to me directly so I can see what tripped the loop.`;
+          send({ type: "error", error: runError });
+          console.warn(
+            `[ask] empty model output after ${stepCount} steps; runId=${runId} chatId=${chatId} lastStep=${lastStepName}`,
+          );
+        }
       } catch (err) {
         runError = err instanceof Error ? err.message : "agent_failed";
         assistantContent = `I hit an error and couldn't complete that. ${runError}`;
         send({ type: "error", error: runError });
+        console.error(
+          `[ask] agent loop threw; runId=${runId} chatId=${chatId} err=${runError}`,
+          err,
+        );
       }
 
       // Citation validation runs BEFORE persistence now (Phase 3+
