@@ -336,17 +336,31 @@ function SourceViewerPanel({
             </Document>
           </div>
         )}
-        {source?.kind === "bytes" && source.ext !== "pdf" && (
-          <div className="p-6 text-sm text-[var(--ink-muted)]">
-            <div className="text-[var(--ink)] font-medium mb-2">
-              {source.ext.toUpperCase()} preview not yet supported
+        {source?.kind === "bytes" &&
+          (source.ext === "txt" ||
+            source.ext === "md" ||
+            source.ext === "csv" ||
+            source.ext === "log" ||
+            source.ext === "json" ||
+            source.ext === "yaml" ||
+            source.ext === "yml") && (
+            <TextSourcePreview bytes={source.bytes} quote={active.quote || ""} />
+          )}
+        {source?.kind === "bytes" &&
+          source.ext !== "pdf" &&
+          !["txt", "md", "csv", "log", "json", "yaml", "yml"].includes(
+            source.ext,
+          ) && (
+            <div className="p-6 text-sm text-[var(--ink-muted)]">
+              <div className="text-[var(--ink)] font-medium mb-2">
+                {source.ext.toUpperCase()} preview not yet supported
+              </div>
+              <p>
+                Inline rendering for this file type is on the roadmap. Open
+                the original file directly to view it.
+              </p>
             </div>
-            <p>
-              Inline rendering for this file type is on the roadmap. Open
-              the original file directly to view it.
-            </p>
-          </div>
-        )}
+          )}
       </div>
 
       <style jsx global>{`
@@ -359,6 +373,121 @@ function SourceViewerPanel({
       `}</style>
     </aside>
   );
+}
+
+/**
+ * Renders plain-text source files (.txt, .md, .csv, .log, .json,
+ * .yaml) with the cited passage highlighted. Auto-scrolls the
+ * highlight into view on mount. Uses normalized matching so whitespace
+ * differences between the chunked snippet and the raw file don't
+ * miss legitimate hits.
+ */
+function TextSourcePreview({
+  bytes,
+  quote,
+}: {
+  bytes: ArrayBuffer;
+  quote: string;
+}) {
+  const text = useMemo(() => {
+    try {
+      return new TextDecoder("utf-8").decode(bytes);
+    } catch {
+      return "(failed to decode as UTF-8)";
+    }
+  }, [bytes]);
+
+  const segments = useMemo(() => {
+    return splitWithHighlight(text, quote);
+  }, [text, quote]);
+
+  const markRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (markRef.current) {
+      markRef.current.scrollIntoView({ behavior: "auto", block: "center" });
+    }
+  }, [segments]);
+
+  return (
+    <div className="p-6">
+      <pre className="whitespace-pre-wrap font-mono text-[12.5px] leading-relaxed text-[var(--ink)]">
+        {segments.map((seg, i) =>
+          seg.match ? (
+            <mark
+              key={i}
+              ref={i === segments.findIndex((s) => s.match) ? markRef : undefined}
+              className="bg-yellow-200/70 dark:bg-yellow-500/30 rounded-[1px]"
+            >
+              {seg.text}
+            </mark>
+          ) : (
+            <span key={i}>{seg.text}</span>
+          ),
+        )}
+      </pre>
+    </div>
+  );
+}
+
+/**
+ * Find the cited quote inside the raw text and split into match /
+ * non-match segments. Normalized matching (lowercase + whitespace
+ * collapse) for the SEARCH only; the returned segments preserve
+ * original casing + whitespace for display.
+ */
+function splitWithHighlight(
+  text: string,
+  rawQuote: string,
+): Array<{ text: string; match: boolean }> {
+  if (!rawQuote.trim()) return [{ text, match: false }];
+  const normText = normalize(text);
+  const normQuote = normalize(rawQuote);
+  if (!normQuote) return [{ text, match: false }];
+
+  // Try the full quote first; fall back to first 80 chars for
+  // citations that include trailing context not present in the file.
+  let normIdx = normText.indexOf(normQuote);
+  let normLen = normQuote.length;
+  if (normIdx < 0 && normQuote.length > 80) {
+    const slice = normQuote.slice(0, 80);
+    normIdx = normText.indexOf(slice);
+    normLen = slice.length;
+  }
+  if (normIdx < 0) return [{ text, match: false }];
+
+  // Walk the original text accumulating normalized length until we
+  // reach the match start + end; gives us the original-text offsets.
+  let normCursor = 0;
+  let rawStart = -1;
+  let rawEnd = -1;
+  let i = 0;
+  while (i < text.length) {
+    if (normCursor === normIdx && rawStart < 0) rawStart = i;
+    if (normCursor >= normIdx + normLen && rawEnd < 0) {
+      rawEnd = i;
+      break;
+    }
+    const ch = text[i];
+    if (/\s/.test(ch)) {
+      // Skip runs of whitespace as a single space in the normalized form.
+      if (i > 0 && /\s/.test(text[i - 1])) {
+        // already counted
+      } else {
+        normCursor += 1;
+      }
+    } else {
+      normCursor += 1;
+    }
+    i++;
+  }
+  if (rawEnd < 0) rawEnd = text.length;
+  if (rawStart < 0) return [{ text, match: false }];
+
+  return [
+    { text: text.slice(0, rawStart), match: false },
+    { text: text.slice(rawStart, rawEnd), match: true },
+    { text: text.slice(rawEnd), match: false },
+  ];
 }
 
 /** Normalize text for matching: lowercase, collapse whitespace. */
