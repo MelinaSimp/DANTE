@@ -32,6 +32,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { ingestVaultItem } from "@/lib/vault/ingest";
 import { resolveProjectForWatchedFile } from "@/lib/vault/auto-project";
+import { sanitizeForPostgres } from "@/lib/vault/sanitize-text";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -109,7 +110,7 @@ export async function POST(
   const isLocalOnly = fld?.default_processing_mode === "local_only";
   const acceptedText =
     !isLocalOnly && typeof body.extracted_text === "string"
-      ? body.extracted_text.trim()
+      ? sanitizeForPostgres(body.extracted_text.trim())
       : null;
 
   // Folder-wise routing: each top-level subfolder becomes a Vault
