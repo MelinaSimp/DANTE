@@ -373,14 +373,47 @@ ipcMain.handle("watched:rescan", async (_e, folder) => {
 // file (or the watcher detects a change to an already-confirmed
 // file), we read the file in the main process, extract text via
 // pdf-parse / docx / plain-text, and hand the text back to the
-// renderer to ship to the server. Bytes never leave the machine
-// in any case where the user-flagged folder is local_only — that
-// callsite never invokes this IPC.
+// renderer to ship to the server.
+//
+// Memory: pdf-parse holds the full PDF buffer plus intermediate
+// page structures during parse — peak memory per call is ~5x the
+// PDF's on-disk size. The renderer used to invoke this IPC up to
+// 4-wide concurrently for rescans, which meant 4 huge PDFs
+// parsing in parallel could push main process memory past 1.5GB
+// and the OS would kill it. The window goes black because the
+// BrowserWindow's main partner is dead.
+//
+// The semaphore caps in-flight extracts at 2 regardless of how
+// many requests the renderer queues. New requests wait until a
+// slot frees up. Slow-but-stable beats fast-and-crashing.
+const EXTRACT_CONCURRENCY = 2;
+let extractActive = 0;
+const extractWaitQueue = [];
+function acquireExtractSlot() {
+  return new Promise((resolve) => {
+    if (extractActive < EXTRACT_CONCURRENCY) {
+      extractActive++;
+      resolve();
+    } else {
+      extractWaitQueue.push(resolve);
+    }
+  });
+}
+function releaseExtractSlot() {
+  extractActive--;
+  const next = extractWaitQueue.shift();
+  if (next) {
+    extractActive++;
+    next();
+  }
+}
+
 ipcMain.handle("watched:extractFileText", async (_e, payload) => {
   const filePath = payload?.path;
   const ext = (payload?.ext || "").toLowerCase();
   if (!filePath) return { error: "no path" };
   const MAX_CHARS = 800_000;
+  await acquireExtractSlot();
   try {
     if (!fs.existsSync(filePath)) return { error: "file not found" };
     let text = "";
@@ -402,6 +435,8 @@ ipcMain.handle("watched:extractFileText", async (_e, payload) => {
     return { text, truncated, char_count: text.length };
   } catch (err) {
     return { error: err?.message || String(err) };
+  } finally {
+    releaseExtractSlot();
   }
 });
 
