@@ -1,15 +1,15 @@
 // lib/vault/auto-project.ts
 //
-// "Folder-wise" ingest for watched folders. The user registers a
+// "One project per watched folder" ingest. The user registers a
 // deal-room parent folder (e.g. ~/Downloads/TerraGroup Files), and
-// each top-level subfolder (LOI, Architectural, REFINANCE NH 2022,
-// Estoppel, ...) becomes its own Vault project. Files at the root
-// of the watched folder stay loose.
+// the entire watched folder — every file at any depth inside it —
+// rolls up into a single Vault project named after the watched
+// folder's basename ("TerraGroup Files").
 //
-// This makes /vault mirror the user's on-disk structure instead of
-// flattening hundreds of unrelated PDFs into Loose Files, and it
-// gives Dante a natural filterable scope ("answer using only the
-// LOI project") for follow-up questions.
+// Earlier versions used the FIRST subfolder as the project name,
+// which fragmented one client's deal room into 30 micro-projects.
+// The advisor thinks of "TerraGroup" as one thing; the project
+// surface should reflect that.
 //
 // The migration 20260506_vault_projects_workspace_name_unique adds
 // a (workspace_id, lower(name)) unique index so parallel notify
@@ -47,9 +47,10 @@ const NULL_RESULT: ResolveResult = {
 
 /**
  * Given a watched-folder file, find or create the Vault project
- * that should own its vault_item. Project = first subfolder of
- * file_path relative to watchedFolderPath. Files at the root
- * return null (stay loose).
+ * that should own its vault_item. Project name = the watched
+ * folder's basename, regardless of how deep the file sits inside.
+ * Files anywhere under TerraGroup Files/* all roll up into one
+ * "TerraGroup Files" project.
  *
  * Idempotent: relies on the unique index on
  * (workspace_id, lower(name)) to coalesce concurrent inserts.
@@ -57,18 +58,15 @@ const NULL_RESULT: ResolveResult = {
 export async function resolveProjectForWatchedFile(
   opts: ResolveOpts,
 ): Promise<ResolveResult> {
-  const subfolderName = subfolderForPath(
-    opts.watchedFolderPath,
-    opts.filePath,
-  );
-  if (!subfolderName) return NULL_RESULT;
+  const projectName = projectNameForWatchedFolder(opts.watchedFolderPath);
+  if (!projectName) return NULL_RESULT;
 
   // Try to find an existing project case-insensitively.
   const { data: existing } = await supabaseAdmin
     .from("vault_projects")
     .select("id, name")
     .eq("workspace_id", opts.workspaceId)
-    .ilike("name", subfolderName)
+    .ilike("name", projectName)
     .maybeSingle();
   if (existing) {
     return {
@@ -86,8 +84,8 @@ export async function resolveProjectForWatchedFile(
     .upsert(
       {
         workspace_id: opts.workspaceId,
-        name: subfolderName,
-        description: `Auto-created from watched folder subfolder · ${subfolderName}`,
+        name: projectName,
+        description: `Auto-created from watched folder · ${projectName}`,
         created_by: opts.userId ?? null,
       },
       { onConflict: "workspace_id,name", ignoreDuplicates: false },
@@ -103,7 +101,7 @@ export async function resolveProjectForWatchedFile(
       .from("vault_projects")
       .select("id, name")
       .eq("workspace_id", opts.workspaceId)
-      .ilike("name", subfolderName)
+      .ilike("name", projectName)
       .maybeSingle();
     if (refetched) {
       return {
@@ -113,7 +111,7 @@ export async function resolveProjectForWatchedFile(
       };
     }
     console.warn(
-      `[auto-project] failed to upsert project '${subfolderName}' for workspace ${opts.workspaceId}:`,
+      `[auto-project] failed to upsert project '${projectName}' for workspace ${opts.workspaceId}:`,
       insertErr?.message,
     );
     return NULL_RESULT;
@@ -126,26 +124,40 @@ export async function resolveProjectForWatchedFile(
 }
 
 /**
- * Compute the first-segment subfolder name for a file under a
- * watch root. Returns null when:
- *   • file lives at watch root (no segment)
- *   • paths can't be normalized into a parent/child relationship
- *   • the segment is a hidden directory (starts with '.')
+ * Project name for a watched folder = its basename.
+ *   /Users/x/Downloads/TerraGroup Files  → "TerraGroup Files"
+ *   /Users/x/Documents/Hermes Drop       → "Hermes Drop"
+ *
+ * Returns null when the path resolves to nothing usable (empty,
+ * root-only, hidden).
+ */
+export function projectNameForWatchedFolder(watchedFolderPath: string): string | null {
+  const cleaned = path.normalize(watchedFolderPath).replace(/\/+$/, "");
+  const name = path.basename(cleaned).trim();
+  if (!name) return null;
+  if (name.startsWith(".")) return null;
+  return name;
+}
+
+/**
+ * Legacy helper retained for any caller that wants the "first
+ * segment under the watch root" behavior (e.g. surfacing the
+ * subfolder in UI breadcrumbs without changing project membership).
+ * No longer used for project routing.
  */
 export function subfolderForPath(
   watchedFolderPath: string,
   filePath: string,
 ): string | null {
-  // Normalize trailing slashes to be tolerant of either form.
   const root = path.normalize(watchedFolderPath).replace(/\/+$/, "");
   const file = path.normalize(filePath);
   if (!file.startsWith(root + path.sep) && file !== root) return null;
 
   const rel = file.slice(root.length + 1);
   const firstSep = rel.indexOf(path.sep);
-  if (firstSep < 0) return null; // file at watch root → loose
+  if (firstSep < 0) return null;
   const segment = rel.slice(0, firstSep).trim();
   if (!segment) return null;
-  if (segment.startsWith(".")) return null; // hidden dirs
+  if (segment.startsWith(".")) return null;
   return segment;
 }

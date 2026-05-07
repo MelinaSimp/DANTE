@@ -14,6 +14,7 @@ import { hasSuperadminAccess } from "@/lib/superadmin";
 import AppShell from "@/components/shell/AppShell";
 import { getWorkspaceFeatures } from "@/lib/features/server";
 import CustomersTable from "./CustomersTable";
+import BackfillButton from "./BackfillButton";
 
 export const dynamic = "force-dynamic";
 
@@ -40,13 +41,16 @@ export default async function AdminCustomersPage() {
       isSuperadmin={true}
     >
       <div className="max-w-6xl mx-auto px-6 md:px-10 py-10">
-        <div className="mb-6">
-          <div className="label-section mb-2">Admin · per-customer pricing</div>
-          <h1 className="heading-display text-3xl mb-1">Customers</h1>
-          <p className="prose-body text-[var(--ink-muted)] text-sm">
-            Each row is one workspace's contract. Click to edit pricing,
-            allowance, model routing.
-          </p>
+        <div className="mb-6 flex items-end justify-between gap-4">
+          <div>
+            <div className="label-section mb-2">Admin · per-customer pricing</div>
+            <h1 className="heading-display text-3xl mb-1">Customers</h1>
+            <p className="prose-body text-[var(--ink-muted)] text-sm">
+              Each row is one workspace's contract. Click to edit pricing,
+              allowance, model routing.
+            </p>
+          </div>
+          <BackfillButton />
         </div>
         <CustomersTable />
       </div>

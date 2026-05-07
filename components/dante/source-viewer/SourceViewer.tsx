@@ -84,6 +84,17 @@ function SourceViewerPanel({
     return () => ro.disconnect();
   }, []);
 
+  // Escape hatches — older RIA users hate hunting for a small X.
+  // Esc key closes; click on the dimmed scrim outside the panel
+  // also closes. The X button stays as the obvious affordance.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   // Load source data when the active citation changes. Reset page
   // to the cited page (or 1 if absent).
   useEffect(() => {
@@ -236,6 +247,15 @@ function SourceViewerPanel({
   const goNext = () => setPage((p) => Math.min(numPages || 1, p + 1));
 
   return (
+    <>
+      {/* Scrim — covers the chat surface to the left of the panel.
+          Click anywhere on the dim → close. Pointer-events on the
+          scrim itself, not on the panel. */}
+      <div
+        className="fixed inset-y-0 left-0 right-1/2 z-30 bg-black/10"
+        aria-hidden
+        onClick={onClose}
+      />
     <aside
       className="fixed right-0 top-0 bottom-0 w-1/2 z-40 border-l border-[var(--rule)] bg-[var(--canvas)] shadow-xl flex flex-col"
       role="dialog"
@@ -272,12 +292,17 @@ function SourceViewerPanel({
               </button>
             </>
           )}
+          {/* Bigger, labeled close — old-RIA discoverability over
+              icon-only minimalism. Esc and click-outside both also
+              close, but the explicit button stays the primary affordance. */}
           <button
             onClick={onClose}
-            className="p-1.5 rounded hover:bg-[var(--rule)]/30"
-            aria-label="Close source viewer"
+            className="ml-1 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs text-[var(--ink-muted)] hover:bg-[var(--rule)]/30 hover:text-[var(--ink)]"
+            aria-label="Close source viewer (Esc)"
+            title="Close (Esc)"
           >
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4" strokeWidth={2} />
+            <span>Close</span>
           </button>
         </div>
       </header>
@@ -372,6 +397,7 @@ function SourceViewerPanel({
         }
       `}</style>
     </aside>
+    </>
   );
 }
 
