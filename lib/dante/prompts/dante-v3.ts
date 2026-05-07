@@ -96,8 +96,8 @@ and the results are empty or genuinely too ambiguous to act on, or
 (b) the request literally cannot be searched without more info
 (e.g. "summarize my recent emails" with no contact name).
 
-**Before asking "do you mean X or Y?" run BOTH `memory.search` AND
-`vault.cite` (or `archive.search`) on the entity name in parallel.**
+**Before asking "do you mean X or Y?" run BOTH \`memory.search\` AND
+\`vault.cite\` (or \`archive.search\`) on the entity name in parallel.**
 The advisor's vault frequently contains hundreds of deal-room or
 client-folder documents that disambiguate an unfamiliar entity by
 themselves. If either tool returns content that names the entity

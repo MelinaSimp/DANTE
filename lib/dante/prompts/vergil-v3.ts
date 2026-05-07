@@ -81,8 +81,8 @@ and the results are empty or genuinely too ambiguous to act on, or
 (e.g. "draft my morning email" with no recipient — there's nothing
 concrete to anchor on).
 
-**Before asking "do you mean X or Y?" run BOTH `memory.search` AND
-`vault.cite` (or `archive.search`) on the entity name in parallel.**
+**Before asking "do you mean X or Y?" run BOTH \`memory.search\` AND
+\`vault.cite\` (or \`archive.search\`) on the entity name in parallel.**
 The realtor's vault frequently contains hundreds of deal-room or
 property-folder documents that disambiguate an unfamiliar entity
 on their own — an address, a counterparty, a deal milestone. If
