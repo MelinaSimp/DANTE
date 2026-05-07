@@ -225,6 +225,15 @@ async function rescanFolder(folder, onFileEvent) {
   let scanned = 0;
   let queued = 0;
 
+  // Pace the scan so the renderer's IPC inbox + extract queue
+  // don't get flooded. Without this, a 1000-file deal room emits
+  // 1000 fileEvents back-to-back; even with the renderer's 4-wide
+  // queue, the V8 microtask scheduler can be overwhelmed and the
+  // webview heap crashes. 25ms between processFile calls + a yield
+  // every 50 files keeps Electron's event loop responsive.
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  let sinceYield = 0;
+
   async function walk(dir, depth) {
     if (depth > 8) return;
     let entries;
@@ -245,6 +254,12 @@ async function rescanFolder(folder, onFileEvent) {
           queued++;
         } catch (err) {
           console.warn(`[watchers] rescan processFile failed for ${full}:`, err?.message);
+        }
+        await sleep(25);
+        sinceYield++;
+        if (sinceYield >= 50) {
+          await sleep(250);
+          sinceYield = 0;
         }
       }
     }

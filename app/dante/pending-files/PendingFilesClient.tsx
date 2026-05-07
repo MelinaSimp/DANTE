@@ -148,9 +148,18 @@ export default function PendingFilesClient() {
   // Two paths fork on every file event:
   //   • The file_path already maps to a CONFIRMED watched file
   //     → auto-update path: extract text, hit /auto-update, server
-  //       re-chunks in place. User isn't asked to re-approve.
+  //     re-chunks in place. User isn't asked to re-approve.
   //   • Otherwise → notify path: create a pending row for the user
   //     to confirm via the UI.
+  //
+  // Concurrency: the previous version ran every fileEvent's
+  // extract+post chain in parallel. For a 1000-file rescan that
+  // queued ~1000 in-flight chains each holding ~200KB of extracted
+  // text, blowing past the renderer's webview heap limit. The
+  // window crashed (chromium killed the renderer process, leaving
+  // BrowserWindow's #000000 background showing). Now we cap at
+  // EVENT_CONCURRENCY simultaneous in-flight events — the rescan
+  // takes longer but the renderer survives.
   useEffect(() => {
     if (!window.electronAPI?.watched?.onFileEvent) return;
 
@@ -164,22 +173,33 @@ export default function PendingFilesClient() {
         .map((f) => `${f.folder_id}::${f.file_path}`),
     );
 
-    const unsub = window.electronAPI.watched.onFileEvent(async (event) => {
-      const key = event.content_sha256 || `${event.folder_id}::${event.file_path}`;
+    const EVENT_CONCURRENCY = 4;
+    const queue: FileEvent[] = [];
+    let active = 0;
+    let cancelled = false;
+    let pendingFetchTimer: ReturnType<typeof setTimeout> | null = null;
+
+    // Debounce the pending-list refetch so 1000 rapid events don't
+    // produce 1000 GET /files calls. After the last enqueue settles,
+    // wait 800ms then refetch once.
+    const scheduleFetchFiles = () => {
+      if (pendingFetchTimer) clearTimeout(pendingFetchTimer);
+      pendingFetchTimer = setTimeout(() => {
+        if (!cancelled) fetchFiles();
+      }, 800);
+    };
+
+    const processOne = async (event: FileEvent) => {
+      const key =
+        event.content_sha256 || `${event.folder_id}::${event.file_path}`;
       if (inFlightHashes.current.has(key)) return;
       inFlightHashes.current.add(key);
-
       try {
         const folder = folders.find((f) => f.id === event.folder_id);
-        const isLocalOnly =
-          folder?.default_processing_mode === "local_only";
+        const isLocalOnly = folder?.default_processing_mode === "local_only";
         const pathKey = `${event.folder_id}::${event.file_path}`;
         const isUpdate = knownConfirmed.has(pathKey);
 
-        // Extract text only when (a) we're going to send it
-        // somewhere AND (b) the folder isn't local_only. For
-        // local_only folders we skip extraction entirely — bytes
-        // never leave the machine.
         let extractedText: string | null = null;
         if (
           !isLocalOnly &&
@@ -194,53 +214,73 @@ export default function PendingFilesClient() {
               extractedText = result.text;
             }
           } catch {
-            /* fall through — server still records the event */
+            /* fall through */
           }
         }
 
-        if (isUpdate) {
-          await fetch(
-            `/api/electron/watched-folders/${event.folder_id}/files/auto-update`,
-            {
-              method: "POST",
-              credentials: "include",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                file_path: event.file_path,
-                file_size_bytes: event.file_size_bytes,
-                content_sha256: event.content_sha256,
-                extracted_text: extractedText,
-              }),
-            },
-          );
-        } else {
-          // Send extracted_text upfront so the server can auto-confirm
-          // (cloud folders only — server ignores extracted_text for
-          // local_only). For local_only folders extractedText is null
-          // by design, server stays on pending path.
-          await fetch(
-            `/api/electron/watched-folders/${event.folder_id}/notify`,
-            {
-              method: "POST",
-              credentials: "include",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                file_path: event.file_path,
-                file_name: event.file_name,
-                file_extension: event.file_extension,
-                file_size_bytes: event.file_size_bytes,
-                content_sha256: event.content_sha256,
-                extracted_text: extractedText,
-              }),
-            },
-          );
+        const url = isUpdate
+          ? `/api/electron/watched-folders/${event.folder_id}/files/auto-update`
+          : `/api/electron/watched-folders/${event.folder_id}/notify`;
+        const body = isUpdate
+          ? {
+              file_path: event.file_path,
+              file_size_bytes: event.file_size_bytes,
+              content_sha256: event.content_sha256,
+              extracted_text: extractedText,
+            }
+          : {
+              file_path: event.file_path,
+              file_name: event.file_name,
+              file_extension: event.file_extension,
+              file_size_bytes: event.file_size_bytes,
+              content_sha256: event.content_sha256,
+              extracted_text: extractedText,
+            };
+
+        try {
+          await fetch(url, {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+        } catch (err) {
+          console.warn("[onFileEvent] post failed:", err);
         }
-        await fetchFiles();
+
+        // Hint the UI that something landed; debounced inside.
+        scheduleFetchFiles();
       } finally {
+        // Allow re-post on a real second change after some time.
         setTimeout(() => inFlightHashes.current.delete(key), 60_000);
       }
+    };
+
+    const drain = async () => {
+      while (!cancelled && queue.length > 0 && active < EVENT_CONCURRENCY) {
+        const next = queue.shift()!;
+        active++;
+        processOne(next).finally(() => {
+          active--;
+          if (!cancelled) drain();
+        });
+      }
+    };
+
+    const unsub = window.electronAPI.watched.onFileEvent((event) => {
+      queue.push(event);
+      drain();
     });
-    return unsub;
+
+    return () => {
+      cancelled = true;
+      if (pendingFetchTimer) clearTimeout(pendingFetchTimer);
+      try {
+        unsub();
+      } catch {
+        /* ignore */
+      }
+    };
   }, [fetchFiles, files, folders]);
 
   // ─── Folder actions ──────────────────────────────────────────
