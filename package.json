@@ -6,7 +6,7 @@
   "private": true,
   "main": "electron/main.js",
   "scripts": {
-    "postinstall": "cp node_modules/react-pdf/node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/pdf.worker.min.mjs 2>/dev/null || cp node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/pdf.worker.min.mjs 2>/dev/null || true",
+    "postinstall": "node scripts/setup-pdf-worker.js || true",
     "dev": "next dev",
     "build": "next build",
     "start": "next start -p 3000",

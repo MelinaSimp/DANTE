@@ -1,3 +1,4 @@
+if(typeof Promise.try!=="function"){Promise.try=function(fn){var args=Array.prototype.slice.call(arguments,1);return new Promise(function(resolve){resolve(fn.apply(null,args))})}}
 /**
  * @licstart The following is the entire license notice for the
  * JavaScript code in this page
