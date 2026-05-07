@@ -339,10 +339,18 @@ async function getPdfjs() {
 
 async function extractPdfStreaming(filePath, maxChars) {
   const pdfjs = await getPdfjs();
-  // Read into memory once. pdfjs needs random access to the file
-  // for the trailer/xref; with current API the simplest path is a
-  // single read up front. The page-by-page extraction loop is
-  // what bounds peak memory growth from there.
+  // Buffer-based load: read the file once, hand it to pdfjs as a
+  // Uint8Array. Peak memory per call ~ file_size + small per-page
+  // overhead released by page.cleanup() between iterations. For
+  // a 100MB PDF that's ~110MB; a 500MB drawing PDF is ~520MB. The
+  // 2-wide main semaphore caps concurrent extracts so peak heap
+  // during a deal-room scan stays under ~1.1GB even with two
+  // concurrent 500MB files.
+  //
+  // True streaming via PDFDataRangeTransport is the right answer
+  // for >1GB single files but the listener-wiring API is finicky
+  // and not well-documented; deferred to v1.3 work. Files >1GB
+  // get rejected_size today.
   const buf = fs.readFileSync(filePath);
   const data = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
   const loadingTask = pdfjs.getDocument({
@@ -507,12 +515,15 @@ ipcMain.handle("watched:extractFileText", async (_e, payload) => {
   const ext = (payload?.ext || "").toLowerCase();
   if (!filePath) return { error: "no path" };
   const MAX_CHARS = 800_000;
-  // Hard guard: refuse files we can't load safely. With pdfjs-dist
-  // streaming page-by-page we can handle ~200MB PDFs without OOM
-  // (full buffer held by pdfjs + small per-page overhead). Beyond
-  // that, even the buffer alone is too large to allocate on a
-  // typical Mac with 16GB RAM and other apps running.
-  const MAX_EXTRACT_BYTES = 200 * 1024 * 1024;
+  // Hard ceiling on extraction. With buffer-based pdfjs and the
+  // 2-wide main semaphore, two concurrent 500MB files = ~1.1GB
+  // peak main heap, comfortable on a 16GB Mac. A single 1GB PDF
+  // = 1GB buffer × 2 concurrent = 2GB peak — borderline. Cap
+  // at 1GB so we don't allocate 2GB+ buffers on machines with
+  // less RAM. Files >1GB get rejected_size; almost always those
+  // are scanned binders or video PDFs that wouldn't OCR usefully
+  // anyway. v1.3 will add IPDFStream for genuine 1GB+ ingestion.
+  const MAX_EXTRACT_BYTES = 1024 * 1024 * 1024;
   try {
     const preStat = fs.statSync(filePath);
     if (preStat.size > MAX_EXTRACT_BYTES) {

@@ -29,16 +29,17 @@ const watchers = new Map();
 const debouncers = new Map();
 
 const HASH_CHUNK_HIGH_WATER = 1024 * 1024; // 1MB streaming chunks
-// Files larger than this get a rejected_size audit row but are not
-// ingested. With pdfjs-dist streaming page-by-page (replaced
-// pdf-parse in v1.2.0), peak per-call memory is roughly file_size
-// + 12MB — a 100MB PDF stays under 120MB during extraction. Pair
-// that with the 2-wide main-process semaphore and we can safely
-// allow 200MB files. Beyond that the file buffer alone gets too
-// large to allocate reliably on a typical 16GB Mac with other
-// apps running. CAD drawings / scanned binders / video PDFs over
-// 200MB still get audited but skipped.
-const MAX_FILE_BYTES = 200 * 1024 * 1024;
+// Files larger than this get a rejected_size audit row but are
+// not ingested. With buffer-based pdfjs-dist (v1.2.0) plus the
+// 2-wide main-process semaphore, two concurrent 500MB files
+// peak around 1.1GB main heap — comfortable on a 16GB Mac.
+// 1GB lets through almost every realistic deal-room file
+// (LOIs, leases, contracts, drawings, supporting binders);
+// files over that are typically scanned-binder or video PDFs
+// that wouldn't extract usefully without OCR. v1.3 work will
+// swap to PDFDataRangeTransport-based streaming so we can
+// ingest 4GB+ single files without buffering.
+const MAX_FILE_BYTES = 1024 * 1024 * 1024;
 
 /**
  * Replace the active set of watchers with the given folders list.
