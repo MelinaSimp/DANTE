@@ -22,6 +22,7 @@ import AppTopBar from "./AppTopBar";
 import { AssistantNameProvider } from "@/components/dante/AssistantNameProvider";
 import { PageContextProvider } from "@/components/dante/PageContext";
 import { getIndustryConfig } from "@/lib/industry/config";
+import UsageBanner from "@/components/usage/UsageBanner";
 
 interface Props extends AppSidebarProps {
   children: React.ReactNode;
@@ -47,6 +48,10 @@ export default function AppShell({ children, ...sidebarProps }: Props) {
         <div className="flex min-h-screen bg-[var(--canvas)]">
           <AppSidebar {...sidebarProps} />
           <div className="flex-1 min-w-0 flex flex-col">
+            {/* UsageBanner self-hides unless the workspace has
+                crossed an AI-allowance threshold; sticky-top so it
+                doesn't push layout when absent. */}
+            <UsageBanner />
             {/* AppTopBar gives every page a labeled "Ask Dante"
                 button that's visible without keyboard knowledge.
                 The sidebar's icon-only search affordance stays for

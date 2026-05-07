@@ -19,6 +19,7 @@ import {
   DollarSign,
   Activity,
 } from "lucide-react";
+import AllowanceCard from "./AllowanceCard";
 
 interface UsageData {
   workspace: { id: string; name: string };
@@ -180,6 +181,10 @@ export default function UsageClient() {
   return (
     <div className="min-h-screen bg-[var(--canvas)] text-[var(--ink)]">
       <div className="max-w-6xl mx-auto px-6 md:px-10 py-10 space-y-8">
+        {/* Plan allowance card — pulls from the new ledger-backed
+            usage status. Shows the customer their MTD vs included
+            allowance + overage projection. */}
+        <AllowanceCard />
         {/* Header */}
         <div>
           <div className="label-section mb-1">Usage &amp; cost</div>
