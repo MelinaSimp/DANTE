@@ -35,11 +35,12 @@ export async function GET(
 
   const url = new URL(req.url);
   const status = url.searchParams.get("status");
-  // Cap at 1000 — a deal room with thousands of supporting docs
-  // shouldn't have to paginate. Bigger lists get truncated; if a
-  // user actually has a folder beyond 1000 pending files we'll add
-  // an explicit "load more" then.
-  const limit = Math.min(parseInt(url.searchParams.get("limit") || "500", 10), 1000);
+  // Cap at 5000 — a deal room with thousands of supporting docs
+  // shouldn't have to paginate. Beyond 5000 the JSON payload + React
+  // render cost outweigh anything pagination would buy us; we'd want
+  // a virtualized list instead. Renderer asks for 2000 by default
+  // which covers 99% of fiduciary workflows.
+  const limit = Math.min(parseInt(url.searchParams.get("limit") || "2000", 10), 5000);
 
   let q = supabaseAdmin
     .from("watched_folder_files")
