@@ -31,6 +31,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { ingestVaultItem } from "@/lib/vault/ingest";
+import { resolveProjectForWatchedFile } from "@/lib/vault/auto-project";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -93,11 +94,12 @@ export async function POST(
 
   const { data: folder } = await supabaseAdmin
     .from("watched_folders")
-    .select("default_vault_project_id, default_processing_mode")
+    .select("folder_path, default_vault_project_id, default_processing_mode")
     .eq("id", folderId)
     .eq("workspace_id", workspaceId)
     .maybeSingle();
   const fld = folder as {
+    folder_path: string;
     default_vault_project_id: string | null;
     default_processing_mode: "cloud" | "local_only";
   } | null;
@@ -109,6 +111,28 @@ export async function POST(
     !isLocalOnly && typeof body.extracted_text === "string"
       ? body.extracted_text.trim()
       : null;
+
+  // Folder-wise routing: each top-level subfolder becomes a Vault
+  // project. See lib/vault/auto-project.ts.
+  let autoProjectId: string | null = null;
+  let autoProjectName: string | null = null;
+  if (fld?.folder_path) {
+    try {
+      const auto = await resolveProjectForWatchedFile({
+        workspaceId,
+        watchedFolderPath: fld.folder_path,
+        filePath: f.file_path,
+        userId: user.id,
+      });
+      autoProjectId = auto.projectId;
+      autoProjectName = auto.projectName;
+    } catch (err) {
+      console.warn(
+        "[confirm] subfolder auto-project resolution failed:",
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
 
   // Create the vault item. file_url is null — the file lives on
   // the user's machine, the Electron renderer opens it directly.
@@ -129,7 +153,7 @@ export async function POST(
       file_size: f.file_size_bytes,
       file_type: f.file_extension,
       content: acceptedText || null,
-      project_id: fld?.default_vault_project_id ?? null,
+      project_id: autoProjectId ?? fld?.default_vault_project_id ?? null,
       processing_mode_override: isLocalOnly ? "local_only" : null,
     })
     .select("id")
@@ -229,6 +253,8 @@ export async function POST(
       processing_mode_override: isLocalOnly ? "local_only" : null,
       chunk_count: chunkCount,
       ingest_error: ingestError,
+      auto_project_id: autoProjectId,
+      auto_project_name: autoProjectName,
     },
     timestamp: new Date().toISOString(),
   });
@@ -238,5 +264,7 @@ export async function POST(
     status: "confirmed",
     chunk_count: chunkCount,
     ingest_error: ingestError,
+    project_id: autoProjectId,
+    project_name: autoProjectName,
   });
 }

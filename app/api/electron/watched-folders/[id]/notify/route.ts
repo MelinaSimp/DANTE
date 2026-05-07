@@ -24,6 +24,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { ingestVaultItem } from "@/lib/vault/ingest";
+import { resolveProjectForWatchedFile } from "@/lib/vault/auto-project";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -71,7 +72,7 @@ export async function POST(
   const { data: folder } = await supabaseAdmin
     .from("watched_folders")
     .select(
-      "id, status, allowed_extensions, default_vault_project_id, default_processing_mode",
+      "id, folder_path, status, allowed_extensions, default_vault_project_id, default_processing_mode",
     )
     .eq("id", folderId)
     .eq("workspace_id", workspaceId)
@@ -81,6 +82,7 @@ export async function POST(
   }
   const f = folder as {
     status: string;
+    folder_path: string;
     allowed_extensions: string[];
     default_vault_project_id: string | null;
     default_processing_mode: "cloud" | "local_only";
@@ -139,7 +141,31 @@ export async function POST(
   let autoConfirmedVaultId: string | null = null;
   let autoConfirmedChunks = 0;
   let autoConfirmError: string | null = null;
+  let autoProjectId: string | null = null;
+  let autoProjectName: string | null = null;
   if (acceptedText) {
+    // Folder-wise routing: each top-level subfolder becomes a Vault
+    // project so a deal-room ingest stays organized instead of
+    // dumping every PDF into Loose Files. Files at the watch root
+    // resolve to null and stay loose. Falls through to the folder's
+    // configured default_vault_project_id when subfolder routing
+    // returns null.
+    try {
+      const auto = await resolveProjectForWatchedFile({
+        workspaceId,
+        watchedFolderPath: f.folder_path,
+        filePath: body.file_path,
+        userId: user.id,
+      });
+      autoProjectId = auto.projectId;
+      autoProjectName = auto.projectName;
+    } catch (err) {
+      console.warn(
+        "[notify] subfolder auto-project resolution failed:",
+        err instanceof Error ? err.message : err,
+      );
+    }
+
     try {
       const { data: vaultItem, error: vaultErr } = await supabaseAdmin
         .from("vault_items")
@@ -154,7 +180,7 @@ export async function POST(
           file_size: body.file_size_bytes ?? null,
           file_type: ext,
           content: acceptedText,
-          project_id: f.default_vault_project_id ?? null,
+          project_id: autoProjectId ?? f.default_vault_project_id ?? null,
           processing_mode_override: null,
         })
         .select("id")
@@ -228,6 +254,8 @@ export async function POST(
         file_path: body.file_path,
         chunk_count: autoConfirmedChunks,
         ingest_error: autoConfirmError,
+        auto_project_id: autoProjectId,
+        auto_project_name: autoProjectName,
       },
     });
   }
