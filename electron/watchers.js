@@ -29,7 +29,16 @@ const watchers = new Map();
 const debouncers = new Map();
 
 const HASH_CHUNK_HIGH_WATER = 1024 * 1024; // 1MB streaming chunks
-const MAX_FILE_BYTES = 100 * 1024 * 1024; // server enforces same cap
+// Files larger than this get a rejected_size audit row but are not
+// ingested. Lowered from 100MB to 25MB after Adharsh's 4GB-folder
+// test: pdf-parse holds the full buffer + intermediate page
+// structures during parse (peak ~5x on-disk size); a single 50MB
+// PDF can push main process heap past 250MB, and a 200MB drawing
+// PDF will OOM the main process outright. 25MB covers the
+// fiduciary doc surface (LOIs, leases, contracts, scanned letters,
+// reports) cleanly. Architectural drawings and large scanned
+// binders get audited but skipped — user can open them in Finder.
+const MAX_FILE_BYTES = 25 * 1024 * 1024;
 
 /**
  * Replace the active set of watchers with the given folders list.

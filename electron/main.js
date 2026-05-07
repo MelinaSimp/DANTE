@@ -413,6 +413,24 @@ ipcMain.handle("watched:extractFileText", async (_e, payload) => {
   const ext = (payload?.ext || "").toLowerCase();
   if (!filePath) return { error: "no path" };
   const MAX_CHARS = 800_000;
+  // Hard guard: refuse to load files into memory that are too
+  // big to extract safely. pdf-parse's intermediate buffers can
+  // 5x the on-disk size; a single 4GB PDF would OOM main process
+  // instantly. Same 25MB cap as watchers.js MAX_FILE_BYTES so the
+  // two pipeline stages stay coherent.
+  const MAX_EXTRACT_BYTES = 25 * 1024 * 1024;
+  try {
+    const preStat = fs.statSync(filePath);
+    if (preStat.size > MAX_EXTRACT_BYTES) {
+      return {
+        error: "file_too_large_to_extract",
+        size: preStat.size,
+        max: MAX_EXTRACT_BYTES,
+      };
+    }
+  } catch (err) {
+    return { error: err?.message || "stat_failed" };
+  }
   await acquireExtractSlot();
   try {
     if (!fs.existsSync(filePath)) return { error: "file not found" };
