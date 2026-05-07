@@ -68,6 +68,17 @@ contextBridge.exposeInMainWorld("electronAPI", {
    *  Returns { device_id, device_label, created_at }. */
   getDevice: () => ipcRenderer.invoke("device:get"),
 
+  /** Vault SourceViewer support: read a file's bytes from the
+   *  user's machine for in-app PDF rendering. Used when the
+   *  /api/vault/[id]/source API returns { kind: 'local', path }
+   *  (watched-folder vault items where file_url is null).
+   *  Returns { bytes: ArrayBuffer, size } on success or
+   *  { error } on failure. */
+  vault: {
+    readLocalFile: (filePath) =>
+      ipcRenderer.invoke("vault:readLocalFile", filePath),
+  },
+
   /** Auto-updater bridge. The dashboard's UpdateBanner uses this
    *  to render the "update available / update now" UX in-app
    *  instead of a native dialog box. */

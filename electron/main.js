@@ -567,6 +567,41 @@ ipcMain.handle("ollama:ensureRunning", async () => ollama.ensureRunning());
 
 ipcMain.handle("device:get", async () => device.load(app.getPath("userData")));
 
+// SourceViewer support: read a vault file's bytes from the user's
+// machine. Only fires for watched-folder ingests where file_url is
+// null and the API responded with { kind: 'local', path }. The
+// renderer pipes the returned ArrayBuffer into react-pdf via
+// the Document.file prop.
+//
+// 500MB hard ceiling here keeps an accidental 4GB binary from
+// blowing main's heap; the SourceViewer surfaces a friendly error.
+ipcMain.handle("vault:readLocalFile", async (_e, filePath) => {
+  if (!filePath || typeof filePath !== "string") {
+    return { error: "no_path" };
+  }
+  try {
+    const stat = fs.statSync(filePath);
+    const MAX_VIEWABLE_BYTES = 500 * 1024 * 1024;
+    if (stat.size > MAX_VIEWABLE_BYTES) {
+      return {
+        error: "file_too_large_to_view",
+        size: stat.size,
+        max: MAX_VIEWABLE_BYTES,
+      };
+    }
+    const buf = fs.readFileSync(filePath);
+    // Return the underlying ArrayBuffer slice — IPC's structured
+    // clone passes ArrayBuffers across cleanly.
+    const ab = buf.buffer.slice(
+      buf.byteOffset,
+      buf.byteOffset + buf.byteLength,
+    );
+    return { bytes: ab, size: buf.byteLength };
+  } catch (err) {
+    return { error: err?.message || "read_failed" };
+  }
+});
+
 // Open a specific macOS System Settings pane. The folder picker
 // from NSOpenPanel grants implicit access to whatever the user
 // selects, but a few "protected" locations on modern macOS

@@ -88,6 +88,25 @@ declare global {
         pane: "files_and_folders" | "full_disk_access" | "privacy",
       ) => Promise<{ ok: boolean; error?: string }>;
 
+      /** Vault SourceViewer support: read a file's bytes from the
+       *  user's machine for inline PDF rendering. Used by
+       *  components/dante/source-viewer/SourceViewer.tsx when the
+       *  /api/vault/[id]/source API returns { kind: 'local', path }
+       *  for watched-folder vault items. */
+      vault?: {
+        readLocalFile: (
+          filePath: string,
+        ) => Promise<
+          | { bytes: ArrayBuffer; size: number; error?: undefined }
+          | {
+              error: string;
+              size?: number;
+              max?: number;
+              bytes?: undefined;
+            }
+        >;
+      };
+
       /** Auto-updater bridge. The renderer-side UpdateBanner uses
        *  this to render the "update available / update now" flow
        *  in-app instead of via a native dialog box. */

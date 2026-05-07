@@ -25,6 +25,10 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { BookOpen, ExternalLink, Sparkles, ScrollText, X } from "lucide-react";
 import {
+  useHasSourceViewer,
+  useSourceViewer,
+} from "@/components/dante/source-viewer/SourceViewerContext";
+import {
   buildCitationMap,
   tokenize,
   type CitationMap,
@@ -86,6 +90,13 @@ export default function CitationRenderer({ content, trace, citationReport }: Pro
     | null
   >(null);
 
+  // Source-viewer hook — when wrapped by SourceViewerLayout, vault
+  // citation clicks open the side panel directly instead of the
+  // popover. Memory + regulatory chips keep the popover (no source
+  // PDF to render for them).
+  const sourceViewer = useSourceViewer();
+  const hasSourceViewer = useHasSourceViewer();
+
   // Walk the report in order, peeling off the next vault/memory
   // check as we hit each marker in document order. Maps each chip
   // occurrence to its check (handles repeat markers correctly).
@@ -125,9 +136,30 @@ export default function CitationRenderer({ content, trace, citationReport }: Pro
                 level={check?.level}
                 detail={check?.detail}
                 disabled={!data}
-                onClick={() =>
-                  data && setPopover({ type: "vault", data, status: check?.status, detail: check?.detail })
-                }
+                onClick={() => {
+                  if (!data) return;
+                  // When the chat surface is wrapped in
+                  // SourceViewerLayout, click-to-open routes to the
+                  // side panel directly (skip popover). Outside
+                  // wrapped surfaces (e.g. legacy embeds), fall back
+                  // to the popover so behavior degrades gracefully.
+                  if (hasSourceViewer && data.document_id) {
+                    sourceViewer.open({
+                      documentId: data.document_id,
+                      title: data.source || "Source document",
+                      page: data.page ?? null,
+                      quote: data.quote || "",
+                      marker: t.raw,
+                    });
+                    return;
+                  }
+                  setPopover({
+                    type: "vault",
+                    data,
+                    status: check?.status,
+                    detail: check?.detail,
+                  });
+                }}
               />
             );
           }

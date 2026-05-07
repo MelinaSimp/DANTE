@@ -63,8 +63,13 @@ async function extractPdf(buffer: ArrayBuffer): Promise<ExtractResult> {
 
   const loadingTask = pdfjs.getDocument({
     data: new Uint8Array(buffer),
-    isEvalSupported: false,
-    useSystemFonts: true,
+    // pdfjs-dist 5.x dropped these flags from the public type
+    // surface but still honors them at runtime. Cast to keep
+    // behavior, lose the typecheck noise.
+    ...({ isEvalSupported: false, useSystemFonts: true } as Record<
+      string,
+      unknown
+    >),
   });
   const doc = await loadingTask.promise;
 

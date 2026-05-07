@@ -12,6 +12,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { ArrowLeft } from "lucide-react";
 import ChatThread from "./ChatThread";
+import SourceViewerLayout from "@/components/dante/source-viewer/SourceViewerLayout";
 
 export const dynamic = "force-dynamic";
 
@@ -76,23 +77,25 @@ export default async function ChatPage({
         </Link>
       </div>
 
-      <div className="px-6 md:px-8 py-8 max-w-[900px] mx-auto">
-        <ChatThread
-          chatId={chat.id}
-          initialMessages={
-            (messages || []) as Array<{
-              id: string;
-              role: "user" | "assistant" | "tool";
-              content: string;
-              trace: unknown;
-              citation_report?: unknown;
-              grounding_score?: number | null;
-              prompt_version?: string | null;
-              created_at: string;
-            }>
-          }
-        />
-      </div>
+      <SourceViewerLayout>
+        <div className="px-6 md:px-8 py-8 max-w-[900px] mx-auto">
+          <ChatThread
+            chatId={chat.id}
+            initialMessages={
+              (messages || []) as Array<{
+                id: string;
+                role: "user" | "assistant" | "tool";
+                content: string;
+                trace: unknown;
+                citation_report?: unknown;
+                grounding_score?: number | null;
+                prompt_version?: string | null;
+                created_at: string;
+              }>
+            }
+          />
+        </div>
+      </SourceViewerLayout>
     </div>
   );
 }
