@@ -269,6 +269,20 @@ export async function GET() {
     expires_at: string;
     property_address: string | null;
   }> = [];
+  // Generic notices the cron has materialized into dante_noticed —
+  // surfaces stale clients, contradictions, RMD deadlines, etc. The
+  // older direct-read streams above stay (they're still efficient);
+  // dante_noticed is the home for the harder kinds.
+  let noticedItems: Array<{
+    id: string;
+    kind: string;
+    severity: "info" | "attention" | "urgent";
+    title: string;
+    body: string;
+    target_kind: string | null;
+    target_id: string | null;
+    created_at: string;
+  }> = [];
 
   if (wid) {
     const horizonIso = new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10);
@@ -377,6 +391,22 @@ export async function GET() {
       expires_at: d.expires_at,
       property_address: propAddr.get(d.property_id) || null,
     }));
+
+    // dante_noticed — generic proactive notices. Severity-ordered
+    // (urgent first), then most-recent first within a severity. The
+    // partial index on (workspace_id, severity, created_at desc)
+    // matches this exact shape.
+    const nowIso = new Date().toISOString();
+    const { data: noticed } = await supabaseAdmin
+      .from("dante_noticed")
+      .select("id, kind, severity, title, body, target_kind, target_id, created_at")
+      .eq("workspace_id", wid)
+      .is("handled_at", null)
+      .gt("expires_at", nowIso)
+      .order("severity", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(12);
+    noticedItems = (noticed || []) as typeof noticedItems;
   }
 
   return NextResponse.json({
@@ -402,6 +432,7 @@ export async function GET() {
       topDrafts,
       expiringDocsCount,
       topExpiring,
+      items: noticedItems,
     },
   });
 }

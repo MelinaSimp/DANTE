@@ -407,9 +407,12 @@ export default function AskDante({
         </div>
       )}
 
-      {/* Threaded messages */}
+      {/* Threaded messages — wrapped in a glass panel so the answer
+          floats above the canvas with subtle separation, matching
+          the glass composer below. Padding generous enough that
+          MessageView's internal spacing doesn't crowd the rule. */}
       {inExpandedMode && (
-        <div className="space-y-8">
+        <div className="glass-panel rounded-[16px] px-6 md:px-8 py-7 space-y-8">
           {turns.map((t, i) =>
             t.role === "user" ? (
               <UserMessage key={i} content={t.content} />
@@ -486,7 +489,7 @@ export default function AskDante({
 
       {/* Pinned input bar in expanded mode — compact, no toolbar */}
       {inExpandedMode && (
-        <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-[var(--canvas)] via-[var(--canvas)] to-transparent pt-6 pb-4 z-30">
+        <div className="glass-composer-bg fixed bottom-0 left-0 right-0 pt-6 pb-4 z-30">
           <div className="max-w-[760px] mx-auto px-6 md:px-8">
             <InputBar
               compact
@@ -560,7 +563,7 @@ function InputBar(p: InputBarProps) {
   // right corner, no divider, no toolbar. Reads as a single unit.
   if (p.compact) {
     return (
-      <div className="relative rounded-[12px] border border-[var(--rule)] bg-[var(--canvas-subtle)] shadow-sm">
+      <div className="glass-panel relative rounded-[14px]">
         <textarea
           ref={p.textareaRef}
           value={p.input}
@@ -590,7 +593,7 @@ function InputBar(p: InputBarProps) {
   // Full landing input — textarea on top, toolbar tucked into the
   // same container with no divider. Send is icon-only on the right.
   return (
-    <div className="rounded-[12px] border border-[var(--rule)] bg-[var(--canvas-subtle)] shadow-sm">
+    <div className="glass-panel rounded-[14px]">
       <textarea
         ref={p.textareaRef}
         value={p.input}

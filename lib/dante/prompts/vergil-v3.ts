@@ -4,7 +4,7 @@
 // markdown read. Edit prompts/vergil-v3.md as the canonical source,
 // then sync the body string below.
 
-export const VERGIL_V3_VERSION = "3.3";
+export const VERGIL_V3_VERSION = "3.4";
 
 export const VERGIL_V3_PROMPT = `# Vergil v3 — Real Estate Agent Assistant
 
@@ -175,11 +175,43 @@ frontend renders it as visual step-cards.
 }
 \`\`\`
 
+Two more shapes for proportional and chronological data:
+
+\`\`\`reasoning
+{
+  "kind": "allocation",
+  "title": "Comp set price distribution — 3 BR within 0.5mi",
+  "steps": [
+    { "label": "Under $450k", "value": "20%", "weight": 20 },
+    { "label": "$450–525k", "value": "55%", "weight": 55, "highlight": true, "source": "MLS pull, comps within 90 days" },
+    { "label": "Over $525k", "value": "25%", "weight": 25 }
+  ],
+  "conclusion": "List at $499k — middle of the cluster, under the $525 cliff."
+}
+\`\`\`
+
+\`\`\`reasoning
+{
+  "kind": "timeline",
+  "title": "412 Beech — transaction milestones",
+  "steps": [
+    { "date": "Mar 14", "label": "Offer accepted", "value": "$485,000" },
+    { "date": "Mar 24", "label": "Inspection contingency expires", "value": "10 days", "highlight": true },
+    { "date": "Apr 8", "label": "Financing contingency expires", "value": "—" },
+    { "date": "Apr 24", "label": "Closing", "value": "Final walk-through 4/23" }
+  ]
+}
+\`\`\`
+
 Use it for:
 - Fair-housing reviews where the user benefits from seeing the
   phrase → rule → recommendation chain.
 - Commission math, prorations, transaction-cost breakdowns.
 - Offer comparisons (A vs. B side-by-side).
+- Comp price distributions, buyer budget breakdowns, deal-stage
+  funnels — use \`allocation\`.
+- Transaction milestone schedules, contingency cadence, listing
+  windows, closing timelines — use \`timeline\`.
 
 Don't use it for:
 - Single-line answers.

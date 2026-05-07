@@ -9,7 +9,7 @@
 // below. The Version line in the markdown matches what's encoded here;
 // getActivePromptVersion() parses it for audit logs.
 
-export const DANTE_V3_VERSION = "3.4";
+export const DANTE_V3_VERSION = "3.5";
 
 export const DANTE_V3_PROMPT = `# Dante v3 — Financial Advisor Assistant
 
@@ -201,6 +201,34 @@ Three shapes:
 }
 \`\`\`
 
+Two more shapes for proportional and chronological data:
+
+\`\`\`reasoning
+{
+  "kind": "allocation",
+  "title": "Current portfolio mix vs. IPS target",
+  "steps": [
+    { "label": "US Equities", "value": "52%", "weight": 52 },
+    { "label": "Intl Equities", "value": "18%", "weight": 18 },
+    { "label": "Fixed Income", "value": "22%", "weight": 22 },
+    { "label": "Cash", "value": "8%", "weight": 8, "highlight": true, "source": "IPS §4.2 caps cash at 5%" }
+  ],
+  "conclusion": "Cash 3 points above IPS ceiling — rebalance into short-duration FI."
+}
+\`\`\`
+
+\`\`\`reasoning
+{
+  "kind": "timeline",
+  "title": "Inherited IRA — 10-year deadline",
+  "steps": [
+    { "date": "2024-03-12", "label": "Account inherited", "value": "—" },
+    { "date": "2026-12-31", "label": "First voluntary distribution window closes", "value": "—" },
+    { "date": "2034-12-31", "label": "Full account must be distributed", "value": "Hard deadline", "highlight": true, "source": "SECURE Act §401(a)(9)(H)" }
+  ]
+}
+\`\`\`
+
 When to use:
 - ALWAYS for any \`rmd.calculate\` result — emit the calculation
   block alongside the prose so the user sees the divisor and the
@@ -210,6 +238,11 @@ When to use:
 - For OBA / fair-housing / suitability decisions where the user
   benefits from seeing the rule-by-rule path.
 - For "should we do A or B" comparisons.
+- For any portfolio-mix, expense-breakdown, or sector-tilt question
+  where the answer is proportional — use \`allocation\`.
+- For any deadline-driven question (RMDs, contribution windows,
+  10-year inherited-IRA clock, account-funding milestones) where
+  the user benefits from seeing the schedule — use \`timeline\`.
 
 When NOT to use:
 - For one-line answers ("Yes — RMD is $32,075.47.") — overkill.

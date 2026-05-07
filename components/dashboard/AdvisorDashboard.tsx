@@ -95,6 +95,20 @@ type NoticedExpiring = {
   property_address: string | null;
 };
 
+// Generic notices written by the daily cron into dante_noticed.
+// Different shape from the two streams above because target_kind is
+// polymorphic — could be a contact, a vault item, a property doc.
+type NoticedItem = {
+  id: string;
+  kind: string;
+  severity: "info" | "attention" | "urgent";
+  title: string;
+  body: string;
+  target_kind: string | null;
+  target_id: string | null;
+  created_at: string;
+};
+
 type DashboardData = {
   advisorName: string;
   workspaceName: string;
@@ -126,6 +140,7 @@ type DashboardData = {
     topDrafts: NoticedDraft[];
     expiringDocsCount: number;
     topExpiring: NoticedExpiring[];
+    items?: NoticedItem[];
   };
 };
 
@@ -405,6 +420,12 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
                   label={`What ${assistantName} noticed today`}
                   className="md:col-span-3 md:row-span-2"
                 >
+                  {/* Generic notices from dante_noticed (cron-materialized) —
+                      stale clients, contradictions, RMD deadlines, etc.
+                      Renders above the two legacy streams when there's
+                      anything to show. */}
+                  <NoticedItemsList items={n.items || []} assistantName={assistantName} />
+
                   <div className="grid md:grid-cols-2 gap-5">
                     {/* Pending drafts */}
                     <div>
@@ -867,5 +888,106 @@ function AgentOutputsSection() {
         })}
       </ul>
     </section>
+  );
+}
+
+/* ---------------- Noticed items list ----------------
+ * Generic dante_noticed cards. Severity-coloured rule on the left,
+ * title + body, dismiss-on-X. Click-through resolves by target_kind
+ * to the right route (contact, vault item, property doc, reminder).
+ */
+
+function noticedHref(item: NoticedItem): string | null {
+  if (!item.target_kind || !item.target_id) return null;
+  switch (item.target_kind) {
+    case "contact":
+      return `/client-details-overview?contact=${item.target_id}`;
+    case "property_document":
+      return `/properties?doc=${item.target_id}`;
+    case "vault_item":
+      return `/dante/archive?item=${item.target_id}`;
+    case "reminder":
+      return `/reminders?id=${item.target_id}`;
+    default:
+      return null;
+  }
+}
+
+function severityClass(sev: NoticedItem["severity"]): string {
+  if (sev === "urgent") return "border-l-2 border-[var(--danger)]";
+  if (sev === "attention") return "border-l-2 border-[var(--accent)]";
+  return "border-l-2 border-[var(--rule)]";
+}
+
+function NoticedItemsList({
+  items,
+  assistantName,
+}: {
+  items: NoticedItem[];
+  assistantName: string;
+}) {
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+
+  const visible = items.filter((i) => !hidden.has(i.id));
+  if (visible.length === 0) return null;
+
+  async function dismiss(id: string) {
+    setHidden((s) => {
+      const next = new Set(s);
+      next.add(id);
+      return next;
+    });
+    try {
+      await fetch(`/api/dante/noticed/${id}/handle`, { method: "POST" });
+    } catch {
+      // optimistic dismiss; if the network call fails the card will
+      // reappear on next fetch — acceptable.
+    }
+  }
+
+  return (
+    <div className="mb-5 pb-5 border-b border-[var(--rule)]">
+      <div className="text-[11px] mono uppercase tracking-wider text-[var(--ink-muted)] mb-2">
+        {assistantName} noticed
+      </div>
+      <ul className="space-y-2">
+        {visible.slice(0, 6).map((item) => {
+          const href = noticedHref(item);
+          const inner = (
+            <div className={`flex items-start gap-3 px-3 py-2.5 ${severityClass(item.severity)} bg-[var(--canvas-subtle)] rounded-r-[4px]`}>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-[var(--ink)] truncate">{item.title}</div>
+                {item.body && (
+                  <div className="text-[12px] text-[var(--ink-muted)] mt-0.5 line-clamp-2">{item.body}</div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  void dismiss(item.id);
+                }}
+                aria-label="Dismiss"
+                className="p-1 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--danger)] hover:bg-[var(--danger-soft)] transition"
+              >
+                <X className="w-3.5 h-3.5" strokeWidth={1.5} />
+              </button>
+            </div>
+          );
+          return (
+            <li key={item.id}>
+              {href ? (
+                <Link href={href} className="block hover:bg-[var(--canvas-subtle-hover,var(--canvas-subtle))] transition rounded-[4px]">
+                  {inner}
+                </Link>
+              ) : (
+                inner
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

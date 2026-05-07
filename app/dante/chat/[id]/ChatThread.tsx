@@ -160,7 +160,7 @@ export default function ChatThread({
 
   return (
     <div>
-      <div className="space-y-8 mb-32">
+      <div className="glass-panel rounded-[16px] px-6 md:px-8 py-7 space-y-8 mb-32">
         {messages.map((m) =>
           m.role === "user" ? (
             <UserMessage key={m.id} content={m.content} />
@@ -220,9 +220,9 @@ export default function ChatThread({
         />
       )}
 
-      <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-[var(--canvas)] via-[var(--canvas)] to-transparent pt-6 pb-4 z-30">
+      <div className="glass-composer-bg fixed bottom-0 left-0 right-0 pt-6 pb-4 z-30">
         <div className="max-w-[900px] mx-auto px-6 md:px-8">
-          <div className="relative rounded-[12px] border border-[var(--rule)] bg-[var(--canvas-subtle)] shadow-sm">
+          <div className="glass-panel relative rounded-[14px]">
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}

@@ -85,6 +85,10 @@
     {
       "path": "/api/dante/cron/regulatory-briefs",
       "schedule": "30 7 * * *"
+    },
+    {
+      "path": "/api/dante/cron/notices",
+      "schedule": "0 10 * * *"
     }
   ]
 }

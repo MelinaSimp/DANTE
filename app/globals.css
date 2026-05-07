@@ -213,6 +213,45 @@ main {
   margin: 0;
 }
 
+/* Glass panel — restrained backdrop blur for the Dante composer
+ * and chat output card. Tuned for an older-RIA reader: subtle, not
+ * the trendy Apple Vision Pro look. Stays high-contrast on the
+ * light theme by keeping white opacity above 60%. */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.62);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.6) inset,
+    0 8px 24px -12px rgba(20, 20, 22, 0.12),
+    0 2px 6px -2px rgba(20, 20, 22, 0.05);
+}
+.dark .glass-panel,
+html[data-theme="dark"] .glass-panel {
+  background: rgba(20, 20, 22, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 8px 24px -12px rgba(0, 0, 0, 0.5),
+    0 2px 6px -2px rgba(0, 0, 0, 0.3);
+}
+
+/* Glass bottom-bar variant — used for the pinned composer in
+ * expanded chat mode. The fixed container under it already has
+ * the canvas gradient; this adds subtle separation so the
+ * composer reads as a floating sheet, not a fused strip. */
+.glass-composer-bg {
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--canvas) 92%, transparent) 0%,
+    color-mix(in srgb, var(--canvas) 60%, transparent) 60%,
+    transparent 100%
+  );
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
 /* ---------- Legacy styles kept for pages not yet migrated ---------- */
 
 /* Dark glass card — still used on /app agent canvas, /frontend, etc. */
