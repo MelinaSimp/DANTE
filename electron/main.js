@@ -294,6 +294,100 @@ ipcMain.handle("hermes:pickAndReadFiles", async () => {
   return out;
 });
 
+// Streaming-friendly PDF text extractor.
+//
+// pdf-parse (the original) materializes the entire parsed document
+// in memory before returning the text. For a 100MB drawing PDF
+// that's ~500MB peak. With the renderer's 4-wide queue + main's
+// 2-wide semaphore, we'd still hit ~1GB peak and OOM the main
+// process on typical fiduciary deal-room data.
+//
+// pdfjs-dist exposes per-page extraction. Memory profile per call:
+//   • Full file buffer held by pdfjs internals (file size)
+//   • Small per-page overhead (5-10MB) released by page.cleanup()
+//   • Accumulated text capped at MAX_CHARS (~1MB)
+// Total peak ≈ file_size + 12MB. A 100MB PDF stays under 120MB
+// per call; with semaphore=2 concurrent, peak main is ~250MB.
+//
+// pdfjs-dist 5.x is ESM-only — main.js is CommonJS, so we go
+// through dynamic import (works at runtime). The legacy build
+// runs without the worker, important since pdfjs's worker
+// machinery doesn't easily survive bundling into electron-builder.
+let _pdfjs;
+async function getPdfjs() {
+  if (!_pdfjs) {
+    _pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+    if (_pdfjs.GlobalWorkerOptions) {
+      // pdfjs-dist 5.x always tries to set up a worker, even when
+      // we pass disableWorker:true to getDocument(). It needs
+      // workerSrc to point at the actual worker file. require.resolve
+      // works in dev (real filesystem) and inside the packaged
+      // Electron app — provided pdfjs-dist is asarUnpack'd, which
+      // we configure in package.json's build.asarUnpack list.
+      try {
+        const workerPath = require.resolve(
+          "pdfjs-dist/legacy/build/pdf.worker.mjs",
+        );
+        _pdfjs.GlobalWorkerOptions.workerSrc = `file://${workerPath}`;
+      } catch (err) {
+        console.error("[pdfjs] worker resolve failed:", err?.message);
+      }
+    }
+  }
+  return _pdfjs;
+}
+
+async function extractPdfStreaming(filePath, maxChars) {
+  const pdfjs = await getPdfjs();
+  // Read into memory once. pdfjs needs random access to the file
+  // for the trailer/xref; with current API the simplest path is a
+  // single read up front. The page-by-page extraction loop is
+  // what bounds peak memory growth from there.
+  const buf = fs.readFileSync(filePath);
+  const data = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+  const loadingTask = pdfjs.getDocument({
+    data,
+    disableWorker: true,
+    isEvalSupported: false,
+    useSystemFonts: false,
+  });
+  const pdf = await loadingTask.promise;
+  let text = "";
+  try {
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      try {
+        const content = await page.getTextContent();
+        const pageText = (content.items || [])
+          .map((it) => ("str" in it && typeof it.str === "string" ? it.str : ""))
+          .filter(Boolean)
+          .join(" ");
+        text += pageText + "\n\n";
+      } finally {
+        // Frees the page's intermediate operator list + render
+        // state. Without this, peak memory grows linearly with
+        // pages traversed instead of staying flat.
+        try {
+          page.cleanup();
+        } catch {
+          /* ignore */
+        }
+      }
+      if (text.length > maxChars) {
+        text = text.slice(0, maxChars);
+        break;
+      }
+    }
+  } finally {
+    try {
+      await pdf.destroy();
+    } catch {
+      /* ignore */
+    }
+  }
+  return text;
+}
+
 // Best-effort .docx text extraction. A docx is a zip with a
 // word/document.xml; we strip XML tags and decode basic entities.
 // Good enough for compliance memos and ADV drafts; not great for
@@ -413,12 +507,12 @@ ipcMain.handle("watched:extractFileText", async (_e, payload) => {
   const ext = (payload?.ext || "").toLowerCase();
   if (!filePath) return { error: "no path" };
   const MAX_CHARS = 800_000;
-  // Hard guard: refuse to load files into memory that are too
-  // big to extract safely. pdf-parse's intermediate buffers can
-  // 5x the on-disk size; a single 4GB PDF would OOM main process
-  // instantly. Same 25MB cap as watchers.js MAX_FILE_BYTES so the
-  // two pipeline stages stay coherent.
-  const MAX_EXTRACT_BYTES = 25 * 1024 * 1024;
+  // Hard guard: refuse files we can't load safely. With pdfjs-dist
+  // streaming page-by-page we can handle ~200MB PDFs without OOM
+  // (full buffer held by pdfjs + small per-page overhead). Beyond
+  // that, even the buffer alone is too large to allocate on a
+  // typical Mac with 16GB RAM and other apps running.
+  const MAX_EXTRACT_BYTES = 200 * 1024 * 1024;
   try {
     const preStat = fs.statSync(filePath);
     if (preStat.size > MAX_EXTRACT_BYTES) {
@@ -436,10 +530,7 @@ ipcMain.handle("watched:extractFileText", async (_e, payload) => {
     if (!fs.existsSync(filePath)) return { error: "file not found" };
     let text = "";
     if (ext === "pdf") {
-      const pdfParse = require("pdf-parse");
-      const buf = fs.readFileSync(filePath);
-      const parsed = await pdfParse(buf);
-      text = parsed.text || "";
+      text = await extractPdfStreaming(filePath, MAX_CHARS);
     } else if (ext === "docx") {
       text = await extractDocxText(filePath);
     } else {

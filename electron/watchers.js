@@ -30,15 +30,15 @@ const debouncers = new Map();
 
 const HASH_CHUNK_HIGH_WATER = 1024 * 1024; // 1MB streaming chunks
 // Files larger than this get a rejected_size audit row but are not
-// ingested. Lowered from 100MB to 25MB after Adharsh's 4GB-folder
-// test: pdf-parse holds the full buffer + intermediate page
-// structures during parse (peak ~5x on-disk size); a single 50MB
-// PDF can push main process heap past 250MB, and a 200MB drawing
-// PDF will OOM the main process outright. 25MB covers the
-// fiduciary doc surface (LOIs, leases, contracts, scanned letters,
-// reports) cleanly. Architectural drawings and large scanned
-// binders get audited but skipped — user can open them in Finder.
-const MAX_FILE_BYTES = 25 * 1024 * 1024;
+// ingested. With pdfjs-dist streaming page-by-page (replaced
+// pdf-parse in v1.2.0), peak per-call memory is roughly file_size
+// + 12MB — a 100MB PDF stays under 120MB during extraction. Pair
+// that with the 2-wide main-process semaphore and we can safely
+// allow 200MB files. Beyond that the file buffer alone gets too
+// large to allocate reliably on a typical 16GB Mac with other
+// apps running. CAD drawings / scanned binders / video PDFs over
+// 200MB still get audited but skipped.
+const MAX_FILE_BYTES = 200 * 1024 * 1024;
 
 /**
  * Replace the active set of watchers with the given folders list.
