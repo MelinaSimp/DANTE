@@ -143,6 +143,14 @@ async function handleToolCalls(message: any) {
         case "check_availability":
           result = await executeCheckAvailability(call, parameters);
           break;
+        case "send_to_voicemail":
+          // Voicemail step — flag the call so end-of-call-report
+          // routes the transcript+recording to the advisor's inbox.
+          // VAPI is already recording every call; we just need to
+          // mark this one as voicemail-only and tell the model how
+          // to wrap up.
+          result = await executeSendToVoicemail(call, parameters);
+          break;
         default:
           result = JSON.stringify({ error: `Unknown function: ${name}` });
       }
@@ -159,6 +167,56 @@ async function handleToolCalls(message: any) {
   }
 
   return NextResponse.json({ results });
+}
+
+/**
+ * send_to_voicemail tool handler — fires when the scenario script
+ * reaches a Voicemail step. We don't ourselves do recording: VAPI
+ * records every call by default and the recording_url shows up on
+ * the end-of-call-report artifact. This handler's only job is to
+ *   (a) mark the call as voicemail-only by stamping a flag we can
+ *       read in handleEndOfCallReport, and
+ *   (b) hand the model a guidance message it can use to thank the
+ *       caller and end the conversation cleanly.
+ *
+ * The actual advisor-notification email is sent in
+ * handleEndOfCallReport when it sees the voicemail flag — by then
+ * the transcript and recording_url are both available.
+ */
+async function executeSendToVoicemail(call: any, params: any): Promise<string> {
+  const callId = call?.id;
+  const greeting =
+    typeof params?.greeting === "string" && params.greeting.trim()
+      ? params.greeting.trim()
+      : "Please leave a message after the tone.";
+
+  // Stash the voicemail flag on the call's metadata via the call_logs
+  // table — the conversations row isn't created until end-of-call,
+  // so we use a small lookup row keyed by the VAPI call id.
+  if (callId) {
+    try {
+      await supabaseAdmin
+        .from("vapi_voicemail_pending")
+        .upsert(
+          {
+            vapi_call_id: callId,
+            greeting,
+            created_at: new Date().toISOString(),
+          },
+          { onConflict: "vapi_call_id" },
+        );
+    } catch (e) {
+      // Non-fatal; we still return the right guidance to the model.
+      console.warn("[VAPI Voicemail] Failed to record pending flag:", e);
+    }
+  }
+
+  return JSON.stringify({
+    success: true,
+    message:
+      "Voicemail mode active. Say the greeting verbatim, then stay quiet while the caller records. After they finish, thank them briefly and end the call.",
+    greeting,
+  });
 }
 
 async function executeScheduleAppointment(call: any, params: any): Promise<string> {
@@ -601,6 +659,20 @@ async function handleEndOfCallReport(message: any) {
       });
     }
 
+    // Voicemail email — if the model called send_to_voicemail mid-
+    // call, we stamped a row in vapi_voicemail_pending. Now we
+    // have the recording_url + transcript, send it to the workspace
+    // owner. Fire-and-forget; failures must not block the webhook.
+    if (workspaceId && call.id) {
+      void notifyVoicemailIfPending({
+        callId: call.id,
+        workspaceId,
+        callerPhone,
+        recordingUrl: artifact?.recordingUrl || null,
+        transcript: artifact?.transcript || transcript.map((t: any) => `${t.role}: ${t.text}`).join("\n"),
+      });
+    }
+
     // Dante churn signal — log an agent_interaction event if we can
     // resolve the caller phone to a contact in this workspace. Also
     // the trigger point for the inbound call audit pipeline: once we
@@ -1014,4 +1086,84 @@ async function handleAssistantRequest(message: any) {
   }
 
   return NextResponse.json({ error: "No assistant configured for this number" });
+}
+
+/**
+ * If the call had a voicemail flag set mid-call, email the workspace
+ * owner with the transcript + recording URL via Resend. Marks the
+ * pending row consumed_at so a retry of end-of-call-report (VAPI
+ * sometimes redelivers) doesn't double-send.
+ */
+async function notifyVoicemailIfPending(args: {
+  callId: string;
+  workspaceId: string;
+  callerPhone: string;
+  recordingUrl: string | null;
+  transcript: string;
+}) {
+  try {
+    const { data: pending } = await supabaseAdmin
+      .from("vapi_voicemail_pending")
+      .select("vapi_call_id, greeting, consumed_at")
+      .eq("vapi_call_id", args.callId)
+      .maybeSingle();
+    if (!pending) return;
+    if (pending.consumed_at) return; // already emailed
+
+    // Resolve workspace owner email via Supabase Auth (email lives
+    // there, not on the profiles row).
+    const { data: ws } = await supabaseAdmin
+      .from("workspaces")
+      .select("name, owner_id")
+      .eq("id", args.workspaceId)
+      .maybeSingle();
+    if (!ws?.owner_id) {
+      console.warn(`[VAPI Voicemail] No owner_id for workspace ${args.workspaceId}`);
+      return;
+    }
+    const { data: ownerAuth } = await supabaseAdmin.auth.admin.getUserById(ws.owner_id);
+    const to = ownerAuth?.user?.email ?? null;
+    if (!to) {
+      console.warn(`[VAPI Voicemail] No advisor email for workspace ${args.workspaceId}`);
+      return;
+    }
+
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      console.warn("[VAPI Voicemail] RESEND_API_KEY not set; skipping email");
+      return;
+    }
+
+    // Trim transcript to a sane preview length for the email body;
+    // full transcript is on the conversation row already.
+    const preview = (args.transcript || "").slice(0, 1500);
+    const phoneLabel = args.callerPhone || "Unknown caller";
+    const subject = `Voicemail from ${phoneLabel}`;
+    const lines = [
+      `New voicemail received via ${ws.name || "Drift"}.`,
+      ``,
+      `From: ${phoneLabel}`,
+      args.recordingUrl ? `Recording: ${args.recordingUrl}` : "Recording: (not available)",
+      ``,
+      `--- Transcript ---`,
+      preview || "(no transcript captured)",
+    ].join("\n");
+
+    const fromEmail = process.env.RESEND_FROM_EMAIL || "Drift <ops@driftai.studio>";
+    const { Resend } = await import("resend");
+    const resend = new Resend(apiKey);
+    await resend.emails.send({
+      from: fromEmail,
+      to,
+      subject,
+      text: lines,
+    });
+
+    await supabaseAdmin
+      .from("vapi_voicemail_pending")
+      .update({ consumed_at: new Date().toISOString() })
+      .eq("vapi_call_id", args.callId);
+  } catch (e) {
+    console.error("[VAPI Voicemail] notify failed:", e);
+  }
 }

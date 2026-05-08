@@ -177,6 +177,51 @@ Keep responses short and natural for voice (1-3 sentences).`;
         url: SERVER_URL,
       },
     },
+    {
+      // Voicemail step — recording is automatic via VAPI's call
+      // recording. This tool flips a flag so end-of-call-report
+      // emails the advisor with the transcript + recording URL.
+      type: "function",
+      function: {
+        name: "send_to_voicemail",
+        description:
+          "Activate voicemail mode. Speak the greeting verbatim, then stay quiet while the caller records. After they finish, thank them and end the call.",
+        parameters: {
+          type: "object",
+          properties: {
+            greeting: {
+              type: "string",
+              description:
+                "The exact voicemail greeting from the script step (e.g. 'You've reached the voicemail of …. Please leave a message after the tone.').",
+            },
+          },
+          required: ["greeting"],
+        },
+      },
+      server: { url: SERVER_URL },
+    },
+    {
+      // Transfer step — bridges the caller to a configured number.
+      // Implementation pending in handleToolCalls; for now the model
+      // will see this tool but the handler returns "not implemented".
+      type: "function",
+      function: {
+        name: "transfer_call",
+        description:
+          "Bridge the caller to another phone number. Use only when a transfer step in the script says to.",
+        parameters: {
+          type: "object",
+          properties: {
+            to_number: {
+              type: "string",
+              description: "E.164 phone number to transfer the caller to (e.g. +14155551234).",
+            },
+          },
+          required: ["to_number"],
+        },
+      },
+      server: { url: SERVER_URL },
+    },
   ];
 
   // Build first message (greeting). Precedence:

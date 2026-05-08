@@ -110,7 +110,7 @@ Follow the steps below in order. Do not improvise around them. If the caller goe
   const tools = `
 Tools available:
 - transfer_call(to_number): bridges the caller to the given number. Use only when a transfer step says to.
-- send_to_voicemail(): records the caller's message. Use only when a voicemail step says to.`;
+- send_to_voicemail(greeting): activates voicemail mode. Pass the greeting from the voicemail step verbatim (e.g. "You've reached the voicemail of …. Please leave a message after the tone."). Speak the greeting, then stay quiet while the caller records. After they finish, thank them and end the call. Use only when a voicemail step says to.`;
 
   return `${header}\n\n${resolved.join("\n")}\n${tools}`;
 }
