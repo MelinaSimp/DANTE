@@ -252,7 +252,7 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
           const cols = showVerified ? "md:grid-cols-4" : "md:grid-cols-3";
           return (
             <div
-              className={`grid grid-cols-2 ${cols} gap-px bg-[var(--rule)] mb-12 rounded-md overflow-hidden border border-[var(--rule)]`}
+              className={`grid grid-cols-2 ${cols} gap-px bg-[var(--ink)] mb-12 rounded-md overflow-hidden border border-[var(--ink)] shadow-[0_1px_2px_rgba(20,20,20,0.06),0_4px_12px_-6px_rgba(20,20,20,0.10)]`}
             >
               <StatCell
                 label="Clients"

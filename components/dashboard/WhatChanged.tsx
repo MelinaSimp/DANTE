@@ -194,7 +194,7 @@ export default function WhatChanged() {
     return (
       <section
         aria-label="Since you were last here"
-        className="mb-12 border border-[var(--rule)] rounded-md overflow-hidden bg-[var(--surface,#fff)]"
+        className="mb-12 border border-[var(--ink)] rounded-md overflow-hidden bg-[var(--surface,#fff)] shadow-[0_1px_2px_rgba(20,20,20,0.06),0_4px_12px_-6px_rgba(20,20,20,0.10)]"
       >
         <div className="px-6 md:px-8 py-5">
           <div className="label-section mb-1">
@@ -217,7 +217,7 @@ export default function WhatChanged() {
       aria-label="Since you were last here"
       className="mb-12 border border-[var(--rule)] rounded-md overflow-hidden bg-[var(--surface,#fff)]"
     >
-      <header className="px-6 md:px-8 py-5 border-b border-[var(--rule)] bg-[var(--canvas)]">
+      <header className="px-6 md:px-8 py-5 border-b border-[var(--ink)]/15 bg-[var(--canvas)]">
         <div className="label-section mb-1">
           Since {formatSince(data.since)}
         </div>
