@@ -371,8 +371,13 @@ function SourceViewerPanel({
             source.ext === "yml") && (
             <TextSourcePreview bytes={source.bytes} quote={active.quote || ""} />
           )}
+        {source?.kind === "bytes" && (source.ext === "docx" || source.ext === "doc") && (
+          <DocxSourcePreview bytes={source.bytes} quote={active.quote || ""} />
+        )}
         {source?.kind === "bytes" &&
           source.ext !== "pdf" &&
+          source.ext !== "docx" &&
+          source.ext !== "doc" &&
           !["txt", "md", "csv", "log", "json", "yaml", "yml"].includes(
             source.ext,
           ) && (
@@ -528,4 +533,156 @@ function escapeHtml(s: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+/**
+ * Renders .docx via mammoth.js (browser build). Mammoth converts
+ * the document to clean HTML; we drop it into a styled div with the
+ * cited quote highlighted using the same normalized-matching pass
+ * the text + PDF previews use.
+ *
+ * Mammoth output is sanitized by mammoth itself (no <script>, no
+ * inline event handlers — it's a structural converter, not a
+ * passthrough). The HTML lands inside a sandboxed-styling container
+ * so the document's own font/size choices don't leak into the
+ * surrounding chrome.
+ */
+function DocxSourcePreview({
+  bytes,
+  quote,
+}: {
+  bytes: ArrayBuffer;
+  quote: string;
+}) {
+  const [html, setHtml] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        // mammoth ships its browser entry without bundled types; cast
+        // through unknown to keep the dynamic-import inline.
+        const mammothMod = (await import(
+          /* webpackChunkName: "mammoth-browser" */
+          "mammoth/mammoth.browser.js" as string
+        )) as unknown as { convertToHtml: (input: { arrayBuffer: ArrayBuffer }) => Promise<{ value: string }> };
+        const result = await mammothMod.convertToHtml({ arrayBuffer: bytes });
+        if (cancelled) return;
+        setHtml(result.value || "<em>(empty document)</em>");
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : "docx_decode_failed");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [bytes]);
+
+  // Highlight the cited quote inside the rendered HTML by walking
+  // text nodes after mammoth has rendered. Same normalized-match
+  // strategy as the text preview, but works on the live DOM so we
+  // don't have to re-render the full HTML on every quote change.
+  useEffect(() => {
+    if (!html || !containerRef.current || !quote.trim()) return;
+    const root = containerRef.current;
+    const fullText = root.innerText || "";
+    const normFull = normalize(fullText);
+    const normQ = normalize(quote);
+    if (!normQ) return;
+
+    let normIdx = normFull.indexOf(normQ);
+    let normLen = normQ.length;
+    if (normIdx < 0 && normQ.length > 80) {
+      const slice = normQ.slice(0, 80);
+      normIdx = normFull.indexOf(slice);
+      normLen = slice.length;
+    }
+    if (normIdx < 0) return;
+
+    // Walk text nodes; when the cumulative normalized offset enters
+    // the match window, wrap the slice of that node in a <mark>.
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let normCursor = 0;
+    let firstMark: HTMLElement | null = null;
+    const matchEnd = normIdx + normLen;
+    const toMark: Array<{ node: Text; start: number; end: number }> = [];
+    let node = walker.nextNode() as Text | null;
+    while (node) {
+      const nodeText = node.nodeValue || "";
+      const normNode = normalize(nodeText + " ");
+      const nodeStart = normCursor;
+      const nodeEnd = normCursor + normNode.length;
+      if (nodeEnd > normIdx && nodeStart < matchEnd) {
+        // Map the overlap from normalized offsets back to raw offsets
+        // in this node. Approximate but good enough for highlighting.
+        const overlapStartNorm = Math.max(normIdx, nodeStart) - nodeStart;
+        const overlapEndNorm = Math.min(matchEnd, nodeEnd) - nodeStart;
+        const ratio = nodeText.length / Math.max(1, normNode.length);
+        const rawStart = Math.floor(overlapStartNorm * ratio);
+        const rawEnd = Math.min(nodeText.length, Math.ceil(overlapEndNorm * ratio));
+        if (rawEnd > rawStart) {
+          toMark.push({ node, start: rawStart, end: rawEnd });
+        }
+      }
+      normCursor = nodeEnd;
+      if (normCursor >= matchEnd) break;
+      node = walker.nextNode() as Text | null;
+    }
+    // Apply marks bottom-up so node-splitting doesn't shift later
+    // walker offsets. Each mark wraps just the matched substring.
+    for (const m of toMark.reverse()) {
+      const before = m.node.nodeValue!.slice(0, m.start);
+      const middle = m.node.nodeValue!.slice(m.start, m.end);
+      const after = m.node.nodeValue!.slice(m.end);
+      const mark = document.createElement("mark");
+      mark.className = "source-viewer-mark";
+      mark.textContent = middle;
+      const parent = m.node.parentNode;
+      if (!parent) continue;
+      if (after) parent.insertBefore(document.createTextNode(after), m.node.nextSibling);
+      parent.insertBefore(mark, m.node.nextSibling);
+      m.node.nodeValue = before;
+      if (!firstMark) firstMark = mark;
+    }
+    if (firstMark) {
+      firstMark.scrollIntoView({ behavior: "auto", block: "center" });
+    }
+  }, [html, quote]);
+
+  if (error) {
+    return (
+      <div className="p-6 text-sm text-[var(--ink-muted)]">
+        <div className="text-[var(--ink)] font-medium mb-1">Couldn&rsquo;t render this DOCX</div>
+        <div className="mono text-[11px]">{error}</div>
+      </div>
+    );
+  }
+  if (!html) {
+    return (
+      <div className="flex items-center justify-center h-full text-sm text-[var(--ink-muted)]">
+        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+        Decoding DOCX…
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 max-w-3xl mx-auto">
+      <div
+        ref={containerRef}
+        className="docx-preview prose prose-sm max-w-none text-[var(--ink)]"
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+      <style jsx global>{`
+        .docx-preview p { margin: 0.6em 0; line-height: 1.55; }
+        .docx-preview h1 { font-size: 1.4em; font-weight: 600; margin: 1em 0 0.5em; }
+        .docx-preview h2 { font-size: 1.2em; font-weight: 600; margin: 0.9em 0 0.4em; }
+        .docx-preview h3 { font-size: 1.05em; font-weight: 600; margin: 0.8em 0 0.3em; }
+        .docx-preview table { border-collapse: collapse; margin: 0.8em 0; }
+        .docx-preview td, .docx-preview th { border: 1px solid var(--rule); padding: 4px 8px; }
+        .docx-preview ul, .docx-preview ol { margin: 0.5em 0; padding-left: 1.5em; }
+        .docx-preview li { margin: 0.2em 0; }
+      `}</style>
+    </div>
+  );
 }
