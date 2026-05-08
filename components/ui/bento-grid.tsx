@@ -74,13 +74,19 @@ export function BentoCard({
   href,
   tone = "default",
 }: BentoCardProps) {
+  // Borders: alert tone keeps the warm flag color so attention cards
+  // still read distinct; default tone goes solid black at full opacity
+  // for a sharper editorial look — paired with a small drop shadow
+  // so the cards lift off the canvas instead of dissolving into it.
   const borderTone =
-    tone === "alert" ? "border-[var(--flag)]/30" : "border-[var(--rule)]";
+    tone === "alert" ? "border-[var(--flag)]/40" : "border-[var(--ink)]";
   const bgTone = "bg-[var(--canvas)]";
+  const shadow = "shadow-[0_1px_2px_rgba(20,20,20,0.06),0_4px_12px_-6px_rgba(20,20,20,0.10)]";
+  const hoverShadow = "hover:shadow-[0_2px_4px_rgba(20,20,20,0.08),0_8px_20px_-8px_rgba(20,20,20,0.14)]";
 
   return (
     <div
-      className={`relative group rounded-[6px] border ${borderTone} ${bgTone} hover:border-[var(--rule-strong)] transition p-5 flex flex-col overflow-hidden ${className || ""}`}
+      className={`relative group rounded-[6px] border ${borderTone} ${bgTone} ${shadow} ${hoverShadow} transition p-5 flex flex-col overflow-hidden ${className || ""}`}
     >
       {(label || title) && (
         <div className="flex items-baseline justify-between gap-3 mb-3">
