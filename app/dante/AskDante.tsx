@@ -180,7 +180,17 @@ export default function AskDante({
   const [contextContact, setContextContact] = useState<Contact | null>(null);
   const [contactPickerOpen, setContactPickerOpen] = useState(false);
   const [editorContent, setEditorContent] = useState<string | null>(null);
+  // Files attached via the + Files and sources button. Browser-side
+  // text extraction lands here; the array gets shipped on the next
+  // submit() in the existing `attachments` field. Cleared after send.
+  const [attachments, setAttachments] = useState<Array<{
+    name: string;
+    ext?: string;
+    text: string;
+    truncated?: boolean;
+  }>>([]);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
@@ -213,6 +223,51 @@ export default function AskDante({
     }
   };
 
+  // Browser-side text extraction for the + Files and sources picker.
+  // Plain text formats (txt/md/csv/json/log/yaml/yml) decode straight
+  // through TextDecoder. Anything else gets a friendly note attached
+  // so the model knows the file was offered but couldn't be read.
+  // PDF / DOCX support is a fast-follow — uses the same pdfjs-dist +
+  // mammoth libs the SourceViewer already ships.
+  const TEXT_EXTS = new Set(["txt", "md", "csv", "json", "log", "yaml", "yml", "tsv"]);
+  const MAX_TEXT_BYTES = 200_000; // 200KB per file — preserves prompt budget
+  async function readFileForAttach(file: File): Promise<{
+    name: string;
+    ext?: string;
+    text: string;
+    truncated?: boolean;
+  } | null> {
+    const ext = (file.name.split(".").pop() || "").toLowerCase();
+    if (TEXT_EXTS.has(ext)) {
+      const buf = await file.arrayBuffer();
+      const slice = buf.byteLength > MAX_TEXT_BYTES ? buf.slice(0, MAX_TEXT_BYTES) : buf;
+      const text = new TextDecoder("utf-8", { fatal: false }).decode(slice);
+      return {
+        name: file.name,
+        ext,
+        text,
+        truncated: buf.byteLength > MAX_TEXT_BYTES,
+      };
+    }
+    // Non-text formats — surface a friendly placeholder rather than
+    // silently dropping. PDF/DOCX extraction is a follow-up.
+    return {
+      name: file.name,
+      ext: ext || undefined,
+      text: `(File ${file.name} attached — ${ext.toUpperCase()} preview not yet supported in chat. Drop it into a watched folder to ingest into the vault, or convert to text first.)`,
+      truncated: false,
+    };
+  }
+
+  async function onFilesPicked(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = ""; // allow picking the same file again
+    if (files.length === 0) return;
+    const extracted = await Promise.all(files.map(readFileForAttach));
+    const fresh = extracted.filter((x): x is NonNullable<typeof x> => Boolean(x));
+    setAttachments((prev) => [...prev, ...fresh]);
+  }
+
   const submit = async (overrideInput?: string) => {
     const message = (overrideInput ?? input).trim();
     if (!message || streamState.streaming) return;
@@ -220,6 +275,10 @@ export default function AskDante({
     abortRef.current = new AbortController();
     setTurns((prev) => [...prev, { role: "user", content: message }]);
     setInput("");
+    // Snapshot attachments now; clear state so the next turn starts
+    // with a fresh tray. The body below references this snapshot.
+    const sentAttachments = attachments;
+    setAttachments([]);
     setStreamState({ ...initialStreamState(), streaming: true });
 
     try {
@@ -245,6 +304,10 @@ export default function AskDante({
           deep: deepResearch,
           context_contact_id: isManagedAgent ? undefined : contextContact?.id,
           context_contact_name: isManagedAgent ? undefined : (contextContact?.name || undefined),
+          // Files the user attached via + Files and sources. Snapshot
+          // captured at submit() time; the state was cleared above so
+          // the next turn starts empty.
+          attachments: sentAttachments.length > 0 ? sentAttachments : undefined,
         },
         signal: abortRef.current.signal,
         onUpdate: (next) => {
@@ -432,7 +495,21 @@ export default function AskDante({
           textareaRef={textareaRef}
           rows={5}
           assistantName={assistantName}
-          onOpenFilesAndSources={() => setContactPickerOpen(true)}
+          onOpenFilesAndSources={() => fileInputRef.current?.click()}
+          attachments={attachments}
+          onRemoveAttachment={(idx) => setAttachments((prev) => prev.filter((_, i) => i !== idx))}
+        />
+      )}
+      {/* Hidden file input — triggered by the toolbar's + Files and
+          sources button. Multi-select supported. */}
+      {!inExpandedMode && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          hidden
+          onChange={onFilesPicked}
+          accept=".txt,.md,.csv,.json,.log,.yaml,.yml,.tsv"
         />
       )}
 
@@ -653,6 +730,11 @@ interface InputBarProps {
   /** Optional handler for the Harvey-style "+ Files and sources"
    *  toolbar button. When omitted, the button is hidden. */
   onOpenFilesAndSources?: () => void;
+  /** Files the user has attached for the next message — rendered
+   *  as small chips above the textarea. Empty array hides the row. */
+  attachments?: Array<{ name: string; ext?: string; truncated?: boolean }>;
+  /** Remove the attachment at the given index. */
+  onRemoveAttachment?: (idx: number) => void;
   /** When true, the toolbar (Prompts/Customize/Deep research) is
    *  hidden and the input shrinks to just textarea + send. Used in
    *  expanded mode where the chat is the focus and toolbar choices
@@ -696,6 +778,35 @@ function InputBar(p: InputBarProps) {
   // same container with no divider. Send is icon-only on the right.
   return (
     <div className="glass-panel rounded-[14px]">
+      {/* Attachment chips — files queued from + Files and sources.
+          Sit above the textarea so they're visible the whole time
+          you're composing. Each chip has a ✕ to remove. */}
+      {p.attachments && p.attachments.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 px-4 pt-3">
+          {p.attachments.map((a, i) => (
+            <span
+              key={`${a.name}-${i}`}
+              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--rule)] bg-[var(--canvas-subtle)] pl-2.5 pr-1 py-1 text-[11px] text-[var(--ink)]"
+              title={a.truncated ? `${a.name} (truncated to fit)` : a.name}
+            >
+              <span className="mono uppercase text-[9px] tracking-wider text-[var(--ink-muted)]">
+                {a.ext || "file"}
+              </span>
+              <span className="max-w-[160px] truncate">{a.name}</span>
+              {p.onRemoveAttachment && (
+                <button
+                  type="button"
+                  onClick={() => p.onRemoveAttachment?.(i)}
+                  className="ml-0.5 inline-flex items-center justify-center w-4 h-4 rounded-full text-[var(--ink-muted)] hover:bg-black/10 hover:text-[var(--ink)] transition"
+                  aria-label={`Remove ${a.name}`}
+                >
+                  <X className="w-2.5 h-2.5" strokeWidth={2} />
+                </button>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
       <textarea
         ref={p.textareaRef}
         value={p.input}
@@ -706,8 +817,8 @@ function InputBar(p: InputBarProps) {
         rows={p.rows}
         className="w-full resize-none bg-transparent px-5 pt-4 pb-2 text-base text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none disabled:opacity-60"
       />
-      <div className="flex items-center justify-between px-3 pb-2 pt-1">
-        <div className="flex items-center gap-0.5">
+      <div className="flex items-center justify-between gap-2 px-3 pb-2 pt-1">
+        <div className="flex flex-wrap items-center gap-y-1 gap-x-0.5 min-w-0">
           {/* Lead toolbar affordance — Harvey-style "+ Files and
               sources". For now this opens the same contact picker
               the legacy "Set client context" chip did; a richer
