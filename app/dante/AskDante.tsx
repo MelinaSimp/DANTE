@@ -44,6 +44,8 @@ import {
   X,
   Search,
   Globe,
+  Plus,
+  ArrowUpRight,
 } from "lucide-react";
 import { deriveFilenameStem } from "./DocumentPanel";
 import DraftEditor from "@/components/dante/DraftEditor";
@@ -125,6 +127,21 @@ const KNOWLEDGE_SOURCES = [
   { label: "Contacts", icon: Users, href: "/client-details-overview" },
   { label: "Calendar", icon: CalendarDays, href: "/calendar" },
   { label: "Workflows", icon: Workflow, href: "/dante/workflows" },
+] as const;
+
+// Workflow tiles surfaced on the landing — the four highest-value
+// templates curated for first-time-feel. Picked manually rather
+// than slicing the full list from lib/dante/templates.ts because
+// (a) the bundle size for the gallery's full registry is wasted on
+// a 4-card preview and (b) the order matters for the buyer
+// demographic — meeting prep + post-meeting + QBR + life event
+// reads as the day-job of an advisor; the niche templates can wait
+// for the /dante/workflows page proper.
+const RECOMMENDED_WORKFLOWS = [
+  { slug: "meeting-prep-packet", name: "Draft a meeting prep packet", kindLabel: "Draft", steps: 5 },
+  { slug: "post-meeting-followup", name: "Generate post-meeting follow-up", kindLabel: "Output", steps: 4 },
+  { slug: "qbr-reminder", name: "Quarterly review reminders", kindLabel: "Output", steps: 4 },
+  { slug: "life-event-detector", name: "Surface client life events", kindLabel: "Review", steps: 5 },
 ] as const;
 
 const REWRITE_PRESETS = [
@@ -346,7 +363,18 @@ export default function AskDante({
           </h1>
         </div>
 
-        <div className="flex items-center justify-center gap-3 mb-3">
+        {/* Scope chips — Harvey-style two-affordance row above the
+            composer. "Choose Vault project" sets the document context;
+            "Set client context" sets the per-contact memory scope. Two
+            distinct ideas, two distinct chips. */}
+        <div className="flex items-center justify-center gap-4 mb-4">
+          <Link
+            href="/vault"
+            className="inline-flex items-center gap-1.5 text-[12px] text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
+          >
+            <BookOpen className="w-3.5 h-3.5" strokeWidth={1.5} />
+            Choose Vault project
+          </Link>
           {contextContact ? (
             <ContextChip
               contact={contextContact}
@@ -355,9 +383,9 @@ export default function AskDante({
           ) : (
             <button
               onClick={() => setContactPickerOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--rule)] px-3 py-1 text-xs text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
+              className="inline-flex items-center gap-1.5 text-[12px] text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
             >
-              <Users className="w-3 h-3" strokeWidth={1.5} />
+              <Users className="w-3.5 h-3.5" strokeWidth={1.5} />
               Set client context
             </button>
           )}
@@ -402,27 +430,31 @@ export default function AskDante({
           onCustomize={onCustomize}
           customizing={refining === "customize"}
           textareaRef={textareaRef}
-          rows={4}
+          rows={5}
           assistantName={assistantName}
+          onOpenFilesAndSources={() => setContactPickerOpen(true)}
         />
       )}
 
-      {/* Knowledge source pills — only on landing. Once the user has
-          sent a message we unmount them entirely (not just fade) so
-          there's no chance of them lingering across the transition.
-          Clickable now: each pill links to its real surface. */}
+      {/* Knowledge source pills — Harvey-style chip row. Each chip
+          shows an icon + name + a "+" affordance that reads as
+          "add this as a source" (currently routes to the surface
+          itself; full session-pinning lands as a follow-up). */}
       {!inExpandedMode && (
-        <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
           {KNOWLEDGE_SOURCES.map((s) => {
             const Icon = s.icon;
             return (
               <Link
                 key={s.label}
                 href={s.href}
-                className="inline-flex items-center gap-2 rounded-full border border-[var(--rule)] bg-[var(--canvas)] px-3.5 py-2 text-[13px] text-[var(--ink)] shadow-[0_1px_0_rgba(0,0,0,0.02)] hover:bg-[var(--canvas-subtle)] hover:border-[var(--rule-strong)] transition"
+                className="group inline-flex items-center gap-2 rounded-full border border-[var(--rule)] bg-[var(--canvas)] pl-3 pr-2 py-1.5 text-[13px] text-[var(--ink)] hover:bg-[var(--canvas-subtle)] hover:border-[var(--rule-strong)] transition"
               >
                 <Icon className="w-3.5 h-3.5 text-[var(--ink-muted)]" strokeWidth={1.5} />
-                {s.label}
+                <span>{s.label}</span>
+                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full text-[var(--ink-subtle)] group-hover:text-[var(--ink)] transition">
+                  <Plus className="w-3 h-3" strokeWidth={2} />
+                </span>
               </Link>
             );
           })}
@@ -469,9 +501,50 @@ export default function AskDante({
         </div>
       )}
 
-      {/* History collapsible — landing only */}
+      {/* Recommended workflows — Harvey-style 4-card row sourced
+          from lib/dante/templates.ts. Each card opens the workflow
+          editor pre-populated with the template. Hidden in expanded
+          mode (post-first-question) to keep the chat focused. */}
       {!inExpandedMode && (
         <div className="mt-12">
+          <div className="flex items-baseline justify-between mb-3 px-1">
+            <div className="text-[11px] mono uppercase tracking-wider text-[var(--ink-subtle)]">
+              Recommended workflows
+            </div>
+            <Link
+              href="/dante/workflows"
+              className="text-[11px] text-[var(--ink-muted)] hover:text-[var(--ink)]"
+            >
+              View all
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            {RECOMMENDED_WORKFLOWS.map((tpl) => (
+              <Link
+                key={tpl.slug}
+                href={`/dante/workflows?template=${tpl.slug}`}
+                className="group block rounded-[8px] border border-[var(--rule)] bg-[var(--canvas)] p-3.5 hover:border-[var(--rule-strong)] hover:bg-[var(--canvas-subtle)] transition"
+              >
+                <div className="text-[13px] font-medium text-[var(--ink)] mb-3 line-clamp-2 leading-snug">
+                  {tpl.name}
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-[var(--ink-subtle)]">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="text-[var(--ink-muted)]">{tpl.kindLabel}</span>
+                    <span>·</span>
+                    <span>{tpl.steps} step{(tpl.steps as number) === 1 ? "" : "s"}</span>
+                  </span>
+                  <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition" strokeWidth={2} />
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* History collapsible — landing only */}
+      {!inExpandedMode && (
+        <div className="mt-10">
           <button
             onClick={() => setHistoryOpen((v) => !v)}
             className="w-full flex items-center justify-center gap-1.5 text-xs text-[var(--ink-muted)] hover:text-[var(--ink)]"
@@ -577,6 +650,9 @@ interface InputBarProps {
   rows: number;
   /** Brand name of the assistant, used in the placeholder. */
   assistantName: string;
+  /** Optional handler for the Harvey-style "+ Files and sources"
+   *  toolbar button. When omitted, the button is hidden. */
+  onOpenFilesAndSources?: () => void;
   /** When true, the toolbar (Prompts/Customize/Deep research) is
    *  hidden and the input shrinks to just textarea + send. Used in
    *  expanded mode where the chat is the focus and toolbar choices
@@ -632,6 +708,21 @@ function InputBar(p: InputBarProps) {
       />
       <div className="flex items-center justify-between px-3 pb-2 pt-1">
         <div className="flex items-center gap-0.5">
+          {/* Lead toolbar affordance — Harvey-style "+ Files and
+              sources". For now this opens the same contact picker
+              the legacy "Set client context" chip did; a richer
+              vault-doc picker is a follow-up. The visual hierarchy
+              still reads as "this is where you scope the chat." */}
+          {p.onOpenFilesAndSources && (
+            <button
+              onClick={p.onOpenFilesAndSources}
+              disabled={p.streaming}
+              className="inline-flex items-center gap-1.5 rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] hover:bg-[var(--canvas-subtle)] px-2.5 py-1.5 text-xs font-medium text-[var(--ink)] transition disabled:opacity-50 mr-1"
+            >
+              <Plus className="w-3 h-3" strokeWidth={2} />
+              Files and sources
+            </button>
+          )}
           <ToolbarButton
             icon={Library}
             label="Prompts"
