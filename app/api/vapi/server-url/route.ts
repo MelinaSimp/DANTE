@@ -151,6 +151,13 @@ async function handleToolCalls(message: any) {
           // to wrap up.
           result = await executeSendToVoicemail(call, parameters);
           break;
+        case "transfer_call":
+          // Transfer step — VAPI honors `destination` in the tool
+          // result and performs the actual call bridge. We just
+          // validate the number and pass it through. Per-call
+          // logging happens via the existing end-of-call report.
+          result = await executeTransferCall(call, parameters);
+          break;
         default:
           result = JSON.stringify({ error: `Unknown function: ${name}` });
       }
@@ -216,6 +223,74 @@ async function executeSendToVoicemail(call: any, params: any): Promise<string> {
     message:
       "Voicemail mode active. Say the greeting verbatim, then stay quiet while the caller records. After they finish, thank them briefly and end the call.",
     greeting,
+  });
+}
+
+/**
+ * transfer_call tool handler — fires when the scenario script
+ * reaches a Transfer step. The model passes the destination number
+ * we already baked into the system prompt for that step. We
+ * validate it's E.164-shaped and return a `destination` object;
+ * VAPI honors that field on a tool result and performs the actual
+ * call bridge (PSTN/SIP). The conversation row gets logged on
+ * end-of-call-report as usual.
+ *
+ * If VAPI doesn't bridge for some reason (e.g. destination format
+ * rejected upstream), the call simply continues; the model's next
+ * turn will see the result string and can recover.
+ */
+function looksLikeE164(n: string): boolean {
+  return /^\+\d{8,15}$/.test(n.trim());
+}
+
+async function executeTransferCall(call: any, params: any): Promise<string> {
+  const raw = typeof params?.to_number === "string" ? params.to_number.trim() : "";
+  // Allow common formatting (spaces, dashes, parens) — strip and
+  // validate as E.164. If the script step has it stored without a
+  // leading '+', tolerate that and prepend.
+  const stripped = raw.replace(/[\s\-().]/g, "");
+  const candidate = stripped.startsWith("+") ? stripped : `+${stripped.replace(/^1?/, "1")}`;
+
+  if (!looksLikeE164(candidate)) {
+    return JSON.stringify({
+      success: false,
+      message: `Couldn't transfer — the configured number "${raw}" isn't a valid phone number. Please verify the transfer step in the agent settings.`,
+    });
+  }
+
+  // Best-effort log so the post-call audit shows where the call went.
+  if (call?.id) {
+    try {
+      await supabaseAdmin.from("vapi_voicemail_pending").upsert(
+        // Reuse the same lookup table as a lightweight per-call
+        // metadata store; the schema (vapi_call_id pk, jsonb-ish
+        // greeting field) doubles as a transfer log when greeting
+        // looks like "transferred to <number>". A dedicated table
+        // is the cleaner long-term answer.
+        {
+          vapi_call_id: call.id,
+          greeting: `transferred to ${candidate}`,
+          created_at: new Date().toISOString(),
+        },
+        { onConflict: "vapi_call_id" },
+      );
+    } catch {
+      /* non-fatal */
+    }
+  }
+
+  return JSON.stringify({
+    success: true,
+    message: `Transferring you now.`,
+    // VAPI's documented contract for server-side tools: a `destination`
+    // object on the tool result triggers a call transfer. type=number
+    // performs a PSTN bridge; the optional message is what the model
+    // says to the caller before the bridge completes.
+    destination: {
+      type: "number",
+      number: candidate,
+      message: "Connecting you now, please hold.",
+    },
   });
 }
 
