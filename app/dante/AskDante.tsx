@@ -43,6 +43,7 @@ import {
   History,
   X,
   Search,
+  Globe,
 } from "lucide-react";
 import { deriveFilenameStem } from "./DocumentPanel";
 import DraftEditor from "@/components/dante/DraftEditor";
@@ -154,6 +155,10 @@ export default function AskDante({
   const [promptsOpen, setPromptsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [deepResearch, setDeepResearch] = useState(false);
+  // Vergil-only — when true the composer routes to /api/dante/web-scrape
+  // (Anthropic Web Scraper managed agent). Mutually exclusive with
+  // deepResearch; the toolbar enforces that.
+  const [webScrape, setWebScrape] = useState(false);
   const [refining, setRefining] = useState<"customize" | "rewrite" | null>(null);
   const [contextContact, setContextContact] = useState<Contact | null>(null);
   const [contactPickerOpen, setContactPickerOpen] = useState(false);
@@ -202,12 +207,27 @@ export default function AskDante({
 
     try {
       let captured: StreamState = initialStreamState();
+      // Mode → endpoint routing. Three modes:
+      //   • web-scrape (Vergil "Pull comps") → /api/dante/web-scrape
+      //   • deep-research (Telescope toggle) → /api/dante/deep-research
+      //   • default chat → /api/dante/ask
+      // Each managed-agent endpoint speaks the same SSE protocol, so
+      // the consumer doesn't change. Contact/property scope is dropped
+      // for managed-agent runs since those agents have no Drift vault
+      // access — they read the open web.
+      const isManagedAgent = webScrape || deepResearch;
+      const endpoint = webScrape
+        ? "/api/dante/web-scrape"
+        : deepResearch
+          ? "/api/dante/deep-research"
+          : "/api/dante/ask";
       await consumeAgentStream({
+        endpoint,
         body: {
           message,
           deep: deepResearch,
-          context_contact_id: contextContact?.id,
-          context_contact_name: contextContact?.name || undefined,
+          context_contact_id: isManagedAgent ? undefined : contextContact?.id,
+          context_contact_name: isManagedAgent ? undefined : (contextContact?.name || undefined),
         },
         signal: abortRef.current.signal,
         onUpdate: (next) => {
@@ -375,6 +395,8 @@ export default function AskDante({
           streaming={streamState.streaming}
           deepResearch={deepResearch}
           setDeepResearch={setDeepResearch}
+          webScrape={webScrape}
+          setWebScrape={setWebScrape}
           promptsOpen={promptsOpen}
           setPromptsOpen={setPromptsOpen}
           onCustomize={onCustomize}
@@ -500,6 +522,8 @@ export default function AskDante({
               streaming={streamState.streaming}
               deepResearch={deepResearch}
               setDeepResearch={setDeepResearch}
+              webScrape={webScrape}
+              setWebScrape={setWebScrape}
               promptsOpen={promptsOpen}
               setPromptsOpen={setPromptsOpen}
               onCustomize={onCustomize}
@@ -543,6 +567,8 @@ interface InputBarProps {
   streaming: boolean;
   deepResearch: boolean;
   setDeepResearch: (v: boolean | ((prev: boolean) => boolean)) => void;
+  webScrape: boolean;
+  setWebScrape: (v: boolean | ((prev: boolean) => boolean)) => void;
   promptsOpen: boolean;
   setPromptsOpen: (v: boolean | ((prev: boolean) => boolean)) => void;
   onCustomize: () => void;
@@ -626,11 +652,42 @@ function InputBar(p: InputBarProps) {
             active={p.deepResearch}
             tip={
               p.deepResearch
-                ? "On — agent will iterate (up to 20 steps)"
-                : "Off — switch on for thorough multi-step research"
+                ? "On — Anthropic Managed Agent does multi-step web research with citations"
+                : "Off — switch on for web research with primary-source citations"
             }
-            onClick={() => p.setDeepResearch((v) => !v)}
+            onClick={() => {
+              p.setDeepResearch((v) => {
+                const next = !v;
+                // Mutually exclusive with web scrape — toggling one off
+                // the other so the composer never has two modes lit.
+                if (next) p.setWebScrape(false);
+                return next;
+              });
+            }}
           />
+          {/* Vergil-only — surfaces the Web Scraper agent for "pull
+              comps for 412 Beech" style asks. Hidden on Dante because
+              there's no advisor use case (custodian portals are
+              login-walled). */}
+          {p.assistantName === "Vergil" && (
+            <ToolbarButton
+              icon={Globe}
+              label="Pull comps"
+              active={p.webScrape}
+              tip={
+                p.webScrape
+                  ? "On — Web Scraper agent (Browser Use Cloud) pulls structured data from the URL or address you describe"
+                  : "Off — switch on to scrape comps, listings, or public records from a URL"
+              }
+              onClick={() => {
+                p.setWebScrape((v) => {
+                  const next = !v;
+                  if (next) p.setDeepResearch(false);
+                  return next;
+                });
+              }}
+            />
+          )}
         </div>
         <button
           onClick={p.submit}

@@ -95,6 +95,12 @@ export function initialStreamState(): StreamState {
 }
 
 interface ConsumeInput {
+  /** Override the default /api/dante/ask endpoint. Used to route
+   *  Deep Research turns through /api/dante/deep-research and
+   *  Web-Scraper turns through /api/dante/web-scrape. The wire
+   *  protocol (SSE event names) is identical, only the endpoint
+   *  changes. */
+  endpoint?: string;
   body: {
     message: string;
     chat_id?: string;
@@ -128,7 +134,7 @@ interface ConsumeInput {
  * (e.g. user navigates away).
  */
 export async function consumeAgentStream(input: ConsumeInput): Promise<void> {
-  const res = await fetch("/api/dante/ask", {
+  const res = await fetch(input.endpoint ?? "/api/dante/ask", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input.body),
