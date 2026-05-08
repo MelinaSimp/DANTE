@@ -298,7 +298,6 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
         */}
         {(() => {
           const n = data.noticedToday;
-          const hasCompliance = data.features.includes("compliance_scanner");
           const assistantName = getIndustryConfig(data.industry).assistantName;
           return (
             <BentoGrid cols={3} className="mb-12">
@@ -340,32 +339,6 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
                 )}
               </BentoCard>
 
-              {/* Awaiting your review — small counter (1×1) */}
-              {hasCompliance && (
-                <BentoCard
-                  label="Awaiting review"
-                  icon={<ShieldCheck className="w-3 h-3" />}
-                  href={data.awaitingReview > 0 ? "/compliance/queue" : undefined}
-                  className="md:col-span-1"
-                >
-                  {data.awaitingReview === 0 ? (
-                    <div className="text-xs text-[var(--ink-muted)]">
-                      Queue is clear.
-                    </div>
-                  ) : (
-                    <div>
-                      <div className="flex items-baseline gap-2">
-                        <div className="heading-display text-4xl">
-                          {data.awaitingReview}
-                        </div>
-                        <div className="text-xs text-[var(--ink-muted)]">
-                          pending review
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </BentoCard>
-              )}
 
               {/* Quiet clients — small alert (1×1). Folds in the old
                   "Needs attention" section: top 3 stale, link out
@@ -381,9 +354,7 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
                   />
                 }
                 tone={data.flagged.length > 0 ? "alert" : "default"}
-                className={
-                  hasCompliance ? "md:col-span-1" : "md:col-span-1 md:row-span-2"
-                }
+                className="md:col-span-1 md:row-span-2"
               >
                 {data.flagged.length === 0 ? (
                   <div className="text-xs text-[var(--ink-muted)]">
@@ -456,12 +427,6 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
                         {assistantName} is watching for renewal drafts and
                         scheduled follow-ups.
                       </div>
-                      <Link
-                        href="/work"
-                        className="inline-block mt-2 text-[10px] mono uppercase tracking-wider text-[var(--accent)] hover:underline"
-                      >
-                        Open work queue →
-                      </Link>
                     </div>
                   ) : (
                     <ul className="space-y-2">

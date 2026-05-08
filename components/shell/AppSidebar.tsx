@@ -40,9 +40,7 @@ import {
   ShieldCheck,
   LayoutDashboard,
   Plus,
-  Inbox,
   ScrollText,
-  Compass,
   FileClock,
 } from "lucide-react";
 import { getIndustryConfig } from "@/lib/industry/config";
@@ -195,19 +193,6 @@ export default function AppSidebar({
 
   const items: NavItem[] = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/work", label: "Work", icon: Inbox },
-    {
-      href: "/planning",
-      label: "Planning",
-      icon: Compass,
-      industry: "financial_advisor",
-    },
-    {
-      href: "/compliance",
-      label: "Compliance",
-      icon: ShieldCheck,
-      industry: "financial_advisor",
-    },
     { href: "/client-details-overview", label: "Clients", icon: Users },
     { href: "/calendar", label: "Calendar", icon: CalendarIcon },
     { href: "/inbox", label: "Email", icon: Mail },
