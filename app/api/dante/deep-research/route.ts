@@ -124,6 +124,9 @@ export async function POST(req: NextRequest) {
           agentId,
           environmentId,
           userText: message,
+          workspaceId: profile.workspace_id,
+          feature: "deep_research",
+          model: "claude-sonnet-4-6",
           onEvent: async (event) => {
             // Translate managed-agent events into Drift's chat SSE shape.
             if (event.type === "text_delta" && event.text) {

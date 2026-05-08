@@ -111,6 +111,9 @@ export async function POST(req: NextRequest) {
           agentId,
           environmentId,
           userText: message,
+          workspaceId: profile.workspace_id,
+          feature: "web_scrape",
+          model: "claude-sonnet-4-6",
           onEvent: async (event) => {
             if (event.type === "text_delta" && event.text) {
               assistantContent += event.text;

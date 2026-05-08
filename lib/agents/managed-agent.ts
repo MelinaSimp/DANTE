@@ -29,6 +29,8 @@
 //     finishes (best-effort; the runtime auto-reaps anyway).
 
 import Anthropic from "@anthropic-ai/sdk";
+import { computeCostCents } from "@/lib/dante/model-router";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export interface ManagedAgentEvent {
   /** Drift-shaped event names for compatibility with the chat SSE adapter. */
@@ -61,6 +63,19 @@ export interface RunManagedAgentTurnInput {
   onEvent?: (event: ManagedAgentEvent) => void | Promise<void>;
   /** Optional hard cap on wall-clock seconds; default 240s. */
   timeoutSeconds?: number;
+  /** Workspace this run bills to. When set, the helper writes a row
+   *  into dante_usage_ledger after the session terminates so the
+   *  UsageBanner + admin surfaces account for managed-agent spend
+   *  alongside chat spend. Without it, the call still works but is
+   *  invisible to the metering. */
+  workspaceId?: string;
+  /** Feature tag for the ledger row — e.g. 'deep_research', 'web_scrape'. */
+  feature?: string;
+  /** Model used to bill against, since the agent itself is what knows
+   *  its model (we configured both at agent_011…NonPC1eQn… etc with
+   *  claude-sonnet-4-6). The helper trusts the caller to pass the
+   *  right id; if omitted we default to Sonnet 4.6. */
+  model?: string;
 }
 
 function getClient(): Anthropic {
@@ -181,6 +196,54 @@ export async function runManagedAgentTurn(
       if (completed) break;
     }
   } finally {
+    // Pull the session's cumulative token usage BEFORE deleting it so
+    // we can ledger the run. The session.retrieve response carries
+    // BetaManagedAgentsSessionUsage on the .usage field — input,
+    // output, and cache breakdowns rolled up across every internal
+    // model call the agent made.
+    if (input.workspaceId) {
+      try {
+        const final = (await (
+          client.beta.sessions as unknown as {
+            retrieve: (id: string) => Promise<{ usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation?: { ephemeral_5m_input_tokens?: number; ephemeral_1h_input_tokens?: number } } }>;
+          }
+        ).retrieve(sessionId)) as { usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation?: { ephemeral_5m_input_tokens?: number; ephemeral_1h_input_tokens?: number } } };
+        const u = final.usage || {};
+        const cacheCreate =
+          (u.cache_creation?.ephemeral_5m_input_tokens || 0) +
+          (u.cache_creation?.ephemeral_1h_input_tokens || 0);
+        const inputTokens = (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + cacheCreate;
+        const outputTokens = u.output_tokens || 0;
+        const cachedInputTokens = u.cache_read_input_tokens || 0;
+        const model = input.model || "claude-sonnet-4-6";
+        const cost_cents = computeCostCents(model, {
+          inputTokens,
+          cachedInputTokens,
+          outputTokens,
+        });
+        // Fire-and-forget ledger write. Failures here can't break the
+        // chat — the agent already returned successfully.
+        void supabaseAdmin
+          .from("dante_usage_ledger")
+          .insert({
+            workspace_id: input.workspaceId,
+            model,
+            input_tokens: inputTokens,
+            cached_input_tokens: cachedInputTokens,
+            output_tokens: outputTokens,
+            cost_cents,
+            feature: input.feature ?? "managed_agent",
+          })
+          .then((res) => {
+            if (res.error) {
+              console.error("[managed-agent] ledger insert failed:", res.error.message);
+            }
+          });
+      } catch (e) {
+        console.warn("[managed-agent] usage retrieve failed (no ledger row written):", e instanceof Error ? e.message : e);
+      }
+    }
+
     // Best-effort session cleanup. The runtime auto-reaps anyway, but
     // calling delete shortens the billing window for fast-running
     // turns where we're already done before idle reaping kicks in.
