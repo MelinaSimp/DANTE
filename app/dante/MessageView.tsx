@@ -33,6 +33,8 @@ import { looksLikeDraft, deriveFilenameStem } from "./DocumentPanel";
 import type { StreamState, CitationReportState } from "./streamClient";
 import { buildCitationMap } from "@/lib/dante/citations";
 import AgentPlan from "@/components/dante/AgentPlan";
+import LivePlan from "@/components/ui/agent-plan";
+import { eventsToPlanTasks } from "@/lib/agents/event-to-plan";
 import ReasoningDisclosure from "@/components/dante/ReasoningDisclosure";
 
 const REWRITE_PRESETS = [
@@ -340,9 +342,15 @@ export function SourcesBlock({ trace }: { trace: unknown }) {
 }
 
 // ── Live thinking ───────────────────────────────────────────────
-// Harvey-style checklist of phases as they tick by. Each
-// iteration_thinking event becomes one row; per-tool detail collapses
-// in, the row gets a checkmark when its tools resolve.
+// Animated agent plan that ticks status icons as iteration_thinking
+// + tool_start + tool_end events arrive over SSE. Each iteration is
+// one task; the tool calls within it are subtasks. Status icons
+// transition with a small spring animation when an event lands.
+//
+// Adapter (lib/agents/event-to-plan.ts) is pure: same inputs → same
+// outputs, no allocations beyond the AgentPlanTask[] result, so
+// it's safe to call on every render. The visualization itself is
+// the AgentPlan component at components/ui/agent-plan.tsx.
 
 export function LiveThinking({
   state,
@@ -351,30 +359,8 @@ export function LiveThinking({
   state: StreamState;
   deep: boolean;
 }) {
-  type Phase = {
-    summary: string;
-    toolCount: number;
-    pending: number;
-  };
-  const phases: Phase[] = [];
-  let active: Phase | null = null;
-
-  for (const ev of state.events) {
-    if (ev.type === "iteration_thinking") {
-      active = { summary: ev.summary || "Thinking…", toolCount: 0, pending: 0 };
-      phases.push(active);
-    } else if (ev.type === "tool_start") {
-      if (!active) {
-        active = { summary: "Working…", toolCount: 0, pending: 0 };
-        phases.push(active);
-      }
-      active.toolCount += 1;
-      active.pending += 1;
-    } else if (ev.type === "tool_end") {
-      if (!active) continue;
-      active.pending = Math.max(0, active.pending - 1);
-    }
-  }
+  const tasks = eventsToPlanTasks(state.events, state.streaming);
+  const hasAnything = tasks.length > 0;
 
   return (
     <div className="space-y-2">
@@ -399,43 +385,14 @@ export function LiveThinking({
           </span>
         )}
       </div>
-      <div className="space-y-1.5">
-        {phases.map((phase, i) => {
-          const isLast = i === phases.length - 1;
-          const ticked = !isLast || (phase.toolCount > 0 && phase.pending === 0);
-          return (
-            <div key={i} className="flex items-start gap-2 text-sm">
-              <span
-                className={
-                  ticked
-                    ? "text-emerald-600 dark:text-emerald-400 mt-0.5"
-                    : "text-[var(--ink-subtle)] mt-0.5"
-                }
-                aria-hidden
-              >
-                {ticked ? (
-                  <Check className="w-3.5 h-3.5" strokeWidth={2.5} />
-                ) : (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                )}
-              </span>
-              {ticked ? (
-                <span className="text-[var(--ink)] flex-1">{phase.summary}</span>
-              ) : (
-                <span
-                  className="flex-1 text-transparent bg-clip-text bg-[length:200%_100%] animate-shimmer"
-                  style={{
-                    backgroundImage:
-                      "linear-gradient(90deg, rgb(20,20,20) 0%, rgb(140,140,140) 40%, rgb(20,20,20) 60%, rgb(20,20,20) 100%)",
-                  }}
-                >
-                  {phase.summary}
-                </span>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      {hasAnything ? (
+        <LivePlan tasks={tasks} />
+      ) : (
+        <div className="flex items-start gap-2 text-sm text-[var(--ink-subtle)]">
+          <Loader2 className="w-3.5 h-3.5 animate-spin mt-0.5" />
+          <span>Reading the question…</span>
+        </div>
+      )}
     </div>
   );
 }
