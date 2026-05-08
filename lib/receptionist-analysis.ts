@@ -4,7 +4,7 @@ import { complete as llmComplete } from "@/lib/llm/client";
 const ANALYSIS_MODEL =
   process.env.RECEPTIONIST_ANALYSIS_MODEL ||
   process.env.RECEPTIONIST_COMPLETION_MODEL ||
-  "gpt-4o-mini";
+  "claude-haiku-4-5";
 
 export async function generateCallAnalysis(params: {
   answers: ReceptionistAnswer[];

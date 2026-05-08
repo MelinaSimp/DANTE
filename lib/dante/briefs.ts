@@ -506,7 +506,7 @@ async function callModel(args: {
 
   if (args.openaiKey) {
     try {
-      const model = "gpt-5";
+      const model = "claude-sonnet-4-6";
       const result = await llmComplete({
         model,
         temperature: 0.2,

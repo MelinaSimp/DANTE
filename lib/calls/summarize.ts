@@ -282,7 +282,7 @@ export async function summarizeCall(
 
   try {
     if (anthropicKey) {
-      model = "claude-sonnet-4-5";
+      model = "claude-sonnet-4-6";
       const r = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {

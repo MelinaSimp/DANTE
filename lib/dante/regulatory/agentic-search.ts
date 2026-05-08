@@ -37,7 +37,7 @@ import {
   type RegulatorySearchInput,
 } from "./search";
 
-const REFINER_MODEL = "gpt-4o-mini";
+const REFINER_MODEL = "claude-haiku-4-5";
 const DEFAULT_MAX_ROUNDS = 4;
 const HIGH_SIM_FLOOR = 0.55;        // hits at/above this count toward "we have enough"
 const ENOUGH_HIGH_SIM_HITS = 4;

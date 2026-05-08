@@ -989,7 +989,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
   // Workspace-set model wins over the per-step config so an admin can
   // flip the dial in Settings → Agent model without touching code.
   const workspaceModel = await getWorkspaceModel(input.workspaceId);
-  const model = workspaceModel || cfg.model || "gpt-5";
+  const model = workspaceModel || cfg.model || "claude-sonnet-4-6";
 
   // Resolve the binding processing mode for this run. Two
   // signals compose, most-restrictive wins:

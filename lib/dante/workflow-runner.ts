@@ -139,7 +139,7 @@ async function runOpenAI(cfg: {
   if (cfg.system) messages.push({ role: "system", content: cfg.system });
   messages.push({ role: "user", content: cfg.prompt });
   const result = await llmComplete({
-    model: cfg.model || "gpt-5",
+    model: cfg.model || "claude-sonnet-4-6",
     messages,
     maxTokens: Number(cfg.max_tokens) || 800,
     feature: "workflow.openai_node",

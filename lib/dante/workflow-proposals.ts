@@ -181,7 +181,7 @@ Produce three distinct, grounded proposals.`;
   }
 
   if (args.openaiKey) {
-    const model = "gpt-5";
+    const model = "claude-sonnet-4-6";
     const result = await llmComplete({
       model,
       temperature: 0.5,

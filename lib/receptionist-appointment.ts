@@ -7,7 +7,7 @@ const APPOINTMENT_MODEL =
   process.env.RECEPTIONIST_APPOINTMENT_MODEL ||
   process.env.HOME_PLANNER_MODEL ||
   process.env.HOME_CHAT_MODEL ||
-  "gpt-4o-mini";
+  "claude-haiku-4-5";
 
 export interface AppointmentFollowup {
   field: string;

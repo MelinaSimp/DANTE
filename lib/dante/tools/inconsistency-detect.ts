@@ -66,7 +66,7 @@ export interface InconsistencyDetectResult {
 
 const MAX_DOCS = 8;
 const MAX_CONTENT_PER_DOC = 4000; // chars
-const MODEL = "gpt-4o-mini";
+const MODEL = "claude-sonnet-4-6";
 
 interface DocPayload {
   id: string;

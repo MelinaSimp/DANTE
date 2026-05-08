@@ -52,7 +52,7 @@ export interface HttpStep extends BaseStep {
 export interface OpenAIStep extends BaseStep {
   type: "openai";
   config: {
-    model?: string;      // default gpt-4o-mini
+    model?: string;      // default claude-sonnet-4-6
     system?: string;
     prompt: string;
     max_tokens?: number;
@@ -156,7 +156,7 @@ export type AgentToolEntry =
 export interface AgentStep extends BaseStep {
   type: "agent";
   config: {
-    model?: string;            // default gpt-4o
+    model?: string;            // default claude-sonnet-4-6
     system?: string;           // role/persona prompt
     objective: string;         // what to accomplish; templated
     /**

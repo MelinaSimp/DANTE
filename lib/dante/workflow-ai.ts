@@ -271,8 +271,9 @@ export async function generateWorkflow(
   const userMessage = buildUserMessage(prompt, proposal, bookSummary);
 
   const result = await llmComplete({
-    // GPT-5 is worth the cost over mini for structured graph output.
-    model: "gpt-5",
+    // Sonnet for structured graph output — better instruction-following
+    // than Haiku, much cheaper than Opus on long JSON.
+    model: "claude-sonnet-4-6",
     temperature: 0.2,
     responseFormat: { type: "json_object" },
     messages: [

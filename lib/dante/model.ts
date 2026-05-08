@@ -9,7 +9,7 @@
 
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
-export const DEFAULT_AGENT_MODEL = "gpt-5";
+export const DEFAULT_AGENT_MODEL = "claude-sonnet-4-6";
 
 export async function getWorkspaceModel(
   workspaceId: string | null | undefined,

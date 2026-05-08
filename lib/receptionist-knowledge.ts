@@ -5,7 +5,7 @@ const KNOWLEDGE_MODEL =
   process.env.RECEPTIONIST_KNOWLEDGE_MODEL ||
   process.env.HOME_CHAT_MODEL ||
   process.env.RECEPTIONIST_COMPLETION_MODEL ||
-  "gpt-4o-mini";
+  "claude-haiku-4-5";
 
 export async function answerKnowledgeQuestion(
   workspaceId: string,

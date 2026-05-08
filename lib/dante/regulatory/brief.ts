@@ -61,7 +61,7 @@ export interface BriefResult {
   model: string;
 }
 
-const BRIEF_MODEL = "gpt-4o-mini";
+const BRIEF_MODEL = "claude-haiku-4-5";
 
 /**
  * Pulls a compact summary of the workspace's book to give the

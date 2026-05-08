@@ -36,7 +36,10 @@ import type {
   LlmTranscribeOptions,
 } from "./types";
 import { openaiProvider } from "./providers/openai";
+import { anthropicProvider } from "./providers/anthropic";
 import { hermesProvider } from "./providers/hermes";
+import { computeCostCents } from "@/lib/dante/model-router";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 interface ProviderSelectorOpts {
   model?: string;
@@ -75,7 +78,20 @@ export function getProvider(opts?: ProviderSelectorOpts): LlmProvider {
   if (opts?.processingMode === "local_only") {
     return hermesProvider;
   }
-  return openaiProvider;
+  // Route by model family: claude-* → Anthropic, gpt-*/text-embedding-*/whisper-*
+  // → OpenAI. Embeddings + transcription always go to OpenAI even if
+  // a Claude model is selected for chat — Anthropic offers neither
+  // and our pgvector schema is dimension-locked at 1536.
+  const m = opts?.model || "";
+  if (m.startsWith("claude-")) return anthropicProvider;
+  if (m.startsWith("gpt-") || m.startsWith("text-embedding-") || m.startsWith("whisper-")) {
+    return openaiProvider;
+  }
+  // Default for unknown / unspecified model strings: Anthropic. The
+  // earlier OpenAI default was a holdover from the OpenAI-only era.
+  // Embed and transcribe paths short-circuit to openai below before
+  // they ever reach this default.
+  return anthropicProvider;
 }
 
 /**
@@ -83,6 +99,12 @@ export function getProvider(opts?: ProviderSelectorOpts): LlmProvider {
  * max_tokens — all optional. The agent loop in lib/dante/agent.ts
  * calls this in a `while (stepIdx < maxSteps)` loop, dispatching
  * tools between iterations.
+ *
+ * Metering: every call produces a row in dante_usage_ledger when a
+ * workspaceId is provided. Cached vs uncached input is split out so
+ * the per-row cost reflects Anthropic's caching discount accurately.
+ * Failures during ledger write are logged but never propagated —
+ * a metering hiccup must not break a user-facing chat.
  */
 export async function complete(
   opts: LlmCompleteOptions,
@@ -92,7 +114,46 @@ export async function complete(
     workspaceId: opts.workspaceId ?? null,
     processingMode: opts.processingMode,
   });
-  return provider.complete(opts);
+  const result = await provider.complete(opts);
+
+  // Skip metering for the local Hermes provider (no cloud spend) and
+  // when the caller didn't tell us which workspace to bill.
+  if (provider.id === "hermes" || !opts.workspaceId) return result;
+
+  // Pull cache breakdown out of the raw response (Anthropic) — OpenAI
+  // doesn't break out cache usage, so it shows up entirely as input.
+  let cachedInputTokens = 0;
+  if (provider.id === "anthropic" && result.raw && typeof result.raw === "object") {
+    const raw = result.raw as { usage?: { cache_read_input_tokens?: number } };
+    cachedInputTokens = raw.usage?.cache_read_input_tokens ?? 0;
+  }
+
+  const inputTokens = result.usage.promptTokens;
+  const outputTokens = result.usage.completionTokens;
+  const cost_cents = computeCostCents(opts.model, {
+    inputTokens,
+    cachedInputTokens,
+    outputTokens,
+  });
+
+  void supabaseAdmin
+    .from("dante_usage_ledger")
+    .insert({
+      workspace_id: opts.workspaceId,
+      model: opts.model,
+      input_tokens: inputTokens,
+      cached_input_tokens: cachedInputTokens,
+      output_tokens: outputTokens,
+      cost_cents,
+      feature: opts.feature ?? null,
+    })
+    .then((res) => {
+      if (res.error) {
+        console.error("[llm-meter] ledger insert failed:", res.error.message);
+      }
+    });
+
+  return result;
 }
 
 /**
@@ -104,8 +165,10 @@ export async function complete(
  * per call); embed.ts batches at 96 to stay conservative.
  */
 export async function embed(opts: LlmEmbedOptions): Promise<number[][]> {
-  const provider = getProvider({ model: opts.model });
-  return provider.embed(opts);
+  // Embeddings are dimension-locked to OpenAI's text-embedding-3-small
+  // (1536 dims) by every pgvector column in the schema. Anthropic
+  // offers no embeddings, so we never route here. Pin to OpenAI.
+  return openaiProvider.embed(opts);
 }
 
 /**
@@ -116,8 +179,10 @@ export async function embed(opts: LlmEmbedOptions): Promise<number[][]> {
 export async function transcribe(
   opts: LlmTranscribeOptions,
 ): Promise<{ text: string }> {
-  const provider = getProvider({ model: opts.model });
-  return provider.transcribe(opts);
+  // Whisper is the only audio model in the stack; Anthropic has no
+  // transcription endpoint. Pin to OpenAI regardless of any model
+  // string a caller might pass.
+  return openaiProvider.transcribe(opts);
 }
 
 /** Default embedding dim — exported so callers can validate vectors. */

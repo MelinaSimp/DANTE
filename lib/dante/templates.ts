@@ -82,7 +82,7 @@ const meetingPrepGraph: WorkflowGraph = {
       data: { step: {
         id: "draft", type: "openai", name: "Compose the prep packet",
         config: {
-          model: "gpt-5",
+          model: "claude-sonnet-4-6",
           system: "You are a meticulous senior financial advisor preparing a 1-page meeting brief. Always cite any archive excerpts by number like [1].",
           prompt:
             "Tomorrow's meetings (contact rows):\n{{steps.tomorrow.contacts}}\n\n" +
@@ -140,7 +140,7 @@ const postMeetingGraph: WorkflowGraph = {
       data: { step: {
         id: "draft", type: "openai", name: "Draft the follow-up email",
         config: {
-          model: "gpt-5",
+          model: "claude-sonnet-4-6",
           system: "You write warm, concise follow-up emails from a financial advisor to a client. Reference the client's own words where possible and flag any action items. Keep the tone professional-but-human.",
           prompt:
             "Meeting note / transcript:\n{{steps.trigger.input.note}}\n\n" +
@@ -195,7 +195,7 @@ const qbrGraph: WorkflowGraph = {
       data: { step: {
         id: "digest", type: "openai", name: "Identify clients past QBR window",
         config: {
-          model: "gpt-5",
+          model: "claude-sonnet-4-6",
           system: "You are an operations assistant. Return JSON only.",
           prompt:
             "Today is {{steps.trigger.input.fired_at}}. Here are the firm's clients:\n{{steps.clients.contacts}}\n\n" +
@@ -241,7 +241,7 @@ const lifeEventGraph: WorkflowGraph = {
       data: { step: {
         id: "classify", type: "openai", name: "Classify life events",
         config: {
-          model: "gpt-5",
+          model: "claude-sonnet-4-6",
           system: "You detect major life events in meeting transcripts. Return JSON: { event: string|null, confidence: 0-1, quote: string }.",
           prompt:
             "Transcript:\n{{steps.trigger.input.transcript}}\n\n" +
@@ -276,7 +276,7 @@ const lifeEventGraph: WorkflowGraph = {
       data: { step: {
         id: "draft", type: "openai", name: "Draft advisor briefing",
         config: {
-          model: "gpt-5",
+          model: "claude-sonnet-4-6",
           system: "You draft a short advisor-facing briefing explaining the detected event, the relevant planning moves, and suggested next actions.",
           prompt:
             "Client: {{steps.trigger.input.client_name}}\n" +
@@ -333,7 +333,7 @@ const birthdayGraph: WorkflowGraph = {
       data: { step: {
         id: "pick", type: "openai", name: "This month's milestones",
         config: {
-          model: "gpt-5",
+          model: "claude-sonnet-4-6",
           system: "You return a JSON list. Nothing else.",
           prompt:
             "This month is {{steps.trigger.input.fired_at}}. From the contact list below, return every client whose birthday or firm-anniversary falls in this month. Shape: [{ id, name, email, milestone, date }].\n\n{{steps.clients.contacts}}",
@@ -346,7 +346,7 @@ const birthdayGraph: WorkflowGraph = {
       data: { step: {
         id: "drafts", type: "openai", name: "Personalize a touch for each",
         config: {
-          model: "gpt-5",
+          model: "claude-sonnet-4-6",
           system: "Write warm, short (3-4 sentence) personal notes from a financial advisor — never salesy, never mentioning markets or products.",
           prompt:
             "For each milestone, write a note. Return JSON: [{ id, name, email, body }].\n\n{{steps.pick.text}}",
@@ -403,7 +403,7 @@ const cashDragGraph: WorkflowGraph = {
       data: { step: {
         id: "analyze", type: "openai", name: "Flag cash-heavy accounts",
         config: {
-          model: "gpt-5",
+          model: "claude-sonnet-4-6",
           system: "You return a JSON array. No prose.",
           prompt:
             "Accounts payload:\n{{steps.positions.body}}\n\n" +
@@ -466,7 +466,7 @@ const volatilityGraph: WorkflowGraph = {
       data: { step: {
         id: "compose", type: "openai", name: "Per-client reassurance note",
         config: {
-          model: "gpt-5",
+          model: "claude-sonnet-4-6",
           system: "Write calm, non-alarmist, fiduciary-tone notes. Never predict. Always reference the client's plan. Reference firm memos by citation number.",
           prompt:
             "Headline: {{steps.trigger.input.headline}}\n\nClients:\n{{steps.clients.contacts}}\n\nFirm view:\n{{steps.firmView.context}}\n\nReturn JSON: [{ id, name, email, body }] — one short, personalized note per client.",
@@ -529,7 +529,7 @@ const rmdGraph: WorkflowGraph = {
       data: { step: {
         id: "identify", type: "openai", name: "Filter clients in RMD window",
         config: {
-          model: "gpt-5",
+          model: "claude-sonnet-4-6",
           system: "Return JSON only. Apply the cited RMD rules precisely.",
           prompt:
             "RMD rules excerpts:\n{{steps.rules.context}}\n\nClients (assume birth_date field when present):\n{{steps.clients.contacts}}\n\nReturn [{ id, name, email, age, required_action, deadline }] for clients who must take an RMD by Dec 31.",
@@ -575,7 +575,7 @@ const taxIntakeGraph: WorkflowGraph = {
       data: { step: {
         id: "extract", type: "openai", name: "Extract structured fields",
         config: {
-          model: "gpt-5",
+          model: "claude-sonnet-4-6",
           system: "You extract structured data from tax documents. Return JSON only.",
           prompt:
             "OCR / text from uploaded document:\n{{steps.trigger.input.text}}\n\n" +
@@ -650,7 +650,7 @@ const beneficiaryGraph: WorkflowGraph = {
       data: { step: {
         id: "drafts", type: "openai", name: "Draft annual outreach",
         config: {
-          model: "gpt-5",
+          model: "claude-sonnet-4-6",
           system: "You write audit-friendly, fiduciary-tone outreach. Always reference the cited firm policy by number.",
           prompt:
             "Policy excerpts:\n{{steps.rules.context}}\n\n" +
@@ -698,7 +698,7 @@ const onboardingGraph: WorkflowGraph = {
       data: { step: {
         id: "welcome", type: "openai", name: "Personal welcome note",
         config: {
-          model: "gpt-5",
+          model: "claude-sonnet-4-6",
           system: "You write warm, personal welcome emails from a financial advisor to a newly signed client. Professional but human, 4-6 sentences.",
           prompt:
             "Client name: {{steps.trigger.input.client_name}}\n" +
@@ -741,7 +741,7 @@ const onboardingGraph: WorkflowGraph = {
       data: { step: {
         id: "questionnaire", type: "openai", name: "Draft intake questionnaire",
         config: {
-          model: "gpt-5",
+          model: "claude-sonnet-4-6",
           system: "You produce a tidy HTML email with a numbered list of planning questions. Cite firm policy excerpts with [1], [2] style citations.",
           prompt:
             "Client: {{steps.trigger.input.client_name}}\n\n" +
@@ -812,7 +812,7 @@ const taxLossGraph: WorkflowGraph = {
       data: { step: {
         id: "scan", type: "openai", name: "Flag harvesting opportunities",
         config: {
-          model: "gpt-5",
+          model: "claude-sonnet-4-6",
           system: "You return a strict JSON array — no prose. You apply wash-sale rules precisely as cited.",
           prompt:
             "Positions:\n{{steps.positions.body}}\n\n" +
@@ -870,7 +870,7 @@ const referralGraph: WorkflowGraph = {
       data: { step: {
         id: "draft", type: "openai", name: "Draft referral ask",
         config: {
-          model: "gpt-5",
+          model: "claude-sonnet-4-6",
           system: "You write tasteful, non-pushy referral-request emails from a financial advisor. Thank the client for their feedback, reference something specific from the meeting, then ask if they know one person who'd benefit from similar guidance. Keep it to 4 sentences.",
           prompt:
             "Client: {{steps.trigger.input.client_name}}\n" +
@@ -935,7 +935,7 @@ const fomcGraph: WorkflowGraph = {
       data: { step: {
         id: "compose", type: "openai", name: "Plain-English commentary",
         config: {
-          model: "gpt-5",
+          model: "claude-sonnet-4-6",
           system: "You translate Fed decisions into plain, calm, non-predictive client commentary. Always cite firm memos by number. Never forecast.",
           prompt:
             "Fed decision summary: {{steps.trigger.input.decision_summary}}\n" +
@@ -994,7 +994,7 @@ const driftGraph: WorkflowGraph = {
       data: { step: {
         id: "recommend", type: "openai", name: "Compose rebalance plan",
         config: {
-          model: "gpt-5",
+          model: "claude-sonnet-4-6",
           system: "You produce a precise, policy-cited rebalance recommendation. No speculation. Cite policy excerpts by [1], [2], etc.",
           prompt:
             "Account: {{steps.trigger.input.account_id}}\n" +
@@ -1061,7 +1061,7 @@ const reviewPrepGraph: WorkflowGraph = {
       data: { step: {
         id: "drafts", type: "openai", name: "Per-client doc-request emails",
         config: {
-          model: "gpt-5",
+          model: "claude-sonnet-4-6",
           system: "You return a JSON array of short, friendly doc-request emails. Reference the firm's policy by number. Never sound bureaucratic.",
           prompt:
             "Today: {{steps.trigger.input.fired_at}}\n" +
@@ -1131,7 +1131,7 @@ const advGraph: WorkflowGraph = {
       data: { step: {
         id: "checklist", type: "openai", name: "Draft amendment checklist",
         config: {
-          model: "gpt-5",
+          model: "claude-sonnet-4-6",
           system: "You are a compliance analyst. You produce a clear, cited checklist. Always cite excerpts by number.",
           prompt:
             "Regulatory rules:\n{{steps.rules.context}}\n\n" +
@@ -1196,7 +1196,7 @@ const socialSecurityGraph: WorkflowGraph = {
       data: { step: {
         id: "windows", type: "openai", name: "Find clients in claiming windows",
         config: {
-          model: "gpt-5",
+          model: "claude-sonnet-4-6",
           system: "You return JSON only. Apply the cited rules precisely.",
           prompt:
             "Playbook excerpts:\n{{steps.rules.context}}\n\n" +

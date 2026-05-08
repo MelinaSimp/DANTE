@@ -25,6 +25,7 @@
     "electron:build:linux": "electron-builder --linux --publish=never"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.95.1",
     "@radix-ui/react-slot": "^1.2.3",
     "@react-email/components": "^0.5.5",
     "@sentry/nextjs": "^10.48.0",
