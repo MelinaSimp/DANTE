@@ -407,6 +407,53 @@ export async function GET() {
       .order("created_at", { ascending: false })
       .limit(12);
     noticedItems = (noticed || []) as typeof noticedItems;
+
+    // Regulatory analysis findings — used to live in the standalone
+    // WhatChanged box. Now folded into the noticed panel as
+    // regulatory_relevant rows so the dashboard has one place for
+    // everything Dante/Vergil noticed. Pulls the latest brief and
+    // surfaces each finding (relevance != 'none') as one item.
+    const { data: latestBrief } = await supabaseAdmin
+      .from("regulatory_briefs")
+      .select("id, generated_at, findings, read_at")
+      .eq("workspace_id", wid)
+      .order("generated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const briefRow = latestBrief as
+      | { id: string; generated_at: string; findings: unknown; read_at: string | null }
+      | null;
+    if (briefRow && Array.isArray(briefRow.findings)) {
+      const findings = briefRow.findings as Array<{
+        item_id: string;
+        authority: string;
+        title: string;
+        source_url: string;
+        relevance: "high" | "medium" | "low" | "none";
+        summary: string;
+        recommended_action: string | null;
+      }>;
+      const visible = findings.filter((f) => f.relevance !== "none").slice(0, 6);
+      const regulatoryItems = visible.map((f) => ({
+        id: `reg:${f.item_id}`,
+        kind: "regulatory_relevant",
+        severity:
+          f.relevance === "high"
+            ? "urgent"
+            : f.relevance === "medium"
+              ? "attention"
+              : "info",
+        title: `${f.authority} · ${f.title}`,
+        body: f.summary,
+        target_kind: "regulatory_url" as string,
+        target_id: f.source_url,
+        created_at: briefRow.generated_at,
+      })) as typeof noticedItems;
+      // Prepend regulatory items so they sit at the top — they're the
+      // "since you were last here" signal that previously had its own
+      // hero box; keeping that prominence inside the panel.
+      noticedItems = [...regulatoryItems, ...noticedItems];
+    }
   }
 
   return NextResponse.json({

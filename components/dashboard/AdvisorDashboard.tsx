@@ -32,7 +32,6 @@ import AppShell from "@/components/shell/AppShell";
 import EntityAsk from "@/components/dante/EntityAsk";
 import { BentoGrid, BentoCard } from "@/components/ui/bento-grid";
 import { usePageContext } from "@/components/dante/PageContext";
-import WhatChanged from "@/components/dashboard/WhatChanged";
 import {
   ArrowUpRight,
   ShieldCheck,
@@ -235,14 +234,14 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
           </p>
         </div>
 
-        {/* "Since you were last here" — the work-unit panel that
-            answers the question every advisor opens the dashboard
-            with: what needs me today? Self-hides when empty so a
-            quiet morning doesn't render an apologetic empty state.
-            Sits above the stat strip and bento grid because the
-            answer to "what's new" should land before the answer to
-            "how big is my book." */}
-        <WhatChanged />
+        {/* WhatChanged removed — its content (regulatory analysis
+            findings) now folds into the "What [assistant] noticed
+            today" bento panel as regulatory_relevant items. One
+            consolidated surface for everything Dante/Vergil saw,
+            instead of one hero box + one bento panel doing the same
+            job. The dashboard endpoint pulls latest regulatory briefs
+            and merges them into noticedItems with click-through to
+            the source regulator URL. */}
 
         {/* Stat strip removed — Clients / Calls / Documents / Verified
             felt like vanity metrics next to the more meaningful
@@ -841,6 +840,12 @@ function noticedHref(item: NoticedItem): string | null {
       return `/dante/archive?item=${item.target_id}`;
     case "reminder":
       return `/reminders?id=${item.target_id}`;
+    case "regulatory_url":
+      // For regulatory notices, target_id IS the source URL —
+      // open the regulator's page directly. Used by items that
+      // came from the regulatory_briefs merge in the dashboard
+      // endpoint (replaced the standalone WhatChanged surface).
+      return item.target_id;
     default:
       return null;
   }
@@ -908,12 +913,28 @@ function NoticedItemsList({
               </button>
             </div>
           );
+          // Regulatory items point at an external regulator URL — render
+          // as an <a target="_blank"> so the page opens in the browser
+          // (or the OS handler on Electron) instead of trying to route
+          // internally.
+          const isExternal = item.target_kind === "regulatory_url";
           return (
             <li key={item.id}>
               {href ? (
-                <Link href={href} className="block hover:bg-[var(--canvas-subtle-hover,var(--canvas-subtle))] transition rounded-[4px]">
-                  {inner}
-                </Link>
+                isExternal ? (
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block hover:bg-[var(--canvas-subtle-hover,var(--canvas-subtle))] transition rounded-[4px]"
+                  >
+                    {inner}
+                  </a>
+                ) : (
+                  <Link href={href} className="block hover:bg-[var(--canvas-subtle-hover,var(--canvas-subtle))] transition rounded-[4px]">
+                    {inner}
+                  </Link>
+                )
               ) : (
                 inner
               )}
