@@ -244,44 +244,12 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
             "how big is my book." */}
         <WhatChanged />
 
-        {/* Stat strip — stripped down, no giant cards. Verified % is
-            only meaningful when the grounded_summaries feature is on;
-            otherwise we drop the column and reflow 4→3. */}
-        {(() => {
-          const showVerified = data.features.includes("grounded_summaries");
-          const cols = showVerified ? "md:grid-cols-4" : "md:grid-cols-3";
-          return (
-            <div
-              className={`grid grid-cols-2 ${cols} gap-px bg-[var(--ink)] mb-12 rounded-md overflow-hidden border border-[var(--ink)] shadow-[0_1px_2px_rgba(20,20,20,0.06),0_4px_12px_-6px_rgba(20,20,20,0.10)]`}
-            >
-              <StatCell
-                label="Clients"
-                value={data.stats.clients.toString()}
-                href="/client-details-overview"
-              />
-              <StatCell
-                label="Calls · 7d"
-                value={data.stats.calls7d.toString()}
-              />
-              <StatCell
-                label="Documents"
-                value={data.stats.documents.toString()}
-                href="/client-details-overview"
-              />
-              {showVerified && (
-                <StatCell
-                  label="Verified"
-                  value={
-                    data.stats.verifiedPct !== null
-                      ? `${data.stats.verifiedPct}%`
-                      : "—"
-                  }
-                  hint="citation-grounded"
-                />
-              )}
-            </div>
-          );
-        })()}
+        {/* Stat strip removed — Clients / Calls / Documents / Verified
+            felt like vanity metrics next to the more meaningful
+            WhatChanged + bento surfaces. The same numbers live on the
+            top-of-page subtitle ("N clients · M calls this week") and
+            on their own dedicated pages, so cutting them here just
+            tightens the dashboard. */}
 
         {/* Bento — main dashboard surface. Mixes hero + small + wide
             tiles so the eye lands on TODAY first, then sweeps right

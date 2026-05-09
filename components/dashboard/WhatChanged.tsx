@@ -194,16 +194,16 @@ export default function WhatChanged() {
     return (
       <section
         aria-label="Since you were last here"
-        className="mb-12 border border-[var(--ink)] rounded-md overflow-hidden bg-[var(--surface,#fff)] shadow-[0_1px_2px_rgba(20,20,20,0.06),0_4px_12px_-6px_rgba(20,20,20,0.10)]"
+        className="mb-8 border border-[var(--ink)] rounded-md overflow-hidden bg-[var(--surface,#fff)] shadow-[0_1px_2px_rgba(20,20,20,0.06),0_4px_12px_-6px_rgba(20,20,20,0.10)]"
       >
-        <div className="px-6 md:px-8 py-5">
-          <div className="label-section mb-1">
+        <div className="px-5 md:px-6 py-3">
+          <div className="label-section mb-0.5">
             Since {formatSince(data.since)}
           </div>
-          <h2 className="heading-display text-2xl md:text-3xl">
+          <h2 className="heading-display text-lg md:text-xl">
             All caught up.
           </h2>
-          <p className="mt-2 text-sm text-[var(--ink-muted)]">
+          <p className="mt-1 text-xs text-[var(--ink-muted)]">
             No drafts waiting on you, no reviews due in the next week, no
             new flags. Anything that comes in will land here.
           </p>
@@ -215,20 +215,20 @@ export default function WhatChanged() {
   return (
     <section
       aria-label="Since you were last here"
-      className="mb-12 border border-[var(--rule)] rounded-md overflow-hidden bg-[var(--surface,#fff)]"
+      className="mb-8 border border-[var(--ink)] rounded-md overflow-hidden bg-[var(--surface,#fff)] shadow-[0_1px_2px_rgba(20,20,20,0.06),0_4px_12px_-6px_rgba(20,20,20,0.10)]"
     >
-      <header className="px-6 md:px-8 py-5 border-b border-[var(--ink)]/15 bg-[var(--canvas)]">
-        <div className="label-section mb-1">
+      <header className="px-5 md:px-6 py-3 border-b border-[var(--ink)]/15 bg-[var(--canvas)]">
+        <div className="label-section mb-0.5">
           Since {formatSince(data.since)}
         </div>
-        <h2 className="heading-display text-2xl md:text-3xl">
+        <h2 className="heading-display text-lg md:text-xl">
           {totalLabel(visibleGroups)}
         </h2>
       </header>
 
-      <ul className="divide-y divide-[var(--rule)]">
+      <ul className="divide-y divide-[var(--ink)]/10">
         {visibleGroups.map((g) => (
-          <li key={g.kind} className="px-6 md:px-8 py-5">
+          <li key={g.kind} className="px-5 md:px-6 py-3.5">
             <div className="flex items-baseline justify-between gap-4 mb-3">
               <h3 className="text-base md:text-lg font-medium text-[var(--ink)]">
                 {g.title}
