@@ -15,6 +15,7 @@
 // Ask (mnemonic: "ask").
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -430,7 +431,14 @@ export default function GlobalSearchModal({
   // since the user hits it expecting Dante front-and-center, not a
   // top-of-page strip.
   const isAsk = mode === "ask";
-  return (
+  // Render through a portal to document.body so the modal escapes
+  // every parent stacking context. Without the portal, ancestor
+  // elements with backdrop-filter / transform / filter / will-change
+  // create local stacking contexts that can trap a child even at
+  // z-[9999]. Reported: "small chat is hidden behind the bento
+  // boxes." Portal is the bulletproof fix.
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <div
       className={`fixed inset-0 z-[9999] flex justify-center bg-[var(--ink)]/60 backdrop-blur-md px-4 ${
         isAsk
@@ -812,6 +820,7 @@ export default function GlobalSearchModal({
         )}
         </div>
       </CreativeCard>
-    </div>
+    </div>,
+    document.body,
   );
 }
