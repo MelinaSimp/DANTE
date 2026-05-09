@@ -39,6 +39,13 @@ interface VoicemailNode {
   id: string;
   type: "voicemail";
   prompt?: string;
+  // Optional routing — lets one scenario differentiate, e.g.,
+  // "Property Management" voicemails (transcript SMS to +1…001) from
+  // "Accounting" (SMS to +1…002). Empty/omitted means: no SMS, email
+  // falls through to the workspace owner.
+  label?: string;
+  sms_to?: string;
+  email_to?: string;
 }
 interface TransferNode {
   id: string;
@@ -71,7 +78,7 @@ function newNode(type: NodeType): ScenarioNode {
         default: null,
       };
     case "voicemail":
-      return { id: NEW_ID(), type, prompt: "" };
+      return { id: NEW_ID(), type, prompt: "", label: "", sms_to: "", email_to: "" };
     case "transfer":
       return { id: NEW_ID(), type, to_number: "" };
   }
@@ -264,6 +271,9 @@ export default function ScenarioBuilder({
                   <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)]">
                     If answer matches… → go to step
                   </div>
+                  <p className="text-[11px] text-[var(--ink-subtle)] -mt-1">
+                    Comma-separated synonyms count as one branch — e.g. <span className="mono">property management, PM, tenant, rent</span>.
+                  </p>
                   {n.branches.map((b, i) => (
                     <div key={i} className="grid grid-cols-[1fr_auto_1fr_auto] gap-2 items-center">
                       <input
@@ -273,7 +283,7 @@ export default function ScenarioBuilder({
                           branches[i] = { ...b, match: e.target.value };
                           updateNode(n.id, { branches } as Partial<BranchNode>);
                         }}
-                        placeholder='"buyer" / "yes" / "tour" / etc.'
+                        placeholder='property management, PM, tenant, rent'
                         className={inputClass}
                       />
                       <ArrowDown
@@ -347,15 +357,64 @@ export default function ScenarioBuilder({
             )}
 
             {n.type === "voicemail" && (
-              <textarea
-                value={n.prompt ?? ""}
-                onChange={(e) =>
-                  updateNode(n.id, { prompt: e.target.value } as Partial<VoicemailNode>)
-                }
-                rows={2}
-                placeholder="What the agent says before the beep. e.g. 'Sorry I missed you — please leave a message after the tone.'"
-                className={`${inputClass} resize-y`}
-              />
+              <div className="space-y-3">
+                <textarea
+                  value={n.prompt ?? ""}
+                  onChange={(e) =>
+                    updateNode(n.id, { prompt: e.target.value } as Partial<VoicemailNode>)
+                  }
+                  rows={2}
+                  placeholder="What the agent says before the beep. e.g. 'Sorry I missed you — please leave a message after the tone.'"
+                  className={`${inputClass} resize-y`}
+                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 border-t border-[var(--rule)]">
+                  <div>
+                    <label className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] block mb-1">
+                      Category label
+                    </label>
+                    <input
+                      value={n.label ?? ""}
+                      onChange={(e) =>
+                        updateNode(n.id, { label: e.target.value } as Partial<VoicemailNode>)
+                      }
+                      placeholder="Property Management"
+                      className={inputClass}
+                    />
+                    <p className="text-[11px] text-[var(--ink-subtle)] mt-1">
+                      Appears in the SMS/email subject so the recipient knows the call type.
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] block mb-1">
+                      SMS transcript to
+                    </label>
+                    <input
+                      value={n.sms_to ?? ""}
+                      onChange={(e) =>
+                        updateNode(n.id, { sms_to: e.target.value } as Partial<VoicemailNode>)
+                      }
+                      placeholder="+15551234567"
+                      className={`${inputClass} mono`}
+                    />
+                    <p className="text-[11px] text-[var(--ink-subtle)] mt-1">
+                      E.164 format. Leave blank for no SMS dispatch.
+                    </p>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] block mb-1">
+                      Override email recipient (optional)
+                    </label>
+                    <input
+                      value={n.email_to ?? ""}
+                      onChange={(e) =>
+                        updateNode(n.id, { email_to: e.target.value } as Partial<VoicemailNode>)
+                      }
+                      placeholder="ops@example.com — leave blank to use workspace owner"
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+              </div>
             )}
 
             {n.type === "transfer" && (

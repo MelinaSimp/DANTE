@@ -190,6 +190,20 @@ async function handleToolCalls(message: any) {
  * handleEndOfCallReport when it sees the voicemail flag — by then
  * the transcript and recording_url are both available.
  */
+function looksLikeE164(n: string): boolean {
+  return /^\+\d{8,15}$/.test(n.trim());
+}
+
+function normalizeE164OrNull(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const stripped = raw.trim().replace(/[\s\-().]/g, "");
+  if (!stripped) return null;
+  const candidate = stripped.startsWith("+")
+    ? stripped
+    : `+${stripped.replace(/^1?/, "1")}`;
+  return looksLikeE164(candidate) ? candidate : null;
+}
+
 async function executeSendToVoicemail(call: any, params: any): Promise<string> {
   const callId = call?.id;
   const greeting =
@@ -197,9 +211,22 @@ async function executeSendToVoicemail(call: any, params: any): Promise<string> {
       ? params.greeting.trim()
       : "Please leave a message after the tone.";
 
-  // Stash the voicemail flag on the call's metadata via the call_logs
-  // table — the conversations row isn't created until end-of-call,
-  // so we use a small lookup row keyed by the VAPI call id.
+  // Routing metadata from the voicemail node — surfaced in the
+  // notification, drives SMS dispatch when sms_to is set, overrides
+  // the default workspace-owner email when email_to is set.
+  const label =
+    typeof params?.label === "string" && params.label.trim()
+      ? params.label.trim()
+      : null;
+  const smsTo = normalizeE164OrNull(params?.sms_to);
+  const emailTo =
+    typeof params?.email_to === "string" && params.email_to.includes("@")
+      ? params.email_to.trim()
+      : null;
+
+  // Stash the voicemail flag on the call's metadata via a small lookup
+  // row keyed by the VAPI call id — the conversations row isn't
+  // created until end-of-call, so we can't write there yet.
   if (callId) {
     try {
       await supabaseAdmin
@@ -208,6 +235,9 @@ async function executeSendToVoicemail(call: any, params: any): Promise<string> {
           {
             vapi_call_id: callId,
             greeting,
+            label,
+            sms_to: smsTo,
+            email_to: emailTo,
             created_at: new Date().toISOString(),
           },
           { onConflict: "vapi_call_id" },
@@ -239,10 +269,6 @@ async function executeSendToVoicemail(call: any, params: any): Promise<string> {
  * rejected upstream), the call simply continues; the model's next
  * turn will see the result string and can recover.
  */
-function looksLikeE164(n: string): boolean {
-  return /^\+\d{8,15}$/.test(n.trim());
-}
-
 async function executeTransferCall(call: any, params: any): Promise<string> {
   const raw = typeof params?.to_number === "string" ? params.to_number.trim() : "";
   // Allow common formatting (spaces, dashes, parens) — strip and
@@ -1179,65 +1205,119 @@ async function notifyVoicemailIfPending(args: {
   try {
     const { data: pending } = await supabaseAdmin
       .from("vapi_voicemail_pending")
-      .select("vapi_call_id, greeting, consumed_at")
+      .select("vapi_call_id, greeting, label, sms_to, email_to, consumed_at")
       .eq("vapi_call_id", args.callId)
       .maybeSingle();
     if (!pending) return;
-    if (pending.consumed_at) return; // already emailed
+    if (pending.consumed_at) return; // already dispatched
 
-    // Resolve workspace owner email via Supabase Auth (email lives
-    // there, not on the profiles row).
+    // Skip transfer-log rows. The transfer handler reuses this table as
+    // a lightweight per-call metadata store and stamps a "transferred
+    // to ..." sentinel into greeting; those rows aren't real voicemail.
+    if (typeof pending.greeting === "string" && pending.greeting.startsWith("transferred to ")) {
+      return;
+    }
+
+    const label = pending.label ? String(pending.label) : null;
+    const smsTo = pending.sms_to ? String(pending.sms_to) : null;
+    const emailToOverride = pending.email_to ? String(pending.email_to) : null;
+
+    // Resolve workspace name + owner email — owner is the fallback
+    // email recipient when the voicemail step doesn't override it.
     const { data: ws } = await supabaseAdmin
       .from("workspaces")
       .select("name, owner_id")
       .eq("id", args.workspaceId)
       .maybeSingle();
-    if (!ws?.owner_id) {
-      console.warn(`[VAPI Voicemail] No owner_id for workspace ${args.workspaceId}`);
-      return;
-    }
-    const { data: ownerAuth } = await supabaseAdmin.auth.admin.getUserById(ws.owner_id);
-    const to = ownerAuth?.user?.email ?? null;
-    if (!to) {
-      console.warn(`[VAPI Voicemail] No advisor email for workspace ${args.workspaceId}`);
-      return;
+    let ownerEmail: string | null = null;
+    if (ws?.owner_id) {
+      const { data: ownerAuth } = await supabaseAdmin.auth.admin.getUserById(ws.owner_id);
+      ownerEmail = ownerAuth?.user?.email ?? null;
     }
 
-    const apiKey = process.env.RESEND_API_KEY;
-    if (!apiKey) {
-      console.warn("[VAPI Voicemail] RESEND_API_KEY not set; skipping email");
-      return;
-    }
-
-    // Trim transcript to a sane preview length for the email body;
-    // full transcript is on the conversation row already.
-    const preview = (args.transcript || "").slice(0, 1500);
     const phoneLabel = args.callerPhone || "Unknown caller";
-    const subject = `Voicemail from ${phoneLabel}`;
-    const lines = [
-      `New voicemail received via ${ws.name || "Drift"}.`,
+    const preview = (args.transcript || "").slice(0, 1500);
+    const wsName = ws?.name || "Drift";
+    const headerLabel = label ? `${label} voicemail` : "Voicemail";
+    const subject = `${headerLabel} from ${phoneLabel}`;
+
+    const emailBody = [
+      `${headerLabel} received via ${wsName}.`,
+      label ? `Category: ${label}` : null,
       ``,
       `From: ${phoneLabel}`,
       args.recordingUrl ? `Recording: ${args.recordingUrl}` : "Recording: (not available)",
       ``,
       `--- Transcript ---`,
       preview || "(no transcript captured)",
-    ].join("\n");
+    ]
+      .filter((l): l is string => l !== null)
+      .join("\n");
 
-    const fromEmail = process.env.RESEND_FROM_EMAIL || "Drift <ops@driftai.studio>";
-    const { Resend } = await import("resend");
-    const resend = new Resend(apiKey);
-    await resend.emails.send({
-      from: fromEmail,
-      to,
-      subject,
-      text: lines,
-    });
+    // SMS body — keep it tight; SendBlue auto-splits anyway, but a
+    // shorter preview fits more reliably on the recipient's lock screen.
+    const smsPreview = (args.transcript || "").slice(0, 900);
+    const smsBody = [
+      `📞 ${headerLabel} — ${wsName}`,
+      `From: ${phoneLabel}`,
+      args.recordingUrl ? `Recording: ${args.recordingUrl}` : null,
+      ``,
+      smsPreview || "(no transcript captured)",
+    ]
+      .filter((l): l is string => l !== null)
+      .join("\n");
 
-    await supabaseAdmin
-      .from("vapi_voicemail_pending")
-      .update({ consumed_at: new Date().toISOString() })
-      .eq("vapi_call_id", args.callId);
+    // Dispatch — SMS if configured, email always (to the override
+    // address if one was set, else the workspace owner). Both run
+    // best-effort; failure on one shouldn't block the other.
+    const targetEmail = emailToOverride || ownerEmail;
+
+    let smsOk = false;
+    let emailOk = false;
+
+    if (smsTo) {
+      try {
+        const { sendMessage } = await import("@/lib/sms/sender");
+        await sendMessage(smsTo, smsBody, {
+          workspaceId: args.workspaceId,
+          source: "voicemail_notify",
+        });
+        smsOk = true;
+        console.log(`[VAPI Voicemail] SMS sent to ${smsTo} for ${label || "default"}`);
+      } catch (smsErr) {
+        console.error("[VAPI Voicemail] SMS dispatch failed:", smsErr);
+      }
+    }
+
+    const apiKey = process.env.RESEND_API_KEY;
+    if (targetEmail && apiKey) {
+      try {
+        const fromEmail = process.env.RESEND_FROM_EMAIL || "Drift <ops@driftai.studio>";
+        const { Resend } = await import("resend");
+        const resend = new Resend(apiKey);
+        await resend.emails.send({
+          from: fromEmail,
+          to: targetEmail,
+          subject,
+          text: emailBody,
+        });
+        emailOk = true;
+        console.log(`[VAPI Voicemail] Email sent to ${targetEmail} for ${label || "default"}`);
+      } catch (emailErr) {
+        console.error("[VAPI Voicemail] Email dispatch failed:", emailErr);
+      }
+    } else if (!targetEmail) {
+      console.warn(`[VAPI Voicemail] No email recipient resolved for workspace ${args.workspaceId}`);
+    } else if (!apiKey) {
+      console.warn("[VAPI Voicemail] RESEND_API_KEY not set; skipping email");
+    }
+
+    if (smsOk || emailOk) {
+      await supabaseAdmin
+        .from("vapi_voicemail_pending")
+        .update({ consumed_at: new Date().toISOString() })
+        .eq("vapi_call_id", args.callId);
+    }
   } catch (e) {
     console.error("[VAPI Voicemail] notify failed:", e);
   }

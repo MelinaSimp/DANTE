@@ -180,12 +180,15 @@ Keep responses short and natural for voice (1-3 sentences).`;
     {
       // Voicemail step — recording is automatic via VAPI's call
       // recording. This tool flips a flag so end-of-call-report
-      // emails the advisor with the transcript + recording URL.
+      // notifies the right destination with the transcript + recording.
+      // The optional routing args (label / sms_to / email_to) come from
+      // the scenario voicemail node so different call categories can
+      // land in different inboxes.
       type: "function",
       function: {
         name: "send_to_voicemail",
         description:
-          "Activate voicemail mode. Speak the greeting verbatim, then stay quiet while the caller records. After they finish, thank them and end the call.",
+          "Activate voicemail mode. Speak the greeting verbatim, then stay quiet while the caller records. After they finish, thank them and end the call. Pass through any label/sms_to/email_to values from the voicemail step exactly as provided.",
         parameters: {
           type: "object",
           properties: {
@@ -193,6 +196,21 @@ Keep responses short and natural for voice (1-3 sentences).`;
               type: "string",
               description:
                 "The exact voicemail greeting from the script step (e.g. 'You've reached the voicemail of …. Please leave a message after the tone.').",
+            },
+            label: {
+              type: "string",
+              description:
+                "Category label for this voicemail (e.g. 'Property Management', 'Accounting'). Pass through verbatim from the voicemail step. Used in the notification subject/header.",
+            },
+            sms_to: {
+              type: "string",
+              description:
+                "E.164 phone number that should receive the transcript by SMS (e.g. '+15551110001'). Pass through verbatim from the voicemail step. Omit if the step doesn't specify one.",
+            },
+            email_to: {
+              type: "string",
+              description:
+                "Email address that should receive the transcript. Pass through verbatim from the voicemail step. Omit if the step doesn't specify one (defaults to the workspace owner).",
             },
           },
           required: ["greeting"],

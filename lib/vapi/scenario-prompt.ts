@@ -8,6 +8,13 @@
 // We compile the graph into a numbered "Step N → ..." script. The
 // LLM is instructed to follow it deterministically and to invoke the
 // transfer/voicemail tools when the script reaches those nodes.
+//
+// Voicemail nodes can carry routing metadata (label, sms_to, email_to)
+// so different call categories — property management vs accounting vs
+// general — can land in different inboxes. The compiler bakes those
+// values into the tool-call instruction so the LLM passes them through
+// to send_to_voicemail; the webhook persists them and the end-of-call
+// dispatcher uses them to decide where to send the transcript.
 
 export type ScenarioNode =
   | { id: string; type: "say"; text: string }
@@ -18,7 +25,14 @@ export type ScenarioNode =
       branches: Array<{ match: string; next: string }>;
       default?: string | null;
     }
-  | { id: string; type: "voicemail"; prompt?: string }
+  | {
+      id: string;
+      type: "voicemail";
+      prompt?: string;
+      label?: string;
+      sms_to?: string;
+      email_to?: string;
+    }
   | { id: string; type: "transfer"; to_number: string };
 
 export interface Scenario {
@@ -32,6 +46,24 @@ export function isScenario(value: unknown): value is Scenario {
   const v = value as any;
   if (!Array.isArray(v.nodes)) return false;
   return true;
+}
+
+// Match strings can carry comma-separated synonyms — "property
+// management, PM, tenant, rent" — so a single branch row covers all
+// the ways a caller might phrase the same intent without the script
+// author needing one row per synonym. Empty entries are dropped.
+function splitMatchSynonyms(raw: string): string[] {
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
+function escapeForPrompt(s: string): string {
+  // The prompt embeds these inside double-quoted strings. Strip stray
+  // quote chars that would break the surrounding quoting; we don't need
+  // to do anything fancier — these are short labels/numbers.
+  return (s || "").replace(/"/g, "'").trim();
 }
 
 export function scenarioToSystemPrompt(scenario: Scenario, agentName: string): string {
@@ -65,17 +97,33 @@ export function scenarioToSystemPrompt(scenario: Scenario, agentName: string): s
       case "branch":
         lines.push(`Step ${stepNo} (ask): "${node.prompt}"`);
         for (const b of node.branches) {
-          lines.push(`  • If the caller's answer matches "${b.match}", go to Step ↦ ${b.next}`);
+          const synonyms = splitMatchSynonyms(b.match);
+          if (synonyms.length === 0) continue;
+          if (synonyms.length === 1) {
+            lines.push(`  • If the caller's answer matches "${synonyms[0]}", go to Step ↦ ${b.next}`);
+          } else {
+            const list = synonyms.map((s) => `"${s}"`).join(", ");
+            lines.push(`  • If the caller's answer mentions any of: ${list} (or close synonyms), go to Step ↦ ${b.next}`);
+          }
         }
         if (node.default) {
           lines.push(`  • Otherwise go to Step ↦ ${node.default}`);
         }
         break;
-      case "voicemail":
+      case "voicemail": {
+        const greeting = escapeForPrompt(node.prompt || "Please leave a message after the tone.");
+        // Build the tool-call argument string. Always pass `greeting`;
+        // pass the routing metadata only when present so the JSON the
+        // model emits stays minimal for nodes that don't need it.
+        const args: string[] = [`greeting="${greeting}"`];
+        if (node.label) args.push(`label="${escapeForPrompt(node.label)}"`);
+        if (node.sms_to) args.push(`sms_to="${escapeForPrompt(node.sms_to)}"`);
+        if (node.email_to) args.push(`email_to="${escapeForPrompt(node.email_to)}"`);
         lines.push(
-          `Step ${stepNo} (voicemail): say "${node.prompt ?? "Please leave a message after the tone."}", then call the send_to_voicemail tool to record. End the conversation after.`
+          `Step ${stepNo} (voicemail): say "${greeting}", then call the send_to_voicemail tool with ${args.join(", ")}. End the conversation after.`
         );
         break;
+      }
       case "transfer":
         lines.push(
           `Step ${stepNo} (transfer): say "Connecting you now, please hold." Then call the transfer_call tool with to_number="${node.to_number}". End your participation in the call after.`
@@ -110,7 +158,7 @@ Follow the steps below in order. Do not improvise around them. If the caller goe
   const tools = `
 Tools available:
 - transfer_call(to_number): bridges the caller to the given number. Use only when a transfer step says to.
-- send_to_voicemail(greeting): activates voicemail mode. Pass the greeting from the voicemail step verbatim (e.g. "You've reached the voicemail of …. Please leave a message after the tone."). Speak the greeting, then stay quiet while the caller records. After they finish, thank them and end the call. Use only when a voicemail step says to.`;
+- send_to_voicemail(greeting, label?, sms_to?, email_to?): activates voicemail mode. Pass every argument shown in the voicemail step verbatim — the routing fields decide who gets the transcript afterward. Speak the greeting, then stay quiet while the caller records. After they finish, thank them briefly and end the call. Use only when a voicemail step says to.`;
 
   return `${header}\n\n${resolved.join("\n")}\n${tools}`;
 }
