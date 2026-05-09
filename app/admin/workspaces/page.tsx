@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Fragment, useState, useEffect } from "react";
 import {
   Building2,
   CheckCircle2,
@@ -15,6 +15,14 @@ import {
 } from "lucide-react";
 import { reportError } from "@/lib/report-error";
 
+interface WorkspaceMember {
+  id: string;
+  name: string | null;
+  email: string | null;
+  role: string;
+  phone_verified: boolean;
+}
+
 interface Workspace {
   id: string;
   name: string;
@@ -25,6 +33,7 @@ interface Workspace {
   owner_name: string | null;
   owner_email: string | null;
   user_count: number;
+  members?: WorkspaceMember[];
   /** Negotiated monthly base price, stored in cents. */
   billing_amount: number | null;
   /** Vertical the workspace was created for. */
@@ -43,6 +52,15 @@ export default function WorkspacesPage() {
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggleExpanded = (id: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   useEffect(() => {
     fetch("/api/admin/workspaces", { credentials: "include" })
@@ -216,8 +234,8 @@ export default function WorkspacesPage() {
                       : "text-[var(--danger)] bg-[var(--danger-soft)] border-[var(--danger)]/30";
 
                   return (
+                    <Fragment key={ws.id}>
                     <tr
-                      key={ws.id}
                       className="border-b border-[var(--rule)] hover:bg-[var(--canvas-subtle)] transition-colors group"
                     >
                       <td className="py-4 px-6">
@@ -323,7 +341,16 @@ export default function WorkspacesPage() {
                           </button>
                         )}
                       </td>
-                      <td className="py-4 px-4 mono text-[var(--ink-muted)]">{ws.user_count}</td>
+                      <td className="py-4 px-4 mono text-[var(--ink-muted)]">
+                        <button
+                          type="button"
+                          onClick={() => toggleExpanded(ws.id)}
+                          className="hover:text-[var(--accent)] hover:underline transition"
+                          title={expanded.has(ws.id) ? "Hide members" : "Show members"}
+                        >
+                          {ws.user_count}
+                        </button>
+                      </td>
                       <td className="py-4 px-4">
                         <span className="mono text-[var(--accent)] text-xs">
                           {featureCount}/7
@@ -413,6 +440,53 @@ export default function WorkspacesPage() {
                         </div>
                       </td>
                     </tr>
+                    {expanded.has(ws.id) && (
+                      <tr className="bg-[var(--canvas-subtle)] border-b border-[var(--rule)]">
+                        <td colSpan={9} className="py-3 px-6">
+                          {!ws.members || ws.members.length === 0 ? (
+                            <div className="text-xs text-[var(--ink-muted)] py-2">
+                              No members.
+                            </div>
+                          ) : (
+                            <ul className="divide-y divide-[var(--rule)]">
+                              {ws.members.map((m) => (
+                                <li
+                                  key={m.id}
+                                  className="flex items-center gap-3 py-2 first:pt-0 last:pb-0"
+                                >
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-sm text-[var(--ink)]">
+                                        {m.name || m.email || m.id.slice(0, 8)}
+                                      </span>
+                                      <span
+                                        className={`text-[10px] mono uppercase tracking-wider ${m.role === "owner" ? "text-[var(--accent)]" : "text-[var(--ink-muted)]"}`}
+                                      >
+                                        {m.role}
+                                      </span>
+                                      {m.phone_verified && (
+                                        <span
+                                          className="text-[10px] text-[var(--verified)]"
+                                          title="Phone enrolled"
+                                        >
+                                          ● Phone
+                                        </span>
+                                      )}
+                                    </div>
+                                    {m.email && m.name && (
+                                      <div className="text-[11px] text-[var(--ink-muted)] mt-0.5">
+                                        {m.email}
+                                      </div>
+                                    )}
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                   );
                 })}
               </tbody>

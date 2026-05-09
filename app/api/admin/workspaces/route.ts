@@ -34,7 +34,7 @@ export async function GET() {
 
   const { data: profiles } = await supabaseAdmin
     .from("profiles")
-    .select("id, workspace_id, full_name");
+    .select("id, workspace_id, full_name, role, sms_verified_at");
 
   const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers();
   const emailMap = new Map<string, string>();
@@ -45,12 +45,19 @@ export async function GET() {
   const enriched = (workspaces || []).map((ws) => {
     const owner = profiles?.find((p) => p.id === ws.owner_id);
     const ownerEmail = owner ? emailMap.get(owner.id) : null;
-    const userCount = profiles?.filter((p) => p.workspace_id === ws.id).length || 0;
+    const wsMembers = (profiles || []).filter((p) => p.workspace_id === ws.id);
     return {
       ...ws,
       owner_name: owner?.full_name || null,
       owner_email: ownerEmail || null,
-      user_count: userCount,
+      user_count: wsMembers.length,
+      members: wsMembers.map((m) => ({
+        id: m.id,
+        name: (m as { full_name?: string | null }).full_name || null,
+        email: emailMap.get(m.id) || null,
+        role: (m as { role?: string | null }).role || "member",
+        phone_verified: !!(m as { sms_verified_at?: string | null }).sms_verified_at,
+      })),
     };
   });
 
