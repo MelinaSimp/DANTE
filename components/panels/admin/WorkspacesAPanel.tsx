@@ -1,13 +1,22 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Building2, CheckCircle2, AlertCircle, XCircle, Trash2, UserPlus, Loader2, X, Check, DollarSign, Copy, KeyRound } from "lucide-react";
+import { Fragment, useState, useEffect } from "react";
+import { Building2, CheckCircle2, AlertCircle, XCircle, Trash2, UserPlus, Users, ChevronDown, ChevronRight, Loader2, X, Check, DollarSign, Copy, KeyRound } from "lucide-react";
 import { reportError } from "@/lib/report-error";
+
+interface WorkspaceMember {
+  id: string;
+  name: string | null;
+  email: string | null;
+  role: string;
+  phone_verified: boolean;
+}
 
 interface Workspace {
   id: string; name: string; created_at: string; owner_id: string; enabled_features: string[];
   plan_status: string; owner_name: string | null; owner_email: string | null; user_count: number;
   billing_amount: number | null; billing_cycle: string | null; invite_code: string | null;
+  members?: WorkspaceMember[];
 }
 
 export default function WorkspacesAPanel() {
@@ -19,6 +28,15 @@ export default function WorkspacesAPanel() {
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const toggleExpanded = (id: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   const [editingBilling, setEditingBilling] = useState<string | null>(null);
   const [billingAmount, setBillingAmount] = useState("");
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
@@ -127,7 +145,8 @@ export default function WorkspacesAPanel() {
                 const health = ws.user_count === 0 ? "error" : fc === 0 ? "warning" : "healthy";
                 const sc = ws.plan_status === "active" ? "text-[var(--verified)] bg-[var(--canvas)] border-[var(--rule)]" : ws.plan_status === "trial" ? "text-[var(--accent)] bg-[var(--canvas)] border-[var(--rule)]" : "text-[var(--danger)] bg-[var(--danger-soft)] border-[var(--rule)]";
                 return (
-                  <tr key={ws.id} className="hover:bg-[var(--canvas-subtle)] group">
+                  <Fragment key={ws.id}>
+                  <tr className="hover:bg-[var(--canvas-subtle)] group">
                     <td className="py-3 px-4">{health === "healthy" ? <CheckCircle2 className="h-4 w-4 text-[var(--verified)]" strokeWidth={1.5} /> : health === "warning" ? <AlertCircle className="h-4 w-4 text-yellow-500" strokeWidth={1.5} /> : <XCircle className="h-4 w-4 text-[var(--danger)]" strokeWidth={1.5} />}</td>
                     <td className="py-3 px-4"><div className="text-sm font-medium text-[var(--ink)]">{ws.name}</div><div className="text-[11px] text-[var(--ink-subtle)]">{ws.owner_name || ws.owner_email || "Unknown"}</div></td>
                     <td className="py-3 px-4">
@@ -179,19 +198,54 @@ export default function WorkspacesAPanel() {
                     <td className="py-3 px-4 text-[var(--ink-subtle)] text-xs">{new Date(ws.created_at).toLocaleDateString()}</td>
                     <td className="py-3 px-4">
                       <div className="flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => toggleExpanded(ws.id)}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-[4px] border border-[var(--rule)] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas)] transition"
+                          title={expanded.has(ws.id) ? "Hide members" : "Show members"}
+                        >
+                          {expanded.has(ws.id) ? <ChevronDown className="h-3 w-3" strokeWidth={1.5} /> : <ChevronRight className="h-3 w-3" strokeWidth={1.5} />}
+                          <Users className="h-3 w-3" strokeWidth={1.5} />
+                          <span>Members</span>
+                        </button>
                         {addingUser === ws.id ? (
                           <div className="flex items-center gap-1"><input type="email" value={userEmail} onChange={e => setUserEmail(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAddUser(ws.id)} placeholder="email" className="px-2 py-1 text-xs rounded-[4px] bg-[var(--canvas)] border border-[var(--rule)] text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none w-36" autoFocus />
                             <button onClick={() => handleAddUser(ws.id)} disabled={submitting} className="p-1 text-[var(--verified)] hover:bg-[var(--canvas-subtle)] rounded-[4px] disabled:opacity-50">{submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} /> : <Check className="h-3.5 w-3.5" strokeWidth={1.5} />}</button>
                             <button onClick={() => { setAddingUser(null); setUserEmail(""); }} className="p-1 text-[var(--ink-subtle)] hover:bg-[var(--canvas-subtle)] rounded-[4px]"><X className="h-3.5 w-3.5" strokeWidth={1.5} /></button></div>
-                        ) : <button onClick={() => setAddingUser(ws.id)} className="p-1.5 rounded-[4px] text-[var(--ink-subtle)] hover:text-[var(--accent)] hover:bg-[var(--canvas-subtle)] opacity-0 group-hover:opacity-100"><UserPlus className="h-4 w-4" strokeWidth={1.5} /></button>}
+                        ) : <button onClick={() => setAddingUser(ws.id)} className="p-1.5 rounded-[4px] text-[var(--ink-subtle)] hover:text-[var(--accent)] hover:bg-[var(--canvas-subtle)]" title="Add user by email"><UserPlus className="h-4 w-4" strokeWidth={1.5} /></button>}
                         {confirmDelete === ws.id ? (
                           <div className="flex items-center gap-1"><span className="text-[10px] text-[var(--danger)]">Delete?</span>
                             <button onClick={() => handleDelete(ws.id)} disabled={deleting === ws.id} className="p-1 text-[var(--danger)] hover:bg-[var(--danger-soft)] rounded-[4px] disabled:opacity-50">{deleting === ws.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} /> : <Check className="h-3.5 w-3.5" strokeWidth={1.5} />}</button>
                             <button onClick={() => setConfirmDelete(null)} className="p-1 text-[var(--ink-subtle)] hover:bg-[var(--canvas-subtle)] rounded-[4px]"><X className="h-3.5 w-3.5" strokeWidth={1.5} /></button></div>
-                        ) : <button onClick={() => setConfirmDelete(ws.id)} className="p-1.5 rounded-[4px] text-[var(--ink-subtle)] hover:text-[var(--danger)] hover:bg-[var(--danger-soft)] opacity-0 group-hover:opacity-100"><Trash2 className="h-4 w-4" strokeWidth={1.5} /></button>}
+                        ) : <button onClick={() => setConfirmDelete(ws.id)} className="p-1.5 rounded-[4px] text-[var(--ink-subtle)] hover:text-[var(--danger)] hover:bg-[var(--danger-soft)]" title="Delete workspace"><Trash2 className="h-4 w-4" strokeWidth={1.5} /></button>}
                       </div>
                     </td>
                   </tr>
+                  {expanded.has(ws.id) && (
+                    <tr className="bg-[var(--canvas)] border-t border-[var(--rule)]">
+                      <td colSpan={9} className="py-3 px-6">
+                        {!ws.members || ws.members.length === 0 ? (
+                          <div className="text-xs text-[var(--ink-muted)] py-2">No members.</div>
+                        ) : (
+                          <ul className="divide-y divide-[var(--rule)]">
+                            {ws.members.map((m) => (
+                              <li key={m.id} className="flex items-center gap-3 py-2 first:pt-0 last:pb-0">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm text-[var(--ink)]">{m.name || m.email || m.id.slice(0, 8)}</span>
+                                    <span className={`text-[10px] mono uppercase tracking-wider ${m.role === "owner" ? "text-[var(--accent)]" : "text-[var(--ink-muted)]"}`}>{m.role}</span>
+                                    {m.phone_verified && <span className="text-[10px] text-[var(--verified)]" title="Phone enrolled">● Phone</span>}
+                                  </div>
+                                  {m.email && m.name && <div className="text-[11px] text-[var(--ink-muted)] mt-0.5">{m.email}</div>}
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 );
               })}
             </tbody>
