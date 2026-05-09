@@ -362,12 +362,21 @@ export async function importPhoneToVapi(
     throw new Error("TWILIO_MASTER_ACCOUNT_SID and TWILIO_MASTER_AUTH_TOKEN are required");
   }
 
-  // Check if agent already has a VAPI phone number
+  // Check if agent already has a VAPI phone number. Pull the agent name
+  // too — VAPI's phone-number `name` field is capped at 40 chars, so
+  // we mirror the assistant naming ("Drift - {name}") instead of using
+  // the agent UUID, which exceeds the limit on its own.
   const { data: agent } = await supabaseAdmin
     .from("agents")
-    .select("vapi_phone_number_id")
+    .select("vapi_phone_number_id, name")
     .eq("id", agentId)
     .single();
+
+  // 40-char cap, conservative trim with ellipsis if the agent name is huge.
+  const friendlyName = (() => {
+    const base = `Drift - ${agent?.name ?? "Agent"}`;
+    return base.length <= 40 ? base : base.slice(0, 39) + "…";
+  })();
 
   let phoneNumberId: string;
 
@@ -386,7 +395,7 @@ export async function importPhoneToVapi(
           twilioAccountSid,
           twilioAuthToken,
           assistantId,
-          name: `Drift Agent - ${agentId}`,
+          name: friendlyName,
         });
         phoneNumberId = result.id;
         console.log(`[VAPI Sync] Re-imported phone number ${phoneNumberId} for agent ${agentId}`);
@@ -402,7 +411,7 @@ export async function importPhoneToVapi(
       twilioAccountSid,
       twilioAuthToken,
       assistantId,
-      name: `Drift Agent - ${agentId}`,
+      name: friendlyName,
     });
     phoneNumberId = result.id;
     console.log(`[VAPI Sync] Imported phone number ${phoneNumberId} for agent ${agentId}`);
