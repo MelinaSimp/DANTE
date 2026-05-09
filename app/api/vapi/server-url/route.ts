@@ -204,6 +204,22 @@ function normalizeE164OrNull(raw: unknown): string | null {
   return looksLikeE164(candidate) ? candidate : null;
 }
 
+/**
+ * Comma-separated list normalizer. Voicemail nodes can carry one or
+ * more recipients in `sms_to`; we keep them in a single text column
+ * for backwards-compat with the original single-number shape and
+ * split here. Returns a comma-joined string of valid E.164 numbers,
+ * or null if nothing valid was provided.
+ */
+function normalizeE164ListOrNull(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const parts = raw
+    .split(",")
+    .map((p) => normalizeE164OrNull(p))
+    .filter((p): p is string => Boolean(p));
+  return parts.length > 0 ? parts.join(",") : null;
+}
+
 async function executeSendToVoicemail(call: any, params: any): Promise<string> {
   const callId = call?.id;
   const greeting =
@@ -218,7 +234,7 @@ async function executeSendToVoicemail(call: any, params: any): Promise<string> {
     typeof params?.label === "string" && params.label.trim()
       ? params.label.trim()
       : null;
-  const smsTo = normalizeE164OrNull(params?.sms_to);
+  const smsTo = normalizeE164ListOrNull(params?.sms_to);
   const emailTo =
     typeof params?.email_to === "string" && params.email_to.includes("@")
       ? params.email_to.trim()
@@ -1226,7 +1242,14 @@ async function notifyVoicemailIfPending(args: {
     }
 
     const label = pending.label ? String(pending.label) : null;
-    const smsTo = pending.sms_to ? String(pending.sms_to) : null;
+    // sms_to is comma-joined to support fan-out across multiple
+    // recipients while keeping a single text column.
+    const smsToList = pending.sms_to
+      ? String(pending.sms_to)
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [];
     const emailToOverride = pending.email_to ? String(pending.email_to) : null;
 
     // Resolve workspace name + owner email — owner is the fallback
@@ -1282,18 +1305,32 @@ async function notifyVoicemailIfPending(args: {
     let smsOk = false;
     let emailOk = false;
 
-    if (smsTo) {
-      try {
-        const { sendMessage } = await import("@/lib/sms/sender");
-        await sendMessage(smsTo, smsBody, {
-          workspaceId: args.workspaceId,
-          source: "voicemail_notify",
-        });
-        smsOk = true;
-        console.log(`[VAPI Voicemail] SMS sent to ${smsTo} for ${label || "default"}`);
-      } catch (smsErr) {
-        console.error("[VAPI Voicemail] SMS dispatch failed:", smsErr);
+    if (smsToList.length > 0) {
+      const { sendMessage } = await import("@/lib/sms/sender");
+      const results = await Promise.allSettled(
+        smsToList.map((to) =>
+          sendMessage(to, smsBody, {
+            workspaceId: args.workspaceId,
+            source: "voicemail_notify",
+          }),
+        ),
+      );
+      const okCount = results.filter((r) => r.status === "fulfilled").length;
+      smsOk = okCount > 0;
+      const failed = results
+        .map((r, i) => (r.status === "rejected" ? smsToList[i] : null))
+        .filter((p): p is string => Boolean(p));
+      if (failed.length > 0) {
+        console.error(
+          `[VAPI Voicemail] SMS dispatch failed for ${failed.join(", ")}:`,
+          results
+            .filter((r): r is PromiseRejectedResult => r.status === "rejected")
+            .map((r) => r.reason),
+        );
       }
+      console.log(
+        `[VAPI Voicemail] SMS sent to ${okCount}/${smsToList.length} recipient(s) for ${label || "default"}`,
+      );
     }
 
     const apiKey = process.env.RESEND_API_KEY;

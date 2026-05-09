@@ -388,16 +388,67 @@ export default function ScenarioBuilder({
                     <label className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] block mb-1">
                       SMS transcript to
                     </label>
-                    <input
-                      value={n.sms_to ?? ""}
-                      onChange={(e) =>
-                        updateNode(n.id, { sms_to: e.target.value } as Partial<VoicemailNode>)
-                      }
-                      placeholder="+15551234567"
-                      className={`${inputClass} mono`}
-                    />
-                    <p className="text-[11px] text-[var(--ink-subtle)] mt-1">
-                      E.164 format. Leave blank for no SMS dispatch.
+                    {(() => {
+                      // sms_to is stored as a comma-joined string for
+                      // backwards compat with the single-number shape.
+                      // Split here so the UI can manage N inputs; rejoin
+                      // on every change. Empty array shows one blank row
+                      // so the user always has somewhere to type.
+                      const numbers = (n.sms_to ?? "")
+                        .split(",")
+                        .map((s) => s.trim())
+                        .filter((_, i, arr) => arr.length === 1 || _.length > 0);
+                      const display = numbers.length === 0 ? [""] : numbers;
+                      const writeBack = (next: string[]) => {
+                        const cleaned = next.map((s) => s.trim()).filter(Boolean);
+                        updateNode(
+                          n.id,
+                          { sms_to: cleaned.join(",") } as Partial<VoicemailNode>,
+                        );
+                      };
+                      return (
+                        <div className="space-y-1.5">
+                          {display.map((num, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                              <input
+                                value={num}
+                                onChange={(e) => {
+                                  const copy = [...display];
+                                  copy[i] = e.target.value;
+                                  writeBack(copy);
+                                }}
+                                placeholder="+15551234567"
+                                className={`${inputClass} mono flex-1`}
+                              />
+                              {display.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const copy = display.filter((_, j) => j !== i);
+                                    writeBack(copy.length === 0 ? [""] : copy);
+                                  }}
+                                  className="p-1.5 rounded-[4px] text-[var(--ink-subtle)] hover:text-[var(--danger)] hover:bg-[var(--danger-soft)] transition"
+                                  aria-label="Remove number"
+                                  title="Remove this number"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" strokeWidth={1.5} />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => writeBack([...display, ""])}
+                            className="inline-flex items-center gap-1 text-[11px] text-[var(--accent)] hover:underline"
+                          >
+                            <Plus className="w-3 h-3" strokeWidth={1.5} />
+                            Add number
+                          </button>
+                        </div>
+                      );
+                    })()}
+                    <p className="text-[11px] text-[var(--ink-subtle)] mt-1.5">
+                      E.164 format. Each number on the list receives the transcript. Leave all blank for no SMS dispatch.
                     </p>
                   </div>
                   <div className="md:col-span-2">
