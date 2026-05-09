@@ -29,6 +29,8 @@ export default function WorkspacesAPanel() {
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [confirmRemoveMember, setConfirmRemoveMember] = useState<string | null>(null);
+  const [removingMember, setRemovingMember] = useState<string | null>(null);
 
   const toggleExpanded = (id: string) =>
     setExpanded((prev) => {
@@ -37,6 +39,38 @@ export default function WorkspacesAPanel() {
       else next.add(id);
       return next;
     });
+
+  const handleRemoveMember = async (wsId: string, memberId: string) => {
+    setRemovingMember(memberId);
+    try {
+      const r = await fetch(`/api/admin/workspaces/members/${memberId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok) {
+        setWorkspaces((prev) =>
+          prev.map((w) =>
+            w.id === wsId
+              ? {
+                  ...w,
+                  user_count: Math.max(0, w.user_count - 1),
+                  members: (w.members || []).filter((m) => m.id !== memberId),
+                }
+              : w,
+          ),
+        );
+        setToast({ type: "success", message: "Member removed" });
+      } else {
+        setToast({ type: "error", message: d.error || "Failed to remove" });
+      }
+    } catch {
+      setToast({ type: "error", message: "Network error" });
+    } finally {
+      setRemovingMember(null);
+      setConfirmRemoveMember(null);
+    }
+  };
   const [editingBilling, setEditingBilling] = useState<string | null>(null);
   const [billingAmount, setBillingAmount] = useState("");
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
@@ -238,6 +272,32 @@ export default function WorkspacesAPanel() {
                                   </div>
                                   {m.email && m.name && <div className="text-[11px] text-[var(--ink-muted)] mt-0.5">{m.email}</div>}
                                 </div>
+                                {confirmRemoveMember === m.id ? (
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-[10px] text-[var(--danger)]">Remove?</span>
+                                    <button
+                                      onClick={() => handleRemoveMember(ws.id, m.id)}
+                                      disabled={removingMember === m.id}
+                                      className="p-1 text-[var(--danger)] hover:bg-[var(--danger-soft)] rounded-[4px] disabled:opacity-50"
+                                    >
+                                      {removingMember === m.id ? <Loader2 className="h-3 w-3 animate-spin" strokeWidth={1.5} /> : <Check className="h-3 w-3" strokeWidth={1.5} />}
+                                    </button>
+                                    <button
+                                      onClick={() => setConfirmRemoveMember(null)}
+                                      className="p-1 text-[var(--ink-subtle)] hover:bg-[var(--canvas-subtle)] rounded-[4px]"
+                                    >
+                                      <X className="h-3 w-3" strokeWidth={1.5} />
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => setConfirmRemoveMember(m.id)}
+                                    className="p-1.5 rounded-[4px] text-[var(--ink-subtle)] hover:text-[var(--danger)] hover:bg-[var(--danger-soft)] transition"
+                                    title="Remove from workspace"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+                                  </button>
+                                )}
                               </li>
                             ))}
                           </ul>
