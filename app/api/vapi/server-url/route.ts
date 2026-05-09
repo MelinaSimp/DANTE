@@ -760,18 +760,25 @@ async function handleEndOfCallReport(message: any) {
       });
     }
 
-    // Voicemail email — if the model called send_to_voicemail mid-
-    // call, we stamped a row in vapi_voicemail_pending. Now we
-    // have the recording_url + transcript, send it to the workspace
-    // owner. Fire-and-forget; failures must not block the webhook.
+    // Voicemail dispatch — if the model called send_to_voicemail mid-
+    // call, we stamped a row in vapi_voicemail_pending. Now we have the
+    // recording_url + transcript; route the SMS/email to the
+    // destination(s) the scenario step configured.
+    //
+    // Wrap in `after()` so VAPI gets a fast 200 but Vercel keeps the
+    // lambda alive until the dispatch finishes. The earlier fire-and-
+    // forget shape (`void notify…`) was getting terminated mid-flight
+    // because the response returned before the SMS/email calls
+    // completed — consumed_at would stay null and nothing arrived.
     if (workspaceId && call.id) {
-      void notifyVoicemailIfPending({
+      const dispatchArgs = {
         callId: call.id,
         workspaceId,
         callerPhone,
         recordingUrl: artifact?.recordingUrl || null,
-        transcript: artifact?.transcript || transcript.map((t: any) => `${t.role}: ${t.text}`).join("\n"),
-      });
+        transcript: artifact?.transcript || transcript.map((t: any) => `${t.role}: ${t.content}`).join("\n"),
+      };
+      after(notifyVoicemailIfPending(dispatchArgs));
     }
 
     // Dante churn signal — log an agent_interaction event if we can
