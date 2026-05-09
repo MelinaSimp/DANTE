@@ -224,13 +224,65 @@ export default function AskDante({
   };
 
   // Browser-side text extraction for the + Files and sources picker.
-  // Plain text formats (txt/md/csv/json/log/yaml/yml) decode straight
-  // through TextDecoder. Anything else gets a friendly note attached
-  // so the model knows the file was offered but couldn't be read.
-  // PDF / DOCX support is a fast-follow — uses the same pdfjs-dist +
-  // mammoth libs the SourceViewer already ships.
+  // Three paths:
+  //   • Plain text (txt/md/csv/json/log/yaml/yml/tsv) — TextDecoder
+  //   • PDF — pdfjs-dist (already in the bundle for SourceViewer);
+  //     walks pages, concatenates getTextContent items.
+  //   • DOCX — mammoth (already in the bundle for SourceViewer);
+  //     extractRawText returns the document's plain text.
+  // Anything else gets a friendly placeholder so the model still
+  // knows the user offered the file.
   const TEXT_EXTS = new Set(["txt", "md", "csv", "json", "log", "yaml", "yml", "tsv"]);
-  const MAX_TEXT_BYTES = 200_000; // 200KB per file — preserves prompt budget
+  const MAX_TEXT_CHARS = 200_000; // ~50k tokens — preserves prompt budget
+
+  async function extractPdfText(buffer: ArrayBuffer): Promise<string> {
+    const pdfjs = (await import("pdfjs-dist")) as unknown as {
+      GlobalWorkerOptions: { workerSrc?: string };
+      getDocument: (opts: { data: ArrayBuffer }) => { promise: Promise<{
+        numPages: number;
+        getPage: (n: number) => Promise<{
+          getTextContent: () => Promise<{ items: Array<{ str?: string }> }>;
+          cleanup: () => void;
+        }>;
+      }> };
+    };
+    if (!pdfjs.GlobalWorkerOptions.workerSrc) {
+      pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+    }
+    const doc = await pdfjs.getDocument({ data: buffer }).promise;
+    const out: string[] = [];
+    let total = 0;
+    for (let p = 1; p <= doc.numPages; p++) {
+      if (total > MAX_TEXT_CHARS) break;
+      const page = await doc.getPage(p);
+      const content = await page.getTextContent();
+      const pageText = content.items
+        .map((i) => i.str || "")
+        .filter(Boolean)
+        .join(" ");
+      out.push(pageText);
+      total += pageText.length;
+      page.cleanup();
+    }
+    return out.join("\n\n");
+  }
+
+  async function extractDocxText(buffer: ArrayBuffer): Promise<string> {
+    const mod = (await import(
+      /* webpackChunkName: "mammoth-browser" */
+      "mammoth/mammoth.browser.js" as string
+    )) as unknown as {
+      extractRawText: (input: { arrayBuffer: ArrayBuffer }) => Promise<{ value: string }>;
+    };
+    const { value } = await mod.extractRawText({ arrayBuffer: buffer });
+    return value || "";
+  }
+
+  function clamp(text: string): { text: string; truncated: boolean } {
+    if (text.length <= MAX_TEXT_CHARS) return { text, truncated: false };
+    return { text: text.slice(0, MAX_TEXT_CHARS), truncated: true };
+  }
+
   async function readFileForAttach(file: File): Promise<{
     name: string;
     ext?: string;
@@ -238,23 +290,38 @@ export default function AskDante({
     truncated?: boolean;
   } | null> {
     const ext = (file.name.split(".").pop() || "").toLowerCase();
-    if (TEXT_EXTS.has(ext)) {
-      const buf = await file.arrayBuffer();
-      const slice = buf.byteLength > MAX_TEXT_BYTES ? buf.slice(0, MAX_TEXT_BYTES) : buf;
-      const text = new TextDecoder("utf-8", { fatal: false }).decode(slice);
+    try {
+      if (TEXT_EXTS.has(ext)) {
+        const buf = await file.arrayBuffer();
+        const raw = new TextDecoder("utf-8", { fatal: false }).decode(buf);
+        const { text, truncated } = clamp(raw);
+        return { name: file.name, ext, text, truncated };
+      }
+      if (ext === "pdf") {
+        const buf = await file.arrayBuffer();
+        const raw = await extractPdfText(buf);
+        const { text, truncated } = clamp(raw);
+        return { name: file.name, ext, text, truncated };
+      }
+      if (ext === "docx" || ext === "doc") {
+        const buf = await file.arrayBuffer();
+        const raw = await extractDocxText(buf);
+        const { text, truncated } = clamp(raw);
+        return { name: file.name, ext, text, truncated };
+      }
+    } catch (e) {
+      console.warn(`[file-attach] extraction failed for ${file.name}:`, e);
       return {
         name: file.name,
-        ext,
-        text,
-        truncated: buf.byteLength > MAX_TEXT_BYTES,
+        ext: ext || undefined,
+        text: `(File ${file.name} couldn't be read: ${e instanceof Error ? e.message : "extraction failed"}. Try converting to text and re-attaching.)`,
+        truncated: false,
       };
     }
-    // Non-text formats — surface a friendly placeholder rather than
-    // silently dropping. PDF/DOCX extraction is a follow-up.
     return {
       name: file.name,
       ext: ext || undefined,
-      text: `(File ${file.name} attached — ${ext.toUpperCase()} preview not yet supported in chat. Drop it into a watched folder to ingest into the vault, or convert to text first.)`,
+      text: `(File ${file.name} attached — ${ext.toUpperCase() || "this file type"} not yet supported in chat. Drop it into a watched folder to ingest into the vault, or convert to text first.)`,
       truncated: false,
     };
   }
@@ -509,7 +576,7 @@ export default function AskDante({
           multiple
           hidden
           onChange={onFilesPicked}
-          accept=".txt,.md,.csv,.json,.log,.yaml,.yml,.tsv"
+          accept=".txt,.md,.csv,.json,.log,.yaml,.yml,.tsv,.pdf,.docx,.doc"
         />
       )}
 
