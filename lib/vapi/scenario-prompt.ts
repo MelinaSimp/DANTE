@@ -141,8 +141,12 @@ export function scenarioToSystemPrompt(
         if (node.label) args.push(`label="${escapeForPrompt(node.label)}"`);
         if (node.sms_to) args.push(`sms_to="${escapeForPrompt(node.sms_to)}"`);
         if (node.email_to) args.push(`email_to="${escapeForPrompt(node.email_to)}"`);
+        // Tool-call FIRST, then the spoken greeting. gpt-4o-mini
+        // sometimes skips a "say X, then call the tool" instruction —
+        // it speaks and forgets the tool. Putting the tool first is a
+        // stronger forcing function: the model can't just talk past it.
         lines.push(
-          `Step ${stepNo} (voicemail): say "${greeting}", then call the send_to_voicemail tool with ${args.join(", ")}. End the conversation after.`
+          `Step ${stepNo} (voicemail): YOU MUST FIRST call the send_to_voicemail tool with ${args.join(", ")} — do not skip this step. ONLY AFTER the tool returns, say "${greeting}" and then stay quiet so the caller can record. After they hang up the call ends.`
         );
         break;
       }
@@ -180,7 +184,7 @@ Follow the steps below in order. Do not improvise around them. If the caller goe
   const tools = `
 Tools available:
 - transfer_call(to_number): bridges the caller to the given number. Use only when a transfer step says to.
-- send_to_voicemail(greeting, label?, sms_to?, email_to?): activates voicemail mode. Pass every argument shown in the voicemail step verbatim — the routing fields decide who gets the transcript afterward. Speak the greeting, then stay quiet while the caller records. After they finish, thank them briefly and end the call. Use only when a voicemail step says to.`;
+- send_to_voicemail(greeting, label?, sms_to?, email_to?): activates voicemail mode. CRITICAL: when a voicemail step says to call this tool, you MUST actually invoke the tool — speaking the greeting alone is not enough. The tool stamps the routing metadata on the call so the right person receives the transcript afterward. Always invoke the tool BEFORE speaking the greeting. Pass every argument shown in the voicemail step verbatim. After invoking, speak the greeting, then stay quiet while the caller records.`;
 
   return `${header}\n\n${resolved.join("\n")}\n${tools}`;
 }
