@@ -88,12 +88,30 @@ async function buildAssistantConfig(agentId: string): Promise<VapiAssistantConfi
   //     deterministic numbered script via scenarioToSystemPrompt. The
   //     llm_instructions are ignored; the script wins.
   //   - mode='llm' or unset — current behavior: free-form persona prompt.
+  //
+  // When the entry node is a "say", we hoist its text into VAPI's
+  // firstMessage (further down) AND tell the prompt compiler to skip
+  // it. Without that, VAPI plays the canned "Hello! This is …" greeting
+  // because firstMessage was never set from the scenario, and the
+  // scripted Step 1 only fires after the LLM takes over post-greeting.
   let systemPrompt = "";
+  let scenarioFirstMessage: string | null = null;
 
   if (agent.mode === "scenario" && agent.scenario) {
     const { scenarioToSystemPrompt, isScenario } = await import("./scenario-prompt");
     if (isScenario(agent.scenario)) {
-      systemPrompt = scenarioToSystemPrompt(agent.scenario, agent.name);
+      const sc = agent.scenario as any;
+      const entryNode = sc.nodes?.find((n: any) => n.id === sc.entry);
+      const hoistEntry =
+        entryNode?.type === "say" &&
+        typeof entryNode.text === "string" &&
+        entryNode.text.trim().length > 0;
+      if (hoistEntry) {
+        scenarioFirstMessage = entryNode.text.trim();
+      }
+      systemPrompt = scenarioToSystemPrompt(agent.scenario, agent.name, {
+        skipEntryNode: hoistEntry,
+      });
     } else {
       systemPrompt = `You are ${agent.name}. The scenario data is malformed; ask the user to retry shortly.`;
     }
@@ -244,11 +262,14 @@ Keep responses short and natural for voice (1-3 sentences).`;
 
   // Build first message (greeting). Precedence:
   //   1. agents.first_message — explicit override from the CRM
-  //   2. First step's ai_message of the first scenario
-  //   3. Generic `Hello! This is {name}…` fallback
+  //   2. Scenario JSONB entry node text when it's a "say" (hoisted above)
+  //   3. First step's ai_message of the legacy scenarios table
+  //   4. Generic `Hello! This is {name}…` fallback
   let firstMessage = `Hello! This is ${agent.name}. How can I help you today?`;
   if (agent.first_message && agent.first_message.trim()) {
     firstMessage = agent.first_message.trim();
+  } else if (scenarioFirstMessage) {
+    firstMessage = scenarioFirstMessage;
   } else if (scenarios && scenarios.length > 0) {
     const { data: firstStep } = await supabaseAdmin
       .from("steps")

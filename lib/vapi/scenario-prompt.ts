@@ -66,7 +66,21 @@ function escapeForPrompt(s: string): string {
   return (s || "").replace(/"/g, "'").trim();
 }
 
-export function scenarioToSystemPrompt(scenario: Scenario, agentName: string): string {
+export interface ScenarioPromptOptions {
+  /**
+   * When true, the entry node is omitted from the rendered script.
+   * Used when the entry is a "say" whose text has already been hoisted
+   * to VAPI's firstMessage — without this flag the LLM would see the
+   * greeting in the script and try to repeat it on its first turn.
+   */
+  skipEntryNode?: boolean;
+}
+
+export function scenarioToSystemPrompt(
+  scenario: Scenario,
+  agentName: string,
+  opts: ScenarioPromptOptions = {},
+): string {
   const nodes = scenario.nodes || [];
   if (nodes.length === 0) {
     return `You are ${agentName}. The user has selected scenario mode but hasn't built any steps yet — politely tell the caller you'll be ready shortly.`;
@@ -75,6 +89,14 @@ export function scenarioToSystemPrompt(scenario: Scenario, agentName: string): s
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const visited = new Set<string>();
   const lines: string[] = [];
+
+  // If we hoisted the entry "say" to firstMessage, mark it visited
+  // up front so neither visit(entry) nor the orphan-walk renders it.
+  // Branches that point back at the entry would now resolve to
+  // "(unknown step)" — that's a niche shape we accept for v1.
+  if (opts.skipEntryNode && scenario.entry) {
+    visited.add(scenario.entry);
+  }
 
   // Walk from entry depth-first, numbering as we go. Branches are listed
   // inline ("If the caller says X → go to Step Y").
