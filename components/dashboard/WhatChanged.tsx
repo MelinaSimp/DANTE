@@ -200,12 +200,11 @@ export default function WhatChanged() {
           <div className="label-section mb-0.5">
             Since {formatSince(data.since)}
           </div>
-          <h2 className="heading-display text-lg md:text-xl">
+          <h2 className="heading-display text-base md:text-lg">
             All caught up.
           </h2>
           <p className="mt-1 text-xs text-[var(--ink-muted)]">
-            No drafts waiting on you, no reviews due in the next week, no
-            new flags. Anything that comes in will land here.
+            No drafts waiting, no reviews due, no new flags.
           </p>
         </div>
       </section>
@@ -221,7 +220,7 @@ export default function WhatChanged() {
         <div className="label-section mb-0.5">
           Since {formatSince(data.since)}
         </div>
-        <h2 className="heading-display text-lg md:text-xl">
+        <h2 className="heading-display text-base md:text-lg">
           {totalLabel(visibleGroups)}
         </h2>
       </header>
