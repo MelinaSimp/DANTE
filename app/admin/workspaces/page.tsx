@@ -8,6 +8,9 @@ import {
   XCircle,
   Trash2,
   UserPlus,
+  Users,
+  ChevronDown,
+  ChevronRight,
   Loader2,
   X,
   Check,
@@ -361,6 +364,22 @@ export default function WorkspacesPage() {
                       </td>
                       <td className="py-4 px-4">
                         <div className="flex items-center justify-end gap-2">
+                          {/* Members toggle — always visible */}
+                          <button
+                            type="button"
+                            onClick={() => toggleExpanded(ws.id)}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-[4px] border border-[var(--rule)] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition"
+                            title={expanded.has(ws.id) ? "Hide members" : "Show members"}
+                          >
+                            {expanded.has(ws.id) ? (
+                              <ChevronDown className="h-3 w-3" strokeWidth={1.5} />
+                            ) : (
+                              <ChevronRight className="h-3 w-3" strokeWidth={1.5} />
+                            )}
+                            <Users className="h-3 w-3" strokeWidth={1.5} />
+                            <span>Members</span>
+                          </button>
+
                           {/* Add User */}
                           {addingUser === ws.id ? (
                             <div className="flex items-center gap-1.5">
@@ -399,7 +418,7 @@ export default function WorkspacesPage() {
                           ) : (
                             <button
                               onClick={() => setAddingUser(ws.id)}
-                              className="p-1.5 rounded-[4px] text-[var(--ink-subtle)] hover:text-[var(--accent)] hover:bg-[var(--accent-soft)] transition opacity-0 group-hover:opacity-100"
+                              className="p-1.5 rounded-[4px] text-[var(--ink-subtle)] hover:text-[var(--accent)] hover:bg-[var(--accent-soft)] transition"
                               title="Add user to workspace"
                             >
                               <UserPlus className="h-4 w-4" strokeWidth={1.5} />
@@ -431,7 +450,7 @@ export default function WorkspacesPage() {
                           ) : (
                             <button
                               onClick={() => setConfirmDelete(ws.id)}
-                              className="p-1.5 rounded-[4px] text-[var(--ink-subtle)] hover:text-[var(--danger)] hover:bg-[var(--danger-soft)] transition opacity-0 group-hover:opacity-100"
+                              className="p-1.5 rounded-[4px] text-[var(--ink-subtle)] hover:text-[var(--danger)] hover:bg-[var(--danger-soft)] transition"
                               title="Delete workspace"
                             >
                               <Trash2 className="h-4 w-4" strokeWidth={1.5} />
