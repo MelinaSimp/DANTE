@@ -268,12 +268,124 @@ const computeContradictionFound: Computer = async ({ workspaceId, vertical, now 
   return rows;
 };
 
+// ── client_regulatory_impact ─────────────────────────────────────
+//
+// Fan-out projection: takes the latest regulatory_briefs row for a
+// workspace, walks each finding's affected_clients[], and emits one
+// notice per (client, regulation) pair. The brief generator already
+// did the LLM work — we're just persisting the per-client view so it
+// shows up under each affected client on click-through, supports
+// dismiss tracking, and carries citations into the SourceViewer.
+//
+// The dashboard endpoint also projects findings on-the-fly per-item
+// (one card per regulation with a generic body). The two surfaces
+// complement each other — per-item for the headline, per-client for
+// the actionable drill-down.
+
+interface BriefFindingAffected {
+  contact_id?: string | null;
+  name: string;
+  why: string;
+}
+
+interface BriefFindingShape {
+  item_id: string;
+  authority: string;
+  title: string;
+  source_url: string;
+  relevance: "high" | "medium" | "low" | "none";
+  summary: string;
+  affected_clients: BriefFindingAffected[];
+  recommended_action: string | null;
+}
+
+const computeRegulatoryClientImpact: Computer = async ({
+  workspaceId,
+  vertical,
+  now,
+}) => {
+  // Only project from briefs generated in the past 48h. Older
+  // briefs have already had their day on the dashboard; surfacing
+  // them again would feel like nagging.
+  const since = new Date(now.getTime() - 48 * 60 * 60 * 1000).toISOString();
+
+  const { data: briefs } = await supabaseAdmin
+    .from("regulatory_briefs")
+    .select("id, generated_at, findings")
+    .eq("workspace_id", workspaceId)
+    .gte("generated_at", since)
+    .order("generated_at", { ascending: false })
+    .limit(3);
+
+  if (!briefs || briefs.length === 0) return [];
+
+  const rows: NoticedRow[] = [];
+  const seenPairs = new Set<string>();
+
+  for (const brief of briefs as Array<{ id: string; findings: unknown }>) {
+    if (!Array.isArray(brief.findings)) continue;
+    const findings = brief.findings as BriefFindingShape[];
+
+    for (const finding of findings) {
+      if (finding.relevance === "none" || finding.relevance === "low") continue;
+      if (!Array.isArray(finding.affected_clients)) continue;
+
+      for (const affected of finding.affected_clients) {
+        // Drop name-only mentions ("clients with large IRA balances")
+        // — without a contact_id we can't route the click-through and
+        // the per-item card on the dashboard already covers them.
+        if (!affected.contact_id) continue;
+
+        const pairKey = `${affected.contact_id}:${finding.item_id}`;
+        if (seenPairs.has(pairKey)) continue;
+        seenPairs.add(pairKey);
+
+        const severity =
+          finding.relevance === "high"
+            ? ("urgent" as const)
+            : ("attention" as const);
+
+        const recommended = finding.recommended_action
+          ? ` ${finding.recommended_action}`
+          : "";
+
+        rows.push({
+          workspace_id: workspaceId,
+          vertical,
+          kind: "regulatory_client_impact",
+          severity,
+          title: `${finding.authority} update affects ${affected.name}`,
+          body: `${affected.why}${recommended}`,
+          target_kind: "contact",
+          target_id: affected.contact_id,
+          citations: [
+            {
+              source_kind: "regulation",
+              source_id: finding.item_id,
+              source_url: finding.source_url,
+              source_title: `${finding.authority} · ${finding.title}`,
+              quote: finding.summary,
+            },
+          ],
+          dedupe_key: `regulatory_client_impact:${affected.contact_id}:${finding.item_id}`,
+          // 14 days is enough for the advisor to act; if they don't
+          // we'd rather drop the card than carry it stale.
+          expires_at: new Date(now.getTime() + 14 * 86400_000).toISOString(),
+        });
+      }
+    }
+  }
+
+  return rows;
+};
+
 // ── Registry ─────────────────────────────────────────────────────
 
 export const ALL_COMPUTERS: Computer[] = [
   computeClientStale,
   computeMeetingPrepReady,
   computeContradictionFound,
+  computeRegulatoryClientImpact,
 ];
 
 // ── Bulk upsert ──────────────────────────────────────────────────

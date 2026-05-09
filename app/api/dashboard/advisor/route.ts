@@ -282,6 +282,7 @@ export async function GET() {
     target_kind: string | null;
     target_id: string | null;
     created_at: string;
+    citations?: unknown[];
   }> = [];
 
   if (wid) {
@@ -399,7 +400,7 @@ export async function GET() {
     const nowIso = new Date().toISOString();
     const { data: noticed } = await supabaseAdmin
       .from("dante_noticed")
-      .select("id, kind, severity, title, body, target_kind, target_id, created_at")
+      .select("id, kind, severity, title, body, target_kind, target_id, created_at, citations")
       .eq("workspace_id", wid)
       .is("handled_at", null)
       .gt("expires_at", nowIso)
@@ -453,6 +454,51 @@ export async function GET() {
       // "since you were last here" signal that previously had its own
       // hero box; keeping that prominence inside the panel.
       noticedItems = [...regulatoryItems, ...noticedItems];
+    }
+
+    // Pending workflow proposals — projected on-the-fly so an
+    // accepted proposal's `proposal_state` flip removes it from the
+    // panel without us having to maintain a parallel dante_noticed
+    // row. target_kind='workflow_proposal' wires the dashboard
+    // Accept/Decline buttons to /api/dante/workflows/<id>/proposal.
+    const { data: pendingProposals } = await supabaseAdmin
+      .from("dante_workflows")
+      .select("id, name, description, trigger, created_at")
+      .eq("workspace_id", wid)
+      .eq("proposal_state", "pending")
+      .order("created_at", { ascending: false })
+      .limit(6);
+    if (pendingProposals && pendingProposals.length > 0) {
+      const proposalItems = (
+        pendingProposals as Array<{
+          id: string;
+          name: string;
+          description: string | null;
+          trigger: { type?: string } | null;
+          created_at: string;
+        }>
+      ).map((p) => {
+        const triggerType = (p.trigger?.type as string) || "manual";
+        const triggerLabel =
+          triggerType === "cron"
+            ? "recurring"
+            : triggerType === "at"
+              ? "one-time"
+              : triggerType === "webhook"
+                ? "external trigger"
+                : "manual";
+        return {
+          id: `proposal:${p.id}`,
+          kind: "workflow_suggested",
+          severity: "attention" as const,
+          title: `Proposed workflow: ${p.name}`,
+          body: `${p.description || ""}${p.description ? " " : ""}(${triggerLabel}). Accept to enable.`,
+          target_kind: "workflow_proposal" as string,
+          target_id: p.id,
+          created_at: p.created_at,
+        } as (typeof noticedItems)[number];
+      });
+      noticedItems = [...proposalItems, ...noticedItems];
     }
   }
 

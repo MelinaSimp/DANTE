@@ -41,6 +41,7 @@ import {
 } from "@/lib/dante/tools/inconsistency-detect";
 import { expandMcpTools, callMcpTool, parseMcpToolName } from "@/lib/mcp/registry";
 import { runSkill } from "@/lib/dante/skills";
+import { generateWorkflow } from "@/lib/dante/workflow-ai";
 import { getWorkspaceModel } from "@/lib/dante/model";
 import { complete as llmComplete } from "@/lib/llm/client";
 import {
@@ -331,6 +332,30 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
       },
     },
   },
+  "workflow.propose": {
+    type: "function",
+    function: {
+      name: "workflow_propose",
+      description:
+        "Draft a persistent workflow for the user to accept or decline. CALL THIS whenever the user asks for recurring monitoring, future-dated outreach, or 'let me know if X' — anything that needs to keep working when the app is closed. The workflow is created with enabled=false and proposal_state='pending'; it does NOT fire until the user accepts it on the dashboard or in /reminders. Don't promise to do persistent things yourself — you only run while the app is open. Use reminder.schedule for one-shot self-SMS; use workflow.propose for everything else (recurring, multi-step, conditional, client-facing).",
+      parameters: {
+        type: "object",
+        properties: {
+          intent: {
+            type: "string",
+            description:
+              "Plain-English description of what the workflow should do, written for the materializer. Include trigger frequency ('every Monday at 9am', 'on 2026-12-31', 'when a webhook fires'), action(s) ('email Mrs. Chen with subject ... and body ...'), and any condition logic. Do NOT pass the user's raw question — translate it into an unambiguous spec the materializer can turn into a graph.",
+          },
+          summary: {
+            type: "string",
+            description:
+              "One short sentence the user will see as the proposal title in /reminders. ≤80 chars. E.g. 'Weekly check-in with Mrs. Chen until RMD is filed.'",
+          },
+        },
+        required: ["intent", "summary"],
+      },
+    },
+  },
 };
 
 // Inverse map: function-name string → AgentToolName. The OpenAI API
@@ -350,6 +375,7 @@ const NAME_TO_TOOL: Record<string, AgentToolName> = {
   http_fetch: "http.fetch",
   skill_run: "skill.run",
   reminder_schedule: "reminder.schedule",
+  workflow_propose: "workflow.propose",
 };
 
 // ── Tool executor adapters ────────────────────────────────────
@@ -382,6 +408,7 @@ const PER_TOOL_BUDGET: Partial<Record<AgentToolName, number>> = {
   "regulatory.search": 8, // bounded: a single answer rarely needs >3-4 SEC/IRS lookups
   "rmd.calculate": 10,    // a multi-account briefing might compute several at once
   "inconsistency.detect": 4, // expensive (full doc content in prompt); rarely needs more
+  "workflow.propose": 2,  // one ask = one proposal; cap covers a "and also..." follow-up
 };
 
 /**
@@ -874,6 +901,76 @@ async function dispatchTool(
           "Scheduled. The user can edit or cancel from /reminders.",
       };
     }
+    case "workflow.propose": {
+      // Materializes a persistent workflow proposal. The graph is
+      // generated from the model's natural-language `intent`, then
+      // inserted with enabled=false + proposal_state='pending' so
+      // cron/tick will NOT fire it until the user accepts. The
+      // dashboard / /reminders UI shows pending proposals with
+      // Accept and Decline buttons.
+      const intent = String(args.intent || "").trim();
+      const summary = String(args.summary || "").trim();
+      if (!intent) return { error: "workflow.propose: 'intent' required." };
+      if (!summary) return { error: "workflow.propose: 'summary' required." };
+
+      if (ctx.simulate) {
+        return {
+          simulated: true,
+          would_have: { action: "workflow.propose", intent, summary },
+        };
+      }
+
+      let generated;
+      try {
+        generated = await generateWorkflow(intent);
+      } catch (err) {
+        return {
+          error: `workflow.propose: graph generation failed — ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        };
+      }
+
+      const triggerNode = generated.graph.nodes.find((n) =>
+        n.type.startsWith("trigger_"),
+      );
+      const triggerType = triggerNode
+        ? (triggerNode.type as "trigger_manual" | "trigger_cron" | "trigger_at" | "trigger_webhook")
+        : "trigger_manual";
+
+      // trigger_at workflows store next_fire_at on the row so the
+      // tick can pick them up — but for proposals we leave it null
+      // until accept flips proposal_state to NULL and computes it.
+      const insertPayload: Record<string, unknown> = {
+        workspace_id: ctx.workspaceId,
+        created_by: ctx.userId ?? null,
+        name: summary.slice(0, 80) || generated.name,
+        description: generated.description || intent.slice(0, 280),
+        enabled: false,
+        proposal_state: "pending",
+        trigger: { type: triggerType.replace("trigger_", "") },
+        steps: generated.graph.nodes.map((n) => n.data.step),
+        graph: generated.graph,
+      };
+
+      const { data: wf, error: insertErr } = await supabaseAdmin
+        .from("dante_workflows")
+        .insert(insertPayload)
+        .select("id")
+        .single();
+      if (insertErr) {
+        return { error: `workflow.propose: ${insertErr.message}` };
+      }
+
+      return {
+        ok: true,
+        proposal_id: (wf as { id: string }).id,
+        title: insertPayload.name,
+        trigger_type: triggerType,
+        message:
+          "Drafted as a pending proposal. The user can Accept or Decline from /reminders or the dashboard.",
+      };
+    }
   }
 }
 
@@ -1117,6 +1214,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       "http.fetch": 0,
       "skill.run": 0,
       "reminder.schedule": 0,
+      "workflow.propose": 0,
     },
   };
 

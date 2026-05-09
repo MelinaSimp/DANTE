@@ -19,6 +19,7 @@ import {
   upsertNoticed,
   type NoticedRow,
 } from "@/lib/dante/noticed/compute";
+import { runNoticerAgent } from "@/lib/dante/noticed/agent";
 import type { Industry } from "@/lib/industry/config";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +51,7 @@ export async function GET(req: NextRequest) {
   let totalInserted = 0;
   let totalSkippedNoVertical = 0;
   const perKind: Record<string, number> = {};
+  const noticerSummary: Array<{ workspace_id: string; reason: string; emitted: number }> = [];
 
   for (const ws of (workspaces || []) as WorkspaceRow[]) {
     if (ws.industry !== "financial_advisor" && ws.industry !== "real_estate") {
@@ -72,6 +74,33 @@ export async function GET(req: NextRequest) {
         );
       }
     }
+
+    // Autonomous noticer agent — runs after the deterministic
+    // computers. Cheap kinds run first so the agent has access to
+    // today's fresh notices via its existing-notices context block,
+    // and an LLM failure here can't take down the rest of the cron.
+    try {
+      const agentResult = await runNoticerAgent(ws.id, vertical, now);
+      rows.push(...agentResult.rows);
+      for (const r of agentResult.rows)
+        perKind[r.kind] = (perKind[r.kind] || 0) + 1;
+      noticerSummary.push({
+        workspace_id: ws.id,
+        reason: agentResult.reason,
+        emitted: agentResult.rows.length,
+      });
+    } catch (e) {
+      console.error(
+        `[notices] noticer agent failed for workspace ${ws.id}:`,
+        e instanceof Error ? e.message : e,
+      );
+      noticerSummary.push({
+        workspace_id: ws.id,
+        reason: `error: ${e instanceof Error ? e.message : String(e)}`,
+        emitted: 0,
+      });
+    }
+
     totalRows += rows.length;
 
     if (!dryRun && rows.length > 0) {
@@ -97,6 +126,7 @@ export async function GET(req: NextRequest) {
     rows_computed: totalRows,
     rows_inserted: totalInserted,
     per_kind: perKind,
+    noticer_agent: noticerSummary,
     dry_run: dryRun,
   });
 }

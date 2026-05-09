@@ -97,6 +97,14 @@ type NoticedExpiring = {
 // Generic notices written by the daily cron into dante_noticed.
 // Different shape from the two streams above because target_kind is
 // polymorphic — could be a contact, a vault item, a property doc.
+type NoticedCitation = {
+  source_kind?: string;
+  source_id?: string;
+  source_url?: string;
+  source_title?: string;
+  quote?: string;
+};
+
 type NoticedItem = {
   id: string;
   kind: string;
@@ -106,6 +114,7 @@ type NoticedItem = {
   target_kind: string | null;
   target_id: string | null;
   created_at: string;
+  citations?: NoticedCitation[];
 };
 
 type DashboardData = {
@@ -846,6 +855,12 @@ function noticedHref(item: NoticedItem): string | null {
       // came from the regulatory_briefs merge in the dashboard
       // endpoint (replaced the standalone WhatChanged surface).
       return item.target_id;
+    case "workflow_proposal":
+      // Pending workflow proposal — clicking opens the workflow
+      // editor so the user can review the graph and steps before
+      // accepting. The Accept button next to the card flips
+      // proposal_state directly without navigating.
+      return `/dante/workflows/${item.target_id}`;
     default:
       return null;
   }
@@ -876,10 +891,44 @@ function NoticedItemsList({
       return next;
     });
     try {
-      await fetch(`/api/dante/noticed/${id}/handle`, { method: "POST" });
+      // Workflow proposals project on-the-fly with synthetic ids
+      // ("proposal:<uuid>"); decline routes to the proposal endpoint
+      // instead of the noticed/handle endpoint (which expects a
+      // dante_noticed row id). Persisted notices use the stable
+      // dante_noticed handle path.
+      if (id.startsWith("proposal:")) {
+        const wfId = id.slice("proposal:".length);
+        await fetch(`/api/dante/workflows/${wfId}/proposal`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "decline" }),
+        });
+      } else {
+        await fetch(`/api/dante/noticed/${id}/handle`, { method: "POST" });
+      }
     } catch {
       // optimistic dismiss; if the network call fails the card will
       // reappear on next fetch — acceptable.
+    }
+  }
+
+  async function acceptProposal(id: string) {
+    if (!id.startsWith("proposal:")) return;
+    const wfId = id.slice("proposal:".length);
+    setHidden((s) => {
+      const next = new Set(s);
+      next.add(id);
+      return next;
+    });
+    try {
+      await fetch(`/api/dante/workflows/${wfId}/proposal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "accept" }),
+      });
+    } catch {
+      // Leave the card hidden optimistically; the next dashboard
+      // fetch will re-show it if the accept failed.
     }
   }
 
@@ -891,12 +940,44 @@ function NoticedItemsList({
       <ul className="space-y-2">
         {visible.slice(0, 6).map((item) => {
           const href = noticedHref(item);
+          // Per-client regulatory notices carry a regulation citation
+          // so the advisor can jump from "X affects Mrs. Chen" to the
+          // underlying SEC/Federal Register page in one click. Find
+          // the first regulation-shaped citation and surface it as a
+          // secondary link below the body.
+          const regCitation = item.citations?.find(
+            (c) => c.source_kind === "regulation" && c.source_url,
+          );
           const inner = (
             <div className={`flex items-start gap-3 px-3 py-2.5 ${severityClass(item.severity)} bg-[var(--canvas-subtle)] rounded-r-[4px]`}>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium text-[var(--ink)] truncate">{item.title}</div>
                 {item.body && (
                   <div className="text-[12px] text-[var(--ink-muted)] mt-0.5 line-clamp-2">{item.body}</div>
+                )}
+                {regCitation && (
+                  <a
+                    href={regCitation.source_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-block mt-1 text-[11px] text-[var(--accent)] hover:underline"
+                  >
+                    View regulation →
+                  </a>
+                )}
+                {item.kind === "workflow_suggested" && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      void acceptProposal(item.id);
+                    }}
+                    className="inline-block mt-1.5 mr-2 px-2 py-0.5 text-[11px] rounded-[4px] bg-[var(--accent)] text-white hover:opacity-90 transition"
+                  >
+                    Accept
+                  </button>
                 )}
               </div>
               <button
@@ -906,7 +987,7 @@ function NoticedItemsList({
                   e.stopPropagation();
                   void dismiss(item.id);
                 }}
-                aria-label="Dismiss"
+                aria-label={item.kind === "workflow_suggested" ? "Decline" : "Dismiss"}
                 className="p-1 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--danger)] hover:bg-[var(--danger-soft)] transition"
               >
                 <X className="w-3.5 h-3.5" strokeWidth={1.5} />

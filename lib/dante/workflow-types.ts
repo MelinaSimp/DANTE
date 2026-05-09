@@ -147,7 +147,8 @@ export type AgentToolName =
   | "reminder.schedule" // create a one-shot trigger_at workflow (SMS/email)
   | "regulatory.search" // workspace-shared regulatory corpus (SEC / IRS / DOL / HUD / FINRA)
   | "rmd.calculate"     // deterministic Required Minimum Distribution math with IRS citations
-  | "inconsistency.detect"; // cross-document contradiction detection
+  | "inconsistency.detect" // cross-document contradiction detection
+  | "workflow.propose"; // draft a persistent workflow for the user to accept or decline
 
 export type AgentToolEntry =
   | AgentToolName
