@@ -79,6 +79,18 @@ RULES
      config: { "contact_id": "uuid or template", "patch": { ... } }
    - "send_email" (Resend):
      config: { "to": "...", "subject": "...", "html": "...", "text": "..." }
+   - "send_sms" (SendBlue iMessage / SMS — text the workspace's team):
+     config (exactly ONE recipient selector):
+       { "to_phone": "+15551234567", "body": "..." }                       // single number
+       { "to_role": "owner"|"admin"|"member"|"all", "body": "..." }       // fan out by role
+       { "to_member_id": "<profile uuid>", "body": "..." }                // one specific teammate
+     "to_role": "all" texts every member of the workspace with a
+     verified phone. Members without a verified phone are skipped
+     silently (logged in step output as "skipped"). Use to_role
+     when the user asks to "text the team", "let everyone know",
+     or "remind us all". Use to_phone only when the user gave you
+     an explicit external number. Default for a "text us" request
+     with no specifics: { "to_role": "all" }.
    - "condition" (emits "true" or "false" handle):
      config: { "expression": "{{steps.x.text}} contains 'yes'", "on_false": "stop"|"continue" }
      Supported expression operators: "contains", "==", "!=", ">", "<", ">=", "<=".
@@ -143,9 +155,9 @@ OUTPUT ONLY THE JSON OBJECT.
 // a required field throws and the API route returns a 422.
 
 const VALID_STEP_TYPES: StepType[] = [
-  "trigger_manual", "trigger_cron", "trigger_webhook",
+  "trigger_manual", "trigger_cron", "trigger_webhook", "trigger_at",
   "http", "openai", "query_clients", "update_contact",
-  "send_email", "condition", "delay", "archive_lookup",
+  "send_email", "send_sms", "condition", "delay", "archive_lookup",
 ];
 
 function isObj(v: unknown): v is Record<string, unknown> {

@@ -15,6 +15,7 @@ import {
   Plug,
   Activity,
   MessageSquare,
+  Users,
   Cpu,
   Palette,
   ShieldCheck,
@@ -244,6 +245,14 @@ export default function SettingsOrbClient({
                     >
                       <MessageSquare className="w-4 h-4" strokeWidth={1.5} />
                       <span className="flex-1 text-left">SMS &amp; iMessage</span>
+                      <ArrowUpRight className="w-3 h-3 text-[var(--ink-subtle)]" strokeWidth={1.5} />
+                    </Link>
+                    <Link
+                      href="/settings/team"
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-[4px] transition text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
+                    >
+                      <Users className="w-4 h-4" strokeWidth={1.5} />
+                      <span className="flex-1 text-left">Team</span>
                       <ArrowUpRight className="w-3 h-3 text-[var(--ink-subtle)]" strokeWidth={1.5} />
                     </Link>
                     {features.includes("ai_receptionist") && (

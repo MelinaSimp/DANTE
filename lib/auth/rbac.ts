@@ -1,25 +1,22 @@
 // lib/auth/rbac.ts
 //
-// Phase 3+ panel fix #9 — granular role-based access control.
-//
-// Schema added profiles.role: admin | supervisor | advisor | read_only.
-// This module is the helper layer route handlers use to enforce it.
+// Granular role-based access control for workspace surfaces.
 //
 // Pattern:
 //
-//   const ctx = await requireRole(req, ["admin", "supervisor"]);
+//   const ctx = await requireRole(req, ["owner", "admin"]);
 //   if (!ctx.ok) return ctx.response;
 //   // ctx.user, ctx.workspaceId, ctx.role are now typed and trusted.
 //
-// Roles:
-//   - admin       — workspace settings, members, billing, MCP allowlist,
-//                   compliance export, retention overrides.
-//   - supervisor  — RIA principal / realtor designated broker. Can
-//                   approve memory + outbound queue items. Required
-//                   for client-facing autonomous send-offs.
-//   - advisor     — full chat, can write memory (defaults pending),
-//                   view own contacts. Cannot approve.
-//   - read_only   — examiner / auditor. View, never mutate.
+// Roles (must match the DB CHECK on profiles.role):
+//   - owner    — workspace creator. Settings, billing, members,
+//                MCP allowlist, compliance export, retention. Can
+//                approve memory + outbound queue items.
+//   - admin    — every owner power except billing + workspace delete.
+//                Inherits approve rights.
+//   - member   — full chat, can write memory (defaults pending),
+//                view contacts. Cannot approve client-facing
+//                outbound or modify team membership.
 //
 // Superadmin (`profiles.is_superadmin = true`) bypasses all role
 // gates within their workspace. Anything beyond the workspace
@@ -29,16 +26,15 @@
 import type { NextRequest } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 
-export type Role = "admin" | "supervisor" | "advisor" | "read_only";
+export type Role = "owner" | "admin" | "member";
 
-export const ALL_ROLES: Role[] = ["admin", "supervisor", "advisor", "read_only"];
+export const ALL_ROLES: Role[] = ["owner", "admin", "member"];
 
 /** Roles ordered by privilege descending. Used for "X or higher" checks. */
 const ROLE_RANK: Record<Role, number> = {
-  admin: 4,
-  supervisor: 3,
-  advisor: 2,
-  read_only: 1,
+  owner: 3,
+  admin: 2,
+  member: 1,
 };
 
 export interface AuthContext {
@@ -75,7 +71,7 @@ export async function requireRole(
     .maybeSingle();
   if (!profile?.workspace_id) return failure(400, "no_workspace");
 
-  const role = ((profile as { role?: string }).role ?? "advisor") as Role;
+  const role = ((profile as { role?: string }).role ?? "member") as Role;
   const isSuper = !!(profile as { is_superadmin?: boolean }).is_superadmin;
   if (!isSuper && !allowedRoles.includes(role)) {
     return failure(403, `requires_role:${allowedRoles.join("|")}`);
@@ -89,14 +85,14 @@ export async function requireRole(
   };
 }
 
-/** Convenience: "supervisor or higher" — admin + supervisor + super. */
-export async function requireSupervisor(req: NextRequest) {
-  return requireRole(req, ["admin", "supervisor"]);
+/** Convenience: "admin or higher" — owner + admin + super. */
+export async function requireAdmin(req: NextRequest) {
+  return requireRole(req, ["owner", "admin"]);
 }
 
-/** Convenience: "admin or higher" — admin + super. */
-export async function requireAdmin(req: NextRequest) {
-  return requireRole(req, ["admin"]);
+/** Convenience: "owner only" — strictly the workspace owner + super. */
+export async function requireOwner(req: NextRequest) {
+  return requireRole(req, ["owner"]);
 }
 
 /** Convenience: "any role" — gates auth + workspace, accepts all roles. */
@@ -109,14 +105,14 @@ export function roleSatisfies(actual: Role, required: Role): boolean {
   return ROLE_RANK[actual] >= ROLE_RANK[required];
 }
 
-/** Returns whether `role` may mutate workspace data. read_only cannot. */
+/** Returns whether `role` may mutate workspace data. Members and up. */
 export function canMutate(role: Role): boolean {
-  return role !== "read_only";
+  return ALL_ROLES.includes(role);
 }
 
 /** Returns whether `role` may approve queued items (memory / outbound). */
 export function canApprove(role: Role): boolean {
-  return role === "admin" || role === "supervisor";
+  return role === "owner" || role === "admin";
 }
 
 function failure(status: number, error: string): AuthFailure {

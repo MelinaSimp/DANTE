@@ -208,17 +208,174 @@ async function runSendEmail(cfg: {
 // SendBlue actually used (iMessage if the recipient is on Apple,
 // otherwise green-bubble SMS) so the audit log records what was
 // actually sent — not just what was attempted.
-async function runSendSms(cfg: { to_phone: string; body: string; from_number?: string }) {
-  // Local import keeps lib/dante/ free of an SMS-stack dependency
-  // until it's actually invoked at run time.
+//
+// Recipient resolution: exactly one of to_phone | to_role | to_member_id.
+//   - to_phone: send to that one number (legacy shape, backwards-compat).
+//   - to_role: fan out to every workspace member whose role matches
+//     AND who has a verified phone. Members without a phone get logged
+//     into `skipped[]` instead of erroring.
+//   - to_member_id: target one specific teammate by profile id.
+interface SmsRecipient {
+  phone: string;
+  member_id?: string;
+  member_name?: string | null;
+}
+interface SmsSkipped {
+  member_id: string;
+  reason: string;
+  name?: string | null;
+}
+
+async function resolveSmsRecipients(
+  cfg: {
+    to_phone?: string;
+    to_role?: "owner" | "admin" | "member" | "all";
+    to_member_id?: string;
+  },
+  workspaceId: string,
+): Promise<{ recipients: SmsRecipient[]; skipped: SmsSkipped[] }> {
+  const recipients: SmsRecipient[] = [];
+  const skipped: SmsSkipped[] = [];
+
+  if (cfg.to_member_id) {
+    const { data: row } = await supabaseAdmin
+      .from("profiles")
+      .select("id, full_name, sms_phone, sms_verified_at, workspace_id")
+      .eq("id", cfg.to_member_id)
+      .maybeSingle();
+    const r = row as
+      | {
+          id: string;
+          full_name: string | null;
+          sms_phone: string | null;
+          sms_verified_at: string | null;
+          workspace_id: string | null;
+        }
+      | null;
+    if (!r || r.workspace_id !== workspaceId) {
+      throw new Error(
+        `send_sms: member ${cfg.to_member_id} not found in workspace`,
+      );
+    }
+    if (r.sms_phone && r.sms_verified_at) {
+      recipients.push({
+        phone: r.sms_phone,
+        member_id: r.id,
+        member_name: r.full_name,
+      });
+    } else {
+      skipped.push({
+        member_id: r.id,
+        name: r.full_name,
+        reason: "no_phone_enrolled",
+      });
+    }
+    return { recipients, skipped };
+  }
+  if (cfg.to_role) {
+    let query = supabaseAdmin
+      .from("profiles")
+      .select("id, full_name, role, sms_phone, sms_verified_at")
+      .eq("workspace_id", workspaceId);
+    if (cfg.to_role !== "all") {
+      query = query.eq("role", cfg.to_role);
+    }
+    const { data: rows } = await query;
+    for (const m of (rows || []) as Array<{
+      id: string;
+      full_name: string | null;
+      role: string;
+      sms_phone: string | null;
+      sms_verified_at: string | null;
+    }>) {
+      if (m.sms_phone && m.sms_verified_at) {
+        recipients.push({
+          phone: m.sms_phone,
+          member_id: m.id,
+          member_name: m.full_name,
+        });
+      } else {
+        skipped.push({
+          member_id: m.id,
+          name: m.full_name,
+          reason: "no_phone_enrolled",
+        });
+      }
+    }
+    return { recipients, skipped };
+  }
+  throw new Error(
+    "send_sms: must specify exactly one of to_phone | to_role | to_member_id",
+  );
+}
+
+async function runSendSms(
+  cfg: {
+    to_phone?: string;
+    to_role?: "owner" | "admin" | "member" | "all";
+    to_member_id?: string;
+    body: string;
+    from_number?: string;
+  },
+  workspaceId: string,
+) {
   const { sendMessage } = await import("@/lib/sms/sender");
-  const result = await sendMessage(cfg.to_phone, cfg.body, {
-    fromNumber: cfg.from_number,
-  });
+  const { recipients, skipped } = await resolveSmsRecipients(cfg, workspaceId);
+
+  if (recipients.length === 0) {
+    return {
+      delivered: [] as Array<{
+        to_phone: string;
+        delivery_channel: string;
+        message_id: string;
+        member_id?: string;
+      }>,
+      skipped,
+      delivery_channel: null as string | null,
+      message_id: null as string | null,
+      to_phone: null as string | null,
+    };
+  }
+
+  // Fan out — one HTTP call per recipient. SendBlue is happy to take
+  // these in parallel; bound the concurrency at 4 to be polite.
+  const results: Array<{
+    to_phone: string;
+    delivery_channel: string;
+    message_id: string | null;
+    member_id?: string;
+    member_name?: string | null;
+  }> = [];
+  for (let i = 0; i < recipients.length; i += 4) {
+    const slice = recipients.slice(i, i + 4);
+    const batch = await Promise.all(
+      slice.map(async (rcpt) => {
+        const result = await sendMessage(rcpt.phone, cfg.body, {
+          fromNumber: cfg.from_number,
+        });
+        return {
+          to_phone: rcpt.phone,
+          delivery_channel: result.delivery_channel,
+          message_id: result.message_id,
+          member_id: rcpt.member_id,
+          member_name: rcpt.member_name,
+        };
+      }),
+    );
+    results.push(...batch);
+  }
+
+  // For backwards compatibility with downstream condition steps that
+  // template `{{steps.notify.delivery_channel}}` (set up against the
+  // single-recipient shape), surface the FIRST delivery's channel +
+  // message_id at the top level when there's exactly one recipient.
+  const first = results[0];
   return {
-    to_phone: cfg.to_phone,
-    delivery_channel: result.delivery_channel,
-    message_id: result.message_id,
+    delivered: results,
+    skipped,
+    delivery_channel: first?.delivery_channel ?? null,
+    message_id: first?.message_id ?? null,
+    to_phone: first?.to_phone ?? null,
   };
 }
 
@@ -340,17 +497,45 @@ async function executeNode(
     case "send_sms": {
       const smsCfg = cfg as Parameters<typeof runSendSms>[0];
       if (ctx.simulate) {
+        const previewBody =
+          typeof smsCfg.body === "string" ? smsCfg.body.slice(0, 400) : "";
+        // Resolve the recipient list WITHOUT sending so the run
+        // timeline shows "would_have texted Adharsh, Luca, …"
+        // instead of the raw role selector. Falls back gracefully
+        // on lookup errors.
+        let resolved;
+        try {
+          resolved = await resolveSmsRecipients(smsCfg, workspaceId);
+        } catch (err) {
+          return {
+            simulated: true,
+            would_have: {
+              action: "send_sms",
+              ...smsCfg,
+              body_preview: previewBody,
+              error:
+                err instanceof Error ? err.message : "recipient resolve failed",
+            },
+          };
+        }
         return {
           simulated: true,
           would_have: {
             action: "send_sms",
             to_phone: smsCfg.to_phone,
-            body_preview:
-              typeof smsCfg.body === "string" ? smsCfg.body.slice(0, 400) : "",
+            to_role: smsCfg.to_role,
+            to_member_id: smsCfg.to_member_id,
+            body_preview: previewBody,
+            recipients: resolved.recipients.map((r) => ({
+              to_phone: r.phone,
+              member_id: r.member_id,
+              member_name: r.member_name,
+            })),
+            skipped: resolved.skipped,
           },
         };
       }
-      return runSendSms(smsCfg);
+      return runSendSms(smsCfg, workspaceId);
     }
     case "condition": {
       const expr = String(cfg.expression ?? "");

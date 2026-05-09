@@ -88,9 +88,17 @@ export interface SendEmailStep extends BaseStep {
 
 // SMS / iMessage delivery via SendBlue. Mirrors send_email shape
 // (recipient + body) but omits subject/html since SMS is plain-text.
-// `to_phone` is an E.164 phone number; the runner normalizes before
-// dispatch. `from_number` is optional — when omitted, SendBlue picks
-// the workspace's default sender.
+//
+// Recipient targeting — exactly one of:
+//   - `to_phone`: E.164 number, sends one SMS. Backwards-compatible
+//     shape used by every workflow predating team membership.
+//   - `to_role`: "owner" | "admin" | "member" | "all" — fan out to
+//     every member of the workspace whose `profiles.role` matches AND
+//     who has `sms_verified_at` set. Used by "text everyone on the
+//     team" workflows. Members without a verified phone are skipped
+//     (logged in step output as `skipped: [...]`).
+//   - `to_member_id`: target one teammate by their profile id.
+//     Useful when the agent picks a specific member by name.
 //
 // SendBlue routes blue-bubble (iMessage) when the recipient is on an
 // Apple device, falls back to green-bubble SMS otherwise. The runner
@@ -98,7 +106,9 @@ export interface SendEmailStep extends BaseStep {
 export interface SendSmsStep extends BaseStep {
   type: "send_sms";
   config: {
-    to_phone: string;
+    to_phone?: string;
+    to_role?: "owner" | "admin" | "member" | "all";
+    to_member_id?: string;
     body: string;
     from_number?: string;
   };
