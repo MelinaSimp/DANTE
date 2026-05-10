@@ -63,6 +63,7 @@
     "unpdf": "^1.6.2"
   },
   "devDependencies": {
+    "@electron/notarize": "^2.5.0",
     "@eslint/eslintrc": "^3",
     "@types/form-data": "^2.2.1",
     "@types/node": "^20",
@@ -105,6 +106,7 @@
         "releaseType": "release"
       }
     ],
+    "afterSign": "scripts/notarize.js",
     "mac": {
       "category": "public.app-category.business",
       "target": [
@@ -118,12 +120,24 @@
       ],
       "icon": "public/brand/Drift.icns",
       "darkModeSupport": true,
-      "artifactName": "Drift-AI-mac-${arch}.${ext}"
+      "artifactName": "Drift-AI-mac-${arch}.${ext}",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "electron/entitlements.mac.plist",
+      "entitlementsInherit": "electron/entitlements.mac.plist",
+      "notarize": false
     },
     "win": {
       "target": "nsis",
       "icon": "public/brand/Drift.ico",
-      "artifactName": "Drift-AI-Setup.${ext}"
+      "artifactName": "Drift-AI-Setup.${ext}",
+      "publisherName": "Drift AI LLC",
+      "signingHashAlgorithms": [
+        "sha256"
+      ],
+      "signtoolOptions": {
+        "publisherName": "Drift AI LLC"
+      }
     },
     "linux": {
       "target": "AppImage",

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Required for hardened runtime + Electron's V8 JIT. Without these,
+         the app will crash on launch with EXC_BAD_ACCESS once hardened
+         runtime is enabled. -->
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+
+    <!-- pdfjs-dist runs in legacy mode and may need to read its worker
+         from disk. Hardened runtime blocks dyld interposing by default;
+         this lets our asarUnpacked workers load. -->
+    <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+    <true/>
+
+    <!-- Drift's Hermes mode talks to localhost Ollama (network client)
+         and the renderer talks to driftai.studio (also network client).
+         Drift opens local PDFs and watched folders (user-selected files +
+         user-selected folder). Network server isn't needed. -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+</dict>
+</plist>
