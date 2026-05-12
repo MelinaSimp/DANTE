@@ -248,8 +248,8 @@ export async function POST(req: NextRequest) {
         : executionResults
             .map((result) =>
               result.status === "ok"
-                ? `✅ ${result.action} succeeded.`
-                : `⚠️ ${result.action} failed: ${result.error}`
+                ? `${result.action} succeeded.`
+                : `${result.action} failed: ${result.error}`
             )
             .join("\n");
   }

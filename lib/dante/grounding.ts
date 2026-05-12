@@ -36,9 +36,11 @@ const RETRIEVAL_TOOLS = new Set([
   "clients_query",
   "skill.run",
   "skill_run",
+  "regulatory.search",
+  "regulatory_search",
 ]);
 
-const CITATION_RE = /\[(?:v\d+|mem:[0-9a-f]{4,32})\]/g;
+const CITATION_RE = /\[(?:v\d+|mem:[0-9a-f]{4,32}|reg:\d+)\]/g;
 
 interface TraceEntry {
   step_id?: string;
@@ -103,14 +105,17 @@ export function computeGroundingScore(
   }
   const tool_grounding = total_tools_called > 0 ? retrieval_tools_called / total_tools_called : 0;
 
-  // Validator pass rate. If the validator didn't run (no citations
-  // emitted, or the validator was unavailable), treat as 1 — we
-  // don't punish responses that legitimately don't need citations
-  // (e.g. "summarize what I just said").
+  // Validator pass rate. If no citations emitted and no retrieval
+  // tools were called, treat as 1 — we don't punish responses that
+  // legitimately don't need citations (e.g. "summarize what I just
+  // said"). But if retrieval tools WERE called and zero citations
+  // emitted, that's a "searched but didn't cite" gap — score 0.
   let validator_pass_rate = 1;
   if (input.citationReport && input.citationReport.counts.total > 0) {
     validator_pass_rate =
       input.citationReport.counts.valid / input.citationReport.counts.total;
+  } else if (retrieval_tools_called > 0 && citationCount === 0) {
+    validator_pass_rate = 0;
   }
 
   // Composite. Weights:
@@ -148,10 +153,17 @@ export function computeGroundingScore(
   const memoryCount = input.citationReport
     ? input.citationReport.checks.filter((c) => c.type === "memory" && c.status === "valid").length
     : 0;
+  const regulatoryCount = input.citationReport
+    ? input.citationReport.checks.filter((c) => c.type === "regulatory" && c.status === "valid").length
+    : 0;
 
   let summary: string;
   if (tier === "strong") {
-    summary = `Strongly grounded — ${vaultCount} vault citation${vaultCount === 1 ? "" : "s"}${memoryCount > 0 ? ` + ${memoryCount} memory hit${memoryCount === 1 ? "" : "s"}` : ""}.`;
+    const parts: string[] = [];
+    if (vaultCount > 0) parts.push(`${vaultCount} vault citation${vaultCount === 1 ? "" : "s"}`);
+    if (memoryCount > 0) parts.push(`${memoryCount} memory hit${memoryCount === 1 ? "" : "s"}`);
+    if (regulatoryCount > 0) parts.push(`${regulatoryCount} regulatory source${regulatoryCount === 1 ? "" : "s"}`);
+    summary = `Strongly grounded — ${parts.join(" + ") || "citations verified"}.`;
   } else if (tier === "partial") {
     summary = "Partially grounded — some claims uncited or unverified.";
   } else if (tier === "general") {

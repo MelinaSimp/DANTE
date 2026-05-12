@@ -1698,7 +1698,7 @@ export default function ClientDetailsOverviewClient({
                       ) : (
                         <ul className="space-y-2">
                           {clientNotes.map((n) => {
-                            const isCallNote = n.body.startsWith("📞 Call with");
+                            const isCallNote = n.body.startsWith("Call with");
                             const expanded = expandedNotes.has(n.id);
                             const toggleExpanded = () => {
                               setExpandedNotes((prev) => {

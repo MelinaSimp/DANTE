@@ -94,7 +94,7 @@ export async function GET() {
           .from("notes")
           .select("id, contact_id, body, created_at")
           .eq("workspace_id", wid)
-          .like("body", "📞 Call with%")
+          .like("body", "Call with%")
           .order("created_at", { ascending: false })
           .limit(8)
       : Promise.resolve({ data: [] as any[] }),

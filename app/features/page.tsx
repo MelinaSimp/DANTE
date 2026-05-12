@@ -27,7 +27,7 @@ export default function FeaturesPage() {
           {/* AI Receptionist */}
           <div className="bg-white rounded-lg p-8 shadow-sm">
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
-              <span className="text-2xl">🤖</span>
+              <span className="text-2xl font-semibold">AI</span>
             </div>
             <h3 className="text-xl font-semibold mb-3">AI Receptionist</h3>
             <p className="text-gray-600 mb-4">
@@ -44,7 +44,7 @@ export default function FeaturesPage() {
           {/* Call Management */}
           <div className="bg-white rounded-lg p-8 shadow-sm">
             <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-              <span className="text-2xl">📞</span>
+              <span className="text-2xl font-semibold">Tel</span>
             </div>
             <h3 className="text-xl font-semibold mb-3">Call Management</h3>
             <p className="text-gray-600 mb-4">
@@ -61,7 +61,7 @@ export default function FeaturesPage() {
           {/* Contact Management */}
           <div className="bg-white rounded-lg p-8 shadow-sm">
             <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
-              <span className="text-2xl">👤</span>
+              <span className="text-2xl font-semibold">CRM</span>
             </div>
             <h3 className="text-xl font-semibold mb-3">Contact Management</h3>
             <p className="text-gray-600 mb-4">
@@ -78,7 +78,7 @@ export default function FeaturesPage() {
           {/* Appointment Scheduling */}
           <div className="bg-white rounded-lg p-8 shadow-sm">
             <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-4">
-              <span className="text-2xl">📅</span>
+              <span className="text-2xl font-semibold">Cal</span>
             </div>
             <h3 className="text-xl font-semibold mb-3">Appointment Scheduling</h3>
             <p className="text-gray-600 mb-4">
@@ -95,7 +95,7 @@ export default function FeaturesPage() {
           {/* Business Intelligence */}
           <div className="bg-white rounded-lg p-8 shadow-sm">
             <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mb-4">
-              <span className="text-2xl">📊</span>
+              <span className="text-2xl font-semibold">BI</span>
             </div>
             <h3 className="text-xl font-semibold mb-3">Analytics & Insights</h3>
             <p className="text-gray-600 mb-4">
@@ -112,7 +112,7 @@ export default function FeaturesPage() {
           {/* Customization */}
           <div className="bg-white rounded-lg p-8 shadow-sm">
             <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mb-4">
-              <span className="text-2xl">⚙️</span>
+              <span className="text-2xl font-semibold">Cfg</span>
             </div>
             <h3 className="text-xl font-semibold mb-3">Customization</h3>
             <p className="text-gray-600 mb-4">

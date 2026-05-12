@@ -1,5 +1,6 @@
 // /api/dante/chats/[id] — fetch one chat with full message history.
-// DELETE drops the chat and its messages (foreign-key cascade).
+// DELETE soft-deletes the chat (sets deleted_at). Messages are preserved
+// for compliance audit trails.
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
@@ -23,6 +24,7 @@ export async function GET(
     .from("dante_chats")
     .select("id, title, workspace_id, user_id, created_at, updated_at")
     .eq("id", id)
+    .is("deleted_at", null)
     .maybeSingle();
   if (chatErr || !chat) return NextResponse.json({ error: "not_found" }, { status: 404 });
   if (chat.user_id !== user.id) return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -49,17 +51,31 @@ export async function DELETE(
 
   const { id } = await params;
 
-  // Verify ownership before deleting.
+  // Verify ownership before soft-deleting.
   const { data: chat } = await supabaseAdmin
     .from("dante_chats")
-    .select("user_id")
+    .select("user_id, workspace_id")
     .eq("id", id)
+    .is("deleted_at", null)
     .maybeSingle();
   if (!chat || chat.user_id !== user.id) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
-  const { error } = await supabaseAdmin.from("dante_chats").delete().eq("id", id);
+  const { error } = await supabaseAdmin
+    .from("dante_chats")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Audit trail
+  await supabaseAdmin.from("audit_events").insert({
+    workspace_id: chat.workspace_id,
+    actor_id: user.id,
+    action: "chat.delete",
+    resource_type: "dante_chat",
+    resource_id: id,
+  }).then(() => {}, () => {});
+
   return NextResponse.json({ ok: true });
 }

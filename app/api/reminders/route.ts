@@ -63,7 +63,7 @@ export async function GET(request: Request) {
   }
 
   // Enrich with related entity labels so the triage list can render
-  // "🏠 123 Main St — lease" without a fan-out of follow-up requests.
+  // "123 Main St -- lease" without a fan-out of follow-up requests.
   // The full lookup runs through supabase (RLS-bound to this user's
   // workspace), and only over the ids actually referenced in the
   // result set.

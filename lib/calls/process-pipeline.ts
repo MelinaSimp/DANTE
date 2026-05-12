@@ -25,7 +25,7 @@ import { remember } from "@/lib/dante/memory/write";
 const MAX_UPLOAD_BYTES = 24 * 1024 * 1024; // Whisper API limit is 25 MB
 
 // Drop Unicode pictographs + modifier sequences + isolated modifiers.
-// Covers 🖐️, 😊, regional-indicator pairs, skin-tone modifiers, ZWJ
+// Covers hand-wave, smiley, regional-indicator pairs, skin-tone modifiers, ZWJ
 // sequences, and the VS16 selector Whisper sometimes emits on its own.
 function stripEmojis(text: string): string {
   return text
@@ -136,7 +136,7 @@ export async function processRecording(opts: {
       return fail(recordingId, 502, `Whisper error: ${text.slice(0, 300)}`);
     }
     const data = await resp.json();
-    // Whisper-1 hallucinates emojis on quiet/short segments ("😊 🖐️ Bye"
+    // Whisper-1 hallucinates emojis on quiet/short segments (e.g. "[emoji] Bye"
     // etc.) — they're decoder artifacts, not real content. Strip them
     // before the text hits the DB so every downstream surface (note
     // body, audit transcript, eval scoring) stays clean.
@@ -211,7 +211,7 @@ export async function processRecording(opts: {
     durationSeconds ?? whisperDuration
       ? Math.round((durationSeconds ?? whisperDuration ?? 0) / 60)
       : null;
-  const header = `📞 Call with ${contactName} — ${when}${
+  const header = `Call with ${contactName} — ${when}${
     durationMin ? ` (~${durationMin} min)` : ""
   }`;
   const noteBody = `${header}\n\n${summary}\n\n---\n\nFULL TRANSCRIPT\n${transcript}`;

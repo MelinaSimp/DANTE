@@ -25,6 +25,7 @@ export async function GET() {
     .select("id, title, updated_at, created_at")
     .eq("workspace_id", profile.workspace_id)
     .eq("user_id", user.id)
+    .is("deleted_at", null)
     .order("updated_at", { ascending: false })
     .limit(25);
   if (error) {

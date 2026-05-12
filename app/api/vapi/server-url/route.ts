@@ -88,6 +88,40 @@ export async function GET() {
   return NextResponse.json({ status: "ok", service: "vapi-server-url" });
 }
 
+// ─── Vault isolation ────────────────────────────────────────
+// Confidential documents (leases, deal terms, financials) must
+// NEVER be accessible during external voice calls. This is an
+// architectural constraint — not a toggle.
+
+const VAULT_TOOLS = new Set([
+  "vault.cite", "vault_cite",
+  "archive.search", "archive_search",
+]);
+
+async function isInternalCall(call: any): Promise<boolean> {
+  if (!call?.customer?.number || !call?.assistantId) return false;
+  const callerNumber = call.customer.number.replace(/\D/g, "");
+
+  const { data: agent } = await supabaseAdmin
+    .from("agents")
+    .select("workspace_id, phone_number")
+    .eq("vapi_assistant_id", call.assistantId)
+    .maybeSingle();
+  if (!agent?.workspace_id) return false;
+
+  // Internal = caller number matches any agent's phone in this workspace
+  const { data: wsAgents } = await supabaseAdmin
+    .from("agents")
+    .select("phone_number")
+    .eq("workspace_id", agent.workspace_id);
+  const wsNumbers = new Set(
+    (wsAgents || [])
+      .map((a: { phone_number: string | null }) => a.phone_number?.replace(/\D/g, ""))
+      .filter(Boolean),
+  );
+  return wsNumbers.has(callerNumber);
+}
+
 // ─── Tool Calls ──────────────────────────────────────────────
 
 async function handleToolCalls(message: any) {
@@ -96,11 +130,14 @@ async function handleToolCalls(message: any) {
   const call = message.call;
   const results: any[] = [];
 
+  // Pre-compute call classification for vault isolation
+  const internal = await isInternalCall(call);
+
   console.log(`[VAPI Webhook] Tool calls count: ${toolCalls.length}`);
-  console.log(`[VAPI Webhook] Call object keys: ${call ? JSON.stringify(Object.keys(call)) : "null"}`);
+  console.log(`[VAPI Webhook] Call classified as: ${internal ? "internal" : "external"}`);
   console.log(`[VAPI Webhook] Call assistantId: ${call?.assistantId || "none"}`);
   console.log(`[VAPI Webhook] Message keys: ${JSON.stringify(Object.keys(message))}`);
-  
+
   if (toolCalls.length === 0) {
     // Try alternative format: single function call
     if (message.functionCall) {
@@ -134,6 +171,14 @@ async function handleToolCalls(message: any) {
     let result: string;
 
     console.log(`[VAPI Webhook] Processing tool: ${name}, id: ${id}, params: ${JSON.stringify(parameters).substring(0, 300)}`);
+
+    // Vault isolation: block document access on external calls
+    if (VAULT_TOOLS.has(name) && !internal) {
+      console.warn(`[VAPI Webhook] BLOCKED vault tool "${name}" on external call`);
+      result = JSON.stringify({ error: "Document access is not available during external calls." });
+      results.push({ name, toolCallId: id, result });
+      continue;
+    }
 
     try {
       switch (name) {
@@ -801,7 +846,7 @@ async function handleEndOfCallReport(message: any) {
     // resolve the caller phone to a contact in this workspace. Also
     // the trigger point for the inbound call audit pipeline: once we
     // know we have a real client on the other end, we summarize the
-    // transcript, file a "📞 Call with …" note, and surface the whole
+    // transcript, file a "Call with ..." note, and surface the whole
     // thing on the client's detail page under CALL AUDITS.
     if (workspaceId && callerPhone) {
       const normalized = normalizePhone(callerPhone) || callerPhone;
@@ -872,7 +917,7 @@ async function handleEndOfCallReport(message: any) {
 //   Phase 2 (async, via `after()` so VAPI gets a fast 200):
 //     - Run summarizeCall (same code path as manual recordings).
 //     - Scan for compliance flags.
-//     - Write the 📞 note + link it back to the recording.
+//     - Write the call note + link it back to the recording.
 //     - Flip status to 'done' (or 'error' on failure).
 
 type VapiMessage = {
@@ -889,7 +934,7 @@ type VapiMessage = {
 // Agent/client turns are tagged in the text; the summarizer and the
 // audit UI both treat these as opaque quoted evidence.
 // Whisper / VAPI transcribers occasionally emit emoji decoder artifacts
-// ("😊 🖐️ Bye") on noisy-but-empty audio. Keep 📞 (our own header
+// (e.g. "[emoji] Bye") on noisy-but-empty audio. Keep "Call with" (our own header
 // marker), drop everything else — they're never real transcript content.
 function stripTranscriberEmojis(text: string): string {
   return text
@@ -1030,7 +1075,7 @@ async function kickoffInboundAudit(args: {
         timeStyle: "short",
       });
       const durationMin = durationSeconds > 0 ? Math.round(durationSeconds / 60) : null;
-      const header = `📞 Call with ${contactName} — ${when}${
+      const header = `Call with ${contactName} — ${when}${
         durationMin ? ` (~${durationMin} min)` : ""
       } · Inbound`;
       const noteBody = `${header}\n\n${summary}\n\n---\n\nFULL TRANSCRIPT\n${transcriptText}`;
@@ -1288,7 +1333,7 @@ async function notifyVoicemailIfPending(args: {
     // shorter preview fits more reliably on the recipient's lock screen.
     const smsPreview = (args.transcript || "").slice(0, 900);
     const smsBody = [
-      `📞 ${headerLabel} — ${wsName}`,
+      `${headerLabel} — ${wsName}`,
       `From: ${phoneLabel}`,
       args.recordingUrl ? `Recording: ${args.recordingUrl}` : null,
       ``,

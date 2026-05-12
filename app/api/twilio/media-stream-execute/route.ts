@@ -222,7 +222,7 @@ Be friendly, concise, and natural. For voice conversations, keep responses short
 
     const openaiData = await openaiResponse.json();
     const openaiEndTime = Date.now();
-    console.log(`[Media Stream Execute] ⏱️  OpenAI call took ${openaiEndTime - openaiStartTime}ms`);
+    console.log(`[Media Stream Execute] OpenAI call took ${openaiEndTime - openaiStartTime}ms`);
 
     let assistantMessage = openaiData.choices[0]?.message;
     let finalOutput = "";
@@ -233,7 +233,7 @@ Be friendly, concise, and natural. For voice conversations, keep responses short
       const functionName = assistantMessage.function_call.name;
       const functionArgs = JSON.parse(assistantMessage.function_call.arguments || "{}");
 
-      console.log(`[Media Stream Execute] 🔧 Function call: ${functionName}`, functionArgs);
+      console.log(`[Media Stream Execute] Function call: ${functionName}`, functionArgs);
 
       if (functionName === "schedule_appointment") {
         // Get contact phone from conversation
@@ -349,7 +349,7 @@ Be friendly, concise, and natural. For voice conversations, keep responses short
     })();
 
     const totalTime = Date.now() - startTime;
-    console.log(`[Media Stream Execute] ⏱️  Total execution time: ${totalTime}ms`);
+    console.log(`[Media Stream Execute] Total execution time: ${totalTime}ms`);
 
     const voiceId = agent.elevenlabs_voice_id || "21m00Tcm4TlvDq8ikWAM";
 

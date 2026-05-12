@@ -32,7 +32,7 @@ export async function GET(
 
     // If not in cache, try to decode and regenerate
     if (!audioBuffer) {
-      console.log("[Audio Endpoint] ⚠️ Cache miss - attempting to decode and regenerate");
+      console.log("[Audio Endpoint] [WARN]Cache miss - attempting to decode and regenerate");
       try {
         // Decode cache key: base64(voiceId|text)
         // Handle URL-safe base64: replace - with + and _ with /, add padding if needed
@@ -55,7 +55,7 @@ export async function GET(
           const voiceId = parts[0];
           const text = parts.slice(1).join("|");
           
-          console.log("[Audio Endpoint] ✅ Decoded successfully");
+          console.log("[Audio Endpoint] [OK]Decoded successfully");
           console.log("[Audio Endpoint] Voice ID:", voiceId);
           console.log("[Audio Endpoint] Text length:", text.length);
           console.log("[Audio Endpoint] Text preview:", text.substring(0, 50));
@@ -99,21 +99,21 @@ export async function GET(
               // Store in cache for future requests
               const { storeAudioInCache } = await import("@/lib/elevenlabs/cache");
               storeAudioInCache(cacheKey, audioBuffer);
-              console.log("[Audio Endpoint] ✅ Generated audio on-demand, size:", audioBuffer.length, "bytes");
+              console.log("[Audio Endpoint] [OK]Generated audio on-demand, size:", audioBuffer.length, "bytes");
               console.log("[Audio Endpoint] Total generation time:", apiDuration, "ms");
             } else {
               const errorText = await response.text();
-              console.error("[Audio Endpoint] ❌ ElevenLabs API error:", response.status, errorText);
+              console.error("[Audio Endpoint] [ERR]ElevenLabs API error:", response.status, errorText);
               console.error("[Audio Endpoint] Failed after:", apiDuration, "ms");
             }
           } else {
-            console.error("[Audio Endpoint] ❌ ELEVENLABS_API_KEY not available");
+            console.error("[Audio Endpoint] [ERR]ELEVENLABS_API_KEY not available");
           }
         } else {
-          console.error("[Audio Endpoint] ❌ Invalid cache key format - expected voiceId|text, got:", decoded.substring(0, 100));
+          console.error("[Audio Endpoint] [ERR]Invalid cache key format - expected voiceId|text, got:", decoded.substring(0, 100));
         }
       } catch (decodeError: any) {
-        console.error("[Audio Endpoint] ❌ Failed to decode cache key");
+        console.error("[Audio Endpoint] [ERR]Failed to decode cache key");
         console.error("[Audio Endpoint] Error type:", decodeError.constructor.name);
         console.error("[Audio Endpoint] Error message:", decodeError.message);
         console.error("[Audio Endpoint] Error stack:", decodeError.stack);
@@ -122,7 +122,7 @@ export async function GET(
 
     if (audioBuffer) {
       const duration = Date.now() - startTime;
-      console.log("[Audio Endpoint] ✅ SUCCESS - Returning audio");
+      console.log("[Audio Endpoint] [OK]SUCCESS - Returning audio");
       console.log("[Audio Endpoint] Audio size:", audioBuffer.length, "bytes");
       console.log("[Audio Endpoint] Response time:", duration, "ms");
       console.log("[Audio Endpoint] Content-Type: audio/mpeg");
@@ -141,7 +141,7 @@ export async function GET(
 
     // If not in cache and can't generate, return 404
     const duration = Date.now() - startTime;
-    console.error("[Audio Endpoint] ❌ FAILED - Audio not found and couldn't regenerate");
+    console.error("[Audio Endpoint] [ERR]FAILED - Audio not found and couldn't regenerate");
     console.error("[Audio Endpoint] Response time:", duration, "ms");
     console.error("[Audio Endpoint] Returning 404");
     console.log("=".repeat(80));
@@ -154,7 +154,7 @@ export async function GET(
     });
   } catch (error: any) {
     const duration = Date.now() - startTime;
-    console.error("[Audio Endpoint] ❌ EXCEPTION:", error);
+    console.error("[Audio Endpoint] [ERR]EXCEPTION:", error);
     console.error("[Audio Endpoint] Error message:", error.message);
     console.error("[Audio Endpoint] Error stack:", error.stack);
     console.error("[Audio Endpoint] Response time:", duration, "ms");

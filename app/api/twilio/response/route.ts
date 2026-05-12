@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
         if (!baseUrl) {
           baseUrl = process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || "";
           if (baseUrl) {
-            console.warn("[Twilio Response] ⚠️ Using environment variable (might be outdated):", baseUrl);
+            console.warn("[Twilio Response] Using environment variable (might be outdated):", baseUrl);
           }
         }
         

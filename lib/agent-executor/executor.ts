@@ -87,7 +87,7 @@ export class AgentExecutor {
       }
 
       // Execute step based on type
-      if (DEBUG) console.log(`[AgentExecutor] 🔍 Executing step:`, {
+      if (DEBUG) console.log(`[AgentExecutor] Executing step:`, {
         stepId: step.id,
         stepName: step.name || '(unnamed)',
         stepType: step.type,
@@ -101,15 +101,15 @@ export class AgentExecutor {
       let result: StepResult;
       switch (step.type) {
         case "say":
-          if (DEBUG) console.log(`[AgentExecutor] 📢 Executing SAY step - Will use AI generation with data sources if user input provided`);
+          if (DEBUG) console.log(`[AgentExecutor] Executing SAY step - Will use AI generation with data sources if user input provided`);
           result = await this.executeSayStep(step, userInput);
           break;
         case "gather":
-          if (DEBUG) console.log(`[AgentExecutor] 📝 Executing GATHER step - Extracts information, doesn't use data sources for answering`);
+          if (DEBUG) console.log(`[AgentExecutor] Executing GATHER step - Extracts information, doesn't use data sources for answering`);
           result = await this.executeGatherStep(step, userInput);
           break;
         case "qa":
-          if (DEBUG) console.log(`[AgentExecutor] ❓ Executing Q/A step - Uses data sources for answering questions`);
+          if (DEBUG) console.log(`[AgentExecutor] Executing Q/A step - Uses data sources for answering questions`);
           result = await this.executeQAStep(step, userInput);
           break;
         // REMOVED: case "if" - If steps are removed, use branches on Gather/Q/A instead
@@ -181,7 +181,7 @@ export class AgentExecutor {
 
       return result;
     } catch (error: any) {
-      console.error("[AgentExecutor] ❌ CRITICAL ERROR:", error);
+      console.error("[AgentExecutor] CRITICAL ERROR:", error);
       console.error("[AgentExecutor] Error stack:", error.stack);
       console.error("[AgentExecutor] Error details:", {
         message: error.message,
@@ -1584,7 +1584,7 @@ If critical information is missing (especially scheduledAt or serviceType), set 
     if (DEBUG) console.log(`[Say] generateAIResponse - Loading agent context for agent: ${this.context.agentId}`);
     const agentContext = await this.loadAgentContext();
     
-    if (DEBUG) console.log(`[Say] ✅ Agent context loaded:`, {
+    if (DEBUG) console.log(`[Say] Agent context loaded:`, {
       agentId: this.context.agentId,
       dataSourcesCount: agentContext.dataSources?.length || 0,
       policiesCount: agentContext.policies?.length || 0,
@@ -1599,7 +1599,7 @@ If critical information is missing (especially scheduledAt or serviceType), set 
     });
     
     if (!agentContext.dataSources || agentContext.dataSources.length === 0) {
-      console.warn(`[Say] ⚠️  NO DATA SOURCES FOUND for agent ${this.context.agentId}!`);
+      console.warn(`[Say] NO DATA SOURCES FOUND for agent ${this.context.agentId}!`);
       console.warn(`[Say] This means the AI won't have access to your knowledge base.`);
       console.warn(`[Say] Make sure data sources are configured for this agent.`);
     }
@@ -1607,7 +1607,7 @@ If critical information is missing (especially scheduledAt or serviceType), set 
     // Build prompt
     if (DEBUG) console.log(`[Say] Building system prompt with agent context...`);
     const systemPrompt = this.buildSystemPrompt(agentContext);
-    if (DEBUG) console.log(`[Say] ✅ System prompt built:`, {
+    if (DEBUG) console.log(`[Say] System prompt built:`, {
       promptLength: systemPrompt.length,
       includesKnowledgeBase: systemPrompt.includes('Knowledge Base'),
       includesDataSources: systemPrompt.includes('[Data Source]') || systemPrompt.includes('[File]'),
@@ -1622,7 +1622,7 @@ If critical information is missing (especially scheduledAt or serviceType), set 
     
     // Log the FULL prompt being sent to OpenAI (truncated for logs)
     const fullPrompt = `SYSTEM: ${systemPrompt.substring(0, 500)}...\nUSER: ${userPrompt.substring(0, 200)}`;
-    if (DEBUG) console.log(`[Say] 📤 Full prompt being sent to OpenAI (truncated):`, fullPrompt);
+    if (DEBUG) console.log(`[Say] Full prompt being sent to OpenAI (truncated):`, fullPrompt);
 
     // OPTIMIZATION: Reduce tokens and temperature for faster responses
     // Also reduce transcript history to minimize context size
@@ -1655,7 +1655,7 @@ If critical information is missing (especially scheduledAt or serviceType), set 
     const data = await response.json();
     const aiResponse = data.choices[0]?.message?.content || "I'm sorry, I couldn't generate a response.";
     
-    if (DEBUG) console.log(`[Say] ✅ AI response generated:`, {
+    if (DEBUG) console.log(`[Say] AI response generated:`, {
       responseLength: aiResponse.length,
       responsePreview: aiResponse.substring(0, 300),
       tokensUsed: data.usage?.total_tokens || 'unknown',
@@ -1667,7 +1667,7 @@ If critical information is missing (especially scheduledAt or serviceType), set 
     const genericResponses = ['24/7', 'always available', 'all the time', 'round the clock'];
     const looksGeneric = genericResponses.some(phrase => aiResponse.toLowerCase().includes(phrase.toLowerCase()));
     if (looksGeneric && (agentContext.dataSources?.length || 0) > 0) {
-      console.warn(`[Say] ⚠️  WARNING: AI response contains generic phrases but data sources exist!`);
+      console.warn(`[Say] WARNING: AI response contains generic phrases but data sources exist!`);
       console.warn(`[Say] Response: "${aiResponse}"`);
       console.warn(`[Say] This suggests the AI might be ignoring the Knowledge Base.`);
       console.warn(`[Say] Data sources count: ${agentContext.dataSources.length}`);
@@ -1974,7 +1974,7 @@ Answer:`;
       this.supabase.from("agent_personalization").select("*").eq("agent_id", this.context.agentId).maybeSingle(),
     ]);
 
-    if (DEBUG) console.log("[AgentExecutor] ✅ Context loaded:", {
+    if (DEBUG) console.log("[AgentExecutor] Context loaded:", {
       agentId: this.context.agentId,
       policiesCount: policies.data?.length || 0,
       policiesError: policies.error?.message || null,
@@ -1985,15 +1985,15 @@ Answer:`;
     });
     
     if (dataSources.error) {
-      console.error(`[AgentExecutor] ❌ Error loading data sources:`, dataSources.error);
+      console.error(`[AgentExecutor] Error loading data sources:`, dataSources.error);
     }
     
     if (!dataSources.data || dataSources.data.length === 0) {
-      console.warn(`[AgentExecutor] ⚠️  NO DATA SOURCES found for agent ${this.context.agentId}!`);
+      console.warn(`[AgentExecutor] NO DATA SOURCES found for agent ${this.context.agentId}!`);
       console.warn(`[AgentExecutor] This means the AI won't have access to your knowledge base.`);
       console.warn(`[AgentExecutor] Check that data sources are properly configured for this agent.`);
     } else {
-      if (DEBUG) console.log(`[AgentExecutor] ✅ Found ${dataSources.data.length} data source(s):`, 
+      if (DEBUG) console.log(`[AgentExecutor] Found ${dataSources.data.length} data source(s):`, 
         dataSources.data.map((ds: any) => ({
           id: ds.id,
           name: ds.name,

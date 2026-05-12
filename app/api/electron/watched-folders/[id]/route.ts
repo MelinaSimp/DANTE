@@ -43,6 +43,7 @@ export async function PATCH(
     allowed_extensions?: string[];
     default_vault_project_id?: string | null;
     default_processing_mode?: "cloud" | "local_only";
+    confirm_mode?: "per_file" | "folder_consent";
   };
 
   // Whitelist patchable fields — same defensive pattern as
@@ -63,6 +64,16 @@ export async function PATCH(
     body.default_processing_mode === "local_only"
   ) {
     patch.default_processing_mode = body.default_processing_mode;
+  }
+  if (
+    body.confirm_mode === "per_file" ||
+    body.confirm_mode === "folder_consent"
+  ) {
+    patch.confirm_mode = body.confirm_mode;
+    if (body.confirm_mode === "folder_consent") {
+      patch.consent_granted_at = new Date().toISOString();
+      patch.consent_granted_by = ctx.userId;
+    }
   }
 
   if (Object.keys(patch).length === 0) {
@@ -85,7 +96,8 @@ export async function PATCH(
   if (
     "status" in patch ||
     "default_processing_mode" in patch ||
-    "allowed_extensions" in patch
+    "allowed_extensions" in patch ||
+    "confirm_mode" in patch
   ) {
     await supabaseAdmin.from("audit_logs").insert({
       workspace_id: ctx.workspaceId,

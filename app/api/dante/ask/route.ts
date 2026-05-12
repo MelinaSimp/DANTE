@@ -154,6 +154,7 @@ export async function POST(req: NextRequest) {
       .from("dante_chats")
       .select("id, user_id, workspace_id")
       .eq("id", chatId)
+      .is("deleted_at", null)
       .maybeSingle();
     if (!chat || chat.user_id !== user.id || chat.workspace_id !== profile.workspace_id) {
       return jsonError(404, "chat not found");

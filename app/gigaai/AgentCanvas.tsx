@@ -815,7 +815,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
           console.error("[AgentCanvas] Failed to fetch branches, status:", branchesResponse.status);
         }
       } catch (error) {
-        console.error("[AgentCanvas] ❌ Failed to reload branch:", error);
+        console.error("[AgentCanvas] Failed to reload branch:", error);
         // Fallback to reading from state
         const branch = getCurrentBranch();
         if (branch) {
@@ -1344,7 +1344,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                   </div>
                 ) : scenario.steps.length === 0 ? (
                   <div className={`text-center ${colors.textTertiary} text-sm py-12`}>
-                    <div className="mb-2">👆</div>
+                    <div className="mb-2 text-lg font-medium">^</div>
                     <div>Drag a function from above to create the first step</div>
                   </div>
                 ) : (
@@ -2074,7 +2074,7 @@ export default function AgentCanvas({ agentId, scenarioId, scenarioName, onStepS
                               );
                               
                             } catch (error: any) {
-                              console.error("[AgentCanvas] ❌ Failed to update branch with scenario:", error);
+                              console.error("[AgentCanvas] Failed to update branch with scenario:", error);
                               toast.error("Failed to connect to scenario", error?.message || "Unknown error");
                             }
                           }}

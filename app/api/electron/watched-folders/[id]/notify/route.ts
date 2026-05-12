@@ -73,7 +73,7 @@ export async function POST(
   const { data: folder } = await supabaseAdmin
     .from("watched_folders")
     .select(
-      "id, folder_path, status, allowed_extensions, default_vault_project_id, default_processing_mode",
+      "id, folder_path, status, allowed_extensions, default_vault_project_id, default_processing_mode, confirm_mode",
     )
     .eq("id", folderId)
     .eq("workspace_id", workspaceId)
@@ -87,6 +87,7 @@ export async function POST(
     allowed_extensions: string[];
     default_vault_project_id: string | null;
     default_processing_mode: "cloud" | "local_only";
+    confirm_mode: "per_file" | "folder_consent";
   };
   if (f.status !== "active") {
     return NextResponse.json(
@@ -125,26 +126,35 @@ export async function POST(
     }
   }
 
-  // Auto-confirm path: file passed all checks, folder is cloud,
-  // renderer sent extracted text. Create the vault_item +
-  // chunks immediately and skip the pending state. Local-only
-  // folders deliberately stay on the pending path because the
-  // privacy contract wants explicit per-file approval.
+  // Auto-confirm path. Two triggers:
+  //   1. Cloud folder + extracted text (existing behavior)
+  //   2. folder_consent mode — auto-confirm regardless of processing
+  //      mode, as long as the file passed validation checks. The user
+  //      gave blanket consent when they chose "index all files
+  //      automatically" during folder registration.
+  // Local-only + per_file stays on the pending path (privacy contract).
   const isLocalOnly = f.default_processing_mode === "local_only";
-  const acceptedText =
-    !isLocalOnly &&
-    status === "pending_user_confirm" &&
+  const isFolderConsent = f.confirm_mode === "folder_consent";
+  const hasText =
     typeof body.extracted_text === "string" &&
-    body.extracted_text.trim().length > 0
-      ? sanitizeForPostgres(body.extracted_text.trim())
+    body.extracted_text.trim().length > 0;
+  const acceptedText =
+    status === "pending_user_confirm" &&
+    (isFolderConsent || (!isLocalOnly && hasText))
+      ? hasText
+        ? sanitizeForPostgres(body.extracted_text!.trim())
+        : null
       : null;
+  const shouldAutoConfirm =
+    status === "pending_user_confirm" &&
+    (isFolderConsent || (!isLocalOnly && hasText));
 
   let autoConfirmedVaultId: string | null = null;
   let autoConfirmedChunks = 0;
   let autoConfirmError: string | null = null;
   let autoProjectId: string | null = null;
   let autoProjectName: string | null = null;
-  if (acceptedText) {
+  if (shouldAutoConfirm) {
     // Folder-wise routing: each top-level subfolder becomes a Vault
     // project so a deal-room ingest stays organized instead of
     // dumping every PDF into Loose Files. Files at the watch root

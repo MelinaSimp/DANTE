@@ -358,10 +358,10 @@ Performance Summary:
 <!--CHART_DATA-->{"chart":{"type":"bar","data":[{"x":"MTD","y":-1.47},{"x":"QTD","y":1.05},{"x":"YTD","y":15.92}],"xKey":"x","yKey":"y","title":"Performance Summary (%)"}}<!--/CHART_DATA-->
 
 CRITICAL CHECKLIST before finishing your response:
-✓ Count your <!--CHART_DATA--> blocks. You need EXACTLY ${tableRegions.length}.
-✓ Each block must have valid JSON on a single line.
-✓ Each block must end with <!--/CHART_DATA-->.
-✓ No markdown images anywhere in the response.`;
+- Count your <!--CHART_DATA--> blocks. You need EXACTLY ${tableRegions.length}.
+- Each block must have valid JSON on a single line.
+- Each block must end with <!--/CHART_DATA-->.
+- No markdown images anywhere in the response.`;
               }
               if (paragraphRegions.length > 0) {
                 systemContent += `\n\nPARAGRAPHS (template marked these as highlights; find the same/similar paragraph or text in the document):\n${paragraphRegions.map((r) => `- ${r}`).join("\n")}`;

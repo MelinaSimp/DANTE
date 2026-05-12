@@ -259,19 +259,31 @@ export async function generateAuditPack(input: ExportInput): Promise<ExportBundl
     reviewed_at: m.reviewed_at,
   }));
 
-  // ── Chat messages ── (precise contact-scoping is a follow-up;
-  // for now we include all chat messages in range workspace-wide
-  // and the auditor can filter by mention if needed)
-  const { data: chatRows } = await supabaseAdmin
-    .from("dante_chat_messages")
-    .select(
-      "id, chat_id, role, content, citation_report, grounding_score, prompt_version, created_at",
-    )
-    .gte("created_at", fromDate)
-    .lte("created_at", toDate)
-    .order("created_at", { ascending: true })
-    .limit(2000);
-  bundle.chat_messages = (chatRows || []) as ExportedChatMessage[];
+  // ── Chat messages ── include messages from active (non-deleted)
+  // chats only. Soft-deleted chats are preserved in the DB for
+  // compliance but excluded from exports by default.
+  const { data: activeChatIds } = await supabaseAdmin
+    .from("dante_chats")
+    .select("id")
+    .eq("workspace_id", input.workspaceId)
+    .is("deleted_at", null);
+  const activeIds = (activeChatIds || []).map((c: { id: string }) => c.id);
+
+  let chatRows: unknown[] = [];
+  if (activeIds.length > 0) {
+    const { data } = await supabaseAdmin
+      .from("dante_chat_messages")
+      .select(
+        "id, chat_id, role, content, citation_report, grounding_score, prompt_version, created_at",
+      )
+      .in("chat_id", activeIds)
+      .gte("created_at", fromDate)
+      .lte("created_at", toDate)
+      .order("created_at", { ascending: true })
+      .limit(2000);
+    chatRows = data || [];
+  }
+  bundle.chat_messages = chatRows as ExportedChatMessage[];
 
   // ── Conversations ──
   try {

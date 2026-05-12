@@ -19,7 +19,7 @@ export default function ResourcesPage() {
           {/* Getting Started */}
           <div className="bg-white rounded-lg p-8 shadow-sm">
             <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
-              <span className="text-2xl">🚀</span>
+              <span className="text-2xl font-semibold">Go</span>
             </div>
             <h3 className="text-xl font-semibold mb-3">Getting Started</h3>
             <p className="text-gray-600 mb-4">
@@ -36,7 +36,7 @@ export default function ResourcesPage() {
           {/* Best Practices */}
           <div className="bg-white rounded-lg p-8 shadow-sm">
             <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-              <span className="text-2xl">📚</span>
+              <span className="text-2xl font-semibold">BP</span>
             </div>
             <h3 className="text-xl font-semibold mb-3">Best Practices</h3>
             <p className="text-gray-600 mb-4">
@@ -53,7 +53,7 @@ export default function ResourcesPage() {
           {/* Troubleshooting */}
           <div className="bg-white rounded-lg p-8 shadow-sm">
             <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-4">
-              <span className="text-2xl">🔧</span>
+              <span className="text-2xl font-semibold">Fix</span>
             </div>
             <h3 className="text-xl font-semibold mb-3">Troubleshooting</h3>
             <p className="text-gray-600 mb-4">
@@ -70,7 +70,7 @@ export default function ResourcesPage() {
           {/* API Documentation */}
           <div className="bg-white rounded-lg p-8 shadow-sm">
             <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
-              <span className="text-2xl">🔌</span>
+              <span className="text-2xl font-semibold">API</span>
             </div>
             <h3 className="text-xl font-semibold mb-3">API & Integrations</h3>
             <p className="text-gray-600 mb-4">
@@ -87,7 +87,7 @@ export default function ResourcesPage() {
           {/* Video Tutorials */}
           <div className="bg-white rounded-lg p-8 shadow-sm">
             <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mb-4">
-              <span className="text-2xl">🎥</span>
+              <span className="text-2xl font-semibold">Vid</span>
             </div>
             <h3 className="text-xl font-semibold mb-3">Video Tutorials</h3>
             <p className="text-gray-600 mb-4">
@@ -104,7 +104,7 @@ export default function ResourcesPage() {
           {/* Community */}
           <div className="bg-white rounded-lg p-8 shadow-sm">
             <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center mb-4">
-              <span className="text-2xl">👥</span>
+              <span className="text-2xl font-semibold">Grp</span>
             </div>
             <h3 className="text-xl font-semibold mb-3">Community & Support</h3>
             <p className="text-gray-600 mb-4">

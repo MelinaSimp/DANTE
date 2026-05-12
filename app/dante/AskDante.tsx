@@ -16,7 +16,7 @@
 //     - User+assistant messages stack vertically with no chat bubbles,
 //       just clean prose like Harvey
 //     - Each assistant message has an action bar (Copy / Export /
-//       Rewrite / Open in editor / 👍 / 👎), a Sources block, and
+//       Rewrite / Open in editor / thumbs-up / thumbs-down), a Sources block, and
 //       suggested follow-ups
 //     - Input pins to the bottom for follow-up turns
 //
@@ -847,7 +847,7 @@ function InputBar(p: InputBarProps) {
     <div className="glass-panel rounded-[14px]">
       {/* Attachment chips — files queued from + Files and sources.
           Sit above the textarea so they're visible the whole time
-          you're composing. Each chip has a ✕ to remove. */}
+          you're composing. Each chip has a close button to remove. */}
       {p.attachments && p.attachments.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 px-4 pt-3">
           {p.attachments.map((a, i) => (

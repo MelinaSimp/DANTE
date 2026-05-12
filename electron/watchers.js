@@ -244,7 +244,12 @@ async function rescanFolder(folder, onFileEvent) {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   let sinceYield = 0;
 
-  async function walk(dir, depth) {
+  // Collect all files first, then sort by mtime descending so the
+  // newest files (current deals, active leases) are indexed first.
+  // Advisor/broker gets value in minutes; historical files process
+  // in the background.
+  const allFiles = [];
+  function collect(dir, depth) {
     if (depth > 8) return;
     let entries;
     try {
@@ -256,26 +261,35 @@ async function rescanFolder(folder, onFileEvent) {
     for (const ent of entries) {
       const full = path.join(dir, ent.name);
       if (ent.isDirectory()) {
-        await walk(full, depth + 1);
+        collect(full, depth + 1);
       } else if (ent.isFile()) {
-        scanned++;
         try {
-          await processFile(folder, full, "rescan", allowed, onFileEvent);
-          queued++;
-        } catch (err) {
-          console.warn(`[watchers] rescan processFile failed for ${full}:`, err?.message);
-        }
-        await sleep(25);
-        sinceYield++;
-        if (sinceYield >= 50) {
-          await sleep(250);
-          sinceYield = 0;
+          const stat = fs.statSync(full);
+          allFiles.push({ path: full, mtime: stat.mtimeMs });
+        } catch {
+          allFiles.push({ path: full, mtime: 0 });
         }
       }
     }
   }
+  collect(folderPath, 0);
+  allFiles.sort((a, b) => b.mtime - a.mtime);
 
-  await walk(folderPath, 0);
+  for (const file of allFiles) {
+    scanned++;
+    try {
+      await processFile(folder, file.path, "rescan", allowed, onFileEvent);
+      queued++;
+    } catch (err) {
+      console.warn(`[watchers] rescan processFile failed for ${file.path}:`, err?.message);
+    }
+    await sleep(25);
+    sinceYield++;
+    if (sinceYield >= 50) {
+      await sleep(250);
+      sinceYield = 0;
+    }
+  }
   return { ok: true, scanned, queued };
 }
 

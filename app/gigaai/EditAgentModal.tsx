@@ -201,7 +201,7 @@ export default function EditAgentModal({ agent, onClose, onSave }: EditAgentModa
                   </select>
                   {voiceError && (
                     <div className={`mt-2 p-3 rounded-lg border border-red-500/50 bg-red-500/10`}>
-                      <p className={`text-sm text-red-400 font-medium mb-1`}>⚠️ Error loading voices:</p>
+                      <p className={`text-sm text-red-400 font-medium mb-1`}>Error loading voices:</p>
                       <p className={`text-xs text-red-300`}>{voiceError}</p>
                       <p className={`text-xs text-red-300 mt-2`}>
                         Check: 1) ELEVENLABS_API_KEY is set in Vercel, 2) API key has correct permissions, 3) Browser console for details

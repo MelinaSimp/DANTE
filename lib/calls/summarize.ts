@@ -101,6 +101,7 @@ Return a JSON object with this exact shape (no markdown, no prose outside the JS
 }
 
 Rules:
+- Do not use emojis in any output. Plain text and standard punctuation only.
 - Every key_point, action_item, and follow_up MUST include at least one segment ID from the transcript in cite_segments.
 - Only cite segment IDs that actually support the claim. If you can't cite, omit the claim.
 - Do not invent details not present in the transcript.
@@ -118,7 +119,7 @@ function cleanJsonBlob(s: string): string {
 }
 
 // "Substantive" = alphabetic tokens of length ≥ 2. Strips emoji,
-// punctuation, and one-letter tokens so a transcript of "😊 🙌 Bye 🙌"
+// punctuation, and one-letter tokens so a transcript of "[emoji] [emoji] Bye [emoji]"
 // scores 1, not 4. Used to short-circuit the LLM when there's nothing
 // to actually summarize.
 export function countSubstantiveWords(

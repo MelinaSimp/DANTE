@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
       console.log(`[Media Stream Process] Mulaw input: ${mulawSamples.length} bytes, ${nonZeroCount} non-zero (${(100-zeroPercentage).toFixed(1)}% non-zero)`);
       
       if (zeroPercentage > 95) {
-        console.warn(`[Media Stream Process] ⚠️  WARNING: ${zeroPercentage.toFixed(1)}% of mulaw samples are zero - audio might be silence or corrupted`);
+        console.warn(`[Media Stream Process] [WARN]WARNING: ${zeroPercentage.toFixed(1)}% of mulaw samples are zero - audio might be silence or corrupted`);
       }
       
       const pcm8kSamples = mulaw.decode(mulawSamples); // Returns Int16Array of 16-bit PCM samples
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
       // Check minimum audio length - Whisper needs at least ~0.5-1 second of audio
       const minSamples8k = 4000; // 0.5 seconds at 8kHz
       if (pcm8kSamples.length < minSamples8k) {
-        console.log(`[Media Stream Process] ⚠️  Audio too short (${pcm8kSamples.length} samples < ${minSamples8k}), skipping Whisper call`);
+        console.log(`[Media Stream Process] [WARN]Audio too short (${pcm8kSamples.length} samples < ${minSamples8k}), skipping Whisper call`);
         const debugInfo = { 
           rms: "N/A", 
           threshold: "N/A", 
@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
       
       // Temporarily disable silence filtering to debug - let Whisper decide
       // if (rms < silenceThreshold) {
-      //   console.log(`[Media Stream Process] ⚠️  Audio appears to be silence (RMS: ${rms.toFixed(2)} < ${silenceThreshold}), skipping Whisper call`);
+      //   console.log(`[Media Stream Process] [WARN]Audio appears to be silence (RMS: ${rms.toFixed(2)} < ${silenceThreshold}), skipping Whisper call`);
       //   return NextResponse.json({ text: "", confidence: 0, debug: debugInfo });
       // }
       
@@ -154,7 +154,7 @@ export async function POST(req: NextRequest) {
       
       // Calculate audio duration for logging
       const audioDurationSeconds = dataSize / (sampleRate * numChannels * bitsPerSample / 8);
-      console.log(`[Media Stream Process] 📤 Sending ${wavFile.length} bytes to Whisper API (${audioDurationSeconds.toFixed(2)}s of audio)...`);
+      console.log(`[Media Stream Process] [OUT]Sending ${wavFile.length} bytes to Whisper API (${audioDurationSeconds.toFixed(2)}s of audio)...`);
       
       // Log first few bytes of WAV header to verify format
       const headerPreview = Array.from(wavFile.slice(0, 12)).map(b => b.toString(16).padStart(2, '0')).join(' ');
@@ -166,7 +166,7 @@ export async function POST(req: NextRequest) {
       const audioBlob = new Blob([new Uint8Array(wavFile)], { type: "audio/wav" });
 
       const whisperStartTime = Date.now();
-      console.log(`[Media Stream Process] 📤 Sending to Whisper via LLM adapter: ${wavFile.length} bytes WAV, ${audioDurationSeconds.toFixed(2)}s duration`);
+      console.log(`[Media Stream Process] [OUT]Sending to Whisper via LLM adapter: ${wavFile.length} bytes WAV, ${audioDurationSeconds.toFixed(2)}s duration`);
 
       try {
         const transcription = await llmTranscribe({
@@ -178,19 +178,19 @@ export async function POST(req: NextRequest) {
         const whisperEndTime = Date.now();
         const transcribedText = transcription.text || '';
         
-        console.log(`[Media Stream Process] ⏱️  Whisper API call took ${whisperEndTime - whisperStartTime}ms`);
-        console.log(`[Media Stream Process] ✅ Whisper API success. Transcribed: "${transcribedText}"`);
+        console.log(`[Media Stream Process] [TIME]Whisper API call took ${whisperEndTime - whisperStartTime}ms`);
+        console.log(`[Media Stream Process] [OK]Whisper API success. Transcribed: "${transcribedText}"`);
         
         // If transcription is empty but RMS is high, log a warning with more details
         if (!transcribedText) {
           const rmsValue = parseFloat(debugInfo.rms as string);
           if (rmsValue > 50) {
-            console.warn(`[Media Stream Process] ⚠️  WARNING: Whisper returned empty text despite high RMS (${debugInfo.rms}). Audio format might be incorrect.`);
-            console.warn(`[Media Stream Process] ⚠️  Audio details: ${debugInfo.audioLength} samples, duration: ${debugInfo.durationSeconds}s, range: [${debugInfo.minSample}, ${debugInfo.maxSample}]`);
+            console.warn(`[Media Stream Process] [WARN]WARNING: Whisper returned empty text despite high RMS (${debugInfo.rms}). Audio format might be incorrect.`);
+            console.warn(`[Media Stream Process] [WARN]Audio details: ${debugInfo.audioLength} samples, duration: ${debugInfo.durationSeconds}s, range: [${debugInfo.minSample}, ${debugInfo.maxSample}]`);
           } else if (rmsValue < 10) {
-            console.log(`[Media Stream Process] ℹ️  Whisper returned empty text - audio appears to be silence (RMS: ${debugInfo.rms})`);
+            console.log(`[Media Stream Process] [INFO]Whisper returned empty text - audio appears to be silence (RMS: ${debugInfo.rms})`);
           } else {
-            console.log(`[Media Stream Process] ℹ️  Whisper returned empty text - RMS: ${debugInfo.rms}, might be too quiet or corrupted`);
+            console.log(`[Media Stream Process] [INFO]Whisper returned empty text - RMS: ${debugInfo.rms}, might be too quiet or corrupted`);
           }
         }
         
@@ -201,11 +201,11 @@ export async function POST(req: NextRequest) {
         });
       } catch (whisperError: any) {
         const whisperEndTime = Date.now();
-        console.error(`[Media Stream Process] ❌ Whisper API error: ${whisperError.message}`);
-        console.error(`[Media Stream Process] ❌ Error details:`, whisperError);
-        console.error(`[Media Stream Process] ❌ WAV file size was: ${wavFile.length} bytes, dataSize: ${dataSize} bytes`);
-        console.error(`[Media Stream Process] ❌ Audio duration: ${(dataSize / (sampleRate * numChannels * bitsPerSample / 8)).toFixed(2)}s`);
-        console.error(`[Media Stream Process] ❌ WAV header preview: ${headerPreview}`);
+        console.error(`[Media Stream Process] [ERR]Whisper API error: ${whisperError.message}`);
+        console.error(`[Media Stream Process] [ERR]Error details:`, whisperError);
+        console.error(`[Media Stream Process] [ERR]WAV file size was: ${wavFile.length} bytes, dataSize: ${dataSize} bytes`);
+        console.error(`[Media Stream Process] [ERR]Audio duration: ${(dataSize / (sampleRate * numChannels * bitsPerSample / 8)).toFixed(2)}s`);
+        console.error(`[Media Stream Process] [ERR]WAV header preview: ${headerPreview}`);
         return NextResponse.json({ 
           text: "", 
           confidence: 0, 
@@ -217,7 +217,7 @@ export async function POST(req: NextRequest) {
         });
       }
     } catch (sttError: any) {
-      console.error(`[Media Stream Process] ❌ STT processing error:`, sttError.message);
+      console.error(`[Media Stream Process] [ERR]STT processing error:`, sttError.message);
       console.error(`[Media Stream Process] Error stack:`, sttError.stack);
       // Try to return debug info if we have it
       let debugInfo: Record<string, unknown> = { error: sttError.message };

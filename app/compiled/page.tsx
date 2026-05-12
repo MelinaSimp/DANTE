@@ -26,7 +26,7 @@ export default function CompiledPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
           <div className="bg-white rounded-lg p-8 text-center shadow-sm">
             <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="text-2xl">📞</span>
+              <span className="text-2xl font-semibold">Tel</span>
             </div>
             <h3 className="text-xl font-semibold mb-3">1. Call Comes In</h3>
             <p className="text-gray-600">
@@ -36,7 +36,7 @@ export default function CompiledPage() {
 
           <div className="bg-white rounded-lg p-8 text-center shadow-sm">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="text-2xl">🤖</span>
+              <span className="text-2xl font-semibold">AI</span>
             </div>
             <h3 className="text-xl font-semibold mb-3">2. AI Handles Conversation</h3>
             <p className="text-gray-600">
@@ -46,7 +46,7 @@ export default function CompiledPage() {
 
           <div className="bg-white rounded-lg p-8 text-center shadow-sm">
             <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="text-2xl">📋</span>
+              <span className="text-2xl font-semibold">Log</span>
             </div>
             <h3 className="text-xl font-semibold mb-3">3. Information Captured</h3>
             <p className="text-gray-600">
@@ -60,7 +60,7 @@ export default function CompiledPage() {
           <h2 className="text-3xl font-bold text-center mb-8">What You Get</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div>
-              <h3 className="text-xl font-semibold mb-4">📱 Complete Dashboard</h3>
+              <h3 className="text-xl font-semibold mb-4">Complete Dashboard</h3>
               <ul className="space-y-2 text-gray-600">
                 <li>• View all calls and recordings</li>
                 <li>• Manage contacts and appointments</li>
@@ -69,7 +69,7 @@ export default function CompiledPage() {
               </ul>
             </div>
             <div>
-              <h3 className="text-xl font-semibold mb-4">🎯 Smart Features</h3>
+              <h3 className="text-xl font-semibold mb-4">Smart Features</h3>
               <ul className="space-y-2 text-gray-600">
                 <li>• Natural conversation flow</li>
                 <li>• Appointment scheduling</li>

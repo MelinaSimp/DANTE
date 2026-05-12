@@ -18,15 +18,15 @@ export interface ErrorLog {
  */
 export async function logError(log: ErrorLog): Promise<void> {
   // Log to console
-  const severityEmoji = {
-    low: '🔵',
-    medium: '🟡',
-    high: '🟠',
-    critical: '🔴'
+  const severityTag = {
+    low: '[LOW]',
+    medium: '[MEDIUM]',
+    high: '[HIGH]',
+    critical: '[CRITICAL]'
   };
-  
+
   console.error(
-    `${severityEmoji[log.severity]} [${log.severity.toUpperCase()}] [${log.type}]`,
+    `${severityTag[log.severity]} [${log.type}]`,
     {
       source: log.source,
       error: log.error,
@@ -64,7 +64,7 @@ export async function logError(log: ErrorLog): Promise<void> {
  */
 async function sendAlert(log: ErrorLog): Promise<void> {
   // TODO: Integrate with alerting service (PagerDuty, Slack, email, etc.)
-  console.error("🚨 CRITICAL ERROR ALERT:", log);
+  console.error("[CRITICAL] ERROR ALERT:", log);
   
   // Example: Send to webhook
   // if (process.env.ALERT_WEBHOOK_URL) {

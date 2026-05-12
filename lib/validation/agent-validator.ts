@@ -340,7 +340,7 @@ export function validateAllScenarios(scenarios: any[]): ValidationResult {
 // Get validation summary text
 export function getValidationSummary(result: ValidationResult): string {
   if (result.isValid && result.warnings.length === 0) {
-    return 'All validations passed ✓';
+    return 'All validations passed';
   }
   
   const errorCount = result.errors.length;

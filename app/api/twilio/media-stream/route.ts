@@ -316,7 +316,7 @@ async function handleMediaStream(req: NextRequest) {
   </Connect>
 </Response>`;
       
-      if (DEBUG) console.log("[Media Stream] ✅ Using Media Streams (Connect+Stream, bidirectional)");
+      if (DEBUG) console.log("[Media Stream] Using Media Streams (Connect+Stream, bidirectional)");
       if (DEBUG) console.log("[Media Stream] Railway URL:", mediaStreamUrl);
       if (DEBUG) console.log("[Media Stream] conversationId (Parameter):", conversation.id);
     } else {

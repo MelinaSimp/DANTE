@@ -382,7 +382,7 @@ async function handleIncoming(req: NextRequest): Promise<NextResponse> {
       
       if (stepMessage && stepMessage.length > 0) {
         greeting = stepMessage;
-        if (DEBUG) console.log("[Twilio] ✅ Using greeting from step ai_message:", greeting.substring(0, 100) + "...");
+        if (DEBUG) console.log("[Twilio] Using greeting from step ai_message:", greeting.substring(0, 100) + "...");
       } else {
         // Fallback to name if ai_message is empty
         // Check if name looks like an actual message (not just "Step 1" or "Welcome! How can I help you today?")
@@ -394,18 +394,18 @@ async function handleIncoming(req: NextRequest): Promise<NextResponse> {
           
           if (!isDefaultMessage || nameMessage.length > 15) {
             greeting = nameMessage;
-            if (DEBUG) console.log("[Twilio] ⚠️ Using greeting from step name (ai_message was empty):", greeting.substring(0, 100) + "...");
+            if (DEBUG) console.log("[Twilio] Using greeting from step name (ai_message was empty):", greeting.substring(0, 100) + "...");
           } else {
-            if (DEBUG) console.log("[Twilio] ❌ Step name looks like placeholder. ai_message:", greetingStep.ai_message, "name:", greetingStep.name);
+            if (DEBUG) console.log("[Twilio] Step name looks like placeholder. ai_message:", greetingStep.ai_message, "name:", greetingStep.name);
             if (DEBUG) console.log("[Twilio] No greeting configured - will skip Say tag");
           }
         } else {
-          if (DEBUG) console.log("[Twilio] ❌ Step has no usable message. ai_message:", greetingStep.ai_message, "name:", greetingStep.name);
+          if (DEBUG) console.log("[Twilio] Step has no usable message. ai_message:", greetingStep.ai_message, "name:", greetingStep.name);
           if (DEBUG) console.log("[Twilio] No greeting configured - will skip Say tag");
         }
       }
     } else {
-      if (DEBUG) console.log("[Twilio] ❌ No greeting step found, no greeting configured - will skip Say tag");
+      if (DEBUG) console.log("[Twilio] No greeting step found, no greeting configured - will skip Say tag");
     }
 
     // Always have a greeting so the call never drops (e.g. instructions-only agents with no scenarios)

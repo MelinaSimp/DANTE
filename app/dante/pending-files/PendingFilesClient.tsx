@@ -173,7 +173,10 @@ export default function PendingFilesClient() {
         .map((f) => `${f.folder_id}::${f.file_path}`),
     );
 
-    const EVENT_CONCURRENCY = 4;
+    const hasFolderConsent = folders.some(
+      (f) => (f as any).confirm_mode === "folder_consent",
+    );
+    const EVENT_CONCURRENCY = hasFolderConsent ? 8 : 4;
     const queue: FileEvent[] = [];
     let active = 0;
     let cancelled = false;
@@ -197,12 +200,13 @@ export default function PendingFilesClient() {
       try {
         const folder = folders.find((f) => f.id === event.folder_id);
         const isLocalOnly = folder?.default_processing_mode === "local_only";
+        const folderConsent = (folder as any)?.confirm_mode === "folder_consent";
         const pathKey = `${event.folder_id}::${event.file_path}`;
         const isUpdate = knownConfirmed.has(pathKey);
 
         let extractedText: string | null = null;
         if (
-          !isLocalOnly &&
+          (!isLocalOnly || folderConsent) &&
           window.electronAPI?.watched?.extractFileText
         ) {
           try {

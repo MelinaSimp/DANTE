@@ -32,6 +32,7 @@ export default async function ChatPage({
     .from("dante_chats")
     .select("id, title, user_id, workspace_id, created_at")
     .eq("id", id)
+    .is("deleted_at", null)
     .maybeSingle();
   if (!chat || chat.user_id !== user.id) redirect("/dante");
 
