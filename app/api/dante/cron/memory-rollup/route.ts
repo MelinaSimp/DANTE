@@ -15,7 +15,7 @@
 //   1. Find contacts who have ≥3 episode entries from the last 7
 //      days (≥3 keeps the bar for "interesting enough to summarize").
 //   2. For each, pull the episodes + any prior summary still active.
-//   3. Ask gpt-4o-mini to produce 4-6 bullets covering: open
+//   3. Ask claude-haiku to produce 4-6 bullets covering: open
 //      promises, recent concerns, commitments either side made,
 //      emotional tone of the relationship.
 //   4. remember() with kind='summary', source_kind='workflow',
@@ -28,6 +28,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { remember } from "@/lib/dante/memory/write";
+import { complete as llmComplete } from "@/lib/llm/client";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -70,9 +71,8 @@ async function rollupContact(args: {
   contactId: string;
   contactName: string | null;
   weekKey: string;
-  openaiKey: string;
 }): Promise<{ ok: true; written: boolean } | { ok: false; error: string }> {
-  const { workspaceId, contactId, contactName, weekKey, openaiKey } = args;
+  const { workspaceId, contactId, contactName, weekKey } = args;
   const sourceId = `rollup:${weekKey}:${contactId}`;
 
   // Idempotency — skip if we already summarized this contact this week.
@@ -107,44 +107,32 @@ async function rollupContact(args: {
     .map((e: any, i: number) => `[${i + 1}] (${e.source_kind || "?"}) ${e.content}`)
     .join("\n\n");
 
-  // gpt-4o-mini for cost — this is a structured summary, not
-  // open-ended generation. Tight system prompt; one shot.
-  const promptBody = {
-    model: "gpt-4.1-mini",
-    temperature: 0.2,
-    messages: [
-      {
-        role: "system",
-        content:
-          "You compress a week of correspondence with a single contact into a concise, useful summary the user can read in 30 seconds before a call or meeting. Output 4-6 bullets in plain markdown. Cover: (1) open promises either side made that haven't closed, (2) recent concerns or hesitations, (3) commitments and next steps, (4) the emotional tone of the relationship right now, (5) anything the user should remember to mention. Be specific. Don't restate the date range. No preamble.",
-      },
-      {
-        role: "user",
-        content: `Contact: ${contactName || "(unnamed)"}\n\nLast 7 days of episodes (most recent at the bottom):\n\n${transcript}`,
-      },
-    ],
-  };
-
+  // Haiku for cost — this is a structured summary, not open-ended
+  // generation. Tight system prompt; one shot.
   let summary: string;
   try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${openaiKey}`,
-      },
-      body: JSON.stringify(promptBody),
+    const result = await llmComplete({
+      model: "claude-haiku-4-5-20251001",
+      temperature: 0.2,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You compress a week of correspondence with a single contact into a concise, useful summary the user can read in 30 seconds before a call or meeting. Output 4-6 bullets in plain markdown. Cover: (1) open promises either side made that haven't closed, (2) recent concerns or hesitations, (3) commitments and next steps, (4) the emotional tone of the relationship right now, (5) anything the user should remember to mention. Be specific. Don't restate the date range. No preamble.",
+        },
+        {
+          role: "user",
+          content: `Contact: ${contactName || "(unnamed)"}\n\nLast 7 days of episodes (most recent at the bottom):\n\n${transcript}`,
+        },
+      ],
+      feature: "memory.rollup",
     });
-    if (!res.ok) {
-      return { ok: false, error: `openai ${res.status}` };
-    }
-    const j = await res.json();
-    summary = (j.choices?.[0]?.message?.content || "").trim();
+    summary = (typeof result.message.content === "string" ? result.message.content : "").trim();
     if (!summary) return { ok: false, error: "empty summary" };
   } catch (err) {
     return {
       ok: false,
-      error: err instanceof Error ? err.message : "openai failed",
+      error: err instanceof Error ? err.message : "llm call failed",
     };
   }
 
@@ -169,14 +157,6 @@ async function rollupContact(args: {
 async function handle(req: Request) {
   if (!authOk(req)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
-  const openaiKey = process.env.OPENAI_API_KEY;
-  if (!openaiKey) {
-    return NextResponse.json(
-      { ok: false, skipped: "no_openai_key" },
-      { status: 200 },
-    );
   }
 
   const weekKey = isoWeekKey(new Date());
@@ -240,7 +220,6 @@ async function handle(req: Request) {
       contactId,
       contactName: contactName.get(contactId) || null,
       weekKey,
-      openaiKey,
     });
     if (!result.ok) {
       errored++;

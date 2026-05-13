@@ -8,12 +8,13 @@
 //     instruction?: string,   // optional user direction, e.g. "shorter"
 //   }
 //
-// Returns { text: string }. Plain OpenAI call, no tools, no agent
+// Returns { text: string }. Plain llmComplete call, no tools, no agent
 // loop — this is intentionally a tight in-and-out so the button
 // feels instant.
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { complete as llmComplete } from "@/lib/llm/client";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -44,46 +45,25 @@ export async function POST(req: NextRequest) {
   }
   const instruction = (body.instruction || "").trim().slice(0, 200);
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: "OPENAI_API_KEY not configured" }, { status: 500 });
-  }
-
   const userMessage = instruction
     ? `Instruction: ${instruction}\n\n---\n\n${text}`
     : text;
 
   try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4.1",
-        messages: [
-          { role: "system", content: kind === "answer" ? ANSWER_SYSTEM : PROMPT_SYSTEM },
-          { role: "user", content: userMessage },
-        ],
-        max_completion_tokens: 1500,
-      }),
+    const result = await llmComplete({
+      model: "claude-sonnet-4-6",
+      messages: [
+        { role: "system", content: kind === "answer" ? ANSWER_SYSTEM : PROMPT_SYSTEM },
+        { role: "user", content: userMessage },
+      ],
+      maxTokens: 1500,
+      feature: "refine.rewrite",
     });
-    if (!res.ok) {
-      const errBody = await res.text().catch(() => "");
-      return NextResponse.json(
-        { error: `openai ${res.status}: ${errBody.slice(0, 200)}` },
-        { status: 500 },
-      );
-    }
-    const json = (await res.json()) as {
-      choices: Array<{ message: { content: string } }>;
-    };
-    const out = json.choices?.[0]?.message?.content?.trim() || "";
+    const out = (typeof result.message.content === "string" ? result.message.content : "").trim();
     return NextResponse.json({ text: out });
   } catch (err) {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "openai call failed" },
+      { error: err instanceof Error ? err.message : "llm call failed" },
       { status: 500 },
     );
   }

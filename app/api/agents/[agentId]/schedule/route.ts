@@ -12,6 +12,7 @@ import twilio from "twilio";
 import { naiveLocalIsoToUtcIso, appDayRangeUtcIso, appWallClockToUtcMs, getAppTimezone } from "@/lib/app-timezone";
 import dayjs from "dayjs";
 import { decryptSecret } from "@/lib/crypto/secrets";
+import { complete as llmComplete } from "@/lib/llm/client";
 
 export const dynamic = "force-dynamic";
 
@@ -331,21 +332,6 @@ async function generateAppointmentReminderMessage({
   scheduledAt: string;
   durationMinutes: number;
 }): Promise<string> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    // Fallback message if OpenAI not configured
-    const date = new Date(scheduledAt);
-    const formattedDate = date.toLocaleDateString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
-    return `Hi ${name}! This is a reminder about your appointment: ${description} scheduled for ${formattedDate}. We look forward to seeing you!`;
-  }
-
   try {
     const date = new Date(scheduledAt);
     const formattedDate = date.toLocaleDateString("en-US", {
@@ -357,35 +343,24 @@ async function generateAppointmentReminderMessage({
       minute: "2-digit",
     });
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: "You are a friendly appointment reminder assistant. Write concise, warm SMS messages (under 160 characters) to remind people about their appointments. Be professional but friendly.",
-          },
-          {
-            role: "user",
-            content: `Generate a friendly SMS reminder for ${name} about their appointment: "${description}" scheduled for ${formattedDate} (duration: ${durationMinutes} minutes). Keep it short and personal.`,
-          },
-        ],
-        temperature: 0.7,
-        max_tokens: 100,
-      }),
+    const result = await llmComplete({
+      model: "claude-haiku-4-5-20251001",
+      messages: [
+        {
+          role: "system",
+          content: "You are a friendly appointment reminder assistant. Write concise, warm SMS messages (under 160 characters) to remind people about their appointments. Be professional but friendly.",
+        },
+        {
+          role: "user",
+          content: `Generate a friendly SMS reminder for ${name} about their appointment: "${description}" scheduled for ${formattedDate} (duration: ${durationMinutes} minutes). Keep it short and personal.`,
+        },
+      ],
+      temperature: 0.7,
+      maxTokens: 100,
+      feature: "agents.schedule",
     });
 
-    if (!response.ok) {
-      throw new Error("OpenAI API error");
-    }
-
-    const data = await response.json();
-    const message = data.choices[0]?.message?.content?.trim() || "";
+    const message = (typeof result.message.content === "string" ? result.message.content : "").trim();
 
     // Fallback if message is too long or empty
     if (!message || message.length > 200) {

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { requireUser } from "@/lib/api-auth";
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { complete as llmComplete } from "@/lib/llm/client";
 
 export const runtime = "nodejs";
 
@@ -22,15 +23,7 @@ export async function POST(req: NextRequest) {
 
     if (!(await rateLimit(`ai-analyze:${auth.user.id}`, 20)).allowed) return rateLimitResponse();
 
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "Missing OPENAI_API_KEY" },
-        { status: 500 }
-      );
-    }
-
-    const { notes, workspaceId } = (await req.json()) as { 
+    const { notes, workspaceId } = (await req.json()) as {
       notes: NoteLite[] | null | undefined;
       workspaceId?: string;
     };
@@ -100,33 +93,25 @@ export async function POST(req: NextRequest) {
       joined || "(no prior customer interactions)",
     ].join("\n");
 
-    // OpenAI responses: use a small, fast model
-    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
+    let content: string;
+    try {
+      const result = await llmComplete({
+        model: "claude-haiku-4-5-20251001",
         messages: [
           { role: "system", content: "You are an AI receptionist assistant for service-based businesses. Focus on scheduling, callbacks, and customer service needs." },
           { role: "user", content: prompt },
         ],
         temperature: 0.2,
-      }),
-    });
-
-    if (!resp.ok) {
-      const text = await resp.text();
+        feature: "ai.analyze",
+        workspaceId: workspaceId ?? null,
+      });
+      content = (typeof result.message.content === "string" ? result.message.content : "{}").trim();
+    } catch (err: any) {
       return NextResponse.json(
-        { error: `OpenAI error: ${resp.status} — ${text}` },
+        { error: `LLM error: ${err?.message || "Unknown"}` },
         { status: 500 }
       );
     }
-
-    const data = await resp.json();
-    const content: string = data.choices?.[0]?.message?.content || "{}";
 
     // Try to parse the model output as JSON
     let parsed: {

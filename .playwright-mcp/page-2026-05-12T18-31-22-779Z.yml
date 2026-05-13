@@ -1,0 +1,68 @@
+- main [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e5]:
+      - link "Drift Drift" [ref=e6] [cursor=pointer]:
+        - /url: /
+        - img "Drift" [ref=e7]
+        - generic [ref=e8]: Drift
+      - navigation [ref=e9]:
+        - link "Status" [ref=e10] [cursor=pointer]:
+          - /url: /status
+        - link "Terms" [ref=e11] [cursor=pointer]:
+          - /url: /terms
+        - link "Privacy" [ref=e12] [cursor=pointer]:
+          - /url: /privacy
+    - generic [ref=e13]:
+      - paragraph [ref=e14]: Download
+      - heading "Download Drift AI" [level=1] [ref=e15]
+      - paragraph [ref=e16]: Native desktop apps for macOS and Windows. Sign in with your workspace to pick up where you left off.
+      - generic [ref=e17]:
+        - generic [ref=e18]:
+          - img [ref=e20]
+          - heading "macOS" [level=3] [ref=e23]
+          - paragraph [ref=e24]: Native desktop app for macOS 10.13 or later.
+          - generic [ref=e25]:
+            - link "Download — Apple Silicon M1, M2, M3, M4" [ref=e26] [cursor=pointer]:
+              - /url: /api/desktop-download/Drift-AI-mac-arm64.dmg
+              - generic [ref=e27]: Download — Apple Silicon
+              - generic [ref=e28]: M1, M2, M3, M4
+            - link "Download — Intel Intel-based Macs" [ref=e29] [cursor=pointer]:
+              - /url: /api/desktop-download/Drift-AI-mac-x64.dmg
+              - generic [ref=e30]: Download — Intel
+              - generic [ref=e31]: Intel-based Macs
+        - generic [ref=e32]:
+          - img [ref=e34]
+          - heading "Windows" [level=3] [ref=e36]
+          - paragraph [ref=e37]: Native desktop app for Windows 10 and later.
+          - link "Download — Windows .exe installer" [ref=e39] [cursor=pointer]:
+            - /url: /api/desktop-download/Drift-AI-Setup.exe
+            - generic [ref=e40]: Download — Windows
+            - generic [ref=e41]: .exe installer
+      - generic [ref=e42]:
+        - generic [ref=e43]:
+          - img [ref=e44]
+          - heading "System Requirements" [level=3] [ref=e46]
+        - list [ref=e47]:
+          - listitem [ref=e48]:
+            - img [ref=e49]
+            - generic [ref=e51]: Internet connection required
+          - listitem [ref=e52]:
+            - img [ref=e53]
+            - generic [ref=e55]: macOS 10.13+ / Windows 10+
+          - listitem [ref=e56]:
+            - img [ref=e57]
+            - generic [ref=e59]: 200 MB free disk space
+          - listitem [ref=e60]:
+            - img [ref=e61]
+            - generic [ref=e63]: Automatic updates — the app checks on launch and every 4 hours
+      - generic [ref=e64]:
+        - heading "Installation" [level=3] [ref=e65]
+        - generic [ref=e66]:
+          - generic [ref=e67]:
+            - strong [ref=e68]: "macOS:"
+            - text: "Open the .dmg, drag Drift AI to Applications. First launch: right-click the app and choose Open to bypass the unsigned-developer warning."
+          - generic [ref=e69]:
+            - strong [ref=e70]: "Windows:"
+            - text: Run the .exe. If SmartScreen warns you, click "More info" → "Run anyway" — the installer isn't code-signed yet.
+      - link "Back to Home" [ref=e72] [cursor=pointer]:
+        - /url: /

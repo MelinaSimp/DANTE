@@ -8,6 +8,7 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { decryptSecret } from "@/lib/crypto/secrets";
+import { complete as llmComplete } from "@/lib/llm/client";
 
 const DEBUG = process.env.DEBUG_VOICE === "true";
 
@@ -621,20 +622,7 @@ export class AgentExecutor {
       }
       if (DEBUG) console.log(`[Q/A] Cache MISS for question: "${question.substring(0, 50)}..."`);
 
-      // Use OpenAI to generate answer and check if question is answerable
-      const apiKey = process.env.OPENAI_API_KEY;
-      if (!apiKey) {
-        return {
-          success: false,
-          error: "OpenAI API key not configured",
-          shouldContinue: false,
-        };
-      }
-
-      // OPTIMIZATION 2: Parallelize answerability check and answer generation
-      // Combine both checks into a single, more efficient prompt
-      // Include natural follow-up question in the response for better grammar
-      // Allow inference and general logic while staying grounded in knowledge base
+      // Generate answer via llmComplete
       const combinedPrompt = `Answer this question using the knowledge base and general logic/inference. End with a natural follow-up question.
 
 RULES:
@@ -652,17 +640,12 @@ QUESTION: ${question}
 
 Answer:`;
 
-      // OPTIMIZATION: Use streaming for faster response times
-      // Stream response and start TTS generation as soon as we have enough text
       const startTime = Date.now();
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
+      let answer = "";
+
+      try {
+        const qaResult = await llmComplete({
+          model: "claude-haiku-4-5-20251001",
           messages: [
             {
               role: "system",
@@ -671,14 +654,13 @@ Answer:`;
             { role: "user", content: combinedPrompt },
           ],
           temperature: 0.1,
-          max_tokens: 60, // Reduced for faster generation
-          stream: true, // Enable streaming
-        }),
-      });
+          maxTokens: 60,
+          feature: "executor.qa",
+        });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("OpenAI API error:", errorText);
+        answer = (typeof qaResult.message.content === "string" ? qaResult.message.content : "").trim();
+      } catch (error) {
+        console.error("LLM Q/A error:", error);
         return {
           success: false,
           error: "Failed to generate answer",
@@ -686,78 +668,9 @@ Answer:`;
         };
       }
 
-      // Stream the response
-      let answer = "";
-      let firstSentence = "";
-      let hasFirstSentence = false;
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-
-      if (!reader) {
-        // Fallback to non-streaming if reader not available
-        const fallbackResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "gpt-4o-mini",
-            messages: [
-              {
-                role: "system",
-                content: "You are a helpful customer support assistant. Use the knowledge base and general logic/inference to answer questions. You can make reasonable inferences and connections. Answer concisely and always end with a natural follow-up question.",
-              },
-              { role: "user", content: combinedPrompt },
-            ],
-            temperature: 0.1,
-            max_tokens: 60, // Reduced for faster generation
-          }),
-        });
-        const fallbackData = await fallbackResponse.json();
-        answer = fallbackData.choices[0]?.message?.content?.trim() || "I'm sorry, I couldn't find an answer to that question. Is there anything else I can help with?";
-      } else {
-        // Stream processing
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunk = decoder.decode(value);
-          const lines = chunk.split('\n').filter(line => line.trim() !== '');
-
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6);
-              if (data === '[DONE]') break;
-
-              try {
-                const json = JSON.parse(data);
-                const delta = json.choices[0]?.delta?.content || '';
-                if (delta) {
-                  answer += delta;
-                  
-                  // Extract first sentence for early TTS generation
-                  if (!hasFirstSentence && answer.length >= 30) {
-                    // Find first complete sentence (ending with . ! ?)
-                    const sentenceMatch = answer.match(/^[^.!?]*[.!?]/);
-                    if (sentenceMatch) {
-                      firstSentence = sentenceMatch[0].trim();
-                      hasFirstSentence = true;
-                      if (DEBUG) console.log(`[Q/A] First sentence ready (${firstSentence.length} chars) after ${Date.now() - startTime}ms`);
-                    }
-                  }
-                }
-              } catch (e) {
-                // Skip invalid JSON
-              }
-            }
-          }
-        }
-      }
-
-      answer = answer.trim() || "I'm sorry, I couldn't find an answer to that question. Is there anything else I can help with?";
+      answer = answer || "I'm sorry, I couldn't find an answer to that question. Is there anything else I can help with?";
       const apiTime = Date.now() - startTime;
-      if (DEBUG) console.log(`[Q/A] OpenAI streaming completed in ${apiTime}ms, total length: ${answer.length} chars`);
+      if (DEBUG) console.log(`[Q/A] LLM completed in ${apiTime}ms, total length: ${answer.length} chars`);
       
       // Ensure answer ends with a question (AI should include it, but add fallback if needed)
       if (!answer.match(/[?！？]$/)) {
@@ -1119,15 +1032,6 @@ Answer:`;
    * This powers agents like "Sparda" that use Rules & Instructions instead of a step-by-step canvas.
    */
   private async executeInstructionsMode(userInput: string): Promise<StepResult> {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      return {
-        success: true,
-        output: "I'm sorry, I'm not properly configured right now. Please try again later.",
-        shouldContinue: false,
-      };
-    }
-
     try {
       // 1. Load agent info including llm_instructions
       const { data: agent } = await this.supabase
@@ -1181,32 +1085,38 @@ You can schedule appointments and check availability. When a caller wants to sch
 Keep responses short and natural for voice (1-3 sentences).`;
 
       // 5. Define function calling tools
-      const functions = [
+      const tools = [
         {
-          name: "schedule_appointment",
-          description: "Schedule an appointment for the caller",
-          parameters: {
-            type: "object",
-            properties: {
-              contactName: { type: "string", description: "The caller's name" },
-              scheduledAt: { type: "string", description: "Date and time in ISO 8601 format (YYYY-MM-DDTHH:MM:SS)" },
-              serviceType: { type: "string", description: "Type of service or appointment (e.g., 'Consultation', 'Meeting')" },
-              durationMinutes: { type: "number", description: "Duration in minutes (default: 60)" },
-              notes: { type: "string", description: "Additional notes about the appointment" },
+          type: "function" as const,
+          function: {
+            name: "schedule_appointment",
+            description: "Schedule an appointment for the caller",
+            parameters: {
+              type: "object",
+              properties: {
+                contactName: { type: "string", description: "The caller's name" },
+                scheduledAt: { type: "string", description: "Date and time in ISO 8601 format (YYYY-MM-DDTHH:MM:SS)" },
+                serviceType: { type: "string", description: "Type of service or appointment (e.g., 'Consultation', 'Meeting')" },
+                durationMinutes: { type: "number", description: "Duration in minutes (default: 60)" },
+                notes: { type: "string", description: "Additional notes about the appointment" },
+              },
+              required: ["scheduledAt", "serviceType"],
             },
-            required: ["scheduledAt", "serviceType"],
           },
         },
         {
-          name: "check_availability",
-          description: "Check available appointment time slots for a specific date",
-          parameters: {
-            type: "object",
-            properties: {
-              date: { type: "string", description: "Date in YYYY-MM-DD format" },
-              durationMinutes: { type: "number", description: "Duration in minutes (default: 60)" },
+          type: "function" as const,
+          function: {
+            name: "check_availability",
+            description: "Check available appointment time slots for a specific date",
+            parameters: {
+              type: "object",
+              properties: {
+                date: { type: "string", description: "Date in YYYY-MM-DD format" },
+                durationMinutes: { type: "number", description: "Duration in minutes (default: 60)" },
+              },
+              required: ["date"],
             },
-            required: ["date"],
           },
         },
       ];
@@ -1221,28 +1131,23 @@ Keep responses short and natural for voice (1-3 sentences).`;
         { role: "user", content: userInput || "Hello" },
       ];
 
-      // 7. Call OpenAI with function calling
-      if (DEBUG) console.log(`[InstructionsMode] Calling OpenAI with ${messages.length} messages, system prompt length: ${systemPrompt.length}`);
+      // 7. Call LLM with tool calling
+      if (DEBUG) console.log(`[InstructionsMode] Calling LLM with ${messages.length} messages, system prompt length: ${systemPrompt.length}`);
 
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
+      let assistantMessage;
+      try {
+        const instrResult = await llmComplete({
+          model: "claude-haiku-4-5-20251001",
           messages,
-          functions,
-          function_call: "auto",
+          tools,
+          toolChoice: "auto",
           temperature: 0.3,
-          max_tokens: 200,
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.text();
-        console.error("[InstructionsMode] OpenAI error:", error);
+          maxTokens: 200,
+          feature: "executor.instructions",
+        });
+        assistantMessage = instrResult.message;
+      } catch (error) {
+        console.error("[InstructionsMode] LLM error:", error);
         return {
           success: true,
           output: "I'm sorry, I'm having trouble right now. How can I help you?",
@@ -1250,13 +1155,11 @@ Keep responses short and natural for voice (1-3 sentences).`;
         };
       }
 
-      const data = await response.json();
-      const assistantMessage = data.choices[0]?.message;
-
-      // 8. Handle function calls (scheduling)
-      if (assistantMessage?.function_call) {
-        const functionName = assistantMessage.function_call.name;
-        const functionArgs = JSON.parse(assistantMessage.function_call.arguments || "{}");
+      // 8. Handle tool calls (scheduling)
+      if (assistantMessage?.tool_calls && assistantMessage.tool_calls.length > 0) {
+        const toolCall = assistantMessage.tool_calls[0];
+        const functionName = toolCall.function.name;
+        const functionArgs = JSON.parse(toolCall.function.arguments || "{}");
         if (DEBUG) console.log(`[InstructionsMode] Function call: ${functionName}`, functionArgs);
 
         let functionCallResult = "";
@@ -1334,41 +1237,34 @@ Keep responses short and natural for voice (1-3 sentences).`;
           }
         }
 
-        // Call OpenAI again with the function result to produce a natural response
+        // Call LLM again with the tool result to produce a natural response
         if (functionCallResult) {
           messages.push(assistantMessage);
-          messages.push({ role: "function", name: functionName, content: functionCallResult });
+          messages.push({ role: "tool", tool_call_id: toolCall.id, content: functionCallResult });
 
-          const secondResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              model: "gpt-4o-mini",
+          try {
+            const secondResult = await llmComplete({
+              model: "claude-haiku-4-5-20251001",
               messages,
               temperature: 0.3,
-              max_tokens: 150,
-            }),
-          });
+              maxTokens: 150,
+              feature: "executor.instructions.followup",
+            });
 
-          if (secondResponse.ok) {
-            const secondData = await secondResponse.json();
-            const finalOutput = secondData.choices[0]?.message?.content || functionCallResult;
+            const finalOutput = (typeof secondResult.message.content === "string" ? secondResult.message.content : "").trim() || functionCallResult;
             return {
               success: true,
               output: finalOutput,
               shouldContinue: true,
             };
+          } catch {
+            // If second call fails, just use the raw function result
+            return {
+              success: true,
+              output: functionCallResult,
+              shouldContinue: true,
+            };
           }
-
-          // If second call fails, just use the raw function result
-          return {
-            success: true,
-            output: functionCallResult,
-            shouldContinue: true,
-          };
         }
 
         return {
@@ -1412,14 +1308,6 @@ Keep responses short and natural for voice (1-3 sentences).`;
     notes?: string;
     error?: string;
   }> {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      return {
-        success: false,
-        error: "AI service not configured",
-      };
-    }
-
     // Build context from gathered data
     const context = Object.entries(gatheredData)
       .map(([key, value]) => `${key}: ${value}`)
@@ -1454,35 +1342,21 @@ Return ONLY valid JSON in this format:
 If critical information is missing (especially scheduledAt or serviceType), set "success": false and include an "error" field explaining what's missing.`;
 
     try {
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: [
-            {
-              role: "system",
-              content: "You are an appointment scheduling assistant. Extract appointment details from conversations. Return only valid JSON.",
-            },
-            { role: "user", content: prompt },
-          ],
-          temperature: 0.2, // Lower temperature = faster responses
-          max_tokens: 200, // Reduced from 500 for faster generation
-        }),
+      const apptResult = await llmComplete({
+        model: "claude-haiku-4-5-20251001",
+        messages: [
+          {
+            role: "system",
+            content: "You are an appointment scheduling assistant. Extract appointment details from conversations. Return only valid JSON.",
+          },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.2,
+        maxTokens: 200,
+        feature: "executor.extract_appointment",
       });
 
-      if (!response.ok) {
-        return {
-          success: false,
-          error: "Failed to extract appointment information",
-        };
-      }
-
-      const data = await response.json();
-      const content = data.choices[0]?.message?.content || "";
+      const content = (typeof apptResult.message.content === "string" ? apptResult.message.content : "").trim();
 
       // Parse JSON response
       const cleaned = content.trim().replace(/```json|```/g, "");
@@ -1532,27 +1406,19 @@ If critical information is missing (especially scheduledAt or serviceType), set 
     }
 
     // Use AI for natural language (e.g., "next Monday", "tomorrow")
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) return null;
-
     try {
       const today = new Date().toISOString().split("T")[0];
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: [
-            { role: "system", content: `Today is ${today}. Convert the user's date reference to YYYY-MM-DD format. Return ONLY the date string, nothing else. If no date can be parsed, return "${today}".` },
-            { role: "user", content: input },
-          ],
-          temperature: 0,
-          max_tokens: 20,
-        }),
+      const dateResult = await llmComplete({
+        model: "claude-haiku-4-5-20251001",
+        messages: [
+          { role: "system", content: `Today is ${today}. Convert the user's date reference to YYYY-MM-DD format. Return ONLY the date string, nothing else. If no date can be parsed, return "${today}".` },
+          { role: "user", content: input },
+        ],
+        temperature: 0,
+        maxTokens: 20,
+        feature: "executor.parse_date",
       });
-      if (!response.ok) return null;
-      const data = await response.json();
-      const dateStr = data.choices?.[0]?.message?.content?.trim();
+      const dateStr = (typeof dateResult.message.content === "string" ? dateResult.message.content : "").trim();
       if (dateStr && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
     } catch { /* fall through */ }
 
@@ -1560,14 +1426,9 @@ If critical information is missing (especially scheduledAt or serviceType), set 
   }
 
   /**
-   * Generate AI response using OpenAI
+   * Generate AI response
    */
   private async generateAIResponse(step: any, userInput: string): Promise<string> {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error("OPENAI_API_KEY not configured");
-    }
-
     // OPTIMIZATION: Check cache first for Say step responses
     const normalizedInput = userInput.toLowerCase().trim();
     const contextHash = Buffer.from(JSON.stringify(this.context.gatheredData)).toString('base64').substring(0, 30);
@@ -1620,47 +1481,35 @@ If critical information is missing (especially scheduledAt or serviceType), set 
     const userPrompt = this.buildUserPrompt(step, userInput, agentContext);
     if (DEBUG) console.log(`[Say] User prompt: "${userPrompt.substring(0, 200)}"`);
     
-    // Log the FULL prompt being sent to OpenAI (truncated for logs)
+    // Log the FULL prompt being sent to LLM (truncated for logs)
     const fullPrompt = `SYSTEM: ${systemPrompt.substring(0, 500)}...\nUSER: ${userPrompt.substring(0, 200)}`;
-    if (DEBUG) console.log(`[Say] Full prompt being sent to OpenAI (truncated):`, fullPrompt);
+    if (DEBUG) console.log(`[Say] Full prompt being sent to LLM (truncated):`, fullPrompt);
 
     // OPTIMIZATION: Reduce tokens and temperature for faster responses
     // Also reduce transcript history to minimize context size
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...this.context.transcript.slice(-3).map((msg: any) => ({
-            role: msg.role,
-            content: msg.content.substring(0, 200), // Limit each message to 200 chars
-          })),
-          { role: "user", content: userPrompt },
-        ],
-        temperature: 0.2, // Lower temperature = faster, more deterministic responses
-        max_tokens: 100, // Further reduced for faster generation
-      }),
+    const sayResult = await llmComplete({
+      model: "claude-haiku-4-5-20251001",
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...this.context.transcript.slice(-3).map((msg: any) => ({
+          role: msg.role as "user" | "assistant",
+          content: msg.content.substring(0, 200), // Limit each message to 200 chars
+        })),
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.2,
+      maxTokens: 100,
+      feature: "executor.respond",
     });
 
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`OpenAI API error: ${error}`);
-    }
+    const aiResponse = (typeof sayResult.message.content === "string" ? sayResult.message.content : "").trim() || "I'm sorry, I couldn't generate a response.";
 
-    const data = await response.json();
-    const aiResponse = data.choices[0]?.message?.content || "I'm sorry, I couldn't generate a response.";
-    
     if (DEBUG) console.log(`[Say] AI response generated:`, {
       responseLength: aiResponse.length,
       responsePreview: aiResponse.substring(0, 300),
-      tokensUsed: data.usage?.total_tokens || 'unknown',
-      promptTokens: data.usage?.prompt_tokens || 'unknown',
-      completionTokens: data.usage?.completion_tokens || 'unknown',
+      tokensUsed: sayResult.usage.totalTokens,
+      promptTokens: sayResult.usage.promptTokens,
+      completionTokens: sayResult.usage.completionTokens,
     });
     
     // Check if response looks like it's ignoring Knowledge Base (generic responses like "24/7")
@@ -1686,11 +1535,6 @@ If critical information is missing (especially scheduledAt or serviceType), set 
    * Extract information from user input (for Gather steps)
    */
   private async extractInformation(step: any, userInput: string): Promise<string> {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      return userInput; // Fallback to raw input
-    }
-
     // Optimized prompt - shorter and more direct
     const prompt = `Extract the requested info. Return ONLY the value.
 
@@ -1699,29 +1543,22 @@ User: ${userInput}
 
 Value:`;
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
+    try {
+      const extractResult = await llmComplete({
+        model: "claude-haiku-4-5-20251001",
         messages: [
           { role: "system", content: "Extract only the value. No commentary." },
           { role: "user", content: prompt },
         ],
         temperature: 0.1,
-        max_tokens: 50, // Reduced for faster responses
-      }),
-    });
+        maxTokens: 50,
+        feature: "executor.extract",
+      });
 
-    if (!response.ok) {
-      return userInput; // Fallback
+      return (typeof extractResult.message.content === "string" ? extractResult.message.content : "").trim() || userInput;
+    } catch {
+      return userInput; // Fallback to raw input
     }
-
-    const data = await response.json();
-    return data.choices[0]?.message?.content || userInput;
   }
 
   /**
@@ -1733,13 +1570,6 @@ Value:`;
     }
 
     // Use AI to evaluate condition
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      // Simple keyword matching fallback
-      const condition = (branch.condition || "").toLowerCase();
-      return userInput.toLowerCase().includes(condition);
-    }
-
     // Optimized prompt - shorter and more direct
     const prompt = `Is this condition true? Answer only "true" or "false".
 
@@ -1749,30 +1579,25 @@ Context: ${JSON.stringify(context).substring(0, 200)}
 
 Answer:`;
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
+    try {
+      const condResult = await llmComplete({
+        model: "claude-haiku-4-5-20251001",
         messages: [
           { role: "system", content: "You are a condition evaluator. Respond with only 'true' or 'false'." },
           { role: "user", content: prompt },
         ],
         temperature: 0.1,
-        max_tokens: 10,
-      }),
-    });
+        maxTokens: 10,
+        feature: "executor.evaluate_condition",
+      });
 
-    if (!response.ok) {
-      return false;
+      const result = (typeof condResult.message.content === "string" ? condResult.message.content : "").toLowerCase().trim();
+      return result === "true";
+    } catch {
+      // Simple keyword matching fallback
+      const condition = (branch.condition || "").toLowerCase();
+      return userInput.toLowerCase().includes(condition);
     }
-
-    const data = await response.json();
-    const result = data.choices[0]?.message?.content?.toLowerCase().trim();
-    return result === "true";
   }
 
   /**
@@ -2666,36 +2491,20 @@ Answer:`;
       Return only the specialist role name, or "none" if no specialist needed.
     `;
     
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      return null;
-    }
-    
     try {
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: [
-            { role: "system", content: "You are a routing assistant. Return only the specialist role name." },
-            { role: "user", content: prompt }
-          ],
-          temperature: 0.3,
-          max_tokens: 20,
-        }),
+      const classifyResult = await llmComplete({
+        model: "claude-haiku-4-5-20251001",
+        messages: [
+          { role: "system", content: "You are a routing assistant. Return only the specialist role name." },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.3,
+        maxTokens: 20,
+        feature: "executor.classify",
       });
-      
-      if (!response.ok) {
-        return null;
-      }
-      
-      const data = await response.json();
-      const role = data.choices[0]?.message?.content?.toLowerCase().trim();
-      
+
+      const role = (typeof classifyResult.message.content === "string" ? classifyResult.message.content : "").toLowerCase().trim();
+
       return role === "none" ? null : role;
     } catch (error) {
       console.error("Error classifying specialist:", error);

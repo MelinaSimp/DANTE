@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { complete as llmComplete } from "@/lib/llm/client";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -133,105 +134,95 @@ You can help with:
 Be friendly, concise, and natural. For voice conversations, keep responses short (1-2 sentences).`;
     const systemPrompt = basePrompt;
 
-    // OpenAI function definitions
-    const functions = [
+    // Tool definitions for llmComplete
+    const tools = [
       {
-        name: "schedule_appointment",
-        description: "Schedule an appointment for the caller",
-        parameters: {
-          type: "object",
-          properties: {
-            contactName: {
-              type: "string",
-              description: "The caller's name",
+        type: "function" as const,
+        function: {
+          name: "schedule_appointment",
+          description: "Schedule an appointment for the caller",
+          parameters: {
+            type: "object",
+            properties: {
+              contactName: {
+                type: "string",
+                description: "The caller's name",
+              },
+              scheduledAt: {
+                type: "string",
+                description: "Date and time in ISO 8601 format (YYYY-MM-DDTHH:MM:SS)",
+              },
+              serviceType: {
+                type: "string",
+                description: "Type of service or appointment (e.g., 'Consultation', 'Meeting')",
+              },
+              durationMinutes: {
+                type: "number",
+                description: "Duration in minutes (default: 60)",
+              },
+              notes: {
+                type: "string",
+                description: "Additional notes about the appointment",
+              },
             },
-            scheduledAt: {
-              type: "string",
-              description: "Date and time in ISO 8601 format (YYYY-MM-DDTHH:MM:SS)",
-            },
-            serviceType: {
-              type: "string",
-              description: "Type of service or appointment (e.g., 'Consultation', 'Meeting')",
-            },
-            durationMinutes: {
-              type: "number",
-              description: "Duration in minutes (default: 60)",
-            },
-            notes: {
-              type: "string",
-              description: "Additional notes about the appointment",
-            },
+            required: ["scheduledAt", "serviceType"],
           },
-          required: ["scheduledAt", "serviceType"],
         },
       },
       {
-        name: "check_availability",
-        description: "Check available appointment time slots for a specific date",
-        parameters: {
-          type: "object",
-          properties: {
-            date: {
-              type: "string",
-              description: "Date in YYYY-MM-DD format",
+        type: "function" as const,
+        function: {
+          name: "check_availability",
+          description: "Check available appointment time slots for a specific date",
+          parameters: {
+            type: "object",
+            properties: {
+              date: {
+                type: "string",
+                description: "Date in YYYY-MM-DD format",
+              },
+              durationMinutes: {
+                type: "number",
+                description: "Duration in minutes (default: 60)",
+              },
             },
-            durationMinutes: {
-              type: "number",
-              description: "Duration in minutes (default: 60)",
-            },
+            required: ["date"],
           },
-          required: ["date"],
         },
       },
     ];
 
-    // Prepare messages for OpenAI
+    // Prepare messages for LLM
     const messages: any[] = [
       { role: "system", content: systemPrompt },
       ...recentMessages,
       { role: "user", content: userInput || "Hello, introduce yourself." },
     ];
 
-    // Call OpenAI with function calling
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error("OPENAI_API_KEY not configured");
-    }
-
-    const openaiStartTime = Date.now();
-    let openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages,
-        functions,
-        function_call: "auto",
-        temperature: 0.2,
-        max_tokens: 150,
-      }),
+    // Call LLM with tool calling
+    const llmStartTime = Date.now();
+    const llmResult = await llmComplete({
+      model: "claude-haiku-4-5-20251001",
+      messages,
+      tools,
+      toolChoice: "auto",
+      temperature: 0.2,
+      maxTokens: 150,
+      feature: "twilio.media_stream",
     });
 
-    if (!openaiResponse.ok) {
-      const error = await openaiResponse.text();
-      throw new Error(`OpenAI API error: ${error}`);
-    }
+    const llmEndTime = Date.now();
+    console.log(`[Media Stream Execute] LLM call took ${llmEndTime - llmStartTime}ms`);
 
-    const openaiData = await openaiResponse.json();
-    const openaiEndTime = Date.now();
-    console.log(`[Media Stream Execute] OpenAI call took ${openaiEndTime - openaiStartTime}ms`);
-
-    let assistantMessage = openaiData.choices[0]?.message;
+    let assistantMessage = llmResult.message;
     let finalOutput = "";
     let functionCallResult = null;
 
-    // Handle function calls
-    if (assistantMessage.function_call) {
-      const functionName = assistantMessage.function_call.name;
-      const functionArgs = JSON.parse(assistantMessage.function_call.arguments || "{}");
+    // Handle tool calls
+    const toolCall = assistantMessage.tool_calls?.[0];
+    if (toolCall) {
+      const functionName = toolCall.function.name;
+      const functionArgs = JSON.parse(toolCall.function.arguments || "{}");
 
       console.log(`[Media Stream Execute] Function call: ${functionName}`, functionArgs);
 
@@ -291,31 +282,31 @@ Be friendly, concise, and natural. For voice conversations, keep responses short
         }
       }
 
-      // Call OpenAI again with function result to get natural language response
+      // Call LLM again with tool result to get natural language response
       if (functionCallResult) {
-        messages.push(assistantMessage);
         messages.push({
-          role: "function",
-          name: functionName,
+          role: "assistant",
+          content: assistantMessage.content,
+          tool_calls: assistantMessage.tool_calls,
+        });
+        messages.push({
+          role: "tool",
+          tool_call_id: toolCall.id,
           content: functionCallResult,
         });
 
-        const secondResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "gpt-4o-mini",
+        try {
+          const secondResult = await llmComplete({
+            model: "claude-haiku-4-5-20251001",
             messages,
             temperature: 0.2,
-            max_tokens: 100,
-          }),
-        });
-
-        const secondData = await secondResponse.json();
-        finalOutput = secondData.choices[0]?.message?.content || functionCallResult;
+            maxTokens: 100,
+            feature: "twilio.media_stream",
+          });
+          finalOutput = (typeof secondResult.message.content === "string" ? secondResult.message.content : "").trim() || functionCallResult;
+        } catch {
+          finalOutput = functionCallResult;
+        }
       } else {
         finalOutput = assistantMessage.content || "I've processed your request.";
       }

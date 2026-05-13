@@ -4,7 +4,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { requireUserWithWorkspace } from "@/lib/api-auth";
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
-import { recordLlmUsage } from "@/lib/usage/track";
+import { complete as llmComplete } from "@/lib/llm/client";
 
 interface NoteLite {
   id: string;
@@ -27,15 +27,7 @@ export async function POST(req: NextRequest) {
 
     if (!(await rateLimit(`ai-contact:${auth.user.id}`, 20)).allowed) return rateLimitResponse();
 
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "Missing OPENAI_API_KEY" },
-        { status: 500 }
-      );
-    }
-
-    const { contactId, workspaceId } = (await req.json()) as { 
+    const { contactId, workspaceId } = (await req.json()) as {
       contactId: string;
       workspaceId?: string;
     };
@@ -147,50 +139,32 @@ export async function POST(req: NextRequest) {
       notesJoined || "(no prior customer interactions)",
     ].join('\n');
 
-    // OpenAI responses: use a small, fast model
-    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
+    let content: string;
+    try {
+      const result = await llmComplete({
+        model: "claude-haiku-4-5-20251001",
         messages: [
           { role: "system", content: "You are an AI receptionist assistant for service-based businesses. Focus on scheduling, callbacks, and customer service needs." },
           { role: "user", content: prompt },
         ],
         temperature: 0.2,
-      }),
-    });
-
-    if (!resp.ok) {
-      const text = await resp.text();
-      console.error("OpenAI API error:", text);
+        feature: "ai.analyze_contact",
+        workspaceId: auth.workspaceId,
+      });
+      content = (typeof result.message.content === "string" ? result.message.content : "").trim();
+    } catch (err) {
+      console.error("LLM API error:", err);
       return NextResponse.json(
         { error: "AI analysis failed" },
         { status: 500 }
       );
     }
 
-    const data = await resp.json();
-    const content = data.choices?.[0]?.message?.content;
     if (!content) {
       return NextResponse.json(
         { error: "No AI response received" },
         { status: 500 }
       );
-    }
-
-    if (data.usage && auth.workspaceId) {
-      recordLlmUsage({
-        workspaceId: auth.workspaceId,
-        userId: auth.user.id,
-        model: "gpt-4o-mini",
-        inputTokens: data.usage.prompt_tokens ?? 0,
-        outputTokens: data.usage.completion_tokens ?? 0,
-        source: "analyze_contact",
-      });
     }
 
     try {

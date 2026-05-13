@@ -23,6 +23,7 @@
 
 import { NextRequest } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { complete as llmComplete } from "@/lib/llm/client";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { runAgent, type AgentEvent } from "@/lib/dante/agent";
 import {
@@ -472,7 +473,7 @@ export async function POST(req: NextRequest) {
 
       // Suggested follow-ups — fire AFTER `final` so the UI renders
       // the answer immediately and the suggestions populate a moment
-      // later. One small gpt-4o-mini call. Failures here are silent;
+      // later. One small llmComplete call. Failures here are silent;
       // the UI just doesn't show suggestions.
       if (!runError && assistantContent) {
         try {
@@ -522,39 +523,26 @@ async function generateFollowups(
   answer: string,
   industry: string | null,
 ): Promise<string[]> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return [];
-
   const verticalNoun =
     industry === "real_estate" ? "real estate agent" : "financial advisor";
 
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: "gpt-4.1",
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system",
-          content: `You suggest follow-up questions a ${verticalNoun} might ask their AI assistant next. Given a question and an answer, return JSON of the shape { "questions": [string, string, string] } with exactly three short, specific, actionable follow-ups (8-15 words each, end with a question mark). They should build on the answer — extend it, drill into a specific point, or pivot to a related concrete next step. Do not repeat the original question.`,
-        },
-        {
-          role: "user",
-          content: `QUESTION:\n${question}\n\nANSWER:\n${answer.slice(0, 4000)}`,
-        },
-      ],
-      max_completion_tokens: 400,
-    }),
+  const result = await llmComplete({
+    model: "claude-sonnet-4-6",
+    responseFormat: { type: "json_object" },
+    messages: [
+      {
+        role: "system",
+        content: `You suggest follow-up questions a ${verticalNoun} might ask their AI assistant next. Given a question and an answer, return JSON of the shape { "questions": [string, string, string] } with exactly three short, specific, actionable follow-ups (8-15 words each, end with a question mark). They should build on the answer — extend it, drill into a specific point, or pivot to a related concrete next step. Do not repeat the original question.`,
+      },
+      {
+        role: "user",
+        content: `QUESTION:\n${question}\n\nANSWER:\n${answer.slice(0, 4000)}`,
+      },
+    ],
+    maxTokens: 400,
+    feature: "ask.followups",
   });
-  if (!res.ok) return [];
-  const json = (await res.json()) as {
-    choices: Array<{ message: { content: string } }>;
-  };
-  const raw = json.choices?.[0]?.message?.content;
+  const raw = typeof result.message.content === "string" ? result.message.content : null;
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw) as { questions?: unknown };

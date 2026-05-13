@@ -6,17 +6,28 @@ import {
   getWorkspaceIdForUser,
   AssistantAction,
 } from "@/lib/assistant/actions";
+import { complete as llmComplete } from "@/lib/llm/client";
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const PLANNER_MODEL =
+/** Map legacy OpenAI model names to their Claude equivalents.
+ *  Env vars may still reference gpt-* names from the pre-migration era. */
+function resolveModel(envModel: string | undefined): string {
+  const m = envModel || "";
+  if (m.startsWith("claude-")) return m;
+  if (m === "gpt-4o" || m === "gpt-4.1") return "claude-sonnet-4-6";
+  return "claude-haiku-4-5-20251001";
+}
+
+const PLANNER_MODEL = resolveModel(
   process.env.HOME_PLANNER_MODEL ||
   process.env.HOME_CHAT_MODEL ||
   process.env.RECEPTIONIST_COMPLETION_MODEL ||
-  "gpt-4o-mini";
-const WRITER_MODEL =
+  undefined,
+);
+const WRITER_MODEL = resolveModel(
   process.env.HOME_CHAT_MODEL ||
   process.env.RECEPTIONIST_COMPLETION_MODEL ||
-  "gpt-4o-mini";
+  undefined,
+);
 
 export const dynamic = "force-dynamic";
 
@@ -34,30 +45,23 @@ interface PlannedResponse {
   operations: PlannedOperation[];
 }
 
-async function callOpenAI(messages: Array<{ role: string; content: string }>, model: string) {
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature: 0.4,
-      max_tokens: 600,
-    }),
+async function callLLM(
+  messages: Array<{ role: string; content: string }>,
+  model: string,
+  feature: string,
+  workspaceId?: string | null,
+): Promise<string> {
+  const result = await llmComplete({
+    model,
+    messages: messages as any,
+    temperature: 0.4,
+    maxTokens: 600,
+    feature,
+    workspaceId: workspaceId ?? null,
   });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `OpenAI returned ${response.status}`);
-  }
-
-  const data = await response.json();
-  const answer = data?.choices?.[0]?.message?.content;
+  const answer = typeof result.message.content === "string" ? result.message.content : null;
   if (!answer) {
-    throw new Error("Empty response from OpenAI.");
+    throw new Error("Empty response from LLM.");
   }
   return answer;
 }
@@ -105,13 +109,6 @@ function findAction(name: string): AssistantAction | undefined {
 }
 
 export async function POST(req: NextRequest) {
-  if (!OPENAI_API_KEY) {
-    return NextResponse.json(
-      { error: "OPENAI_API_KEY is not configured. Add it to your environment." },
-      { status: 500 }
-    );
-  }
-
   const supabase = await createServerSupabase();
   const {
     data: { user },
@@ -140,7 +137,7 @@ export async function POST(req: NextRequest) {
 
   const history: ConversationTurn[] = Array.isArray(body.history) ? (body.history as ConversationTurn[]) : [];
 
-  // Step 1: Ask OpenAI which operations (if any) should run.
+  // Step 1: Ask the LLM which operations (if any) should run.
   let planned: PlannedResponse | null = null;
   try {
     const plannerMessages = [
@@ -152,7 +149,7 @@ export async function POST(req: NextRequest) {
       { role: "user", content: prompt },
     ];
 
-    const plannerOutput = await callOpenAI(plannerMessages, PLANNER_MODEL);
+    const plannerOutput = await callLLM(plannerMessages, PLANNER_MODEL, "assistant.query.plan", workspaceId);
     planned = parsePlannerOutput(plannerOutput);
   } catch (error) {
     console.error("[assistant] Planning failure:", error);
@@ -235,7 +232,7 @@ export async function POST(req: NextRequest) {
       },
     ];
 
-    const writerOutput = await callOpenAI(writerMessages, WRITER_MODEL);
+    const writerOutput = await callLLM(writerMessages, WRITER_MODEL, "assistant.query.write", workspaceId);
     answer = writerOutput.trim();
   } catch (error) {
     console.error("[assistant] Writer failure:", error);

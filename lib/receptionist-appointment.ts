@@ -1,13 +1,13 @@
 import { ReceptionistAnswer } from "@/lib/receptionist";
 import { normalizePhoneNumber } from "@/lib/receptionist";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { complete as llmComplete } from "@/lib/llm/client";
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const APPOINTMENT_MODEL =
   process.env.RECEPTIONIST_APPOINTMENT_MODEL ||
   process.env.HOME_PLANNER_MODEL ||
   process.env.HOME_CHAT_MODEL ||
-  "claude-haiku-4-5";
+  "claude-haiku-4-5-20251001";
 
 export interface AppointmentFollowup {
   field: string;
@@ -69,13 +69,6 @@ function safeJsonParse(text: string): AppointmentPlan | null {
 export async function generateAppointmentSuggestion(
   answers: ReceptionistAnswer[]
 ): Promise<AppointmentPlan | null> {
-  if (!OPENAI_API_KEY) {
-    console.warn(
-      "[receptionist] OPENAI_API_KEY missing, appointment extraction disabled."
-    );
-    return null;
-  }
-
   if (!answers || answers.length === 0) return null;
 
   const context = buildAnswerContext(answers);
@@ -122,33 +115,18 @@ Return ONLY the JSON object.
 `.trim();
 
   try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: APPOINTMENT_MODEL,
-        temperature: 0.2,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-      }),
+    const result = await llmComplete({
+      model: APPOINTMENT_MODEL,
+      temperature: 0.2,
+      responseFormat: { type: "json_object" },
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      feature: "receptionist.appointment",
     });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("[receptionist] Appointment extraction error:", errText);
-      return null;
-    }
-
-    const data = await response.json();
-    const content: string | undefined =
-      data?.choices?.[0]?.message?.content ||
-      data?.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
+    const content = (typeof result.message.content === "string" ? result.message.content : "").trim();
 
     if (!content) {
       return null;

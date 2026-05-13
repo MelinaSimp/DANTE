@@ -175,7 +175,6 @@ export async function processRecording(opts: {
     console.error("reference retrieval failed for call", recordingId, e);
   }
 
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
   const {
     structured,
     model: sumModel,
@@ -186,8 +185,6 @@ export async function processRecording(opts: {
     segments,
     transcript,
     contactName,
-    openaiKey,
-    anthropicKey,
     referenceContext,
   });
 
@@ -232,8 +229,6 @@ export async function processRecording(opts: {
   const sentiment = await classifyCallSentiment({
     summary,
     contactName,
-    anthropicKey,
-    openaiKey,
   });
 
   // Topic-level engagement analysis — gauges per-topic client interest
@@ -243,8 +238,6 @@ export async function processRecording(opts: {
     segments,
     transcript,
     contactName,
-    anthropicKey,
-    openaiKey,
   });
 
   await supabaseAdmin
@@ -337,7 +330,7 @@ export async function processRecording(opts: {
     const scan = await scanForCompliance({
       text: summary,
       contextLabel: `Call summary for ${contactName}`,
-      anthropicKey,
+      anthropicKey: process.env.ANTHROPIC_API_KEY,
     });
     const fresh = scan.flags.filter((f) => !f.rule_id || !dismissed.has(f.rule_id));
     complianceFlags = fresh;

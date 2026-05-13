@@ -1,0 +1,248 @@
+[    1466ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/compiled/react-dom/cjs/react-dom-client.development.js:25630
+[    1683ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:3000/api/auth/whoami:0
+[    1698ms] [ERROR] Failed to load resource: the server responded with a status of 403 (Forbidden) @ http://localhost:3000/monitoring?o=4511205081284608&p=4511205092163584&r=us:0
+[    1755ms] [ERROR] Failed to load resource: the server responded with a status of 403 (Forbidden) @ http://localhost:3000/monitoring?o=4511205081284608&p=4511205092163584&r=us:0
+[    1764ms] [ERROR] Failed to load resource: the server responded with a status of 403 (Forbidden) @ http://localhost:3000/monitoring?o=4511205081284608&p=4511205092163584&r=us:0
+[    3263ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43
+[    4470ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ http://localhost:3000/auth:0
+[    5029ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/compiled/react-dom/cjs/react-dom-client.development.js:25630
+[    5171ms] [ERROR] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+%s%s https://react.dev/link/hydration-mismatch 
+
+  ...
+    <LoadingBoundary loading={null}>
+      <HTTPAccessFallbackBoundary notFound={undefined} forbidden={undefined} unauthorized={undefined}>
+        <RedirectBoundary>
+          <RedirectErrorBoundary router={{...}}>
+            <InnerLayoutRouter url="/auth" tree={[...]} cacheNode={{lazyData:null, ...}} segmentPath={[...]}>
+              <SegmentViewNode type="page" pagePath="auth/page.tsx">
+                <SegmentTrieNode>
+                <ClientPageRoot Component={function AuthPage} searchParams={{}} params={{}}>
+                  <AuthPage params={Promise} searchParams={Promise}>
+                    <div className="relative m..." style={{...}}>
+                      <div>
+                      <div>
+                      <div className="relative z...">
+                        <div className="w-full max...">
+                          <div className="card-flat p-8" style={{...}}>
+                            <div>
+                            <form onSubmit={function handleSubmit} className="space-y-3">
+                              <input
+                                type="email"
+                                value=""
+                                onChange={function onChange}
+                                style={{
++                                 width: "100%"
+-                                 width: "100%"
++                                 border: "1px solid var(--rule)"
++                                 background: "var(--canvas)"
++                                 color: "var(--ink)"
+-                                 color: "var(--ink)"
++                                 padding: "12px 14px"
++                                 fontSize: 14
++                                 borderRadius: "var(--r-input)"
++                                 outline: "none"
++                                 transition: "border-color 120ms ease"
+-                                 border-top-color: ""
+-                                 border-top-style: ""
+-                                 border-top-width: ""
+-                                 border-right-color: ""
+-                                 border-right-style: ""
+-                                 border-right-width: ""
+-                                 border-bottom-color: ""
+-                                 border-bottom-style: ""
+-                                 border-bottom-width: ""
+-                                 border-left-color: ""
+-                                 border-left-style: ""
+-                                 border-left-width: ""
+-                                 border-image-source: ""
+-                                 border-image-slice: ""
+-                                 border-image-width: ""
+-                                 border-image-outset: ""
+-                                 border-image-repeat: ""
+-                                 background-image: ""
+-                                 background-position-x: ""
+-                                 background-position-y: ""
+-                                 background-size: ""
+-                                 background-repeat: ""
+-                                 background-attachment: ""
+-                                 background-origin: ""
+-                                 background-clip: ""
+-                                 background-color: ""
+-                                 padding-top: "12px"
+-                                 padding-right: "14px"
+-                                 padding-bottom: "12px"
+-                                 padding-left: "14px"
+-                                 font-size: "14px"
+-                                 border-top-left-radius: ""
+-                                 border-top-right-radius: ""
+-                                 border-bottom-right-radius: ""
+-                                 border-bottom-left-radius: ""
+-                                 outline-color: "initial"
+-                                 outline-style: "none"
+-                                 outline-width: "initial"
+-                                 transition-behavior: "normal"
+-                                 transition-duration: "120ms"
+-                                 transition-timing-function: "ease"
+-                                 transition-delay: "0s"
+-                                 transition-property: "border-color"
+                                }}
+                                placeholder="Email"
+                                required={true}
+                              >
+                              <input
+                                type="password"
+                                value=""
+                                onChange={function onChange}
+                                style={{
++                                 width: "100%"
+-                                 width: "100%"
++                                 border: "1px solid var(--rule)"
++                                 background: "var(--canvas)"
++                                 color: "var(--ink)"
+-                                 color: "var(--ink)"
++                                 padding: "12px 14px"
++                                 fontSize: 14
++                                 borderRadius: "var(--r-input)"
++                                 outline: "none"
++                                 transition: "border-color 120ms ease"
+-                                 border-top-color: ""
+-                                 border-top-style: ""
+-                                 border-top-width: ""
+-                                 border-right-color: ""
+-                                 border-right-style: ""
+-                                 border-right-width: ""
+-                                 border-bottom-color: ""
+-                                 border-bottom-style: ""
+-                                 border-bottom-width: ""
+-                                 border-left-color: ""
+-                                 border-left-style: ""
+-                                 border-left-width: ""
+-                                 border-image-source: ""
+-                                 border-image-slice: ""
+-                                 border-image-width: ""
+-                                 border-image-outset: ""
+-                                 border-image-repeat: ""
+-                                 background-image: ""
+-                                 background-position-x: ""
+-                                 background-position-y: ""
+-                                 background-size: ""
+-                                 background-repeat: ""
+-                                 background-attachment: ""
+-                                 background-origin: ""
+-                                 background-clip: ""
+-                                 background-color: ""
+-                                 padding-top: "12px"
+-                                 padding-right: "14px"
+-                                 padding-bottom: "12px"
+-                                 padding-left: "14px"
+-                                 font-size: "14px"
+-                                 border-top-left-radius: ""
+-                                 border-top-right-radius: ""
+-                                 border-bottom-right-radius: ""
+-                                 border-bottom-left-radius: ""
+-                                 outline-color: "initial"
+-                                 outline-style: "none"
+-                                 outline-width: "initial"
+-                                 transition-behavior: "normal"
+-                                 transition-duration: "120ms"
+-                                 transition-timing-function: "ease"
+-                                 transition-delay: "0s"
+-                                 transition-property: "border-color"
+                                }}
+                                placeholder="Password"
+                                required={true}
+                                minLength={8}
+                              >
+                              <div className="flex items...">
+                                <input
+                                  type="checkbox"
+                                  id="keepSignedIn"
+                                  checked={false}
+                                  onChange={function onChange}
+                                  className="w-3.5 h-3.5"
++                                 style={{accentColor:"var(--accent)"}}
+-                                 style={{accent-color:"var(--accent)"}}
+                                >
+                                ...
+                              ...
+                            ...
+                          ...
+              ...
+            ...
+ @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/next-devtools/userspace/app/errors/intercept-console-error.js:56
+[    5296ms] [ERROR] Failed to load resource: the server responded with a status of 403 (Forbidden) @ http://localhost:3000/monitoring?o=4511205081284608&p=4511205092163584&r=us:0
+[    5396ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:3000/api/auth/whoami:0
+[    5403ms] [ERROR] Failed to load resource: the server responded with a status of 403 (Forbidden) @ http://localhost:3000/monitoring?o=4511205081284608&p=4511205092163584&r=us:0
+[    7410ms] [LOG] Push notifications enabled @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43
+[    7410ms] [LOG] VAPID key not configured, skipping push subscription @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43
+[    8467ms] [WARNING] The resource http://localhost:3000/_next/static/media/e4af272ccee01ff0-s.p.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://localhost:3000/auth:0
+[    8467ms] [WARNING] The resource http://localhost:3000/_next/static/media/e6099e249fd938cc-s.p.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://localhost:3000/auth:0
+[    8467ms] [WARNING] The resource http://localhost:3000/_next/static/media/bb3ef058b751a6ad-s.p.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://localhost:3000/auth:0
+[   29375ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43
+[   30063ms] [LOG] [Fast Refresh] done in 690ms @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43
+[   32248ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43
+[   33067ms] [WARNING] The resource http://localhost:3000/_next/static/media/e4af272ccee01ff0-s.p.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://localhost:3000/auth:0
+[   33067ms] [WARNING] The resource http://localhost:3000/_next/static/media/e6099e249fd938cc-s.p.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://localhost:3000/auth:0
+[   33067ms] [WARNING] The resource http://localhost:3000/_next/static/media/bb3ef058b751a6ad-s.p.woff2 was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally. @ http://localhost:3000/auth:0
+[   34395ms] [LOG] [Fast Refresh] done in 2147ms @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43
+[   35248ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/compiled/react-dom/cjs/react-dom-client.development.js:25630
+[   35522ms] [ERROR] Failed to load resource: the server responded with a status of 403 (Forbidden) @ http://localhost:3000/monitoring?o=4511205081284608&p=4511205092163584&r=us:0
+[   35524ms] [LOG] Push notifications enabled @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43
+[   35524ms] [LOG] VAPID key not configured, skipping push subscription @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43
+[   35689ms] [ERROR] Failed to load resource: the server responded with a status of 403 (Forbidden) @ http://localhost:3000/monitoring?o=4511205081284608&p=4511205092163584&r=us:0
+[   35731ms] [ERROR] Failed to load resource: the server responded with a status of 403 (Forbidden) @ http://localhost:3000/monitoring?o=4511205081284608&p=4511205092163584&r=us:0
+[   35978ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43
+[   36621ms] [LOG] [Fast Refresh] done in 644ms @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43
+[   36791ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43
+[   37558ms] [LOG] [Fast Refresh] done in 768ms @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43
+[   39756ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43
+[   40299ms] [LOG] [Fast Refresh] done in 544ms @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43
+[   40479ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43
+[   41078ms] [LOG] [Fast Refresh] done in 599ms @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43
+[   78906ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43
+[   79799ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43
+[   79911ms] [LOG] [Fast Refresh] done in 113ms @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43
+[   83059ms] [WARNING] [Fast Refresh] performing full reload
+
+Fast Refresh will perform a full reload when you edit a file that's imported by modules outside of the React rendering tree.
+You might have a file which exports a React component but also exports a value that is imported by a non-React component file.
+Consider migrating the non-React component export to a separate file and importing it into both files.
+
+It is also possible the parent component of the component you edited is a class component, which disables Fast Refresh.
+Fast Refresh requires at least one parent function component in your React tree. @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43
+[   87557ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/compiled/react-dom/cjs/react-dom-client.development.js:25630
+[   87767ms] [LOG] Push notifications enabled @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43
+[   87767ms] [LOG] VAPID key not configured, skipping push subscription @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43
+[   88724ms] [ERROR] Failed to load resource: the server responded with a status of 403 (Forbidden) @ http://localhost:3000/monitoring?o=4511205081284608&p=4511205092163584&r=us:0
+[   88928ms] [ERROR] Failed to load resource: the server responded with a status of 403 (Forbidden) @ http://localhost:3000/monitoring?o=4511205081284608&p=4511205092163584&r=us:0
+[   88929ms] [ERROR] Failed to load resource: the server responded with a status of 403 (Forbidden) @ http://localhost:3000/monitoring?o=4511205081284608&p=4511205092163584&r=us:0
+[   91457ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43
+[   92669ms] [LOG] [Fast Refresh] done in 1212ms @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43
+[  154930ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43
+[  161707ms] [WARNING] [Fast Refresh] performing full reload
+
+Fast Refresh will perform a full reload when you edit a file that's imported by modules outside of the React rendering tree.
+You might have a file which exports a React component but also exports a value that is imported by a non-React component file.
+Consider migrating the non-React component export to a separate file and importing it into both files.
+
+It is also possible the parent component of the component you edited is a class component, which disables Fast Refresh.
+Fast Refresh requires at least one parent function component in your React tree. @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43
+[  162182ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43
+[  162926ms] [LOG] [Fast Refresh] done in 745ms @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43
+[  165728ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ webpack-internal:///(app-pages-browser)/./node_modules/next/dist/compiled/react-dom/cjs/react-dom-client.development.js:25630
+[  165963ms] [LOG] Push notifications enabled @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43
+[  165963ms] [LOG] VAPID key not configured, skipping push subscription @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43
+[  166053ms] [ERROR] Failed to load resource: the server responded with a status of 403 (Forbidden) @ http://localhost:3000/monitoring?o=4511205081284608&p=4511205092163584&r=us:0
+[  166130ms] [ERROR] Failed to load resource: the server responded with a status of 403 (Forbidden) @ http://localhost:3000/monitoring?o=4511205081284608&p=4511205092163584&r=us:0
+[  166131ms] [ERROR] Failed to load resource: the server responded with a status of 403 (Forbidden) @ http://localhost:3000/monitoring?o=4511205081284608&p=4511205092163584&r=us:0
+[  321172ms] [LOG] [Fast Refresh] rebuilding @ webpack-internal:///(app-pages-browser)/./node_modules/@sentry/core/build/esm/instrument/console.js:43

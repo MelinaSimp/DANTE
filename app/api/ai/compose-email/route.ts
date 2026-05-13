@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { complete as llmComplete } from "@/lib/llm/client";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -14,9 +15,6 @@ export async function POST(req: NextRequest) {
   if (!prompt || typeof prompt !== "string") {
     return NextResponse.json({ error: "prompt is required" }, { status: 400 });
   }
-
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return NextResponse.json({ error: "OpenAI API key not configured" }, { status: 500 });
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -98,27 +96,25 @@ Rules:
 - If you can infer the recipient's email from the contact data, include it as "to" in the JSON
 ${contactContext}`;
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
+  let raw: string;
+  try {
+    const result = await llmComplete({
+      model: "claude-haiku-4-5-20251001",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: `${prompt}${currentSubject ? `\n\nCurrent subject: ${currentSubject}` : ""}${currentBody ? `\n\nCurrent draft:\n${currentBody}` : ""}` },
       ],
       temperature: 0.4,
-      max_tokens: 1000,
-      response_format: { type: "json_object" },
-    }),
-  });
-
-  if (!response.ok) {
+      maxTokens: 1000,
+      responseFormat: { type: "json_object" },
+      feature: "ai.compose_email",
+      workspaceId: profile.workspace_id,
+    });
+    raw = (typeof result.message.content === "string" ? result.message.content : "{}").trim();
+  } catch (err) {
+    console.error("LLM API error:", err);
     return NextResponse.json({ error: "AI request failed" }, { status: 500 });
   }
-
-  const data = await response.json();
-  const raw = data.choices?.[0]?.message?.content || "{}";
 
   try {
     const parsed = JSON.parse(raw);

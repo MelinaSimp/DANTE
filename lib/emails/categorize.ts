@@ -113,7 +113,7 @@ ${JSON.stringify(emailPayload, null, 2)}`;
   let parsed: { results: Array<{ email_id: string; category: string; property_id: string | null; confidence: number }> } = { results: [] };
   try {
     const resp = await llmComplete({
-      model: "gpt-4o-mini",
+      model: "claude-haiku-4-5-20251001",
       responseFormat: { type: "json_object" },
       temperature: 0.1,
       messages: [

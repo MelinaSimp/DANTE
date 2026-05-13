@@ -87,7 +87,7 @@ Rules:
   let parsed: any = {};
   try {
     const resp = await llmComplete({
-      model: "gpt-4o-mini",
+      model: "claude-haiku-4-5-20251001",
       responseFormat: { type: "json_object" },
       temperature: 0.1,
       messages: [

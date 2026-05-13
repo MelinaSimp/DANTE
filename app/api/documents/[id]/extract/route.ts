@@ -64,22 +64,11 @@ export async function POST(
     );
   }
 
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
-  const openaiKey = process.env.OPENAI_API_KEY;
-  if (!anthropicKey && !openaiKey) {
-    return NextResponse.json(
-      { error: "No LLM API key configured" },
-      { status: 500 }
-    );
-  }
-
   let result;
   try {
     result = await extractDocument({
       docType,
       text: doc.extracted_text,
-      anthropicKey,
-      openaiKey,
     });
   } catch (e: any) {
     return NextResponse.json(

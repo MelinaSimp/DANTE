@@ -1038,15 +1038,7 @@ async function kickoffInboundAudit(args: {
   // a fast 200 and don't retry. `after()` respects the route's
   // maxDuration; we budgeted 300s at the top of the file.
   after(async () => {
-    const openaiKey = process.env.OPENAI_API_KEY;
     const anthropicKey = process.env.ANTHROPIC_API_KEY;
-    if (!openaiKey && !anthropicKey) {
-      await supabaseAdmin
-        .from("call_recordings")
-        .update({ status: "error", error: "No LLM key configured" })
-        .eq("id", recordingId);
-      return;
-    }
 
     try {
       // Reference retrieval — regulatory fact grounding. Failures here
@@ -1063,8 +1055,6 @@ async function kickoffInboundAudit(args: {
         segments,
         transcript: transcriptText,
         contactName,
-        openaiKey,
-        anthropicKey,
         referenceContext,
       });
 
@@ -1103,8 +1093,6 @@ async function kickoffInboundAudit(args: {
       const sentiment = await classifyCallSentiment({
         summary,
         contactName,
-        anthropicKey,
-        openaiKey,
       });
 
       // Per-topic engagement — same module the recorded-call pipeline
@@ -1114,8 +1102,6 @@ async function kickoffInboundAudit(args: {
         segments,
         transcript: transcriptText,
         contactName,
-        anthropicKey,
-        openaiKey,
       });
 
       await supabaseAdmin

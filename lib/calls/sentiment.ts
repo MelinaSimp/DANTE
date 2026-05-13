@@ -96,64 +96,28 @@ function parseLabel(raw: string): SentimentLabel | null {
 export async function classifyCallSentiment(args: {
   summary: string;
   contactName: string;
-  anthropicKey?: string;
-  openaiKey?: string;
 }): Promise<SentimentResult | null> {
-  const { summary, contactName, anthropicKey, openaiKey } = args;
+  const { summary, contactName } = args;
   if (!summary.trim()) return null;
   const prompt = buildPrompt(summary, contactName);
 
   let raw = "";
-  let model = "";
+  const model = "claude-haiku-4-5-20251001";
   let inputTokens = 0;
   let outputTokens = 0;
 
   try {
-    if (anthropicKey) {
-      model = "claude-haiku-4-5-20251001";
-      const r = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "x-api-key": anthropicKey,
-          "anthropic-version": "2023-06-01",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model,
-          max_tokens: 50,
-          temperature: 0,
-          messages: [{ role: "user", content: prompt }],
-        }),
-      });
-      if (r.ok) {
-        const d = await r.json();
-        raw = (d.content || [])
-          .filter((b: any) => b.type === "text")
-          .map((b: any) => b.text || "")
-          .join("")
-          .trim();
-        inputTokens = d.usage?.input_tokens ?? 0;
-        outputTokens = d.usage?.output_tokens ?? 0;
-      }
-    }
-    if (!raw && openaiKey) {
-      model = "gpt-4o-mini";
-      try {
-        const result = await llmComplete({
-          model,
-          temperature: 0,
-          maxTokens: 50,
-          responseFormat: { type: "json_object" },
-          messages: [{ role: "user", content: prompt }],
-          feature: "sentiment.classify",
-        });
-        raw = (result.message.content || "").trim();
-        inputTokens = result.usage.promptTokens;
-        outputTokens = result.usage.completionTokens;
-      } catch {
-        /* fall through to null */
-      }
-    }
+    const result = await llmComplete({
+      model,
+      temperature: 0,
+      maxTokens: 50,
+      responseFormat: { type: "json_object" },
+      messages: [{ role: "user", content: prompt }],
+      feature: "calls.sentiment",
+    });
+    raw = (typeof result.message.content === "string" ? result.message.content : "").trim();
+    inputTokens = result.usage.promptTokens;
+    outputTokens = result.usage.completionTokens;
   } catch (e) {
     console.error("[sentiment] classifier call failed:", e);
     return null;

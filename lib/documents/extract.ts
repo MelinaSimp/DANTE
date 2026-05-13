@@ -15,6 +15,7 @@
 // The output is ready to insert into document_extractions.
 
 import { getSchema, type DocSchema, type DocType, type FieldSpec } from "./schemas";
+import { complete as llmComplete } from "@/lib/llm/client";
 
 export type ExtractionRow = Record<string, unknown>;
 
@@ -33,8 +34,6 @@ export type ExtractionResult = {
 export type ExtractInput = {
   docType: DocType;
   text: string;
-  anthropicKey?: string;
-  openaiKey?: string;
 };
 
 const PROMPT_VERSION = "v1";
@@ -159,53 +158,20 @@ export async function extractDocument(
   const prompt = renderPrompt(schema, input.text);
 
   let rawResponse = "";
-  let model = "";
+  const model = "claude-haiku-4-5-20251001";
 
-  if (input.anthropicKey) {
-    model = "claude-sonnet-4-5";
-    const r = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": input.anthropicKey,
-        "anthropic-version": "2023-06-01",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: 4000,
-        temperature: 0,
-        messages: [{ role: "user", content: prompt }],
-      }),
+  try {
+    const result = await llmComplete({
+      model,
+      temperature: 0,
+      maxTokens: 4000,
+      responseFormat: { type: "json_object" },
+      messages: [{ role: "user", content: prompt }],
+      feature: "documents.extract",
     });
-    if (r.ok) {
-      const d = await r.json();
-      rawResponse = (d.content || [])
-        .filter((b: any) => b.type === "text")
-        .map((b: any) => b.text || "")
-        .join("")
-        .trim();
-    }
-  }
-  if (!rawResponse && input.openaiKey) {
-    model = "gpt-4o-mini";
-    const r = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${input.openaiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        temperature: 0,
-        max_tokens: 4000,
-        response_format: { type: "json_object" },
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
-    if (r.ok) {
-      const d = await r.json();
-      rawResponse = (d.choices?.[0]?.message?.content || "").trim();
-    }
+    rawResponse = (typeof result.message.content === "string" ? result.message.content : "").trim();
+  } catch {
+    return null;
   }
 
   if (!rawResponse) return null;

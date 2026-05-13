@@ -3,6 +3,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 import { recordLlmUsage } from "@/lib/usage/track";
+import { complete as llmComplete } from "@/lib/llm/client";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -554,14 +555,14 @@ Be specific about WHO needs to do WHAT and by WHEN. Reference client data and gu
     });
 
     // Pick the model based on provider + mode.
-    // Anthropic: Sonnet 4.5 for everything (handles charts fine too).
-    // OpenAI fallback: gpt-4o for template chart mode, gpt-4o-mini otherwise.
+    // Anthropic path: Sonnet 4.5 for everything (handles charts fine too).
+    // llmComplete fallback path: Sonnet for template chart mode, Haiku otherwise.
     const model =
       provider === "anthropic"
         ? "claude-sonnet-4-5"
         : templateName && requiredChartCount > 0
-          ? "gpt-4o"
-          : "gpt-4o-mini";
+          ? "claude-sonnet-4-6"
+          : "claude-haiku-4-5-20251001";
     console.log("[LLM Chat] Provider:", provider, "Model:", model, "requiredChartCount:", requiredChartCount, "chartRequirements:", chartRequirementsList);
 
     let assistantMessage = "";
@@ -641,35 +642,42 @@ Be specific about WHO needs to do WHAT and by WHEN. Reference client data and gu
       outputTokens = data.usage?.output_tokens ?? 0;
       finishReason = data.stop_reason;
     } else {
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${openaiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model,
-          messages,
-          temperature: 0.3,
-          max_tokens: 4000,
-          stream: false,
-        }),
+      // Flatten multipart content arrays to plain strings for llmComplete.
+      // The messages array may contain image_url parts which llmComplete
+      // handles via the provider layer, but the LlmMessage type expects
+      // string content. Concatenate text parts and drop images for now
+      // (images only flow through the Anthropic path above).
+      const llmMessages = messages.map((m) => {
+        if (typeof m.content === "string") {
+          return { role: m.role as "system" | "user" | "assistant", content: m.content };
+        }
+        const text = m.content
+          .filter((p) => p.type === "text")
+          .map((p) => p.text || "")
+          .join("\n");
+        return { role: m.role as "system" | "user" | "assistant", content: text };
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("OpenAI API error:", errorText);
+      try {
+        const result = await llmComplete({
+          model,
+          messages: llmMessages,
+          temperature: 0.3,
+          maxTokens: 4000,
+          feature: "llm.chat",
+        });
+
+        assistantMessage = (typeof result.message.content === "string" ? result.message.content : "") || "I'm sorry, I couldn't generate a response.";
+        inputTokens = result.usage.promptTokens;
+        outputTokens = result.usage.completionTokens;
+        finishReason = result.finishReason;
+      } catch (error: any) {
+        console.error("LLM Chat completion error:", error);
         return NextResponse.json(
           { error: "Failed to get response from AI" },
-          { status: response.status }
+          { status: 500 }
         );
       }
-
-      const data = await response.json();
-      assistantMessage = data.choices[0]?.message?.content || "I'm sorry, I couldn't generate a response.";
-      inputTokens = data.usage?.prompt_tokens ?? 0;
-      outputTokens = data.usage?.completion_tokens ?? 0;
-      finishReason = data.choices[0]?.finish_reason;
     }
 
     // Meter LLM usage for billing (fire-and-forget).

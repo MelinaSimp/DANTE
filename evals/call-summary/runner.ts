@@ -73,8 +73,6 @@ async function runOne(filePath: string): Promise<CaseResult> {
   const { structured } = await summarizeCall({
     segments: evalCase.transcript_segments,
     contactName,
-    openaiKey: process.env.OPENAI_API_KEY,
-    anthropicKey: process.env.ANTHROPIC_API_KEY,
   });
 
   const result = scoreCase(evalCase, structured);
@@ -93,9 +91,9 @@ async function main() {
     process.exit(1);
   }
 
-  if (!process.env.OPENAI_API_KEY && !process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.ANTHROPIC_API_KEY) {
     console.error(
-      "Neither OPENAI_API_KEY nor ANTHROPIC_API_KEY is set — the harness calls the real model APIs."
+      "ANTHROPIC_API_KEY is not set — the harness calls the real model APIs."
     );
     process.exit(1);
   }

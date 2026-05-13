@@ -14,6 +14,8 @@
 // that don't cite get dropped — same anti-hallucination pattern as
 // the main summarizer.
 
+import { complete as llmComplete } from "@/lib/llm/client";
+
 export type TranscriptSegment = {
   id: number;
   start: number;
@@ -138,69 +140,28 @@ export async function analyzeEngagement(args: {
   segments: TranscriptSegment[];
   transcript: string;
   contactName: string;
-  anthropicKey?: string;
-  openaiKey?: string;
 }): Promise<EngagementResult | null> {
-  const { segments, transcript, contactName, anthropicKey, openaiKey } = args;
+  const { segments, transcript, contactName } = args;
   if (!transcript.trim() && segments.length === 0) return null;
 
   const prompt = buildPrompt(segments, transcript, contactName);
   let raw = "";
-  let model = "";
+  const model = "claude-haiku-4-5-20251001";
   let inputTokens = 0;
   let outputTokens = 0;
 
   try {
-    if (anthropicKey) {
-      model = "claude-haiku-4-5-20251001";
-      const r = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "x-api-key": anthropicKey,
-          "anthropic-version": "2023-06-01",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model,
-          max_tokens: 1500,
-          temperature: 0.1,
-          messages: [{ role: "user", content: prompt }],
-        }),
-      });
-      if (r.ok) {
-        const d = await r.json();
-        raw = (d.content || [])
-          .filter((b: any) => b.type === "text")
-          .map((b: any) => b.text || "")
-          .join("")
-          .trim();
-        inputTokens = d.usage?.input_tokens ?? 0;
-        outputTokens = d.usage?.output_tokens ?? 0;
-      }
-    }
-    if (!raw && openaiKey) {
-      model = "gpt-4o-mini";
-      const r = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${openaiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model,
-          temperature: 0.1,
-          max_tokens: 1500,
-          response_format: { type: "json_object" },
-          messages: [{ role: "user", content: prompt }],
-        }),
-      });
-      if (r.ok) {
-        const d = await r.json();
-        raw = (d.choices?.[0]?.message?.content || "").trim();
-        inputTokens = d.usage?.prompt_tokens ?? 0;
-        outputTokens = d.usage?.completion_tokens ?? 0;
-      }
-    }
+    const result = await llmComplete({
+      model,
+      temperature: 0.1,
+      maxTokens: 1500,
+      responseFormat: { type: "json_object" },
+      messages: [{ role: "user", content: prompt }],
+      feature: "calls.engagement",
+    });
+    raw = (typeof result.message.content === "string" ? result.message.content : "").trim();
+    inputTokens = result.usage.promptTokens;
+    outputTokens = result.usage.completionTokens;
   } catch (e) {
     console.error("[engagement] analysis failed:", e);
     return null;

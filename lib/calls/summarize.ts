@@ -16,6 +16,8 @@
 // grounded, but we report verified_count / total_claims so the UI and the
 // eval can see the gap.
 //
+import { complete as llmComplete } from "@/lib/llm/client";
+
 // No Supabase/storage/Whisper here — just string in, string out. That makes
 // it cheap to test in isolation.
 export type TranscriptSegment = {
@@ -54,8 +56,6 @@ export type SummarizeInput = {
   segments: TranscriptSegment[];
   transcript?: string; // fallback body if segments missing
   contactName: string;
-  openaiKey?: string;
-  anthropicKey?: string;
   // Optional reference-library chunks retrieved out-of-band (see
   // lib/references/retrieve.ts). The eval harness leaves this empty
   // so scoring stays deterministic; the prod route fills it in based
@@ -233,8 +233,6 @@ export async function summarizeCall(
     segments,
     transcript = "",
     contactName,
-    openaiKey,
-    anthropicKey,
     referenceContext,
   } = input;
 
@@ -277,61 +275,22 @@ export async function summarizeCall(
   );
 
   let rawResponse = "";
-  let model = "";
+  const model = "claude-haiku-4-5-20251001";
   let inputTokens = 0;
   let outputTokens = 0;
 
   try {
-    if (anthropicKey) {
-      model = "claude-sonnet-4-6";
-      const r = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "x-api-key": anthropicKey,
-          "anthropic-version": "2023-06-01",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model,
-          max_tokens: 2000,
-          temperature: 0.2,
-          messages: [{ role: "user", content: prompt }],
-        }),
-      });
-      if (r.ok) {
-        const d = await r.json();
-        rawResponse = (d.content || [])
-          .filter((b: any) => b.type === "text")
-          .map((b: any) => b.text || "")
-          .join("")
-          .trim();
-        inputTokens = d.usage?.input_tokens ?? 0;
-        outputTokens = d.usage?.output_tokens ?? 0;
-      }
-    }
-    if (!rawResponse && openaiKey) {
-      model = "gpt-4o-mini";
-      const r = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${openaiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model,
-          temperature: 0.2,
-          max_tokens: 2000,
-          response_format: { type: "json_object" },
-          messages: [{ role: "user", content: prompt }],
-        }),
-      });
-      if (r.ok) {
-        const d = await r.json();
-        rawResponse = (d.choices?.[0]?.message?.content || "").trim();
-        inputTokens = d.usage?.prompt_tokens ?? 0;
-        outputTokens = d.usage?.completion_tokens ?? 0;
-      }
-    }
+    const result = await llmComplete({
+      model,
+      temperature: 0.2,
+      maxTokens: 2000,
+      responseFormat: { type: "json_object" },
+      messages: [{ role: "user", content: prompt }],
+      feature: "calls.summarize",
+    });
+    rawResponse = (typeof result.message.content === "string" ? result.message.content : "").trim();
+    inputTokens = result.usage.promptTokens;
+    outputTokens = result.usage.completionTokens;
   } catch {
     // fall through — rawResponse empty
   }

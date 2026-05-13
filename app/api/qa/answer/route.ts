@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
+import { complete as llmComplete } from "@/lib/llm/client";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -107,15 +108,6 @@ export async function POST(req: NextRequest) {
       .map((ds: any) => `[${ds.name}]\n${ds.content}`)
       .join("\n\n---\n\n");
 
-    // Use OpenAI to generate answer from context (RAG)
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "OpenAI API key not configured" },
-        { status: 500 }
-      );
-    }
-
     const prompt = `You are a helpful AI assistant answering questions based on the following knowledge base.
 
 KNOWLEDGE BASE:
@@ -131,14 +123,10 @@ Instructions:
 
 Answer:`;
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
+    let answer: string;
+    try {
+      const result = await llmComplete({
+        model: "claude-haiku-4-5-20251001",
         messages: [
           {
             role: "system",
@@ -146,22 +134,19 @@ Answer:`;
           },
           { role: "user", content: prompt },
         ],
-        temperature: 0.2, // Lower temperature for faster, more deterministic responses
-        max_tokens: 300, // Reduced from 500 for faster generation
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("OpenAI API error:", errorText);
+        temperature: 0.2,
+        maxTokens: 300,
+        feature: "qa.answer",
+        workspaceId: profile?.workspace_id ?? null,
+      });
+      answer = (typeof result.message.content === "string" ? result.message.content : "").trim();
+    } catch (err) {
+      console.error("LLM API error:", err);
       return NextResponse.json(
         { error: "Failed to generate answer" },
         { status: 500 }
       );
     }
-
-    const data = await response.json();
-    const answer = data.choices[0]?.message?.content?.trim() || "";
 
     const found = !answer.includes("NOT_FOUND") && answer.length > 0;
 

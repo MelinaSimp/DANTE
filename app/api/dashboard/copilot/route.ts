@@ -39,7 +39,7 @@ If the question is about a specific topic, use the appropriate section types: "a
 Only respond with valid JSON.`;
 
     const response = await llmComplete({
-      model: "gpt-4o-mini",
+      model: "claude-haiku-4-5-20251001",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: prompt },

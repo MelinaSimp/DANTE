@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { buildAgentPrompt } from "./prompts";
 import { recordLlmUsage } from "@/lib/usage/track";
+import { complete as llmComplete } from "@/lib/llm/client";
 
 interface AgentDef {
   id: string;
@@ -423,45 +424,29 @@ export async function executeAutonomousAgent(
       isCustom: !!agent.is_custom,
     });
 
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
-
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        temperature: 0.3,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: user },
-        ],
-      }),
+    const result = await llmComplete({
+      model: "claude-haiku-4-5-20251001",
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+      temperature: 0.3,
+      responseFormat: { type: "json_object" },
+      feature: "autonomous.engine",
+      workspaceId,
     });
 
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`OpenAI API error ${res.status}: ${body.slice(0, 200)}`);
-    }
+    const content = (typeof result.message.content === "string" ? result.message.content : "").trim();
+    if (!content) throw new Error("Empty response from LLM");
 
-    const json = await res.json();
-    const content = json.choices?.[0]?.message?.content;
-    if (!content) throw new Error("Empty response from OpenAI");
-
-    if (json.usage) {
-      recordLlmUsage({
-        workspaceId,
-        model: "gpt-4o-mini",
-        inputTokens: json.usage.prompt_tokens ?? 0,
-        outputTokens: json.usage.completion_tokens ?? 0,
-        source: "autonomous_agent",
-        metadata: { agent_id: agentId, agent_name: agent.name },
-      });
-    }
+    recordLlmUsage({
+      workspaceId,
+      model: "claude-haiku-4-5-20251001",
+      inputTokens: result.usage.promptTokens,
+      outputTokens: result.usage.completionTokens,
+      source: "autonomous_agent",
+      metadata: { agent_id: agentId, agent_name: agent.name },
+    });
 
     let parsed: LLMResponse;
     try {
