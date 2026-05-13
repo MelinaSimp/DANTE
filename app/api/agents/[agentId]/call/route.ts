@@ -38,6 +38,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ age
     }, { status: 400 });
   }
 
+  // TCPA compliance: check do-not-call flag before placing outbound call.
+  // Matches the target phone number against all contacts in this workspace.
+  const normalized = phoneNumber.replace(/\D/g, "").replace(/^1(\d{10})$/, "$1");
+  const { data: dncHits } = await supabaseAdmin
+    .from("contacts")
+    .select("id, name, do_not_call")
+    .eq("workspace_id", agent.workspace_id)
+    .eq("do_not_call", true)
+    .or(`phone.ilike.%${normalized}`)
+    .limit(1);
+  if (dncHits && dncHits.length > 0) {
+    const hit = dncHits[0] as { id: string; name: string };
+    return NextResponse.json({
+      error: `Blocked by do-not-call list. Contact "${hit.name}" (${hit.id}) is flagged as DNC.`,
+    }, { status: 403 });
+  }
+
   try {
     const assistantOverrides: any = {
       maxDurationSeconds: 600,

@@ -1,13 +1,13 @@
 // lib/dante/lease-abstractor.ts
 //
-// Multi-pass extraction pipeline for commercial lease abstracts.
-// Reuses vault ingestion (vault_item_chunks) for document content
-// and Claude for structured field extraction with citations.
+// Three-pass extraction pipeline for commercial lease abstracts.
 //
-// Pass 1: Structural analysis — TOC, section boundaries, exhibits.
-// Pass 2: Targeted field extraction — 30-40 standard fields with
-//         citations to page + clause.
-// Pass 3: Cross-reference validation — internal consistency checks.
+// Pass 1: Structural analysis — identify sections, page ranges, exhibits.
+// Pass 2: Targeted field extraction — for each field group, select
+//         relevant chunks from the structural map and extract values
+//         with [vN] citation markers (page-level).
+// Pass 3: Cross-reference validation — verify internal consistency
+//         (commencement + term = expiration, rent schedule matches, etc).
 
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
@@ -26,6 +26,8 @@ export interface ContextAnalysis {
   tenant_favorable_assessment: string;
   key_risks: string[];
   unusual_clauses: string[];
+  anchor_leverage?: string;
+  cross_reference_issues: string[];
 }
 
 export interface LeaseAbstract {
@@ -41,7 +43,6 @@ export interface LeaseAbstract {
   extraction_seconds: number;
 }
 
-// Default CRE fields. Workspaces can customize by adding/removing.
 const DEFAULT_FIELDS: Array<{ name: string; category: LeaseField["category"]; description: string }> = [
   // Deal Terms
   { name: "Tenant Name", category: "deal_terms", description: "Legal name of the tenant entity" },
@@ -77,7 +78,24 @@ const DEFAULT_FIELDS: Array<{ name: string; category: LeaseField["category"]; de
   { name: "Force Majeure", category: "key_clauses", description: "Force majeure / excusable delay provisions" },
 ];
 
-// ── Pipeline ────────────────────────────────────────────────────
+// ── Types ──────────────────────────────────────────────────────
+
+interface ChunkRow {
+  chunk_index: number;
+  page_number: number | null;
+  content: string;
+}
+
+interface SectionMap {
+  sections: Array<{
+    name: string;
+    page_start: number;
+    page_end: number;
+    relevance: string[];
+  }>;
+  exhibits: Array<{ label: string; description: string; page: number }>;
+  total_pages: number;
+}
 
 export interface AbstractLeaseInput {
   workspaceId: string;
@@ -87,13 +105,305 @@ export interface AbstractLeaseInput {
   fields?: Array<{ name: string; category: LeaseField["category"]; description: string }>;
 }
 
+// ── Claude API call helper ─────────────────────────────────────
+
+async function callClaude(
+  apiKey: string,
+  prompt: string,
+  opts: { maxTokens?: number; temperature?: number } = {},
+): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: opts.maxTokens ?? 12000,
+      temperature: opts.temperature ?? 0.1,
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Anthropic API error (${response.status}): ${errText}`);
+  }
+
+  const data = await response.json();
+  const text = (data.content || [])
+    .filter((b: { type: string }) => b.type === "text")
+    .map((b: { text?: string }) => b.text || "")
+    .join("")
+    .trim();
+
+  return {
+    text,
+    inputTokens: data.usage?.input_tokens ?? 0,
+    outputTokens: data.usage?.output_tokens ?? 0,
+  };
+}
+
+function parseJSON(raw: string): unknown {
+  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const jsonStr = fenced ? fenced[1].trim() : raw.trim();
+  return JSON.parse(jsonStr);
+}
+
+// ── Pass 1: Structural analysis ────────────────────────────────
+
+async function pass1Structure(
+  chunks: ChunkRow[],
+  apiKey: string,
+): Promise<{ map: SectionMap; tokens: { input: number; output: number } }> {
+  // Use first ~60K chars for structure identification
+  const structureText = chunks
+    .map((c) => `[Page ${c.page_number ?? "?"}] ${c.content}`)
+    .join("\n\n")
+    .slice(0, 60_000);
+
+  const prompt = `You are a commercial real estate lease analyst. Analyze this lease document and produce a structural map.
+
+Identify:
+1. All major sections with their page ranges and what fields they're relevant to
+2. All exhibits/addenda with their labels and page numbers
+3. Total page count
+
+For section relevance, use these field categories: deal_terms, financial_terms, key_clauses
+
+Return JSON only (no prose):
+{
+  "sections": [
+    { "name": "Section name or number", "page_start": 1, "page_end": 5, "relevance": ["deal_terms", "financial_terms"] }
+  ],
+  "exhibits": [
+    { "label": "Exhibit A", "description": "Floor plan", "page": 45 }
+  ],
+  "total_pages": 50
+}
+
+LEASE DOCUMENT (excerpt for structure):
+${structureText}`;
+
+  const result = await callClaude(apiKey, prompt, { maxTokens: 4000 });
+  const map = parseJSON(result.text) as SectionMap;
+  return { map, tokens: { input: result.inputTokens, output: result.outputTokens } };
+}
+
+// ── Pass 2: Targeted field extraction ──────────────────────────
+
+async function pass2Extract(
+  chunks: ChunkRow[],
+  sectionMap: SectionMap,
+  fields: Array<{ name: string; category: LeaseField["category"]; description: string }>,
+  apiKey: string,
+): Promise<{
+  fields: LeaseField[];
+  context: ContextAnalysis;
+  tokens: { input: number; output: number };
+}> {
+  // Build a targeted document view: for each field category, include
+  // chunks from relevant sections. This keeps the context focused
+  // even for 200-page documents.
+  const categoryChunks: Record<string, ChunkRow[]> = {
+    deal_terms: [],
+    financial_terms: [],
+    key_clauses: [],
+  };
+
+  for (const chunk of chunks) {
+    const page = chunk.page_number ?? 0;
+    for (const section of sectionMap.sections) {
+      if (page >= section.page_start && page <= section.page_end) {
+        for (const rel of section.relevance) {
+          if (categoryChunks[rel] && !categoryChunks[rel].includes(chunk)) {
+            categoryChunks[rel].push(chunk);
+          }
+        }
+      }
+    }
+    // If no section matched, include in all categories (safety net
+    // for documents with poor section structure)
+    const matched = sectionMap.sections.some(
+      (s) => page >= s.page_start && page <= s.page_end,
+    );
+    if (!matched) {
+      for (const cat of Object.keys(categoryChunks)) {
+        if (!categoryChunks[cat].includes(chunk)) {
+          categoryChunks[cat].push(chunk);
+        }
+      }
+    }
+  }
+
+  // Deduplicate and build the focused document text
+  const seen = new Set<number>();
+  const relevantChunks: ChunkRow[] = [];
+  for (const cat of Object.values(categoryChunks)) {
+    for (const c of cat) {
+      if (!seen.has(c.chunk_index)) {
+        seen.add(c.chunk_index);
+        relevantChunks.push(c);
+      }
+    }
+  }
+  relevantChunks.sort((a, b) => a.chunk_index - b.chunk_index);
+
+  const docText = relevantChunks
+    .map((c) => `[Page ${c.page_number ?? "?"}] ${c.content}`)
+    .join("\n\n");
+
+  // Cap at 160K chars — with targeted chunks this should rarely trigger
+  const maxChars = 160_000;
+  const truncated = docText.length > maxChars;
+  const finalDoc = truncated
+    ? docText.slice(0, maxChars) + "\n\n[Document truncated at 160K chars — some later sections may be missing]"
+    : docText;
+
+  const fieldList = fields
+    .map((f) => `- ${f.name} (${f.category}): ${f.description}`)
+    .join("\n");
+
+  const prompt = `You are a commercial real estate lease abstractor. Extract the following fields from this lease document.
+
+CITATION FORMAT: For every extracted value, cite the source using [v<page_number>] format. Example: "5,000 SF [v12]" means found on page 12. Use the page numbers from the [Page N] markers in the document.
+
+For each field, provide:
+- value: The extracted value with inline [vN] citation (be specific and precise)
+- page: The primary page number where found
+- confidence: "high" (explicit in text), "medium" (inferred), "low" (ambiguous), "not_found" (absent)
+
+Fields to extract:
+${fieldList}
+
+After fields, provide a Context Analysis:
+- tenant_favorable_assessment: Who does this lease favor and why?
+- key_risks: Array of key risk factors
+- unusual_clauses: Array of non-standard provisions
+- anchor_leverage: Assessment of anchor tenant or co-tenancy leverage if applicable
+- cross_reference_issues: Leave as empty array (Pass 3 will fill this)
+
+Return JSON only:
+{
+  "fields": [
+    { "name": "Field Name", "category": "deal_terms", "value": "extracted value [vN]", "page": 12, "confidence": "high" }
+  ],
+  "context_analysis": {
+    "tenant_favorable_assessment": "...",
+    "key_risks": [],
+    "unusual_clauses": [],
+    "anchor_leverage": "...",
+    "cross_reference_issues": []
+  }
+}${truncated ? "\n\nNOTE: Document was truncated. Mark any fields you cannot verify from the available text as confidence: 'low' with a note." : ""}
+
+LEASE DOCUMENT:
+${finalDoc}`;
+
+  const result = await callClaude(apiKey, prompt, { maxTokens: 16000 });
+  const parsed = parseJSON(result.text) as {
+    fields: Array<{
+      name: string;
+      category?: string;
+      value: string | null;
+      citation?: string;
+      page?: number;
+      confidence?: string;
+    }>;
+    context_analysis?: Partial<ContextAnalysis>;
+  };
+
+  const extractedFields: LeaseField[] = (parsed.fields || []).map((f) => {
+    const fieldDef = fields.find((d) => d.name === f.name);
+    return {
+      name: f.name || "",
+      category: (fieldDef?.category || f.category || "deal_terms") as LeaseField["category"],
+      value: f.value ?? null,
+      citation: extractCitationFromValue(f.value),
+      page: typeof f.page === "number" ? f.page : null,
+      confidence: (["high", "medium", "low", "not_found"].includes(f.confidence || "")
+        ? f.confidence
+        : "low") as LeaseField["confidence"],
+    };
+  });
+
+  const ca = parsed.context_analysis;
+  const context: ContextAnalysis = {
+    tenant_favorable_assessment: ca?.tenant_favorable_assessment || "",
+    key_risks: Array.isArray(ca?.key_risks) ? ca.key_risks : [],
+    unusual_clauses: Array.isArray(ca?.unusual_clauses) ? ca.unusual_clauses : [],
+    anchor_leverage: ca?.anchor_leverage,
+    cross_reference_issues: [],
+  };
+
+  return {
+    fields: extractedFields,
+    context,
+    tokens: { input: result.inputTokens, output: result.outputTokens },
+  };
+}
+
+function extractCitationFromValue(value: string | null): string | undefined {
+  if (!value) return undefined;
+  const matches = value.match(/\[v(\d+)\]/g);
+  if (!matches) return undefined;
+  return matches.join(", ");
+}
+
+// ── Pass 3: Cross-reference validation ─────────────────────────
+
+async function pass3Validate(
+  fields: LeaseField[],
+  context: ContextAnalysis,
+  apiKey: string,
+): Promise<{
+  issues: string[];
+  tokens: { input: number; output: number };
+}> {
+  const fieldSummary = fields
+    .filter((f) => f.value && f.confidence !== "not_found")
+    .map((f) => `${f.name}: ${f.value}`)
+    .join("\n");
+
+  const prompt = `You are a commercial real estate lease reviewer. Check these extracted lease fields for internal consistency.
+
+Verify:
+1. Commencement date + term = expiration date (do they match?)
+2. Base rent schedule matches escalation type (e.g., 3% annual escalation reflected in year-over-year amounts)
+3. NNN lease type should have CAM, tax, and insurance obligations defined
+4. Security deposit amount is reasonable relative to rent
+5. Any dates that conflict with each other
+6. Any numerical inconsistencies
+
+EXTRACTED FIELDS:
+${fieldSummary}
+
+Return JSON only:
+{
+  "issues": ["description of each inconsistency found"],
+  "all_consistent": true/false
+}
+
+If everything is consistent, return an empty issues array.`;
+
+  const result = await callClaude(apiKey, prompt, { maxTokens: 2000 });
+  const parsed = parseJSON(result.text) as { issues: string[] };
+  return {
+    issues: Array.isArray(parsed.issues) ? parsed.issues : [],
+    tokens: { input: result.inputTokens, output: result.outputTokens },
+  };
+}
+
+// ── Pipeline ──────────────────────────────────────────────────
+
 export async function abstractLease(
   input: AbstractLeaseInput,
 ): Promise<LeaseAbstract> {
   const startTime = Date.now();
   const fields = input.fields || DEFAULT_FIELDS;
 
-  // Create the abstract row in pending state
   const { data: row, error: insertErr } = await supabaseAdmin
     .from("lease_abstracts")
     .insert({
@@ -109,8 +419,10 @@ export async function abstractLease(
   }
   const abstractId = (row as { id: string }).id;
 
+  let totalInput = 0;
+  let totalOutput = 0;
+
   try {
-    // Load document chunks from vault
     const { data: chunks, error: chunkErr } = await supabaseAdmin
       .from("vault_item_chunks")
       .select("chunk_index, page_number, content")
@@ -121,130 +433,41 @@ export async function abstractLease(
       throw new Error("Document has no indexed content. Please ensure the file has been ingested.");
     }
 
-    const docText = (chunks as Array<{ chunk_index: number; page_number: number | null; content: string }>)
-      .map((c) => `[Page ${c.page_number ?? "?"}] ${c.content}`)
-      .join("\n\n");
+    const typedChunks = chunks as ChunkRow[];
 
-    // Truncate to fit context window (~180K chars for Claude)
-    const maxChars = 180_000;
-    const truncatedDoc = docText.length > maxChars
-      ? docText.slice(0, maxChars) + "\n\n[Document truncated — remaining pages not analyzed]"
-      : docText;
+    // Pass 1: Structure
+    const { map: sectionMap, tokens: t1 } = await pass1Structure(typedChunks, input.anthropicKey);
+    totalInput += t1.input;
+    totalOutput += t1.output;
 
-    // Single-pass extraction with structured output
-    const fieldList = fields
-      .map((f) => `- ${f.name} (${f.category}): ${f.description}`)
-      .join("\n");
+    // Pass 2: Targeted extraction
+    const { fields: extractedFields, context, tokens: t2 } = await pass2Extract(
+      typedChunks,
+      sectionMap,
+      fields,
+      input.anthropicKey,
+    );
+    totalInput += t2.input;
+    totalOutput += t2.output;
 
-    const prompt = `You are a commercial real estate lease abstractor. Extract the following fields from this lease document. For each field, provide:
-- The extracted value (be specific and precise)
-- A citation: the exact clause or section reference (e.g., "Section 4.2, p.12")
-- The page number where the information was found
-- Your confidence: "high" (explicit in text), "medium" (inferred from context), "low" (ambiguous), "not_found" (not present)
+    // Pass 3: Cross-reference validation
+    const { issues, tokens: t3 } = await pass3Validate(extractedFields, context, input.anthropicKey);
+    totalInput += t3.input;
+    totalOutput += t3.output;
 
-Fields to extract:
-${fieldList}
-
-After extracting all fields, provide a Context Analysis with:
-- tenant_favorable_assessment: Overall assessment of whether the lease favors tenant or landlord
-- key_risks: Array of key risk factors for the tenant
-- unusual_clauses: Array of any non-standard or unusual provisions
-
-Return a JSON object with this exact shape (no markdown, no prose outside the JSON):
-
-{
-  "fields": [
-    {
-      "name": "Field Name",
-      "category": "deal_terms",
-      "value": "extracted value or null if not found",
-      "citation": "Section X.Y, p.Z",
-      "page": 12,
-      "confidence": "high"
-    }
-  ],
-  "context_analysis": {
-    "tenant_favorable_assessment": "...",
-    "key_risks": ["risk 1", "risk 2"],
-    "unusual_clauses": ["clause 1"]
-  }
-}
-
-Do not use emojis in any output. Plain text only.
-
-LEASE DOCUMENT:
-${truncatedDoc}`;
-
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": input.anthropicKey,
-        "anthropic-version": "2023-06-01",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 8000,
-        temperature: 0.1,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      throw new Error(`Anthropic API error (${response.status}): ${errText}`);
-    }
-
-    const data = await response.json();
-    const rawText = (data.content || [])
-      .filter((b: any) => b.type === "text")
-      .map((b: any) => b.text || "")
-      .join("")
-      .trim();
-
-    const inputTokens = data.usage?.input_tokens ?? 0;
-    const outputTokens = data.usage?.output_tokens ?? 0;
-
-    // Parse the JSON response
-    const jsonMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)```/);
-    const jsonStr = jsonMatch ? jsonMatch[1].trim() : rawText.trim();
-    const parsed = JSON.parse(jsonStr);
-
-    const extractedFields: LeaseField[] = (parsed.fields || []).map((f: any) => ({
-      name: typeof f.name === "string" ? f.name : "",
-      category: f.category || "deal_terms",
-      value: f.value ?? null,
-      citation: f.citation || undefined,
-      page: typeof f.page === "number" ? f.page : null,
-      confidence: ["high", "medium", "low", "not_found"].includes(f.confidence)
-        ? f.confidence
-        : "low",
-    }));
-
-    const contextAnalysis: ContextAnalysis | null = parsed.context_analysis
-      ? {
-          tenant_favorable_assessment: parsed.context_analysis.tenant_favorable_assessment || "",
-          key_risks: Array.isArray(parsed.context_analysis.key_risks)
-            ? parsed.context_analysis.key_risks
-            : [],
-          unusual_clauses: Array.isArray(parsed.context_analysis.unusual_clauses)
-            ? parsed.context_analysis.unusual_clauses
-            : [],
-        }
-      : null;
+    context.cross_reference_issues = issues;
 
     const elapsedSeconds = (Date.now() - startTime) / 1000;
 
-    // Update the abstract row
     await supabaseAdmin
       .from("lease_abstracts")
       .update({
         status: "completed",
         fields: extractedFields,
-        context_analysis: contextAnalysis,
+        context_analysis: context,
         model: "claude-sonnet-4-6",
-        input_tokens: inputTokens,
-        output_tokens: outputTokens,
+        input_tokens: totalInput,
+        output_tokens: totalOutput,
         extraction_seconds: elapsedSeconds,
         updated_at: new Date().toISOString(),
       })
@@ -255,20 +478,23 @@ ${truncatedDoc}`;
       vault_item_id: input.vaultItemId,
       status: "completed",
       fields: extractedFields,
-      context_analysis: contextAnalysis,
+      context_analysis: context,
       error_message: null,
       model: "claude-sonnet-4-6",
-      input_tokens: inputTokens,
-      output_tokens: outputTokens,
+      input_tokens: totalInput,
+      output_tokens: totalOutput,
       extraction_seconds: elapsedSeconds,
     };
-  } catch (err: any) {
+  } catch (err: unknown) {
     const elapsedSeconds = (Date.now() - startTime) / 1000;
+    const msg = err instanceof Error ? err.message : String(err);
     await supabaseAdmin
       .from("lease_abstracts")
       .update({
         status: "failed",
-        error_message: err.message,
+        error_message: msg,
+        input_tokens: totalInput,
+        output_tokens: totalOutput,
         extraction_seconds: elapsedSeconds,
         updated_at: new Date().toISOString(),
       })
@@ -280,10 +506,10 @@ ${truncatedDoc}`;
       status: "failed",
       fields: [],
       context_analysis: null,
-      error_message: err.message,
+      error_message: msg,
       model: "",
-      input_tokens: 0,
-      output_tokens: 0,
+      input_tokens: totalInput,
+      output_tokens: totalOutput,
       extraction_seconds: elapsedSeconds,
     };
   }

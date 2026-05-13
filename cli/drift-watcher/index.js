@@ -28,7 +28,7 @@ const { createClient } = require("./api");
 const HASH_CHUNK_HIGH_WATER = 1024 * 1024;
 const MAX_FILE_BYTES = 1024 * 1024 * 1024;
 const DEBOUNCE_MS = 1500;
-const CONCURRENCY = 2;
+const CONCURRENCY = 4;
 
 // ── CLI arg parsing ────────────────────────────────────────────
 

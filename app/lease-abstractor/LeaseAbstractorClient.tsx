@@ -1,11 +1,10 @@
 "use client";
 
 // LeaseAbstractorClient — two-panel lease abstraction UI.
-// Left: vault document picker + extraction history.
-// Right: structured field table + context analysis.
+// Left: vault document picker + file upload drop zone.
+// Right: structured field table + context analysis + disclaimer.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FileText,
   Loader2,
@@ -19,6 +18,11 @@ import {
   Clock,
   Zap,
   ArrowLeft,
+  Upload,
+  Pencil,
+  Check,
+  X,
+  AlertTriangle,
 } from "lucide-react";
 import { usePageContext } from "@/components/dante/PageContext";
 
@@ -43,6 +47,8 @@ interface ContextAnalysis {
   tenant_favorable_assessment: string;
   key_risks: string[];
   unusual_clauses: string[];
+  anchor_leverage?: string;
+  cross_reference_issues: string[];
 }
 
 interface AbstractSummary {
@@ -92,6 +98,32 @@ function formatDate(iso: string) {
   });
 }
 
+function renderCitedValue(value: string | null, onCitationClick: (page: number) => void) {
+  if (!value) return <span className="text-[var(--ink-muted)] italic">--</span>;
+  const parts = value.split(/(\[v\d+\])/g);
+  return (
+    <>
+      {parts.map((part, i) => {
+        const m = part.match(/^\[v(\d+)\]$/);
+        if (m) {
+          const page = parseInt(m[1], 10);
+          return (
+            <button
+              key={i}
+              onClick={() => onCitationClick(page)}
+              className="inline-flex items-center px-1 py-0.5 mx-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 cursor-pointer"
+              title={`Jump to page ${page}`}
+            >
+              p.{page}
+            </button>
+          );
+        }
+        return <span key={i}>{part}</span>;
+      })}
+    </>
+  );
+}
+
 export default function LeaseAbstractorClient() {
   usePageContext({ title: "Lease Abstractor", subtitle: "Extract structured data from commercial leases" });
 
@@ -100,12 +132,17 @@ export default function LeaseAbstractorClient() {
   const [selectedAbstract, setSelectedAbstract] = useState<AbstractDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [extracting, setExtracting] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
     new Set(["deal_terms", "financial_terms", "key_clauses"]),
   );
   const [copied, setCopied] = useState(false);
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -119,8 +156,8 @@ export default function LeaseAbstractorClient() {
       if (!abstractsRes.ok) throw new Error("Failed to load abstracts");
       setVaultItems(await itemsRes.json());
       setAbstracts(await abstractsRes.json());
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
@@ -158,8 +195,8 @@ export default function LeaseAbstractorClient() {
       if (!res.ok) throw new Error(result.error || "Extraction failed");
       setSelectedAbstract(result);
       await loadData();
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setExtracting(false);
     }
@@ -171,9 +208,84 @@ export default function LeaseAbstractorClient() {
       const res = await fetch(`/api/lease-abstractor?id=${id}`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to load abstract");
       setSelectedAbstract(await res.json());
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
     }
+  };
+
+  const handleFileUpload = async (file: File) => {
+    setUploading(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/vault/upload", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Upload failed");
+      await loadData();
+      if (result.id) {
+        runExtraction(result.id);
+      }
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFileUpload(file);
+  };
+
+  const onDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(true);
+  };
+
+  const onDragLeave = () => setDragOver(false);
+
+  const handleCitationClick = (page: number) => {
+    // Open the vault item's PDF viewer at the specified page.
+    // For now, scroll to show a toast-like indicator. Full SourceViewer
+    // integration requires the PDF to be loaded in a side panel.
+    if (selectedAbstract) {
+      window.open(
+        `/vault/${selectedAbstract.vault_item_id}?page=${page}`,
+        "_blank",
+      );
+    }
+  };
+
+  const startEditField = (fieldName: string, currentValue: string | null) => {
+    setEditingField(fieldName);
+    setEditValue(currentValue || "");
+  };
+
+  const saveFieldEdit = () => {
+    if (!selectedAbstract || !editingField) return;
+    setSelectedAbstract({
+      ...selectedAbstract,
+      fields: selectedAbstract.fields.map((f) =>
+        f.name === editingField
+          ? { ...f, value: editValue || null, confidence: "high" as const }
+          : f,
+      ),
+    });
+    // TODO: persist correction to server as training signal
+    setEditingField(null);
+    setEditValue("");
+  };
+
+  const cancelEdit = () => {
+    setEditingField(null);
+    setEditValue("");
   };
 
   const toggleCategory = (cat: string) => {
@@ -224,9 +336,46 @@ export default function LeaseAbstractorClient() {
     return map;
   }, [selectedAbstract]);
 
-  // ── Left panel: document list ──
+  // ── Left panel: document list + upload ──
   const renderLeftPanel = () => (
     <div className="w-full lg:w-[380px] shrink-0 border-r border-[var(--rule)] flex flex-col h-full overflow-hidden">
+      {/* Upload drop zone */}
+      <div
+        onDrop={onDrop}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onClick={() => fileInputRef.current?.click()}
+        className={`mx-4 mt-3 mb-2 border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${
+          dragOver
+            ? "border-blue-400 bg-blue-50"
+            : "border-[var(--rule)] hover:border-[var(--ink-muted)] hover:bg-[var(--canvas-subtle)]"
+        }`}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.docx,.doc,.txt"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleFileUpload(file);
+            e.target.value = "";
+          }}
+        />
+        {uploading ? (
+          <div className="flex items-center justify-center gap-2 text-[var(--ink-muted)]">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span className="text-sm">Uploading and extracting...</span>
+          </div>
+        ) : (
+          <>
+            <Upload className="w-5 h-5 mx-auto mb-1.5 text-[var(--ink-muted)]" />
+            <p className="text-sm font-medium text-[var(--ink)]">Drop your lease here</p>
+            <p className="text-xs text-[var(--ink-muted)] mt-0.5">PDF, DOCX, or TXT</p>
+          </>
+        )}
+      </div>
+
       <div className="px-4 py-3 border-b border-[var(--rule)]">
         <h2 className="text-sm font-semibold text-[var(--ink)]">Vault Documents</h2>
         <div className="mt-2 relative">
@@ -250,7 +399,7 @@ export default function LeaseAbstractorClient() {
         ) : filteredItems.length === 0 ? (
           <div className="px-4 py-12 text-center text-sm text-[var(--ink-muted)]">
             {vaultItems.length === 0
-              ? "No documents in vault. Upload a lease to get started."
+              ? "No documents in vault. Drop a lease above to get started."
               : "No documents match your search."}
           </div>
         ) : (
@@ -337,7 +486,7 @@ export default function LeaseAbstractorClient() {
           <div className="text-center">
             <FileText className="w-10 h-10 mx-auto mb-3 opacity-30" />
             <p className="text-sm">Select a document and run extraction,</p>
-            <p className="text-sm">or view a previous abstract.</p>
+            <p className="text-sm">or drop a lease in the panel on the left.</p>
           </div>
         </div>
       );
@@ -361,7 +510,7 @@ export default function LeaseAbstractorClient() {
       return (
         <div className="flex-1 flex items-center justify-center text-[var(--ink-muted)]">
           <Loader2 className="w-5 h-5 animate-spin mr-2" />
-          <span className="text-sm">Processing...</span>
+          <span className="text-sm">Processing (3-pass extraction)...</span>
         </div>
       );
     }
@@ -438,34 +587,47 @@ export default function LeaseAbstractorClient() {
                         <th className="text-left py-1.5 pr-3 text-xs font-medium text-[var(--ink-muted)]">
                           Value
                         </th>
-                        <th className="text-left py-1.5 pr-3 text-xs font-medium text-[var(--ink-muted)] w-[140px]">
-                          Citation
-                        </th>
                         <th className="text-left py-1.5 text-xs font-medium text-[var(--ink-muted)] w-[70px]">
                           Conf.
                         </th>
+                        <th className="w-[30px]" />
                       </tr>
                     </thead>
                     <tbody>
                       {fields.map((f, i) => {
                         const conf = CONFIDENCE_STYLE[f.confidence] || CONFIDENCE_STYLE.low;
+                        const isEditing = editingField === f.name;
                         return (
                           <tr
                             key={`${f.name}-${i}`}
-                            className="border-b border-[var(--rule)] last:border-b-0"
+                            className="border-b border-[var(--rule)] last:border-b-0 group"
                           >
                             <td className="py-2 pr-3 text-[var(--ink-muted)] align-top whitespace-nowrap">
                               {f.name}
                             </td>
                             <td className="py-2 pr-3 text-[var(--ink)] align-top">
-                              {f.value || (
-                                <span className="text-[var(--ink-muted)] italic">--</span>
-                              )}
-                            </td>
-                            <td className="py-2 pr-3 text-xs text-[var(--ink-muted)] align-top">
-                              {f.citation || "--"}
-                              {f.page != null && (
-                                <span className="ml-1 text-[var(--ink-muted)]">p.{f.page}</span>
+                              {isEditing ? (
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    type="text"
+                                    value={editValue}
+                                    onChange={(e) => setEditValue(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter") saveFieldEdit();
+                                      if (e.key === "Escape") cancelEdit();
+                                    }}
+                                    autoFocus
+                                    className="flex-1 px-2 py-1 text-sm rounded border border-blue-300 bg-[var(--canvas)] text-[var(--ink)] focus:outline-none focus:ring-1 focus:ring-blue-400"
+                                  />
+                                  <button onClick={saveFieldEdit} className="p-0.5 text-emerald-600 hover:text-emerald-700">
+                                    <Check className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button onClick={cancelEdit} className="p-0.5 text-[var(--ink-muted)] hover:text-[var(--ink)]">
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ) : (
+                                renderCitedValue(f.value, handleCitationClick)
                               )}
                             </td>
                             <td className="py-2 align-top">
@@ -474,6 +636,17 @@ export default function LeaseAbstractorClient() {
                               >
                                 {conf.label}
                               </span>
+                            </td>
+                            <td className="py-2 align-top">
+                              {!isEditing && (
+                                <button
+                                  onClick={() => startEditField(f.name, f.value)}
+                                  className="p-0.5 text-[var(--ink-muted)] opacity-0 group-hover:opacity-100 hover:text-[var(--ink)] transition-opacity"
+                                  title="Edit this field"
+                                >
+                                  <Pencil className="w-3 h-3" />
+                                </button>
+                              )}
                             </td>
                           </tr>
                         );
@@ -488,7 +661,7 @@ export default function LeaseAbstractorClient() {
 
         {/* Context analysis */}
         {ca && (
-          <div className="px-5 pb-6">
+          <div className="px-5 pb-4">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-muted)] mb-3">
               Context Analysis
             </h3>
@@ -500,6 +673,15 @@ export default function LeaseAbstractorClient() {
                 </p>
                 <p className="text-sm text-[var(--ink)]">{ca.tenant_favorable_assessment}</p>
               </div>
+
+              {ca.anchor_leverage && (
+                <div className="p-3 rounded-[4px] border border-[var(--rule)] bg-[var(--canvas-subtle)]">
+                  <p className="text-xs font-medium text-[var(--ink-muted)] mb-1">
+                    Anchor / Co-Tenancy Leverage
+                  </p>
+                  <p className="text-sm text-[var(--ink)]">{ca.anchor_leverage}</p>
+                </div>
+              )}
 
               {ca.key_risks.length > 0 && (
                 <div className="p-3 rounded-[4px] border border-[var(--rule)]">
@@ -530,15 +712,41 @@ export default function LeaseAbstractorClient() {
                   </ul>
                 </div>
               )}
+
+              {ca.cross_reference_issues.length > 0 && (
+                <div className="p-3 rounded-[4px] border border-amber-200 bg-amber-50">
+                  <p className="text-xs font-medium text-amber-700 mb-1.5 flex items-center gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    Cross-Reference Issues
+                  </p>
+                  <ul className="space-y-1">
+                    {ca.cross_reference_issues.map((issue, i) => (
+                      <li key={i} className="text-sm text-amber-800 flex items-start gap-2">
+                        <span className="text-amber-600 shrink-0 mt-0.5">-</span>
+                        {issue}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
 
-            {/* Token usage footer */}
+            {/* Token usage */}
             <div className="mt-4 pt-3 border-t border-[var(--rule)] flex items-center gap-4 text-xs text-[var(--ink-muted)]">
               <span>Input: {selectedAbstract.input_tokens.toLocaleString()} tokens</span>
               <span>Output: {selectedAbstract.output_tokens.toLocaleString()} tokens</span>
             </div>
           </div>
         )}
+
+        {/* Disclaimer — required on every output */}
+        <div className="px-5 pb-6">
+          <div className="px-3 py-2 rounded-[4px] bg-neutral-100 border border-neutral-200 text-xs text-neutral-600">
+            AI-generated abstract. Review by qualified professional recommended.
+            Extracted values should be verified against the source document before
+            use in any transaction, negotiation, or legal proceeding.
+          </div>
+        </div>
       </div>
     );
   };
