@@ -535,7 +535,7 @@ async function generateFollowups(
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: "gpt-5",
+      model: "gpt-4.1",
       response_format: { type: "json_object" },
       messages: [
         {
@@ -547,7 +547,7 @@ async function generateFollowups(
           content: `QUESTION:\n${question}\n\nANSWER:\n${answer.slice(0, 4000)}`,
         },
       ],
-      max_tokens: 400,
+      max_completion_tokens: 400,
     }),
   });
   if (!res.ok) return [];

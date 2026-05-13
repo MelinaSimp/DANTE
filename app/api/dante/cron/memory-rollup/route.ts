@@ -110,7 +110,7 @@ async function rollupContact(args: {
   // gpt-4o-mini for cost — this is a structured summary, not
   // open-ended generation. Tight system prompt; one shot.
   const promptBody = {
-    model: "gpt-5",
+    model: "gpt-4.1-mini",
     temperature: 0.2,
     messages: [
       {
