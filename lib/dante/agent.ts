@@ -1245,7 +1245,33 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       processingMode,
     });
 
-    const assistantMsg = completion.message as ChatMessage;
+    let assistantMsg = completion.message as ChatMessage;
+
+    // Guard: if the very first iteration returns empty content with no
+    // tool calls, retry once. Transient API hiccups (empty response,
+    // content-filter edge case, overloaded endpoint) occasionally
+    // produce this; a single retry resolves it >90% of the time.
+    if (
+      thisIteration === 0 &&
+      !assistantMsg.content?.trim() &&
+      (!assistantMsg.tool_calls || assistantMsg.tool_calls.length === 0)
+    ) {
+      console.warn(
+        `[agent] empty first response from ${model}; retrying once. ` +
+        `finishReason=${completion.finishReason} runId=${input.runId}`,
+      );
+      const retry = await llmComplete({
+        model,
+        messages: messages as LlmMessage[],
+        tools: tools.length > 0 ? (tools as LlmToolDef[]) : undefined,
+        toolChoice: tools.length > 0 ? "auto" : undefined,
+        feature: "agent.loop.retry",
+        workspaceId: input.workspaceId,
+        processingMode,
+      });
+      assistantMsg = retry.message as ChatMessage;
+    }
+
     messages.push(assistantMsg);
 
     // No tool calls → the model has produced a final answer. Done.

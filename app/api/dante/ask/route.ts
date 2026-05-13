@@ -387,7 +387,7 @@ export async function POST(req: NextRequest) {
             (log[log.length - 1] as { step_name?: string } | undefined)
               ?.step_name || "(none)";
           runError = "empty_model_output";
-          assistantContent = `I ran ${stepCount} steps (last: ${lastStepName}) but didn't produce a final answer. Try rephrasing — and if this keeps happening, paste the question to me directly so I can see what tripped the loop.`;
+          assistantContent = `Something went wrong — the AI didn't produce a response. This is usually a transient issue. Please try again, and if it keeps happening let us know.`;
           send({ type: "error", error: runError });
           console.warn(
             `[ask] empty model output after ${stepCount} steps; runId=${runId} chatId=${chatId} lastStep=${lastStepName}`,

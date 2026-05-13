@@ -328,7 +328,17 @@ class AnthropicProvider implements LlmProvider {
       request as unknown as Anthropic.Messages.MessageCreateParamsNonStreaming,
     )) as unknown as AnthropicResponseMessage;
 
-    return fromAnthropicResponse(resp);
+    const result = fromAnthropicResponse(resp);
+
+    if (!result.message.content && (!result.message.tool_calls || result.message.tool_calls.length === 0)) {
+      console.warn(
+        `[anthropic] empty response: model=${opts.model} stop_reason=${resp.stop_reason} ` +
+        `input_tokens=${resp.usage?.input_tokens} output_tokens=${resp.usage?.output_tokens} ` +
+        `content_blocks=${resp.content?.length ?? 0} feature=${opts.feature ?? "?"}`,
+      );
+    }
+
+    return result;
   }
 
   async embed(_opts: LlmEmbedOptions): Promise<number[][]> {
