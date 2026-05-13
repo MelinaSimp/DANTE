@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
         { role: "system", content: kind === "answer" ? ANSWER_SYSTEM : PROMPT_SYSTEM },
         { role: "user", content: userMessage },
       ],
-      max_tokens: 1500,
+      max_completion_tokens: 1500,
     }),
   });
   if (!res.ok) {
