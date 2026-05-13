@@ -30,12 +30,12 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { ingestVaultItem } from "@/lib/vault/ingest";
+import { enqueueIngest, kickIngestWorker } from "@/lib/vault/ingest-queue";
 import { resolveProjectForWatchedFile } from "@/lib/vault/auto-project";
 import { sanitizeForPostgres } from "@/lib/vault/sanitize-text";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 30;
 
 export async function POST(
   req: Request,
@@ -165,20 +165,23 @@ export async function POST(
   }
   const newVaultId = (vaultItem as { id: string }).id;
 
-  // Run the chunker + embedder on the new vault item so it's
-  // searchable immediately. Skip for local_only (no content stored)
-  // and for the no-text-extracted case (e.g., scanned PDF without
-  // OCR — caller can re-run later if they OCR the file separately).
-  let chunkCount = 0;
+  // Enqueue the chunker + embedder as a background job instead of
+  // running inline. Skip for local_only (no content stored) and for
+  // the no-text-extracted case (e.g., scanned PDF without OCR).
   let ingestError: string | null = null;
   if (acceptedText) {
     try {
-      const result = await ingestVaultItem(newVaultId, { force: true });
-      chunkCount = result.chunkCount;
+      await enqueueIngest({
+        vaultItemId: newVaultId,
+        workspaceId,
+        requestedBy: user.id,
+        source: "watched_folder",
+      });
+      kickIngestWorker(new URL(req.url).origin);
     } catch (err) {
-      ingestError = err instanceof Error ? err.message : "ingest_failed";
+      ingestError = err instanceof Error ? err.message : "enqueue_failed";
       console.warn(
-        `[watched-folder confirm] ingestVaultItem failed for ${newVaultId}:`,
+        `[watched-folder confirm] enqueueIngest failed for ${newVaultId}:`,
         ingestError,
       );
       // Don't fail the request — the vault item exists, the user
@@ -252,7 +255,7 @@ export async function POST(
       folder_id: folderId,
       file_path: f.file_path,
       processing_mode_override: isLocalOnly ? "local_only" : null,
-      chunk_count: chunkCount,
+      chunk_count: 0,
       ingest_error: ingestError,
       auto_project_id: autoProjectId,
       auto_project_name: autoProjectName,
@@ -263,7 +266,7 @@ export async function POST(
   return NextResponse.json({
     vault_item_id: newVaultId,
     status: "confirmed",
-    chunk_count: chunkCount,
+    chunk_count: 0,
     ingest_error: ingestError,
     project_id: autoProjectId,
     project_name: autoProjectName,

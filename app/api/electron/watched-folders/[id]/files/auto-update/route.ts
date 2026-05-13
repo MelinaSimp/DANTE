@@ -28,11 +28,11 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { ingestVaultItem } from "@/lib/vault/ingest";
+import { enqueueIngest, kickIngestWorker } from "@/lib/vault/ingest-queue";
 import { sanitizeForPostgres } from "@/lib/vault/sanitize-text";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 30;
 
 export async function POST(
   req: Request,
@@ -140,20 +140,23 @@ export async function POST(
     .eq("id", priorRow.vault_item_id)
     .eq("workspace_id", workspaceId);
 
-  // Re-chunk + re-embed. ingestVaultItem with force:true clears
-  // existing chunks first, so this is fully idempotent.
-  let chunkCount = 0;
+  // Enqueue re-chunk + re-embed as a background job instead of
+  // running inline. The worker calls ingestVaultItem with force:true
+  // which clears existing chunks first, so it's fully idempotent.
   let ingestError: string | null = null;
   if (acceptedText) {
     try {
-      const result = await ingestVaultItem(priorRow.vault_item_id, {
-        force: true,
+      await enqueueIngest({
+        vaultItemId: priorRow.vault_item_id,
+        workspaceId,
+        requestedBy: user.id,
+        source: "watched_folder",
       });
-      chunkCount = result.chunkCount;
+      kickIngestWorker(new URL(req.url).origin);
     } catch (err) {
-      ingestError = err instanceof Error ? err.message : "ingest_failed";
+      ingestError = err instanceof Error ? err.message : "enqueue_failed";
       console.warn(
-        `[watched-folder auto-update] ingestVaultItem failed for ${priorRow.vault_item_id}:`,
+        `[watched-folder auto-update] enqueueIngest failed for ${priorRow.vault_item_id}:`,
         ingestError,
       );
     }
@@ -198,7 +201,7 @@ export async function POST(
       folder_id: folderId,
       file_path: body.file_path,
       content_sha256: body.content_sha256 ?? null,
-      chunk_count: chunkCount,
+      chunk_count: 0,
       ingest_error: ingestError,
       audit_row_id: (auditRow as { id?: string } | null)?.id ?? null,
     },
@@ -208,7 +211,7 @@ export async function POST(
   return NextResponse.json({
     status: "auto_updated",
     vault_item_id: priorRow.vault_item_id,
-    chunk_count: chunkCount,
+    chunk_count: 0,
     ingest_error: ingestError,
   });
 }

@@ -73,6 +73,30 @@ export default function PendingFilesClient() {
   const [busy, setBusy] = useState<Record<string, boolean>>({});
   const inFlightHashes = useRef<Set<string>>(new Set());
 
+  // ─── Batch notify buffer ─────────────────────────────────────
+  // Instead of POSTing one file at a time to /notify, we buffer
+  // events and flush in batches. This cuts round-trip overhead
+  // during bulk rescans (1000 files → ~10 POSTs instead of 1000).
+  const notifyBuffer = useRef<Array<{ folderId: string; event: FileEvent }>>([]);
+  const flushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flushNotifyBufferRef = useRef<(() => void) | null>(null);
+
+  // ─── Ingestion progress ──────────────────────────────────────
+  const [ingestProgress, setIngestProgress] = useState<{
+    pending: number;
+    running: number;
+    completed: number;
+    failed: number;
+    dead: number;
+    total: number;
+    recent: Array<{
+      vault_item_id: string;
+      title: string;
+      chunk_count: number;
+      completed_at: string;
+    }>;
+  } | null>(null);
+
   // ─── Capability detection ────────────────────────────────────
   useEffect(() => {
     const e = window.electronAPI;
@@ -149,8 +173,8 @@ export default function PendingFilesClient() {
   //   • The file_path already maps to a CONFIRMED watched file
   //     → auto-update path: extract text, hit /auto-update, server
   //     re-chunks in place. User isn't asked to re-approve.
-  //   • Otherwise → notify path: create a pending row for the user
-  //     to confirm via the UI.
+  //   • Otherwise → notify path: buffer events and flush in batches
+  //     to /notify-batch (falls back to single /notify on error).
   //
   // Concurrency: the previous version ran every fileEvent's
   // extract+post chain in parallel. For a 1000-file rescan that
@@ -173,10 +197,7 @@ export default function PendingFilesClient() {
         .map((f) => `${f.folder_id}::${f.file_path}`),
     );
 
-    const hasFolderConsent = folders.some(
-      (f) => (f as any).confirm_mode === "folder_consent",
-    );
-    const EVENT_CONCURRENCY = hasFolderConsent ? 8 : 4;
+    const EVENT_CONCURRENCY = 20;
     const queue: FileEvent[] = [];
     let active = 0;
     let cancelled = false;
@@ -190,6 +211,129 @@ export default function PendingFilesClient() {
       pendingFetchTimer = setTimeout(() => {
         if (!cancelled) fetchFiles();
       }, 800);
+    };
+
+    // ── Batch notify flush ─────────────────────────────────────
+    // Buffer notify events and flush in batches. This groups events
+    // by folderId and POSTs to /notify-batch with up to 100 files
+    // per request, cutting round-trip overhead during bulk rescans.
+    const flushNotifyBuffer = async () => {
+      if (flushTimer.current) {
+        clearTimeout(flushTimer.current);
+        flushTimer.current = null;
+      }
+      const items = notifyBuffer.current.splice(0);
+      if (items.length === 0) return;
+
+      // Group by folderId.
+      const groups = new Map<string, typeof items>();
+      for (const item of items) {
+        let arr = groups.get(item.folderId);
+        if (!arr) {
+          arr = [];
+          groups.set(item.folderId, arr);
+        }
+        arr.push(item);
+      }
+
+      const entries = Array.from(groups.entries());
+      for (const [folderId, group] of entries) {
+        // Cap at 100 files per POST; split into chunks if needed.
+        for (let i = 0; i < group.length; i += 100) {
+          const chunk = group.slice(i, i + 100);
+          const payload = chunk.map((item) => ({
+            file_path: item.event.file_path,
+            file_name: item.event.file_name,
+            file_extension: item.event.file_extension,
+            file_size_bytes: item.event.file_size_bytes,
+            content_sha256: item.event.content_sha256,
+          }));
+
+          try {
+            const r = await fetch(
+              `/api/electron/watched-folders/${folderId}/notify-batch`,
+              {
+                method: "POST",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ files: payload }),
+              },
+            );
+            if (!r.ok) {
+              // Batch endpoint failed — fall back to single-file notify
+              // for each item in this chunk.
+              console.warn(
+                `[onFileEvent] batch notify failed (${r.status}), falling back to single-file`,
+              );
+              for (const item of chunk) {
+                try {
+                  await fetch(
+                    `/api/electron/watched-folders/${folderId}/notify`,
+                    {
+                      method: "POST",
+                      credentials: "include",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        file_path: item.event.file_path,
+                        file_name: item.event.file_name,
+                        file_extension: item.event.file_extension,
+                        file_size_bytes: item.event.file_size_bytes,
+                        content_sha256: item.event.content_sha256,
+                      }),
+                    },
+                  );
+                } catch (err) {
+                  console.warn("[onFileEvent] single notify fallback failed:", err);
+                }
+              }
+            }
+          } catch (err) {
+            console.warn("[onFileEvent] batch post failed:", err);
+            // Network-level failure — try single-file fallback.
+            for (const item of chunk) {
+              try {
+                await fetch(
+                  `/api/electron/watched-folders/${folderId}/notify`,
+                  {
+                    method: "POST",
+                    credentials: "include",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      file_path: item.event.file_path,
+                      file_name: item.event.file_name,
+                      file_extension: item.event.file_extension,
+                      file_size_bytes: item.event.file_size_bytes,
+                      content_sha256: item.event.content_sha256,
+                    }),
+                  },
+                );
+              } catch {
+                /* exhausted fallback */
+              }
+            }
+          }
+        }
+      }
+
+      scheduleFetchFiles();
+    };
+
+    // Expose flushNotifyBuffer to the ref so cleanup can call it.
+    flushNotifyBufferRef.current = flushNotifyBuffer;
+
+    const scheduleFlush = () => {
+      // Flush immediately if buffer reaches 50 items.
+      if (notifyBuffer.current.length >= 50) {
+        flushNotifyBuffer();
+        return;
+      }
+      // Otherwise set a 500ms debounce timer.
+      if (!flushTimer.current) {
+        flushTimer.current = setTimeout(() => {
+          flushTimer.current = null;
+          flushNotifyBuffer();
+        }, 500);
+      }
     };
 
     const processOne = async (event: FileEvent) => {
@@ -222,38 +366,32 @@ export default function PendingFilesClient() {
           }
         }
 
-        const url = isUpdate
-          ? `/api/electron/watched-folders/${event.folder_id}/files/auto-update`
-          : `/api/electron/watched-folders/${event.folder_id}/notify`;
-        const body = isUpdate
-          ? {
-              file_path: event.file_path,
-              file_size_bytes: event.file_size_bytes,
-              content_sha256: event.content_sha256,
-              extracted_text: extractedText,
-            }
-          : {
-              file_path: event.file_path,
-              file_name: event.file_name,
-              file_extension: event.file_extension,
-              file_size_bytes: event.file_size_bytes,
-              content_sha256: event.content_sha256,
-              extracted_text: extractedText,
-            };
-
-        try {
-          await fetch(url, {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          });
-        } catch (err) {
-          console.warn("[onFileEvent] post failed:", err);
+        if (isUpdate) {
+          // Auto-update path: single POST, not batchable (needs extracted text).
+          try {
+            await fetch(
+              `/api/electron/watched-folders/${event.folder_id}/files/auto-update`,
+              {
+                method: "POST",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  file_path: event.file_path,
+                  file_size_bytes: event.file_size_bytes,
+                  content_sha256: event.content_sha256,
+                  extracted_text: extractedText,
+                }),
+              },
+            );
+          } catch (err) {
+            console.warn("[onFileEvent] auto-update post failed:", err);
+          }
+          scheduleFetchFiles();
+        } else {
+          // Notify path: buffer for batch flush.
+          notifyBuffer.current.push({ folderId: event.folder_id, event });
+          scheduleFlush();
         }
-
-        // Hint the UI that something landed; debounced inside.
-        scheduleFetchFiles();
       } finally {
         // Allow re-post on a real second change after some time.
         setTimeout(() => inFlightHashes.current.delete(key), 60_000);
@@ -279,6 +417,11 @@ export default function PendingFilesClient() {
     return () => {
       cancelled = true;
       if (pendingFetchTimer) clearTimeout(pendingFetchTimer);
+      if (flushTimer.current) clearTimeout(flushTimer.current);
+      // Flush any remaining buffered events before teardown.
+      if (notifyBuffer.current.length > 0 && flushNotifyBufferRef.current) {
+        flushNotifyBufferRef.current();
+      }
       try {
         unsub();
       } catch {
@@ -286,6 +429,58 @@ export default function PendingFilesClient() {
       }
     };
   }, [fetchFiles, files, folders]);
+
+  // ─── Ingestion progress polling ───────────────────────────────
+  useEffect(() => {
+    let active = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const poll = async () => {
+      try {
+        const r = await fetch("/api/electron/watched-folders/ingest-progress", {
+          credentials: "include",
+        });
+        if (!r.ok) return;
+        const data = (await r.json()) as {
+          pending: number;
+          running: number;
+          completed: number;
+          failed: number;
+          dead: number;
+          total: number;
+          recent: Array<{
+            vault_item_id: string;
+            title: string;
+            chunk_count: number;
+            completed_at: string;
+          }>;
+        };
+        if (active) {
+          setIngestProgress(data);
+          // Keep polling while there's activity (pending or running files).
+          if (data.pending + data.running > 0) {
+            timer = setTimeout(poll, 3_000);
+          } else {
+            // Poll less frequently when idle — check every 15s in case
+            // a rescan starts outside this component.
+            timer = setTimeout(poll, 15_000);
+          }
+        }
+      } catch {
+        // Network error — retry after a longer delay.
+        if (active) {
+          timer = setTimeout(poll, 10_000);
+        }
+      }
+    };
+
+    poll();
+
+    return () => {
+      active = false;
+      if (timer) clearTimeout(timer);
+    };
+  }, []);
 
   // ─── Folder actions ──────────────────────────────────────────
   const pickAndAdd = useCallback(async () => {
@@ -490,11 +685,11 @@ export default function PendingFilesClient() {
       return;
     }
     setConfirmingAll({ done: 0, total: files.length });
-    // Run in batches of 4 — embeddings are rate-limited; flooding
-    // OpenAI tends to throttle the whole queue.
+    // Run in batches of 10 — confirm no longer waits for embeddings
+    // (server queues ingest asynchronously), so we can push more.
     const queue = [...files];
     let done = 0;
-    const BATCH = 4;
+    const BATCH = 10;
     while (queue.length > 0) {
       const batch = queue.splice(0, BATCH);
       await Promise.allSettled(batch.map((f) => confirmFile(f)));
@@ -684,6 +879,64 @@ export default function PendingFilesClient() {
                   : ""}
             </p>
           )}
+        </section>
+      )}
+
+      {ingestProgress && ingestProgress.total > 0 && (
+        <section className="mb-10">
+          <h2 className="label-section text-[var(--ink-muted)] mb-3">
+            Ingestion progress
+          </h2>
+          <div className="border border-[var(--rule)] rounded-md bg-[var(--canvas)] p-4">
+            {/* Progress bar */}
+            <div className="h-2 rounded-full bg-[var(--accent-soft)] overflow-hidden mb-3">
+              <div
+                className="h-full rounded-full bg-[var(--accent)] transition-all duration-500 ease-out"
+                style={{
+                  width: `${Math.round(((ingestProgress.completed + ingestProgress.failed + ingestProgress.dead) / ingestProgress.total) * 100)}%`,
+                }}
+              />
+            </div>
+            {/* Stats line */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="mono text-[12px] text-[var(--ink)]">
+                {ingestProgress.completed} of {ingestProgress.total} files ingested
+              </span>
+              {ingestProgress.running > 0 && (
+                <span className="mono text-[12px] text-[var(--accent)] animate-pulse">
+                  Processing {ingestProgress.running}...
+                </span>
+              )}
+              {ingestProgress.failed + ingestProgress.dead > 0 && (
+                <span className="mono text-[12px] text-[var(--danger)]">
+                  {ingestProgress.failed + ingestProgress.dead} failed
+                </span>
+              )}
+            </div>
+            {/* Recent completions */}
+            {ingestProgress.recent && ingestProgress.recent.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-[var(--rule)]">
+                <div className="mono text-[10px] text-[var(--ink-muted)] uppercase tracking-wide mb-2">
+                  Recently ingested
+                </div>
+                <ul className="space-y-1">
+                  {ingestProgress.recent.slice(0, 5).map((item) => (
+                    <li
+                      key={item.vault_item_id}
+                      className="mono text-[11px] text-[var(--ink-muted)] truncate"
+                    >
+                      {item.title}
+                      {item.chunk_count > 0 && (
+                        <span className="text-[var(--ink-muted)]/60 ml-1">
+                          ({item.chunk_count} chunks)
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
         </section>
       )}
 

@@ -23,12 +23,12 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { ingestVaultItem } from "@/lib/vault/ingest";
+import { enqueueIngest, kickIngestWorker } from "@/lib/vault/ingest-queue";
 import { resolveProjectForWatchedFile } from "@/lib/vault/auto-project";
 import { sanitizeForPostgres } from "@/lib/vault/sanitize-text";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 30;
 
 export async function POST(
   req: Request,
@@ -150,7 +150,6 @@ export async function POST(
     (isFolderConsent || (!isLocalOnly && hasText));
 
   let autoConfirmedVaultId: string | null = null;
-  let autoConfirmedChunks = 0;
   let autoConfirmError: string | null = null;
   let autoProjectId: string | null = null;
   let autoProjectName: string | null = null;
@@ -201,19 +200,22 @@ export async function POST(
       } else {
         autoConfirmedVaultId = (vaultItem as { id: string }).id;
         try {
-          const result = await ingestVaultItem(autoConfirmedVaultId, {
-            force: true,
+          await enqueueIngest({
+            vaultItemId: autoConfirmedVaultId,
+            workspaceId,
+            requestedBy: user.id,
+            source: "watched_folder",
           });
-          autoConfirmedChunks = result.chunkCount;
+          kickIngestWorker(new URL(req.url).origin);
         } catch (err) {
           autoConfirmError =
-            err instanceof Error ? err.message : "ingest_failed";
+            err instanceof Error ? err.message : "enqueue_failed";
           console.warn(
-            `[watched-folder notify] ingestVaultItem failed for ${autoConfirmedVaultId}:`,
+            `[watched-folder notify] enqueueIngest failed for ${autoConfirmedVaultId}:`,
             autoConfirmError,
           );
         }
-        // Promote the row status: even if ingest threw, the vault
+        // Promote the row status: even if enqueue threw, the vault
         // item exists and a follow-up reingest can recover it.
         status = "auto_confirmed";
       }
@@ -263,7 +265,7 @@ export async function POST(
       metadata: {
         folder_id: folderId,
         file_path: body.file_path,
-        chunk_count: autoConfirmedChunks,
+        chunk_count: 0,
         ingest_error: autoConfirmError,
         auto_project_id: autoProjectId,
         auto_project_name: autoProjectName,
@@ -280,7 +282,7 @@ export async function POST(
           ? "user_confirmation_required"
           : "rejected",
     vault_item_id: autoConfirmedVaultId,
-    chunk_count: autoConfirmedChunks,
+    chunk_count: 0,
     default_processing_mode: f.default_processing_mode,
     default_vault_project_id: f.default_vault_project_id,
   });
