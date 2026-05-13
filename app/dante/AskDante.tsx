@@ -416,12 +416,16 @@ export default function AskDante({
         body: JSON.stringify({ kind: "prompt", text }),
       });
       const json = await res.json();
-      if (res.ok && json.text) {
+      if (!res.ok) {
+        console.error("[Customize] refine failed:", json.error || res.status);
+        return;
+      }
+      if (json.text) {
         setInput(json.text);
         textareaRef.current?.focus();
       }
-    } catch {
-      /* swallow */
+    } catch (err) {
+      console.error("[Customize] network error:", err);
     } finally {
       setRefining(null);
     }
