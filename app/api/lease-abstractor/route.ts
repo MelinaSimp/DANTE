@@ -67,7 +67,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "No workspace" }, { status: 400 });
   }
 
-  let body: { vault_item_id?: string };
+  let body: {
+    vault_item_id?: string;
+    options?: { refinePrompt?: boolean; webSearch?: boolean };
+  };
   try {
     body = await request.json();
   } catch {
@@ -111,6 +114,7 @@ export async function POST(request: NextRequest) {
     vaultItemId,
     userId: user.id,
     anthropicKey,
+    options: body.options,
   });
 
   await supabaseAdmin.from("audit_logs").insert({

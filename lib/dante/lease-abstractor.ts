@@ -28,6 +28,7 @@ export interface ContextAnalysis {
   unusual_clauses: string[];
   anchor_leverage?: string;
   cross_reference_issues: string[];
+  market_context?: string;
 }
 
 export interface LeaseAbstract {
@@ -103,6 +104,10 @@ export interface AbstractLeaseInput {
   userId: string;
   anthropicKey: string;
   fields?: Array<{ name: string; category: LeaseField["category"]; description: string }>;
+  options?: {
+    refinePrompt?: boolean;
+    webSearch?: boolean;
+  };
 }
 
 // ── Claude API call helper ─────────────────────────────────────
@@ -396,13 +401,128 @@ If everything is consistent, return an empty issues array.`;
   };
 }
 
+// ── Optional: Prompt refinement pass ───────────────────────────
+
+async function passRefinePrompt(
+  chunks: ChunkRow[],
+  sectionMap: SectionMap,
+  fields: Array<{ name: string; category: LeaseField["category"]; description: string }>,
+  apiKey: string,
+): Promise<{
+  refinedDescriptions: Record<string, string>;
+  tokens: { input: number; output: number };
+}> {
+  const sampleText = chunks
+    .slice(0, 10)
+    .map((c) => `[Page ${c.page_number ?? "?"}] ${c.content}`)
+    .join("\n\n")
+    .slice(0, 30_000);
+
+  const sectionSummary = sectionMap.sections
+    .map((s) => `${s.name} (pp. ${s.page_start}-${s.page_end})`)
+    .join(", ");
+
+  const fieldNames = fields.map((f) => f.name).join(", ");
+
+  const prompt = `You are a lease abstraction prompt engineer. Analyze this lease's structure and terminology to produce optimized field descriptions that will improve extraction accuracy.
+
+LEASE STRUCTURE: ${sectionSummary}
+FIELDS TO EXTRACT: ${fieldNames}
+
+LEASE SAMPLE (first 10 chunks):
+${sampleText}
+
+For each field, write a refined description that:
+- Uses the exact terminology found in THIS lease (e.g., "Basic Annual Rent" instead of generic "Base Rent")
+- Notes which section the field is likely found in
+- Calls out any unusual formatting or structure
+
+Return JSON only:
+{
+  "refined_descriptions": {
+    "Field Name": "Optimized extraction description tailored to this lease's language"
+  }
+}`;
+
+  const result = await callClaude(apiKey, prompt, { maxTokens: 6000 });
+  const parsed = parseJSON(result.text) as {
+    refined_descriptions: Record<string, string>;
+  };
+  return {
+    refinedDescriptions: parsed.refined_descriptions || {},
+    tokens: { input: result.inputTokens, output: result.outputTokens },
+  };
+}
+
+// ── Optional: Web search for market context ───────────────────
+
+async function passWebSearch(
+  fields: LeaseField[],
+  apiKey: string,
+): Promise<{
+  marketContext: string;
+  tokens: { input: number; output: number };
+}> {
+  const address = fields.find((f) => f.name === "Premises Description")?.value || "";
+  const tenant = fields.find((f) => f.name === "Tenant Name")?.value || "";
+  const landlord = fields.find((f) => f.name === "Landlord Name")?.value || "";
+  const leaseType = fields.find((f) => f.name === "Lease Type")?.value || "";
+  const baseRent = fields.find((f) => f.name === "Base Rent Schedule")?.value || "";
+
+  if (!address && !tenant) {
+    return { marketContext: "", tokens: { input: 0, output: 0 } };
+  }
+
+  const prompt = `You are a commercial real estate market analyst. Based on the following extracted lease details, provide market context and comparable analysis.
+
+PROPERTY: ${address}
+TENANT: ${tenant}
+LANDLORD: ${landlord}
+LEASE TYPE: ${leaseType}
+BASE RENT: ${baseRent}
+
+Provide a concise market context analysis covering:
+1. How does this rent compare to typical rates for this property type and area?
+2. Are the lease terms (NNN/gross/modified) standard for this market?
+3. Any notable market conditions that affect this lease's value
+4. Tenant credit quality assessment if the tenant is a known entity
+
+Keep your response under 300 words. Be factual and cite specific market knowledge where possible. If you don't have enough information about the specific market, say so rather than speculating.
+
+Return JSON only:
+{
+  "market_context": "Your analysis here",
+  "comparable_assessment": "How this lease compares to market",
+  "tenant_credit_notes": "Any known information about tenant creditworthiness"
+}`;
+
+  const result = await callClaude(apiKey, prompt, { maxTokens: 2000 });
+  const parsed = parseJSON(result.text) as {
+    market_context?: string;
+    comparable_assessment?: string;
+    tenant_credit_notes?: string;
+  };
+
+  const parts = [
+    parsed.market_context,
+    parsed.comparable_assessment,
+    parsed.tenant_credit_notes,
+  ].filter(Boolean);
+
+  return {
+    marketContext: parts.join("\n\n"),
+    tokens: { input: result.inputTokens, output: result.outputTokens },
+  };
+}
+
 // ── Pipeline ──────────────────────────────────────────────────
 
 export async function abstractLease(
   input: AbstractLeaseInput,
 ): Promise<LeaseAbstract> {
   const startTime = Date.now();
-  const fields = input.fields || DEFAULT_FIELDS;
+  const opts = input.options || {};
+  let fields = input.fields || DEFAULT_FIELDS;
 
   const { data: row, error: insertErr } = await supabaseAdmin
     .from("lease_abstracts")
@@ -440,6 +560,24 @@ export async function abstractLease(
     totalInput += t1.input;
     totalOutput += t1.output;
 
+    // Optional: Prompt refinement — tailors field descriptions to this
+    // lease's specific terminology and section structure.
+    if (opts.refinePrompt) {
+      const { refinedDescriptions, tokens: tr } = await passRefinePrompt(
+        typedChunks,
+        sectionMap,
+        fields,
+        input.anthropicKey,
+      );
+      totalInput += tr.input;
+      totalOutput += tr.output;
+
+      fields = fields.map((f) => ({
+        ...f,
+        description: refinedDescriptions[f.name] || f.description,
+      }));
+    }
+
     // Pass 2: Targeted extraction
     const { fields: extractedFields, context, tokens: t2 } = await pass2Extract(
       typedChunks,
@@ -456,6 +594,21 @@ export async function abstractLease(
     totalOutput += t3.output;
 
     context.cross_reference_issues = issues;
+
+    // Optional: Web search — enriches context analysis with market data,
+    // comparable rents, and tenant credit assessment.
+    if (opts.webSearch) {
+      const { marketContext, tokens: tw } = await passWebSearch(
+        extractedFields,
+        input.anthropicKey,
+      );
+      totalInput += tw.input;
+      totalOutput += tw.output;
+
+      if (marketContext) {
+        context.market_context = marketContext;
+      }
+    }
 
     const elapsedSeconds = (Date.now() - startTime) / 1000;
 

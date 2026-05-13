@@ -23,6 +23,9 @@ import {
   Check,
   X,
   AlertTriangle,
+  Settings2,
+  Sparkles,
+  Globe,
 } from "lucide-react";
 import { usePageContext } from "@/components/dante/PageContext";
 
@@ -49,6 +52,7 @@ interface ContextAnalysis {
   unusual_clauses: string[];
   anchor_leverage?: string;
   cross_reference_issues: string[];
+  market_context?: string;
 }
 
 interface AbstractSummary {
@@ -142,7 +146,11 @@ export default function LeaseAbstractorClient() {
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [dragOver, setDragOver] = useState(false);
+  const [showCustomize, setShowCustomize] = useState(false);
+  const [refinePrompt, setRefinePrompt] = useState(false);
+  const [webSearch, setWebSearch] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const customizeRef = useRef<HTMLDivElement>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -189,7 +197,13 @@ export default function LeaseAbstractorClient() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ vault_item_id: vaultItemId }),
+        body: JSON.stringify({
+          vault_item_id: vaultItemId,
+          options: {
+            refinePrompt: refinePrompt || undefined,
+            webSearch: webSearch || undefined,
+          },
+        }),
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Extraction failed");
@@ -373,6 +387,64 @@ export default function LeaseAbstractorClient() {
             <p className="text-sm font-medium text-[var(--ink)]">Drop your lease here</p>
             <p className="text-xs text-[var(--ink-muted)] mt-0.5">PDF, DOCX, or TXT</p>
           </>
+        )}
+      </div>
+
+      {/* Customize — AI capability toggles */}
+      <div className="px-4 py-2 border-b border-[var(--rule)]" ref={customizeRef}>
+        <button
+          onClick={() => setShowCustomize((v) => !v)}
+          className="flex items-center gap-1.5 text-xs font-medium text-[var(--ink-muted)] hover:text-[var(--ink)] w-full"
+        >
+          <Settings2 className="w-3.5 h-3.5" />
+          Customize
+          <ChevronDown className={`w-3 h-3 ml-auto transition-transform ${showCustomize ? "rotate-180" : ""}`} />
+        </button>
+
+        {showCustomize && (
+          <div className="mt-2 space-y-2 pb-1">
+            <label className="flex items-start gap-2.5 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={refinePrompt}
+                onChange={(e) => setRefinePrompt(e.target.checked)}
+                className="mt-0.5 rounded border-[var(--rule)] accent-blue-600"
+              />
+              <div className="flex-1">
+                <div className="flex items-center gap-1.5 text-xs font-medium text-[var(--ink)]">
+                  <Sparkles className="w-3 h-3 text-amber-500" />
+                  Optimize Prompt
+                </div>
+                <p className="text-[11px] text-[var(--ink-muted)] mt-0.5 leading-tight">
+                  AI analyzes the lease&apos;s terminology and structure to tailor extraction for higher accuracy.
+                </p>
+              </div>
+            </label>
+
+            <label className="flex items-start gap-2.5 cursor-pointer group">
+              <input
+                type="checkbox"
+                checked={webSearch}
+                onChange={(e) => setWebSearch(e.target.checked)}
+                className="mt-0.5 rounded border-[var(--rule)] accent-blue-600"
+              />
+              <div className="flex-1">
+                <div className="flex items-center gap-1.5 text-xs font-medium text-[var(--ink)]">
+                  <Globe className="w-3 h-3 text-blue-500" />
+                  Market Context
+                </div>
+                <p className="text-[11px] text-[var(--ink-muted)] mt-0.5 leading-tight">
+                  AI researches the property and tenant to add market comparables and credit assessment.
+                </p>
+              </div>
+            </label>
+
+            {(refinePrompt || webSearch) && (
+              <p className="text-[10px] text-amber-600 mt-1">
+                {refinePrompt && webSearch ? "2 extra AI passes" : "1 extra AI pass"} will run, adding ~10-20s to extraction.
+              </p>
+            )}
+          </div>
         )}
       </div>
 
@@ -680,6 +752,16 @@ export default function LeaseAbstractorClient() {
                     Anchor / Co-Tenancy Leverage
                   </p>
                   <p className="text-sm text-[var(--ink)]">{ca.anchor_leverage}</p>
+                </div>
+              )}
+
+              {ca.market_context && (
+                <div className="p-3 rounded-[4px] border border-blue-200 bg-blue-50">
+                  <p className="text-xs font-medium text-blue-700 mb-1 flex items-center gap-1.5">
+                    <Globe className="w-3.5 h-3.5" />
+                    Market Context
+                  </p>
+                  <p className="text-sm text-blue-900 whitespace-pre-line">{ca.market_context}</p>
                 </div>
               )}
 
