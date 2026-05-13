@@ -417,7 +417,7 @@ export default function AskDante({
       });
       const json = await res.json();
       if (!res.ok) {
-        console.error("[Customize] refine failed:", json.error || res.status);
+        alert(`Customize failed: ${json.error || `HTTP ${res.status}`}`);
         return;
       }
       if (json.text) {
@@ -425,7 +425,7 @@ export default function AskDante({
         textareaRef.current?.focus();
       }
     } catch (err) {
-      console.error("[Customize] network error:", err);
+      alert(`Customize failed: ${err instanceof Error ? err.message : "network error"}`);
     } finally {
       setRefining(null);
     }
@@ -938,29 +938,23 @@ function InputBar(p: InputBarProps) {
               });
             }}
           />
-          {/* Vergil-only — surfaces the Web Scraper agent for "pull
-              comps for 412 Beech" style asks. Hidden on Dante because
-              there's no advisor use case (custodian portals are
-              login-walled). */}
-          {p.assistantName === "Vergil" && (
-            <ToolbarButton
-              icon={Globe}
-              label="Pull comps"
-              active={p.webScrape}
-              tip={
-                p.webScrape
-                  ? "On — Web Scraper agent (Browser Use Cloud) pulls structured data from the URL or address you describe"
-                  : "Off — switch on to scrape comps, listings, or public records from a URL"
-              }
-              onClick={() => {
-                p.setWebScrape((v) => {
-                  const next = !v;
-                  if (next) p.setDeepResearch(false);
-                  return next;
-                });
-              }}
-            />
-          )}
+          <ToolbarButton
+            icon={Globe}
+            label="Web scrape"
+            active={p.webScrape}
+            tip={
+              p.webScrape
+                ? "On — Web Scraper agent pulls structured data from the URL or address you describe"
+                : "Off — switch on to scrape comps, listings, or public records from a URL"
+            }
+            onClick={() => {
+              p.setWebScrape((v) => {
+                const next = !v;
+                if (next) p.setDeepResearch(false);
+                return next;
+              });
+            }}
+          />
         </div>
         <button
           onClick={p.submit}
