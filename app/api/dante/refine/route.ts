@@ -53,31 +53,38 @@ export async function POST(req: NextRequest) {
     ? `Instruction: ${instruction}\n\n---\n\n${text}`
     : text;
 
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: "gpt-5",
-      messages: [
-        { role: "system", content: kind === "answer" ? ANSWER_SYSTEM : PROMPT_SYSTEM },
-        { role: "user", content: userMessage },
-      ],
-      max_completion_tokens: 1500,
-    }),
-  });
-  if (!res.ok) {
-    const errBody = await res.text().catch(() => "");
+  try {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4.1",
+        messages: [
+          { role: "system", content: kind === "answer" ? ANSWER_SYSTEM : PROMPT_SYSTEM },
+          { role: "user", content: userMessage },
+        ],
+        max_completion_tokens: 1500,
+      }),
+    });
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => "");
+      return NextResponse.json(
+        { error: `openai ${res.status}: ${errBody.slice(0, 200)}` },
+        { status: 500 },
+      );
+    }
+    const json = (await res.json()) as {
+      choices: Array<{ message: { content: string } }>;
+    };
+    const out = json.choices?.[0]?.message?.content?.trim() || "";
+    return NextResponse.json({ text: out });
+  } catch (err) {
     return NextResponse.json(
-      { error: `openai ${res.status}: ${errBody.slice(0, 200)}` },
+      { error: err instanceof Error ? err.message : "openai call failed" },
       { status: 500 },
     );
   }
-  const json = (await res.json()) as {
-    choices: Array<{ message: { content: string } }>;
-  };
-  const out = json.choices?.[0]?.message?.content?.trim() || "";
-  return NextResponse.json({ text: out });
 }

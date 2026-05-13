@@ -415,11 +415,12 @@ export default function AskDante({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ kind: "prompt", text }),
       });
-      const json = await res.json();
       if (!res.ok) {
-        alert(`Customize failed: ${json.error || `HTTP ${res.status}`}`);
+        const body = await res.text().catch(() => "");
+        alert(`Customize failed (${res.status}): ${body.slice(0, 200)}`);
         return;
       }
+      const json = await res.json();
       if (json.text) {
         setInput(json.text);
         textareaRef.current?.focus();
