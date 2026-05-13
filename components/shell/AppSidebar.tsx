@@ -199,7 +199,7 @@ export default function AppSidebar({
     { href: "/inbox", label: "Email", icon: Mail },
     { href: "/agent", label: "Agent", icon: Mic },
     { href: "/vault", label: "Vault", icon: FolderClosed },
-    { href: "/lease-abstractor", label: "Lease Abstractor", icon: FileSearch, industry: "real_estate" },
+    { href: "/lease-abstractor", label: "Lease Abstractor", icon: FileSearch },
     { href: "/dante/pending-files", label: "Watched files", icon: FileClock },
     { href: "/review-tables", label: "Review tables", icon: Table2 },
     { href: "/library", label: "Library", icon: BookOpen },
