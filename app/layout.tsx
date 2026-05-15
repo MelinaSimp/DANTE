@@ -16,6 +16,7 @@ import { ToastProvider } from "@/components/ui/toast";
 import { ConfirmDialogProvider } from "@/components/ui/confirm-dialog";
 import QueryProvider from "@/lib/query/provider";
 import CommandPalette from "@/components/command-palette/CommandPalette";
+import WatcherBridge from "@/components/shell/WatcherBridge";
 import { ThemeProvider, ThemeScript } from "@/components/theme/ThemeProvider";
 import { DensityProvider, DensityScript } from "@/components/theme/DensityProvider";
 // FloatingDashboardButton was removed in the IA sweep — every workspace
@@ -91,6 +92,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </ErrorBoundary>
                 <CommandPalette />
                 <PushNotificationManager />
+                <WatcherBridge />
               </OnboardingProvider>
             </ConfirmDialogProvider>
           </ToastProvider>

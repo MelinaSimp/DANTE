@@ -7,7 +7,10 @@ export default function WatcherBridge() {
 
   useEffect(() => {
     const api = window.electronAPI;
-    if (!api?.watched) return;
+    if (!api?.watched) {
+      console.log("[WatcherBridge] not in Electron, skipping");
+      return;
+    }
 
     let unsubscribe: (() => void) | null = null;
 
@@ -15,22 +18,35 @@ export default function WatcherBridge() {
       if (syncedRef.current) return;
       syncedRef.current = true;
 
+      console.log("[WatcherBridge] booting...");
+
       try {
         const res = await fetch("/api/electron/watched-folders");
-        if (!res.ok) return;
+        if (!res.ok) {
+          console.warn("[WatcherBridge] failed to fetch folders:", res.status);
+          syncedRef.current = false;
+          return;
+        }
         const { folders } = await res.json();
         const active = (folders || []).filter(
           (f: { status: string }) => f.status === "active",
         );
+        console.log(`[WatcherBridge] ${active.length} active folder(s)`);
         if (active.length === 0) return;
 
-        await api.watched!.sync(active);
+        const syncResult = await api.watched!.sync(active);
+        console.log("[WatcherBridge] sync result:", syncResult);
 
         unsubscribe = api.watched!.onFileEvent(async (event) => {
+          console.log("[WatcherBridge] file event:", event.file_name, event.folder_id);
+
           const folder = active.find(
             (f: { id: string }) => f.id === event.folder_id,
           );
-          if (!folder) return;
+          if (!folder) {
+            console.warn("[WatcherBridge] no matching folder for event, skipping");
+            return;
+          }
 
           let extractedText: string | undefined;
           if (
@@ -44,14 +60,15 @@ export default function WatcherBridge() {
               );
               if ("text" in result && result.text) {
                 extractedText = result.text;
+                console.log(`[WatcherBridge] extracted ${result.text.length} chars from ${event.file_name}`);
               }
-            } catch {
-              // extraction failed — still notify with metadata only
+            } catch (err) {
+              console.warn("[WatcherBridge] extraction failed:", err);
             }
           }
 
           try {
-            await fetch(
+            const notifyRes = await fetch(
               `/api/electron/watched-folders/${event.folder_id}/notify`,
               {
                 method: "POST",
@@ -66,11 +83,15 @@ export default function WatcherBridge() {
                 }),
               },
             );
-          } catch {
-            // network error — file will be picked up on next rescan
+            console.log(`[WatcherBridge] notify ${event.file_name}: ${notifyRes.status}`);
+          } catch (err) {
+            console.warn("[WatcherBridge] notify failed:", err);
           }
         });
-      } catch {
+
+        console.log("[WatcherBridge] listening for file events");
+      } catch (err) {
+        console.error("[WatcherBridge] boot failed:", err);
         syncedRef.current = false;
       }
     };

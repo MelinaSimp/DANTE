@@ -18,6 +18,7 @@ import {
   ArrowLeft,
   FolderPlus,
   Server,
+  RefreshCw,
 } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────
@@ -69,6 +70,7 @@ export default function WatchedFoldersClient() {
   const [loadingFolders, setLoadingFolders] = useState(true);
   const [selectedFolder, setSelectedFolder] = useState<WatchedFolder | null>(null);
   const [adding, setAdding] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   const isElectron = typeof window !== "undefined" && !!window.electronAPI?.watched?.pickFolder;
 
@@ -129,6 +131,39 @@ export default function WatchedFoldersClient() {
     }
   }, [fetchFolders]);
 
+  const syncNow = useCallback(async () => {
+    const api = window.electronAPI;
+    if (!api?.watched) return;
+
+    setSyncing(true);
+    try {
+      // Fetch fresh folder list
+      const res = await fetch("/api/electron/watched-folders");
+      if (!res.ok) return;
+      const data = await res.json();
+      const active = (data.folders || []).filter((f: WatchedFolder) => f.status === "active");
+      setFolders(data.folders || []);
+
+      // Sync watchers (starts chokidar for any new folders)
+      console.log("[WatchedFolders] syncing", active.length, "folders");
+      await api.watched.sync(active);
+
+      // Rescan each active folder to pick up existing files
+      for (const folder of active) {
+        if (api.watched.rescan) {
+          console.log("[WatchedFolders] rescanning", folder.folder_label);
+          await api.watched.rescan(folder);
+        }
+      }
+
+      // Refresh the file list after a short delay
+      await new Promise((r) => setTimeout(r, 2000));
+      await fetchFolders();
+    } finally {
+      setSyncing(false);
+    }
+  }, [fetchFolders]);
+
   if (selectedFolder) {
     return (
       <FolderDetail
@@ -145,6 +180,8 @@ export default function WatchedFoldersClient() {
       onSelect={setSelectedFolder}
       onAddFolder={isElectron ? addFolder : undefined}
       adding={adding}
+      onSync={isElectron ? syncNow : undefined}
+      syncing={syncing}
     />
   );
 }
@@ -157,12 +194,16 @@ function FolderList({
   onSelect,
   onAddFolder,
   adding,
+  onSync,
+  syncing,
 }: {
   folders: WatchedFolder[];
   loading: boolean;
   onSelect: (f: WatchedFolder) => void;
   onAddFolder?: () => void;
   adding?: boolean;
+  onSync?: () => void;
+  syncing?: boolean;
 }) {
   const activeFolders = folders.filter((f) => f.status === "active");
 
@@ -187,20 +228,32 @@ function FolderList({
               or the agent need it.
             </p>
           </div>
-          {onAddFolder && (
-            <button
-              onClick={onAddFolder}
-              disabled={adding}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50 transition flex-shrink-0 mt-1"
-            >
-              {adding ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <FolderPlus className="w-4 h-4" />
-              )}
-              Add Folder
-            </button>
-          )}
+          <div className="flex items-center gap-2 flex-shrink-0 mt-1">
+            {onSync && (
+              <button
+                onClick={onSync}
+                disabled={syncing}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition"
+              >
+                <RefreshCw className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} />
+                {syncing ? "Syncing..." : "Sync now"}
+              </button>
+            )}
+            {onAddFolder && (
+              <button
+                onClick={onAddFolder}
+                disabled={adding}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50 transition"
+              >
+                {adding ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <FolderPlus className="w-4 h-4" />
+                )}
+                Add Folder
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
