@@ -7,11 +7,11 @@ export async function getAccessibleProjectIds(
 ): Promise<{ isAdmin: boolean; projectIds: string[] | null }> {
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, is_superadmin")
     .eq("id", userId)
     .single();
 
-  if (profile?.role === "admin" || profile?.role === "owner") {
+  if (profile?.is_superadmin || profile?.role === "admin" || profile?.role === "owner") {
     return { isAdmin: true, projectIds: null };
   }
 

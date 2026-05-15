@@ -33,6 +33,9 @@ import {
   FileImage,
   FileType,
   File as FileIcon,
+  Users,
+  UserPlus,
+  UserMinus,
 } from "lucide-react";
 
 interface VaultItem {
@@ -161,7 +164,7 @@ export default function ProjectDetailClient({
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [tab, setTab] = useState<"vault" | "indexed">("vault");
+  const [tab, setTab] = useState<"vault" | "indexed" | "members">("vault");
   const [indexedFiles, setIndexedFiles] = useState<IndexedFile[] | null>(null);
   const [indexedCount, setIndexedCount] = useState(0);
 
@@ -556,18 +559,18 @@ export default function ProjectDetailClient({
         )}
 
         {/* Tab bar */}
-        {indexedCount > 0 && (
-          <div className="flex items-center gap-0 border-b border-[var(--rule)] mb-4">
-            <button
-              onClick={() => setTab("vault")}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition ${
-                tab === "vault"
-                  ? "border-gray-900 text-gray-900"
-                  : "border-transparent text-gray-500 hover:text-gray-700"
-              }`}
-            >
-              Documents{items.length > 0 ? ` (${items.length})` : ""}
-            </button>
+        <div className="flex items-center gap-0 border-b border-[var(--rule)] mb-4">
+          <button
+            onClick={() => setTab("vault")}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition ${
+              tab === "vault"
+                ? "border-gray-900 text-gray-900"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            Documents{items.length > 0 ? ` (${items.length})` : ""}
+          </button>
+          {indexedCount > 0 && (
             <button
               onClick={() => setTab("indexed")}
               className={`px-4 py-2 text-sm font-medium border-b-2 transition ${
@@ -581,10 +584,25 @@ export default function ProjectDetailClient({
                 {indexedCount}
               </span>
             </button>
-          </div>
-        )}
+          )}
+          {!isLoose && (
+            <button
+              onClick={() => setTab("members")}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition flex items-center gap-1.5 ${
+                tab === "members"
+                  ? "border-gray-900 text-gray-900"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" strokeWidth={1.5} />
+              Members
+            </button>
+          )}
+        </div>
 
-        {tab === "indexed" && indexedFiles ? (
+        {tab === "members" && !isLoose ? (
+          <ProjectMembersPanel projectId={projectId} />
+        ) : tab === "indexed" && indexedFiles ? (
           <IndexedFilesTable
             files={indexedFiles}
             onIngest={async (fileId) => {
@@ -956,6 +974,193 @@ function StatusPill({ status }: { status: string }) {
     default:
       return <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500">{status}</span>;
   }
+}
+
+interface AccessEntry {
+  id: string;
+  profile_id: string;
+  role: string;
+  granted_at: string;
+  profile_name: string;
+  profile_role: string;
+}
+
+interface WorkspaceMember {
+  id: string;
+  full_name: string;
+  role: string;
+}
+
+function ProjectMembersPanel({ projectId }: { projectId: string }) {
+  const [access, setAccess] = useState<AccessEntry[]>([]);
+  const [members, setMembers] = useState<WorkspaceMember[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [selectedMember, setSelectedMember] = useState("");
+  const [selectedRole, setSelectedRole] = useState("viewer");
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await fetch(`/api/vault/projects/${projectId}/access`, {
+        credentials: "include",
+      });
+      if (r.ok) {
+        const d = await r.json();
+        setAccess(d.access || []);
+        setMembers(d.members || []);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const grantAccess = async () => {
+    if (!selectedMember) return;
+    setAdding(true);
+    try {
+      const r = await fetch(`/api/vault/projects/${projectId}/access`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ profile_id: selectedMember, role: selectedRole }),
+      });
+      if (r.ok) {
+        setSelectedMember("");
+        await load();
+      }
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const revokeAccess = async (profileId: string) => {
+    await fetch(`/api/vault/projects/${projectId}/access?profile_id=${profileId}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    await load();
+  };
+
+  const assignedIds = new Set(access.map((a) => a.profile_id));
+  const unassigned = members.filter((m) => !assignedIds.has(m.id));
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-[var(--ink-muted)] py-8 justify-center">
+        <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
+        Loading members…
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <p className="text-[12px] text-[var(--ink-muted)] mb-4">
+          Control who can see and work with documents in this project.
+          Owners and admins always have full access. Members only see
+          projects they&rsquo;ve been explicitly added to.
+        </p>
+      </div>
+
+      {access.length > 0 && (
+        <div className="border border-[var(--rule)] rounded-[8px] overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="border-b border-[var(--rule)] bg-[var(--canvas-subtle)]">
+              <tr>
+                <th className="px-4 py-2.5 text-left text-[10px] uppercase tracking-wider font-semibold text-[var(--ink-subtle)]">Name</th>
+                <th className="px-4 py-2.5 text-left text-[10px] uppercase tracking-wider font-semibold text-[var(--ink-subtle)] w-28">Workspace role</th>
+                <th className="px-4 py-2.5 text-left text-[10px] uppercase tracking-wider font-semibold text-[var(--ink-subtle)] w-28">Project access</th>
+                <th className="px-4 py-2.5 text-left text-[10px] uppercase tracking-wider font-semibold text-[var(--ink-subtle)] w-28">Granted</th>
+                <th className="px-4 py-2.5 w-16"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {access.map((a) => (
+                <tr key={a.id} className="border-b border-[var(--rule)] last:border-b-0">
+                  <td className="px-4 py-3 text-[var(--ink)]">{a.profile_name}</td>
+                  <td className="px-4 py-3">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600 capitalize">
+                      {a.profile_role}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-50 text-blue-700 capitalize">
+                      {a.role}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-[var(--ink-muted)] mono">
+                    {formatRelative(a.granted_at)}
+                  </td>
+                  <td className="px-4 py-3">
+                    {a.profile_role !== "owner" && (
+                      <button
+                        onClick={() => revokeAccess(a.profile_id)}
+                        className="p-1.5 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--danger)] hover:bg-[var(--danger-soft)] transition"
+                        title="Remove access"
+                      >
+                        <UserMinus className="w-3.5 h-3.5" strokeWidth={1.5} />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {access.length === 0 && (
+        <div className="py-8 text-center border border-dashed border-[var(--rule-strong)] rounded-[8px]">
+          <Users className="w-8 h-8 text-[var(--ink-subtle)] mx-auto mb-2" strokeWidth={1} />
+          <p className="text-sm text-[var(--ink-muted)]">
+            No members assigned yet. Owners have access by default.
+          </p>
+        </div>
+      )}
+
+      {unassigned.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <select
+            value={selectedMember}
+            onChange={(e) => setSelectedMember(e.target.value)}
+            className="rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
+          >
+            <option value="">Add a team member…</option>
+            {unassigned.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.full_name} ({m.role})
+              </option>
+            ))}
+          </select>
+          <select
+            value={selectedRole}
+            onChange={(e) => setSelectedRole(e.target.value)}
+            className="rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
+          >
+            <option value="viewer">Viewer</option>
+            <option value="editor">Editor</option>
+            <option value="admin">Admin</option>
+          </select>
+          <button
+            onClick={grantAccess}
+            disabled={!selectedMember || adding}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-sm font-semibold disabled:opacity-50 hover:opacity-90 transition"
+          >
+            {adding ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.5} />
+            ) : (
+              <UserPlus className="w-3.5 h-3.5" strokeWidth={1.5} />
+            )}
+            Add
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function IndexedFilesTable({
