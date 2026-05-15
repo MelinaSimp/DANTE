@@ -30,7 +30,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAssistantBrand } from "./AssistantNameProvider";
 
-type Variant = "nav-primary" | "breadcrumb" | "breadcrumb-static" | "icon-only";
+type Variant = "nav-primary" | "breadcrumb" | "breadcrumb-static" | "icon-only" | "sidebar-full";
 
 interface DanteGateLinkProps {
   variant?: Variant;
@@ -79,16 +79,19 @@ export default function DanteGateLink({
       textClass: "font-medium",
     },
     "icon-only": {
-      // For the persistent icon-only sidebar — same square dimensions
-      // as the other module buttons, just the brand icon. Animation
-      // still fires; label is hidden so the parent renders its own
-      // tooltip.
       wrapper:
         "w-9 h-9 flex items-center justify-center rounded-[6px] hover:bg-[var(--canvas)] transition group",
       iconSize: 16,
       iconClass:
         "transition-transform group-hover:scale-110 group-hover:drop-shadow-[0_0_4px_rgba(0,0,0,0.15)]",
       textClass: "sr-only",
+    },
+    "sidebar-full": {
+      wrapper:
+        "w-full h-9 flex items-center gap-3 px-2.5 py-2 rounded-md text-gray-700 hover:bg-gray-100 transition group",
+      iconSize: 16,
+      iconClass: "transition-transform group-hover:scale-105",
+      textClass: "text-sm font-medium",
     },
   } as const;
 
@@ -105,7 +108,7 @@ export default function DanteGateLink({
     // Both nav-primary (top-nav) and icon-only (sidebar) get the
     // ceremonial overlay animation — they're both "first entry into
     // the sub-app" affordances.
-    if (variant !== "nav-primary" && variant !== "icon-only") return;
+    if (variant !== "nav-primary" && variant !== "icon-only" && variant !== "sidebar-full") return;
     if (opening) {
       e.preventDefault();
       return;

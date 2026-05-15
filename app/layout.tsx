@@ -1,13 +1,11 @@
 // app/layout.tsx
 //
-// Root layout. Ships the Harvey-inspired design language by default:
-// white canvas, serif display type (Instrument Serif), sans UI (Inter),
-// mono for data (JetBrains Mono). Individual legacy pages can still
-// override to their own theme (e.g. /app agent canvas, /frontend orb)
-// via useEffect — we only set a sensible default here.
+// Root layout. Mike-inspired clean design language:
+// white canvas, serif display type (EB Garamond), sans UI (Inter),
+// mono for data (JetBrains Mono).
 
 import type { Metadata } from "next";
-import { Instrument_Serif, Inter, JetBrains_Mono } from "next/font/google";
+import { EB_Garamond, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/Header";
 import PushNotificationManager from "@/components/PushNotificationManager";
@@ -30,9 +28,8 @@ const fontUi = Inter({
   variable: "--font-ui-loaded",
   display: "swap",
 });
-const fontDisplay = Instrument_Serif({
+const fontDisplay = EB_Garamond({
   subsets: ["latin"],
-  weight: "400",
   variable: "--font-display-loaded",
   display: "swap",
 });

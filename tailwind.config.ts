@@ -5,6 +5,11 @@ const config: Config = {
   content: ["./app/**/*.{js,ts,jsx,tsx}", "./components/**/*.{js,ts,jsx,tsx}"],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ["var(--font-ui-loaded)", "Inter", "system-ui", "sans-serif"],
+        serif: ["var(--font-display-loaded)", "EB Garamond", "Georgia", "serif"],
+        mono: ["var(--font-mono-loaded)", "JetBrains Mono", "monospace"],
+      },
       colors: {
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
@@ -29,7 +34,7 @@ const config: Config = {
           foreground: "hsl(var(--muted-foreground))",
         },
         accent: {
-          DEFAULT: "hsl(var(--accent))",
+          DEFAULT: "hsl(var(--accent-shadcn))",
           foreground: "hsl(var(--accent-foreground))",
         },
         destructive: {
@@ -39,18 +44,19 @@ const config: Config = {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
-        beige: "#F5F5DC",
-        almond: "#EED9C4",
-        bisque: "#FFE4C4",
-        tuscan: "#FAD6A5",
-        cosmic: "#FFF8E7",
-        badge: "#A67B5B",
-        // New light theme colors
+        blue: {
+          DEFAULT: "rgb(0, 136, 255)",
+          50: "rgba(0, 136, 255, 0.05)",
+          100: "rgba(0, 136, 255, 0.1)",
+          200: "rgba(0, 136, 255, 0.3)",
+          600: "rgb(0, 136, 255)",
+          700: "rgb(0, 120, 230)",
+        },
         brand: {
           white: "#ffffff",
-          dark: "#151515",
+          dark: "#111827",
           blue: {
-            primary: "#3166bf",
+            primary: "rgb(0, 136, 255)",
             light: "#aeb8c9",
             accent: "#afedff",
           },
@@ -67,23 +73,16 @@ const config: Config = {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
-        xl2: "1rem",
+        xl: "calc(var(--radius) + 4px)",
       },
       boxShadow: {
-        // Legacy alias — kept for back-compat. Prefer the hierarchy below.
-        soft: "0 1px 2px rgba(60,40,20,0.04), 0 4px 12px rgba(60,40,20,0.06)",
-        // ── Drift depth hierarchy ───────────────────────────────────
-        // Four layers, warm-tinted (rgba(60,40,20) = warm umber, not
-        // neutral gray). Use these consistently for a calm, considered
-        // surface system. See ADR on UI motion + depth.
-        recessed:
-          "inset 0 1px 0 rgba(255,255,255,0.5), inset 0 -1px 0 rgba(60,40,20,0.04)",
+        soft: "0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.06)",
         ground:
-          "inset 0 1px 0 rgba(255,255,255,0.6), 0 1px 2px rgba(60,40,20,0.04), 0 4px 10px -2px rgba(60,40,20,0.05)",
+          "0 1px 2px rgba(0,0,0,0.04), 0 4px 10px -2px rgba(0,0,0,0.05)",
         raised:
-          "inset 0 1px 0 rgba(255,255,255,0.7), 0 2px 4px rgba(60,40,20,0.05), 0 12px 24px -6px rgba(60,40,20,0.10)",
+          "0 2px 4px rgba(0,0,0,0.05), 0 12px 24px -6px rgba(0,0,0,0.10)",
         floating:
-          "inset 0 1px 0 rgba(255,255,255,0.8), 0 8px 16px -4px rgba(60,40,20,0.10), 0 24px 48px -12px rgba(60,40,20,0.18)",
+          "0 8px 16px -4px rgba(0,0,0,0.10), 0 24px 48px -12px rgba(0,0,0,0.18)",
       },
       keyframes: {
         "fade-up": {
@@ -101,6 +100,10 @@ const config: Config = {
         shimmer: {
           "0%": { backgroundPosition: "-200% 0" },
           "100%": { backgroundPosition: "200% 0" },
+        },
+        "sidebar-fade-in": {
+          "0%": { opacity: "0" },
+          "100%": { opacity: "1" },
         },
       },
       animation: {

@@ -474,70 +474,100 @@ export default function AskDante({
   // ── Render ─────────────────────────────────────────────────────
 
   return (
-    <div className="w-full max-w-[760px] mx-auto pb-32">
-      {/* Landing — wordmark + scope chip. Wrapper opacity-/translate-
-          transitions so the shift to expanded mode feels smooth
-          rather than a hard cut. */}
+    <div className="flex flex-col h-full w-full px-6">
+      {/* Landing — Mike-style centered greeting with serif font */}
       <div
         className={`transition-all duration-500 ease-out ${
           inExpandedMode
             ? "opacity-0 -translate-y-4 max-h-0 overflow-hidden pointer-events-none"
-            : "opacity-100 max-h-[400px]"
+            : "flex-1 flex flex-col items-center justify-center"
         }`}
       >
-        <div className="text-center mb-8">
-          {/* Wordmark — full assistant name. Mirrors Harvey's serif
-              wordmark pattern; reads as a brand the moment the page
-              loads. Sized down from the single-letter version so
-              "Vergil" / "Dante" both fit cleanly without crowding
-              the input below. */}
-          <h1
-            className="heading-display text-6xl md:text-7xl text-[var(--ink)] font-bold tracking-tight leading-none"
-          >
-            {brand.name}
-          </h1>
-        </div>
+        <div className="flex-col items-center w-full max-w-4xl relative px-0 xl:px-8">
+          <div className="mb-10 text-center">
+            <h1 className="text-4xl font-serif font-light text-gray-900">
+              Hi, how can {brand.name} help?
+            </h1>
+          </div>
 
-        {/* Scope chips — Harvey-style two-affordance row above the
-            composer. "Choose Vault project" sets the document context;
-            "Set client context" sets the per-contact memory scope. Two
-            distinct ideas, two distinct chips. */}
-        <div className="flex items-center justify-center gap-4 mb-4">
-          <Link
-            href="/vault"
-            className="inline-flex items-center gap-1.5 text-[12px] text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
-          >
-            <BookOpen className="w-3.5 h-3.5" strokeWidth={1.5} />
-            Choose Vault project
-          </Link>
-          {contextContact ? (
-            <ContextChip
-              contact={contextContact}
-              onClear={() => setContextContact(null)}
-            />
-          ) : (
-            <button
-              onClick={() => setContactPickerOpen(true)}
-              className="inline-flex items-center gap-1.5 text-[12px] text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
+          {/* Scope chips — thin affordance row */}
+          <div className="flex items-center justify-center gap-4 mb-6">
+            <Link
+              href="/vault"
+              className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-700 transition"
             >
-              <Users className="w-3.5 h-3.5" strokeWidth={1.5} />
-              Set client context
-            </button>
+              <BookOpen className="w-3.5 h-3.5" strokeWidth={1.5} />
+              Choose Vault project
+            </Link>
+            {contextContact ? (
+              <ContextChip
+                contact={contextContact}
+                onClear={() => setContextContact(null)}
+              />
+            ) : (
+              <button
+                onClick={() => setContactPickerOpen(true)}
+                className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-700 transition"
+              >
+                <Users className="w-3.5 h-3.5" strokeWidth={1.5} />
+                Set client context
+              </button>
+            )}
+          </div>
+
+          {/* Input — only inline (in landing) before any messages exist. */}
+          {!inExpandedMode && (
+            <>
+              <InputBar
+                input={input}
+                setInput={setInput}
+                onKeyDown={onKeyDown}
+                submit={() => submit()}
+                streaming={streamState.streaming}
+                deepResearch={deepResearch}
+                setDeepResearch={setDeepResearch}
+                webScrape={webScrape}
+                setWebScrape={setWebScrape}
+                promptsOpen={promptsOpen}
+                setPromptsOpen={setPromptsOpen}
+                onCustomize={onCustomize}
+                customizing={refining === "customize"}
+                textareaRef={textareaRef}
+                rows={3}
+                assistantName={assistantName}
+                onOpenFilesAndSources={() => fileInputRef.current?.click()}
+                attachments={attachments}
+                onRemoveAttachment={(idx) => setAttachments((prev) => prev.filter((_, i) => i !== idx))}
+              />
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                hidden
+                onChange={onFilesPicked}
+                accept=".txt,.md,.csv,.json,.log,.yaml,.yml,.tsv,.pdf,.docx,.doc"
+              />
+              <div className="text-center">
+                <p className="text-xs py-3 mb-3 text-gray-500">
+                  AI can make mistakes. Answers are not legal or financial advice.
+                </p>
+              </div>
+            </>
           )}
         </div>
       </div>
 
-      {/* Compact context chip in expanded mode — small line above thread */}
+      {/* Compact context chip in expanded mode */}
       {inExpandedMode && contextContact && (
-        <div className="mb-4 flex items-center gap-2 text-xs text-[var(--ink-muted)]">
+        <div className="mb-4 flex items-center gap-2 text-xs text-gray-500 max-w-4xl mx-auto px-6 md:px-8">
           <Users className="w-3 h-3" strokeWidth={1.5} />
           <span>Context:</span>
-          <span className="text-[var(--ink)] font-medium">
+          <span className="text-gray-900 font-medium">
             {contextContact.name || contextContact.email}
           </span>
           <button
             onClick={() => setContextContact(null)}
-            className="hover:text-[var(--ink)]"
+            className="hover:text-gray-700"
             title="Clear context"
           >
             <X className="w-3 h-3" strokeWidth={2} />
@@ -545,77 +575,9 @@ export default function AskDante({
         </div>
       )}
 
-      {/* Input — only inline (in landing) before any messages exist.
-          When expanded, the input is pinned to the bottom of the
-          viewport via the fixed container at the bottom of this
-          component. */}
-      {!inExpandedMode && (
-        <InputBar
-          input={input}
-          setInput={setInput}
-          onKeyDown={onKeyDown}
-          submit={() => submit()}
-          streaming={streamState.streaming}
-          deepResearch={deepResearch}
-          setDeepResearch={setDeepResearch}
-          webScrape={webScrape}
-          setWebScrape={setWebScrape}
-          promptsOpen={promptsOpen}
-          setPromptsOpen={setPromptsOpen}
-          onCustomize={onCustomize}
-          customizing={refining === "customize"}
-          textareaRef={textareaRef}
-          rows={5}
-          assistantName={assistantName}
-          onOpenFilesAndSources={() => fileInputRef.current?.click()}
-          attachments={attachments}
-          onRemoveAttachment={(idx) => setAttachments((prev) => prev.filter((_, i) => i !== idx))}
-        />
-      )}
-      {/* Hidden file input — triggered by the toolbar's + Files and
-          sources button. Multi-select supported. */}
-      {!inExpandedMode && (
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          hidden
-          onChange={onFilesPicked}
-          accept=".txt,.md,.csv,.json,.log,.yaml,.yml,.tsv,.pdf,.docx,.doc"
-        />
-      )}
-
-      {/* Knowledge source pills — Harvey-style chip row. Each chip
-          shows an icon + name + a "+" affordance that reads as
-          "add this as a source" (currently routes to the surface
-          itself; full session-pinning lands as a follow-up). */}
-      {!inExpandedMode && (
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-          {KNOWLEDGE_SOURCES.map((s) => {
-            const Icon = s.icon;
-            return (
-              <Link
-                key={s.label}
-                href={s.href}
-                className="group inline-flex items-center gap-2 rounded-full border border-[var(--rule)] bg-[var(--canvas)] pl-3 pr-2 py-1.5 text-[13px] text-[var(--ink)] hover:bg-[var(--canvas-subtle)] hover:border-[var(--rule-strong)] transition"
-              >
-                <Icon className="w-3.5 h-3.5 text-[var(--ink-muted)]" strokeWidth={1.5} />
-                <span>{s.label}</span>
-                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full text-[var(--ink-subtle)] group-hover:text-[var(--ink)] transition">
-                  <Plus className="w-3 h-3" strokeWidth={2} />
-                </span>
-              </Link>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Threaded messages — wrapped in a glass panel so the answer
-          floats above the canvas with subtle separation, matching
-          the glass composer below. Padding generous enough that
-          MessageView's internal spacing doesn't crowd the rule. */}
+      {/* Threaded messages — clean centered layout */}
       {inExpandedMode && (
-        <div className="glass-panel rounded-[16px] px-6 md:px-8 py-7 space-y-8">
+        <div className="max-w-4xl mx-auto px-6 md:px-8 pt-4 md:pt-6 pb-32 space-y-6">
           {turns.map((t, i) =>
             t.role === "user" ? (
               <UserMessage key={i} content={t.content} />
@@ -635,13 +597,12 @@ export default function AskDante({
             ),
           )}
 
-          {/* Live trace (still streaming) */}
           {streamState.streaming && (
             <LiveThinking state={streamState} deep={deepResearch} />
           )}
 
           {streamState.error && (
-            <div className="rounded-[4px] border border-red-500/30 bg-red-500/5 px-3 py-2 text-sm text-red-300">
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
               {streamState.error}
             </div>
           )}
@@ -650,91 +611,10 @@ export default function AskDante({
         </div>
       )}
 
-      {/* Recommended workflows — Harvey-style 4-card row sourced
-          from lib/dante/templates.ts. Each card opens the workflow
-          editor pre-populated with the template. Hidden in expanded
-          mode (post-first-question) to keep the chat focused. */}
-      {!inExpandedMode && (
-        <div className="mt-12">
-          <div className="flex items-baseline justify-between mb-3 px-1">
-            <div className="text-[11px] mono uppercase tracking-wider text-[var(--ink-subtle)]">
-              Recommended workflows
-            </div>
-            <Link
-              href="/dante/workflows"
-              className="text-[11px] text-[var(--ink-muted)] hover:text-[var(--ink)]"
-            >
-              View all
-            </Link>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-            {RECOMMENDED_WORKFLOWS.map((tpl) => (
-              <Link
-                key={tpl.slug}
-                href={`/dante/workflows?template=${tpl.slug}`}
-                className="group block rounded-[8px] border border-[var(--rule)] bg-[var(--canvas)] p-3.5 hover:border-[var(--rule-strong)] hover:bg-[var(--canvas-subtle)] transition"
-              >
-                <div className="text-[13px] font-medium text-[var(--ink)] mb-3 line-clamp-2 leading-snug">
-                  {tpl.name}
-                </div>
-                <div className="flex items-center justify-between text-[11px] text-[var(--ink-subtle)]">
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="text-[var(--ink-muted)]">{tpl.kindLabel}</span>
-                    <span>·</span>
-                    <span>{tpl.steps} step{(tpl.steps as number) === 1 ? "" : "s"}</span>
-                  </span>
-                  <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition" strokeWidth={2} />
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* History collapsible — landing only */}
-      {!inExpandedMode && (
-        <div className="mt-10">
-          <button
-            onClick={() => setHistoryOpen((v) => !v)}
-            className="w-full flex items-center justify-center gap-1.5 text-xs text-[var(--ink-muted)] hover:text-[var(--ink)]"
-          >
-            <History className="w-3 h-3" />
-            Recent
-            {historyOpen ? (
-              <ChevronDown className="w-3 h-3" />
-            ) : (
-              <ChevronRight className="w-3 h-3" />
-            )}
-          </button>
-          {historyOpen && (
-            <div className="mt-3 max-w-[480px] mx-auto">
-              {recent.length === 0 ? (
-                <div className="text-xs text-[var(--ink-subtle)] text-center">
-                  No chats yet.
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  {recent.map((c) => (
-                    <button
-                      key={c.id}
-                      onClick={() => router.push(`/dante/chat/${c.id}`)}
-                      className="w-full text-left rounded-[4px] px-3 py-2 text-xs text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition truncate"
-                      title={c.title}
-                    >
-                      {c.title}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Pinned input bar in expanded mode — compact, no toolbar */}
+      {/* Pinned input bar in expanded mode */}
       {inExpandedMode && (
-        <div className="glass-composer-bg fixed bottom-0 left-0 right-0 pt-6 pb-4 z-30">
-          <div className="max-w-[760px] mx-auto px-6 md:px-8">
+        <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white/95 to-transparent pt-6 pb-4 z-30">
+          <div className="max-w-4xl mx-auto px-6 md:px-8">
             <InputBar
               compact
               input={input}
@@ -815,11 +695,70 @@ interface InputBarProps {
 }
 
 function InputBar(p: InputBarProps) {
-  // Compact: textarea with the send button overlaid in the bottom-
-  // right corner, no divider, no toolbar. Reads as a single unit.
+  // Compact mode — clean bordered input for expanded chat
   if (p.compact) {
     return (
-      <div className="glass-panel relative rounded-[14px]">
+      <div className="border border-gray-300 rounded-[16px] md:rounded-[20px] bg-white relative">
+        <div className="px-4 pt-4">
+          <textarea
+            ref={p.textareaRef}
+            value={p.input}
+            onChange={(e) => p.setInput(e.target.value)}
+            onKeyDown={p.onKeyDown}
+            placeholder={`Ask ${p.assistantName} anything…`}
+            disabled={p.streaming}
+            rows={p.rows}
+            className="w-full resize-none text-sm overflow-hidden border-0 p-0 bg-transparent outline-none placeholder:text-gray-400 leading-6 max-h-48"
+          />
+        </div>
+        <div className="flex items-center justify-end p-2.5">
+          <button
+            onClick={p.submit}
+            disabled={!p.input.trim() || p.streaming}
+            className="relative bg-gradient-to-b from-neutral-700 to-black text-white rounded-[10px] h-8 w-8 flex items-center justify-center disabled:from-neutral-600 disabled:to-black disabled:opacity-40 backdrop-blur-xl border border-white/30 active:enabled:scale-95 transition-all duration-150"
+            title="Send (Cmd+Enter)"
+          >
+            {p.streaming ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Send className="w-3.5 h-3.5" strokeWidth={2} />
+            )}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Full landing input — Mike's rounded bordered style
+  return (
+    <div className="border border-gray-300 rounded-[16px] md:rounded-[20px] bg-white">
+      {/* Attachment chips */}
+      {p.attachments && p.attachments.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 px-3 pt-3">
+          {p.attachments.map((a, i) => (
+            <span
+              key={`${a.name}-${i}`}
+              className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full text-xs text-white shadow border border-white/20 bg-black"
+              title={a.truncated ? `${a.name} (truncated to fit)` : a.name}
+            >
+              <span className="max-w-[140px] truncate">{a.name}</span>
+              {p.onRemoveAttachment && (
+                <button
+                  type="button"
+                  onClick={() => p.onRemoveAttachment?.(i)}
+                  className="rounded-full p-0.5 ml-0.5 text-white/60 hover:text-white hover:bg-white/20 transition-colors"
+                  aria-label={`Remove ${a.name}`}
+                >
+                  <X className="w-2.5 h-2.5" />
+                </button>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Textarea */}
+      <div className="px-4 pt-4">
         <textarea
           ref={p.textareaRef}
           value={p.input}
@@ -828,82 +767,21 @@ function InputBar(p: InputBarProps) {
           placeholder={`Ask ${p.assistantName} anything…`}
           disabled={p.streaming}
           rows={p.rows}
-          className="w-full resize-none bg-transparent pl-5 pr-14 py-4 text-base text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none disabled:opacity-60"
+          className="w-full resize-none text-sm overflow-hidden border-0 p-0 bg-transparent outline-none placeholder:text-gray-400 leading-6 max-h-48"
         />
-        <button
-          onClick={p.submit}
-          disabled={!p.input.trim() || p.streaming}
-          className="absolute bottom-2.5 right-2.5 inline-flex items-center justify-center w-8 h-8 rounded-[6px] bg-black text-white hover:bg-black/85 disabled:opacity-30 disabled:cursor-not-allowed transition"
-          title="Send (Cmd+Enter)"
-        >
-          {p.streaming ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Send className="w-3.5 h-3.5" strokeWidth={2} />
-          )}
-        </button>
       </div>
-    );
-  }
 
-  // Full landing input — textarea on top, toolbar tucked into the
-  // same container with no divider. Send is icon-only on the right.
-  return (
-    <div className="glass-panel rounded-[14px]">
-      {/* Attachment chips — files queued from + Files and sources.
-          Sit above the textarea so they're visible the whole time
-          you're composing. Each chip has a close button to remove. */}
-      {p.attachments && p.attachments.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 px-4 pt-3">
-          {p.attachments.map((a, i) => (
-            <span
-              key={`${a.name}-${i}`}
-              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--rule)] bg-[var(--canvas-subtle)] pl-2.5 pr-1 py-1 text-[11px] text-[var(--ink)]"
-              title={a.truncated ? `${a.name} (truncated to fit)` : a.name}
-            >
-              <span className="mono uppercase text-[9px] tracking-wider text-[var(--ink-muted)]">
-                {a.ext || "file"}
-              </span>
-              <span className="max-w-[160px] truncate">{a.name}</span>
-              {p.onRemoveAttachment && (
-                <button
-                  type="button"
-                  onClick={() => p.onRemoveAttachment?.(i)}
-                  className="ml-0.5 inline-flex items-center justify-center w-4 h-4 rounded-full text-[var(--ink-muted)] hover:bg-black/10 hover:text-[var(--ink)] transition"
-                  aria-label={`Remove ${a.name}`}
-                >
-                  <X className="w-2.5 h-2.5" strokeWidth={2} />
-                </button>
-              )}
-            </span>
-          ))}
-        </div>
-      )}
-      <textarea
-        ref={p.textareaRef}
-        value={p.input}
-        onChange={(e) => p.setInput(e.target.value)}
-        onKeyDown={p.onKeyDown}
-        placeholder={`Ask ${p.assistantName} anything…`}
-        disabled={p.streaming}
-        rows={p.rows}
-        className="w-full resize-none bg-transparent px-5 pt-4 pb-2 text-base text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none disabled:opacity-60"
-      />
-      <div className="flex items-center justify-between gap-2 px-3 pb-2 pt-1">
-        <div className="flex flex-wrap items-center gap-y-1 gap-x-0.5 min-w-0">
-          {/* Lead toolbar affordance — Harvey-style "+ Files and
-              sources". For now this opens the same contact picker
-              the legacy "Set client context" chip did; a richer
-              vault-doc picker is a follow-up. The visual hierarchy
-              still reads as "this is where you scope the chat." */}
+      {/* Controls */}
+      <div className="flex items-center justify-between md:p-2.5 p-2">
+        <div className="flex items-center gap-1">
           {p.onOpenFilesAndSources && (
             <button
               onClick={p.onOpenFilesAndSources}
               disabled={p.streaming}
-              className="inline-flex items-center gap-1.5 rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] hover:bg-[var(--canvas-subtle)] px-2.5 py-1.5 text-xs font-medium text-[var(--ink)] transition disabled:opacity-50 mr-1"
+              className="flex items-center gap-1.5 rounded-lg px-2 h-8 text-sm text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors disabled:opacity-50"
             >
-              <Plus className="w-3 h-3" strokeWidth={2} />
-              Files and sources
+              <Plus className="w-3.5 h-3.5" strokeWidth={2} />
+              <span className="hidden sm:inline">Files</span>
             </button>
           )}
           <ToolbarButton
@@ -913,27 +791,12 @@ function InputBar(p: InputBarProps) {
             onClick={() => p.setPromptsOpen((v) => !v)}
           />
           <ToolbarButton
-            icon={Sliders}
-            label="Customize"
-            loading={p.customizing}
-            disabled={!p.input.trim() || p.streaming}
-            tip="AI-rewrite this prompt to be more specific"
-            onClick={p.onCustomize}
-          />
-          <ToolbarButton
             icon={Telescope}
             label="Deep research"
             active={p.deepResearch}
-            tip={
-              p.deepResearch
-                ? "On — Anthropic Managed Agent does multi-step web research with citations"
-                : "Off — switch on for web research with primary-source citations"
-            }
             onClick={() => {
               p.setDeepResearch((v) => {
                 const next = !v;
-                // Mutually exclusive with web scrape — toggling one off
-                // the other so the composer never has two modes lit.
                 if (next) p.setWebScrape(false);
                 return next;
               });
@@ -943,11 +806,6 @@ function InputBar(p: InputBarProps) {
             icon={Globe}
             label="Web scrape"
             active={p.webScrape}
-            tip={
-              p.webScrape
-                ? "On — Web Scraper agent pulls structured data from the URL or address you describe"
-                : "Off — switch on to scrape comps, listings, or public records from a URL"
-            }
             onClick={() => {
               p.setWebScrape((v) => {
                 const next = !v;
@@ -957,10 +815,11 @@ function InputBar(p: InputBarProps) {
             }}
           />
         </div>
+
         <button
           onClick={p.submit}
           disabled={!p.input.trim() || p.streaming}
-          className="inline-flex items-center justify-center w-8 h-8 rounded-[6px] bg-black text-white hover:bg-black/85 disabled:opacity-30 disabled:cursor-not-allowed transition"
+          className="relative bg-gradient-to-b from-neutral-700 to-black text-white rounded-[10px] h-8 w-8 flex items-center justify-center disabled:from-neutral-600 disabled:to-black disabled:opacity-40 backdrop-blur-xl border border-white/30 active:enabled:scale-95 transition-all duration-150"
           title="Send (Cmd+Enter)"
         >
           {p.streaming ? (
@@ -972,8 +831,8 @@ function InputBar(p: InputBarProps) {
       </div>
 
       {p.promptsOpen && (
-        <div className="border-t border-[var(--rule)]/60 px-3 py-3 bg-[var(--canvas)]/40">
-          <div className="text-[10px] uppercase tracking-wider text-[var(--ink-muted)] mb-2">
+        <div className="border-t border-gray-200 px-3 py-3">
+          <div className="text-[10px] uppercase tracking-wider text-gray-400 mb-2">
             Quick prompts
           </div>
           <div className="space-y-1">
@@ -985,7 +844,7 @@ function InputBar(p: InputBarProps) {
                   p.setPromptsOpen(false);
                   p.textareaRef.current?.focus();
                 }}
-                className="block w-full text-left rounded-[4px] px-2 py-1.5 text-xs text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition"
+                className="block w-full text-left rounded-md px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-100 transition"
               >
                 {q.label}
               </button>
@@ -1017,16 +876,16 @@ function ToolbarButton({
   onClick?: () => void;
 }) {
   const palette = active
-    ? "bg-black text-white"
+    ? "text-blue-600 hover:bg-blue-50"
     : disabled
-      ? "text-[var(--ink-muted)] opacity-40"
-      : "text-[var(--ink)] hover:bg-[var(--canvas)]/60";
+      ? "text-gray-300"
+      : "text-gray-400 hover:bg-gray-100 hover:text-gray-700";
   return (
     <button
       onClick={onClick}
       disabled={disabled || loading}
       title={tip}
-      className={`inline-flex items-center gap-1.5 rounded-[4px] px-2 py-1 text-xs transition disabled:cursor-not-allowed ${palette}`}
+      className={`flex items-center gap-1.5 rounded-lg px-2 h-8 text-sm transition-colors disabled:cursor-not-allowed ${palette}`}
     >
       {loading ? (
         <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1048,7 +907,7 @@ function ContextChip({
   onClear: () => void;
 }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-black px-3 py-1 text-xs text-white">
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-900 px-3 py-1 text-xs text-white">
       <Users className="w-3 h-3" strokeWidth={1.5} />
       {contact.name || contact.email || "Unnamed"}
       <button onClick={onClear} className="ml-0.5 hover:opacity-70" title="Clear context">
@@ -1109,22 +968,22 @@ function ContactPicker({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md bg-[var(--canvas)] border border-[var(--rule)] rounded-[8px] shadow-xl overflow-hidden"
+        className="w-full max-w-md bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-2 border-b border-[var(--rule)] px-3 py-2">
-          <Search className="w-4 h-4 text-[var(--ink-muted)]" strokeWidth={1.5} />
+        <div className="flex items-center gap-2 border-b border-gray-200 px-3 py-2">
+          <Search className="w-4 h-4 text-gray-400" strokeWidth={1.5} />
           <input
             autoFocus
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search contacts…"
-            className="flex-1 bg-transparent text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none"
+            className="flex-1 bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
           />
           <button
             onClick={onClose}
-            className="text-[var(--ink-muted)] hover:text-[var(--ink)]"
+            className="text-gray-400 hover:text-gray-700"
             title="Close (Esc)"
           >
             <X className="w-4 h-4" strokeWidth={1.5} />
@@ -1132,12 +991,12 @@ function ContactPicker({
         </div>
         <div className="max-h-80 overflow-y-auto">
           {loading ? (
-            <div className="px-3 py-6 text-center text-xs text-[var(--ink-muted)]">
+            <div className="px-3 py-6 text-center text-xs text-gray-500">
               <Loader2 className="w-4 h-4 animate-spin inline-block mr-1.5" />
               Loading contacts…
             </div>
           ) : filtered.length === 0 ? (
-            <div className="px-3 py-6 text-center text-xs text-[var(--ink-muted)]">
+            <div className="px-3 py-6 text-center text-xs text-gray-500">
               No matching contacts.
             </div>
           ) : (
@@ -1145,11 +1004,11 @@ function ContactPicker({
               <button
                 key={c.id}
                 onClick={() => onPick(c)}
-                className="block w-full text-left px-3 py-2 text-sm text-[var(--ink)] hover:bg-[var(--canvas-subtle)] border-b border-[var(--rule)]/40 last:border-0"
+                className="block w-full text-left px-3 py-2 text-sm text-gray-900 hover:bg-gray-50 border-b border-gray-100 last:border-0"
               >
                 <div className="font-medium">{c.name || "(unnamed)"}</div>
                 {c.email && (
-                  <div className="text-[11px] text-[var(--ink-muted)]">{c.email}</div>
+                  <div className="text-[11px] text-gray-500">{c.email}</div>
                 )}
               </button>
             ))

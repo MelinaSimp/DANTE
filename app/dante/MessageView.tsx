@@ -48,12 +48,9 @@ const REWRITE_PRESETS = [
 
 export function UserMessage({ content }: { content: string }) {
   return (
-    <div className="flex items-start gap-3">
-      <div className="rounded-full bg-[var(--canvas-subtle)] border border-[var(--rule)] p-1.5 mt-0.5">
-        <Users className="w-3 h-3 text-[var(--ink-muted)]" strokeWidth={1.5} />
-      </div>
-      <div className="flex-1 text-[var(--ink)] whitespace-pre-wrap text-sm leading-relaxed">
-        {content}
+    <div className="w-full flex justify-end">
+      <div className="max-w-[80%] bg-gray-100 rounded-xl px-4 py-3">
+        <p className="text-sm text-gray-900 whitespace-pre-wrap">{content}</p>
       </div>
     </div>
   );
@@ -155,7 +152,7 @@ export function AssistantMessage({
       <ReasoningDisclosure trace={trace} />
       <AgentPlan trace={trace} />
 
-      <div className="mt-4 text-[var(--ink)]">
+      <div className="mt-4 text-gray-900 font-serif text-base prose prose-sm max-w-none">
         <MarkdownRenderer content={content} trace={trace} citationReport={citationReport} />
       </div>
 
@@ -163,12 +160,11 @@ export function AssistantMessage({
         <GroundingBadge grounding={grounding} />
       )}
 
-      <div className="mt-4 flex items-center gap-3 text-xs text-[var(--ink-muted)] flex-wrap">
-        <button onClick={onCopy} className="inline-flex items-center gap-1 hover:text-[var(--ink)]">
-          {copied ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-          {copied ? "Copied" : "Copy"}
+      <div className="mt-4 flex items-center gap-3 text-xs text-gray-500 flex-wrap">
+        <button onClick={onCopy} className="p-1.5 rounded text-gray-500 hover:text-gray-700 hover:bg-gray-100">
+          {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
         </button>
-        <button onClick={onExport} className="inline-flex items-center gap-1 hover:text-[var(--ink)]">
+        <button onClick={onExport} className="inline-flex items-center gap-1 hover:text-gray-700">
           <Download className="w-3 h-3" />
           Export
         </button>
@@ -176,14 +172,14 @@ export function AssistantMessage({
           <button
             onClick={() => setRewriteOpen((v) => !v)}
             disabled={rewriting}
-            className="inline-flex items-center gap-1 hover:text-[var(--ink)] disabled:opacity-50"
+            className="inline-flex items-center gap-1 hover:text-gray-700 disabled:opacity-50"
           >
             {rewriting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
             Rewrite
             <ChevronDown className="w-3 h-3" />
           </button>
           {rewriteOpen && (
-            <div className="absolute left-0 top-full mt-1 z-10 rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] shadow-lg p-1 min-w-[160px]">
+            <div className="absolute left-0 top-full mt-1 z-10 rounded-lg border border-gray-200 bg-white shadow-lg p-1 min-w-[160px]">
               {REWRITE_PRESETS.map((p) => (
                 <button
                   key={p.label}
@@ -191,7 +187,7 @@ export function AssistantMessage({
                     onRewrite(p.instruction);
                     setRewriteOpen(false);
                   }}
-                  className="block w-full text-left rounded-[3px] px-2 py-1.5 text-xs text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
+                  className="block w-full text-left rounded-md px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-100"
                 >
                   {p.label}
                 </button>
@@ -202,7 +198,7 @@ export function AssistantMessage({
         {isDraft && (
           <button
             onClick={() => onOpenEditor(content)}
-            className="inline-flex items-center gap-1 hover:text-[var(--ink)]"
+            className="inline-flex items-center gap-1 hover:text-gray-700"
           >
             <FileText className="w-3 h-3" />
             Open in editor
@@ -211,13 +207,13 @@ export function AssistantMessage({
         <button
           onClick={onQueueForReview}
           disabled={queueState !== "idle"}
-          className="inline-flex items-center gap-1 hover:text-[var(--ink)] disabled:opacity-60"
+          className="inline-flex items-center gap-1 hover:text-gray-700 disabled:opacity-60"
           title="Stage this response for principal/supervisor review"
         >
           {queueState === "queueing" ? (
             <Loader2 className="w-3 h-3 animate-spin" />
           ) : queueState === "queued" ? (
-            <Check className="w-3 h-3 text-emerald-600" />
+            <Check className="w-3 h-3 text-green-600" />
           ) : (
             <ShieldCheck className="w-3 h-3" />
           )}
@@ -230,14 +226,14 @@ export function AssistantMessage({
         <div className="ml-auto flex items-center gap-2">
           <button
             onClick={() => setFeedback(feedback === "up" ? null : "up")}
-            className={`hover:text-[var(--ink)] ${feedback === "up" ? "text-[var(--ink)]" : ""}`}
+            className={`hover:text-gray-700 ${feedback === "up" ? "text-gray-900" : ""}`}
             title="Helpful"
           >
             <ThumbsUp className="w-3 h-3" />
           </button>
           <button
             onClick={() => setFeedback(feedback === "down" ? null : "down")}
-            className={`hover:text-[var(--ink)] ${feedback === "down" ? "text-[var(--ink)]" : ""}`}
+            className={`hover:text-gray-700 ${feedback === "down" ? "text-gray-900" : ""}`}
             title="Not helpful"
           >
             <ThumbsDown className="w-3 h-3" />
@@ -248,17 +244,17 @@ export function AssistantMessage({
       <SourcesBlock trace={trace} />
 
       {followups.length > 0 && (
-        <div className="mt-6 pt-4 border-t border-[var(--rule)]">
-          <div className="text-xs text-[var(--ink-muted)] mb-2">Follow-ups</div>
+        <div className="mt-6 pt-4 border-t border-gray-200">
+          <div className="text-xs text-gray-500 mb-2">Follow-ups</div>
           <div className="space-y-1">
             {followups.map((q, i) => (
               <button
                 key={i}
                 onClick={() => onFollowup(q)}
-                className="w-full text-left flex items-start gap-2 px-2 py-1.5 -mx-2 rounded-[4px] text-sm text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition"
+                className="w-full text-left flex items-start gap-2 px-2 py-1.5 -mx-2 rounded-md text-sm text-gray-700 hover:bg-gray-100 transition"
               >
                 <ArrowRight
-                  className="w-3.5 h-3.5 mt-1 text-[var(--ink-muted)] flex-shrink-0"
+                  className="w-3.5 h-3.5 mt-1 text-gray-400 flex-shrink-0"
                   strokeWidth={1.5}
                 />
                 <span>{q}</span>
@@ -287,17 +283,17 @@ export function SourcesBlock({ trace }: { trace: unknown }) {
     <div className="mt-4">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-1.5 text-xs text-[var(--ink-muted)] hover:text-[var(--ink)]"
+        className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700"
       >
         {open ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
         <BookOpen className="w-3 h-3" strokeWidth={1.5} />
         Sources · {total}
       </button>
       {open && (
-        <div className="mt-2 rounded-[6px] border border-[var(--rule)] bg-[var(--canvas-subtle)] p-3 space-y-3">
+        <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-3">
           {vault.length > 0 && (
             <div>
-              <div className="text-[10px] uppercase tracking-wider text-[var(--ink-muted)] mb-1.5">
+              <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-1.5">
                 Vault · {vault.length}
               </div>
               <div className="space-y-1">
@@ -306,9 +302,9 @@ export function SourcesBlock({ trace }: { trace: unknown }) {
                     <span className="font-mono text-amber-700 dark:text-amber-300/90 mr-2">
                       {c.marker}
                     </span>
-                    <span className="text-[var(--ink)] font-medium">{c.source}</span>
+                    <span className="text-gray-900 font-medium">{c.source}</span>
                     {c.page != null && (
-                      <span className="text-[var(--ink-muted)]"> · p.{c.page}</span>
+                      <span className="text-gray-500"> · p.{c.page}</span>
                     )}
                   </div>
                 ))}
@@ -317,7 +313,7 @@ export function SourcesBlock({ trace }: { trace: unknown }) {
           )}
           {memory.length > 0 && (
             <div>
-              <div className="text-[10px] uppercase tracking-wider text-[var(--ink-muted)] mb-1.5">
+              <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-1.5">
                 Memory · {memory.length}
               </div>
               <div className="space-y-1">
@@ -326,9 +322,9 @@ export function SourcesBlock({ trace }: { trace: unknown }) {
                     <span className="font-mono text-cyan-700 dark:text-cyan-300/90 mr-2">
                       [mem:{c.short_id}]
                     </span>
-                    <span className="text-[var(--ink-muted)]">{c.kind}</span>
+                    <span className="text-gray-500">{c.kind}</span>
                     {c.source_kind && (
-                      <span className="text-[var(--ink-subtle)]"> · {c.source_kind}</span>
+                      <span className="text-gray-400"> · {c.source_kind}</span>
                     )}
                   </div>
                 ))}
@@ -364,22 +360,14 @@ export function LiveThinking({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2 text-xs text-[var(--ink-muted)]">
+      <div className="flex items-center gap-2 text-xs text-gray-500">
         <span
-          className="relative inline-flex w-2 h-2 rounded-full bg-gradient-to-br from-[#3351ff] to-[#70d4b4] animate-glow-pulse"
+          className="relative inline-flex w-2 h-2 rounded-full bg-gray-400 animate-glow-pulse"
           aria-hidden
         />
-        <span
-          className="relative inline-block text-transparent bg-clip-text bg-[length:200%_100%] animate-shimmer"
-          style={{
-            backgroundImage:
-              "linear-gradient(90deg, rgb(115,115,115) 0%, rgb(20,20,20) 50%, rgb(115,115,115) 100%)",
-          }}
-        >
-          Working…
-        </span>
+        <span className="font-serif text-gray-500">Working…</span>
         {deep && (
-          <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-black/10 px-2 py-0.5 text-[10px] text-[var(--ink)]">
+          <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-700">
             <Telescope className="w-2.5 h-2.5" />
             Deep
           </span>
@@ -388,7 +376,7 @@ export function LiveThinking({
       {hasAnything ? (
         <LivePlan tasks={tasks} />
       ) : (
-        <div className="flex items-start gap-2 text-sm text-[var(--ink-subtle)]">
+        <div className="flex items-start gap-2 text-sm text-gray-400 font-serif">
           <Loader2 className="w-3.5 h-3.5 animate-spin mt-0.5" />
           <span>Reading the question…</span>
         </div>

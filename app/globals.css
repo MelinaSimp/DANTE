@@ -1,17 +1,7 @@
 /* app/globals.css
  *
- * Drift design tokens — Harvey-inspired visual language adapted for
- * advisor workflows. The governing rules:
- *
- *   1. Pure white canvas (#FFFFFF). No cream, no warm tint — the user
- *      explicitly asked for white.
- *   2. Serif for display type (authority/editorial); sans for UI;
- *      mono for data, citations, timestamps.
- *   3. 1px borders, no drop shadows. Hierarchy through type + space.
- *   4. One accent colour (brand blue) used sparingly — verified chips,
- *      citations, active states only.
- *   5. Legacy dark-theme pages still work: they set their own bg in
- *      their page components, so we don't force white globally.
+ * Drift design tokens — Mike-inspired clean, minimal visual language.
+ * oklch color space, Inter sans + EB Garamond serif.
  */
 
 @tailwind base;
@@ -19,48 +9,63 @@
 @tailwind utilities;
 
 :root {
+  --radius: 0.625rem;
+  --color-azure: 0, 136, 255;
+
   /* Canvas */
   --canvas: #ffffff;
-  --canvas-subtle: #f7f7f7; /* hover, stripe */
-  --canvas-muted: #f2f2f2; /* disabled, placeholder */
+  --canvas-subtle: #f9fafb; /* gray-50 */
+  --canvas-muted: #f3f4f6; /* gray-100 */
 
   /* Ink */
-  --ink: #151515;
-  --ink-muted: #6b6b66;
-  --ink-subtle: #a3a3a0;
+  --ink: #111827; /* gray-900 */
+  --ink-muted: #6b7280; /* gray-500 */
+  --ink-subtle: #9ca3af; /* gray-400 */
 
   /* Rule / border */
-  --rule: #e8e6df;
-  --rule-strong: #d1d0c9;
+  --rule: #e5e7eb; /* gray-200 */
+  --rule-strong: #d1d5db; /* gray-300 */
 
-  /* Accent (citations, verified, active) */
-  --accent: #3166bf;
-  --accent-soft: #e7efff;
+  /* Accent */
+  --accent: rgb(0, 136, 255);
+  --accent-soft: rgba(0, 136, 255, 0.05);
 
   /* Semantic */
-  --verified: #2f6f3e;
-  --verified-soft: #e4f1e7;
-  --flag: #9a6b1f;
-  --flag-soft: #faf1df;
-  --danger: #a93125;
-  --danger-soft: #faeae8;
-
-  /* Radius */
-  --r-card: 6px;
-  --r-input: 4px;
-  --r-chip: 999px;
+  --verified: #16a34a;
+  --verified-soft: #f0fdf4;
+  --flag: #ca8a04;
+  --flag-soft: #fefce8;
+  --danger: #dc2626;
+  --danger-soft: #fef2f2;
 
   /* Typography */
-  --font-display: "Instrument Serif", Georgia, "Times New Roman", serif;
-  --font-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+  --font-display: var(--font-display-loaded, "EB Garamond"), Georgia, "Times New Roman", serif;
+  --font-ui: var(--font-ui-loaded, "Inter"), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-mono-loaded, "JetBrains Mono"), "SF Mono", Menlo, Consolas, monospace;
+
+  /* shadcn compat */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent-shadcn: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+
+  color-scheme: light;
 }
 
-/* Dark theme — applied when <html> carries .dark, set by ThemeProvider's
- * pre-hydration inline script (anti-flash) and updated when the user
- * changes the toggle in Settings. The palette aims for a calm, low-
- * contrast graphite rather than absolute black, with warm-leaning
- * accents to match the light mode's character. */
 .dark {
   --canvas: #0b0b0c;
   --canvas-subtle: #131316;
@@ -73,8 +78,8 @@
   --rule: #232328;
   --rule-strong: #35353f;
 
-  --accent: #6f8df0;
-  --accent-soft: #1c2540;
+  --accent: rgb(0, 136, 255);
+  --accent-soft: rgba(0, 136, 255, 0.1);
 
   --verified: #4ade80;
   --verified-soft: #13291a;
@@ -82,47 +87,59 @@
   --flag-soft: #2b1e0d;
   --danger: #ef4444;
   --danger-soft: #2a1010;
+
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent-shadcn: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+
+  color-scheme: dark;
 }
 
-/* Make the system honor color-scheme so native scrollbars + form
- * controls flip too. */
-:root { color-scheme: light; }
-.dark { color-scheme: dark; }
-
-/* Default body: white + UI sans. Individual pages override as needed. */
 html,
 body {
   height: 100%;
   background: var(--canvas);
   color: var(--ink);
   font-family: var(--font-ui);
-  font-feature-settings: "cv11", "ss01", "ss03";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Display density — set by DensityProvider on <html>. The 17.5px
- * base scales every rem-based Tailwind text-* class proportionally
- * (text-sm → 13.1px, text-base → 17.5px, text-lg → 19.7px), giving
- * older readers a measurably-larger surface without forcing it on
- * users who don't need it. Per-pixel arbitrary sizes (text-[15px])
- * don't scale and are tracked as a follow-up cleanup. */
 html.density-large {
   font-size: 17.5px;
 }
 
-/* Pages that explicitly want the legacy dark theme (e.g. /app agent canvas)
- * set their own background in page components via useEffect. We do NOT
- * force it here — the default is the new white canvas. */
 main {
   background: var(--canvas);
   min-height: 100vh;
 }
 
-/* Harvey-style utility classes ------------------------------------ */
+@layer base {
+  * {
+    border-color: var(--rule);
+  }
+  button {
+    cursor: pointer;
+  }
+}
 
-/* Section label — the small caps tracking-wider label Harvey uses
- * above section headings (e.g. "OVERVIEW", "KEY POINTS"). */
+/* ── Utility classes ─────────────────────────────────────────── */
+
 .label-section {
   font-family: var(--font-mono);
   font-size: 11px;
@@ -132,7 +149,6 @@ main {
   font-weight: 500;
 }
 
-/* Display heading — editorial serif for page titles. */
 .heading-display {
   font-family: var(--font-display);
   font-weight: 400;
@@ -140,7 +156,6 @@ main {
   line-height: 1.1;
 }
 
-/* Prose — body copy, meant for long-form content blocks. */
 .prose-body {
   font-family: var(--font-ui);
   font-size: 15px;
@@ -148,19 +163,17 @@ main {
   color: var(--ink);
 }
 
-/* Mono — data, timestamps, citations. */
 .mono {
   font-family: var(--font-mono);
   font-feature-settings: "zero", "ss01";
 }
 
-/* Citation chip — the pill you hover to reveal the source quote. */
 .chip-citation {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  border-radius: var(--r-chip);
+  border-radius: 999px;
   background: var(--accent-soft);
   color: var(--accent);
   font-family: var(--font-mono);
@@ -168,13 +181,12 @@ main {
   font-weight: 500;
 }
 
-/* Verified badge */
 .chip-verified {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   padding: 3px 10px;
-  border-radius: var(--r-chip);
+  border-radius: 999px;
   background: var(--verified-soft);
   color: var(--verified);
   font-size: 11px;
@@ -187,7 +199,7 @@ main {
   align-items: center;
   gap: 4px;
   padding: 3px 10px;
-  border-radius: var(--r-chip);
+  border-radius: 999px;
   background: var(--flag-soft);
   color: var(--flag);
   font-size: 11px;
@@ -195,66 +207,60 @@ main {
   letter-spacing: 0.02em;
 }
 
-/* Card — 1px border, no shadow. The baseline container. */
 .card-flat {
   background: var(--canvas);
   border: 1px solid var(--rule);
-  border-radius: var(--r-card);
+  border-radius: 8px;
 }
 
 .card-flat-hover:hover {
   border-color: var(--rule-strong);
 }
 
-/* Divider */
 .hr-rule {
   border: none;
   border-top: 1px solid var(--rule);
   margin: 0;
 }
 
-/* Glass panel — restrained backdrop blur for the Dante composer
- * and chat output card. Tuned for an older-RIA reader: subtle, not
- * the trendy Apple Vision Pro look. Stays high-contrast on the
- * light theme by keeping white opacity above 60%. */
-.glass-panel {
-  background: rgba(255, 255, 255, 0.62);
-  backdrop-filter: blur(14px) saturate(140%);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.6) inset,
-    0 8px 24px -12px rgba(20, 20, 22, 0.12),
-    0 2px 6px -2px rgba(20, 20, 22, 0.05);
-}
-.dark .glass-panel,
-html[data-theme="dark"] .glass-panel {
-  background: rgba(20, 20, 22, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.04) inset,
-    0 8px 24px -12px rgba(0, 0, 0, 0.5),
-    0 2px 6px -2px rgba(0, 0, 0, 0.3);
-}
+/* ── Sidebar animations (Mike-style) ─────────────────────────── */
 
-/* Glass bottom-bar variant — used for the pinned composer in
- * expanded chat mode. The fixed container under it already has
- * the canvas gradient; this adds subtle separation so the
- * composer reads as a floating sheet, not a fused strip. */
-.glass-composer-bg {
-  background: linear-gradient(
-    to top,
-    color-mix(in srgb, var(--canvas) 92%, transparent) 0%,
-    color-mix(in srgb, var(--canvas) 60%, transparent) 60%,
-    transparent 100%
-  );
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+@layer utilities {
+  .sidebar-fade-in {
+    animation: sidebarFadeIn 0.3s ease-out forwards;
+    animation-delay: 0.1s;
+    opacity: 0;
+  }
+
+  .sidebar-fade-in-2 {
+    animation: sidebarFadeIn 0.3s ease-out forwards;
+    animation-delay: 0.2s;
+    opacity: 0;
+  }
+
+  .sidebar-fade-in-3 {
+    animation: sidebarFadeIn 0.3s ease-out forwards;
+    animation-delay: 0.25s;
+    opacity: 0;
+  }
+
+  @keyframes sidebarFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes shimmer {
+    from { background-position: 0 0; }
+    to { background-position: -200% 0; }
+  }
+
+  .animate-shimmer {
+    animation: shimmer 8s linear infinite;
+  }
 }
 
-/* ---------- Legacy styles kept for pages not yet migrated ---------- */
+/* ── Legacy styles kept for pages not yet migrated ───────────── */
 
-/* Dark glass card — still used on /app agent canvas, /frontend, etc. */
 .card {
   background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(10px);
@@ -366,8 +372,11 @@ html[data-theme="dark"] .glass-panel {
 .offline-indicator.show { transform: translateY(0); }
 
 .loading-skeleton {
-  background: #383939;
+  background: #e5e7eb;
   animation: pulse 1.5s infinite;
+}
+.dark .loading-skeleton {
+  background: #383939;
 }
 @keyframes pulse {
   0%, 100% { opacity: 1; }

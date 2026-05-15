@@ -1,30 +1,15 @@
 "use client";
 
-// AppSidebar — Harvey-style icon-only left rail. Just under 64px
-// wide, no text labels except in tooltips on hover. Workspace badge
-// at the top (workspace initials in a small dark square), then the
-// "+ Create" primary action, then the module stack, then settings +
-// sign out at the bottom. Vergil/Dante gate is its own slot above
-// the footer so it stands apart.
-//
-// Dock magnification on the module stack — when the cursor is near
-// an icon it scales up subtly (max ~1.18×); neighbours scale less,
-// nothing within ~80px of the cursor stays at rest. Keeps the
-// macOS-dock delight without the cartoonish bounce. Spring-smoothed
-// via framer-motion so movement feels physical, not digital.
+// AppSidebar — Mike-style collapsible sidebar. w-64 open, w-14
+// collapsed. Text labels, gray-50 background, gray-200 borders.
+// Chat history section on /dante routes. User profile at bottom.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import {
-  motion,
-  useMotionValue,
-  useSpring,
-  useTransform,
-  type MotionValue,
-} from "framer-motion";
-import {
+  PanelLeft,
   Users,
   Calendar as CalendarIcon,
   Mail,
@@ -36,42 +21,17 @@ import {
   Table2,
   Settings,
   LogOut,
-  Search,
   ShieldCheck,
   LayoutDashboard,
-  Plus,
   ScrollText,
   FileClock,
   FileSearch,
+  ChevronDown,
+  ChevronsUpDown,
+  User,
 } from "lucide-react";
 import { getIndustryConfig } from "@/lib/industry/config";
-import GlobalSearchModal from "./GlobalSearchModal";
 import DanteGateLink from "@/components/dante/DanteGateLink";
-
-// SidebarTip — small CSS-only tooltip that floats to the right of an
-// icon button on hover. Replaces the native `title` attribute so the
-// design is consistent (no random delay, no OS chrome). Children
-// must render the icon button itself; we wrap it in a positioning
-// container.
-function SidebarTip({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="group relative flex items-center justify-center">
-      {children}
-      <span
-        className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2 py-1 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-[11px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow-md"
-        role="tooltip"
-      >
-        {label}
-      </span>
-    </div>
-  );
-}
 
 export interface AppSidebarProps {
   workspaceName: string;
@@ -88,65 +48,6 @@ interface NavItem {
   industry?: string;
 }
 
-// DockIcon — wraps a nav item and scales it based on the cursor's
-// vertical distance from this item's centre. Mouse Y is supplied as
-// a shared MotionValue from the parent <nav> so all icons share one
-// pointer-tracking source. We snap-clamp the scale at ~1.18× and
-// reach rest by ~80px away — smaller than macOS's 1.6× because
-// Drift's icons are also smaller and the visual range needs to read
-// as "subtle delight," not "the cursor is doing something."
-const DOCK_DISTANCE_PX = 80;
-const DOCK_PEAK_SCALE = 1.18;
-function DockIcon({
-  mouseY,
-  children,
-}: {
-  mouseY: MotionValue<number>;
-  children: React.ReactNode;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  // Distance from cursor to this icon's vertical centre. Recomputed
-  // every frame via useTransform — cheap because we only read DOM
-  // metrics inside the closure, not on every state update.
-  const distance = useTransform(mouseY, (val) => {
-    const bounds = ref.current?.getBoundingClientRect();
-    if (!bounds) return DOCK_DISTANCE_PX;
-    return val - (bounds.top + bounds.height / 2);
-  });
-
-  // Map distance → scale. Triangular falloff: peak at 0, 1.0 at
-  // ±DOCK_DISTANCE_PX, clamped outside that.
-  const scaleRaw = useTransform(
-    distance,
-    [-DOCK_DISTANCE_PX, 0, DOCK_DISTANCE_PX],
-    [1, DOCK_PEAK_SCALE, 1],
-  );
-
-  // Spring-smooth so the icon doesn't jitter on every pixel of mouse
-  // movement. Tuned light: high stiffness, low mass, decent damping.
-  const scale = useSpring(scaleRaw, {
-    mass: 0.1,
-    stiffness: 220,
-    damping: 14,
-  });
-
-  return (
-    <motion.div ref={ref} style={{ scale }} className="will-change-transform">
-      {children}
-    </motion.div>
-  );
-}
-
-function workspaceInitials(name: string): string {
-  if (!name) return "?";
-  // First letters of the first two words; e.g. "Loretta's Workspace" → "LW"
-  const words = name.replace(/[^A-Za-z0-9 ]/g, "").trim().split(/\s+/);
-  if (words.length === 0) return "?";
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
-  return (words[0][0] + words[1][0]).toUpperCase();
-}
-
 export default function AppSidebar({
   workspaceName,
   industry,
@@ -155,42 +56,46 @@ export default function AppSidebar({
 }: AppSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchInitialMode, setSearchInitialMode] = useState<"search" | "ask">(
-    "search",
-  );
+  const [isOpen, setIsOpen] = useState(true);
+  const [shouldAnimate, setShouldAnimate] = useState(false);
+  const [historyCollapsed, setHistoryCollapsed] = useState(false);
+  const [recentChats, setRecentChats] = useState<
+    Array<{ id: string; title: string }> | null
+  >(null);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
-  // Shared cursor-Y motion value for the dock magnification. Set to
-  // Infinity when the cursor leaves the nav so all icons settle
-  // back to rest immediately rather than holding their last scale.
-  const dockMouseY = useMotionValue(Number.POSITIVE_INFINITY);
-
-  // ⌘K   opens the palette in Search mode
-  // ⌘/   opens it in Ask mode  (mnemonic: "ask")
-  // ⌘D   opens it in Ask mode  (mnemonic: "Dante" / "Drift")
-  // All three shortcuts close the palette if already open, so the
-  // user can mash the key to dismiss. ⌘D collides with the browser
-  // bookmark dialog — since Drift ships primarily as a desktop app
-  // (Electron) where browser shortcuts don't apply, that's fine;
-  // we preventDefault either way so the bookmark dialog doesn't
-  // briefly flash for any web users.
+  // Persist sidebar state
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey)) return;
-      const k = e.key.toLowerCase();
-      if (k === "k") {
-        e.preventDefault();
-        setSearchInitialMode("search");
-        setSearchOpen((v) => !v);
-      } else if (k === "/" || k === "d") {
-        e.preventDefault();
-        setSearchInitialMode("ask");
-        setSearchOpen((v) => !v);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    const stored = localStorage.getItem("drift-sidebar-open");
+    if (stored !== null) setIsOpen(stored === "true");
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem("drift-sidebar-open", String(isOpen));
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) setShouldAnimate(true);
+  }, [isOpen]);
+
+  // Load recent chats for /dante routes
+  useEffect(() => {
+    if (!pathname?.startsWith("/dante")) return;
+    fetch("/api/dante/chats")
+      .then((r) => r.json())
+      .then((d) => setRecentChats((d.chats || []).slice(0, 20)))
+      .catch(() => setRecentChats([]));
+  }, [pathname]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!isDropdownOpen) return;
+    const handler = () => setIsDropdownOpen(false);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [isDropdownOpen]);
+
+  const assistantConfig = getIndustryConfig(industry);
 
   const items: NavItem[] = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -218,161 +123,268 @@ export default function AppSidebar({
     return !!(pathname && pathname.startsWith(href));
   };
 
-  const assistantConfig = getIndustryConfig(industry);
-  const initials = workspaceInitials(workspaceName);
-
-  // Reusable icon-button class. Active state gets an inset light
-  // surface; idle state stays muted but lifts on hover.
-  const iconBtn = (active: boolean) =>
-    "w-9 h-9 flex items-center justify-center rounded-[6px] transition";
-  const iconBtnStyle = (active: boolean): React.CSSProperties => ({
-    background: active ? "var(--canvas)" : "transparent",
-    color: active ? "var(--ink)" : "var(--ink-muted)",
-    boxShadow: active ? "0 1px 2px rgba(0,0,0,0.05)" : "none",
-  });
+  const initials = (() => {
+    if (!workspaceName) return "?";
+    const words = workspaceName.replace(/[^A-Za-z0-9 ]/g, "").trim().split(/\s+/);
+    if (words.length === 0) return "?";
+    if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+    return (words[0][0] + words[1][0]).toUpperCase();
+  })();
 
   return (
     <aside
-      className="hidden lg:flex flex-col w-[60px] shrink-0 sticky top-0 h-screen bg-[var(--canvas-subtle)] border-r border-[var(--rule)] py-3"
+      className={`${
+        isOpen
+          ? "w-64 bg-gray-50 border-r"
+          : "w-14 bg-gray-50 border-r"
+      } border-gray-200 hidden lg:flex flex-col sticky top-0 h-screen transition-all duration-300 overflow-visible`}
       aria-label="Primary navigation"
     >
-      {/* Workspace badge — small dark square with initials. Click goes
-          to dashboard; we keep this as the home affordance instead of
-          a separate Drift logo. */}
-      <div className="self-center mb-2">
-        <SidebarTip label={workspaceName}>
-          <Link
-            href="/dashboard"
-            className="w-9 h-9 rounded-[6px] bg-[var(--ink)] text-[var(--canvas)] flex items-center justify-center text-[11px] font-semibold tracking-tight"
-          >
-            {initials}
-          </Link>
-        </SidebarTip>
+      {/* Toggle + Logo */}
+      <div className="flex items-center justify-between px-2.5 py-2 mb-3">
+        {isOpen && (
+          <div className="px-2.5">
+            <Link
+              href="/dashboard"
+              className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+            >
+              <div className="w-[22px] h-[22px] rounded-[4px] bg-gray-900 text-white flex items-center justify-center text-[9px] font-semibold">
+                {initials}
+              </div>
+              <span
+                className={`text-2xl font-light font-serif ${
+                  shouldAnimate ? "sidebar-fade-in" : ""
+                }`}
+              >
+                Drift
+              </span>
+            </Link>
+          </div>
+        )}
+        <button
+          onClick={() => setIsOpen((v) => !v)}
+          className="h-9 w-9 p-2.5 items-center flex hover:bg-gray-100 rounded-md transition-colors"
+          title={isOpen ? "Close sidebar" : "Open sidebar"}
+        >
+          <PanelLeft className="h-4 w-4" />
+        </button>
       </div>
 
-      {/* Search — Cmd+K affordance. */}
-      <div className="self-center mb-1">
-        <SidebarTip label="Search · ⌘K">
-          <button
-            onClick={() => setSearchOpen(true)}
-            className={`${iconBtn(false)} hover:bg-[var(--canvas)]`}
-            style={iconBtnStyle(false)}
-          >
-            <Search className="w-4 h-4" strokeWidth={1.5} />
-          </button>
-        </SidebarTip>
-      </div>
-
-      {/* Create — primary CTA. Opens search modal as a placeholder
-          target until a dedicated "what do you want to make?" picker
-          ships. */}
-      <div className="self-center mb-3">
-        <SidebarTip label="Create">
-          <button
-            onClick={() => setSearchOpen(true)}
-            className="w-9 h-9 rounded-[6px] bg-[var(--ink)] text-[var(--canvas)] flex items-center justify-center hover:opacity-90 transition"
-          >
-            <Plus className="w-4 h-4" strokeWidth={1.75} />
-          </button>
-        </SidebarTip>
-      </div>
-
-      {/* Module stack — no overflow on the nav itself, otherwise the
-          tooltips that float to the right of each icon get clipped
-          (overflow-y: auto silently sets overflow-x: auto in CSS).
-          The sidebar fits ~15 icons at 36px each within any
-          reasonable viewport, so we don't need scroll here.
-          onMouseMove feeds the dock-magnification cursor tracker;
-          onMouseLeave snaps it to Infinity so all icons settle. */}
-      <nav
-        className="flex-1 flex flex-col items-center gap-0.5 px-2"
-        onMouseMove={(e) => dockMouseY.set(e.clientY)}
-        onMouseLeave={() => dockMouseY.set(Number.POSITIVE_INFINITY)}
-      >
-        {items.map((item) => {
-          if (item.feature && !features.includes(item.feature)) return null;
-          if (item.industry && industry !== item.industry) return null;
-          const active = isActive(item.href);
-          const Icon = item.icon;
-          return (
-            <DockIcon key={item.href} mouseY={dockMouseY}>
-              <SidebarTip label={item.label}>
+      {/* Nav items */}
+      <nav className="flex-1 flex flex-col min-h-0">
+        <div className="space-y-0.5">
+          {items.map((item) => {
+            if (item.feature && !features.includes(item.feature)) return null;
+            if (item.industry && industry !== item.industry) return null;
+            const active = isActive(item.href);
+            const Icon = item.icon;
+            return (
+              <div key={item.href} className="px-2.5">
                 <Link
                   href={item.href}
-                  className={`${iconBtn(active)} hover:bg-[var(--canvas)]`}
-                  style={iconBtnStyle(active)}
+                  title={!isOpen ? item.label : ""}
+                  className={`w-full h-9 flex items-center gap-3 px-2.5 py-2 rounded-md transition-colors text-left ${
+                    active
+                      ? "bg-gray-100 text-gray-900"
+                      : "hover:bg-gray-100 text-gray-700"
+                  }`}
                 >
-                  <Icon className="w-4 h-4" strokeWidth={active ? 1.75 : 1.5} />
+                  <Icon
+                    className={`h-4 w-4 flex-shrink-0 ${
+                      active ? "text-gray-900" : "text-gray-500"
+                    }`}
+                    strokeWidth={active ? 1.75 : 1.5}
+                  />
+                  {isOpen && (
+                    <span
+                      className={`text-sm font-medium ${
+                        shouldAnimate ? "sidebar-fade-in-2" : ""
+                      }`}
+                    >
+                      {item.label}
+                    </span>
+                  )}
                 </Link>
-              </SidebarTip>
-            </DockIcon>
-          );
-        })}
+              </div>
+            );
+          })}
 
-        {features.includes("dante") && (
-          <>
-            <div className="w-6 my-1.5 border-t border-[var(--rule)]" />
-            {/* Vergil/Dante uses DanteGateLink so the ceremonial
-                "passing through" overlay animation fires when the
-                user clicks. Plain Link wouldn't trigger it. */}
-            <DockIcon mouseY={dockMouseY}>
-              <SidebarTip label={assistantConfig.assistantName}>
+          {features.includes("dante") && (
+            <>
+              <div className="mx-4 my-2 border-t border-gray-200" />
+              <div className="px-2.5">
                 <DanteGateLink
-                  variant="icon-only"
+                  variant={isOpen ? "sidebar-full" : "icon-only"}
                   label={assistantConfig.assistantName}
                   iconSrc={assistantConfig.assistantIconPath}
                 />
-              </SidebarTip>
-            </DockIcon>
-          </>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Chat History — only on /dante routes when sidebar is open */}
+        {isOpen && pathname?.startsWith("/dante") && (
+          <div className="mt-4 flex-1 min-h-0 flex flex-col">
+            <button
+              onClick={() => setHistoryCollapsed((v) => !v)}
+              className={`mb-2 px-5 flex items-center justify-between text-xs font-semibold text-gray-500 hover:text-gray-700 transition-colors ${
+                shouldAnimate ? "sidebar-fade-in" : ""
+              }`}
+            >
+              <span>Chat History</span>
+              <ChevronDown
+                className={`h-3.5 w-3.5 transition-transform ${
+                  historyCollapsed ? "-rotate-90" : ""
+                }`}
+              />
+            </button>
+            <div
+              className={`overflow-y-auto flex-1 ${
+                historyCollapsed ? "hidden" : ""
+              }`}
+            >
+              {recentChats === null ? (
+                <div className="space-y-1 px-2.5">
+                  {[40, 60, 50, 70, 45].map((w, i) => (
+                    <div
+                      key={i}
+                      className="h-9 flex items-center px-3 rounded-md"
+                    >
+                      <div
+                        className="h-3 bg-gray-200 rounded animate-pulse"
+                        style={{ width: `${w}%` }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : recentChats.length === 0 ? (
+                <div
+                  className={`text-xs text-gray-500 py-2 px-5 ${
+                    shouldAnimate ? "sidebar-fade-in-2" : ""
+                  }`}
+                >
+                  No chats yet
+                </div>
+              ) : (
+                <div
+                  className={`space-y-0.5 px-2.5 ${
+                    shouldAnimate ? "sidebar-fade-in-2" : ""
+                  }`}
+                >
+                  {recentChats.map((chat) => {
+                    const chatActive = pathname === `/dante/chat/${chat.id}`;
+                    return (
+                      <button
+                        key={chat.id}
+                        onClick={() => router.push(`/dante/chat/${chat.id}`)}
+                        className={`w-full h-9 flex items-center px-2.5 rounded-md text-sm truncate transition-colors ${
+                          chatActive
+                            ? "bg-gray-100 text-gray-900 font-medium"
+                            : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                        }`}
+                        title={chat.title}
+                      >
+                        {chat.title}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
         )}
       </nav>
 
-      {/* Footer */}
-      <div className="flex flex-col items-center gap-0.5 px-2 mt-2 pt-2 border-t border-[var(--rule)]">
+      {/* Footer — user profile + settings */}
+      <div className="mt-auto flex flex-col items-stretch gap-0.5 px-2 pt-2 border-t border-gray-200">
         {isSuperadmin && (
-          <SidebarTip label="Admin">
-            <Link
-              href="/admin"
-              className={`${iconBtn(false)} hover:bg-[var(--canvas)]`}
-              style={{ ...iconBtnStyle(false), color: "var(--accent)" }}
-            >
-              <ShieldCheck className="w-4 h-4" strokeWidth={1.5} />
-            </Link>
-          </SidebarTip>
-        )}
-        <SidebarTip label="Settings">
           <Link
-            href="/settings"
-            className={`${iconBtn(!!(pathname && pathname.startsWith("/settings")))} hover:bg-[var(--canvas)]`}
-            style={iconBtnStyle(!!(pathname && pathname.startsWith("/settings")))}
+            href="/admin"
+            title={!isOpen ? "Admin" : ""}
+            className={`h-9 flex items-center gap-3 px-2.5 rounded-md transition-colors text-gray-700 hover:bg-gray-100 ${
+              !isOpen ? "justify-center" : ""
+            }`}
           >
-            <Settings className="w-4 h-4" strokeWidth={1.5} />
+            <ShieldCheck className="h-4 w-4 flex-shrink-0 text-blue-600" strokeWidth={1.5} />
+            {isOpen && (
+              <span className={`text-sm font-medium ${shouldAnimate ? "sidebar-fade-in-2" : ""}`}>
+                Admin
+              </span>
+            )}
           </Link>
-        </SidebarTip>
-        <SidebarTip label="Sign out">
+        )}
+        <Link
+          href="/settings"
+          title={!isOpen ? "Settings" : ""}
+          className={`h-9 flex items-center gap-3 px-2.5 rounded-md transition-colors ${
+            pathname?.startsWith("/settings")
+              ? "bg-gray-100 text-gray-900"
+              : "text-gray-700 hover:bg-gray-100"
+          } ${!isOpen ? "justify-center" : ""}`}
+        >
+          <Settings className="h-4 w-4 flex-shrink-0" strokeWidth={1.5} />
+          {isOpen && (
+            <span className={`text-sm font-medium ${shouldAnimate ? "sidebar-fade-in-2" : ""}`}>
+              Settings
+            </span>
+          )}
+        </Link>
+
+        {/* User profile section */}
+        <div className="relative">
           <button
-            onClick={async () => {
-              await supabase.auth.signOut();
-              router.push("/auth");
-            }}
-            className={`${iconBtn(false)} hover:bg-[var(--canvas)]`}
-            style={iconBtnStyle(false)}
+            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            className={`flex items-center transition-colors w-full px-2.5 py-3 ${
+              !isOpen ? "justify-center" : ""
+            } ${
+              isDropdownOpen ? "bg-gray-100" : "hover:bg-gray-100"
+            } rounded-md`}
+            title={!isOpen ? workspaceName : undefined}
           >
-            <LogOut className="w-4 h-4" strokeWidth={1.5} />
+            <div className="h-7 w-7 flex-shrink-0 rounded-full bg-gray-700 flex items-center justify-center text-white text-sm font-medium font-serif">
+              {initials}
+            </div>
+            {isOpen && (
+              <div
+                className={`text-left flex-1 min-w-0 pl-3 flex items-center justify-between gap-2 ${
+                  shouldAnimate ? "sidebar-fade-in-2" : ""
+                }`}
+              >
+                <div className="flex flex-col gap-0.5 min-w-0">
+                  <div className="text-sm font-medium text-gray-900 leading-none truncate">
+                    {workspaceName}
+                  </div>
+                </div>
+                <ChevronsUpDown className="h-4 w-4 flex-shrink-0 text-gray-400" />
+              </div>
+            )}
           </button>
-        </SidebarTip>
+
+          {isDropdownOpen && (
+            <div className="absolute bottom-full left-0 m-1 bg-white rounded-lg shadow-lg border border-gray-200 p-1 z-50 w-56 whitespace-nowrap">
+              <Link
+                href="/settings"
+                onClick={() => setIsDropdownOpen(false)}
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 rounded-md"
+              >
+                <User className="h-4 w-4" />
+                Account Settings
+              </Link>
+              <button
+                onClick={async () => {
+                  await supabase.auth.signOut();
+                  router.push("/auth");
+                }}
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 rounded-md"
+              >
+                <LogOut className="h-4 w-4" />
+                Sign out
+              </button>
+            </div>
+          )}
+        </div>
       </div>
-
-      {/* Real global search — keyboard-driven, debounced, paged
-          across vault / projects / contacts / properties / prompts /
-          tables / reminders. */}
-      <GlobalSearchModal
-        open={searchOpen}
-        onClose={() => setSearchOpen(false)}
-        initialMode={searchInitialMode}
-      />
-
     </aside>
   );
 }
