@@ -596,10 +596,86 @@ export default function AskDante({
                 accept=".txt,.md,.csv,.json,.log,.yaml,.yml,.tsv,.pdf,.docx,.doc"
               />
               <div className="text-center">
-                <p className="text-xs py-3 mb-3 text-gray-500">
+                <p className="text-xs py-3 text-gray-500">
                   AI can make mistakes. Answers are not legal or financial advice.
                 </p>
               </div>
+
+              {/* Knowledge source pills */}
+              <div className="flex items-center justify-center gap-2 flex-wrap mt-2 mb-6">
+                {KNOWLEDGE_SOURCES.map((s) => (
+                  <Link
+                    key={s.label}
+                    href={s.href}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-200 text-xs text-gray-500 hover:text-gray-800 hover:border-gray-300 transition"
+                  >
+                    <s.icon className="w-3 h-3" strokeWidth={1.5} />
+                    {s.label}
+                  </Link>
+                ))}
+              </div>
+
+              {/* Recommended workflows */}
+              <div className="w-full max-w-2xl mx-auto mb-6">
+                <div className="grid grid-cols-2 gap-3">
+                  {RECOMMENDED_WORKFLOWS.map((w) => (
+                    <Link
+                      key={w.slug}
+                      href={`/dante/workflows?run=${w.slug}`}
+                      className="group flex flex-col gap-1 rounded-lg border border-gray-200 p-3 hover:border-gray-300 hover:shadow-sm transition"
+                    >
+                      <span className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">
+                        {w.kindLabel} · {w.steps} steps
+                      </span>
+                      <span className="text-sm text-gray-800 group-hover:text-gray-900 transition leading-snug">
+                        {w.name}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+                <div className="text-center mt-3">
+                  <Link
+                    href="/dante/workflows"
+                    className="text-xs text-gray-400 hover:text-gray-700 transition inline-flex items-center gap-1"
+                  >
+                    All workflows <ArrowUpRight className="w-3 h-3" strokeWidth={1.5} />
+                  </Link>
+                </div>
+              </div>
+
+              {/* Recent chats */}
+              {recent.length > 0 && (
+                <div className="w-full max-w-2xl mx-auto mb-4">
+                  <button
+                    onClick={() => setHistoryOpen((v) => !v)}
+                    className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-700 transition mb-2"
+                  >
+                    <History className="w-3 h-3" strokeWidth={1.5} />
+                    Recent conversations
+                    {historyOpen ? (
+                      <ChevronDown className="w-3 h-3" strokeWidth={1.5} />
+                    ) : (
+                      <ChevronRight className="w-3 h-3" strokeWidth={1.5} />
+                    )}
+                  </button>
+                  {historyOpen && (
+                    <div className="space-y-0.5">
+                      {recent.slice(0, 8).map((c) => (
+                        <Link
+                          key={c.id}
+                          href={`/dante/chat/${c.id}`}
+                          className="flex items-center justify-between px-3 py-2 rounded-md text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition"
+                        >
+                          <span className="truncate flex-1">{c.title}</span>
+                          <span className="text-[10px] text-gray-400 ml-4 shrink-0">
+                            {new Date(c.updated_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                          </span>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           )}
         </div>
