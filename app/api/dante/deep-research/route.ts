@@ -1,33 +1,43 @@
 // /api/dante/deep-research
 //
-// Streaming endpoint that runs the user's question against the
-// Anthropic Managed Agent "Drift Deep Research" (id pinned in
-// DRIFT_DEEP_RESEARCH_AGENT_ID env). Emits SSE in the same shape as
-// /api/dante/ask so the chat UI consumer (streamClient.tsx) doesn't
-// have to switch protocols.
+// Streaming endpoint that uses Claude + the web_search server-side
+// tool for thorough multi-source research. Same SSE shape as
+// /api/dante/ask so streamClient.tsx works unchanged.
 //
-// What's intentionally simpler than /ask:
-//   • No vault/memory tool calls — the managed agent has its own
-//     web search via agent_toolset_20260401 and reads the open
-//     internet, not Drift's vault.
-//   • No citation_report / grounding_score on the result. The agent's
-//     output cites URLs in its system-prompt-mandated Sources section;
-//     full chip integration is a follow-up.
-//   • No followup suggestions yet.
-//
-// What stays consistent with /ask:
-//   • Same chat_id + dante_chat_messages persistence so the turn
-//     lands in the user's chat history alongside non-research turns.
-//   • Same SSE event names (chat_started, tool_start, tool_end,
-//     text_delta, final, error).
+// Previous version used the Anthropic Managed Agent Sessions API
+// (client.beta.sessions) which was hanging on session creation.
+// This rewrite uses the standard Messages API with the web_search
+// tool — more searches allowed (10 vs 5 for web-scrape), higher
+// token budget, and a system prompt tuned for depth.
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { runManagedAgentTurn } from "@/lib/agents/managed-agent";
+import Anthropic from "@anthropic-ai/sdk";
+import { computeCostCents } from "@/lib/dante/model-router";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
+
+const MODEL = "claude-sonnet-4-6";
+
+const SYSTEM_PROMPT = `You are a deep research assistant for Drift, a platform for financial advisors and real estate professionals.
+
+Conduct thorough web research on the given topic:
+1. Search multiple sources and cross-reference information — use several searches to build a complete picture.
+2. Look for primary sources, recent data, and expert analysis.
+3. Organize findings into a comprehensive report with clear sections and headings.
+4. Cite all sources with URLs inline.
+5. Note any conflicting information or areas of uncertainty.
+6. Include a "Sources" section at the end listing all referenced URLs.
+
+Be thorough and analytical. Your research should save the user hours of manual work. Prioritize accuracy and recency of information.`;
+
+function getClient(): Anthropic {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY not configured");
+  return new Anthropic({ apiKey, timeout: 120_000 });
+}
 
 interface PostBody {
   message: string;
@@ -36,7 +46,9 @@ interface PostBody {
 
 export async function POST(req: NextRequest) {
   const supabase = await createServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { data: profile } = await supabase
@@ -58,16 +70,6 @@ export async function POST(req: NextRequest) {
   const message = (body.message || "").trim();
   if (!message) return NextResponse.json({ error: "empty message" }, { status: 400 });
 
-  const agentId = process.env.DRIFT_DEEP_RESEARCH_AGENT_ID;
-  const environmentId = process.env.DRIFT_AGENT_ENVIRONMENT_ID;
-  if (!agentId || !environmentId) {
-    return NextResponse.json(
-      { error: "Deep Research agent not configured (missing env)" },
-      { status: 500 },
-    );
-  }
-
-  // Resolve chat — create new if no chat_id, else verify ownership.
   let chatId = body.chat_id;
   if (chatId) {
     const { data: chat } = await supabaseAdmin
@@ -84,7 +86,8 @@ export async function POST(req: NextRequest) {
       .update({ updated_at: new Date().toISOString() })
       .eq("id", chatId);
   } else {
-    const title = (message.length > 60 ? message.slice(0, 57) + "…" : message) + " · research";
+    const title =
+      (message.length > 60 ? message.slice(0, 57) + "…" : message) + " · research";
     const { data: created, error } = await supabaseAdmin
       .from("dante_chats")
       .insert({
@@ -100,7 +103,6 @@ export async function POST(req: NextRequest) {
     chatId = created.id as string;
   }
 
-  // Persist user turn first.
   await supabaseAdmin.from("dante_chat_messages").insert({
     chat_id: chatId,
     role: "user",
@@ -118,68 +120,145 @@ export async function POST(req: NextRequest) {
 
       let assistantContent = "";
       let runError: string | null = null;
-      const trace: Array<{ step_id: string; step_name: string; status: string; output?: unknown }> = [];
+      const trace: Array<{
+        step_id: string;
+        step_name: string;
+        status: string;
+        output?: unknown;
+      }> = [];
+
+      let inputTokens = 0;
+      let outputTokens = 0;
+      let cacheReadTokens = 0;
+      let cacheCreationTokens = 0;
 
       try {
-        const result = await runManagedAgentTurn({
-          agentId,
-          environmentId,
-          userText: message,
-          workspaceId: profile.workspace_id,
-          feature: "deep_research",
-          model: "claude-sonnet-4-6",
-          onEvent: async (event) => {
-            // Translate managed-agent events into Drift's chat SSE shape.
-            if (event.type === "text_delta" && event.text) {
-              assistantContent += event.text;
-              // The chat UI doesn't currently consume text_delta for /ask
-              // (it renders from the final block), but emit it anyway
-              // so a future streaming-enabled UI just works.
-              send({ type: "text_delta", text: event.text });
-            } else if (event.type === "tool_start") {
-              const subId = event.sub_id || `t_${trace.length}`;
+        const client = getClient();
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const apiStream = client.messages.stream({
+          model: MODEL,
+          max_tokens: 32768,
+          system: SYSTEM_PROMPT,
+          messages: [{ role: "user", content: message }],
+          tools: [
+            { type: "web_search_20250305", name: "web_search", max_uses: 10 },
+          ],
+        } as any);
+
+        const blockMeta = new Map<number, { type: string; id?: string; name?: string }>();
+        let toolCount = 0;
+        let currentToolInput = "";
+
+        for await (const event of apiStream) {
+          if (event.type === "message_start") {
+            const usage = (event as any).message?.usage;
+            if (usage) {
+              inputTokens = usage.input_tokens || 0;
+              cacheReadTokens = usage.cache_read_input_tokens || 0;
+              cacheCreationTokens = usage.cache_creation_input_tokens || 0;
+            }
+          } else if (event.type === "content_block_start") {
+            const block = (event as any).content_block;
+            if (!block) continue;
+            blockMeta.set((event as any).index, {
+              type: block.type,
+              id: block.id,
+              name: block.name,
+            });
+
+            if (block.type === "server_tool_use") {
+              toolCount++;
+              currentToolInput = "";
+              const subId = block.id || `dr_${toolCount}`;
               trace.push({
                 step_id: subId,
-                step_name: event.tool_name || "tool",
+                step_name: block.name || "web_search",
                 status: "running",
-                output: event.payload,
+              });
+              send({
+                type: "iteration_thinking",
+                iteration: toolCount,
+                summary: "Searching the web…",
               });
               send({
                 type: "tool_start",
                 sub_id: subId,
-                tool_name: event.tool_name,
-                args: event.payload,
+                tool_name: block.name || "web_search",
+                args: {},
               });
-            } else if (event.type === "tool_end") {
-              const subId = event.sub_id || `t_${trace.length}`;
-              const idx = trace.findIndex((t) => t.step_id === subId);
-              if (idx >= 0) {
-                trace[idx].status = "success";
-                trace[idx].output = event.payload;
+            } else if (block.type === "web_search_tool_result") {
+              const toolUseId = block.tool_use_id;
+              const entry = trace.find(
+                (t) => t.step_id === toolUseId && t.status === "running",
+              );
+              if (entry) {
+                entry.status = "success";
+                const results = Array.isArray(block.content) ? block.content : [];
+                const count = results.filter(
+                  (r: any) => r.type === "web_search_result",
+                ).length;
+                entry.output = { result_count: count };
+                send({
+                  type: "tool_end",
+                  sub_id: entry.step_id,
+                  tool_name: "web_search",
+                  status: "success",
+                  output: { result_count: count },
+                });
+                if (count > 0) {
+                  send({
+                    type: "iteration_thinking",
+                    iteration: toolCount,
+                    summary: `Found ${count} result${count === 1 ? "" : "s"}`,
+                  });
+                }
               }
-              send({
-                type: "tool_end",
-                sub_id: subId,
-                tool_name: event.tool_name,
-                status: "success",
-                output: event.payload,
-              });
-            } else if (event.type === "iteration_thinking" && event.text) {
-              send({ type: "iteration_thinking", iteration: trace.length, summary: event.text });
             }
-          },
-        });
+          } else if (event.type === "content_block_delta") {
+            const delta = (event as any).delta;
+            if (delta?.type === "text_delta" && delta.text) {
+              assistantContent += delta.text;
+            } else if (delta?.type === "input_json_delta") {
+              currentToolInput += delta.partial_json || "";
+            }
+          } else if (event.type === "content_block_stop") {
+            const meta = blockMeta.get((event as any).index);
+            if (meta?.type === "server_tool_use" && currentToolInput) {
+              try {
+                const input = JSON.parse(currentToolInput);
+                if (input.query) {
+                  send({
+                    type: "iteration_thinking",
+                    iteration: toolCount,
+                    summary: `Searching: "${input.query}"`,
+                  });
+                }
+              } catch {
+                /* partial JSON — ignored */
+              }
+            }
+          } else if (event.type === "message_delta") {
+            outputTokens = (event as any).usage?.output_tokens || 0;
+          }
+        }
 
-        if (!result.text.trim()) {
+        for (const t of trace) {
+          if (t.status === "running") t.status = "success";
+        }
+
+        if (!assistantContent.trim()) {
           runError = "empty_model_output";
-          assistantContent = "Deep research finished without producing a final answer. Try rephrasing the question.";
+          assistantContent =
+            "Deep research finished without producing a final answer. Try rephrasing the question.";
           send({ type: "error", error: runError });
         }
       } catch (err) {
-        runError = err instanceof Error ? err.message : "agent_failed";
-        assistantContent = `Research couldn't complete. ${runError}`;
+        runError = err instanceof Error ? err.message : "research_failed";
+        assistantContent =
+          assistantContent || `Research couldn't complete. ${runError}`;
         send({ type: "error", error: runError });
-        console.error("[deep-research] managed-agent turn failed:", err);
+        console.error("[deep-research] stream error:", err);
       }
 
       const { data: persisted } = await supabaseAdmin
@@ -201,6 +280,30 @@ export async function POST(req: NextRequest) {
         trace,
         error: runError,
       });
+
+      if (profile.workspace_id && (inputTokens > 0 || outputTokens > 0)) {
+        const totalInput = inputTokens + cacheReadTokens + cacheCreationTokens;
+        const cost_cents = computeCostCents(MODEL, {
+          inputTokens: totalInput,
+          cachedInputTokens: cacheReadTokens,
+          outputTokens,
+        });
+        void supabaseAdmin
+          .from("dante_usage_ledger")
+          .insert({
+            workspace_id: profile.workspace_id,
+            model: MODEL,
+            input_tokens: totalInput,
+            cached_input_tokens: cacheReadTokens,
+            output_tokens: outputTokens,
+            cost_cents,
+            feature: "deep_research",
+          })
+          .then((res) => {
+            if (res.error)
+              console.error("[deep-research] ledger insert failed:", res.error.message);
+          });
+      }
 
       controller.close();
     },
