@@ -519,13 +519,13 @@ export default function AskDante({
   // ── Render ─────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col h-full w-full px-6">
+    <div className={`flex flex-col h-full w-full ${inExpandedMode ? "" : "px-6"}`}>
       {/* Landing — Mike-style centered greeting with serif font */}
       <div
         className={`transition-all duration-500 ease-out ${
           inExpandedMode
             ? "opacity-0 -translate-y-4 max-h-0 overflow-hidden pointer-events-none"
-            : "flex-1 flex flex-col items-center justify-center"
+            : "flex-1 flex flex-col items-center justify-center px-6"
         }`}
       >
         <div className="flex-col items-center w-full max-w-4xl relative px-0 xl:px-8">
@@ -715,65 +715,68 @@ export default function AskDante({
         </div>
       </div>
 
-      {/* Compact context chips in expanded mode */}
-      {inExpandedMode && (contextContact || contextProject) && (
-        <div className="mb-4 flex items-center gap-4 text-xs text-gray-500 max-w-4xl mx-auto px-6 md:px-8">
-          {contextProject && (
-            <span className="flex items-center gap-1.5">
-              <BookOpen className="w-3 h-3" strokeWidth={1.5} />
-              <span className="text-gray-900 font-medium">{contextProject.name}</span>
-              <button onClick={() => setContextProject(null)} className="hover:text-gray-700" title="Clear project scope">
-                <X className="w-3 h-3" strokeWidth={2} />
-              </button>
-            </span>
-          )}
-          {contextContact && (
-            <span className="flex items-center gap-1.5">
-              <Users className="w-3 h-3" strokeWidth={1.5} />
-              <span className="text-gray-900 font-medium">
-                {contextContact.name || contextContact.email}
-              </span>
-              <button onClick={() => setContextContact(null)} className="hover:text-gray-700" title="Clear context">
-                <X className="w-3 h-3" strokeWidth={2} />
-              </button>
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Threaded messages — clean centered layout */}
+      {/* Scrollable messages area — flex-1 so it fills remaining height and scrolls from top */}
       {inExpandedMode && (
-        <div className="max-w-4xl mx-auto px-6 md:px-8 pt-4 md:pt-6 pb-32 space-y-6">
-          {turns.map((t, i) =>
-            t.role === "user" ? (
-              <UserMessage key={i} content={t.content} />
-            ) : (
-              <AssistantMessage
-                key={i}
-                content={t.content}
-                trace={t.trace}
-                followups={t.followups}
-                citationReport={t.citationReport ?? null}
-                grounding={t.grounding ?? null}
-                onOpenEditor={(c) => setEditorContent(c)}
-                onRewrite={(instruction) => onRewriteLast(instruction)}
-                onFollowup={(q) => useFollowup(q)}
-                rewriting={refining === "rewrite"}
-              />
-            ),
-          )}
-
-          {streamState.streaming && (
-            <LiveThinking state={streamState} deep={deepResearch} />
-          )}
-
-          {streamState.error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {streamState.error}
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          {/* Compact context chips */}
+          {(contextContact || contextProject) && (
+            <div className="mb-4 flex items-center gap-4 text-xs text-gray-500 max-w-4xl mx-auto px-6 md:px-8 pt-4">
+              {contextProject && (
+                <span className="flex items-center gap-1.5">
+                  <BookOpen className="w-3 h-3" strokeWidth={1.5} />
+                  <span className="text-gray-900 font-medium">{contextProject.name}</span>
+                  <button onClick={() => setContextProject(null)} className="hover:text-gray-700" title="Clear project scope">
+                    <X className="w-3 h-3" strokeWidth={2} />
+                  </button>
+                </span>
+              )}
+              {contextContact && (
+                <span className="flex items-center gap-1.5">
+                  <Users className="w-3 h-3" strokeWidth={1.5} />
+                  <span className="text-gray-900 font-medium">
+                    {contextContact.name || contextContact.email}
+                  </span>
+                  <button onClick={() => setContextContact(null)} className="hover:text-gray-700" title="Clear context">
+                    <X className="w-3 h-3" strokeWidth={2} />
+                  </button>
+                </span>
+              )}
             </div>
           )}
 
-          <div ref={bottomRef} />
+          {/* Threaded messages */}
+          <div className="max-w-4xl mx-auto px-6 md:px-8 pt-4 md:pt-6 pb-32 space-y-6">
+            {turns.map((t, i) =>
+              t.role === "user" ? (
+                <UserMessage key={i} content={t.content} />
+              ) : (
+                <AssistantMessage
+                  key={i}
+                  content={t.content}
+                  trace={t.trace}
+                  followups={t.followups}
+                  citationReport={t.citationReport ?? null}
+                  grounding={t.grounding ?? null}
+                  onOpenEditor={(c) => setEditorContent(c)}
+                  onRewrite={(instruction) => onRewriteLast(instruction)}
+                  onFollowup={(q) => useFollowup(q)}
+                  rewriting={refining === "rewrite"}
+                />
+              ),
+            )}
+
+            {streamState.streaming && (
+              <LiveThinking state={streamState} deep={deepResearch} />
+            )}
+
+            {streamState.error && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {streamState.error}
+              </div>
+            )}
+
+            <div ref={bottomRef} />
+          </div>
         </div>
       )}
 

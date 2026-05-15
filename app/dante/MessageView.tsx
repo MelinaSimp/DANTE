@@ -33,8 +33,6 @@ import { looksLikeDraft, deriveFilenameStem } from "./DocumentPanel";
 import type { StreamState, CitationReportState } from "./streamClient";
 import { buildCitationMap } from "@/lib/dante/citations";
 import AgentPlan from "@/components/dante/AgentPlan";
-import LivePlan from "@/components/ui/agent-plan";
-import { eventsToPlanTasks } from "@/lib/agents/event-to-plan";
 import ReasoningDisclosure from "@/components/dante/ReasoningDisclosure";
 
 const REWRITE_PRESETS = [
@@ -338,15 +336,8 @@ export function SourcesBlock({ trace }: { trace: unknown }) {
 }
 
 // ── Live thinking ───────────────────────────────────────────────
-// Animated agent plan that ticks status icons as iteration_thinking
-// + tool_start + tool_end events arrive over SSE. Each iteration is
-// one task; the tool calls within it are subtasks. Status icons
-// transition with a small spring animation when an event lands.
-//
-// Adapter (lib/agents/event-to-plan.ts) is pure: same inputs → same
-// outputs, no allocations beyond the AgentPlanTask[] result, so
-// it's safe to call on every render. The visualization itself is
-// the AgentPlan component at components/ui/agent-plan.tsx.
+// Simple collapsible card showing what the agent is doing. Each
+// iteration_thinking and tool event becomes a short text line.
 
 export function LiveThinking({
   state,
@@ -355,34 +346,61 @@ export function LiveThinking({
   state: StreamState;
   deep: boolean;
 }) {
-  const tasks = eventsToPlanTasks(state.events, state.streaming);
-  const hasAnything = tasks.length > 0;
+  const [open, setOpen] = useState(true);
+  const steps = thinkingSteps(state.events);
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2 text-xs text-gray-500">
+    <div className="rounded-lg border border-gray-200 bg-gray-50/80">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-500"
+      >
         <span
-          className="relative inline-flex w-2 h-2 rounded-full bg-gray-400 animate-glow-pulse"
+          className="relative inline-flex w-1.5 h-1.5 rounded-full bg-gray-400 animate-glow-pulse"
           aria-hidden
         />
-        <span className="font-serif text-gray-500">Working…</span>
+        <span className="font-medium text-gray-600">Working…</span>
         {deep && (
-          <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-700">
+          <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-700">
             <Telescope className="w-2.5 h-2.5" />
             Deep
           </span>
         )}
-      </div>
-      {hasAnything ? (
-        <LivePlan tasks={tasks} />
-      ) : (
-        <div className="flex items-start gap-2 text-sm text-gray-400 font-serif">
-          <Loader2 className="w-3.5 h-3.5 animate-spin mt-0.5" />
-          <span>Reading the question…</span>
+        {open ? (
+          <ChevronDown className="w-3 h-3 ml-auto text-gray-400" />
+        ) : (
+          <ChevronRight className="w-3 h-3 ml-auto text-gray-400" />
+        )}
+      </button>
+      {open && (
+        <div className="px-3 pb-2.5 space-y-1">
+          {steps.length === 0 ? (
+            <p className="text-xs text-gray-400">Reading the question…</p>
+          ) : (
+            steps.map((s, i) => (
+              <p key={i} className="text-xs text-gray-500 leading-relaxed">
+                {s}
+              </p>
+            ))
+          )}
         </div>
       )}
     </div>
   );
+}
+
+function thinkingSteps(events: StreamState["events"]): string[] {
+  const lines: string[] = [];
+  for (const ev of events) {
+    if (ev.type === "iteration_thinking" && ev.summary) {
+      lines.push(ev.summary);
+    } else if (ev.type === "tool_start" && ev.summary) {
+      lines.push(ev.summary);
+    } else if (ev.type === "tool_end" && ev.summary) {
+      lines.push(ev.summary);
+    }
+  }
+  return lines;
 }
 
 // ── Grounding badge ─────────────────────────────────────────────
