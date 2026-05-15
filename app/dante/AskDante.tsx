@@ -92,7 +92,7 @@ interface UserTurn {
 
 type Turn = UserTurn | AssistantTurn;
 
-const QUICK_PROMPTS: Array<{ label: string; prompt: string }> = [
+const QUICK_PROMPTS_ADVISOR: Array<{ label: string; prompt: string }> = [
   {
     label: "Brief me on a client",
     prompt:
@@ -112,6 +112,29 @@ const QUICK_PROMPTS: Array<{ label: string; prompt: string }> = [
     label: "Find at-risk clients",
     prompt:
       "Which clients have I not contacted in over 60 days? Pull the list and flag anyone with negative recent signal.",
+  },
+];
+
+const QUICK_PROMPTS_REALTOR: Array<{ label: string; prompt: string }> = [
+  {
+    label: "Brief me on a tenant",
+    prompt:
+      "Brief me on [tenant / contact name] — pull recent context from memory, any lease dates coming up, and open issues or requests.",
+  },
+  {
+    label: "Summarize a lease",
+    prompt:
+      "Summarize the key terms of the lease for [property / tenant]. Include rent, expiry, renewal options, and any unusual clauses.",
+  },
+  {
+    label: "Prep for a showing",
+    prompt:
+      "I have a showing at [property address] in 30 minutes. What should I know — comps, zoning, recent inspection notes?",
+  },
+  {
+    label: "Expiring leases this quarter",
+    prompt:
+      "Which leases expire in the next 90 days? Flag any tenants I haven't contacted yet about renewal.",
   },
 ];
 
@@ -137,11 +160,18 @@ const KNOWLEDGE_SOURCES = [
 // demographic — meeting prep + post-meeting + QBR + life event
 // reads as the day-job of an advisor; the niche templates can wait
 // for the /dante/workflows page proper.
-const RECOMMENDED_WORKFLOWS = [
+const RECOMMENDED_WORKFLOWS_ADVISOR = [
   { slug: "meeting-prep-packet", name: "Draft a meeting prep packet", kindLabel: "Draft", steps: 5 },
   { slug: "post-meeting-followup", name: "Generate post-meeting follow-up", kindLabel: "Output", steps: 4 },
   { slug: "qbr-reminder", name: "Quarterly review reminders", kindLabel: "Output", steps: 4 },
   { slug: "life-event-detector", name: "Surface client life events", kindLabel: "Review", steps: 5 },
+] as const;
+
+const RECOMMENDED_WORKFLOWS_REALTOR = [
+  { slug: "lease-expiration-outreach", name: "Lease expiration outreach", kindLabel: "Outreach", steps: 4 },
+  { slug: "property-showing-prep", name: "Prep a property showing packet", kindLabel: "Draft", steps: 5 },
+  { slug: "tenant-renewal-followup", name: "Tenant renewal follow-up", kindLabel: "Output", steps: 4 },
+  { slug: "comp-analysis", name: "Run a comp analysis", kindLabel: "Research", steps: 3 },
 ] as const;
 
 const REWRITE_PRESETS = [
@@ -164,6 +194,9 @@ export default function AskDante({
   // — we keep it for the InputBar placeholder, but the hero icon
   // reads from context so it always matches the breadcrumb gate.
   const brand = useAssistantBrand();
+  const isRealtor = brand.name === "Vergil";
+  const QUICK_PROMPTS = isRealtor ? QUICK_PROMPTS_REALTOR : QUICK_PROMPTS_ADVISOR;
+  const RECOMMENDED_WORKFLOWS = isRealtor ? RECOMMENDED_WORKFLOWS_REALTOR : RECOMMENDED_WORKFLOWS_ADVISOR;
   const router = useRouter();
   const [input, setInput] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -586,6 +619,7 @@ export default function AskDante({
                 onOpenFilesAndSources={() => fileInputRef.current?.click()}
                 attachments={attachments}
                 onRemoveAttachment={(idx) => setAttachments((prev) => prev.filter((_, i) => i !== idx))}
+                quickPrompts={QUICK_PROMPTS}
               />
               <input
                 ref={fileInputRef}
@@ -824,6 +858,7 @@ interface InputBarProps {
    *  expanded mode where the chat is the focus and toolbar choices
    *  feel like noise. */
   compact?: boolean;
+  quickPrompts?: Array<{ label: string; prompt: string }>;
 }
 
 function InputBar(p: InputBarProps) {
@@ -968,7 +1003,7 @@ function InputBar(p: InputBarProps) {
             Quick prompts
           </div>
           <div className="space-y-1">
-            {QUICK_PROMPTS.map((q) => (
+            {(p.quickPrompts || QUICK_PROMPTS_ADVISOR).map((q) => (
               <button
                 key={q.label}
                 onClick={() => {
