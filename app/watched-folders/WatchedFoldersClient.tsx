@@ -18,7 +18,6 @@ import {
   ArrowLeft,
   FolderPlus,
   Server,
-  Settings,
 } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────
@@ -69,6 +68,9 @@ export default function WatchedFoldersClient() {
   const [folders, setFolders] = useState<WatchedFolder[]>([]);
   const [loadingFolders, setLoadingFolders] = useState(true);
   const [selectedFolder, setSelectedFolder] = useState<WatchedFolder | null>(null);
+  const [adding, setAdding] = useState(false);
+
+  const isElectron = typeof window !== "undefined" && !!window.electronAPI?.watched?.pickFolder;
 
   const fetchFolders = useCallback(async () => {
     setLoadingFolders(true);
@@ -86,6 +88,47 @@ export default function WatchedFoldersClient() {
     fetchFolders();
   }, [fetchFolders]);
 
+  const addFolder = useCallback(async () => {
+    const api = window.electronAPI;
+    if (!api?.watched?.pickFolder || !api?.getDevice) return;
+
+    setAdding(true);
+    try {
+      const picked = await api.watched.pickFolder();
+      if (picked.canceled || !picked.folder_path) return;
+
+      const device = await api.getDevice();
+
+      const res = await fetch("/api/electron/watched-folders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: "local_electron",
+          device_id: device.device_id,
+          device_label: device.device_label,
+          folder_path: picked.folder_path,
+        }),
+      });
+
+      if (res.ok) {
+        await fetchFolders();
+        // Sync watchers so Electron starts watching immediately
+        if (api.watched.sync) {
+          const refreshed = await fetch("/api/electron/watched-folders");
+          if (refreshed.ok) {
+            const data = await refreshed.json();
+            const active = (data.folders || []).filter((f: WatchedFolder) => f.status === "active");
+            await api.watched.sync(active);
+          }
+        }
+      } else if (res.status === 409) {
+        await fetchFolders();
+      }
+    } finally {
+      setAdding(false);
+    }
+  }, [fetchFolders]);
+
   if (selectedFolder) {
     return (
       <FolderDetail
@@ -95,7 +138,15 @@ export default function WatchedFoldersClient() {
     );
   }
 
-  return <FolderList folders={folders} loading={loadingFolders} onSelect={setSelectedFolder} />;
+  return (
+    <FolderList
+      folders={folders}
+      loading={loadingFolders}
+      onSelect={setSelectedFolder}
+      onAddFolder={isElectron ? addFolder : undefined}
+      adding={adding}
+    />
+  );
 }
 
 // ── Folder list ──────────────────────────────────────────────────
@@ -104,10 +155,14 @@ function FolderList({
   folders,
   loading,
   onSelect,
+  onAddFolder,
+  adding,
 }: {
   folders: WatchedFolder[];
   loading: boolean;
   onSelect: (f: WatchedFolder) => void;
+  onAddFolder?: () => void;
+  adding?: boolean;
 }) {
   const activeFolders = folders.filter((f) => f.status === "active");
 
@@ -121,14 +176,32 @@ function FolderList({
           <ArrowLeft className="w-3.5 h-3.5" />
           Dashboard
         </Link>
-        <h1 className="text-3xl font-serif font-light text-gray-900">
-          Watched Folders
-        </h1>
-        <p className="text-sm text-gray-500 mt-2 max-w-2xl">
-          Folders connected from your file servers. Drift indexes filenames
-          instantly and extracts content into the Vault on demand — when you
-          or the agent need it.
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-serif font-light text-gray-900">
+              Watched Folders
+            </h1>
+            <p className="text-sm text-gray-500 mt-2 max-w-2xl">
+              Folders connected from your file servers. Drift indexes filenames
+              instantly and extracts content into the Vault on demand — when you
+              or the agent need it.
+            </p>
+          </div>
+          {onAddFolder && (
+            <button
+              onClick={onAddFolder}
+              disabled={adding}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50 transition flex-shrink-0 mt-1"
+            >
+              {adding ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <FolderPlus className="w-4 h-4" />
+              )}
+              Add Folder
+            </button>
+          )}
+        </div>
       </div>
 
       {loading ? (
@@ -137,7 +210,7 @@ function FolderList({
           Loading folders...
         </div>
       ) : activeFolders.length === 0 ? (
-        <EmptyState />
+        <EmptyState onAddFolder={onAddFolder} adding={adding} />
       ) : (
         <div className="space-y-3">
           {activeFolders.map((f) => (
@@ -149,7 +222,13 @@ function FolderList({
   );
 }
 
-function EmptyState() {
+function EmptyState({
+  onAddFolder,
+  adding,
+}: {
+  onAddFolder?: () => void;
+  adding?: boolean;
+}) {
   return (
     <div className="border border-dashed border-gray-300 rounded-xl px-8 py-14 text-center">
       <FolderPlus className="w-8 h-8 text-gray-300 mx-auto mb-4" />
@@ -161,13 +240,31 @@ function EmptyState() {
         your documents. Files stay on your machine — Drift only pulls content
         when you or the agent need it.
       </p>
-      <Link
-        href="/settings"
-        className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 transition"
-      >
-        <Settings className="w-3.5 h-3.5" />
-        Open Settings to configure the watcher service
-      </Link>
+      {onAddFolder ? (
+        <button
+          onClick={onAddFolder}
+          disabled={adding}
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50 transition"
+        >
+          {adding ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <FolderPlus className="w-4 h-4" />
+          )}
+          Add Folder
+        </button>
+      ) : (
+        <p className="text-xs text-gray-400">
+          Open the Drift desktop app to add a watched folder, or use the{" "}
+          <Link
+            href="/settings"
+            className="text-gray-500 hover:text-gray-700 underline underline-offset-2 transition"
+          >
+            CLI watcher
+          </Link>{" "}
+          for headless file servers.
+        </p>
+      )}
     </div>
   );
 }
