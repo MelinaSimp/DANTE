@@ -6,6 +6,7 @@
 
 import AppSidebar, { type AppSidebarProps } from "./AppSidebar";
 import AppTopBar from "./AppTopBar";
+import WatcherBridge from "./WatcherBridge";
 import { AssistantNameProvider } from "@/components/dante/AssistantNameProvider";
 import { PageContextProvider } from "@/components/dante/PageContext";
 import { getIndustryConfig } from "@/lib/industry/config";
@@ -30,6 +31,7 @@ export default function AppShell({ children, ...sidebarProps }: Props) {
             <AppTopBar />
             <main className="flex-1 min-w-0 overflow-auto">{children}</main>
           </div>
+          <WatcherBridge />
         </div>
       </PageContextProvider>
     </AssistantNameProvider>
