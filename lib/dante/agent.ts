@@ -445,6 +445,8 @@ interface AgentToolCtx {
   log: StepLogEntry[];
   /** Step id of the calling agent — used as a prefix for skill sub-runs. */
   parentStepId: string;
+  /** When set, archive.search and vault.cite scope to this project. */
+  projectId?: string;
 }
 
 const PER_TOOL_BUDGET: Partial<Record<AgentToolName, number>> = {
@@ -544,6 +546,7 @@ async function dispatchTool(
         query: String(args.query || ""),
         k: Number(args.k) || 5,
         kindFilter: args.kind ? String(args.kind) : undefined,
+        projectId: args.project_id ? String(args.project_id) : ctx.projectId,
       });
       return { hits, formatted: formatHitsForPrompt(hits) };
     }
@@ -783,6 +786,7 @@ async function dispatchTool(
         workspaceId: ctx.workspaceId,
         query: String(args.query || ""),
         k: Math.min(Math.max(Number(args.k) || 3, 1), 10),
+        projectId: args.project_id ? String(args.project_id) : ctx.projectId,
       });
       return {
         citations: hits.map((h, i) => ({
@@ -1206,6 +1210,8 @@ export interface AgentRunInput {
    * through Vault), so we route the turn through Hermes.
    */
   forcedProcessingMode?: "cloud" | "local_only";
+  /** When set, archive.search and vault.cite default to this project. */
+  projectId?: string | null;
 }
 
 export interface AgentRunResult {
@@ -1358,6 +1364,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
     runId: input.runId,
     log: input.log,
     parentStepId: input.step.id,
+    projectId: input.projectId || undefined,
     budgetUsed: {
       "memory.search": 0,
       "memory.write": 0,

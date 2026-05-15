@@ -97,6 +97,8 @@ export async function POST(req: NextRequest) {
     context_contact_name?: string;
     context_property_id?: string;
     context_property_label?: string;
+    /** Scope retrieval (archive.search, vault.cite) to one vault project. */
+    context_project_id?: string;
     /** File attachments — extracted in the Electron main process
      *  so bytes never leave the user's machine. The text gets
      *  inlined into the agent's objective and the whole turn is
@@ -147,6 +149,7 @@ export async function POST(req: NextRequest) {
   const contextContactName = body.context_contact_name?.trim() || null;
   const contextPropertyId = body.context_property_id?.trim() || null;
   const contextPropertyLabel = body.context_property_label?.trim() || null;
+  const contextProjectId = body.context_project_id?.trim() || null;
 
   // Resolve chat — create or verify ownership of existing.
   let chatId = body.chat_id;
@@ -278,6 +281,9 @@ export async function POST(req: NextRequest) {
     );
     contextLine += lines.join("\n");
   }
+  if (contextProjectId) {
+    contextLine += `\n\nCONTEXT: this conversation is scoped to vault project (id: ${contextProjectId}). When calling archive.search or vault.cite, restrict retrieval to that project's documents unless the user explicitly asks to search across all projects.`;
+  }
 
   // Inline attachments into the objective as <attachment> blocks
   // so the agent sees them as first-class context. Truncation
@@ -372,6 +378,7 @@ export async function POST(req: NextRequest) {
           // doc_id and would resolve at that layer.
           contactId: contextContactId,
           chatId,
+          projectId: contextProjectId,
           forcedProcessingMode,
           onEvent: (event: AgentEvent) => {
             send(event);

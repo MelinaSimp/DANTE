@@ -14,6 +14,7 @@ export interface SearchInput {
   query: string;
   k?: number;            // how many chunks to return (default 5, max 20)
   kindFilter?: string;   // restrict to one ArchiveKind
+  projectId?: string;    // restrict to one vault project
 }
 
 export async function searchArchive(input: SearchInput): Promise<ArchiveSearchHit[]> {
@@ -25,6 +26,7 @@ export async function searchArchive(input: SearchInput): Promise<ArchiveSearchHi
     p_query_embedding: toPgVector(vec),
     p_limit: k,
     p_kind_filter: input.kindFilter || null,
+    p_project_id: input.projectId || null,
   });
 
   if (error) {

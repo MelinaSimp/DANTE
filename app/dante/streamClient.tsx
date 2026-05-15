@@ -112,6 +112,8 @@ interface ConsumeInput {
      *  and attached documents in the system prompt. */
     context_property_id?: string;
     context_property_label?: string;
+    /** Scope retrieval to one vault project. */
+    context_project_id?: string;
     /** Files the user attached via the composer's paperclip. Bytes
      *  are extracted in the Electron main process — only the text
      *  reaches the server. When present, the server forces local_only

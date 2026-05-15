@@ -1,15 +1,14 @@
 // lib/vault/auto-project.ts
 //
-// "One project per watched folder" ingest. The user registers a
-// deal-room parent folder (e.g. ~/Downloads/TerraGroup Files), and
-// the entire watched folder — every file at any depth inside it —
-// rolls up into a single Vault project named after the watched
-// folder's basename ("TerraGroup Files").
+// Subfolder-aware auto-project resolution for watched folders.
+// A watched folder like ~/Downloads/TerraGroup Files with subfolders
+// LOI/, Financials/, Appraisals/ creates flat projects named with a
+// slash delimiter: "TerraGroup Files / LOI", "TerraGroup Files /
+// Financials". Files directly in the watch root go into a project
+// named after the folder itself ("TerraGroup Files").
 //
-// Earlier versions used the FIRST subfolder as the project name,
-// which fragmented one client's deal room into 30 micro-projects.
-// The advisor thinks of "TerraGroup" as one thing; the project
-// surface should reflect that.
+// The slash-delimited naming gives visual hierarchy without needing
+// a parent_id column or recursive queries.
 //
 // The migration 20260506_vault_projects_workspace_name_unique adds
 // a (workspace_id, lower(name)) unique index so parallel notify
@@ -58,7 +57,7 @@ const NULL_RESULT: ResolveResult = {
 export async function resolveProjectForWatchedFile(
   opts: ResolveOpts,
 ): Promise<ResolveResult> {
-  const projectName = projectNameForWatchedFolder(opts.watchedFolderPath);
+  const projectName = projectNameForWatchedFolder(opts.watchedFolderPath, opts.filePath);
   if (!projectName) return NULL_RESULT;
 
   // Try to find an existing project case-insensitively.
@@ -124,26 +123,36 @@ export async function resolveProjectForWatchedFile(
 }
 
 /**
- * Project name for a watched folder = its basename.
- *   /Users/x/Downloads/TerraGroup Files  → "TerraGroup Files"
- *   /Users/x/Documents/Hermes Drop       → "Hermes Drop"
+ * Project name derived from the watched folder and the file's
+ * subfolder position.
  *
- * Returns null when the path resolves to nothing usable (empty,
- * root-only, hidden).
+ *   watchedFolder = /Users/x/Downloads/TerraGroup Files
+ *   filePath      = .../TerraGroup Files/LOI/draft.pdf
+ *   → "TerraGroup Files / LOI"
+ *
+ *   filePath at root (no subfolder):
+ *   → "TerraGroup Files"
  */
-export function projectNameForWatchedFolder(watchedFolderPath: string): string | null {
+export function projectNameForWatchedFolder(
+  watchedFolderPath: string,
+  filePath?: string,
+): string | null {
   const cleaned = path.normalize(watchedFolderPath).replace(/\/+$/, "");
-  const name = path.basename(cleaned).trim();
-  if (!name) return null;
-  if (name.startsWith(".")) return null;
-  return name;
+  const baseName = path.basename(cleaned).trim();
+  if (!baseName) return null;
+  if (baseName.startsWith(".")) return null;
+
+  if (filePath) {
+    const segment = subfolderForPath(watchedFolderPath, filePath);
+    if (segment) return `${baseName} / ${segment}`;
+  }
+  return baseName;
 }
 
 /**
- * Legacy helper retained for any caller that wants the "first
- * segment under the watch root" behavior (e.g. surfacing the
- * subfolder in UI breadcrumbs without changing project membership).
- * No longer used for project routing.
+ * Returns the first subfolder segment under the watch root.
+ * Used by projectNameForWatchedFolder to derive hierarchical
+ * project names, and available for UI breadcrumbs.
  */
 export function subfolderForPath(
   watchedFolderPath: string,

@@ -56,6 +56,16 @@ interface Project {
   items: VaultItem[];
 }
 
+interface IndexedFile {
+  id: string;
+  file_name: string;
+  file_path: string;
+  file_extension: string;
+  file_size_bytes: number | null;
+  ingest_status: string;
+  created_at: string;
+}
+
 function formatSize(bytes: number | null) {
   if (!bytes) return "—";
   if (bytes < 1024) return `${bytes} B`;
@@ -151,6 +161,9 @@ export default function ProjectDetailClient({
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [tab, setTab] = useState<"vault" | "indexed">("vault");
+  const [indexedFiles, setIndexedFiles] = useState<IndexedFile[] | null>(null);
+  const [indexedCount, setIndexedCount] = useState(0);
 
   // Edit-name (proper projects only)
   const [editingName, setEditingName] = useState(false);
@@ -196,6 +209,17 @@ export default function ProjectDetailClient({
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    const pid = isLoose ? "loose" : projectId;
+    fetch(`/api/vault/projects/${pid}/indexed-files`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => {
+        setIndexedFiles(d.files || []);
+        setIndexedCount(d.files?.length || 0);
+      })
+      .catch(() => setIndexedFiles([]));
+  }, [projectId, isLoose]);
 
   const items = isLoose ? looseItems ?? [] : project?.items ?? [];
   const filteredItems = useMemo(() => {
@@ -531,6 +555,56 @@ export default function ProjectDetailClient({
           </div>
         )}
 
+        {/* Tab bar */}
+        {indexedCount > 0 && (
+          <div className="flex items-center gap-0 border-b border-[var(--rule)] mb-4">
+            <button
+              onClick={() => setTab("vault")}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition ${
+                tab === "vault"
+                  ? "border-gray-900 text-gray-900"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Documents{items.length > 0 ? ` (${items.length})` : ""}
+            </button>
+            <button
+              onClick={() => setTab("indexed")}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition ${
+                tab === "indexed"
+                  ? "border-gray-900 text-gray-900"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Indexed files
+              <span className="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] bg-amber-100 text-amber-700">
+                {indexedCount}
+              </span>
+            </button>
+          </div>
+        )}
+
+        {tab === "indexed" && indexedFiles ? (
+          <IndexedFilesTable
+            files={indexedFiles}
+            onIngest={async (fileId) => {
+              try {
+                await fetch("/api/electron/watched-folders/file-index", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  credentials: "include",
+                  body: JSON.stringify({ index_entry_id: fileId }),
+                });
+                setIndexedFiles((prev) =>
+                  (prev || []).map((f) =>
+                    f.id === fileId ? { ...f, ingest_status: "ingest_requested" } : f,
+                  ),
+                );
+              } catch {}
+            }}
+          />
+        ) : (
+        <>
         {/* Search + selection summary */}
         <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
           <div className="max-w-md flex-1 relative">
@@ -707,6 +781,8 @@ export default function ProjectDetailClient({
             </div>
           </div>
         )}
+        </>
+        )}
       </div>
 
       {/* Upload modal */}
@@ -856,6 +932,80 @@ export default function ProjectDetailClient({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function StatusPill({ status }: { status: string }) {
+  switch (status) {
+    case "indexed":
+      return <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600">Indexed</span>;
+    case "ingest_requested":
+      return <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700 animate-pulse">Requested</span>;
+    case "ingesting":
+      return (
+        <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-700 inline-flex items-center gap-1">
+          <Loader2 className="w-3 h-3 animate-spin" strokeWidth={2} />
+          Ingesting
+        </span>
+      );
+    case "ingested":
+      return <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700">Ingested</span>;
+    case "ingest_failed":
+      return <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-100 text-red-700">Failed</span>;
+    default:
+      return <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500">{status}</span>;
+  }
+}
+
+function IndexedFilesTable({
+  files,
+  onIngest,
+}: {
+  files: IndexedFile[];
+  onIngest: (fileId: string) => void;
+}) {
+  return (
+    <div className="border border-[var(--rule)] rounded-[8px] overflow-hidden">
+      <table className="w-full text-left">
+        <thead>
+          <tr className="border-b border-[var(--rule)] bg-[var(--canvas-subtle)]">
+            <th className="px-4 py-2.5 text-[10px] uppercase tracking-wider font-semibold text-[var(--ink-subtle)]">File</th>
+            <th className="px-4 py-2.5 text-[10px] uppercase tracking-wider font-semibold text-[var(--ink-subtle)] w-24">Size</th>
+            <th className="px-4 py-2.5 text-[10px] uppercase tracking-wider font-semibold text-[var(--ink-subtle)] w-28">Status</th>
+            <th className="px-4 py-2.5 w-24"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {files.map((f) => (
+            <tr key={f.id} className="border-b border-[var(--rule)] last:border-b-0 hover:bg-[var(--canvas-subtle)] transition">
+              <td className="px-4 py-3">
+                <div className="text-sm text-[var(--ink)] truncate max-w-md">{f.file_name}</div>
+                <div className="text-[11px] text-[var(--ink-subtle)] truncate max-w-md mt-0.5">{f.file_path}</div>
+              </td>
+              <td className="px-4 py-3 text-xs text-[var(--ink-muted)]">{formatSize(f.file_size_bytes)}</td>
+              <td className="px-4 py-3"><StatusPill status={f.ingest_status} /></td>
+              <td className="px-4 py-3">
+                {f.ingest_status === "indexed" && (
+                  <button
+                    onClick={() => onIngest(f.id)}
+                    className="px-3 py-1 rounded text-xs font-medium bg-gray-900 text-white hover:bg-gray-800 transition"
+                  >
+                    Ingest
+                  </button>
+                )}
+              </td>
+            </tr>
+          ))}
+          {files.length === 0 && (
+            <tr>
+              <td colSpan={4} className="px-4 py-8 text-center text-sm text-[var(--ink-subtle)]">
+                No indexed files for this project
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }

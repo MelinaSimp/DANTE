@@ -179,6 +179,9 @@ export default function AskDante({
   const [refining, setRefining] = useState<"customize" | "rewrite" | null>(null);
   const [contextContact, setContextContact] = useState<Contact | null>(null);
   const [contactPickerOpen, setContactPickerOpen] = useState(false);
+  const [contextProject, setContextProject] = useState<{ id: string; name: string } | null>(null);
+  const [projectPickerOpen, setProjectPickerOpen] = useState(false);
+  const [vaultProjects, setVaultProjects] = useState<Array<{ id: string; name: string }>>([]);
   const [editorContent, setEditorContent] = useState<string | null>(null);
   // Files attached via the + Files and sources button. Browser-side
   // text extraction lands here; the array gets shipped on the next
@@ -208,8 +211,19 @@ export default function AskDante({
 
   useEffect(() => {
     refreshRecent();
+    fetch("/api/vault/projects")
+      .then((r) => r.json())
+      .then((d) => setVaultProjects(d.projects || []))
+      .catch(() => {});
     return () => abortRef.current?.abort();
   }, [refreshRecent]);
+
+  useEffect(() => {
+    if (!projectPickerOpen) return;
+    const handler = () => setProjectPickerOpen(false);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [projectPickerOpen]);
 
   // Auto-scroll to bottom on new content.
   useEffect(() => {
@@ -371,9 +385,7 @@ export default function AskDante({
           deep: deepResearch,
           context_contact_id: isManagedAgent ? undefined : contextContact?.id,
           context_contact_name: isManagedAgent ? undefined : (contextContact?.name || undefined),
-          // Files the user attached via + Files and sources. Snapshot
-          // captured at submit() time; the state was cleared above so
-          // the next turn starts empty.
+          context_project_id: contextProject?.id,
           attachments: sentAttachments.length > 0 ? sentAttachments : undefined,
         },
         signal: abortRef.current.signal,
@@ -492,13 +504,49 @@ export default function AskDante({
 
           {/* Scope chips — thin affordance row */}
           <div className="flex items-center justify-center gap-4 mb-6">
-            <Link
-              href="/vault"
-              className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-700 transition"
-            >
-              <BookOpen className="w-3.5 h-3.5" strokeWidth={1.5} />
-              Choose Vault project
-            </Link>
+            {contextProject ? (
+              <span className="inline-flex items-center gap-1.5 text-xs text-gray-700 bg-gray-100 rounded-full px-3 py-1">
+                <BookOpen className="w-3.5 h-3.5" strokeWidth={1.5} />
+                {contextProject.name}
+                <button
+                  onClick={() => setContextProject(null)}
+                  className="hover:text-gray-900 ml-0.5"
+                  title="Clear project scope"
+                >
+                  <X className="w-3 h-3" strokeWidth={2} />
+                </button>
+              </span>
+            ) : (
+              <div className="relative">
+                <button
+                  onClick={() => setProjectPickerOpen((v) => !v)}
+                  className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-700 transition"
+                >
+                  <BookOpen className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  Choose Vault project
+                </button>
+                {projectPickerOpen && (
+                  <div className="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 p-1 z-50 w-64 max-h-60 overflow-y-auto">
+                    {vaultProjects.length === 0 ? (
+                      <div className="px-3 py-2 text-xs text-gray-400">No projects yet</div>
+                    ) : (
+                      vaultProjects.map((p) => (
+                        <button
+                          key={p.id}
+                          onClick={() => {
+                            setContextProject(p);
+                            setProjectPickerOpen(false);
+                          }}
+                          className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 rounded-md truncate"
+                        >
+                          {p.name}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             {contextContact ? (
               <ContextChip
                 contact={contextContact}
@@ -557,21 +605,29 @@ export default function AskDante({
         </div>
       </div>
 
-      {/* Compact context chip in expanded mode */}
-      {inExpandedMode && contextContact && (
-        <div className="mb-4 flex items-center gap-2 text-xs text-gray-500 max-w-4xl mx-auto px-6 md:px-8">
-          <Users className="w-3 h-3" strokeWidth={1.5} />
-          <span>Context:</span>
-          <span className="text-gray-900 font-medium">
-            {contextContact.name || contextContact.email}
-          </span>
-          <button
-            onClick={() => setContextContact(null)}
-            className="hover:text-gray-700"
-            title="Clear context"
-          >
-            <X className="w-3 h-3" strokeWidth={2} />
-          </button>
+      {/* Compact context chips in expanded mode */}
+      {inExpandedMode && (contextContact || contextProject) && (
+        <div className="mb-4 flex items-center gap-4 text-xs text-gray-500 max-w-4xl mx-auto px-6 md:px-8">
+          {contextProject && (
+            <span className="flex items-center gap-1.5">
+              <BookOpen className="w-3 h-3" strokeWidth={1.5} />
+              <span className="text-gray-900 font-medium">{contextProject.name}</span>
+              <button onClick={() => setContextProject(null)} className="hover:text-gray-700" title="Clear project scope">
+                <X className="w-3 h-3" strokeWidth={2} />
+              </button>
+            </span>
+          )}
+          {contextContact && (
+            <span className="flex items-center gap-1.5">
+              <Users className="w-3 h-3" strokeWidth={1.5} />
+              <span className="text-gray-900 font-medium">
+                {contextContact.name || contextContact.email}
+              </span>
+              <button onClick={() => setContextContact(null)} className="hover:text-gray-700" title="Clear context">
+                <X className="w-3 h-3" strokeWidth={2} />
+              </button>
+            </span>
+          )}
         </div>
       )}
 
