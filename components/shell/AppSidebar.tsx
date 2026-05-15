@@ -97,24 +97,38 @@ export default function AppSidebar({
 
   const assistantConfig = getIndustryConfig(industry);
 
-  const items: NavItem[] = [
-    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/client-details-overview", label: "Clients", icon: Users },
-    { href: "/calendar", label: "Calendar", icon: CalendarIcon },
-    { href: "/inbox", label: "Email", icon: Mail },
-    { href: "/agent", label: "Agent", icon: Mic },
-    { href: "/vault", label: "Vault", icon: FolderClosed },
-    { href: "/lease-abstractor", label: "Lease Abstractor", icon: FileSearch },
-    { href: "/dante/file-index", label: "File index", icon: FileSearch },
-    { href: "/review-tables", label: "Review tables", icon: Table2 },
-    { href: "/library", label: "Library", icon: BookOpen },
-    { href: "/reminders", label: "Reminders", icon: Bell },
-    { href: "/audit", label: "Audit log", icon: ScrollText },
+  const sections: { label?: string; items: NavItem[] }[] = [
     {
-      href: "/properties",
-      label: "Properties",
-      icon: Home,
-      industry: "real_estate",
+      items: [
+        { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      ],
+    },
+    {
+      label: "Workspace",
+      items: [
+        { href: "/client-details-overview", label: "Clients", icon: Users },
+        { href: "/calendar", label: "Calendar", icon: CalendarIcon },
+        { href: "/inbox", label: "Email", icon: Mail },
+        { href: "/reminders", label: "Reminders", icon: Bell },
+      ],
+    },
+    {
+      label: "Documents",
+      items: [
+        { href: "/vault", label: "Vault", icon: FolderClosed },
+        { href: "/dante/file-index", label: "File index", icon: FileSearch },
+        { href: "/lease-abstractor", label: "Lease Abstractor", icon: FileSearch, industry: "real_estate" },
+        { href: "/library", label: "Library", icon: BookOpen },
+      ],
+    },
+    {
+      label: "Tools",
+      items: [
+        { href: "/agent", label: "Agent", icon: Mic },
+        { href: "/properties", label: "Properties", icon: Home, industry: "real_estate" },
+        { href: "/review-tables", label: "Review tables", icon: Table2 },
+        { href: "/audit", label: "Audit log", icon: ScrollText },
+      ],
     },
   ];
 
@@ -173,38 +187,56 @@ export default function AppSidebar({
       {/* Nav items */}
       <nav className="flex-1 flex flex-col min-h-0">
         <div className="space-y-0.5">
-          {items.map((item) => {
-            if (item.feature && !features.includes(item.feature)) return null;
-            if (item.industry && industry !== item.industry) return null;
-            const active = isActive(item.href);
-            const Icon = item.icon;
+          {sections.map((section, si) => {
+            const visibleItems = section.items.filter((item) => {
+              if (item.feature && !features.includes(item.feature)) return false;
+              if (item.industry && industry !== item.industry) return false;
+              return true;
+            });
+            if (visibleItems.length === 0) return null;
             return (
-              <div key={item.href} className="px-2.5">
-                <Link
-                  href={item.href}
-                  title={!isOpen ? item.label : ""}
-                  className={`w-full h-9 flex items-center gap-3 px-2.5 py-2 rounded-md transition-colors text-left ${
-                    active
-                      ? "bg-gray-100 text-gray-900"
-                      : "hover:bg-gray-100 text-gray-700"
-                  }`}
-                >
-                  <Icon
-                    className={`h-4 w-4 flex-shrink-0 ${
-                      active ? "text-gray-900" : "text-gray-500"
-                    }`}
-                    strokeWidth={active ? 1.75 : 1.5}
-                  />
-                  {isOpen && (
-                    <span
-                      className={`text-sm font-medium ${
-                        shouldAnimate ? "sidebar-fade-in-2" : ""
-                      }`}
-                    >
-                      {item.label}
-                    </span>
-                  )}
-                </Link>
+              <div key={si}>
+                {section.label && isOpen && (
+                  <div className={`px-5 pt-4 pb-1 text-[10px] uppercase tracking-wider font-semibold text-gray-400 ${shouldAnimate ? "sidebar-fade-in" : ""}`}>
+                    {section.label}
+                  </div>
+                )}
+                {!isOpen && si > 0 && (
+                  <div className="mx-3 my-1.5 border-t border-gray-200" />
+                )}
+                {visibleItems.map((item) => {
+                  const active = isActive(item.href);
+                  const Icon = item.icon;
+                  return (
+                    <div key={item.href} className="px-2.5">
+                      <Link
+                        href={item.href}
+                        title={!isOpen ? item.label : ""}
+                        className={`w-full h-9 flex items-center gap-3 px-2.5 py-2 rounded-md transition-colors text-left ${
+                          active
+                            ? "bg-gray-100 text-gray-900"
+                            : "hover:bg-gray-100 text-gray-700"
+                        }`}
+                      >
+                        <Icon
+                          className={`h-4 w-4 flex-shrink-0 ${
+                            active ? "text-gray-900" : "text-gray-500"
+                          }`}
+                          strokeWidth={active ? 1.75 : 1.5}
+                        />
+                        {isOpen && (
+                          <span
+                            className={`text-sm font-medium ${
+                              shouldAnimate ? "sidebar-fade-in-2" : ""
+                            }`}
+                          >
+                            {item.label}
+                          </span>
+                        )}
+                      </Link>
+                    </div>
+                  );
+                })}
               </div>
             );
           })}
