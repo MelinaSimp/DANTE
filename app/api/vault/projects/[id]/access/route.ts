@@ -77,9 +77,20 @@ export async function POST(
     return NextResponse.json({ error: "admin_required" }, { status: 403 });
   }
 
+  const { data: postProject } = await supabaseAdmin
+    .from("vault_projects")
+    .select("id")
+    .eq("id", projectId)
+    .eq("workspace_id", profile.workspace_id)
+    .maybeSingle();
+  if (!postProject) {
+    return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+
   const body = await req.json().catch(() => ({}));
   const profileId = body.profile_id;
-  const accessRole = body.role || "viewer";
+  const VALID_ACCESS_ROLES = ["viewer", "editor", "admin"];
+  const accessRole = VALID_ACCESS_ROLES.includes(body.role) ? body.role : "viewer";
   if (!profileId) {
     return NextResponse.json({ error: "profile_id required" }, { status: 400 });
   }
@@ -135,6 +146,16 @@ export async function DELETE(
   }
   if (!isAdminRole(profile.role)) {
     return NextResponse.json({ error: "admin_required" }, { status: 403 });
+  }
+
+  const { data: project } = await supabaseAdmin
+    .from("vault_projects")
+    .select("id")
+    .eq("id", projectId)
+    .eq("workspace_id", profile.workspace_id)
+    .maybeSingle();
+  if (!project) {
+    return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
   const { searchParams } = new URL(req.url);

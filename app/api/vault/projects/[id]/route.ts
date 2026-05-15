@@ -47,6 +47,7 @@ export async function GET(
       "id, kind, title, description, file_url, file_size, file_type, created_at, updated_at"
     )
     .eq("project_id", id)
+    .eq("workspace_id", ctx.workspaceId)
     .order("updated_at", { ascending: false });
 
   return NextResponse.json({ ...project, items: items || [] });

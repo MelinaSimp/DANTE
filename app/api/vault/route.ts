@@ -66,12 +66,12 @@ export async function GET(request: Request) {
   if (propertyId) query = query.eq("property_id", propertyId);
   if (onlyIds) query = query.in("id", onlyIds);
   if (search) {
-    // Fuzzy across title + description + (extracted) content. Postgres
-    // ilike is fine at this scale; switch to tsvector when the corpus
-    // gets big enough that scan cost matters.
-    query = query.or(
-      `title.ilike.%${search}%,description.ilike.%${search}%,content.ilike.%${search}%`
-    );
+    const sanitized = search.replace(/[%_,().*]/g, "");
+    if (sanitized) {
+      query = query.or(
+        `title.ilike.%${sanitized}%,description.ilike.%${sanitized}%,content.ilike.%${sanitized}%`
+      );
+    }
   }
 
   const { data, error } = await query;

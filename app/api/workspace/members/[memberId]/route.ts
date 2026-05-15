@@ -142,9 +142,14 @@ export async function DELETE(
     );
   }
 
-  // Last-owner protection — the workspace must always have at least
-  // one owner so billing / role changes have somewhere to land.
-  if ((target as { role: string | null }).role === "owner") {
+  if (normalizeRole(target.role) === "owner" && normalizeRole(caller.role) !== "owner") {
+    return NextResponse.json(
+      { error: "Only owners can remove other owners." },
+      { status: 403 },
+    );
+  }
+
+  if (normalizeRole(target.role) === "owner") {
     const { count } = await supabaseAdmin
       .from("profiles")
       .select("id", { count: "exact", head: true })
@@ -168,6 +173,15 @@ export async function DELETE(
   if (updErr) {
     return NextResponse.json({ error: updErr.message }, { status: 500 });
   }
+
+  await supabaseAdmin.from("audit_logs").insert({
+    workspace_id: caller.workspace_id,
+    actor_id: user.id,
+    action: "workspace.member_removed",
+    target_type: "profile",
+    target_id: memberId,
+    metadata: { removed_role: target.role },
+  });
 
   // Best-effort session revoke so any open browser tab the removed
   // member has loses access on the next request. Failure here is

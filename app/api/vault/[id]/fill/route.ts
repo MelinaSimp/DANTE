@@ -13,7 +13,7 @@
 import { NextResponse } from "next/server";
 import { complete as llmComplete } from "@/lib/llm/client";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { canAccessProject } from "@/lib/vault/project-access";
+import { canAccessProject, getAccessibleProjectIds } from "@/lib/vault/project-access";
 
 interface Field {
   /** Short field label as it appears in the template (e.g. "Buyer Name", "Closing Date"). */
@@ -111,18 +111,25 @@ export async function POST(
           `Name: ${contact.name || "—"}\nEmail: ${contact.email || "—"}\nPhone: ${contact.phone || "—"}`
       );
 
-      // Vault docs tagged to this contact.
+      // Vault docs tagged to this contact — filtered by project access.
       const { data: tagged } = await supabase
         .from("vault_item_clients")
         .select("vault_item_id")
         .eq("contact_id", contactId);
       const ids = (tagged || []).map((t: any) => t.vault_item_id);
       if (ids.length > 0) {
-        const { data: docs } = await supabase
+        const { isAdmin: fillIsAdmin, projectIds: fillProjectIds } =
+          await getAccessibleProjectIds(supabase, user.id, workspaceId);
+        let docsQuery = supabase
           .from("vault_items")
-          .select("id, title, content")
+          .select("id, title, content, project_id")
           .in("id", ids)
           .eq("workspace_id", workspaceId);
+        if (!fillIsAdmin && fillProjectIds) {
+          const allowed = fillProjectIds.length > 0 ? fillProjectIds : ["00000000-0000-0000-0000-000000000000"];
+          docsQuery = docsQuery.or(`project_id.in.(${allowed.join(",")}),project_id.is.null`);
+        }
+        const { data: docs } = await docsQuery;
         for (const d of docs || []) {
           if (d.content && d.content.trim().length > 0) {
             contextParts.push(

@@ -600,13 +600,24 @@ async function dispatchTool(
       return { hits, formatted: formatRegulatoryHitsForPrompt(hits) };
     }
     case "inconsistency.detect": {
-      // Cross-document contradiction detection — the thing Harvey
-      // explicitly disclaims. See lib/dante/tools/inconsistency-
-      // detect.ts for the design rationale.
       try {
-        const docIds = Array.isArray(args.doc_ids)
+        let docIds = Array.isArray(args.doc_ids)
           ? (args.doc_ids as unknown[]).map((x) => String(x)).filter(Boolean)
           : [];
+        if (docIds.length > 0 && ctx.accessibleProjectIds) {
+          const { data: docRows } = await supabaseAdmin
+            .from("vault_items")
+            .select("id, project_id")
+            .in("id", docIds)
+            .eq("workspace_id", ctx.workspaceId);
+          const allowed = new Set(ctx.accessibleProjectIds);
+          docIds = (docRows || [])
+            .filter((d: any) => !d.project_id || allowed.has(d.project_id))
+            .map((d: any) => d.id);
+        }
+        if (docIds.length < 2) {
+          return { findings: [], formatted: "(need at least 2 accessible documents to compare)" };
+        }
         const question = String(args.question || "");
         const result = await detectInconsistencies({
           workspaceId: ctx.workspaceId,
@@ -788,18 +799,22 @@ async function dispatchTool(
       return { status: res.status, ok: res.ok, body: parsed };
     }
     case "vault.cite": {
-      // Wraps archive.search but reformats hits so the model can drop
-      // them straight into a draft. Markers like [v1], [v2] are stable
-      // within a single tool call so the model can reference them in
-      // the email body without re-listing the source.
-      const hits = await searchArchive({
+      const citeProject = args.project_id ? String(args.project_id) : ctx.projectId;
+      if (citeProject && ctx.accessibleProjectIds && !ctx.accessibleProjectIds.includes(citeProject)) {
+        return { citations: [] };
+      }
+      let citeHits = await searchArchive({
         workspaceId: ctx.workspaceId,
         query: String(args.query || ""),
         k: Math.min(Math.max(Number(args.k) || 3, 1), 10),
-        projectId: args.project_id ? String(args.project_id) : ctx.projectId,
+        projectId: citeProject,
       });
+      if (!citeProject && ctx.accessibleProjectIds) {
+        const allowed = new Set(ctx.accessibleProjectIds);
+        citeHits = citeHits.filter((h) => !h.project_id || allowed.has(h.project_id));
+      }
       return {
-        citations: hits.map((h, i) => ({
+        citations: citeHits.map((h, i) => ({
           marker: `[v${i + 1}]`,
           quote: h.content.trim().slice(0, 400),
           source: h.document_title,

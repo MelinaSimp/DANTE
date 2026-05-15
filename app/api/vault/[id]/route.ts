@@ -6,7 +6,7 @@
 
 import { createServerSupabase } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
-import { canAccessProject } from "@/lib/vault/project-access";
+import { canAccessProject, getAccessibleProjectIds } from "@/lib/vault/project-access";
 
 async function loadAuth() {
   const supabase = await createServerSupabase();
@@ -101,8 +101,14 @@ export async function PATCH(
 
   const body = await request.json();
 
-  if (body.project_id && body.project_id !== existing.project_id) {
-    if (!(await canAccessProject(ctx.supabase, ctx.user.id, ctx.workspaceId, body.project_id))) {
+  const changingProject =
+    ("project_id" in body) && body.project_id !== existing.project_id;
+  if (changingProject) {
+    const { isAdmin } = await getAccessibleProjectIds(ctx.supabase, ctx.user.id, ctx.workspaceId);
+    if (!isAdmin) {
+      return NextResponse.json({ error: "Only admins can reassign project" }, { status: 403 });
+    }
+    if (body.project_id && !(await canAccessProject(ctx.supabase, ctx.user.id, ctx.workspaceId, body.project_id))) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
   }
