@@ -19,6 +19,7 @@ import {
   Cpu,
   Palette,
   ShieldCheck,
+  HardDrive,
 } from "lucide-react";
 
 const PhoneNumbersCard = lazy(() => import("./PhoneNumbersCard"));
@@ -28,6 +29,7 @@ const SkillsCard = lazy(() => import("./SkillsCard"));
 const ModelCard = lazy(() => import("./ModelCard"));
 const AppearanceCard = lazy(() => import("./AppearanceCard"));
 const PrivacyModeCard = lazy(() => import("./PrivacyModeCard"));
+const LocalSetupCard = lazy(() => import("./LocalSetupCard"));
 
 import BillingCard from "./BillingCard";
 import ExportDataCard from "./ExportDataCard";
@@ -42,7 +44,8 @@ type PanelId =
   | "export"
   | "model"
   | "appearance"
-  | "privacy_mode";
+  | "privacy_mode"
+  | "local_setup";
 
 const PANEL_TITLES: Record<PanelId, string> = {
   phone_numbers: "Phone numbers",
@@ -55,6 +58,7 @@ const PANEL_TITLES: Record<PanelId, string> = {
   model: "Agent model",
   appearance: "Appearance",
   privacy_mode: "Privacy mode",
+  local_setup: "Local setup",
 };
 
 const PANEL_SUBTITLES: Record<PanelId, string> = {
@@ -76,6 +80,8 @@ const PANEL_SUBTITLES: Record<PanelId, string> = {
     "Light, dark, or follow your system. Persists per-device.",
   privacy_mode:
     "Cloud vs. local-only processing. Local mode runs Hermes 3 on each user's machine via the Drift desktop app — content never leaves the laptop.",
+  local_setup:
+    "Install and manage local services — Ollama for on-device AI and the file watcher daemon for automatic document sync.",
 };
 
 interface NavItem {
@@ -97,6 +103,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { name: "Dante skills", icon: Sparkles, panelId: "skills", group: "Workspace" },
   { name: "Billing", icon: CreditCard, panelId: "billing", group: "Workspace" },
   { name: "Appearance", icon: Palette, panelId: "appearance", group: "Workspace" },
+  { name: "Local setup", icon: HardDrive, panelId: "local_setup", adminOnly: true, group: "Administration" },
   { name: "Privacy mode", icon: ShieldCheck, panelId: "privacy_mode", adminOnly: true, group: "Administration" },
   { name: "Agent model", icon: Cpu, panelId: "model", adminOnly: true, group: "Administration" },
   { name: "Export", icon: Download, panelId: "export", adminOnly: true, group: "Administration" },
@@ -171,6 +178,8 @@ export default function SettingsOrbClient({
         return <AppearanceCard />;
       case "privacy_mode":
         return <PrivacyModeCard />;
+      case "local_setup":
+        return <LocalSetupCard />;
       default:
         return null;
     }
