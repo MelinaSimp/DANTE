@@ -4,6 +4,7 @@
 
 import { createServerSupabase } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { canAccessProject } from "@/lib/vault/project-access";
 
 async function loadAuth() {
   const supabase = await createServerSupabase();
@@ -17,7 +18,7 @@ async function loadAuth() {
     .eq("id", user.id)
     .single();
   if (!profile?.workspace_id) return null;
-  return { supabase, workspaceId: profile.workspace_id as string };
+  return { supabase, userId: user.id, workspaceId: profile.workspace_id as string };
 }
 
 export async function GET(
@@ -27,6 +28,10 @@ export async function GET(
   const ctx = await loadAuth();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
+
+  if (!(await canAccessProject(ctx.supabase, ctx.userId, ctx.workspaceId, id))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const { data: project } = await ctx.supabase
     .from("vault_projects")
@@ -54,6 +59,11 @@ export async function PATCH(
   const ctx = await loadAuth();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
+
+  if (!(await canAccessProject(ctx.supabase, ctx.userId, ctx.workspaceId, id))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const body = await request.json();
   const updates: Record<string, unknown> = {};
   if (typeof body.name === "string" && body.name.trim()) updates.name = body.name.trim();
@@ -79,6 +89,11 @@ export async function DELETE(
   const ctx = await loadAuth();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
+
+  if (!(await canAccessProject(ctx.supabase, ctx.userId, ctx.workspaceId, id))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   // Items in this project: ON DELETE SET NULL via the FK, so they
   // stay in the vault but become "loose" — not destroyed.
   const { error } = await ctx.supabase

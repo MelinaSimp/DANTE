@@ -19,12 +19,15 @@ export async function POST(
 
   const { data: folder } = await supabaseAdmin
     .from("watched_folders")
-    .select("id, workspace_id, folder_path, default_vault_project_id, default_processing_mode, watcher_token")
+    .select("id, workspace_id, folder_path, default_vault_project_id, default_processing_mode, watcher_token, token_expires_at")
     .eq("watcher_token", token)
     .maybeSingle();
 
   if (!folder) {
     return NextResponse.json({ error: "invalid token" }, { status: 401 });
+  }
+  if (folder.token_expires_at && new Date(folder.token_expires_at) < new Date()) {
+    return NextResponse.json({ error: "token expired" }, { status: 401 });
   }
 
   const { data: cr } = await supabaseAdmin

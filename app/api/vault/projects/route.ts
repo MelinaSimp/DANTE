@@ -7,6 +7,7 @@
 
 import { createServerSupabase } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { getAccessibleProjectIds } from "@/lib/vault/project-access";
 
 export async function GET() {
   const supabase = await createServerSupabase();
@@ -22,11 +23,23 @@ export async function GET() {
     .single();
   if (!profile?.workspace_id) return NextResponse.json([]);
 
-  const { data: projects, error } = await supabase
+  const { isAdmin, projectIds } = await getAccessibleProjectIds(
+    supabase,
+    user.id,
+    profile.workspace_id,
+  );
+
+  let projectQuery = supabase
     .from("vault_projects")
     .select("id, name, description, created_at, updated_at")
     .eq("workspace_id", profile.workspace_id)
     .order("updated_at", { ascending: false });
+
+  if (!isAdmin && projectIds) {
+    projectQuery = projectQuery.in("id", projectIds.length > 0 ? projectIds : ["00000000-0000-0000-0000-000000000000"]);
+  }
+
+  const { data: projects, error } = await projectQuery;
 
   if (error) {
     console.error("vault projects GET:", error);

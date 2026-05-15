@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.driftai.watcher</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/node</string>
+    <string>__INSTALL_DIR__/index.js</string>
+    <string>--token</string>
+    <string>__WATCHER_TOKEN__</string>
+    <string>--folder</string>
+    <string>__WATCH_FOLDER__</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/drift-watcher.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/tmp/drift-watcher.err</string>
+</dict>
+</plist>

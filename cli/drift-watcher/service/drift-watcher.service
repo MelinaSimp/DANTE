@@ -1,0 +1,16 @@
+[Unit]
+Description=Drift AI file watcher daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/node __INSTALL_DIR__/index.js --token __WATCHER_TOKEN__ --folder __WATCH_FOLDER__
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=drift-watcher
+
+[Install]
+WantedBy=default.target

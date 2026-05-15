@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { canAccessProject } from "@/lib/vault/project-access";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,10 @@ export async function GET(
   }
 
   const isLoose = projectId === "loose";
+
+  if (!isLoose && !(await canAccessProject(supabase, user.id, profile.workspace_id, projectId))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   let query = supabaseAdmin
     .from("watched_file_index")

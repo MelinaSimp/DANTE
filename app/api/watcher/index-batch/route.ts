@@ -21,12 +21,15 @@ export async function POST(req: Request) {
 
   const { data: folder } = await supabaseAdmin
     .from("watched_folders")
-    .select("id, workspace_id, status")
+    .select("id, workspace_id, status, token_expires_at")
     .eq("watcher_token", token)
     .maybeSingle();
 
   if (!folder) {
     return NextResponse.json({ error: "invalid token" }, { status: 401 });
+  }
+  if (folder.token_expires_at && new Date(folder.token_expires_at) < new Date()) {
+    return NextResponse.json({ error: "token expired" }, { status: 401 });
   }
   if (folder.status !== "active") {
     return NextResponse.json({ error: `folder is ${folder.status}` }, { status: 409 });
