@@ -356,6 +356,53 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
       },
     },
   },
+
+  "file_index.search": {
+    type: "function",
+    function: {
+      name: "file_index_search",
+      description:
+        "Search the workspace's file index across all connected file servers. Returns file metadata (name, path, size, extension, last modified) and ingest status. Use this when the user references a file by name, asks you to find a document on their file server, or when you need to locate a file before reading its contents. Files marked 'indexed' have metadata only — call file_index.ingest to retrieve their full content into the vault so you can search it.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "Search query — matches against filename and path. Use keywords the filename would contain.",
+          },
+          extensions: {
+            type: "array",
+            items: { type: "string" },
+            description: "Optional extension filter, e.g. ['pdf', 'docx']. Omit to search all file types.",
+          },
+          limit: {
+            type: "number",
+            description: "Max results (1-50, default 10).",
+          },
+        },
+        required: ["query"],
+      },
+    },
+  },
+
+  "file_index.ingest": {
+    type: "function",
+    function: {
+      name: "file_index_ingest",
+      description:
+        "Request on-demand content retrieval for an indexed file. Use AFTER file_index.search finds a relevant file with ingest_status='indexed' (metadata only). The system requests the file content from the user's local file watcher, extracts text, and ingests into the vault. Returns the vault_item_id once ready, which you can then search with vault.cite. May take 10-30 seconds for the watcher to extract and upload the content. If the file is already ingested, returns the existing vault_item_id immediately.",
+      parameters: {
+        type: "object",
+        properties: {
+          index_entry_id: {
+            type: "string",
+            description: "The watched_file_index ID from file_index.search results.",
+          },
+        },
+        required: ["index_entry_id"],
+      },
+    },
+  },
 };
 
 // Inverse map: function-name string → AgentToolName. The OpenAI API
@@ -376,6 +423,8 @@ const NAME_TO_TOOL: Record<string, AgentToolName> = {
   skill_run: "skill.run",
   reminder_schedule: "reminder.schedule",
   workflow_propose: "workflow.propose",
+  file_index_search: "file_index.search",
+  file_index_ingest: "file_index.ingest",
 };
 
 // ── Tool executor adapters ────────────────────────────────────
@@ -409,6 +458,8 @@ const PER_TOOL_BUDGET: Partial<Record<AgentToolName, number>> = {
   "rmd.calculate": 10,    // a multi-account briefing might compute several at once
   "inconsistency.detect": 4, // expensive (full doc content in prompt); rarely needs more
   "workflow.propose": 2,  // one ask = one proposal; cap covers a "and also..." follow-up
+  "file_index.search": 5,
+  "file_index.ingest": 3,
 };
 
 /**
@@ -971,6 +1022,113 @@ async function dispatchTool(
           "Drafted as a pending proposal. The user can Accept or Decline from /reminders or the dashboard.",
       };
     }
+
+    case "file_index.search": {
+      const q = String(args.query || "").trim();
+      if (!q) return { error: "file_index.search: 'query' required." };
+      const k = Math.min(50, Math.max(1, Number(args.limit) || 10));
+      const exts: string[] = Array.isArray(args.extensions) ? args.extensions : [];
+
+      const params = new URLSearchParams({ q, limit: String(k) });
+      if (exts.length) params.set("extensions", exts.join(","));
+
+      const query = supabaseAdmin
+        .from("watched_file_index")
+        .select("id, file_name, file_path, file_extension, file_size_bytes, ingest_status, vault_item_id, last_seen_at")
+        .eq("workspace_id", ctx.workspaceId)
+        .is("deleted_at", null)
+        .textSearch("search_tsv", q, { type: "websearch" })
+        .order("last_seen_at", { ascending: false })
+        .limit(k);
+
+      if (exts.length) {
+        query.in("file_extension", exts);
+      }
+
+      const { data: files, error: searchErr } = await query;
+      if (searchErr) return { error: `file_index.search: ${searchErr.message}` };
+
+      return {
+        results: (files || []).map((f) => ({
+          id: f.id,
+          name: f.file_name,
+          path: f.file_path,
+          extension: f.file_extension,
+          size_bytes: f.file_size_bytes,
+          status: f.ingest_status,
+          vault_item_id: f.vault_item_id,
+        })),
+        total: (files || []).length,
+        hint: "Files with status='indexed' have metadata only. Call file_index.ingest to retrieve their content into the vault.",
+      };
+    }
+
+    case "file_index.ingest": {
+      const entryId = String(args.index_entry_id || "").trim();
+      if (!entryId) return { error: "file_index.ingest: 'index_entry_id' required." };
+
+      const { data: entry } = await supabaseAdmin
+        .from("watched_file_index")
+        .select("id, folder_id, file_path, file_name, ingest_status, vault_item_id")
+        .eq("id", entryId)
+        .eq("workspace_id", ctx.workspaceId)
+        .maybeSingle();
+
+      if (!entry) return { error: "file_index.ingest: index entry not found." };
+
+      if (entry.ingest_status === "ingested" && entry.vault_item_id) {
+        return {
+          already_ingested: true,
+          vault_item_id: entry.vault_item_id,
+          message: `${entry.file_name} is already in the vault. Use vault.cite with this vault_item_id to search its contents.`,
+        };
+      }
+
+      if (entry.ingest_status === "ingest_requested" || entry.ingest_status === "ingesting") {
+        // Already in progress — poll for completion
+      } else {
+        const { error: crErr } = await supabaseAdmin
+          .from("content_requests")
+          .insert({
+            workspace_id: ctx.workspaceId,
+            folder_id: entry.folder_id,
+            index_entry_id: entry.id,
+            file_path: entry.file_path,
+            requested_by: `dante:${ctx.runId}`,
+          });
+        if (crErr) return { error: `file_index.ingest: ${crErr.message}` };
+
+        await supabaseAdmin
+          .from("watched_file_index")
+          .update({ ingest_status: "ingest_requested" })
+          .eq("id", entryId);
+      }
+
+      // Poll up to 30s for the watcher to fulfill the request
+      for (let i = 0; i < 15; i++) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const { data: check } = await supabaseAdmin
+          .from("watched_file_index")
+          .select("ingest_status, vault_item_id")
+          .eq("id", entryId)
+          .maybeSingle();
+        if (check?.ingest_status === "ingested" && check.vault_item_id) {
+          return {
+            ingested: true,
+            vault_item_id: check.vault_item_id,
+            message: `${entry.file_name} has been ingested into the vault. Use vault.cite with this vault_item_id to search its contents.`,
+          };
+        }
+        if (check?.ingest_status === "ingest_failed") {
+          return { error: `Ingest failed for ${entry.file_name}. The file watcher could not retrieve or process the file.` };
+        }
+      }
+
+      return {
+        pending: true,
+        message: `Content retrieval for ${entry.file_name} is still in progress. The file watcher may be offline or busy. Ask the user to check that their Drift desktop app or watcher daemon is running, then try again.`,
+      };
+    }
   }
 }
 
@@ -1215,6 +1373,8 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       "skill.run": 0,
       "reminder.schedule": 0,
       "workflow.propose": 0,
+      "file_index.search": 0,
+      "file_index.ingest": 0,
     },
   };
 
@@ -1482,6 +1642,8 @@ function synthesizeSummary(
   const names = toolCalls.map((c) => c.function.name);
   if (names.includes("memory_search")) return "Checking memory…";
   if (names.includes("archive_search") || names.includes("vault_cite")) return "Searching the vault…";
+  if (names.includes("file_index_search")) return "Searching the file index…";
+  if (names.includes("file_index_ingest")) return "Retrieving file content…";
   if (names.includes("clients_query")) return "Looking up contacts…";
   if (names.includes("skill_run")) return "Running a skill…";
   if (names.some((n) => n.startsWith("mcp__"))) return "Calling an external tool…";

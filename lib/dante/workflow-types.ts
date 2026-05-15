@@ -158,7 +158,9 @@ export type AgentToolName =
   | "regulatory.search" // workspace-shared regulatory corpus (SEC / IRS / DOL / HUD / FINRA)
   | "rmd.calculate"     // deterministic Required Minimum Distribution math with IRS citations
   | "inconsistency.detect" // cross-document contradiction detection
-  | "workflow.propose"; // draft a persistent workflow for the user to accept or decline
+  | "workflow.propose" // draft a persistent workflow for the user to accept or decline
+  | "file_index.search"   // search the watched file index by filename/path
+  | "file_index.ingest";  // trigger on-demand content retrieval for an indexed file
 
 export type AgentToolEntry =
   | AgentToolName

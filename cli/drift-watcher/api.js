@@ -23,7 +23,41 @@ function createClient({ apiUrl, token }) {
     return res;
   }
 
-  return { notify };
+  async function indexBatch(files) {
+    const url = `${base}/api/watcher/index-batch`;
+    const body = JSON.stringify({ files });
+    return request(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body,
+    });
+  }
+
+  async function getContentRequests() {
+    const url = `${base}/api/watcher/content-requests`;
+    return request(url, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
+
+  async function fulfillContentRequest(requestId, extractedText) {
+    const url = `${base}/api/watcher/content-requests/${requestId}/fulfill`;
+    const body = JSON.stringify({ extracted_text: extractedText });
+    return request(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body,
+    });
+  }
+
+  return { notify, indexBatch, getContentRequests, fulfillContentRequest };
 }
 
 function request(url, opts) {

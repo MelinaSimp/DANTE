@@ -41,6 +41,7 @@ function parseArgs() {
     depth: 8,
     extensions: [],
     dryRun: false,
+    indexOnly: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -62,6 +63,9 @@ function parseArgs() {
         break;
       case "--dry-run":
         opts.dryRun = true;
+        break;
+      case "--index-only":
+        opts.indexOnly = true;
         break;
       case "--help":
       case "-h":
@@ -106,6 +110,7 @@ Options:
   --api-url <url>       Drift API URL (default: https://driftai.studio)
   --depth <n>           Max recursion depth (default: 8)
   --extensions <list>   Comma-separated extensions, e.g. "pdf,docx,txt"
+  --index-only          Metadata-only mode (no text extraction, fast for large servers)
   --dry-run             Log events without calling the API
   --help                Show this help
 `);
@@ -144,6 +149,39 @@ function isJunkFile(fileName) {
     fileName.endsWith(".swp") ||
     fileName.endsWith(".part")
   );
+}
+
+async function indexOnly(filePath, opts, indexBuffer) {
+  const fileName = path.basename(filePath);
+  const ext = (path.extname(fileName).slice(1) || "").toLowerCase();
+  if (isJunkFile(fileName)) return;
+  if (opts.extensions.length > 0 && !opts.extensions.includes(ext)) return;
+
+  let stat;
+  try { stat = fs.statSync(filePath); } catch { return; }
+  if (!stat.isFile()) return;
+
+  const sha256 = await hashFile(filePath);
+
+  indexBuffer.push({
+    file_path: filePath,
+    file_name: fileName,
+    file_extension: ext,
+    file_size_bytes: stat.size,
+    content_sha256: sha256,
+    file_modified_at: stat.mtime.toISOString(),
+  });
+}
+
+async function flushIndexBuffer(indexBuffer, api) {
+  if (indexBuffer.length === 0) return;
+  const batch = indexBuffer.splice(0, 500);
+  try {
+    const res = await api.indexBatch(batch);
+    log(`indexed ${batch.length} files (status ${res.status})`);
+  } catch (err) {
+    log(`index-batch error: ${err.message}`);
+  }
 }
 
 async function processAndSend(filePath, kind, opts, api) {
@@ -270,14 +308,30 @@ async function initialScan(folderPath, opts, api) {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   let processed = 0;
 
-  for (const file of allFiles) {
-    await processAndSend(file.path, "scan", opts, api);
-    processed++;
-    if (processed % 50 === 0) {
-      log(`progress: ${processed}/${allFiles.length} files`);
-      await sleep(250);
-    } else {
-      await sleep(25);
+  if (opts.indexOnly) {
+    const indexBuffer = [];
+    for (const file of allFiles) {
+      await indexOnly(file.path, opts, indexBuffer);
+      if (indexBuffer.length >= 500) {
+        await flushIndexBuffer(indexBuffer, api);
+      }
+      processed++;
+      if (processed % 200 === 0) {
+        log(`progress: ${processed}/${allFiles.length} files indexed`);
+        await sleep(50);
+      }
+    }
+    await flushIndexBuffer(indexBuffer, api);
+  } else {
+    for (const file of allFiles) {
+      await processAndSend(file.path, "scan", opts, api);
+      processed++;
+      if (processed % 50 === 0) {
+        log(`progress: ${processed}/${allFiles.length} files`);
+        await sleep(250);
+      } else {
+        await sleep(25);
+      }
     }
   }
 
@@ -299,6 +353,7 @@ function startLiveWatcher(folderPath, opts, api) {
     depth: opts.depth,
   });
 
+  const liveIndexBuffer = [];
   function debounced(filePath, kind) {
     if (debouncers.has(filePath)) clearTimeout(debouncers.get(filePath));
     debouncers.set(
@@ -306,12 +361,26 @@ function startLiveWatcher(folderPath, opts, api) {
       setTimeout(async () => {
         debouncers.delete(filePath);
         try {
-          await processAndSend(filePath, kind, opts, api);
+          if (opts.indexOnly) {
+            await indexOnly(filePath, opts, liveIndexBuffer);
+            if (liveIndexBuffer.length >= 50) {
+              await flushIndexBuffer(liveIndexBuffer, api);
+            }
+          } else {
+            await processAndSend(filePath, kind, opts, api);
+          }
         } catch (err) {
           log(`process error: ${filePath}: ${err.message}`);
         }
       }, DEBOUNCE_MS),
     );
+  }
+
+  // Periodic flush for index_only live events
+  if (opts.indexOnly) {
+    setInterval(() => {
+      if (liveIndexBuffer.length > 0) flushIndexBuffer(liveIndexBuffer, api);
+    }, 2000);
   }
 
   watcher.on("add", (fp) => debounced(fp, "added"));
@@ -332,6 +401,7 @@ async function main() {
   log(`api:     ${opts.apiUrl}`);
   log(`depth:   ${opts.depth}`);
   log(`exts:    ${opts.extensions.length ? opts.extensions.join(", ") : "(all)"}`);
+  log(`mode:    ${opts.indexOnly ? "index-only" : "full ingest"}`);
   log(`dry-run: ${opts.dryRun}`);
   log("");
 
@@ -341,13 +411,45 @@ async function main() {
 
   log("live watcher active — press Ctrl+C to stop");
 
+  // Content request polling — fulfills on-demand ingest requests from Dante/UI
+  let crPolling = true;
+  const pollContentRequests = async () => {
+    while (crPolling) {
+      try {
+        const res = await api.getContentRequests();
+        if (res.status === 200 && res.data?.requests?.length > 0) {
+          for (const cr of res.data.requests) {
+            log(`content request: extracting ${cr.file_path}`);
+            try {
+              const result = await extractText(cr.file_path);
+              if (result.text) {
+                const fulfillRes = await api.fulfillContentRequest(cr.id, result.text);
+                log(`fulfilled content request ${cr.id} (status ${fulfillRes.status})`);
+              } else {
+                log(`no text extracted for ${cr.file_path}`);
+              }
+            } catch (err) {
+              log(`content request fulfill error: ${err.message}`);
+            }
+          }
+        }
+      } catch {
+        // network error, retry next cycle
+      }
+      await new Promise((r) => setTimeout(r, 5000));
+    }
+  };
+  pollContentRequests();
+
   process.on("SIGINT", () => {
     log("shutting down…");
+    crPolling = false;
     watcher.close();
     process.exit(0);
   });
   process.on("SIGTERM", () => {
     log("shutting down…");
+    crPolling = false;
     watcher.close();
     process.exit(0);
   });

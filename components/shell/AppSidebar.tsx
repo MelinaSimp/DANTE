@@ -105,7 +105,7 @@ export default function AppSidebar({
     { href: "/agent", label: "Agent", icon: Mic },
     { href: "/vault", label: "Vault", icon: FolderClosed },
     { href: "/lease-abstractor", label: "Lease Abstractor", icon: FileSearch },
-    { href: "/dante/pending-files", label: "Watched files", icon: FileClock },
+    { href: "/dante/file-index", label: "File index", icon: FileSearch },
     { href: "/review-tables", label: "Review tables", icon: Table2 },
     { href: "/library", label: "Library", icon: BookOpen },
     { href: "/reminders", label: "Reminders", icon: Bell },
