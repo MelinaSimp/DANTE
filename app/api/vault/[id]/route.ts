@@ -6,6 +6,7 @@
 
 import { createServerSupabase } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { canAccessProject } from "@/lib/vault/project-access";
 
 async function loadAuth() {
   const supabase = await createServerSupabase();
@@ -38,6 +39,10 @@ export async function GET(
     .maybeSingle();
   if (error || !item) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  if (item.project_id && !(await canAccessProject(ctx.supabase, ctx.user.id, ctx.workspaceId, item.project_id))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const { data: links } = await ctx.supabase
@@ -83,7 +88,25 @@ export async function PATCH(
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
 
+  const { data: existing } = await ctx.supabase
+    .from("vault_items")
+    .select("project_id")
+    .eq("id", id)
+    .eq("workspace_id", ctx.workspaceId)
+    .maybeSingle();
+  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (existing.project_id && !(await canAccessProject(ctx.supabase, ctx.user.id, ctx.workspaceId, existing.project_id))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const body = await request.json();
+
+  if (body.project_id && body.project_id !== existing.project_id) {
+    if (!(await canAccessProject(ctx.supabase, ctx.user.id, ctx.workspaceId, body.project_id))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  }
+
   const updates: Record<string, unknown> = {};
   if (typeof body.title === "string") updates.title = body.title.trim();
   if (typeof body.description === "string") updates.description = body.description.trim() || null;
@@ -120,6 +143,16 @@ export async function DELETE(
   const ctx = await loadAuth();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
+
+  const { data: delItem } = await ctx.supabase
+    .from("vault_items")
+    .select("project_id")
+    .eq("id", id)
+    .eq("workspace_id", ctx.workspaceId)
+    .maybeSingle();
+  if (delItem?.project_id && !(await canAccessProject(ctx.supabase, ctx.user.id, ctx.workspaceId, delItem.project_id))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const { error } = await ctx.supabase
     .from("vault_items")

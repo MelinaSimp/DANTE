@@ -7,6 +7,7 @@
 
 import { createServerSupabase } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { getAccessibleProjectIds } from "@/lib/vault/project-access";
 
 const VALID_KINDS = ["template", "document"];
 
@@ -42,6 +43,12 @@ export async function GET(request: Request) {
     if (onlyIds.length === 0) return NextResponse.json([]);
   }
 
+  const { isAdmin, projectIds } = await getAccessibleProjectIds(
+    supabase,
+    user.id,
+    profile.workspace_id,
+  );
+
   let query = supabase
     .from("vault_items")
     .select(
@@ -49,6 +56,11 @@ export async function GET(request: Request) {
     )
     .eq("workspace_id", profile.workspace_id)
     .order("updated_at", { ascending: false });
+
+  if (!isAdmin && projectIds) {
+    const allowed = projectIds.length > 0 ? projectIds : ["00000000-0000-0000-0000-000000000000"];
+    query = query.or(`project_id.in.(${allowed.join(",")}),project_id.is.null`);
+  }
 
   if (kind && VALID_KINDS.includes(kind)) query = query.eq("kind", kind);
   if (propertyId) query = query.eq("property_id", propertyId);
@@ -90,6 +102,13 @@ export async function POST(request: Request) {
   const title = (body.title || "").trim();
   if (!title) return NextResponse.json({ error: "Title required" }, { status: 400 });
   const kind = VALID_KINDS.includes(body.kind) ? body.kind : "document";
+
+  if (body.project_id) {
+    const { canAccessProject } = await import("@/lib/vault/project-access");
+    if (!(await canAccessProject(supabase, user.id, profile.workspace_id, body.project_id))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  }
 
   const insert: Record<string, unknown> = {
     workspace_id: profile.workspace_id,

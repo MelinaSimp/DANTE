@@ -2,6 +2,7 @@
 
 import { createServerSupabase } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { canAccessProject } from "@/lib/vault/project-access";
 
 async function loadAuth() {
   const supabase = await createServerSupabase();
@@ -15,17 +16,21 @@ async function loadAuth() {
     .eq("id", user.id)
     .single();
   if (!profile?.workspace_id) return null;
-  return { supabase, workspaceId: profile.workspace_id as string };
+  return { supabase, userId: user.id, workspaceId: profile.workspace_id as string };
 }
 
-async function ownsItem(supabase: any, itemId: string, workspaceId: string) {
+async function ownsItem(supabase: any, userId: string, itemId: string, workspaceId: string) {
   const { data } = await supabase
     .from("vault_items")
-    .select("id")
+    .select("id, project_id")
     .eq("id", itemId)
     .eq("workspace_id", workspaceId)
     .maybeSingle();
-  return !!data;
+  if (!data) return false;
+  if (data.project_id && !(await canAccessProject(supabase, userId, workspaceId, data.project_id))) {
+    return false;
+  }
+  return true;
 }
 
 export async function POST(
@@ -35,7 +40,7 @@ export async function POST(
   const ctx = await loadAuth();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id: itemId } = await params;
-  if (!(await ownsItem(ctx.supabase, itemId, ctx.workspaceId))) {
+  if (!(await ownsItem(ctx.supabase, ctx.userId, itemId, ctx.workspaceId))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
@@ -70,7 +75,7 @@ export async function DELETE(
   const ctx = await loadAuth();
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id: itemId } = await params;
-  if (!(await ownsItem(ctx.supabase, itemId, ctx.workspaceId))) {
+  if (!(await ownsItem(ctx.supabase, ctx.userId, itemId, ctx.workspaceId))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

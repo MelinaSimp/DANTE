@@ -20,7 +20,8 @@ RETURNS TABLE (
   content         TEXT,
   similarity      DOUBLE PRECISION,
   document_title  TEXT,
-  document_kind   TEXT
+  document_kind   TEXT,
+  project_id      UUID
 )
 LANGUAGE sql STABLE
 AS $$
@@ -32,7 +33,8 @@ AS $$
     c.content,
     1 - (c.embedding <=> p_query_embedding) AS similarity,
     v.title        AS document_title,
-    v.kind         AS document_kind
+    v.kind         AS document_kind,
+    v.project_id   AS project_id
   FROM vault_item_chunks c
   JOIN vault_items v ON v.id = c.item_id
   WHERE c.workspace_id = p_workspace_id

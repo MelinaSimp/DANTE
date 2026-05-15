@@ -26,6 +26,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { complete as llmComplete } from "@/lib/llm/client";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { runAgent, type AgentEvent } from "@/lib/dante/agent";
+import { getAccessibleProjectIds } from "@/lib/vault/project-access";
 import {
   buildDanteSystemPrompt,
   getAssistantName,
@@ -80,6 +81,9 @@ export async function POST(req: NextRequest) {
     .eq("id", user.id)
     .maybeSingle();
   if (!profile?.workspace_id) return jsonError(400, "no workspace");
+
+  const { isAdmin: isUserAdmin, projectIds: userProjectIds } =
+    await getAccessibleProjectIds(supabase, user.id, profile.workspace_id);
 
   const { data: workspace } = await supabaseAdmin
     .from("workspaces")
@@ -379,6 +383,7 @@ export async function POST(req: NextRequest) {
           contactId: contextContactId,
           chatId,
           projectId: contextProjectId,
+          accessibleProjectIds: isUserAdmin ? null : userProjectIds,
           forcedProcessingMode,
           onEvent: (event: AgentEvent) => {
             send(event);

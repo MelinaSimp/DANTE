@@ -64,4 +64,5 @@ export interface ArchiveSearchHit {
   similarity: number;
   document_title: string;
   document_kind: ArchiveKind | null;
+  project_id?: string | null;
 }

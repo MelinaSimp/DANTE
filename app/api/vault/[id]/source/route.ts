@@ -19,6 +19,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { canAccessProject } from "@/lib/vault/project-access";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -48,12 +49,16 @@ export async function GET(
 
   const { data: row } = await supabaseAdmin
     .from("vault_items")
-    .select("id, workspace_id, file_url, file_type, title")
+    .select("id, workspace_id, file_url, file_type, title, project_id")
     .eq("id", id)
     .eq("workspace_id", workspaceId)
     .maybeSingle();
   if (!row) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+  if ((row as { project_id?: string | null }).project_id &&
+      !(await canAccessProject(sb, user.id, workspaceId, (row as { project_id: string }).project_id))) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
   const item = row as {
     id: string;

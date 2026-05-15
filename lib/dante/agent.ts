@@ -447,6 +447,8 @@ interface AgentToolCtx {
   parentStepId: string;
   /** When set, archive.search and vault.cite scope to this project. */
   projectId?: string;
+  /** For non-admin users, the project IDs they can access. null = unrestricted. */
+  accessibleProjectIds?: string[] | null;
 }
 
 const PER_TOOL_BUDGET: Partial<Record<AgentToolName, number>> = {
@@ -541,13 +543,21 @@ async function dispatchTool(
       return result;
     }
     case "archive.search": {
-      const hits = await searchArchive({
+      const requestedProject = args.project_id ? String(args.project_id) : ctx.projectId;
+      if (requestedProject && ctx.accessibleProjectIds && !ctx.accessibleProjectIds.includes(requestedProject)) {
+        return { hits: [], formatted: "(no access to this project)" };
+      }
+      let hits = await searchArchive({
         workspaceId: ctx.workspaceId,
         query: String(args.query || ""),
         k: Number(args.k) || 5,
         kindFilter: args.kind ? String(args.kind) : undefined,
-        projectId: args.project_id ? String(args.project_id) : ctx.projectId,
+        projectId: requestedProject,
       });
+      if (!requestedProject && ctx.accessibleProjectIds) {
+        const allowed = new Set(ctx.accessibleProjectIds);
+        hits = hits.filter((h) => !h.project_id || allowed.has(h.project_id));
+      }
       return { hits, formatted: formatHitsForPrompt(hits) };
     }
     case "regulatory.search": {
@@ -1212,6 +1222,8 @@ export interface AgentRunInput {
   forcedProcessingMode?: "cloud" | "local_only";
   /** When set, archive.search and vault.cite default to this project. */
   projectId?: string | null;
+  /** For non-admin users, restrict search to these project IDs. null = unrestricted. */
+  accessibleProjectIds?: string[] | null;
 }
 
 export interface AgentRunResult {
@@ -1365,6 +1377,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
     log: input.log,
     parentStepId: input.step.id,
     projectId: input.projectId || undefined,
+    accessibleProjectIds: input.accessibleProjectIds ?? null,
     budgetUsed: {
       "memory.search": 0,
       "memory.write": 0,

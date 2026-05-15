@@ -13,6 +13,7 @@
 import { NextResponse } from "next/server";
 import { complete as llmComplete } from "@/lib/llm/client";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { canAccessProject } from "@/lib/vault/project-access";
 
 interface Field {
   /** Short field label as it appears in the template (e.g. "Buyer Name", "Closing Date"). */
@@ -63,12 +64,15 @@ export async function POST(
   // Load the template.
   const { data: template } = await supabase
     .from("vault_items")
-    .select("id, kind, title, description, content")
+    .select("id, kind, title, description, content, project_id")
     .eq("id", templateId)
     .eq("workspace_id", workspaceId)
     .maybeSingle();
   if (!template) {
     return NextResponse.json({ error: "Template not found" }, { status: 404 });
+  }
+  if (template.project_id && !(await canAccessProject(supabase, user.id, workspaceId, template.project_id))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
   if (template.kind !== "template") {
     return NextResponse.json(
