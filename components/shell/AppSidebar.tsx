@@ -26,6 +26,7 @@ import {
   ScrollText,
   FileClock,
   FileSearch,
+  FolderSync,
   ChevronDown,
   ChevronsUpDown,
   User,
@@ -116,7 +117,7 @@ export default function AppSidebar({
       label: "Documents",
       items: [
         { href: "/vault", label: "Vault", icon: FolderClosed },
-        { href: "/dante/file-index", label: "File index", icon: FileSearch },
+        { href: "/watched-folders", label: "Watched Folders", icon: FolderSync },
         { href: "/lease-abstractor", label: "Lease Abstractor", icon: FileSearch, industry: "real_estate" },
         { href: "/library", label: "Library", icon: BookOpen },
       ],
