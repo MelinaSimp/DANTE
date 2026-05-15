@@ -116,12 +116,12 @@ export default function DanteGateLink({
     e.preventDefault();
     setOpening(true);
     router.prefetch(href);
-    // Kick navigation slightly before the overlay peak so the page
-    // render happens while the gate is still growing — cuts perceived
-    // latency vs. waiting the full 1.2s then navigating.
     window.setTimeout(() => {
       router.push(href);
     }, 1020);
+    window.setTimeout(() => {
+      setOpening(false);
+    }, 1400);
   };
 
   const content = (
