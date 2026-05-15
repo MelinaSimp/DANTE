@@ -69,6 +69,7 @@ export default function TeamClient() {
     null,
   );
   const [copied, setCopied] = useState(false);
+  const [changingRole, setChangingRole] = useState<string | null>(null);
 
   async function load() {
     try {
@@ -129,6 +130,27 @@ export default function TeamClient() {
       setTimeout(() => setCopied(false), 2000);
     } catch {
       setError("Couldn't copy. Select and copy manually.");
+    }
+  }
+
+  async function changeRole(id: string, newRole: string) {
+    setChangingRole(id);
+    try {
+      const r = await fetch(`/api/workspace/members/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ role: newRole }),
+      });
+      if (!r.ok) {
+        const j = (await r.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error || `HTTP ${r.status}`);
+      }
+      void load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to change role");
+    } finally {
+      setChangingRole(null);
     }
   }
 
@@ -250,23 +272,6 @@ export default function TeamClient() {
                     <span className="text-sm font-medium">
                       {m.name || m.email || m.id.slice(0, 8)}
                     </span>
-                    {m.role === "owner" && (
-                      <span
-                        className="inline-flex items-center gap-1 text-[10px] mono uppercase tracking-wider text-[var(--accent)]"
-                        title="Workspace owner"
-                      >
-                        <ShieldCheck
-                          className="w-3 h-3"
-                          strokeWidth={1.5}
-                        />
-                        Owner
-                      </span>
-                    )}
-                    {m.role === "admin" && (
-                      <span className="text-[10px] mono uppercase tracking-wider text-[var(--ink-muted)]">
-                        Admin
-                      </span>
-                    )}
                     {m.id === data.self_id && (
                       <span className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)]">
                         You
@@ -293,6 +298,36 @@ export default function TeamClient() {
                     </span>
                   </div>
                 </div>
+                {data.self_role === "owner" && m.id !== data.self_id ? (
+                  <select
+                    value={m.role}
+                    disabled={changingRole === m.id}
+                    onChange={(e) => void changeRole(m.id, e.target.value)}
+                    className="text-[11px] px-2 py-1 rounded-[4px] outline-none cursor-pointer disabled:opacity-50"
+                    style={{
+                      border: "1px solid var(--rule)",
+                      background: "var(--canvas)",
+                      color: "var(--ink)",
+                    }}
+                  >
+                    <option value="owner">Owner</option>
+                    <option value="admin">Admin</option>
+                    <option value="member">Member</option>
+                  </select>
+                ) : (
+                  <span
+                    className={`inline-flex items-center gap-1 text-[10px] mono uppercase tracking-wider ${
+                      m.role === "owner"
+                        ? "text-[var(--accent)]"
+                        : "text-[var(--ink-muted)]"
+                    }`}
+                  >
+                    {m.role === "owner" && (
+                      <ShieldCheck className="w-3 h-3" strokeWidth={1.5} />
+                    )}
+                    {m.role}
+                  </span>
+                )}
                 {canManage && m.id !== data.self_id && (
                   <button
                     type="button"
