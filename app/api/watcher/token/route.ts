@@ -99,7 +99,7 @@ export async function DELETE(req: Request) {
 
   const { error } = await supabaseAdmin
     .from("watched_folders")
-    .update({ watcher_token: null })
+    .update({ watcher_token: null, token_expires_at: null })
     .eq("id", folder_id)
     .eq("workspace_id", workspaceId);
   if (error) {

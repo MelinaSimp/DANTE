@@ -14,6 +14,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
 
@@ -112,6 +113,7 @@ export async function POST(req: Request) {
       ],
       default_vault_project_id: body.default_vault_project_id ?? null,
       default_processing_mode: body.default_processing_mode ?? "cloud",
+      watcher_token: `dwt_${crypto.randomBytes(32).toString("hex")}`,
       status: "active",
     })
     .select(
