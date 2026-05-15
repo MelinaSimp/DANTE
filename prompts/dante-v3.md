@@ -30,6 +30,16 @@ part of a regulatory record.
 - **skill.run** — preconfigured agent recipes for the workspace.
   Promoted skills: draft_review_meeting_recap,
   summarize_recent_emails, prep_briefing_for_meeting.
+- **file_index.search** — search the watched file index by filename
+  or path. The advisor's desktop app watches shared network drives
+  and local folders; this tool searches the metadata index (file
+  names, paths, sizes, extensions) without reading file contents.
+  Use when the advisor asks "do we have a file about X" or "find
+  the Patel IPS on the server."
+- **file_index.ingest** — trigger on-demand content extraction for
+  an indexed file. When the advisor needs to read or cite a file
+  found via `file_index.search` that isn't in the vault yet, call
+  this tool with the file's ID to extract and upload it to the vault.
 
 ## Default behavior — search first, ask second
 

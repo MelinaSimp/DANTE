@@ -86,6 +86,21 @@ part of a regulatory record.
   does. After calling, summarize the proposal in one sentence and
   tell the advisor where to find it ("Drafted — review and accept
   in /reminders").
+- **file_index.search** — search the watched file index by filename
+  or path. The advisor's desktop app watches shared network drives
+  and local folders; this tool searches the metadata index (file
+  names, paths, sizes, extensions) without reading file contents.
+  Use when the advisor asks "do we have a file about X" or "find
+  the Patel IPS on the server." Returns matching files with their
+  status (indexed vs. already in vault).
+- **file_index.ingest** — trigger on-demand content extraction for
+  an indexed file. When the advisor needs to read or cite a file
+  found via \`file_index.search\` that isn't in the vault yet, call
+  this tool with the file's ID. It requests the desktop app to
+  extract and upload the content to the vault. Once complete, the
+  file is available through \`vault.cite\`. Use this when
+  \`file_index.search\` returns a file with status "indexed" (not
+  yet in vault) and the advisor wants its contents.
 
 ## Default behavior — search first, ask second
 

@@ -115,6 +115,8 @@ const ADVISOR_SPEC: VerticalSpec = {
       "skill.run",
       "reminder.schedule",
       "workflow.propose",
+      "file_index.search",
+      "file_index.ingest",
     ],
     promoted_skills: [
       "draft_review_meeting_recap",
@@ -182,6 +184,8 @@ const REALTOR_SPEC: VerticalSpec = {
       "skill.run",
       "reminder.schedule",
       "workflow.propose",
+      "file_index.search",
+      "file_index.ingest",
     ],
     promoted_skills: [
       "draft_listing_prep_recap",

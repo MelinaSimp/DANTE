@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import {
   FolderSync,
   FolderOpen,
@@ -17,6 +18,7 @@ import {
   ArrowLeft,
   FolderPlus,
   Server,
+  Settings,
 } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────
@@ -112,6 +114,13 @@ function FolderList({
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
       <div className="mb-8">
+        <Link
+          href="/dashboard"
+          className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-3 transition"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          Dashboard
+        </Link>
         <h1 className="text-3xl font-serif font-light text-gray-900">
           Watched Folders
         </h1>
@@ -152,10 +161,13 @@ function EmptyState() {
         your documents. Files stay on your machine — Drift only pulls content
         when you or the agent need it.
       </p>
-      <p className="text-xs text-gray-400">
-        Open Settings to add a watched folder, or ask your admin to
-        configure the watcher service.
-      </p>
+      <Link
+        href="/settings"
+        className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 transition"
+      >
+        <Settings className="w-3.5 h-3.5" />
+        Open Settings to configure the watcher service
+      </Link>
     </div>
   );
 }

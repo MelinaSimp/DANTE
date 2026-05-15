@@ -62,6 +62,8 @@ const DEFAULT_TOOLS: AgentToolEntry[] = [
   "vault.cite",
   "clients.query",
   "skill.run",
+  "file_index.search",
+  "file_index.ingest",
 ];
 
 // System prompt is now built per-workspace inside POST() so realtor
