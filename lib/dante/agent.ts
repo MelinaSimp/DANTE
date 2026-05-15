@@ -1268,16 +1268,17 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
     else if (e && typeof e === "object" && "mcp" in e) mcpServers.push(e.mcp);
   }
 
+  const _agentT0 = Date.now();
   const allowedTools = new Set<AgentToolName>(builtinNames);
   const builtinDefs: ToolDef[] = builtinNames.map((t) => TOOL_DEFS[t]).filter(Boolean);
   const mcpDefs = await expandMcpTools(input.workspaceId, mcpServers);
   const tools: ToolDef[] = [...builtinDefs, ...mcpDefs];
+  console.log(`[agent] tools resolved in ${Date.now() - _agentT0}ms (${builtinDefs.length} builtin, ${mcpDefs.length} mcp)`);
 
   const maxSteps = Math.min(Math.max(Number(cfg.max_steps) || 8, 1), HARD_MAX_STEPS);
-  // Workspace-set model wins over the per-step config so an admin can
-  // flip the dial in Settings → Agent model without touching code.
   const workspaceModel = await getWorkspaceModel(input.workspaceId);
   const model = workspaceModel || cfg.model || "claude-sonnet-4-6";
+  console.log(`[agent] model=${model} maxSteps=${maxSteps}`);
 
   // Resolve the binding processing mode for this run. Two
   // signals compose, most-restrictive wins:
@@ -1318,24 +1319,24 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
   if (input.forcedProcessingMode) {
     processingMode = input.forcedProcessingMode;
   } else {
+    const _modeT0 = Date.now();
     staticMode = await resolveProcessingMode(modeCtx);
+    console.log(`[agent] staticMode=${staticMode.mode} in ${Date.now() - _modeT0}ms`);
 
-    // Auto-detection: only run when the static resolver said cloud
-    // (otherwise we already know we're going local). And only when
-    // we actually have a user message to inspect — workflow / cron
-    // runs without user input skip this step.
     const lastUserMsg =
       typeof cfg.objective === "string" && cfg.objective.trim()
         ? cfg.objective
         : "";
     if (staticMode.mode === "cloud" && lastUserMsg) {
       try {
+        const _autoT0 = Date.now();
         autoMode = await detectAutoLocalMode({
           workspaceId: input.workspaceId,
           query: lastUserMsg,
         });
-      } catch {
-        /* fail-safe to cloud */
+        console.log(`[agent] autoMode=${autoMode.mode} (${autoMode.reason}) in ${Date.now() - _autoT0}ms`);
+      } catch (err) {
+        console.warn(`[agent] autoMode failed in ${Date.now() - _modeT0}ms:`, err);
       }
     }
 
@@ -1430,6 +1431,8 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
 
   while (stepIdx < maxSteps) {
     const thisIteration = iterationIdx++;
+    const _llmT0 = Date.now();
+    console.log(`[agent] llmComplete iter=${thisIteration} starting (${messages.length} msgs, ${tools.length} tools)`);
     const completion = await llmComplete({
       model,
       messages: messages as LlmMessage[],
@@ -1439,6 +1442,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       workspaceId: input.workspaceId,
       processingMode,
     });
+    console.log(`[agent] llmComplete iter=${thisIteration} done in ${Date.now() - _llmT0}ms finish=${completion.finishReason}`);
 
     let assistantMsg = completion.message as ChatMessage;
 

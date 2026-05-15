@@ -358,11 +358,13 @@ export async function POST(req: NextRequest) {
       };
 
       send({ type: "chat_started", chat_id: chatId });
+      console.log(`[ask] stream opened; runId=${runId} chatId=${chatId} model=${verticalSpec.toolWhitelist.builtin.length} tools`);
 
       let assistantContent = "";
       let runError: string | null = null;
 
       try {
+        const t0 = Date.now();
         const result = await runAgent({
           step,
           workspaceId: profile.workspace_id!,
@@ -389,6 +391,7 @@ export async function POST(req: NextRequest) {
             send(event);
           },
         });
+        console.log(`[ask] runAgent finished in ${Date.now() - t0}ms; runId=${runId}`);
         assistantContent = result.text || "";
         // Empty-text without a thrown error has happened in prod —
         // typically the model called tools but never returned a final

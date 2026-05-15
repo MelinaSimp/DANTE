@@ -50,6 +50,7 @@ class OpenAIProvider implements LlmProvider {
         Authorization: `Bearer ${getApiKey()}`,
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(120_000),
     });
 
     if (!res.ok) {
@@ -91,6 +92,7 @@ class OpenAIProvider implements LlmProvider {
         model: opts.model ?? "text-embedding-3-small",
         input: inputs,
       }),
+      signal: AbortSignal.timeout(15_000),
     });
 
     if (!res.ok) {
