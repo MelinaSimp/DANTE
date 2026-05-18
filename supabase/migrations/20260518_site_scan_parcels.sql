@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS parcels (
   boundary        geography(POLYGON, 4326),
   acreage         numeric GENERATED ALWAYS AS (
     CASE WHEN boundary IS NOT NULL
-      THEN ROUND(ST_Area(boundary::geography) / 4046.8564224, 2)
+      THEN ROUND((ST_Area(boundary::geography) / 4046.8564224)::numeric, 2)
       ELSE NULL
     END
   ) STORED,
@@ -44,8 +44,7 @@ CREATE TABLE IF NOT EXISTS parcel_cache (
   UNIQUE(parcel_id, source)
 );
 
-CREATE INDEX IF NOT EXISTS idx_parcel_cache_expiry ON parcel_cache(expires_at)
-  WHERE expires_at < now();
+CREATE INDEX IF NOT EXISTS idx_parcel_cache_expiry ON parcel_cache(expires_at);
 
 -- 4. Link vault documents to parcels
 CREATE TABLE IF NOT EXISTS parcel_documents (
@@ -76,8 +75,7 @@ CREATE TABLE IF NOT EXISTS listing_cache (
 );
 
 CREATE INDEX IF NOT EXISTS idx_listing_location ON listing_cache USING GIST(location);
-CREATE INDEX IF NOT EXISTS idx_listing_expiry ON listing_cache(expires_at)
-  WHERE expires_at < now();
+CREATE INDEX IF NOT EXISTS idx_listing_expiry ON listing_cache(expires_at);
 
 -- 6. Parcel search RPC (spatial + attribute filtering)
 CREATE OR REPLACE FUNCTION search_parcels(
