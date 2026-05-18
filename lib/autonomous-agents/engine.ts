@@ -448,9 +448,24 @@ export async function executeAutonomousAgent(
       metadata: { agent_id: agentId, agent_name: agent.name },
     });
 
+    // Claude may wrap JSON in markdown fences or add preamble text.
+    // Strip fences and extract the JSON object before parsing.
+    let jsonStr = content;
+    const fenceMatch = jsonStr.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
+    if (fenceMatch) {
+      jsonStr = fenceMatch[1].trim();
+    } else {
+      // Try to find the first { and last } in case of preamble/postamble
+      const firstBrace = jsonStr.indexOf("{");
+      const lastBrace = jsonStr.lastIndexOf("}");
+      if (firstBrace !== -1 && lastBrace > firstBrace) {
+        jsonStr = jsonStr.slice(firstBrace, lastBrace + 1);
+      }
+    }
+
     let parsed: LLMResponse;
     try {
-      parsed = JSON.parse(content);
+      parsed = JSON.parse(jsonStr);
     } catch {
       throw new Error("Failed to parse LLM response as JSON");
     }

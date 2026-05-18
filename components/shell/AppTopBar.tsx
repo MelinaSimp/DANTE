@@ -61,7 +61,7 @@ export default function AppTopBar() {
   return (
     <>
       <header
-        className="flex items-center justify-end gap-3 px-4 md:px-6 py-2"
+        className="relative z-10 flex items-center justify-end gap-3 px-4 md:px-6 py-2"
         aria-label="Page header"
       >
         <UpdateAffordance />
