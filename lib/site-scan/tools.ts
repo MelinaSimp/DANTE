@@ -14,6 +14,7 @@ import {
 import { upsertParcel, findParcel } from "./parcels";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { CountyAdapterConfig } from "./adapters/types";
+import { ArcGISError, CircuitOpenError } from "./adapters/resilience";
 
 /**
  * Build a real URL to the ArcGIS REST HTML view for a specific parcel.
@@ -81,16 +82,35 @@ export async function handleSiteScanSearch(
     landUseCodes = zoningConfig.vacant;
   }
 
-  // 3. Query
-  const parcels = await adapter.searchParcels({
-    center: { lat: geo.lat, lng: geo.lng },
-    radiusMeters: 8047, // 5 miles
-    zoning: zoningCodes,
-    acreageMin: args.acreage_min,
-    acreageMax: args.acreage_max,
-    landUse: landUseCodes,
-    maxResults: args.max_results ?? 20,
-  });
+  // 3. Query — with error propagation to the agent
+  let parcels;
+  try {
+    parcels = await adapter.searchParcels({
+      center: { lat: geo.lat, lng: geo.lng },
+      radiusMeters: 8047, // 5 miles
+      zoning: zoningCodes,
+      acreageMin: args.acreage_min,
+      acreageMax: args.acreage_max,
+      landUse: landUseCodes,
+      maxResults: args.max_results ?? 20,
+    });
+  } catch (err) {
+    if (err instanceof CircuitOpenError) {
+      return JSON.stringify({
+        error: `${geo.county} County GIS is temporarily unreachable. Try again in a few minutes.`,
+        data_source_status: "unavailable",
+        location_resolved: geo.matched_address,
+      });
+    }
+    if (err instanceof ArcGISError) {
+      return JSON.stringify({
+        error: `${geo.county} County GIS returned an error (HTTP ${err.httpStatus ?? "unknown"}). The data source may be down.`,
+        data_source_status: "error",
+        location_resolved: geo.matched_address,
+      });
+    }
+    throw err;
+  }
 
   // 4. Upsert parcels into DB (fire and forget — don't block the response)
   for (const p of parcels) {
@@ -188,9 +208,21 @@ export async function handleSiteScanDetail(
       parcelNumber = matches[0].parcel_number;
       // Upsert so we have it in DB
       await upsertParcel(workspaceId, matches[0]);
-    } catch {
+    } catch (err) {
+      if (err instanceof CircuitOpenError) {
+        return JSON.stringify({
+          error: `${county} County GIS is temporarily unreachable. Try again in a few minutes.`,
+          data_source_status: "unavailable",
+        });
+      }
+      if (err instanceof ArcGISError) {
+        return JSON.stringify({
+          error: `${county} County GIS returned an error (HTTP ${err.httpStatus ?? "unknown"}).`,
+          data_source_status: "error",
+        });
+      }
       return JSON.stringify({
-        error: `No parcel data available for this location yet.`,
+        error: `No parcel data available for ${county} County, ${state} yet.`,
       });
     }
   }
@@ -246,6 +278,22 @@ export async function handleSiteScanDetail(
       sections.tax_estimate = estimateTax(auditor.data, undefined, state);
     } catch (err) {
       console.warn("[site_scan.detail] auditor fetch failed:", err);
+      if (err instanceof CircuitOpenError) {
+        sections.auditor_error = {
+          status: "unavailable",
+          detail: `${county} County GIS is temporarily unreachable.`,
+        };
+      } else if (err instanceof ArcGISError) {
+        sections.auditor_error = {
+          status: "error",
+          detail: `${county} County GIS returned an error (HTTP ${err.httpStatus ?? "unknown"}).`,
+        };
+      } else {
+        sections.auditor_error = {
+          status: "error",
+          detail: `Could not fetch auditor data: ${err instanceof Error ? err.message : String(err)}`,
+        };
+      }
     }
   }
 
@@ -399,13 +447,29 @@ export async function handleSiteScanVoidAnalysis(
   }> = [];
 
   const searchedCounties = new Set<string>();
+  const dataSourceIssues: Array<{
+    county: string;
+    state: string;
+    status: "unavailable" | "error" | "no_coverage";
+    detail: string;
+  }> = [];
 
   for (const { geo } of validGeos) {
     let adapter;
     try {
       adapter = getAdapter(geo.state, geo.county);
     } catch {
-      continue; // no coverage for this county
+      const countyKey = `${geo.state}:${geo.county}`;
+      if (!searchedCounties.has(countyKey)) {
+        searchedCounties.add(countyKey);
+        dataSourceIssues.push({
+          county: geo.county,
+          state: geo.state,
+          status: "no_coverage",
+          detail: `No parcel data coverage for ${geo.county} County, ${geo.state} yet.`,
+        });
+      }
+      continue;
     }
     const countyKey = `${geo.state}:${geo.county}`;
     if (searchedCounties.has(countyKey)) continue;
@@ -434,7 +498,7 @@ export async function handleSiteScanVoidAnalysis(
 
       const sourceName =
         adapter.config.county === "*"
-          ? "Ohio OGRIP Statewide"
+          ? `${geo.state} Statewide Parcel Database`
           : `${adapter.config.county} County Auditor`;
 
       for (const p of parcels) {
@@ -452,10 +516,28 @@ export async function handleSiteScanVoidAnalysis(
         });
       }
     } catch (err) {
-      console.warn(
-        `[void_analysis] search failed for ${countyKey}:`,
-        err instanceof Error ? err.message : err,
-      );
+      if (err instanceof CircuitOpenError) {
+        dataSourceIssues.push({
+          county: geo.county,
+          state: geo.state,
+          status: "unavailable",
+          detail: `${geo.county} County GIS is temporarily unreachable (circuit breaker open).`,
+        });
+      } else if (err instanceof ArcGISError) {
+        dataSourceIssues.push({
+          county: geo.county,
+          state: geo.state,
+          status: "error",
+          detail: `${geo.county} County GIS returned an error (HTTP ${err.httpStatus ?? "unknown"}).`,
+        });
+      } else {
+        dataSourceIssues.push({
+          county: geo.county,
+          state: geo.state,
+          status: "error",
+          detail: `Unexpected error querying ${geo.county} County: ${err instanceof Error ? err.message : String(err)}`,
+        });
+      }
     }
   }
 
@@ -589,6 +671,12 @@ export async function handleSiteScanVoidAnalysis(
     total_parcels_scanned: allParcels.length,
     unique_after_dedup: unique.length,
     sites_returned: topSites.length,
+    ...(dataSourceIssues.length > 0 && {
+      data_source_issues: dataSourceIssues,
+      data_source_note:
+        `${dataSourceIssues.length} county source(s) had issues. ` +
+        "Results may be incomplete for those areas. Mention affected counties when presenting findings.",
+    }),
     formatted,
     citations,
     sites: topSites.map((p, i) => ({

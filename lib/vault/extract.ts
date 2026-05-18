@@ -20,6 +20,12 @@ export interface ExtractResult {
   pageCount?: number;
 }
 
+export interface PageAwareExtractResult {
+  /** Per-page text strings (index = page number - 1). */
+  pages: string[];
+  pageCount: number;
+}
+
 const PLAIN_TEXT_MIMES = new Set([
   "text/plain",
   "text/markdown",
@@ -49,4 +55,35 @@ export async function extractText(
   }
 
   return { text: "" };
+}
+
+/**
+ * Extract text from a PDF buffer with per-page separation.
+ * Returns an array of strings, one per page. Non-PDF files
+ * return a single-element array with the full text.
+ *
+ * This powers page-aware chunking: each chunk knows which
+ * page(s) it came from, so vault.cite can return real page
+ * numbers in citations instead of null.
+ */
+export async function extractTextWithPages(
+  buffer: Buffer,
+  mimeType: string | null,
+): Promise<PageAwareExtractResult> {
+  const mt = (mimeType || "").toLowerCase();
+
+  if (mt === "application/pdf") {
+    const { extractText: unpdfExtract } = await import("unpdf");
+    const { totalPages, text } = await unpdfExtract(new Uint8Array(buffer), {
+      mergePages: false,
+    });
+    // unpdf with mergePages:false returns text as string[] (one per page)
+    const pages = Array.isArray(text) ? text.map((p) => String(p)) : [String(text || "")];
+    return { pages, pageCount: totalPages ?? pages.length };
+  }
+
+  // Non-PDF: single "page"
+  const result = await extractText(buffer, mimeType);
+  if (!result.text) return { pages: [], pageCount: 0 };
+  return { pages: [result.text], pageCount: 1 };
 }

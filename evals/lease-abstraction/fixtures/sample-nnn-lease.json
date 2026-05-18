@@ -1,0 +1,104 @@
+{
+  "id": "nnn-retail-10yr-001",
+  "description": "Standard NNN retail lease, 10yr term, single tenant strip-mall unit with annual escalations and one 5yr renewal option.",
+  "lease_type": "nnn",
+  "document_name": "Lease - 4520 Main St - TechStyle Retail LLC",
+  "expected_fields": [
+    {
+      "name": "tenant_name",
+      "category": "parties",
+      "expected_value": "TechStyle Retail LLC",
+      "match_mode": "exact"
+    },
+    {
+      "name": "landlord_name",
+      "category": "parties",
+      "expected_value": "Main Street Properties LP",
+      "match_mode": "exact"
+    },
+    {
+      "name": "guarantor",
+      "category": "parties",
+      "expected_value": "James Chen",
+      "match_mode": "contains"
+    },
+    {
+      "name": "premises",
+      "category": "premises",
+      "expected_value": "Suite 102, 4520 Main Street, Columbus, OH 43215",
+      "match_mode": "contains"
+    },
+    {
+      "name": "rentable_sf",
+      "category": "premises",
+      "expected_value": "3,200",
+      "match_mode": "numeric_within_pct",
+      "tolerance_pct": 1
+    },
+    {
+      "name": "commencement_date",
+      "category": "term",
+      "expected_value": "2025-03-01",
+      "match_mode": "date_match"
+    },
+    {
+      "name": "expiration_date",
+      "category": "term",
+      "expected_value": "2035-02-28",
+      "match_mode": "date_match"
+    },
+    {
+      "name": "base_rent",
+      "category": "rent",
+      "expected_value": "$28.50/SF",
+      "match_mode": "numeric_within_pct",
+      "tolerance_pct": 2
+    },
+    {
+      "name": "annual_escalation",
+      "category": "escalations",
+      "expected_value": "3% annually",
+      "match_mode": "regex",
+      "tolerance_pct": null
+    },
+    {
+      "name": "cam_charges",
+      "category": "cam",
+      "expected_value": "$8.75/SF",
+      "match_mode": "numeric_within_pct",
+      "tolerance_pct": 5
+    },
+    {
+      "name": "security_deposit",
+      "category": "security",
+      "expected_value": "$15,200",
+      "match_mode": "numeric_within_pct",
+      "tolerance_pct": 2
+    },
+    {
+      "name": "ti_allowance",
+      "category": "ti",
+      "expected_value": "$45.00/SF",
+      "match_mode": "numeric_within_pct",
+      "tolerance_pct": 2
+    },
+    {
+      "name": "permitted_use",
+      "category": "use",
+      "expected_value": "retail sale of consumer electronics and accessories",
+      "match_mode": "contains"
+    },
+    {
+      "name": "insurance_requirement",
+      "category": "insurance",
+      "expected_value": "(?:general\\s+liability|CGL).*\\$?2[,.]?000[,.]?000|\\$?2[,.]?000[,.]?000.*(?:general\\s+liability|CGL)",
+      "match_mode": "regex"
+    },
+    {
+      "name": "renewal_option",
+      "category": "options",
+      "expected_value": "(?:5|five).year renewal",
+      "match_mode": "regex"
+    }
+  ]
+}

@@ -8,6 +8,19 @@ import type {
   ParcelSummary,
   AuditorRecord,
 } from "./types";
+import {
+  fetchWithRetry,
+  ArcGISError,
+  CircuitOpenError,
+  isCircuitOpen,
+  recordSuccess,
+  recordFailure,
+} from "./resilience";
+import {
+  searchCacheKey,
+  getCachedSearch,
+  setCachedSearch,
+} from "../search-cache";
 
 export class ArcGISCountyAdapter implements CountyAdapter {
   constructor(public config: CountyAdapterConfig) {}
@@ -75,20 +88,43 @@ export class ArcGISCountyAdapter implements CountyAdapter {
       url.searchParams.set("spatialRel", "esriSpatialRelIntersects");
     }
 
-    const res = await fetch(url.toString(), {
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (!res.ok) {
-      console.warn(`[arcgis] search failed: ${res.status} ${res.statusText}`);
-      return [];
-    }
-    const json = await res.json();
-    if (json.error) {
-      console.warn(`[arcgis] search error:`, json.error);
-      return [];
+    // Circuit breaker — skip if county is known-down
+    const { state, county } = this.config;
+    if (isCircuitOpen(state, county)) {
+      throw new CircuitOpenError(county, state);
     }
 
-    return (json.features ?? []).map((f: any) => this.mapFeature(f));
+    // Check search cache first
+    const cacheKey = searchCacheKey(url.toString());
+    const cached = getCachedSearch(cacheKey);
+    if (cached) return cached;
+
+    try {
+      const res = await fetchWithRetry(url.toString(), { timeout: 15_000 });
+      if (!res.ok) {
+        recordFailure(state, county);
+        throw new ArcGISError(county, state, res.status, res.statusText);
+      }
+      const json = await res.json();
+      if (json.error) {
+        recordFailure(state, county);
+        throw new ArcGISError(county, state, null, JSON.stringify(json.error));
+      }
+
+      recordSuccess(state, county);
+      const results = (json.features ?? []).map((f: any) => this.mapFeature(f));
+      setCachedSearch(cacheKey, results);
+      return results;
+    } catch (err) {
+      if (err instanceof ArcGISError || err instanceof CircuitOpenError) throw err;
+      recordFailure(state, county);
+      throw new ArcGISError(
+        county,
+        state,
+        null,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
   }
 
   async getParcelDetail(parcelNumber: string): Promise<AuditorRecord> {
@@ -103,15 +139,33 @@ export class ArcGISCountyAdapter implements CountyAdapter {
     url.searchParams.set("outSR", "4326");
     url.searchParams.set("f", "json");
 
-    const res = await fetch(url.toString(), {
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (!res.ok) throw new Error(`ArcGIS query failed: ${res.status}`);
-    const json = await res.json();
-    const feature = json.features?.[0];
-    if (!feature) throw new Error(`Parcel ${parcelNumber} not found`);
+    const { state, county } = this.config;
+    if (isCircuitOpen(state, county)) {
+      throw new CircuitOpenError(county, state);
+    }
 
-    return this.mapDetail(feature);
+    try {
+      const res = await fetchWithRetry(url.toString(), { timeout: 15_000 });
+      if (!res.ok) {
+        recordFailure(state, county);
+        throw new ArcGISError(county, state, res.status, `Detail query failed`);
+      }
+      const json = await res.json();
+      const feature = json.features?.[0];
+      if (!feature) throw new Error(`Parcel ${parcelNumber} not found`);
+
+      recordSuccess(state, county);
+      return this.mapDetail(feature);
+    } catch (err) {
+      if (err instanceof ArcGISError || err instanceof CircuitOpenError) throw err;
+      recordFailure(state, county);
+      throw new ArcGISError(
+        county,
+        state,
+        null,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
   }
 
   private mapFeature(feature: any): ParcelSummary {
