@@ -23,7 +23,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { definitionFromRow, type WorkflowGraph, type GraphNode } from "@/lib/dante/workflow-types";
-import { enqueueRun, kickQueueWorker } from "@/lib/dante/run-executor";
+import { enqueueRun, claimQueuedRun, executeClaimedRun, kickQueueWorker } from "@/lib/dante/run-executor";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -92,12 +92,15 @@ async function handle(request: Request) {
   const now = new Date();
   const cutoff = new Date(now.getTime() - 50_000).toISOString();
 
-  // Pull every enabled workflow in the system. We scope by workspace
-  // inside runWorkflow() via workflow.workspace_id.
+  // Pull every enabled workflow in the system that has a cron trigger.
+  // We filter by the graph containing a trigger_cron node to avoid
+  // loading non-cron workflows. Workspace scoping happens inside
+  // runWorkflow() via workflow.workspace_id.
   const { data: workflows, error } = await supabaseAdmin
     .from("dante_workflows")
     .select("*")
-    .eq("enabled", true);
+    .eq("enabled", true)
+    .or("trigger->>type.eq.cron,next_fire_at.not.is.null");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const fired: Array<{ id: string; status: string }> = [];
@@ -193,17 +196,51 @@ async function handle(request: Request) {
       // workflow won't retry — same risk as cron, the alternative
       // (clear after run completes) re-fires on every tick until
       // the worker drains, which is worse.
+      //
+      // Also disable the workflow — trigger_at is a one-shot. Leaving
+      // it enabled just clutters the cron tick sweep and the
+      // workflows list with spent reminders.
       await supabaseAdmin.from("dante_workflows").update({
         next_fire_at: null,
         fired_at: nowIso,
         last_run_at: nowIso,
+        enabled: false,
       }).eq("id", wf.id);
     }
   }
 
-  // One eager kick at the end so the queue worker drains everything
-  // we just enqueued without waiting for its own cron minute.
-  if (fired.some((f) => f.status === "queued")) {
+  // If the batch is small (1-3 runs), execute inline instead of
+  // relying on kickQueueWorker — the fire-and-forget fetch can
+  // silently fail on Vercel, leaving runs stuck for hours until
+  // the next queue tick. Inline execution is safe within the 60s
+  // budget for small batches (each run typically takes <2s).
+  //
+  // For larger batches, fall back to queue + kick so we don't
+  // blow the 60s route budget.
+  const queuedIds = fired
+    .filter((f) => f.status === "queued")
+    .map((f) => f.id);
+
+  const INLINE_THRESHOLD = 3;
+  if (queuedIds.length > 0 && queuedIds.length <= INLINE_THRESHOLD) {
+    for (const wfId of queuedIds) {
+      // Find the queued run we just created for this workflow
+      const { data: runs } = await supabaseAdmin
+        .from("dante_workflow_runs")
+        .select("id")
+        .eq("workflow_id", wfId)
+        .eq("status", "queued")
+        .order("started_at", { ascending: false, nullsFirst: true })
+        .limit(1);
+      const runId = runs?.[0]?.id;
+      if (!runId) continue;
+      const claim = await claimQueuedRun(runId);
+      if (!claim) continue;
+      const result = await executeClaimedRun(claim.run, claim.workflow);
+      const entry = fired.find((f) => f.id === wfId);
+      if (entry) entry.status = `inline_${result.status}`;
+    }
+  } else if (queuedIds.length > INLINE_THRESHOLD) {
     kickQueueWorker(new URL(request.url).origin);
   }
 

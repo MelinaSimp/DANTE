@@ -41,6 +41,23 @@ async function handle(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  // ── Stuck-run recovery ───────────────────────────────────────
+  // If a worker crashes after claiming a run (status: "running") but
+  // before persisting the result, the row sits in "running" forever.
+  // Mark any run that's been "running" for more than 10 minutes as
+  // errored so it doesn't block the queue or confuse the UI.
+  const staleThreshold = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const { data: staleRuns } = await supabaseAdmin
+    .from("dante_workflow_runs")
+    .update({
+      status: "error",
+      error: "Run timed out — worker may have crashed. Try running again.",
+      finished_at: new Date().toISOString(),
+    })
+    .eq("status", "running")
+    .lt("started_at", staleThreshold)
+    .select("id");
+
   // Pull a batch of queued rows, oldest first. We ask for a small
   // overhead (limit * 2) so that if a parallel worker steals some we
   // can still fill our batch from the extras without another SELECT.
@@ -67,6 +84,7 @@ async function handle(request: Request) {
   return NextResponse.json({
     claimed: processed.length,
     lost: lost.length,
+    stale_recovered: staleRuns?.length ?? 0,
     processed,
   });
 }

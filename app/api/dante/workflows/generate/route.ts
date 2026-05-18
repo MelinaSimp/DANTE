@@ -51,6 +51,11 @@ export async function POST(request: Request) {
                      triggerNode?.type === "trigger_webhook" ? { type: "webhook" } :
                                                                { type: "manual" };
 
+  // Cron and webhook-triggered workflows start disabled so the user
+  // can review the generated graph before it fires. Manual-trigger
+  // workflows are harmless (user must click Run) so they start enabled.
+  const autoEnable = triggerTag.type === "manual";
+
   const { data, error } = await supabaseAdmin
     .from("dante_workflows")
     .insert({
@@ -59,6 +64,7 @@ export async function POST(request: Request) {
       name: generated.name,
       description: generated.description || null,
       trigger: triggerTag,
+      enabled: autoEnable,
       steps: [], // legacy column — graph is the source of truth now
       graph: generated.graph,
     })
