@@ -25,7 +25,6 @@ import {
   LayoutDashboard,
   ScrollText,
   FileClock,
-  FileSearch,
   FolderSync,
   MapPin,
   ChevronDown,
@@ -119,7 +118,6 @@ export default function AppSidebar({
       items: [
         { href: "/vault", label: "Vault", icon: FolderClosed },
         { href: "/watched-folders", label: "Watched Folders", icon: FolderSync },
-        { href: "/lease-abstractor", label: "Lease Abstractor", icon: FileSearch, industry: "real_estate" },
         { href: "/library", label: "Library", icon: BookOpen },
       ],
     },
