@@ -11,10 +11,10 @@ import { useEffect, useRef } from "react";
  *   2. Subscribe to fileEvent IPC -- when Electron detects a file, queue
  *      it and POST in batches to /notify-batch
  *
- * Events are queued and flushed in batches of up to BATCH_SIZE every
- * FLUSH_INTERVAL_MS. Text extraction is deferred -- we index metadata
- * first so the user sees progress, then extract on demand when the
- * agent or user requests file content.
+ * Boot is retried on navigation and on "drift:watched-folders-changed"
+ * events, so it survives the common case where the root layout mounts
+ * before the user has signed in (the initial boot fails with 401, then
+ * succeeds after auth completes and the dashboard loads).
  */
 
 const BATCH_SIZE = 50;
@@ -32,11 +32,13 @@ interface FileEvent {
 }
 
 export default function WatcherBridge() {
-  const syncedRef = useRef(false);
+  const bootedRef = useRef(false);
+  const subscribedRef = useRef(false);
   const foldersRef = useRef<Array<{ id: string; default_processing_mode?: string | null }>>([]);
   const queueRef = useRef<FileEvent[]>([]);
   const flushTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const inflightRef = useRef(0);
+  const unsubRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const api = window.electronAPI;
@@ -45,18 +47,15 @@ export default function WatcherBridge() {
       return;
     }
 
-    let unsubscribe: (() => void) | null = null;
-
     // ── Batch flush ─────────────────────────────────────────────
     const flushQueue = async () => {
       if (queueRef.current.length === 0) return;
       if (inflightRef.current >= MAX_CONCURRENT_BATCHES) return;
 
-      // Grab up to BATCH_SIZE events grouped by folder_id
       const batch = queueRef.current.splice(0, BATCH_SIZE);
       if (batch.length === 0) return;
 
-      // Group by folder_id for separate API calls
+      // Group by folder_id
       const byFolder = new Map<string, FileEvent[]>();
       for (const evt of batch) {
         const arr = byFolder.get(evt.folder_id) || [];
@@ -86,8 +85,10 @@ export default function WatcherBridge() {
           })
           .catch((err) => {
             console.warn("[WatcherBridge] batch notify failed:", err);
-            // Re-queue failed events for retry
-            queueRef.current.push(...events);
+            // Re-queue for retry (but don't loop forever)
+            if (events.length <= BATCH_SIZE) {
+              queueRef.current.push(...events);
+            }
           })
           .finally(() => {
             inflightRef.current--;
@@ -95,19 +96,37 @@ export default function WatcherBridge() {
       }
     };
 
-    // ── Boot ────────────────────────────────────────────────────
+    // ── Subscribe to IPC events (idempotent) ────────────────────
+    const ensureSubscribed = () => {
+      if (subscribedRef.current) return;
+      subscribedRef.current = true;
+
+      unsubRef.current = api.watched!.onFileEvent((event: FileEvent) => {
+        queueRef.current.push(event);
+        if (queueRef.current.length >= BATCH_SIZE) {
+          flushQueue();
+        }
+      });
+
+      // Start periodic flush
+      if (!flushTimerRef.current) {
+        flushTimerRef.current = setInterval(flushQueue, FLUSH_INTERVAL_MS);
+      }
+
+      console.log("[WatcherBridge] subscribed to file events (batched)");
+    };
+
+    // ── Boot (retryable) ────────────────────────────────────────
     const boot = async () => {
-      if (syncedRef.current) return;
-      syncedRef.current = true;
+      if (bootedRef.current) return;
 
       console.log("[WatcherBridge] booting...");
 
       try {
         const res = await fetch("/api/electron/watched-folders");
         if (!res.ok) {
-          console.warn("[WatcherBridge] failed to fetch folders:", res.status);
-          syncedRef.current = false;
-          return;
+          console.warn("[WatcherBridge] fetch folders failed:", res.status, "- will retry");
+          return; // Don't set bootedRef -- allow retry
         }
         const { folders } = await res.json();
         const active = (folders || []).filter(
@@ -116,32 +135,35 @@ export default function WatcherBridge() {
         foldersRef.current = active;
         console.log(`[WatcherBridge] ${active.length} active folder(s)`);
 
-        const syncResult = await api.watched!.sync(active);
-        console.log("[WatcherBridge] sync result:", syncResult);
+        await api.watched!.sync(active);
+        console.log("[WatcherBridge] sync complete");
 
-        // Subscribe to file events -- queue them for batch flush
-        unsubscribe = api.watched!.onFileEvent((event: FileEvent) => {
-          queueRef.current.push(event);
-          // If the queue is getting large, flush immediately
-          if (queueRef.current.length >= BATCH_SIZE) {
-            flushQueue();
-          }
-        });
-
-        // Start periodic flush timer
-        flushTimerRef.current = setInterval(flushQueue, FLUSH_INTERVAL_MS);
-
-        console.log("[WatcherBridge] listening for file events (batched)");
+        ensureSubscribed();
+        bootedRef.current = true;
+        console.log("[WatcherBridge] boot complete");
       } catch (err) {
         console.error("[WatcherBridge] boot failed:", err);
-        syncedRef.current = false;
+        // Don't set bootedRef -- allow retry
       }
     };
 
+    // Initial boot attempt
     boot();
 
-    // Listen for re-sync signals from watched-folders page
+    // Retry boot on navigation (catches post-auth dashboard load)
+    const retryOnFocus = () => {
+      if (!bootedRef.current) boot();
+    };
+    window.addEventListener("focus", retryOnFocus);
+
+    // Retry boot + refresh folders on sync signal from watched-folders page
     const handleResync = async () => {
+      // If not booted yet, try now (user is definitely authed if
+      // they're on the watched-folders page)
+      if (!bootedRef.current) {
+        await boot();
+      }
+      // Refresh folder list
       try {
         const res = await fetch("/api/electron/watched-folders");
         if (res.ok) {
@@ -150,6 +172,12 @@ export default function WatcherBridge() {
             (f: { status: string }) => f.status === "active",
           );
           foldersRef.current = active;
+
+          // Ensure we're subscribed (in case boot succeeded just now)
+          ensureSubscribed();
+
+          // Re-sync watchers with latest folder list
+          await api.watched!.sync(active);
           console.log(`[WatcherBridge] re-synced ${active.length} folder(s)`);
         }
       } catch {
@@ -158,11 +186,18 @@ export default function WatcherBridge() {
     };
     window.addEventListener("drift:watched-folders-changed", handleResync);
 
+    // Periodic boot retry (covers the case where the user signed in
+    // but never triggered a focus or resync event)
+    const retryTimer = setInterval(() => {
+      if (!bootedRef.current) boot();
+    }, 5000);
+
     return () => {
-      unsubscribe?.();
+      unsubRef.current?.();
       if (flushTimerRef.current) clearInterval(flushTimerRef.current);
-      // Flush remaining events on unmount
+      clearInterval(retryTimer);
       flushQueue();
+      window.removeEventListener("focus", retryOnFocus);
       window.removeEventListener("drift:watched-folders-changed", handleResync);
     };
   }, []);
