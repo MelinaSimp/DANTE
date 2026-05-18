@@ -123,6 +123,8 @@ export default function WatchedFoldersClient() {
             await api.watched.sync(active);
           }
         }
+        // Tell WatcherBridge to refresh its folder list
+        window.dispatchEvent(new Event("drift:watched-folders-changed"));
       } else if (res.status === 409) {
         await fetchFolders();
       }
@@ -155,6 +157,9 @@ export default function WatchedFoldersClient() {
           await api.watched.rescan(folder);
         }
       }
+
+      // Tell WatcherBridge to refresh its folder list
+      window.dispatchEvent(new Event("drift:watched-folders-changed"));
 
       // Refresh the file list after a short delay
       await new Promise((r) => setTimeout(r, 2000));
