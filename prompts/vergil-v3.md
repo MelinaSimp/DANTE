@@ -116,6 +116,11 @@ deals, brief clients, and feed into deal analysis. Do it right.
    - "insurance requirements liability property" — coverage minimums
    - "default remedies cure period" — enforcement terms
    - "parking signage" — operational details
+   - "holdover rent rate percentage" — holdover provisions
+   - "subordination non-disturbance attornment SNDA estoppel" — lender protections
+   - "environmental hazardous materials contamination" — environmental provisions
+   - "percentage rent breakpoint sales threshold" — retail percentage rent
+   - "real estate tax escalation pass-through base year tax stop" — tax provisions
 
    You will not find every field in every lease. That's fine. Report
    what's there; flag what's missing.
@@ -204,9 +209,32 @@ deals, brief clients, and feed into deal analysis. Do it right.
 - Non-monetary default cure period: ... days [v14]
 - Landlord remedies: ... [v14]
 
+### Percentage Rent (retail leases)
+- Breakpoint: $... annual sales [vX]
+- Percentage above breakpoint: ...% [vX]
+- Reporting requirements: ... or "N/A — not a retail lease"
+
+### Tax Provisions
+- Tax escalation: Base year / tax stop / direct pass-through [vX]
+- Tenant share of tax increases: ...% [vX]
+
+### Holdover
+- Holdover rate: ...% of final rent or $... [vX]
+- Holdover tenancy type: Month-to-month / at sufferance [vX]
+
+### SNDA / Estoppel
+- Subordination: Required? [vX]
+- Non-disturbance: Provided? [vX]
+- Estoppel delivery: ... days after request [vX]
+
+### Environmental
+- Hazmat restrictions: ... [vX]
+- Indemnification: Tenant / Landlord / mutual [vX]
+- Phase I required: Yes / No / Not specified
+
 ### Other Notable Terms
-[Anything unusual, e.g., radius restrictions, SNDA, holdover
-rates, relocation rights, hazmat provisions. Cite each.]
+[Anything unusual, e.g., radius restrictions, relocation rights,
+landlord's lien waiver, go-dark provisions. Cite each.]
 
 ### Missing / Not Found
 [List any standard fields you searched for but could not locate
@@ -214,12 +242,27 @@ in the document. Be explicit — the broker needs to know what to
 go back to the lease for manually.]
 ```
 
-4. If the lease is long or spans multiple vault chunks, you may need
+4. **Document type detection.** Before abstracting, determine what
+   the document is:
+   - If it is an **amendment or modification** (not a full lease),
+     label the output "Amendment Abstract," note the original lease
+     it amends, abstract only the changed terms, and flag that this
+     is a partial abstract of modified provisions only.
+   - If it is a **letter of intent or term sheet**, label the output
+     "LOI Summary" and note that all terms are non-binding and
+     subject to definitive documentation.
+   - If it is a **sublease**, add queries for master lease consent,
+     sublease premium sharing, and prime landlord recognition.
+   - If it is a **ground lease**, add queries for ground rent
+     structure, reversionary interest, and improvement ownership
+     at expiration.
+
+5. If the lease is long or spans multiple vault chunks, you may need
    more than the minimum vault.cite passes. Don't stop early. A
    partial abstract that misses the rent schedule or term is worse
    than useless.
 
-5. After the abstract, offer: "Want me to check this lease against
+6. After the abstract, offer: "Want me to check this lease against
    another document for inconsistencies?" (pointing to the
    inconsistency.detect tool).
 

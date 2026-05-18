@@ -639,7 +639,7 @@ const PER_TOOL_BUDGET: Partial<Record<AgentToolName, number>> = {
   "http.fetch": 10,
   "memory.write": 20,
   "skill.run": 5,        // skills can be expensive; 5 is generous
-  "vault.cite": 10,
+  "vault.cite": 18,       // lease abstraction needs 14+ passes; 18 gives retry headroom
   "reminder.schedule": 5, // bound the runaway-reminders failure mode
   "regulatory.search": 8, // bounded: a single answer rarely needs >3-4 SEC/IRS lookups
   "rmd.calculate": 10,    // a multi-account briefing might compute several at once

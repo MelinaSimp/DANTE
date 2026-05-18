@@ -174,17 +174,18 @@ const ABSTRACT_LEASE: SkillSeed = {
     "Extract key terms from a commercial lease into a structured abstract with vault citations.",
   config: {
     objective:
-      'Abstract the lease for {{input.property_name}}. Search the vault for the lease document, then run targeted vault.cite queries to extract every standard CRE lease field: parties, premises, term, rent schedule, escalations, CAM/operating expenses, security deposit, TI allowance, permitted use, exclusivity, assignment/subletting, termination provisions, renewal/expansion options, insurance requirements, default/remedies, parking, and signage. Present each field with its vault citation inline. Flag any standard fields not found in the document. Output as structured markdown matching the lease abstract format. {{#if input.notes}}Additional context: {{input.notes}}{{/if}}',
+      'Abstract the lease for {{input.property_name}}. {{#if input.document_id}}Use vault document ID {{input.document_id}}.{{else}}Search the vault for the lease document.{{/if}} Run targeted vault.cite queries to extract every standard CRE lease field: parties, premises, term, rent schedule, escalations, percentage rent breakpoint, CAM/operating expenses, tax escalation/pass-through, security deposit, TI allowance, permitted use, exclusivity, assignment/subletting, termination provisions, renewal/expansion options, SNDA/estoppel, holdover rate, environmental/hazmat provisions, insurance requirements, default/remedies, parking, and signage. Present each field with its vault citation inline. Flag any standard fields not found in the document. If the document is an amendment or modification (not a full lease), label the output as "Amendment Abstract," note the original lease it amends, and abstract only the changed terms. If it is a letter of intent, label as "LOI Summary" and note terms are non-binding. Output as structured markdown matching the lease abstract format. {{#if input.notes}}Additional context: {{input.notes}}{{/if}}',
     system:
-      "You are abstracting a commercial lease on behalf of a CRE broker. Accuracy is paramount — every number, date, and name must carry a vault citation. Do not invent terms. If a field is not in the document, say 'Not found in document.' Output structured markdown, not prose. Run as many vault.cite passes as needed — a partial abstract is unacceptable.",
+      "You are abstracting a commercial lease on behalf of a CRE broker. Accuracy is paramount — every number, date, and name must carry a vault citation. Do not invent terms. If a field is not in the document, say 'Not found in document.' Output structured markdown, not prose. Run as many vault.cite passes as needed — a partial abstract is unacceptable. Before writing each section, verify you have a [vN] citation for every number, date, and name. If you don't, run another vault.cite query rather than writing uncited.",
     tools: ["vault.cite", "archive.search"],
-    max_steps: 20,
+    max_steps: 25,
   },
   input_schema: {
     type: "object",
     required: ["property_name"],
     properties: {
       property_name: { type: "string" },
+      document_id: { type: "string" },
       notes: { type: "string" },
     },
   },

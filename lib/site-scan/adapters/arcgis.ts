@@ -75,7 +75,9 @@ export class ArcGISCountyAdapter implements CountyAdapter {
       url.searchParams.set("spatialRel", "esriSpatialRelIntersects");
     }
 
-    const res = await fetch(url.toString());
+    const res = await fetch(url.toString(), {
+      signal: AbortSignal.timeout(15_000),
+    });
     if (!res.ok) {
       console.warn(`[arcgis] search failed: ${res.status} ${res.statusText}`);
       return [];
@@ -101,7 +103,9 @@ export class ArcGISCountyAdapter implements CountyAdapter {
     url.searchParams.set("outSR", "4326");
     url.searchParams.set("f", "json");
 
-    const res = await fetch(url.toString());
+    const res = await fetch(url.toString(), {
+      signal: AbortSignal.timeout(15_000),
+    });
     if (!res.ok) throw new Error(`ArcGIS query failed: ${res.status}`);
     const json = await res.json();
     const feature = json.features?.[0];

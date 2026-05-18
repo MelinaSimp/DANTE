@@ -243,7 +243,7 @@ export async function handleSiteScanDetail(
       };
 
       // Tax estimate (derived)
-      sections.tax_estimate = estimateTax(auditor.data);
+      sections.tax_estimate = estimateTax(auditor.data, undefined, state);
     } catch (err) {
       console.warn("[site_scan.detail] auditor fetch failed:", err);
     }
@@ -364,13 +364,15 @@ export async function handleSiteScanVoidAnalysis(
   const acMin = args.acreage_min ?? 0;
   const acMax = args.acreage_max ?? Infinity;
 
-  // 1. Geocode all locations in parallel
-  const geoResults = await Promise.all(
-    locations.map(async (loc) => {
-      const geo = await geocodeAddress(loc);
-      return geo ? { loc, geo } : null;
-    }),
-  );
+  // 1. Geocode locations sequentially with delay to respect
+  //    Nominatim's 1 req/sec rate limit. Parallel geocoding
+  //    risks 429 errors that kill the entire analysis.
+  const geoResults: ({ loc: string; geo: NonNullable<Awaited<ReturnType<typeof geocodeAddress>>> } | null)[] = [];
+  for (let gi = 0; gi < locations.length; gi++) {
+    if (gi > 0) await new Promise((r) => setTimeout(r, 1100));
+    const geo = await geocodeAddress(locations[gi]);
+    geoResults.push(geo ? { loc: locations[gi], geo } : null);
+  }
   const validGeos = geoResults.filter(
     (g): g is NonNullable<typeof g> => g !== null,
   );

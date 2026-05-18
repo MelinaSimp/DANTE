@@ -88,7 +88,7 @@ export default function CitationRenderer({ content, trace, citationReport }: Pro
     | { type: "vault"; data: VaultCitation; status?: CitationStatus; detail?: string }
     | { type: "memory"; data: MemoryCitation; status?: CitationStatus; detail?: string }
     | { type: "regulatory"; data: RegulatoryCitation }
-    | { type: "site_scan"; data: SiteScanCitation }
+    | { type: "site_scan"; data: SiteScanCitation; status?: CitationStatus; detail?: string }
     | null
   >(null);
 
@@ -196,8 +196,13 @@ export default function CitationRenderer({ content, trace, citationReport }: Pro
                 key={i}
                 label={label}
                 tone="site_scan"
+                status={check?.status}
+                level={check?.level}
+                detail={check?.detail}
                 disabled={!data}
-                onClick={() => data && setPopover({ type: "site_scan", data })}
+                onClick={() =>
+                  data && setPopover({ type: "site_scan", data, status: check?.status, detail: check?.detail })
+                }
               />
             );
           }
@@ -337,7 +342,7 @@ function CitationPopover({
     | { type: "vault"; data: VaultCitation; status?: CitationStatus; detail?: string }
     | { type: "memory"; data: MemoryCitation; status?: CitationStatus; detail?: string }
     | { type: "regulatory"; data: RegulatoryCitation }
-    | { type: "site_scan"; data: SiteScanCitation };
+    | { type: "site_scan"; data: SiteScanCitation; status?: CitationStatus; detail?: string };
   onClose: () => void;
 }) {
   return (
@@ -470,6 +475,16 @@ function CitationPopover({
                 </div>
               )}
             </div>
+            {popover.status === "valid" && (
+              <div className="mt-3 text-xs text-emerald-700/80">
+                Verified against county parcel data.
+              </div>
+            )}
+            {popover.status && popover.status !== "valid" && (
+              <div className="mt-3 text-xs text-amber-700 border-l-2 border-amber-500 pl-3">
+                {popover.detail ?? `Verification: ${popover.status}`}
+              </div>
+            )}
             {popover.data.source_url && (
               <a
                 href={popover.data.source_url}
