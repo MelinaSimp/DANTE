@@ -13,6 +13,24 @@ import {
 } from "./adapters/registry";
 import { upsertParcel, findParcel } from "./parcels";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import type { CountyAdapterConfig } from "./adapters/types";
+
+/**
+ * Build a real URL to the ArcGIS REST HTML view for a specific parcel.
+ * This renders a human-readable page with the parcel's record data.
+ */
+function buildParcelSourceUrl(
+  config: CountyAdapterConfig,
+  parcelNumber: string,
+): string {
+  const parcelField = config.fieldMap.parcel_number;
+  const escaped = parcelNumber.replace(/'/g, "''");
+  return (
+    `${config.serviceUrl}/${config.layerId}/query` +
+    `?where=${encodeURIComponent(`${parcelField}='${escaped}'`)}` +
+    `&outFields=*&f=html`
+  );
+}
 
 // ---- site_scan.search ----------------------------------------
 
@@ -98,7 +116,7 @@ export async function handleSiteScanSearch(
     county: p.county ?? geo.county,
     state: p.state ?? geo.state,
     source: sourceName,
-    source_url: `${sourceName} — parcel ${p.parcel_number}`,
+    source_url: buildParcelSourceUrl(adapter.config, p.parcel_number),
     accessed_at: accessedAt,
   }));
 
@@ -213,7 +231,7 @@ export async function handleSiteScanDetail(
             await detailAdapter.getParcelDetail(parcelNumber!);
           return {
             data,
-            source_url: `${detailAdapter.config.serviceUrl} (parcel ${parcelNumber})`,
+            source_url: buildParcelSourceUrl(detailAdapter.config, parcelNumber!),
           };
         },
       );
@@ -529,17 +547,24 @@ export async function handleSiteScanVoidAnalysis(
   const accessedAt = new Date().toISOString();
 
   // Build citation markers for the model to use inline
-  const citations = topSites.map((p, i) => ({
-    marker: `[ss:${i + 1}]`,
-    index: i + 1,
-    parcel_number: p.parcel_number,
-    address: p.address || "No address on record",
-    county: p.county,
-    state: p.state,
-    source: p.source,
-    source_url: `${p.source} — parcel ${p.parcel_number}`,
-    accessed_at: accessedAt,
-  }));
+  const citations = topSites.map((p, i) => {
+    let sourceUrl = "";
+    try {
+      const a = getAdapter(p.state, p.county);
+      sourceUrl = buildParcelSourceUrl(a.config, p.parcel_number);
+    } catch { /* no coverage — leave blank */ }
+    return {
+      marker: `[ss:${i + 1}]`,
+      index: i + 1,
+      parcel_number: p.parcel_number,
+      address: p.address || "No address on record",
+      county: p.county,
+      state: p.state,
+      source: p.source,
+      source_url: sourceUrl,
+      accessed_at: accessedAt,
+    };
+  });
 
   // Build formatted citation block (same pattern as archive.search)
   const formatted = topSites
