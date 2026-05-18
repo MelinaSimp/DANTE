@@ -38,6 +38,15 @@ import { getVerticalSpecLoose } from "@/lib/industry/vertical-spec";
 import { computeGroundingScore } from "@/lib/dante/grounding";
 import type { AgentStep, AgentToolEntry, StepLogEntry } from "@/lib/dante/workflow-types";
 
+// Hard emoji strip — the system prompt says "never use emojis" but
+// models occasionally ignore it during long structured outputs. This
+// catches everything the prompt instruction misses.
+const EMOJI_RE =
+  /[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{200D}\u{20E3}\u{E0020}-\u{E007F}]/gu;
+function stripEmojis(text: string): string {
+  return text.replace(EMOJI_RE, "").replace(/  +/g, " ");
+}
+
 export const dynamic = "force-dynamic";
 // Vercel kills the SSE lambda at maxDuration. With a 10-step agent
 // loop, multiple tool dispatches, and the auto-mode embed pre-flight,
@@ -395,11 +404,15 @@ export async function POST(req: NextRequest) {
           accessibleProjectIds: isUserAdmin ? null : userProjectIds,
           forcedProcessingMode,
           onEvent: (event: AgentEvent) => {
+            // Strip emojis from any text the model produces mid-stream
+            if ("summary" in event && event.summary) {
+              event = { ...event, summary: stripEmojis(event.summary) };
+            }
             send(event);
           },
         });
         console.log(`[ask] runAgent finished in ${Date.now() - t0}ms; runId=${runId}`);
-        assistantContent = result.text || "";
+        assistantContent = stripEmojis(result.text || "");
         // Empty-text without a thrown error has happened in prod —
         // typically the model called tools but never returned a final
         // answer message, or a streaming chunk got dropped. Don't let
