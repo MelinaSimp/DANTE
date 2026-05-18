@@ -57,9 +57,60 @@ function getPath(obj: unknown, path: string): unknown {
   return cur;
 }
 
+// ── Date math resolver ─────────────────────────────────────
+// Handles built-in expressions: "now", "now - 24h", "now - 7d",
+// "now - 2w", "now - 1m". Returns ISO string or null if not a
+// date expression.
+
+function resolveDateExpr(expr: string): string | null {
+  const trimmed = expr.trim();
+  if (trimmed === "now") return new Date().toISOString();
+
+  const match = trimmed.match(
+    /^now\s*([+-])\s*(\d+)\s*(h|d|w|m|hours?|days?|weeks?|months?)$/i
+  );
+  if (!match) return null;
+
+  const [, sign, amount, unit] = match;
+  const n = parseInt(amount, 10);
+  const now = new Date();
+
+  let ms = 0;
+  switch (unit.toLowerCase().replace(/s$/, "")) {
+    case "h":
+    case "hour":
+      ms = n * 60 * 60 * 1000;
+      break;
+    case "d":
+    case "day":
+      ms = n * 24 * 60 * 60 * 1000;
+      break;
+    case "w":
+    case "week":
+      ms = n * 7 * 24 * 60 * 60 * 1000;
+      break;
+    case "m":
+    case "month":
+      ms = n * 30 * 24 * 60 * 60 * 1000;
+      break;
+    default:
+      return null;
+  }
+
+  const result = new Date(
+    sign === "-" ? now.getTime() - ms : now.getTime() + ms
+  );
+  return result.toISOString();
+}
+
 function resolveTemplate(value: unknown, ctx: Ctx): unknown {
   if (typeof value === "string") {
     return value.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (_, expr: string) => {
+      // Try date math first (now, now - 24h, etc.)
+      const dateResult = resolveDateExpr(expr);
+      if (dateResult) return dateResult;
+
+      // Then try path lookup (steps.x.y, secrets.z, input.w)
       const val = getPath(ctx, expr);
       return val == null ? "" : typeof val === "object" ? JSON.stringify(val) : String(val);
     });
@@ -148,24 +199,50 @@ async function runOpenAI(cfg: {
 }
 
 async function runQueryClients(
-  cfg: { filter?: Record<string, string>; limit?: number },
+  cfg: { filter?: Record<string, string>; limit?: number; order_by?: string },
   workspaceId: string
 ) {
   let q = supabaseAdmin
     .from("contacts")
     .select("id, name, email, phone, created_at")
     .eq("workspace_id", workspaceId);
-  // Skip empty filter values. resolveTemplate() turns unresolved
-  // `{{steps.x.y}}` references into empty strings, and Postgres rejects
-  // `WHERE created_at = ''` with a 22007 "invalid timestamp" error.
-  // Treating "", null, and undefined as "don't filter" is the right
-  // default anyway — a user who didn't supply a value meant "any".
+
+  // Filter values support operator prefixes for comparison queries:
+  //   "gte:2026-05-16T00:00:00Z"  → .gte("created_at", "2026-05-16...")
+  //   "lte:2026-05-16"            → .lte(...)
+  //   "gt:5"                      → .gt(...)
+  //   "lt:5"                      → .lt(...)
+  //   "neq:inactive"              → .neq(...)
+  //   "like:%smith%"              → .like(...)
+  //   "ilike:%smith%"             → .ilike(...)
+  //   no prefix                   → .eq(...) (backwards compatible)
+  //
+  // Skip empty filter values — resolveTemplate() turns unresolved
+  // `{{steps.x.y}}` into empty strings, and Postgres rejects
+  // `WHERE created_at = ''` with a 22007 error. Treating "" as
+  // "don't filter" is the right default — no value means "any".
   for (const [k, v] of Object.entries(cfg.filter || {})) {
     if (v === "" || v === null || v === undefined) continue;
-    q = q.eq(k, v);
+    const sv = String(v);
+
+    const opMatch = sv.match(/^(gte|lte|gt|lt|neq|like|ilike):(.+)$/);
+    if (opMatch) {
+      const [, op, val] = opMatch;
+      switch (op) {
+        case "gte":   q = q.gte(k, val); break;
+        case "lte":   q = q.lte(k, val); break;
+        case "gt":    q = q.gt(k, val); break;
+        case "lt":    q = q.lt(k, val); break;
+        case "neq":   q = q.neq(k, val); break;
+        case "like":  q = q.like(k, val); break;
+        case "ilike": q = q.ilike(k, val); break;
+      }
+    } else {
+      q = q.eq(k, sv);
+    }
   }
   const limit = Math.min(Math.max(Number(cfg.limit) || 25, 1), 500);
-  q = q.limit(limit);
+  q = q.order("created_at", { ascending: false }).limit(limit);
   const { data, error } = await q;
   if (error) throw new Error(error.message);
   return { contacts: data || [], count: data?.length ?? 0 };

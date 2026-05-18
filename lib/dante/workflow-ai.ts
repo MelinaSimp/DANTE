@@ -75,6 +75,17 @@ RULES
    - "query_clients" (Supabase select on contacts table → emits { contacts: [...], count }):
      config: { "filter": { "column": "value" }, "limit": 25 }
      Available columns on contacts: id, name, email, phone, created_at.
+     Filter values support operator prefixes for range queries:
+       "gte:value" → greater-than-or-equal, "lte:value" → less-than-or-equal,
+       "gt:value" → greater-than, "lt:value" → less-than,
+       "neq:value" → not-equal, "ilike:%value%" → case-insensitive LIKE.
+       No prefix → exact equality.
+     Date math built-ins: {{now}}, {{now - 24h}}, {{now - 7d}}, {{now - 2w}},
+       {{now - 1m}} resolve to ISO timestamps at runtime.
+     Example: to find contacts added in the last 24 hours, use
+       { "filter": { "created_at": "gte:{{now - 24h}}" }, "limit": 25 }
+     Example: to find contacts named Smith:
+       { "filter": { "name": "ilike:%smith%" } }
    - "update_contact" (patch one contact):
      config: { "contact_id": "uuid or template", "patch": { ... } }
    - "send_email" (Resend):
@@ -120,6 +131,11 @@ RULES
    vault and are referenced as {{secrets.<key>}}. Use this for any
    durable credential the user would set once and reuse — e.g.
    "to": "{{secrets.advisor_email}}", "Authorization": "Bearer {{secrets.custodian_token}}".
+
+   Date math: {{now}} resolves to the current ISO timestamp at
+   runtime. You can also do {{now - 24h}}, {{now - 7d}}, {{now - 2w}},
+   {{now - 1m}} for relative timestamps. Use these inside filter
+   values with operator prefixes, e.g. "gte:{{now - 24h}}".
 
    IMPORTANT: never reference a template path that won't exist at
    runtime. If a filter value is optional, OMIT the key rather than
