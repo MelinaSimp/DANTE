@@ -168,6 +168,29 @@ const PREP_BRIEFING_FOR_SHOWING: SkillSeed = {
   auto_approve: true,
 };
 
+const ABSTRACT_LEASE: SkillSeed = {
+  name: "abstract_lease",
+  description:
+    "Extract key terms from a commercial lease into a structured abstract with vault citations.",
+  config: {
+    objective:
+      'Abstract the lease for {{input.property_name}}. Search the vault for the lease document, then run targeted vault.cite queries to extract every standard CRE lease field: parties, premises, term, rent schedule, escalations, CAM/operating expenses, security deposit, TI allowance, permitted use, exclusivity, assignment/subletting, termination provisions, renewal/expansion options, insurance requirements, default/remedies, parking, and signage. Present each field with its vault citation inline. Flag any standard fields not found in the document. Output as structured markdown matching the lease abstract format. {{#if input.notes}}Additional context: {{input.notes}}{{/if}}',
+    system:
+      "You are abstracting a commercial lease on behalf of a CRE broker. Accuracy is paramount — every number, date, and name must carry a vault citation. Do not invent terms. If a field is not in the document, say 'Not found in document.' Output structured markdown, not prose. Run as many vault.cite passes as needed — a partial abstract is unacceptable.",
+    tools: ["vault.cite", "archive.search"],
+    max_steps: 20,
+  },
+  input_schema: {
+    type: "object",
+    required: ["property_name"],
+    properties: {
+      property_name: { type: "string" },
+      notes: { type: "string" },
+    },
+  },
+  auto_approve: true,
+};
+
 const REGISTRY: Record<string, SkillSeed> = {
   draft_review_meeting_recap: DRAFT_REVIEW_MEETING_RECAP,
   summarize_recent_emails: SUMMARIZE_RECENT_EMAILS,
@@ -175,6 +198,7 @@ const REGISTRY: Record<string, SkillSeed> = {
   draft_listing_prep_recap: DRAFT_LISTING_PREP_RECAP,
   summarize_recent_buyer_emails: SUMMARIZE_RECENT_BUYER_EMAILS,
   prep_briefing_for_showing: PREP_BRIEFING_FOR_SHOWING,
+  abstract_lease: ABSTRACT_LEASE,
 };
 
 export function getSkillSeed(slug: string): SkillSeed | null {
@@ -191,6 +215,7 @@ const DEFAULTS: Record<Industry, string[]> = {
     "draft_listing_prep_recap",
     "summarize_recent_buyer_emails",
     "prep_briefing_for_showing",
+    "abstract_lease",
   ],
 };
 
