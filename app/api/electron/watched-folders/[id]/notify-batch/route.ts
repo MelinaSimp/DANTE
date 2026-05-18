@@ -16,7 +16,7 @@ import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { enqueueIngest, kickIngestWorker } from "@/lib/vault/ingest-queue";
-import { resolveProjectForWatchedFile } from "@/lib/vault/auto-project";
+import { resolveProjectForWatchedFile, projectNameForWatchedFolder } from "@/lib/vault/auto-project";
 import { sanitizeForPostgres } from "@/lib/vault/sanitize-text";
 
 export const dynamic = "force-dynamic";
@@ -136,22 +136,10 @@ export async function POST(
     }
   }
 
-  // ── Resolve auto-project (once — all files share the folder) ──────
-  let autoProjectId: string | null = null;
-  try {
-    const auto = await resolveProjectForWatchedFile({
-      workspaceId,
-      watchedFolderPath: f.folder_path,
-      filePath: files[0].file_path,
-      userId: user.id,
-    });
-    autoProjectId = auto.projectId;
-  } catch (err) {
-    console.warn(
-      "[notify-batch] auto-project resolution failed:",
-      err instanceof Error ? err.message : err,
-    );
-  }
+  // ── Per-file project resolution (cached by subfolder) ────────────
+  // Files in different subfolders get different projects. We cache by
+  // derived project name so we hit the DB only once per unique subfolder.
+  const projectCache = new Map<string, string | null>();
 
   // ── Per-file validation + prepare batch inserts ───────────────────
   const results: FileResult[] = [];
@@ -204,6 +192,31 @@ export async function POST(
         ? sanitizeForPostgres(file.extracted_text!.trim())
         : null;
 
+      // Resolve project per-file (cached by subfolder name)
+      let fileProjectId: string | null = null;
+      const projName = projectNameForWatchedFolder(f.folder_path, file.file_path);
+      if (projName && projectCache.has(projName)) {
+        fileProjectId = projectCache.get(projName)!;
+      } else if (projName) {
+        try {
+          const auto = await resolveProjectForWatchedFile({
+            workspaceId,
+            watchedFolderPath: f.folder_path,
+            filePath: file.file_path,
+            userId: user.id,
+          });
+          fileProjectId = auto.projectId;
+          projectCache.set(projName, fileProjectId);
+        } catch (err) {
+          console.warn(
+            "[notify-batch] auto-project resolution failed for",
+            projName, ":",
+            err instanceof Error ? err.message : err,
+          );
+          projectCache.set(projName, null);
+        }
+      }
+
       vaultItemInserts.push({
         workspace_id: workspaceId,
         uploaded_by: user.id,
@@ -214,7 +227,7 @@ export async function POST(
         file_size: file.file_size_bytes ?? null,
         file_type: ext,
         content: sanitizedText,
-        project_id: autoProjectId ?? f.default_vault_project_id ?? null,
+        project_id: fileProjectId ?? f.default_vault_project_id ?? null,
         processing_mode_override: null,
       });
       autoConfirmResultIndices.push(results.length);
