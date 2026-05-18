@@ -64,6 +64,8 @@ const DEFAULT_TOOLS: AgentToolEntry[] = [
   "skill.run",
   "file_index.search",
   "file_index.ingest",
+  "reminder.schedule",
+  "workflow.propose",
 ];
 
 // System prompt is now built per-workspace inside POST() so realtor
