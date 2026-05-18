@@ -5,16 +5,23 @@
 import { ArcGISCountyAdapter } from "./arcgis";
 import { OGRIP_OH } from "./configs/ogrip-oh";
 import { CUYAHOGA_OH } from "./configs/cuyahoga-oh";
+import { ALLEGHENY_PA } from "./configs/allegheny-pa";
+import { WESTMORELAND_PA } from "./configs/westmoreland-pa";
+import { BUTLER_PA } from "./configs/butler-pa";
+import { BEAVER_PA } from "./configs/beaver-pa";
 import type { CountyAdapter, CountyAdapterConfig } from "./types";
 
 const COUNTY_CONFIGS: CountyAdapterConfig[] = [
   CUYAHOGA_OH,
-  // Add new county configs here as customers sign up
+  ALLEGHENY_PA,
+  WESTMORELAND_PA,
+  BUTLER_PA,
+  BEAVER_PA,
 ];
 
 const STATEWIDE_CONFIGS: Record<string, CountyAdapterConfig> = {
   OH: OGRIP_OH,
-  // Add new states here
+  // PA has no statewide parcel service with attributes
 };
 
 export function getAdapter(state: string, county?: string): CountyAdapter {

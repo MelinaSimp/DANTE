@@ -34,10 +34,16 @@ export class ArcGISCountyAdapter implements CountyAdapter {
       clauses.push(`${fieldMap.land_use_code} IN (${quoted})`);
     }
     if (params.acreageMin != null && fieldMap.land_area_sf) {
-      clauses.push(`${fieldMap.land_area_sf} >= ${params.acreageMin * 43560}`);
+      const minVal = this.config.areaFieldIsAcres
+        ? params.acreageMin
+        : params.acreageMin * 43560;
+      clauses.push(`${fieldMap.land_area_sf} >= ${minVal}`);
     }
     if (params.acreageMax != null && fieldMap.land_area_sf) {
-      clauses.push(`${fieldMap.land_area_sf} <= ${params.acreageMax * 43560}`);
+      const maxVal = this.config.areaFieldIsAcres
+        ? params.acreageMax
+        : params.acreageMax * 43560;
+      clauses.push(`${fieldMap.land_area_sf} <= ${maxVal}`);
     }
 
     url.searchParams.set("where", clauses.length ? clauses.join(" AND ") : "1=1");
@@ -101,6 +107,9 @@ export class ArcGISCountyAdapter implements CountyAdapter {
       ? this.polygonCentroid(geom.rings)
       : { lat: geom?.y ?? 0, lng: geom?.x ?? 0 };
 
+    const rawArea = a[fm.land_area_sf] ?? 0;
+    const acres = this.config.areaFieldIsAcres ? rawArea : rawArea / 43560;
+
     return {
       parcel_number: String(a[fm.parcel_number] ?? ""),
       address: String(a[fm.address] ?? ""),
@@ -110,7 +119,7 @@ export class ArcGISCountyAdapter implements CountyAdapter {
       centroid,
       zoning_class: String(a[fm.zoning_class] ?? ""),
       zoning_description: a[fm.zoning_description] ?? undefined,
-      land_area_acres: (a[fm.land_area_sf] ?? 0) / 43560,
+      land_area_acres: acres,
       assessed_value_total: a[fm.assessed_value_total] ?? undefined,
       land_use_code: a[fm.land_use_code] ?? undefined,
       land_use_description: a[fm.land_use_description] ?? undefined,
@@ -120,7 +129,9 @@ export class ArcGISCountyAdapter implements CountyAdapter {
   private mapDetail(feature: any): AuditorRecord {
     const a = feature.attributes;
     const fm = this.config.fieldMap;
-    const landSf = a[fm.land_area_sf] ?? 0;
+    const rawArea = a[fm.land_area_sf] ?? 0;
+    const landSf = this.config.areaFieldIsAcres ? rawArea * 43560 : rawArea;
+    const landAcres = this.config.areaFieldIsAcres ? rawArea : rawArea / 43560;
     const assessed = a[fm.assessed_value_total] ?? 0;
     const millage = a[fm.millage_rate] ?? 0;
 
@@ -135,7 +146,7 @@ export class ArcGISCountyAdapter implements CountyAdapter {
       land_use_code: String(a[fm.land_use_code] ?? ""),
       land_use_description: a[fm.land_use_description] ?? "",
       land_area_sf: landSf,
-      land_area_acres: landSf / 43560,
+      land_area_acres: landAcres,
       assessed_value_land: a[fm.assessed_value_land] ?? 0,
       assessed_value_building: a[fm.assessed_value_building] ?? 0,
       assessed_value_total: assessed,

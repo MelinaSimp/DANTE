@@ -62,6 +62,9 @@ export interface CountyAdapterConfig {
   spatialReference: number;
   fieldMap: Record<string, string>;
   zoningClassMap?: Record<string, string[]>;
+  /** When true, the land_area_sf field actually stores acres, not SF.
+   *  The adapter skips the /43560 conversion and adjusts WHERE clauses. */
+  areaFieldIsAcres?: boolean;
 }
 
 export interface CountyAdapter {

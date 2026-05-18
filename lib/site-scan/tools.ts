@@ -57,10 +57,10 @@ export async function handleSiteScanSearch(
     });
   }
 
-  // Resolve land_use
+  // Resolve land_use through the adapter's zoning map
   let landUseCodes: string[] | undefined;
-  if (args.land_use === "vacant") {
-    landUseCodes = ["400", "401", "402"];
+  if (args.land_use === "vacant" && zoningConfig?.vacant) {
+    landUseCodes = zoningConfig.vacant;
   }
 
   // 3. Query
@@ -380,11 +380,8 @@ export async function handleSiteScanVoidAnalysis(
       });
     }
 
-    let landUseCodes: string[] | undefined;
-    if (preferVacant) {
-      landUseCodes = ["400", "401", "402"];
-    }
-
+    // Resolve "prefer vacant" using the adapter's zoning map, not hardcoded codes.
+    // We do a broader search and let the scoring layer boost vacant parcels.
     try {
       const parcels = await adapter.searchParcels({
         center: { lat: geo.lat, lng: geo.lng },
@@ -392,7 +389,6 @@ export async function handleSiteScanVoidAnalysis(
         zoning: zoningCodes,
         acreageMin: args.acreage_min,
         acreageMax: args.acreage_max,
-        landUse: landUseCodes,
         maxResults: 40,
       });
 
