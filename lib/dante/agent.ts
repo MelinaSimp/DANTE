@@ -1531,7 +1531,7 @@ export interface AgentRunResult {
   truncated: boolean;
 }
 
-const HARD_MAX_STEPS = 20;
+const HARD_MAX_STEPS = 30;  // raised from 20: lease abstraction needs 19+ vault.cite passes
 
 export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
   const cfg = input.step.config;
