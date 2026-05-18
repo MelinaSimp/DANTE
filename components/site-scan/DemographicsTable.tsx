@@ -70,8 +70,8 @@ export default function DemographicsTable({
       <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">
         {rows.map((row) => (
           <div key={row.label} className="flex justify-between">
-            <span className="text-[var(--ink-muted)]">{row.label}</span>
-            <span className="font-mono font-medium">{row.value}</span>
+            <span className="text-[var(--ink-subtle)] text-xs">{row.label}</span>
+            <span className="font-mono font-medium text-[var(--ink)] text-xs">{row.value}</span>
           </div>
         ))}
       </div>

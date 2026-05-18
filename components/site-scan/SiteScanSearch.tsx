@@ -71,65 +71,78 @@ export default function SiteScanSearch() {
     }
   }
 
+  const inputClass =
+    "w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none focus:border-[var(--rule-strong)]";
+
   return (
-    <div className="space-y-6">
-      <form onSubmit={handleSearch} className="space-y-4">
+    <div className="space-y-8">
+      <form onSubmit={handleSearch} className="space-y-3">
         <div className="flex gap-3">
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Address, city, or zip code..."
-            className="flex-1 px-3 py-2 border border-[var(--edge)] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent"
-          />
+          <div className="flex-1 relative">
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--ink-subtle)]"
+              strokeWidth={1.5}
+            />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Address, city, or zip code..."
+              className={`${inputClass} pl-9`}
+            />
+          </div>
           <button
             type="submit"
             disabled={loading || !query.trim()}
-            className="px-4 py-2 bg-[var(--accent)] text-white rounded-lg text-sm font-medium hover:opacity-90 disabled:opacity-50 flex items-center gap-2"
+            className="inline-flex items-center gap-2 px-5 py-2 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-sm font-semibold hover:opacity-90 disabled:opacity-40 transition"
           >
-            <Search className="w-4 h-4" />
+            {loading ? (
+              <span className="inline-block w-4 h-4 border-2 border-[var(--canvas)]/30 border-t-[var(--canvas)] rounded-full animate-spin" />
+            ) : (
+              <Search className="w-3.5 h-3.5" strokeWidth={1.5} />
+            )}
             {loading ? "Searching..." : "Search"}
           </button>
         </div>
-        <div className="flex gap-3 text-sm">
+        <div className="flex gap-3">
           <input
             type="text"
             value={zoning}
             onChange={(e) => setZoning(e.target.value)}
             placeholder="Zoning (e.g. retail, C-2)"
-            className="px-3 py-1.5 border border-[var(--edge)] rounded text-sm w-48"
+            className={`${inputClass} !w-48`}
           />
           <input
             type="number"
             value={acreageMin}
             onChange={(e) => setAcreageMin(e.target.value)}
             placeholder="Min acres"
-            className="px-3 py-1.5 border border-[var(--edge)] rounded text-sm w-28"
+            className={`${inputClass} !w-28`}
           />
           <input
             type="number"
             value={acreageMax}
             onChange={(e) => setAcreageMax(e.target.value)}
             placeholder="Max acres"
-            className="px-3 py-1.5 border border-[var(--edge)] rounded text-sm w-28"
+            className={`${inputClass} !w-28`}
           />
         </div>
       </form>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+        <div className="px-3 py-2 text-sm text-[var(--danger)] bg-[var(--danger-soft)] border border-[var(--danger)]/30 rounded-[4px] flex items-center gap-2">
           {error}
         </div>
       )}
 
       {result && (
-        <div className="space-y-4">
+        <div className="space-y-5">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-[var(--ink-muted)]">
+            <div className="label-section">
               {result.results_count} parcels near{" "}
               {result.location_resolved}
-            </p>
-            <p className="text-xs text-[var(--ink-muted)]">
+            </div>
+            <p className="text-xs text-[var(--ink-subtle)] font-mono">
               {result.detail_coverage}
             </p>
           </div>
@@ -144,7 +157,7 @@ export default function SiteScanSearch() {
               />
             ))}
           </div>
-          <p className="text-xs text-[var(--ink-muted)] italic">
+          <p className="text-xs text-[var(--ink-subtle)]">
             {result.caveat}
           </p>
         </div>

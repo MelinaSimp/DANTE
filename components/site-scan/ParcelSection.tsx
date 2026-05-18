@@ -24,18 +24,18 @@ export default function ParcelSection({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <div className="border border-[var(--edge)] rounded-lg overflow-hidden">
+    <div className="border border-[var(--rule)] rounded-[4px] overflow-hidden">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+        className="w-full flex items-center justify-between px-4 py-3 bg-[var(--canvas-subtle)] hover:bg-[var(--canvas-subtle)]/80 transition-colors text-left"
       >
         <div className="flex items-center gap-3">
           {open ? (
-            <ChevronDown className="w-4 h-4 text-[var(--ink-muted)]" />
+            <ChevronDown className="w-3.5 h-3.5 text-[var(--ink-muted)]" strokeWidth={1.5} />
           ) : (
-            <ChevronRight className="w-4 h-4 text-[var(--ink-muted)]" />
+            <ChevronRight className="w-3.5 h-3.5 text-[var(--ink-muted)]" strokeWidth={1.5} />
           )}
-          <span className="text-sm font-medium text-[var(--ink)]">
+          <span className="label-section !mb-0">
             {title}
           </span>
         </div>
@@ -45,7 +45,7 @@ export default function ParcelSection({
           confidence={confidence}
         />
       </button>
-      {open && <div className="px-4 py-3">{children}</div>}
+      {open && <div className="px-4 py-4">{children}</div>}
     </div>
   );
 }

@@ -27,8 +27,8 @@ function Field({
 }) {
   return (
     <div>
-      <p className="text-[var(--ink-muted)] text-xs">{label}</p>
-      <p className="font-mono text-sm">{value}</p>
+      <p className="text-[var(--ink-subtle)] text-xs mb-0.5">{label}</p>
+      <p className="font-mono text-sm text-[var(--ink)]">{value}</p>
     </div>
   );
 }
@@ -41,12 +41,12 @@ export default function ParcelDetail({ data }: ParcelDetailProps) {
     <div className="max-w-3xl mx-auto space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-semibold text-[var(--ink)]">
+        <div className="label-section mb-1.5">Parcel intelligence</div>
+        <h1 className="heading-display text-2xl md:text-3xl text-[var(--ink)] leading-[1.1]">
           {auditor?.address ?? `Parcel ${data.parcel_number}`}
         </h1>
-        <p className="text-sm text-[var(--ink-muted)] mt-1">
-          {data.county} County, {data.state} -- Parcel{" "}
-          {data.parcel_number}
+        <p className="text-sm text-[var(--ink-muted)] mt-1.5 font-mono">
+          {data.county} County, {data.state} -- {data.parcel_number}
         </p>
       </div>
 
@@ -125,14 +125,14 @@ export default function ParcelDetail({ data }: ParcelDetailProps) {
           accessedAt={sections.environmental._accessed}
         >
           {sections.environmental.brownfield_sites_nearby ? (
-            <div className="bg-amber-50 border border-amber-200 rounded p-3 text-sm">
-              <p className="font-medium text-amber-800">
+            <div className="border border-[var(--rule)] rounded-[4px] p-3 text-sm bg-[var(--canvas)]">
+              <p className="font-semibold text-[var(--ink)] text-xs">
                 Brownfield sites found within 0.5 miles
               </p>
               <ul className="mt-2 space-y-1">
                 {sections.environmental.sites.map(
                   (s: any, i: number) => (
-                    <li key={i} className="text-amber-700">
+                    <li key={i} className="text-[var(--ink-muted)] text-xs font-mono">
                       {s.name} ({s.program}) --{" "}
                       {s.distance_miles.toFixed(2)} mi -- {s.status}
                     </li>
@@ -141,7 +141,7 @@ export default function ParcelDetail({ data }: ParcelDetailProps) {
               </ul>
             </div>
           ) : (
-            <p className="text-sm text-emerald-700">
+            <p className="text-sm text-[var(--ink-muted)]">
               No brownfield sites found within 0.5 miles.
             </p>
           )}
@@ -178,7 +178,7 @@ export default function ParcelDetail({ data }: ParcelDetailProps) {
       </ParcelSection>
 
       {/* Caveat */}
-      <p className="text-xs text-[var(--ink-muted)] border-t border-[var(--edge)] pt-4">
+      <p className="text-xs text-[var(--ink-subtle)] border-t border-[var(--rule)] pt-4">
         {data.caveat}
       </p>
     </div>
