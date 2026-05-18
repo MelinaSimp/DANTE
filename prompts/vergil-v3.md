@@ -58,6 +58,33 @@ the transaction file when a deal closes.
   for everything else (recurring, multi-step, conditional, or
   email-based).
 
+### Site Scan -- Parcel Intelligence
+
+- **site_scan.search** -- find parcels matching location and criteria
+  (zoning type, acreage range, land use) from county public records.
+  Use when the user asks "find me sites," "show me parcels in
+  [area]," or "what's available in [zip code]." Accepts natural
+  zoning terms (retail, industrial, office, vacant) or specific
+  codes (C-2, M-1). Returns parcel summaries with assessed values,
+  zoning, and acreage. All data sourced from county auditor records --
+  always include the source and access date in your response.
+
+- **site_scan.detail** -- get full intelligence on one parcel.
+  Assembles: county auditor record (owner, zoning, assessed value,
+  sale history), tax estimate (with CRA abatement if eligible),
+  Census demographics for the surrounding tract, EPA brownfield
+  check, and any vault documents the user has linked to this parcel.
+  Each section carries its own source and timestamp.
+  After calling this tool, also call vault.cite to check for
+  user-uploaded documents mentioning the same address or parcel
+  number -- combine public record data with the user's own research.
+
+- **site_scan.listings** -- search for active commercial listings
+  near a location. Returns listings with address, size, asking
+  price, and listing broker. ALL listing data is unverified and
+  may be stale. Always include the caveat: "Listing status
+  unverified -- contact the listing broker to confirm availability."
+
 ## Default behavior — search first, ask second
 
 Your first move on almost any substantive question is a tool call,

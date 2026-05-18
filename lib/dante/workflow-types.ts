@@ -160,7 +160,10 @@ export type AgentToolName =
   | "inconsistency.detect" // cross-document contradiction detection
   | "workflow.propose" // draft a persistent workflow for the user to accept or decline
   | "file_index.search"   // search the watched file index by filename/path
-  | "file_index.ingest";  // trigger on-demand content retrieval for an indexed file
+  | "file_index.ingest"   // trigger on-demand content retrieval for an indexed file
+  | "site_scan.search"    // search parcels by location, zoning, acreage
+  | "site_scan.detail"    // full parcel intelligence (auditor, tax, demographics, EPA)
+  | "site_scan.listings"; // search active commercial listings near a location
 
 export type AgentToolEntry =
   | AgentToolName

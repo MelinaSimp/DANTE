@@ -42,6 +42,11 @@ import {
 import { expandMcpTools, callMcpTool, parseMcpToolName } from "@/lib/mcp/registry";
 import { runSkill } from "@/lib/dante/skills";
 import { generateWorkflow } from "@/lib/dante/workflow-ai";
+import {
+  handleSiteScanSearch,
+  handleSiteScanDetail,
+  handleSiteScanListings,
+} from "@/lib/site-scan/tools";
 import { getWorkspaceModel } from "@/lib/dante/model";
 import { complete as llmComplete } from "@/lib/llm/client";
 import {
@@ -403,6 +408,122 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
       },
     },
   },
+  "site_scan.search": {
+    type: "function",
+    function: {
+      name: "site_scan_search",
+      description:
+        "Search for parcels matching location, zoning, and size criteria. " +
+        "Returns parcel summaries from county public records with assessed values, " +
+        "zoning classifications, and acreage. Use when the user asks to find " +
+        "sites, parcels, or properties in a specific area.",
+      parameters: {
+        type: "object",
+        properties: {
+          location: {
+            type: "string",
+            description:
+              "Location to search -- address, intersection, city, or zip code",
+          },
+          zoning: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "Zoning types: use natural terms (retail, industrial, office, " +
+              "mixed_use, residential, vacant) or specific codes (C-2, M-1)",
+          },
+          acreage_min: {
+            type: "number",
+            description: "Minimum parcel size in acres",
+          },
+          acreage_max: {
+            type: "number",
+            description: "Maximum parcel size in acres",
+          },
+          land_use: {
+            type: "string",
+            description:
+              "Land use filter -- e.g. 'vacant' for undeveloped parcels",
+          },
+          max_results: {
+            type: "number",
+            description: "Max results (default 20)",
+          },
+        },
+        required: ["location"],
+      },
+    },
+  },
+  "site_scan.detail": {
+    type: "function",
+    function: {
+      name: "site_scan_detail",
+      description:
+        "Get full intelligence on a specific parcel: auditor record, tax estimate, " +
+        "demographics, environmental check, and any linked vault documents. " +
+        "Use when the user asks about a specific property, address, or parcel. " +
+        "After retrieving, check vault.cite for any user-uploaded documents " +
+        "related to the same address or parcel.",
+      parameters: {
+        type: "object",
+        properties: {
+          parcel_number: {
+            type: "string",
+            description: "County parcel number",
+          },
+          address: {
+            type: "string",
+            description:
+              "Street address (alternative to parcel number)",
+          },
+          county: { type: "string", description: "County name" },
+          state: {
+            type: "string",
+            description: "Two-letter state code",
+          },
+        },
+      },
+    },
+  },
+  "site_scan.listings": {
+    type: "function",
+    function: {
+      name: "site_scan_listings",
+      description:
+        "Search for active commercial real estate listings near a location. " +
+        "Returns listings with address, size, asking price, and listing broker. " +
+        "All listing data is unverified -- status may have changed. " +
+        "Use when the user asks what's available or on the market.",
+      parameters: {
+        type: "object",
+        properties: {
+          location: {
+            type: "string",
+            description:
+              "Address, city, or zip to search near",
+          },
+          radius_miles: {
+            type: "number",
+            description: "Search radius in miles (default 3)",
+          },
+          property_type: {
+            type: "string",
+            description:
+              "retail, industrial, office, land, multifamily",
+          },
+          sf_min: {
+            type: "number",
+            description: "Minimum square footage",
+          },
+          sf_max: {
+            type: "number",
+            description: "Maximum square footage",
+          },
+        },
+        required: ["location"],
+      },
+    },
+  },
 };
 
 // Inverse map: function-name string → AgentToolName. The OpenAI API
@@ -425,6 +546,9 @@ const NAME_TO_TOOL: Record<string, AgentToolName> = {
   workflow_propose: "workflow.propose",
   file_index_search: "file_index.search",
   file_index_ingest: "file_index.ingest",
+  site_scan_search: "site_scan.search",
+  site_scan_detail: "site_scan.detail",
+  site_scan_listings: "site_scan.listings",
 };
 
 // ── Tool executor adapters ────────────────────────────────────
@@ -464,6 +588,9 @@ const PER_TOOL_BUDGET: Partial<Record<AgentToolName, number>> = {
   "workflow.propose": 2,  // one ask = one proposal; cap covers a "and also..." follow-up
   "file_index.search": 5,
   "file_index.ingest": 3,
+  "site_scan.search": 5,
+  "site_scan.detail": 5,
+  "site_scan.listings": 3,
 };
 
 /**
@@ -1158,6 +1285,67 @@ async function dispatchTool(
         message: `Content retrieval for ${entry.file_name} is still in progress. The file watcher may be offline or busy. Ask the user to check that their Drift desktop app or watcher daemon is running, then try again.`,
       };
     }
+
+    case "site_scan.search": {
+      return JSON.parse(
+        await handleSiteScanSearch(
+          {
+            location: String(args.location || ""),
+            zoning: Array.isArray(args.zoning)
+              ? (args.zoning as string[])
+              : undefined,
+            acreage_min: args.acreage_min
+              ? Number(args.acreage_min)
+              : undefined,
+            acreage_max: args.acreage_max
+              ? Number(args.acreage_max)
+              : undefined,
+            land_use: args.land_use
+              ? String(args.land_use)
+              : undefined,
+            max_results: args.max_results
+              ? Number(args.max_results)
+              : undefined,
+          },
+          ctx.workspaceId,
+        ),
+      );
+    }
+
+    case "site_scan.detail": {
+      return JSON.parse(
+        await handleSiteScanDetail(
+          {
+            parcel_number: args.parcel_number
+              ? String(args.parcel_number)
+              : undefined,
+            address: args.address ? String(args.address) : undefined,
+            county: args.county ? String(args.county) : undefined,
+            state: args.state ? String(args.state) : undefined,
+          },
+          ctx.workspaceId,
+        ),
+      );
+    }
+
+    case "site_scan.listings": {
+      return JSON.parse(
+        await handleSiteScanListings(
+          {
+            location: String(args.location || ""),
+            radius_miles: args.radius_miles
+              ? Number(args.radius_miles)
+              : undefined,
+            property_type: args.property_type
+              ? String(args.property_type)
+              : undefined,
+            sf_min: args.sf_min ? Number(args.sf_min) : undefined,
+            sf_max: args.sf_max ? Number(args.sf_max) : undefined,
+          },
+          ctx.workspaceId,
+        ),
+      );
+    }
   }
 }
 
@@ -1411,6 +1599,9 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       "workflow.propose": 0,
       "file_index.search": 0,
       "file_index.ingest": 0,
+      "site_scan.search": 0,
+      "site_scan.detail": 0,
+      "site_scan.listings": 0,
     },
   };
 

@@ -117,6 +117,9 @@ const ADVISOR_SPEC: VerticalSpec = {
       "workflow.propose",
       "file_index.search",
       "file_index.ingest",
+      "site_scan.search",
+      "site_scan.detail",
+      "site_scan.listings",
     ],
     promoted_skills: [
       "draft_review_meeting_recap",
@@ -186,6 +189,9 @@ const REALTOR_SPEC: VerticalSpec = {
       "workflow.propose",
       "file_index.search",
       "file_index.ingest",
+      "site_scan.search",
+      "site_scan.detail",
+      "site_scan.listings",
     ],
     promoted_skills: [
       "draft_listing_prep_recap",
