@@ -163,7 +163,8 @@ export type AgentToolName =
   | "file_index.ingest"   // trigger on-demand content retrieval for an indexed file
   | "site_scan.search"    // search parcels by location, zoning, acreage
   | "site_scan.detail"    // full parcel intelligence (auditor, tax, demographics, EPA)
-  | "site_scan.listings"; // search active commercial listings near a location
+  | "site_scan.listings"  // search active commercial listings near a location
+  | "site_scan.void_analysis"; // multi-point corridor search, score + rank top sites
 
 export type AgentToolEntry =
   | AgentToolName

@@ -293,6 +293,258 @@ export async function handleSiteScanDetail(
   });
 }
 
+// ---- site_scan.void_analysis ---------------------------------
+
+export async function handleSiteScanVoidAnalysis(
+  args: {
+    locations: string[];
+    target_use?: string;
+    zoning?: string[];
+    acreage_min?: number;
+    acreage_max?: number;
+    max_sites?: number;
+    prefer_vacant?: boolean;
+  },
+  workspaceId: string,
+): Promise<string> {
+  const locations = args.locations;
+  if (!locations || locations.length === 0) {
+    return JSON.stringify({
+      error:
+        "Provide at least one location. For corridor analysis, provide 3-5 " +
+        "points along the corridor (e.g. intersections, town centers, zip codes).",
+    });
+  }
+  if (locations.length > 8) {
+    return JSON.stringify({
+      error: "Maximum 8 search points per void analysis.",
+    });
+  }
+
+  const maxSites = Math.min(args.max_sites ?? 20, 30);
+  const preferVacant = args.prefer_vacant !== false;
+  const acMin = args.acreage_min ?? 0;
+  const acMax = args.acreage_max ?? Infinity;
+
+  // 1. Geocode all locations in parallel
+  const geoResults = await Promise.all(
+    locations.map(async (loc) => {
+      const geo = await geocodeAddress(loc);
+      return geo ? { loc, geo } : null;
+    }),
+  );
+  const validGeos = geoResults.filter(
+    (g): g is NonNullable<typeof g> => g !== null,
+  );
+  if (validGeos.length === 0) {
+    return JSON.stringify({
+      error:
+        "Could not geocode any of the provided locations. " +
+        "Try full addresses or city + state format.",
+    });
+  }
+
+  // 2. Search each geocoded point (10-mile radius, up to 40 results each)
+  const allParcels: Array<{
+    parcel_number: string;
+    address: string;
+    zoning_class: string;
+    zoning_description?: string;
+    land_area_acres: number;
+    assessed_value_total?: number;
+    land_use_description?: string;
+    county: string;
+    state: string;
+    source: string;
+  }> = [];
+
+  const searchedCounties = new Set<string>();
+
+  for (const { geo } of validGeos) {
+    let adapter;
+    try {
+      adapter = getAdapter(geo.state, geo.county);
+    } catch {
+      continue; // no coverage for this county
+    }
+    const countyKey = `${geo.state}:${geo.county}`;
+    if (searchedCounties.has(countyKey)) continue;
+    searchedCounties.add(countyKey);
+
+    const zoningConfig = adapter.config.zoningClassMap;
+    let zoningCodes = args.zoning;
+    if (zoningCodes && zoningConfig) {
+      zoningCodes = zoningCodes.flatMap((z) => {
+        const mapped = zoningConfig[z.toLowerCase()];
+        return mapped ?? [z];
+      });
+    }
+
+    let landUseCodes: string[] | undefined;
+    if (preferVacant) {
+      landUseCodes = ["400", "401", "402"];
+    }
+
+    try {
+      const parcels = await adapter.searchParcels({
+        center: { lat: geo.lat, lng: geo.lng },
+        radiusMeters: 16093, // 10 miles
+        zoning: zoningCodes,
+        acreageMin: args.acreage_min,
+        acreageMax: args.acreage_max,
+        landUse: landUseCodes,
+        maxResults: 40,
+      });
+
+      const sourceName =
+        adapter.config.county === "*"
+          ? "Ohio OGRIP Statewide"
+          : `${adapter.config.county} County Auditor`;
+
+      for (const p of parcels) {
+        allParcels.push({
+          parcel_number: p.parcel_number,
+          address: p.address,
+          zoning_class: p.zoning_class,
+          zoning_description: p.zoning_description,
+          land_area_acres: p.land_area_acres,
+          assessed_value_total: p.assessed_value_total,
+          land_use_description: p.land_use_description,
+          county: p.county ?? geo.county,
+          state: p.state ?? geo.state,
+          source: sourceName,
+        });
+      }
+    } catch (err) {
+      console.warn(
+        `[void_analysis] search failed for ${countyKey}:`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+
+  if (allParcels.length === 0) {
+    return JSON.stringify({
+      error:
+        "No parcels found matching the criteria. Try broader zoning or acreage filters, " +
+        "or different locations.",
+      locations_searched: validGeos.map((g) => g.geo.matched_address),
+    });
+  }
+
+  // 3. Deduplicate by parcel_number
+  const seen = new Map<string, (typeof allParcels)[0]>();
+  for (const p of allParcels) {
+    const key = `${p.state}:${p.county}:${p.parcel_number}`;
+    if (!seen.has(key)) seen.set(key, p);
+  }
+  const unique = Array.from(seen.values());
+
+  // 4. Score each parcel
+  const medianValue = (() => {
+    const vals = unique
+      .filter((p) => p.assessed_value_total && p.land_area_acres > 0)
+      .map((p) => p.assessed_value_total! / p.land_area_acres)
+      .sort((a, b) => a - b);
+    return vals.length > 0 ? vals[Math.floor(vals.length / 2)] : 0;
+  })();
+
+  const scored = unique.map((p) => {
+    let score = 0;
+
+    // Acreage fit
+    const ac = p.land_area_acres;
+    if (ac >= acMin && ac <= acMax) {
+      score += 3;
+    } else if (
+      ac >= acMin * 0.7 &&
+      ac <= (acMax === Infinity ? Infinity : acMax * 1.3)
+    ) {
+      score += 1;
+    }
+
+    // Vacant land bonus
+    const lu = (p.land_use_description ?? "").toLowerCase();
+    if (
+      lu.includes("vacant") ||
+      lu.includes("undeveloped") ||
+      lu.includes("agricultural")
+    ) {
+      score += 2;
+    }
+
+    // Value efficiency (below-median price per acre = cheaper to acquire)
+    if (medianValue > 0 && p.assessed_value_total && p.land_area_acres > 0) {
+      const perAcre = p.assessed_value_total / p.land_area_acres;
+      if (perAcre < medianValue) score += 1;
+    }
+
+    // Has an address (better than just a parcel number)
+    if (p.address && p.address.length > 5) score += 1;
+
+    return { ...p, score };
+  });
+
+  // 5. Sort by score desc, then acreage desc (bigger sites first among ties)
+  scored.sort((a, b) => b.score - a.score || b.land_area_acres - a.land_area_acres);
+
+  // 6. Take top N
+  const topSites = scored.slice(0, maxSites);
+
+  // 7. Upsert top sites into DB
+  for (const p of topSites) {
+    try {
+      await upsertParcel(workspaceId, {
+        parcel_number: p.parcel_number,
+        address: p.address,
+        zoning_class: p.zoning_class,
+        zoning_description: p.zoning_description,
+        land_area_acres: p.land_area_acres,
+        assessed_value_total: p.assessed_value_total,
+        land_use_description: p.land_use_description,
+        county: p.county,
+        state: p.state,
+      } as any);
+    } catch {
+      // non-critical
+    }
+  }
+
+  return JSON.stringify({
+    analysis_type: "directional_void_analysis",
+    target_use: args.target_use ?? "general commercial",
+    search_points: validGeos.map((g) => g.geo.matched_address),
+    total_parcels_scanned: allParcels.length,
+    unique_after_dedup: unique.length,
+    sites_returned: topSites.length,
+    sites: topSites.map((p, i) => ({
+      rank: i + 1,
+      score: p.score,
+      parcel_number: p.parcel_number,
+      address: p.address || "No address on record",
+      county: p.county,
+      state: p.state,
+      zoning: p.zoning_class,
+      zoning_desc: p.zoning_description,
+      acreage: Math.round(p.land_area_acres * 100) / 100,
+      assessed_value: p.assessed_value_total ?? null,
+      land_use: p.land_use_description ?? null,
+      source: p.source,
+    })),
+    criteria: {
+      zoning: args.zoning ?? "any",
+      acreage_min: args.acreage_min ?? "none",
+      acreage_max: args.acreage_max ?? "none",
+      prefer_vacant: preferVacant,
+    },
+    accessed_at: new Date().toISOString(),
+    caveat:
+      "Directional analysis only. Assessed values and zoning from public county records " +
+      "may not reflect recent changes. Verify each candidate site with the local " +
+      "municipality and conduct proper due diligence before acquisition.",
+  });
+}
+
 // ---- site_scan.listings --------------------------------------
 
 export async function handleSiteScanListings(

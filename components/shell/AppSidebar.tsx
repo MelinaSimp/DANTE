@@ -26,7 +26,6 @@ import {
   ScrollText,
   FileClock,
   FolderSync,
-  MapPin,
   ChevronDown,
   ChevronsUpDown,
   User,
@@ -126,7 +125,6 @@ export default function AppSidebar({
       items: [
         { href: "/agent", label: "Agent", icon: Mic },
         { href: "/properties", label: "Properties", icon: Home, industry: "real_estate" },
-        { href: "/site-scan", label: "Site Scan", icon: MapPin, industry: "real_estate" },
         { href: "/review-tables", label: "Review tables", icon: Table2 },
         { href: "/audit", label: "Audit log", icon: ScrollText },
       ],

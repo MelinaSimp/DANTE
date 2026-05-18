@@ -46,6 +46,7 @@ import {
   handleSiteScanSearch,
   handleSiteScanDetail,
   handleSiteScanListings,
+  handleSiteScanVoidAnalysis,
 } from "@/lib/site-scan/tools";
 import { getWorkspaceModel } from "@/lib/dante/model";
 import { complete as llmComplete } from "@/lib/llm/client";
@@ -524,6 +525,63 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
       },
     },
   },
+  "site_scan.void_analysis": {
+    type: "function",
+    function: {
+      name: "site_scan_void_analysis",
+      description:
+        "Directional void analysis: search a corridor or area for potential " +
+        "development sites. Provide 2-5 search points along the target area " +
+        "(intersections, town centers, zip codes) and the tool will scan a " +
+        "10-mile radius around each, deduplicate, score parcels by fit, and " +
+        "return a ranked shortlist of 15-20 candidate sites. Use when the user " +
+        "asks to find potential sites, run a void analysis, identify development " +
+        "opportunities, or locate land along a corridor.",
+      parameters: {
+        type: "object",
+        properties: {
+          locations: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "2-5 search anchor points along the target corridor or area. " +
+              "Use intersections, town names, or zip codes spaced evenly.",
+          },
+          target_use: {
+            type: "string",
+            description:
+              "What the sites would be used for -- e.g. 'retail strip center', " +
+              "'industrial warehouse', 'mixed-use development', 'medical office'",
+          },
+          zoning: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "Zoning types: natural terms (retail, industrial, office, " +
+              "mixed_use, vacant) or specific codes (C-2, M-1)",
+          },
+          acreage_min: {
+            type: "number",
+            description: "Minimum parcel size in acres",
+          },
+          acreage_max: {
+            type: "number",
+            description: "Maximum parcel size in acres",
+          },
+          max_sites: {
+            type: "number",
+            description: "Number of top sites to return (default 20, max 30)",
+          },
+          prefer_vacant: {
+            type: "boolean",
+            description:
+              "Prioritize vacant/undeveloped parcels (default true)",
+          },
+        },
+        required: ["locations"],
+      },
+    },
+  },
 };
 
 // Inverse map: function-name string → AgentToolName. The OpenAI API
@@ -549,6 +607,7 @@ const NAME_TO_TOOL: Record<string, AgentToolName> = {
   site_scan_search: "site_scan.search",
   site_scan_detail: "site_scan.detail",
   site_scan_listings: "site_scan.listings",
+  site_scan_void_analysis: "site_scan.void_analysis",
 };
 
 // ── Tool executor adapters ────────────────────────────────────
@@ -591,6 +650,7 @@ const PER_TOOL_BUDGET: Partial<Record<AgentToolName, number>> = {
   "site_scan.search": 5,
   "site_scan.detail": 5,
   "site_scan.listings": 3,
+  "site_scan.void_analysis": 3,
 };
 
 /**
@@ -1346,6 +1406,37 @@ async function dispatchTool(
         ),
       );
     }
+
+    case "site_scan.void_analysis": {
+      return JSON.parse(
+        await handleSiteScanVoidAnalysis(
+          {
+            locations: Array.isArray(args.locations)
+              ? (args.locations as string[])
+              : [String(args.locations || "")],
+            target_use: args.target_use
+              ? String(args.target_use)
+              : undefined,
+            zoning: Array.isArray(args.zoning)
+              ? (args.zoning as string[])
+              : undefined,
+            acreage_min: args.acreage_min
+              ? Number(args.acreage_min)
+              : undefined,
+            acreage_max: args.acreage_max
+              ? Number(args.acreage_max)
+              : undefined,
+            max_sites: args.max_sites
+              ? Number(args.max_sites)
+              : undefined,
+            prefer_vacant: args.prefer_vacant != null
+              ? Boolean(args.prefer_vacant)
+              : undefined,
+          },
+          ctx.workspaceId,
+        ),
+      );
+    }
   }
 }
 
@@ -1602,6 +1693,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       "site_scan.search": 0,
       "site_scan.detail": 0,
       "site_scan.listings": 0,
+      "site_scan.void_analysis": 0,
     },
   };
 

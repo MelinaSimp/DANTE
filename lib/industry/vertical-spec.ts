@@ -120,6 +120,7 @@ const ADVISOR_SPEC: VerticalSpec = {
       "site_scan.search",
       "site_scan.detail",
       "site_scan.listings",
+      "site_scan.void_analysis",
     ],
     promoted_skills: [
       "draft_review_meeting_recap",
@@ -192,6 +193,7 @@ const REALTOR_SPEC: VerticalSpec = {
       "site_scan.search",
       "site_scan.detail",
       "site_scan.listings",
+      "site_scan.void_analysis",
     ],
     promoted_skills: [
       "draft_listing_prep_recap",
