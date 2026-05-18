@@ -23,7 +23,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { BookOpen, ExternalLink, Sparkles, ScrollText, X } from "lucide-react";
+import { BookOpen, ExternalLink, MapPin, Sparkles, ScrollText, X } from "lucide-react";
 import {
   useHasSourceViewer,
   useSourceViewer,
@@ -35,6 +35,7 @@ import {
   type VaultCitation,
   type MemoryCitation,
   type RegulatoryCitation,
+  type SiteScanCitation,
 } from "@/lib/dante/citations";
 
 type CitationStatus =
@@ -49,7 +50,7 @@ type CitationLevel = "strong" | "confirmed" | "provenance";
 
 interface CitationCheckLike {
   marker: string;
-  type: "vault" | "memory";
+  type: "vault" | "memory" | "site_scan";
   status: CitationStatus;
   level?: CitationLevel;
   detail?: string;
@@ -87,6 +88,7 @@ export default function CitationRenderer({ content, trace, citationReport }: Pro
     | { type: "vault"; data: VaultCitation; status?: CitationStatus; detail?: string }
     | { type: "memory"; data: MemoryCitation; status?: CitationStatus; detail?: string }
     | { type: "regulatory"; data: RegulatoryCitation }
+    | { type: "site_scan"; data: SiteScanCitation }
     | null
   >(null);
 
@@ -104,8 +106,10 @@ export default function CitationRenderer({ content, trace, citationReport }: Pro
     if (!citationReport?.checks?.length) return null;
     const vaultChecks = citationReport.checks.filter((c) => c.type === "vault");
     const memoryChecks = citationReport.checks.filter((c) => c.type === "memory");
+    const siteScanChecks = citationReport.checks.filter((c) => c.type === "site_scan");
     let vaultIdx = 0;
     let memoryIdx = 0;
+    let siteScanIdx = 0;
     const map: Map<number, CitationCheckLike> = new Map();
     tokens.forEach((t, i) => {
       if (t.kind !== "citation") return;
@@ -113,6 +117,8 @@ export default function CitationRenderer({ content, trace, citationReport }: Pro
         map.set(i, vaultChecks[vaultIdx++]);
       } else if (t.type === "memory" && memoryIdx < memoryChecks.length) {
         map.set(i, memoryChecks[memoryIdx++]);
+      } else if (t.type === "site_scan" && siteScanIdx < siteScanChecks.length) {
+        map.set(i, siteScanChecks[siteScanIdx++]);
       }
     });
     return map;
@@ -179,6 +185,22 @@ export default function CitationRenderer({ content, trace, citationReport }: Pro
               />
             );
           }
+          if (t.type === "site_scan") {
+            const data = map.site_scan[t.key];
+            // Render county name as label so the user sees "Westmoreland"
+            // instead of the raw [ss:1] marker — same pattern as
+            // regulatory chips showing the authority short label.
+            const label = data ? `${data.county} Co.` : t.raw;
+            return (
+              <CitationChip
+                key={i}
+                label={label}
+                tone="site_scan"
+                disabled={!data}
+                onClick={() => data && setPopover({ type: "site_scan", data })}
+              />
+            );
+          }
           // memory
           const data = map.memory[t.key];
           return (
@@ -241,7 +263,7 @@ function CitationChip({
   detail,
 }: {
   label: string;
-  tone: "vault" | "memory" | "regulatory";
+  tone: "vault" | "memory" | "regulatory" | "site_scan";
   disabled?: boolean;
   onClick: () => void;
   status?: CitationStatus;
@@ -274,22 +296,27 @@ function CitationChip({
   // citations); the canonical source URL in the popover is the
   // ground truth.
   const isRegulatory = tone === "regulatory";
+  const isSiteScan = tone === "site_scan";
   const baseClasses = isRegulatory
     ? "mx-0.5 align-baseline inline-flex items-center rounded-[4px] border px-1.5 py-0 text-[10px] font-semibold tracking-wide transition disabled:opacity-50 disabled:cursor-not-allowed bg-[var(--accent-soft,rgba(37,99,235,0.08))] border-[var(--accent,rgba(37,99,235,0.4))] text-[var(--accent,#2563eb)] hover:bg-[var(--accent-soft-hover,rgba(37,99,235,0.14))]"
-    : "mx-0.5 align-baseline inline-flex items-center rounded-[3px] border px-1 py-0 text-[10px] font-mono transition disabled:opacity-50 disabled:cursor-not-allowed bg-[var(--ink)]/[0.04] border-[var(--rule)] text-[var(--ink)] hover:bg-[var(--ink)]/[0.08]";
+    : isSiteScan
+      ? "mx-0.5 align-baseline inline-flex items-center rounded-[4px] border px-1.5 py-0 text-[10px] font-semibold tracking-wide transition disabled:opacity-50 disabled:cursor-not-allowed bg-emerald-50/60 border-emerald-600/30 text-emerald-800 hover:bg-emerald-100/60"
+      : "mx-0.5 align-baseline inline-flex items-center rounded-[3px] border px-1 py-0 text-[10px] font-mono transition disabled:opacity-50 disabled:cursor-not-allowed bg-[var(--ink)]/[0.04] border-[var(--rule)] text-[var(--ink)] hover:bg-[var(--ink)]/[0.08]";
   const title = disabled
     ? "Source not in trace"
     : isRegulatory
       ? "Click to view the regulatory source"
-      : detail
-        ? `${detail} — click for source`
-        : level === "strong"
-          ? "Verified against cited page — click for source"
-          : level === "confirmed"
-            ? "Verified somewhere in source — click for details"
-            : level === "provenance"
-              ? "Source document confirmed — click for details"
-              : "Click to view source";
+      : isSiteScan
+        ? "Click to view parcel record"
+        : detail
+          ? `${detail} — click for source`
+          : level === "strong"
+            ? "Verified against cited page — click for source"
+            : level === "confirmed"
+              ? "Verified somewhere in source — click for details"
+              : level === "provenance"
+                ? "Source document confirmed — click for details"
+                : "Click to view source";
   return (
     <button
       onClick={onClick}
@@ -309,7 +336,8 @@ function CitationPopover({
   popover:
     | { type: "vault"; data: VaultCitation; status?: CitationStatus; detail?: string }
     | { type: "memory"; data: MemoryCitation; status?: CitationStatus; detail?: string }
-    | { type: "regulatory"; data: RegulatoryCitation };
+    | { type: "regulatory"; data: RegulatoryCitation }
+    | { type: "site_scan"; data: SiteScanCitation };
   onClose: () => void;
 }) {
   return (
@@ -338,6 +366,11 @@ function CitationPopover({
                     "en-US",
                     { year: "numeric", month: "short", day: "numeric" },
                   )}`}
+              </>
+            ) : popover.type === "site_scan" ? (
+              <>
+                <MapPin className="w-3.5 h-3.5" strokeWidth={1.5} />
+                Parcel record · {popover.data.county} County, {popover.data.state}
               </>
             ) : (
               <>
@@ -414,6 +447,39 @@ function CitationPopover({
                 <ExternalLink className="w-3 h-3" strokeWidth={1.5} />
                 View in source document
               </Link>
+            )}
+          </div>
+        ) : popover.type === "site_scan" ? (
+          <div>
+            <div className="text-sm text-[var(--ink)] font-medium mb-1">
+              {popover.data.address || "Address unavailable"}
+            </div>
+            <div className="text-xs text-[var(--ink-subtle)] mb-3 font-mono">
+              Parcel {popover.data.parcel_number}
+            </div>
+            <div className="text-xs text-[var(--ink-muted)] space-y-1">
+              <div>Source: {popover.data.source || `${popover.data.county} County Auditor`}</div>
+              {popover.data.accessed_at && (
+                <div>
+                  Accessed:{" "}
+                  {new Date(popover.data.accessed_at).toLocaleDateString("en-US", {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </div>
+              )}
+            </div>
+            {popover.data.source_url && (
+              <a
+                href={popover.data.source_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 inline-flex items-center gap-1.5 text-xs text-emerald-700 hover:underline underline-offset-2"
+              >
+                <ExternalLink className="w-3 h-3" strokeWidth={1.5} />
+                View county parcel record
+              </a>
             )}
           </div>
         ) : (
