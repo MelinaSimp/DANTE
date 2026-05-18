@@ -57,14 +57,21 @@ export class ArcGISCountyAdapter implements CountyAdapter {
     url.searchParams.set("resultRecordCount", String(params.maxResults ?? 25));
 
     if (params.center && params.radiusMeters) {
-      url.searchParams.set("geometryType", "esriGeometryPoint");
+      // Convert center+radius to bounding-box envelope.
+      // Envelope queries are universally supported across ArcGIS services;
+      // point+distance buffer queries are not (many hosted FeatureServers
+      // silently return 0 results or 400 errors).
+      const { lat, lng } = params.center;
+      const r = params.radiusMeters;
+      // Approximate degrees offset (at this latitude)
+      const dLat = r / 111_320;
+      const dLng = r / (111_320 * Math.cos((lat * Math.PI) / 180));
+      url.searchParams.set("geometryType", "esriGeometryEnvelope");
       url.searchParams.set(
         "geometry",
-        `${params.center.lng},${params.center.lat}`,
+        `${lng - dLng},${lat - dLat},${lng + dLng},${lat + dLat}`,
       );
       url.searchParams.set("inSR", "4326");
-      url.searchParams.set("distance", String(params.radiusMeters));
-      url.searchParams.set("units", "esriSRUnit_Meter");
       url.searchParams.set("spatialRel", "esriSpatialRelIntersects");
     }
 
