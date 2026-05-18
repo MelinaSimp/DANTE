@@ -150,19 +150,27 @@ export default function WatchedFoldersClient() {
       console.log("[WatchedFolders] syncing", active.length, "folders");
       await api.watched.sync(active);
 
-      // Rescan each active folder to pick up existing files
-      for (const folder of active) {
-        if (api.watched.rescan) {
-          console.log("[WatchedFolders] rescanning", folder.folder_label);
-          await api.watched.rescan(folder);
-        }
-      }
-
       // Tell WatcherBridge to refresh its folder list
       window.dispatchEvent(new Event("drift:watched-folders-changed"));
 
-      // Refresh the file list after a short delay
-      await new Promise((r) => setTimeout(r, 2000));
+      // Fire rescans in background — don't await. The rescan walks
+      // the entire directory tree and can take minutes for large
+      // folders (TerraGroup has 6800+ files). WatcherBridge handles
+      // the events as they stream in. We refresh the folder list
+      // periodically so the user sees progress.
+      for (const folder of active) {
+        if (api.watched.rescan) {
+          console.log("[WatchedFolders] starting background rescan:", folder.folder_label);
+          api.watched.rescan(folder).then((result: { ok: boolean; scanned?: number; queued?: number }) => {
+            console.log("[WatchedFolders] rescan complete:", folder.folder_label, result);
+            fetchFolders();
+          });
+        }
+      }
+
+      // Brief pause then refresh — the rescan fires events in the
+      // background; this first refresh shows whatever has landed.
+      await new Promise((r) => setTimeout(r, 3000));
       await fetchFolders();
     } finally {
       setSyncing(false);
