@@ -127,8 +127,9 @@ export default function ReviewTablesListClient() {
               No review tables yet
             </h2>
             <p className="text-sm text-[var(--ink-muted)] max-w-md mx-auto mb-4">
-              Try one for "extract closing dates from every offer in the
-              vault" or "pull the AUM out of all client onboarding forms."
+              Pick a stack of vault docs, define the columns you want
+              extracted, and the assistant fills in a row per document.
+              One question across many files at once.
             </p>
             <Link
               href="/review-tables/new"

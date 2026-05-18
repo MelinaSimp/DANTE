@@ -274,7 +274,7 @@ export default function NewReviewTableClient() {
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder='e.g. "Closing dates across all listing agreements"'
+              placeholder='e.g. "Expiration dates across all lease agreements"'
               className={inputClass}
             />
           </label>

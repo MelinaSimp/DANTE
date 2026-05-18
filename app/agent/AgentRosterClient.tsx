@@ -97,6 +97,30 @@ interface AgentTask {
   wm_agent_definitions?: { name: string; icon: string; color_class: string };
 }
 
+// ── Helpers ──────────────────────────────────────────────────
+
+function friendlyError(raw: string): string {
+  try {
+    const parsed = JSON.parse(raw);
+    const errType = parsed?.error?.type;
+    const msg = parsed?.error?.message;
+    if (errType === "overloaded_error" || msg === "Overloaded") {
+      return "AI service temporarily overloaded. Will retry automatically.";
+    }
+    if (errType === "rate_limit_error") {
+      return "Rate limit reached. Will retry shortly.";
+    }
+    if (errType === "authentication_error") {
+      return "API key issue. Check workspace settings.";
+    }
+    if (msg) return String(msg);
+  } catch {
+    // Not JSON — return as-is but truncated
+  }
+  if (raw.length > 120) return raw.slice(0, 117) + "...";
+  return raw;
+}
+
 // ── Icon map ──────────────────────────────────────────────────
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -732,7 +756,7 @@ function UnifiedRoster({
                   Last run: {getTimeAgo(agent.last_run)}
                 </div>
                 {agent.status === "ERROR" && agent.last_error && (
-                  <p className="text-[11px] text-[var(--danger)] mt-2 line-clamp-2">{agent.last_error}</p>
+                  <p className="text-[11px] text-[var(--danger)] mt-2 line-clamp-2">{friendlyError(agent.last_error)}</p>
                 )}
               </div>
               <div className="flex border-t border-[var(--rule)]">
