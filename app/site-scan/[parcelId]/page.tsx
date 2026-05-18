@@ -1,6 +1,11 @@
+// app/site-scan/[parcelId]/page.tsx
+
 import { redirect } from "next/navigation";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { getShellContext } from "@/lib/shell/workspace-context";
+import AppShell from "@/components/shell/AppShell";
 import ParcelDetailClient from "./ParcelDetailClient";
+
+export const dynamic = "force-dynamic";
 
 export default async function ParcelDetailPage({
   params,
@@ -8,11 +13,11 @@ export default async function ParcelDetailPage({
   params: Promise<{ parcelId: string }>;
 }) {
   const { parcelId } = await params;
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/auth");
-
-  return <ParcelDetailClient parcelId={parcelId} />;
+  const ctx = await getShellContext();
+  if (!ctx) redirect("/auth");
+  return (
+    <AppShell {...ctx}>
+      <ParcelDetailClient parcelId={parcelId} />
+    </AppShell>
+  );
 }
