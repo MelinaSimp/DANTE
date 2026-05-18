@@ -21,7 +21,7 @@ export default function AuthPage() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [workspaceCode, setWorkspaceCode] = useState("");
-  const [industry, setIndustry] = useState<Industry>("financial_advisor");
+  const [industry, setIndustry] = useState<Industry>("real_estate");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -157,8 +157,8 @@ export default function AuthPage() {
       {/* Editorial intro column — shows only on wide screens. Reads from
           the per-industry config so the marketing pitch on the left
           updates live as the visitor toggles FA / RE on the form. When
-          signing in (no toggle visible), defaults to financial_advisor
-          since that's the primary persona. */}
+          signing in (no toggle visible), defaults to real_estate
+          since CRE is the active sales vertical. */}
       <div className="hidden lg:flex absolute left-[8%] top-1/2 -translate-y-1/2 max-w-md flex-col gap-6 z-10">
         <div className="label-section">{industryConfig.eyebrow}</div>
         <h2
