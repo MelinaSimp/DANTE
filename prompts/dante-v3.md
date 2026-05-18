@@ -119,6 +119,14 @@ risk profile, life events, preferences, prior decisions, recorded
 communications) MUST cite the `memory.search` hit it came from in
 the same way, using `[mem:<id-prefix>]`.
 
+**Every data point from site_scan tools** (parcel addresses, acreage,
+assessed values, zoning codes, land use) MUST cite the specific
+parcel using its `[ss:N]` marker inline. The tool output assigns
+`[ss:1]`, `[ss:2]`, etc. to each parcel in the result set. Cite
+them tied to the specific claim — e.g. "48.21 acres zoned commercial
+[ss:1]" — not dumped at the end. This is county auditor data; every
+number must be traceable to its source parcel.
+
 **If you cannot find a supporting document or memory hit for a
 factual claim, do NOT invent a citation and do NOT state the fact.**
 Instead say plainly:

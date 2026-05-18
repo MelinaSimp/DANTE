@@ -29,6 +29,7 @@ export interface CitationMap {
   vault: Record<string, VaultCitation>;            // "v1" → details
   memory: Record<string, MemoryCitation>;          // "mem:abc12345" → details
   regulatory: Record<string, RegulatoryCitation>;  // "reg:1" → details
+  site_scan: Record<string, SiteScanCitation>;     // "ss:1" → details
 }
 
 export interface VaultCitation {
@@ -59,6 +60,18 @@ export interface RegulatoryCitation {
   published_at: string | null;
 }
 
+export interface SiteScanCitation {
+  marker: string;          // "[ss:1]"
+  index: number;           // 1-based position in the result set
+  parcel_number: string;
+  address: string;
+  county: string;
+  state: string;
+  source: string;          // "Westmoreland County Auditor" etc.
+  source_url: string;      // link to county parcel record or ArcGIS service
+  accessed_at: string;
+}
+
 interface TraceEntry {
   step_id: string;
   step_name: string;
@@ -73,7 +86,7 @@ interface TraceEntry {
  * one tool call per response so collisions are rare.
  */
 export function buildCitationMap(trace: TraceEntry[] | undefined): CitationMap {
-  const out: CitationMap = { vault: {}, memory: {}, regulatory: {} };
+  const out: CitationMap = { vault: {}, memory: {}, regulatory: {}, site_scan: {} };
   if (!Array.isArray(trace)) return out;
 
   for (const entry of trace) {
@@ -163,6 +176,41 @@ export function buildCitationMap(trace: TraceEntry[] | undefined): CitationMap {
         i += 1;
       }
     }
+
+    // site_scan.search / site_scan.void_analysis return
+    // { citations: [{ marker: "[ss:1]", parcel_number, address, county, state, source, source_url, accessed_at }] }
+    const ssCitations = (result as { citations?: unknown[] }).citations;
+    if (
+      Array.isArray(ssCitations) &&
+      (entry.step_name.includes("site_scan") ||
+        entry.step_name.includes("void_analysis"))
+    ) {
+      for (const c of ssCitations as Array<{
+        marker?: string;
+        index?: number;
+        parcel_number?: string;
+        address?: string;
+        county?: string;
+        state?: string;
+        source?: string;
+        source_url?: string;
+        accessed_at?: string;
+      }>) {
+        if (!c.marker) continue;
+        const key = c.marker.replace(/[[\]]/g, "");
+        out.site_scan[key] = {
+          marker: c.marker,
+          index: c.index ?? 0,
+          parcel_number: c.parcel_number || "",
+          address: c.address || "",
+          county: c.county || "",
+          state: c.state || "",
+          source: c.source || "",
+          source_url: c.source_url || "",
+          accessed_at: c.accessed_at || "",
+        };
+      }
+    }
   }
   return out;
 }
@@ -176,6 +224,7 @@ export function buildCitationMap(trace: TraceEntry[] | undefined): CitationMap {
  *   [v\d+]          → vault citation
  *   [mem:[0-9a-f]+] → memory citation
  *   [reg:\d+]       → regulatory corpus citation (SEC/IRS/DOL/HUD)
+ *   [ss:\d+]        → site scan / parcel data citation (county auditor)
  *
  * Everything else is opaque text.
  */
@@ -185,10 +234,10 @@ export type Token =
       kind: "citation";
       raw: string;
       key: string;
-      type: "vault" | "memory" | "regulatory";
+      type: "vault" | "memory" | "regulatory" | "site_scan";
     };
 
-const CITATION_RE = /\[(v\d+|mem:[0-9a-f]{4,32}|reg:\d+)\]/g;
+const CITATION_RE = /\[(v\d+|mem:[0-9a-f]{4,32}|reg:\d+|ss:\d+)\]/g;
 
 export function tokenize(input: string): Token[] {
   if (!input) return [{ kind: "text", value: "" }];
@@ -200,11 +249,14 @@ export function tokenize(input: string): Token[] {
       out.push({ kind: "text", value: input.slice(lastIndex, start) });
     }
     const key = match[1];
-    const type: "vault" | "memory" | "regulatory" = key.startsWith("mem:")
-      ? "memory"
-      : key.startsWith("reg:")
-        ? "regulatory"
-        : "vault";
+    const type: "vault" | "memory" | "regulatory" | "site_scan" =
+      key.startsWith("mem:")
+        ? "memory"
+        : key.startsWith("reg:")
+          ? "regulatory"
+          : key.startsWith("ss:")
+            ? "site_scan"
+            : "vault";
     out.push({ kind: "citation", raw: match[0], key, type });
     lastIndex = start + match[0].length;
   }

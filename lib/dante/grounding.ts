@@ -38,9 +38,15 @@ const RETRIEVAL_TOOLS = new Set([
   "skill_run",
   "regulatory.search",
   "regulatory_search",
+  "site_scan.search",
+  "site_scan_search",
+  "site_scan.detail",
+  "site_scan_detail",
+  "site_scan.void_analysis",
+  "site_scan_void_analysis",
 ]);
 
-const CITATION_RE = /\[(?:v\d+|mem:[0-9a-f]{4,32}|reg:\d+)\]/g;
+const CITATION_RE = /\[(?:v\d+|mem:[0-9a-f]{4,32}|reg:\d+|ss:\d+)\]/g;
 
 interface TraceEntry {
   step_id?: string;
@@ -156,6 +162,9 @@ export function computeGroundingScore(
   const regulatoryCount = input.citationReport
     ? input.citationReport.checks.filter((c) => c.type === "regulatory" && c.status === "valid").length
     : 0;
+  const siteScanCount = input.citationReport
+    ? input.citationReport.checks.filter((c) => c.type === "site_scan" && c.status === "valid").length
+    : 0;
 
   let summary: string;
   if (tier === "strong") {
@@ -163,6 +172,7 @@ export function computeGroundingScore(
     if (vaultCount > 0) parts.push(`${vaultCount} vault citation${vaultCount === 1 ? "" : "s"}`);
     if (memoryCount > 0) parts.push(`${memoryCount} memory hit${memoryCount === 1 ? "" : "s"}`);
     if (regulatoryCount > 0) parts.push(`${regulatoryCount} regulatory source${regulatoryCount === 1 ? "" : "s"}`);
+    if (siteScanCount > 0) parts.push(`${siteScanCount} parcel record${siteScanCount === 1 ? "" : "s"}`);
     summary = `Strongly grounded — ${parts.join(" + ") || "citations verified"}.`;
   } else if (tier === "partial") {
     summary = "Partially grounded — some claims uncited or unverified.";

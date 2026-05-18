@@ -83,6 +83,25 @@ export async function handleSiteScanSearch(
     parcels.length > 0 &&
     hasDetailCoverage(parcels[0].state, parcels[0].county);
 
+  const sourceName =
+    adapter.config.county === "*"
+      ? `${geo.state} Statewide Parcel Database`
+      : `${adapter.config.county} County Auditor`;
+  const accessedAt = new Date().toISOString();
+
+  // Build citation markers
+  const citations = parcels.map((p, i) => ({
+    marker: `[ss:${i + 1}]`,
+    index: i + 1,
+    parcel_number: p.parcel_number,
+    address: p.address || "",
+    county: p.county ?? geo.county,
+    state: p.state ?? geo.state,
+    source: sourceName,
+    source_url: `${sourceName} — parcel ${p.parcel_number}`,
+    accessed_at: accessedAt,
+  }));
+
   return JSON.stringify({
     location_resolved: geo.matched_address,
     county: geo.county,
@@ -91,7 +110,9 @@ export async function handleSiteScanSearch(
     detail_coverage: detailAvailable
       ? "Full parcel detail available for this county"
       : "Basic record only -- full detail not yet available for this county",
-    parcels: parcels.map((p) => ({
+    citations,
+    parcels: parcels.map((p, i) => ({
+      citation: `[ss:${i + 1}]`,
       parcel_number: p.parcel_number,
       address: p.address,
       zoning: p.zoning_class,
@@ -100,14 +121,13 @@ export async function handleSiteScanSearch(
       assessed_value: p.assessed_value_total,
       land_use: p.land_use_description,
     })),
-    source:
-      adapter.config.county === "*"
-        ? "Ohio OGRIP Statewide"
-        : `${adapter.config.county} County Auditor`,
-    accessed_at: new Date().toISOString(),
+    source: sourceName,
+    accessed_at: accessedAt,
     caveat:
       "Parcel data from public county records. Zoning, assessed values, and land use " +
       "may not reflect recent changes. Confirm with the local municipality before acting.",
+    citation_instruction:
+      "Cite each parcel using its [ss:N] marker inline when presenting these results.",
   });
 }
 
@@ -506,6 +526,35 @@ export async function handleSiteScanVoidAnalysis(
     }
   }
 
+  const accessedAt = new Date().toISOString();
+
+  // Build citation markers for the model to use inline
+  const citations = topSites.map((p, i) => ({
+    marker: `[ss:${i + 1}]`,
+    index: i + 1,
+    parcel_number: p.parcel_number,
+    address: p.address || "No address on record",
+    county: p.county,
+    state: p.state,
+    source: p.source,
+    source_url: `${p.source} — parcel ${p.parcel_number}`,
+    accessed_at: accessedAt,
+  }));
+
+  // Build formatted citation block (same pattern as archive.search)
+  const formatted = topSites
+    .map(
+      (p, i) =>
+        `[ss:${i + 1}] (${p.source} · ${p.parcel_number})\n` +
+        `Address: ${p.address || "No address on record"}\n` +
+        `County: ${p.county}, ${p.state} | Zoning: ${p.zoning_class} | ` +
+        `Acreage: ${Math.round(p.land_area_acres * 100) / 100} | ` +
+        `Assessed: ${p.assessed_value_total != null ? "$" + p.assessed_value_total.toLocaleString() : "N/A"} | ` +
+        `Land use: ${p.land_use_description ?? "N/A"}\n` +
+        `Score: ${p.score}/5`,
+    )
+    .join("\n\n");
+
   return JSON.stringify({
     analysis_type: "directional_void_analysis",
     target_use: args.target_use ?? "general commercial",
@@ -513,8 +562,11 @@ export async function handleSiteScanVoidAnalysis(
     total_parcels_scanned: allParcels.length,
     unique_after_dedup: unique.length,
     sites_returned: topSites.length,
+    formatted,
+    citations,
     sites: topSites.map((p, i) => ({
       rank: i + 1,
+      citation: `[ss:${i + 1}]`,
       score: p.score,
       parcel_number: p.parcel_number,
       address: p.address || "No address on record",
@@ -533,11 +585,16 @@ export async function handleSiteScanVoidAnalysis(
       acreage_max: args.acreage_max ?? "none",
       prefer_vacant: preferVacant,
     },
-    accessed_at: new Date().toISOString(),
+    accessed_at: accessedAt,
     caveat:
       "Directional analysis only. Assessed values and zoning from public county records " +
       "may not reflect recent changes. Verify each candidate site with the local " +
       "municipality and conduct proper due diligence before acquisition.",
+    citation_instruction:
+      "IMPORTANT: When presenting these results, cite each parcel using its [ss:N] " +
+      "marker inline. For example: '5551 Humes Rd (48.21 ac, zoned C) [ss:1] has a ' " +
+      "'notably low assessed value of $38,560.' Every data point from this tool result " +
+      "must carry the parcel's [ss:N] citation.",
   });
 }
 

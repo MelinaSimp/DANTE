@@ -71,7 +71,7 @@ export type CitationLevel = "strong" | "confirmed" | "provenance";
 
 export interface CitationCheck {
   marker: string;             // raw marker as it appeared, e.g. "[v1]"
-  type: "vault" | "memory" | "regulatory";
+  type: "vault" | "memory" | "regulatory" | "site_scan";
   status: CitationStatus;
   /** Verification strength when status is "valid". Undefined for failed states. */
   level?: CitationLevel;
@@ -99,12 +99,12 @@ export interface CitationValidationReport {
 
 // ── Marker extraction ────────────────────────────────────────────
 
-const MARKER_RE = /\[(v\d+|mem:[0-9a-f]{4,32}|reg:\d+)\]/g;
+const MARKER_RE = /\[(v\d+|mem:[0-9a-f]{4,32}|reg:\d+|ss:\d+)\]/g;
 
 interface ExtractedMarker {
-  raw: string;       // "[v1]", "[mem:abc12345]", "[reg:1]"
-  key: string;       // "v1", "mem:abc12345", "reg:1"
-  type: "vault" | "memory" | "regulatory";
+  raw: string;       // "[v1]", "[mem:abc12345]", "[reg:1]", "[ss:1]"
+  key: string;       // "v1", "mem:abc12345", "reg:1", "ss:1"
+  type: "vault" | "memory" | "regulatory" | "site_scan";
   index: number;     // position in text — used to keep checks in order
 }
 
@@ -117,7 +117,9 @@ function extractMarkers(text: string): ExtractedMarker[] {
       ? "memory"
       : key.startsWith("reg:")
         ? "regulatory"
-        : "vault";
+        : key.startsWith("ss:")
+          ? "site_scan"
+          : "vault";
     out.push({
       raw: match[0],
       key,
@@ -431,6 +433,8 @@ export async function validateCitations(
       checks.push(checkVaultMarker(m, map, vaultCtx, lookupFailed));
     } else if (m.type === "memory") {
       checks.push(checkMemoryMarker(m, map, memCtx, lookupFailed));
+    } else if (m.type === "site_scan") {
+      checks.push(checkSiteScanMarker(m, map));
     } else {
       checks.push(checkRegulatoryMarker(m, map, regCtx, lookupFailed));
     }
@@ -614,6 +618,30 @@ function checkRegulatoryMarker(
   // item. The content came from the corpus search; as long as the
   // item still exists, the citation is valid.
   return { ...base, level: "strong" };
+}
+
+function checkSiteScanMarker(
+  m: ExtractedMarker,
+  map: CitationMap,
+): CitationCheck {
+  const cite = map.site_scan[m.key];
+  if (!cite) {
+    return {
+      marker: m.raw,
+      type: "site_scan",
+      status: "missing",
+      detail: "Marker referenced but no matching site_scan result in trace.",
+    };
+  }
+  // Site scan citations are validated by presence in the trace.
+  // The data came from a live county auditor query — no DB lookup needed.
+  return {
+    marker: m.raw,
+    type: "site_scan",
+    status: "valid",
+    level: "strong",
+    source: `${cite.source} — ${cite.parcel_number}`,
+  };
 }
 
 function summarize(checks: CitationCheck[]): CitationValidationReport {
