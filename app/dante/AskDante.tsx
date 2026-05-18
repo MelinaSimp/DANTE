@@ -715,21 +715,16 @@ export default function AskDante({
         </div>
       </div>
 
-      {/* Expanded mode header — "new conversation" escape hatch */}
+      {/* Expanded mode header — navigate back to landing */}
       {inExpandedMode && (
         <div className="flex items-center justify-between px-6 md:px-8 py-2 max-w-4xl mx-auto w-full">
           <span className="text-sm font-medium text-gray-400">{brand.name}</span>
-          <button
-            onClick={() => {
-              setTurns([]);
-              setInput("");
-              streamState.streaming && abortRef.current?.abort();
-            }}
+          <Link
+            href="/dante"
             className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-gray-900 transition px-2.5 py-1.5 rounded-md hover:bg-gray-100"
           >
-            <Plus className="w-3.5 h-3.5" strokeWidth={2} />
-            New conversation
-          </button>
+            Home
+          </Link>
         </div>
       )}
 
