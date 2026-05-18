@@ -2,8 +2,8 @@
 // Allegheny County, PA (Pittsburgh). 60+ attribute fields.
 // NOTE: useStandardizedQueries is true on this service — string WHERE
 // clauses (e.g. CLASSDESC='RESIDENTIAL') fail silently. Numeric
-// comparisons work. The adapter uses numeric field filters where
-// possible and falls back to 1=1 + client-side filtering.
+// comparisons work. The void analysis tool avoids string WHERE clauses
+// by doing broad spatial searches and scoring/filtering in JS.
 
 import type { CountyAdapterConfig } from "../types";
 
@@ -14,9 +14,10 @@ export const ALLEGHENY_PA: CountyAdapterConfig = {
     "https://services1.arcgis.com/vdNDkVykv9vEWFX4/arcgis/rest/services/AlCoParcels/FeatureServer",
   layerId: 0,
   spatialReference: 4326,
+  addressCombineFields: ["PROPERTYHOUSENUM", "PROPERTYSTREET", "PROPERTYSUFFIX"],
   fieldMap: {
     parcel_number: "PARID",
-    address: "PROPERTYHOUSENUM", // combined in mapFeature override
+    address: "PROPERTYHOUSENUM",    // single field fallback; addressCombineFields is preferred
     city: "PROPERTYCITY",
     zip: "PROPERTYZIP5",
     zoning_class: "CLASSDESC",

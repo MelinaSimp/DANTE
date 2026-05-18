@@ -65,6 +65,13 @@ export interface CountyAdapterConfig {
   /** When true, the land_area_sf field actually stores acres, not SF.
    *  The adapter skips the /43560 conversion and adjusts WHERE clauses. */
   areaFieldIsAcres?: boolean;
+  /** When true, use outFields=* instead of listing individual fields.
+   *  Some ArcGIS Online hosted services reject named field lists. */
+  useWildcardOutFields?: boolean;
+  /** When the address is split across multiple fields, list them here.
+   *  Values are joined with a space. fieldMap.address is still used
+   *  for WHERE clauses. */
+  addressCombineFields?: string[];
 }
 
 export interface CountyAdapter {

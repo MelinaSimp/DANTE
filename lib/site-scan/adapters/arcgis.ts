@@ -47,7 +47,10 @@ export class ArcGISCountyAdapter implements CountyAdapter {
     }
 
     url.searchParams.set("where", clauses.length ? clauses.join(" AND ") : "1=1");
-    url.searchParams.set("outFields", Object.values(fieldMap).join(","));
+    url.searchParams.set(
+      "outFields",
+      this.config.useWildcardOutFields ? "*" : Object.values(fieldMap).join(","),
+    );
     url.searchParams.set("returnGeometry", "true");
     url.searchParams.set("outSR", "4326");
     url.searchParams.set("f", "json");
@@ -59,6 +62,7 @@ export class ArcGISCountyAdapter implements CountyAdapter {
         "geometry",
         `${params.center.lng},${params.center.lat}`,
       );
+      url.searchParams.set("inSR", "4326");
       url.searchParams.set("distance", String(params.radiusMeters));
       url.searchParams.set("units", "esriSRUnit_Meter");
       url.searchParams.set("spatialRel", "esriSpatialRelIntersects");
@@ -110,9 +114,13 @@ export class ArcGISCountyAdapter implements CountyAdapter {
     const rawArea = a[fm.land_area_sf] ?? 0;
     const acres = this.config.areaFieldIsAcres ? rawArea : rawArea / 43560;
 
+    const address = this.config.addressCombineFields
+      ? this.config.addressCombineFields.map((f) => a[f] ?? "").filter(Boolean).join(" ")
+      : String(a[fm.address] ?? "");
+
     return {
       parcel_number: String(a[fm.parcel_number] ?? ""),
-      address: String(a[fm.address] ?? ""),
+      address,
       city: String(a[fm.city] ?? this.config.county),
       state: this.config.state,
       county: this.config.county,
@@ -135,10 +143,14 @@ export class ArcGISCountyAdapter implements CountyAdapter {
     const assessed = a[fm.assessed_value_total] ?? 0;
     const millage = a[fm.millage_rate] ?? 0;
 
+    const detailAddress = this.config.addressCombineFields
+      ? this.config.addressCombineFields.map((f) => a[f] ?? "").filter(Boolean).join(" ")
+      : String(a[fm.address] ?? "");
+
     return {
       parcel_number: String(a[fm.parcel_number]),
       owner_name: String(a[fm.owner_name] ?? ""),
-      address: String(a[fm.address] ?? ""),
+      address: detailAddress,
       city: String(a[fm.city] ?? ""),
       zip: String(a[fm.zip] ?? ""),
       zoning_class: String(a[fm.zoning_class] ?? ""),

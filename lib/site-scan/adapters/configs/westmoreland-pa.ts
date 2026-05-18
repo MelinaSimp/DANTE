@@ -3,6 +3,7 @@
 // Data vintage: January 2021. Field names are mainframe-style codes.
 // ZONINGCODE / ZONEDESC are consistently null in this dataset.
 // Direct county GIS server (gis.westmorelandcountypa.gov) returns 403.
+// Service rejects named outFields lists — must use outFields=*.
 
 import type { CountyAdapterConfig } from "../types";
 
@@ -13,10 +14,11 @@ export const WESTMORELAND_PA: CountyAdapterConfig = {
     "https://services2.arcgis.com/eQgAMgHr2CRobt2r/ArcGIS/rest/services/2021_Westmoreland_County_Parcels/FeatureServer",
   layerId: 1,
   spatialReference: 4326,
+  useWildcardOutFields: true,
   fieldMap: {
     parcel_number: "UPI",
-    address: "SITUS",
-    city: "MUNI",
+    address: "ADDRESSES",           // full address with city/zip
+    city: "CS",                     // city/state field (e.g. "IRWIN")
     zip: "ZIP",
     zoning_class: "LCODE",          // land-use code, not zoning (zoning is null)
     land_area_sf: "ACRES",          // NOTE: value is in ACRES, not SF
@@ -27,8 +29,8 @@ export const WESTMORELAND_PA: CountyAdapterConfig = {
     owner_name: "NAME",
     land_use_code: "LCODE",
     land_use_description: "LCODE",  // no description field
-    tax_district: "MUNI",
-    millage_rate: "MUNI",           // no millage field
+    tax_district: "SCHDST",
+    millage_rate: "MTAX",           // municipal tax (numeric)
     last_sale_date: "SD1YR",        // year only
     last_sale_price: "SA1",
     year_built: "YRBLT",
