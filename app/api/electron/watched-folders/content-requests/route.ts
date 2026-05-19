@@ -123,7 +123,7 @@ export async function POST(req: Request) {
 
     if (insertErr || !vaultItem) throw new Error(insertErr?.message || "insert failed");
 
-    await ingestVaultItem(vaultItem.id, cr.workspace_id);
+    await ingestVaultItem(vaultItem.id);
 
     await supabaseAdmin
       .from("watched_file_index")

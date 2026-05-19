@@ -116,7 +116,9 @@ async function titleFallbackSearch(
 
     if ((!chunks || chunks.length === 0) && item.id) {
       try {
+        console.log(`[archive-search] auto-ingest starting for "${item.title}" (${item.id})`);
         const result = await ingestVaultItem(item.id, { force: true });
+        console.log(`[archive-search] auto-ingest result for ${item.id}: chunks=${result.chunkCount}, skipped=${result.skipped ?? "no"}`);
         if (result.chunkCount > 0) {
           const { data: freshChunks } = await supabaseAdmin
             .from("vault_item_chunks")
@@ -126,8 +128,8 @@ async function titleFallbackSearch(
             .limit(3);
           if (freshChunks && freshChunks.length > 0) chunks = freshChunks;
         }
-      } catch {
-        // Ingestion failed — fall through to synthetic hit below
+      } catch (err) {
+        console.error(`[archive-search] auto-ingest FAILED for "${item.title}" (${item.id}):`, err instanceof Error ? err.message : err);
       }
     }
 
@@ -163,7 +165,7 @@ async function titleFallbackSearch(
         document_id: item.id,
         chunk_index: 0,
         page_number: null,
-        content: `[Document "${item.title}" found in vault but has not been indexed yet. The user may need to re-upload or re-ingest this file.]`,
+        content: `[Document "${item.title}" exists in the vault. The system attempted to extract its content but was unable to read the file. This is a system-level issue, not something the user did wrong. Report this to the user and offer to try again.]`,
         similarity: 0.3,
         document_title: item.title,
         document_kind: item.kind,
