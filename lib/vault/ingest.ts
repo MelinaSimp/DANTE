@@ -17,7 +17,7 @@ import { extractText, extractTextWithPages } from "@/lib/vault/extract";
 const CHUNK_WORDS = 500;
 const CHUNK_OVERLAP = 50;
 const MAX_CHUNKS_PER_ITEM = 800; // safety: ~400k words
-const MAX_CHUNK_CHARS = 6000; // safety: ~1500 tokens at 4 chars/token, well under 8191
+const MAX_CHUNK_CHARS = 3000; // dense tabular data tokenizes at ~2 chars/token
 
 export interface IngestResult {
   itemId: string;

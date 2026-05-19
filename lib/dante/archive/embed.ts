@@ -14,18 +14,33 @@ import { embed as llmEmbed } from "@/lib/llm/client";
 
 const MODEL = "text-embedding-3-small";
 const DIMS = 1536;
-const BATCH = 96; // conservative — stay well under the 2048 ceiling
+const MAX_BATCH = 96;
 
-const MAX_CHARS_PER_CHUNK = 24000; // ~6000 tokens, safely under 8191 limit
+const MAX_CHARS_PER_CHUNK = 24000;
+// OpenAI limit: 300K tokens per request. At ~4 chars/token, budget 900K chars
+// with margin. Dense numeric data tokenizes at ~2 chars/token so be conservative.
+const MAX_CHARS_PER_BATCH = 600_000;
 
 export async function embedTexts(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return [];
 
+  const truncated = texts.map((t) =>
+    t.length > MAX_CHARS_PER_CHUNK ? t.slice(0, MAX_CHARS_PER_CHUNK) : t,
+  );
+
   const out: number[][] = [];
-  for (let i = 0; i < texts.length; i += BATCH) {
-    const slice = texts.slice(i, i + BATCH).map((t) =>
-      t.length > MAX_CHARS_PER_CHUNK ? t.slice(0, MAX_CHARS_PER_CHUNK) : t,
-    );
+  let i = 0;
+  while (i < truncated.length) {
+    let batchChars = 0;
+    let j = i;
+    while (j < truncated.length && j - i < MAX_BATCH) {
+      const nextChars = batchChars + truncated[j].length;
+      if (nextChars > MAX_CHARS_PER_BATCH && j > i) break;
+      batchChars = nextChars;
+      j++;
+    }
+
+    const slice = truncated.slice(i, j);
     const vectors = await llmEmbed({ model: MODEL, input: slice });
     for (const vec of vectors) {
       if (!Array.isArray(vec) || vec.length !== DIMS) {
@@ -33,6 +48,7 @@ export async function embedTexts(texts: string[]): Promise<number[][]> {
       }
       out.push(vec);
     }
+    i = j;
   }
   return out;
 }
