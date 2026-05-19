@@ -81,16 +81,17 @@ export async function enqueueIngest(
 // claimAndProcessBatch — claim jobs via RPC + process under time budget
 // ---------------------------------------------------------------------------
 
-/** Estimate ~45 seconds per file for embedding + chunking. */
-const MS_PER_FILE = 45_000;
+/** Estimate ~90 seconds per file (large docs hit 2-3min with HNSW contention). */
+const MS_PER_FILE = 90_000;
 /** Stop processing if less than this much budget remains. */
 const MIN_BUDGET_MS = 30_000;
+const MAX_BATCH = 3;
 
 export async function claimAndProcessBatch(
   budgetMs: number,
 ): Promise<BatchResult> {
   const workerId = crypto.randomUUID();
-  const batchSize = Math.max(1, Math.floor(budgetMs / MS_PER_FILE));
+  const batchSize = Math.min(MAX_BATCH, Math.max(1, Math.floor(budgetMs / MS_PER_FILE)));
 
   const { data: jobs, error: claimErr } = await supabaseAdmin.rpc(
     "claim_ingest_jobs",
