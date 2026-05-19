@@ -6,6 +6,7 @@
 // to load body + linked contact + linked property; relabel inline.
 
 import { useEffect, useMemo, useState } from "react";
+import DOMPurify from "dompurify";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -587,7 +588,7 @@ export default function InboxClient() {
                   <div
                     className="prose prose-sm max-w-none text-[var(--ink)]"
                     style={{ wordBreak: "break-word" }}
-                    dangerouslySetInnerHTML={{ __html: selected.body_html }}
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(selected.body_html) }}
                   />
                 ) : (
                   <pre className="whitespace-pre-wrap text-sm text-[var(--ink)] leading-relaxed font-sans">

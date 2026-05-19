@@ -23,6 +23,7 @@
 // setup). The Document only mounts when active is non-null.
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import DOMPurify from "dompurify";
 import dynamic from "next/dynamic";
 import { ChevronLeft, ChevronRight, Loader2, X } from "lucide-react";
 import { useSourceViewer, type SourceTarget } from "./SourceViewerContext";
@@ -671,7 +672,7 @@ function DocxSourcePreview({
       <div
         ref={containerRef}
         className="docx-preview prose prose-sm max-w-none text-[var(--ink)]"
-        dangerouslySetInnerHTML={{ __html: html }}
+        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }}
       />
       <style jsx global>{`
         .docx-preview p { margin: 0.6em 0; line-height: 1.55; }
