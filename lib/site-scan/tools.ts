@@ -436,6 +436,8 @@ export async function handleSiteScanVoidAnalysis(
   const allParcels: Array<{
     parcel_number: string;
     address: string;
+    city?: string;
+    centroid?: { lat: number; lng: number };
     zoning_class: string;
     zoning_description?: string;
     land_area_acres: number;
@@ -505,6 +507,8 @@ export async function handleSiteScanVoidAnalysis(
         allParcels.push({
           parcel_number: p.parcel_number,
           address: p.address,
+          city: p.city,
+          centroid: p.centroid,
           zoning_class: p.zoning_class,
           zoning_description: p.zoning_description,
           land_area_acres: p.land_area_acres,
@@ -615,6 +619,8 @@ export async function handleSiteScanVoidAnalysis(
       await upsertParcel(workspaceId, {
         parcel_number: p.parcel_number,
         address: p.address,
+        city: p.city,
+        centroid: p.centroid,
         zoning_class: p.zoning_class,
         zoning_description: p.zoning_description,
         land_area_acres: p.land_area_acres,
@@ -622,7 +628,7 @@ export async function handleSiteScanVoidAnalysis(
         land_use_description: p.land_use_description,
         county: p.county,
         state: p.state,
-      } as any);
+      });
     } catch {
       // non-critical
     }

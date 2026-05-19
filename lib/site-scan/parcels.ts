@@ -6,23 +6,22 @@ import type { ParcelSummary } from "./adapters/types";
 
 export async function upsertParcel(
   workspaceId: string,
-  p: ParcelSummary,
+  p: Partial<Pick<ParcelSummary, "city" | "centroid">> & Omit<ParcelSummary, "city" | "centroid">,
 ): Promise<string | null> {
+  const row: Record<string, unknown> = {
+    workspace_id: workspaceId,
+    parcel_number: p.parcel_number,
+    county: p.county,
+    state: p.state,
+    address: p.address,
+    updated_at: new Date().toISOString(),
+  };
+  if (p.city) row.city = p.city;
+  if (p.centroid) row.centroid = `SRID=4326;POINT(${p.centroid.lng} ${p.centroid.lat})`;
+
   const { data, error } = await supabaseAdmin
     .from("parcels")
-    .upsert(
-      {
-        workspace_id: workspaceId,
-        parcel_number: p.parcel_number,
-        county: p.county,
-        state: p.state,
-        address: p.address,
-        city: p.city,
-        centroid: `SRID=4326;POINT(${p.centroid.lng} ${p.centroid.lat})`,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "workspace_id,parcel_number,county,state" },
-    )
+    .upsert(row, { onConflict: "workspace_id,parcel_number,county,state" })
     .select("id")
     .single();
 

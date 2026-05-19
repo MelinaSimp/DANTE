@@ -426,7 +426,11 @@ async function executeScheduleAppointment(call: any, params: any): Promise<strin
   }
 
   // Get caller info from the call object
-  const callerPhone = call?.customer?.number || call?.phoneNumber?.number || "+10000000000";
+  const callerPhone = call?.customer?.number || call?.phoneNumber?.number;
+  if (!callerPhone) {
+    console.warn("[vapi] schedule_appointment: no caller phone number available");
+    return JSON.stringify({ success: false, message: "Unable to schedule — no caller phone number detected" });
+  }
   const callerName = contactName || "Caller";
   const service = serviceType || "Consultation";
 

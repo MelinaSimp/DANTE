@@ -237,16 +237,35 @@ export default function LeaseAbstractorClient() {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch("/api/vault/upload", {
+      const upRes = await fetch("/api/vault/upload", {
         method: "POST",
         credentials: "include",
         body: formData,
       });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Upload failed");
+      const upData = await upRes.json();
+      if (!upRes.ok) throw new Error(upData.error || "Upload failed");
+
+      const title = file.name.replace(/\.[^.]+$/, "");
+      const createRes = await fetch("/api/vault", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          kind: "document",
+          title,
+          description: null,
+          file_url: upData.url,
+          file_size: upData.fileSize,
+          file_type: upData.fileType,
+          project_id: null,
+        }),
+      });
+      const createData = await createRes.json();
+      if (!createRes.ok) throw new Error(createData.error || "Failed to add to vault");
+
       await loadData();
-      if (result.id) {
-        runExtraction(result.id);
+      if (createData.id) {
+        runExtraction(createData.id);
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
