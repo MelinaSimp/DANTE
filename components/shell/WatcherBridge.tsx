@@ -20,6 +20,8 @@ import { useEffect, useRef } from "react";
 const BATCH_SIZE = 50;
 const FLUSH_INTERVAL_MS = 2000;
 const MAX_CONCURRENT_BATCHES = 3;
+const EXTRACTABLE_EXTS = new Set(["pdf", "docx", "doc", "txt", "md", "csv", "rtf"]);
+const MAX_EXTRACT_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 
 interface FileEvent {
   folder_id: string;
@@ -55,9 +57,35 @@ export default function WatcherBridge() {
       const batch = queueRef.current.splice(0, BATCH_SIZE);
       if (batch.length === 0) return;
 
+      const extractText = api.watched!.extractFileText;
+      const enriched = await Promise.all(
+        batch.map(async (e) => {
+          const folder = foldersRef.current.find((f) => f.id === e.folder_id);
+          const isLocalOnly = folder?.default_processing_mode === "local_only";
+          const ext = (e.file_extension || "").toLowerCase();
+          const canExtract =
+            !isLocalOnly &&
+            EXTRACTABLE_EXTS.has(ext) &&
+            (e.file_size_bytes == null || e.file_size_bytes <= MAX_EXTRACT_FILE_SIZE);
+
+          let extracted_text: string | undefined;
+          if (canExtract) {
+            try {
+              const result = await extractText(e.file_path, ext);
+              if (result?.text && !result.error) {
+                extracted_text = result.text;
+              }
+            } catch {
+              // extraction failed — send metadata only
+            }
+          }
+          return { ...e, extracted_text };
+        }),
+      );
+
       // Group by folder_id
-      const byFolder = new Map<string, FileEvent[]>();
-      for (const evt of batch) {
+      const byFolder = new Map<string, typeof enriched>();
+      for (const evt of enriched) {
         const arr = byFolder.get(evt.folder_id) || [];
         arr.push(evt);
         byFolder.set(evt.folder_id, arr);
@@ -75,6 +103,7 @@ export default function WatcherBridge() {
               file_extension: e.file_extension,
               file_size_bytes: e.file_size_bytes,
               content_sha256: e.content_sha256,
+              extracted_text: e.extracted_text,
             })),
           }),
         })
@@ -85,9 +114,8 @@ export default function WatcherBridge() {
           })
           .catch((err) => {
             console.warn("[WatcherBridge] batch notify failed:", err);
-            // Re-queue for retry (but don't loop forever)
             if (events.length <= BATCH_SIZE) {
-              queueRef.current.push(...events);
+              queueRef.current.push(...batch);
             }
           })
           .finally(() => {
