@@ -18,11 +18,43 @@ import type {
 } from "../types";
 
 const OPENAI_BASE = "https://api.openai.com/v1";
+const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
+const MAX_RETRIES = 3;
 
 function getApiKey(): string {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error("OPENAI_API_KEY not configured");
   return key;
+}
+
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  maxRetries = MAX_RETRIES,
+): Promise<Response> {
+  let lastErr: Error | null = null;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch(url, init);
+      if (res.ok || !RETRYABLE_STATUSES.has(res.status)) return res;
+      const retryAfter = res.headers.get("retry-after");
+      const delayMs = retryAfter
+        ? Math.min(parseInt(retryAfter, 10) * 1000, 30_000)
+        : Math.min(1000 * Math.pow(2, attempt) + Math.random() * 500, 30_000);
+      if (attempt < maxRetries) {
+        await new Promise((r) => setTimeout(r, delayMs));
+        continue;
+      }
+      return res;
+    } catch (err) {
+      lastErr = err instanceof Error ? err : new Error(String(err));
+      if (attempt < maxRetries) {
+        await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
+        continue;
+      }
+    }
+  }
+  throw lastErr ?? new Error("fetch failed after retries");
 }
 
 class OpenAIProvider implements LlmProvider {
@@ -43,7 +75,7 @@ class OpenAIProvider implements LlmProvider {
     if (opts.temperature !== undefined) body.temperature = opts.temperature;
     if (opts.maxTokens !== undefined) body.max_tokens = opts.maxTokens;
 
-    const res = await fetch(`${OPENAI_BASE}/chat/completions`, {
+    const res = await fetchWithRetry(`${OPENAI_BASE}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -82,7 +114,7 @@ class OpenAIProvider implements LlmProvider {
     const inputs = Array.isArray(opts.input) ? opts.input : [opts.input];
     if (inputs.length === 0) return [];
 
-    const res = await fetch(`${OPENAI_BASE}/embeddings`, {
+    const res = await fetchWithRetry(`${OPENAI_BASE}/embeddings`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -92,7 +124,7 @@ class OpenAIProvider implements LlmProvider {
         model: opts.model ?? "text-embedding-3-small",
         input: inputs,
       }),
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(30_000),
     });
 
     if (!res.ok) {
@@ -110,7 +142,7 @@ class OpenAIProvider implements LlmProvider {
     form.append("model", opts.model ?? "whisper-1");
     if (opts.language) form.append("language", opts.language);
 
-    const res = await fetch(`${OPENAI_BASE}/audio/transcriptions`, {
+    const res = await fetchWithRetry(`${OPENAI_BASE}/audio/transcriptions`, {
       method: "POST",
       headers: { Authorization: `Bearer ${getApiKey()}` },
       body: form,
