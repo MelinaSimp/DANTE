@@ -108,15 +108,29 @@ export default function WatcherBridge() {
           }),
         })
           .then((res) => {
+            if (!res.ok) {
+              console.error(
+                `[WatcherBridge] batch notify ${events.length} files -> ${folderId}: ${res.status}`,
+              );
+              throw new Error(`notify-batch ${res.status}`);
+            }
             console.log(
               `[WatcherBridge] batch notify ${events.length} files -> ${folderId}: ${res.status}`,
             );
           })
           .catch((err) => {
-            console.warn("[WatcherBridge] batch notify failed:", err);
-            if (events.length <= BATCH_SIZE) {
-              queueRef.current.push(...batch);
-            }
+            console.error("[WatcherBridge] batch notify failed:", err);
+            queueRef.current.push(
+              ...events.map((e) => ({
+                folder_id: e.folder_id,
+                file_path: e.file_path,
+                file_name: e.file_name,
+                file_extension: e.file_extension,
+                file_size_bytes: e.file_size_bytes,
+                content_sha256: e.content_sha256,
+                kind_of_event: e.kind_of_event ?? "change",
+              })),
+            );
           })
           .finally(() => {
             inflightRef.current--;
