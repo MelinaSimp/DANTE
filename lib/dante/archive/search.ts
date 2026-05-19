@@ -40,11 +40,13 @@ export async function searchArchive(input: SearchInput): Promise<ArchiveSearchHi
 
   const hits = (data || []) as ArchiveSearchHit[];
 
-  // If embedding search returned nothing, fall back to title matching.
-  // This catches the case where a document exists in vault_items but
-  // has no chunks (ingest failed/pending) or the query is a document
-  // name that doesn't match chunk content embeddings.
-  if (hits.length === 0) {
+  // Fall back to title matching when embedding search found nothing
+  // useful. The RPC always returns rows if ANY chunks exist in the
+  // workspace, so we check similarity — if the best hit is below 0.35,
+  // the embedding didn't really match and the user likely asked for
+  // a specific document by name.
+  const bestSimilarity = hits.length > 0 ? hits[0].similarity : 0;
+  if (hits.length === 0 || bestSimilarity < 0.35) {
     const titleHits = await titleFallbackSearch(input.workspaceId, input.query, k, input.projectId);
     if (titleHits.length > 0) return titleHits;
   }
@@ -52,28 +54,37 @@ export async function searchArchive(input: SearchInput): Promise<ArchiveSearchHi
   return hits;
 }
 
+const STOP_WORDS = new Set([
+  "the", "for", "and", "that", "this", "with", "from", "have",
+  "what", "how", "can", "you", "about", "into", "know", "explain",
+  "tell", "give", "show", "find", "get", "going", "need", "want",
+  "does", "did", "has", "was", "are", "been", "will", "would",
+]);
+
 async function titleFallbackSearch(
   workspaceId: string,
   query: string,
   limit: number,
   projectId?: string,
 ): Promise<ArchiveSearchHit[]> {
-  // Extract meaningful keywords (drop short words like "the", "for", "a")
+  // Extract distinctive keywords — drop stop words and short terms
   const keywords = query
     .replace(/[^\w\s]/g, " ")
     .split(/\s+/)
-    .filter((w) => w.length > 2)
-    .slice(0, 6);
+    .filter((w) => w.length > 2 && !STOP_WORDS.has(w.toLowerCase()))
+    .map((w) => w.toLowerCase())
+    .slice(0, 8);
   if (keywords.length === 0) return [];
 
-  // Build ILIKE pattern — match documents whose title contains any keyword
-  const pattern = `%${keywords.join("%")}%`;
+  // Build OR filter — match documents whose title contains ANY keyword.
+  // Uses Supabase `.or()` with individual ilike conditions.
+  const orClauses = keywords.map((kw) => `title.ilike.%${kw}%`).join(",");
 
   let q = supabaseAdmin
     .from("vault_items")
     .select("id, title, kind, content, project_id")
     .eq("workspace_id", workspaceId)
-    .ilike("title", pattern)
+    .or(orClauses)
     .limit(limit);
 
   if (projectId) {
