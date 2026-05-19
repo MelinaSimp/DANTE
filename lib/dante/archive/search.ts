@@ -7,6 +7,7 @@
 
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { embedOne, toPgVector } from "./embed";
+import { ingestVaultItem } from "@/lib/vault/ingest";
 import type { ArchiveSearchHit } from "./types";
 
 export interface SearchInput {
@@ -106,12 +107,29 @@ async function titleFallbackSearch(
   const results: ArchiveSearchHit[] = [];
 
   for (const item of items) {
-    const { data: chunks } = await supabaseAdmin
+    let { data: chunks } = await supabaseAdmin
       .from("vault_item_chunks")
       .select("id, chunk_index, page_number, content")
       .eq("item_id", item.id)
       .order("chunk_index")
       .limit(3);
+
+    if ((!chunks || chunks.length === 0) && item.id) {
+      try {
+        const result = await ingestVaultItem(item.id, { force: true });
+        if (result.chunkCount > 0) {
+          const { data: freshChunks } = await supabaseAdmin
+            .from("vault_item_chunks")
+            .select("id, chunk_index, page_number, content")
+            .eq("item_id", item.id)
+            .order("chunk_index")
+            .limit(3);
+          if (freshChunks && freshChunks.length > 0) chunks = freshChunks;
+        }
+      } catch {
+        // Ingestion failed — fall through to synthetic hit below
+      }
+    }
 
     if (chunks && chunks.length > 0) {
       for (const c of chunks) {
@@ -128,9 +146,6 @@ async function titleFallbackSearch(
         });
       }
     } else if (item.content) {
-      // No chunks — item was never ingested successfully.
-      // Return a synthetic hit from the raw content so the agent
-      // at least sees something and can tell the user.
       results.push({
         chunk_id: item.id,
         document_id: item.id,
@@ -143,8 +158,6 @@ async function titleFallbackSearch(
         project_id: item.project_id,
       });
     } else {
-      // No chunks AND no content — document exists but is empty/failed.
-      // Return a minimal hit so the agent can tell the user to re-upload.
       results.push({
         chunk_id: item.id,
         document_id: item.id,
