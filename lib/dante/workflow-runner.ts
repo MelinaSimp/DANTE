@@ -427,16 +427,27 @@ async function runSendSms(
     const slice = recipients.slice(i, i + 4);
     const batch = await Promise.all(
       slice.map(async (rcpt) => {
-        const result = await sendMessage(rcpt.phone, cfg.body, {
-          fromNumber: cfg.from_number,
-        });
-        return {
-          to_phone: rcpt.phone,
-          delivery_channel: result.delivery_channel,
-          message_id: result.message_id,
-          member_id: rcpt.member_id,
-          member_name: rcpt.member_name,
-        };
+        try {
+          const result = await sendMessage(rcpt.phone, cfg.body, {
+            fromNumber: cfg.from_number,
+          });
+          return {
+            to_phone: rcpt.phone,
+            delivery_channel: result.delivery_channel,
+            message_id: result.message_id,
+            member_id: rcpt.member_id,
+            member_name: rcpt.member_name,
+          };
+        } catch (err) {
+          console.error(`[workflow-runner] SMS to ${rcpt.phone} failed:`, err instanceof Error ? err.message : err);
+          return {
+            to_phone: rcpt.phone,
+            delivery_channel: "failed",
+            message_id: null,
+            member_id: rcpt.member_id,
+            member_name: rcpt.member_name,
+          };
+        }
       }),
     );
     results.push(...batch);

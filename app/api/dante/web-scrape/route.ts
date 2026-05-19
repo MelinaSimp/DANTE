@@ -258,7 +258,7 @@ export async function POST(req: NextRequest) {
         console.error("[web-scrape] stream error:", err);
       }
 
-      const { data: persisted } = await supabaseAdmin
+      const { data: persisted, error: persistErr } = await supabaseAdmin
         .from("dante_chat_messages")
         .insert({
           chat_id: chatId,
@@ -268,6 +268,10 @@ export async function POST(req: NextRequest) {
         })
         .select("id")
         .single();
+
+      if (persistErr) {
+        console.error("[web-scrape] assistant message persist failed:", persistErr.message);
+      }
 
       send({
         type: "final",

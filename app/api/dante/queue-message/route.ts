@@ -49,21 +49,27 @@ export async function POST(req: NextRequest) {
   const content = body.content.slice(0, 64 * 1024);
   const note = (body.note || "").trim().slice(0, 500) || null;
 
-  const result = await stageForReview({
-    workspaceId: profile.workspace_id,
-    kind: "dante_review",
-    payload: {
-      content,
-      submitted_by: user.id,
-      submitted_at: new Date().toISOString(),
-      chat_id: body.chatId ?? null,
-      message_id: body.messageId ?? null,
-      note,
-    },
-    sourceKind: "dante_chat",
-    sourceId: body.messageId ?? body.chatId ?? undefined,
-    contactId: body.contactId ?? undefined,
-  });
+  let result;
+  try {
+    result = await stageForReview({
+      workspaceId: profile.workspace_id,
+      kind: "dante_review",
+      payload: {
+        content,
+        submitted_by: user.id,
+        submitted_at: new Date().toISOString(),
+        chat_id: body.chatId ?? null,
+        message_id: body.messageId ?? null,
+        note,
+      },
+      sourceKind: "dante_chat",
+      sourceId: body.messageId ?? body.chatId ?? undefined,
+      contactId: body.contactId ?? undefined,
+    });
+  } catch (err) {
+    console.error("[queue-message] stageForReview failed:", err instanceof Error ? err.message : err);
+    return jsonError(500, "Failed to queue message for review");
+  }
 
   return NextResponse.json({ id: result.id, status: result.status });
 }

@@ -203,11 +203,14 @@ export async function POST(req: NextRequest) {
   }
 
   // Persist the user turn before running the agent.
-  await supabaseAdmin.from("dante_chat_messages").insert({
+  const { error: userMsgErr } = await supabaseAdmin.from("dante_chat_messages").insert({
     chat_id: chatId,
     role: "user",
     content: message,
   });
+  if (userMsgErr) {
+    return jsonError(500, `save user message: ${userMsgErr.message}`);
+  }
 
   // Pull prior turns for context.
   const { data: priorMessages } = await supabaseAdmin
@@ -479,7 +482,7 @@ export async function POST(req: NextRequest) {
       // Persist the assistant turn with citation report + prompt
       // version + grounding score. /chat/[id] reads these on
       // refresh so chips render decorated even hours later.
-      const { data: persisted } = await supabaseAdmin
+      const { data: persisted, error: persistErr } = await supabaseAdmin
         .from("dante_chat_messages")
         .insert({
           chat_id: chatId,
@@ -492,6 +495,10 @@ export async function POST(req: NextRequest) {
         })
         .select("id")
         .single();
+
+      if (persistErr) {
+        console.error("[ask] assistant message persist failed:", persistErr.message);
+      }
 
       send({
         type: "final",

@@ -15,7 +15,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { enqueueIngest, kickIngestWorker } from "@/lib/vault/ingest-queue";
+import { kickIngestWorker } from "@/lib/vault/ingest-queue";
 import { resolveProjectForWatchedFile, projectNameForWatchedFolder } from "@/lib/vault/auto-project";
 import { sanitizeForPostgres } from "@/lib/vault/sanitize-text";
 
@@ -336,20 +336,22 @@ export async function POST(
 
   // ── Enqueue ingest jobs for auto-confirmed vault items ────────────
   let queued = 0;
-  for (const vid of vaultItemIds) {
-    try {
-      await enqueueIngest({
-        vaultItemId: vid,
-        workspaceId,
-        requestedBy: user.id,
-        source: "watched_folder",
-      });
-      queued++;
-    } catch (err) {
-      console.warn(
-        `[notify-batch] enqueueIngest failed for ${vid}:`,
-        err instanceof Error ? err.message : err,
-      );
+  if (vaultItemIds.length > 0) {
+    const queueRows = vaultItemIds.map((vid) => ({
+      vault_item_id: vid,
+      workspace_id: workspaceId,
+      requested_by: user.id,
+      source: "watched_folder" as const,
+      status: "pending" as const,
+      priority: 0,
+    }));
+    const { error: queueErr } = await supabaseAdmin
+      .from("vault_ingest_queue")
+      .insert(queueRows);
+    if (queueErr) {
+      console.warn("[notify-batch] batch enqueue failed:", queueErr.message);
+    } else {
+      queued = vaultItemIds.length;
     }
   }
 
@@ -358,15 +360,20 @@ export async function POST(
     const origin = new URL(req.url).origin;
     kickIngestWorker(origin);
 
-    // Bump files_indexed_count by number of auto-confirmed files.
-    for (let i = 0; i < queued; i++) {
-      await supabaseAdmin
-        .rpc("increment_watched_folder_count", { p_folder_id: folderId })
-        .then(
-          () => undefined,
-          () => undefined,
-        );
-    }
+    await supabaseAdmin.rpc("increment_watched_folder_count_by", {
+      p_folder_id: folderId,
+      p_count: queued,
+    }).then(
+      () => undefined,
+      () => {
+        // Fallback: increment one-by-one if batch RPC doesn't exist
+        for (let ci = 0; ci < queued; ci++) {
+          supabaseAdmin.rpc("increment_watched_folder_count", {
+            p_folder_id: folderId,
+          }).then(() => undefined, () => undefined);
+        }
+      },
+    );
 
     // Single audit-log entry for the batch.
     await supabaseAdmin
