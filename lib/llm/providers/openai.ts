@@ -31,11 +31,15 @@ async function fetchWithRetry(
   url: string,
   init: RequestInit,
   maxRetries = MAX_RETRIES,
+  perAttemptTimeoutMs?: number,
 ): Promise<Response> {
   let lastErr: Error | null = null;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      const res = await fetch(url, init);
+      const attemptInit = perAttemptTimeoutMs
+        ? { ...init, signal: AbortSignal.timeout(perAttemptTimeoutMs) }
+        : init;
+      const res = await fetch(url, attemptInit);
       if (res.ok || !RETRYABLE_STATUSES.has(res.status)) return res;
       const retryAfter = res.headers.get("retry-after");
       const delayMs = retryAfter
@@ -82,8 +86,7 @@ class OpenAIProvider implements LlmProvider {
         Authorization: `Bearer ${getApiKey()}`,
       },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(120_000),
-    });
+    }, MAX_RETRIES, 120_000);
 
     if (!res.ok) {
       const errBody = await res.text().catch(() => "");
@@ -124,8 +127,7 @@ class OpenAIProvider implements LlmProvider {
         model: opts.model ?? "text-embedding-3-small",
         input: inputs,
       }),
-      signal: AbortSignal.timeout(30_000),
-    });
+    }, MAX_RETRIES, 30_000);
 
     if (!res.ok) {
       const errBody = await res.text().catch(() => "");
