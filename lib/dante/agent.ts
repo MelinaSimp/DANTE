@@ -1245,27 +1245,54 @@ async function dispatchTool(
       const k = Math.min(50, Math.max(1, Number(args.limit) || 10));
       const exts: string[] = Array.isArray(args.extensions) ? args.extensions : [];
 
-      const params = new URLSearchParams({ q, limit: String(k) });
-      if (exts.length) params.set("extensions", exts.join(","));
+      const baseSelect = "id, file_name, file_path, file_extension, file_size_bytes, ingest_status, vault_item_id, last_seen_at";
 
-      const query = supabaseAdmin
+      let tsvQuery = supabaseAdmin
         .from("watched_file_index")
-        .select("id, file_name, file_path, file_extension, file_size_bytes, ingest_status, vault_item_id, last_seen_at")
+        .select(baseSelect)
         .eq("workspace_id", ctx.workspaceId)
         .is("deleted_at", null)
         .textSearch("search_tsv", q, { type: "websearch" })
         .order("last_seen_at", { ascending: false })
         .limit(k);
+      if (exts.length) tsvQuery = tsvQuery.in("file_extension", exts);
 
-      if (exts.length) {
-        query.in("file_extension", exts);
+      const { data: tsvFiles, error: tsvErr } = await tsvQuery;
+      if (tsvErr) return { error: `file_index.search: ${tsvErr.message}` };
+
+      let files = tsvFiles || [];
+
+      if (files.length === 0) {
+        const FILE_INDEX_STOP = new Set([
+          "the", "for", "and", "that", "this", "with", "from", "have",
+          "what", "how", "can", "you", "about", "into", "know", "explain",
+          "tell", "give", "show", "find", "get", "going", "need", "want",
+          "does", "did", "has", "was", "are", "been", "will", "would",
+        ]);
+        const kws = q
+          .replace(/[^\w\s]/g, " ")
+          .split(/\s+/)
+          .filter((w) => w.length > 2 && !FILE_INDEX_STOP.has(w.toLowerCase()))
+          .map((w) => w.toLowerCase())
+          .slice(0, 8);
+        if (kws.length > 0) {
+          const orClauses = kws.map((kw) => `file_name.ilike.%${kw}%`).join(",");
+          let fallbackQ = supabaseAdmin
+            .from("watched_file_index")
+            .select(baseSelect)
+            .eq("workspace_id", ctx.workspaceId)
+            .is("deleted_at", null)
+            .or(orClauses)
+            .order("last_seen_at", { ascending: false })
+            .limit(k);
+          if (exts.length) fallbackQ = fallbackQ.in("file_extension", exts);
+          const { data: fallbackFiles } = await fallbackQ;
+          files = fallbackFiles || [];
+        }
       }
 
-      const { data: files, error: searchErr } = await query;
-      if (searchErr) return { error: `file_index.search: ${searchErr.message}` };
-
       return {
-        results: (files || []).map((f) => ({
+        results: files.map((f) => ({
           id: f.id,
           name: f.file_name,
           path: f.file_path,
@@ -1274,7 +1301,7 @@ async function dispatchTool(
           status: f.ingest_status,
           vault_item_id: f.vault_item_id,
         })),
-        total: (files || []).length,
+        total: files.length,
         hint: "Files with status='indexed' have metadata only. Call file_index.ingest to retrieve their content into the vault.",
       };
     }
