@@ -199,7 +199,7 @@ export async function ingestVaultItem(
     embedding: toPgVector(vectors[i]),
   }));
 
-  const BATCH = 100;
+  const BATCH = 20;
   for (let i = 0; i < rows.length; i += BATCH) {
     const { error: insertErr } = await supabaseAdmin
       .from("vault_item_chunks")
