@@ -26,18 +26,18 @@ export const supabaseAdmin: SupabaseClient = createClient(url, serviceRole, {
 });
 
 /**
- * Factory – use inside server actions / route handlers if you prefer fresh clients.
+ * Factory -- use inside server actions / route handlers if you prefer fresh clients.
+ * Pass timeoutMs for long-running operations (vector inserts, large queries).
  */
-export function adminClient(): SupabaseClient {
+export function adminClient(timeoutMs = 30_000): SupabaseClient {
   return createClient(url, serviceRole, {
     auth: { persistSession: false, autoRefreshToken: false },
-    global: { 
+    global: {
       headers: { "X-Client-Info": "drift-crm-server" },
       fetch: (url, options = {}) => {
         return fetch(url, {
           ...options,
-          // Add timeout to prevent hanging connections
-          signal: AbortSignal.timeout(30000), // 30 second timeout
+          signal: AbortSignal.timeout(timeoutMs),
         });
       },
     },

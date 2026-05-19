@@ -16,7 +16,7 @@ const MODEL = "text-embedding-3-small";
 const DIMS = 1536;
 const BATCH = 96; // conservative — stay well under the 2048 ceiling
 
-const MAX_CHARS_PER_CHUNK = 28000; // ~7000 tokens, safely under 8191 limit
+const MAX_CHARS_PER_CHUNK = 24000; // ~6000 tokens, safely under 8191 limit
 
 export async function embedTexts(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return [];

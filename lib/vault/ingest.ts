@@ -10,7 +10,7 @@
 // Idempotent: clears any existing chunks for the item before inserting,
 // so calling this twice on the same item is safe.
 
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { supabaseAdmin, adminClient } from "@/lib/supabase/admin";
 import { embedTexts, toPgVector } from "@/lib/dante/archive/embed";
 import { extractText, extractTextWithPages } from "@/lib/vault/extract";
 
@@ -187,9 +187,6 @@ export async function ingestVaultItem(
   const chunkTexts = chunksWithPages.map((c) => c.content);
   const vectors = await embedTexts(chunkTexts);
 
-  // Idempotency: drop existing chunks for this item before inserting.
-  await supabaseAdmin.from("vault_item_chunks").delete().eq("item_id", itemId);
-
   const rows = chunksWithPages.map((chunk, i) => ({
     item_id: item.id,
     workspace_id: item.workspace_id,
@@ -199,11 +196,17 @@ export async function ingestVaultItem(
     embedding: toPgVector(vectors[i]),
   }));
 
-  const BATCH = 10;
+  // Upsert instead of DELETE+INSERT to avoid race condition where a
+  // crash between DELETE and INSERT leaves zero chunks for the item.
+  // The unique constraint on (item_id, chunk_index) makes this safe.
+  const insertClient = adminClient(120_000);
+  const BATCH = 5;
   for (let i = 0; i < rows.length; i += BATCH) {
-    const { error: insertErr } = await supabaseAdmin
+    const { error: insertErr } = await insertClient
       .from("vault_item_chunks")
-      .insert(rows.slice(i, i + BATCH));
+      .upsert(rows.slice(i, i + BATCH), {
+        onConflict: "item_id,chunk_index",
+      });
     if (insertErr) {
       await supabaseAdmin
         .from("vault_items")
@@ -215,6 +218,13 @@ export async function ingestVaultItem(
       throw new Error(`Chunk insert: ${insertErr.message}`);
     }
   }
+
+  // Clean up stale chunks from a previous run that had more chunks
+  await supabaseAdmin
+    .from("vault_item_chunks")
+    .delete()
+    .eq("item_id", itemId)
+    .gte("chunk_index", chunksWithPages.length);
 
   await supabaseAdmin
     .from("vault_items")
