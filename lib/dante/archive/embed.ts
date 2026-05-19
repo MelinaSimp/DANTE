@@ -16,12 +16,16 @@ const MODEL = "text-embedding-3-small";
 const DIMS = 1536;
 const BATCH = 96; // conservative — stay well under the 2048 ceiling
 
+const MAX_CHARS_PER_CHUNK = 28000; // ~7000 tokens, safely under 8191 limit
+
 export async function embedTexts(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return [];
 
   const out: number[][] = [];
   for (let i = 0; i < texts.length; i += BATCH) {
-    const slice = texts.slice(i, i + BATCH);
+    const slice = texts.slice(i, i + BATCH).map((t) =>
+      t.length > MAX_CHARS_PER_CHUNK ? t.slice(0, MAX_CHARS_PER_CHUNK) : t,
+    );
     const vectors = await llmEmbed({ model: MODEL, input: slice });
     for (const vec of vectors) {
       if (!Array.isArray(vec) || vec.length !== DIMS) {
