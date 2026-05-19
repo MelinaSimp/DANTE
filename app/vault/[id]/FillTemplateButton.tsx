@@ -2,7 +2,7 @@
 
 // Fill-template flow — only mounted on vault items with kind='template'.
 // Opens a side-panel that lets the user pick a contact + property +
-// extra instructions, then asks Vergil to fill the template via
+// extra instructions, then asks Dante to fill the template via
 // /api/vault/[id]/fill. Result is rendered side-by-side (template ↔
 // filled output + citations); a "Download PDF" button wraps the
 // filled text into a jsPDF document for the user to send.
@@ -22,7 +22,7 @@ import {
 // ── Word-level diff (LCS-based) ─────────────────────────────────
 //
 // Used by the "Show edits" toggle so the user can see exactly which
-// runs of text Vergil added when filling the template. Splits on
+// runs of text Dante added when filling the template. Splits on
 // whitespace boundaries, runs an O(m*n) LCS, then walks the table
 // to produce same/add/remove segments. Templates here are < a few
 // thousand words so the quadratic memory is fine; if that ever
@@ -369,8 +369,8 @@ export default function FillTemplateButton({
                         className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] border border-[var(--rule)] hover:bg-[var(--canvas-subtle)] text-[11px] font-medium text-[var(--ink-muted)] transition"
                         title={
                           viewMode === "edits"
-                            ? "Hide highlights of what Vergil added"
-                            : "Highlight what Vergil added"
+                            ? "Hide highlights of what Dante added"
+                            : "Highlight what Dante added"
                         }
                       >
                         {viewMode === "edits" ? (
@@ -402,7 +402,7 @@ export default function FillTemplateButton({
                         <span>Filled draft</span>
                         {viewMode === "edits" && (
                           <span className="text-[var(--verified)] normal-case tracking-normal">
-                            · highlights show what Vergil added
+                            · highlights show what Dante added
                           </span>
                         )}
                       </div>
@@ -467,7 +467,7 @@ export default function FillTemplateButton({
                       Download PDF
                     </button>
                     <span className="text-[11px] text-[var(--ink-subtle)]">
-                      Review the draft before sending — Vergil only fills what's
+                      Review the draft before sending — Dante only fills what's
                       grounded in the source data.
                     </span>
                   </div>

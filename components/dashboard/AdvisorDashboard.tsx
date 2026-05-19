@@ -246,7 +246,7 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
         {/* WhatChanged removed — its content (regulatory analysis
             findings) now folds into the "What [assistant] noticed
             today" bento panel as regulatory_relevant items. One
-            consolidated surface for everything Dante/Vergil saw,
+            consolidated surface for everything Dante saw,
             instead of one hero box + one bento panel doing the same
             job. The dashboard endpoint pulls latest regulatory briefs
             and merges them into noticedItems with click-through to

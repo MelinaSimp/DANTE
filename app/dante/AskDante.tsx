@@ -186,7 +186,7 @@ const REWRITE_PRESETS = [
 export default function AskDante({
   assistantName = "Dante",
 }: {
-  /** Brand name of the assistant — "Dante" for FA, "Vergil" for RE. */
+  /** Brand name of the assistant. */
   assistantName?: string;
 }) {
   // Brand info (name + iconPath) flows from /dante/layout.tsx via the
@@ -194,7 +194,7 @@ export default function AskDante({
   // — we keep it for the InputBar placeholder, but the hero icon
   // reads from context so it always matches the breadcrumb gate.
   const brand = useAssistantBrand();
-  const isRealtor = brand.name === "Vergil";
+  const isRealtor = brand.iconPath.includes("vergil");
   const QUICK_PROMPTS = isRealtor ? QUICK_PROMPTS_REALTOR : QUICK_PROMPTS_ADVISOR;
   const RECOMMENDED_WORKFLOWS = isRealtor ? RECOMMENDED_WORKFLOWS_REALTOR : RECOMMENDED_WORKFLOWS_ADVISOR;
   const router = useRouter();

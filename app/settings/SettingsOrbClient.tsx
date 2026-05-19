@@ -76,7 +76,7 @@ const PANEL_SUBTITLES: Record<PanelId, string> = {
   billing: "Manage subscription, payment methods, and invoices.",
   export: "Download all workspace records as a single JSON file.",
   model:
-    "Choose the model that powers Dante, Vergil, SMS, and every workflow agent step in this workspace.",
+    "Choose the model that powers Dante, SMS, and every workflow agent step in this workspace.",
   appearance:
     "Light, dark, or follow your system. Persists per-device.",
   privacy_mode:

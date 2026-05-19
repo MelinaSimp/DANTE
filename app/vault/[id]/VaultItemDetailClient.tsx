@@ -347,7 +347,7 @@ export default function VaultItemDetailClient({
               Description
               {form.kind === "template" && (
                 <span className="text-[10px] text-[var(--ink-subtle)] font-normal ml-1">
-                  — Vergil reads this to decide when to use the template
+                  — Dante reads this to decide when to use the template
                 </span>
               )}
             </div>
@@ -374,7 +374,7 @@ export default function VaultItemDetailClient({
               <div className="label-section mb-1">Property</div>
               <h2 className="text-base font-semibold">Linked property</h2>
               <p className="text-xs text-[var(--ink-muted)] mt-0.5">
-                Optional. Helps Vergil pull the right docs when you're
+                Optional. Helps Dante pull the right docs when you're
                 discussing a specific listing.
               </p>
             </div>
@@ -446,7 +446,7 @@ export default function VaultItemDetailClient({
               <div className="label-section mb-1">People</div>
               <h2 className="text-base font-semibold">Tagged clients</h2>
               <p className="text-xs text-[var(--ink-muted)] mt-0.5">
-                Loose links. Vergil uses these tags when you ask for docs
+                Loose links. Dante uses these tags when you ask for docs
                 related to a specific client.
               </p>
             </div>

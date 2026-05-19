@@ -52,7 +52,7 @@ const TOPICS: Topic[] = [
   {
     slug: "asking-questions",
     title: "Asking grounded questions",
-    blurb: "How Dante / Vergil retrieves context and cites every source.",
+    blurb: "How Dante retrieves context and cites every source.",
     area: "Chat",
     icon: BookOpen,
   },

@@ -80,7 +80,7 @@ const REAL_ESTATE: IndustryConfig = {
     "Drift pulls zoning, assessed value, tax estimates, demographics, and environmental data from county public records the moment you type an address. Link your own Phase I, lease abstract, or zoning letter and the AI cites the exact section -- your 40-hour research package, searchable.",
   marketingChips: ["Parcel intelligence", "Citation-grounded"],
   displayName: "CRE Broker",
-  assistantName: "Vergil",
+  assistantName: "Dante",
   assistantIconPath: "/brand/vergil-echo-black.png",
   clientLabel: "client",
   clientLabelPlural: "clients",

@@ -48,7 +48,7 @@ export default function OnboardingWizardClient({
 }) {
   const isRealtor = industry === "real_estate";
   const verticalNoun = isRealtor ? "real estate agent" : "financial advisor";
-  const assistantName = isRealtor ? "Vergil" : "Dante";
+  const assistantName = "Dante";
 
   const steps: Step[] = useMemo(() => {
     const docCta = isRealtor

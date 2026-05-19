@@ -168,7 +168,7 @@ export default function SmsSettingsClient() {
           <div className="label-section mb-1">Settings</div>
           <h1 className="heading-display text-3xl">SMS &amp; iMessage</h1>
           <p className="prose-body text-[var(--ink-muted)] mt-1.5 max-w-prose">
-            Text Drift from your phone — Dante (or Vergil) responds via SMS or
+            Text Drift from your phone — Dante responds via SMS or
             iMessage with the same memory, citations, and audit trail as the
             web app. Send <span className="mono">/help</span> for the command
             list once you're connected.

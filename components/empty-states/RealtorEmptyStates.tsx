@@ -87,7 +87,7 @@ export function RealtorListingsEmpty() {
       icon={<Home className="w-5 h-5 text-[var(--ink-muted)]" strokeWidth={1.5} />}
       eyebrow="No active listings"
       headline="Your pipeline starts with a listing."
-      body="Add a property you're representing — Vergil reads the listing agreement, MLS sheet, and disclosures and answers questions like 'what's the exclusivity term' with a citation back to the document."
+      body="Add a property you're representing — Dante reads the listing agreement, MLS sheet, and disclosures and answers questions like 'what's the exclusivity term' with a citation back to the document."
       primary={{ label: "Add a listing", href: "/properties/new" }}
       secondary={{ label: "Connect MLS (coming soon)", href: "/settings/integrations" }}
     />
@@ -99,8 +99,8 @@ export function RealtorBuyersEmpty() {
     <Chassis
       icon={<Users className="w-5 h-5 text-[var(--ink-muted)]" strokeWidth={1.5} />}
       eyebrow="No buyers yet"
-      headline="Add a buyer Vergil can prep you for."
-      body="Once a buyer is in the workspace, every showing recap, every email, every preference goes into Vergil's memory — so 'prep me for my 2pm with the Marlows' becomes a one-line ask, not a ten-minute hunt."
+      headline="Add a buyer Dante can prep you for."
+      body="Once a buyer is in the workspace, every showing recap, every email, every preference goes into Dante's memory — so 'prep me for my 2pm with the Marlows' becomes a one-line ask, not a ten-minute hunt."
       primary={{ label: "Add a buyer", href: "/contacts/new" }}
       secondary={{ label: "Import from CSV", href: "/contacts/import" }}
     />
@@ -113,7 +113,7 @@ export function RealtorToursEmpty() {
       icon={<Calendar className="w-5 h-5 text-[var(--ink-muted)]" strokeWidth={1.5} />}
       eyebrow="No tours scheduled"
       headline="Schedule a showing."
-      body="Tours sync with your calendar. After each one, Vergil drafts the recap email — fair-housing-scanned and citation-grounded against the buyer's preferences in memory."
+      body="Tours sync with your calendar. After each one, Dante drafts the recap email — fair-housing-scanned and citation-grounded against the buyer's preferences in memory."
       primary={{ label: "Schedule a tour", href: "/appointments/new?kind=tour" }}
       secondary={{ label: "Connect Google Calendar", href: "/settings/integrations" }}
     />
@@ -126,7 +126,7 @@ export function RealtorVaultEmpty() {
       icon={<FileText className="w-5 h-5 text-[var(--ink-muted)]" strokeWidth={1.5} />}
       eyebrow="Vault is empty"
       headline="Upload your first listing agreement."
-      body="Vergil reads the documents you upload — listing agreements, buyer-broker agreements, leases, disclosures, MLS sheets — and cites them by name and page when you ask. Page numbers are verified; quotes are checked against the source."
+      body="Dante reads the documents you upload — listing agreements, buyer-broker agreements, leases, disclosures, MLS sheets — and cites them by name and page when you ask. Page numbers are verified; quotes are checked against the source."
       primary={{ label: "Upload a document", href: "/dante/archive?upload=1" }}
       secondary={{ label: "See what's supported", href: "/help/vault" }}
     />

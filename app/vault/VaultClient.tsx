@@ -138,7 +138,7 @@ export default function VaultClient() {
             </h1>
             <p className="text-sm text-[var(--ink-muted)] mt-1.5 max-w-xl">
               Group templates and documents into projects. Each project
-              gets its own ask box and file list — Vergil cites only from
+              gets its own ask box and file list — Dante cites only from
               that project's contents when you're inside it.
             </p>
           </div>
@@ -348,7 +348,7 @@ export default function VaultClient() {
                     setDraft({ ...draft, description: e.target.value })
                   }
                   rows={2}
-                  placeholder="What's in this project? Vergil uses this to know when to use it."
+                  placeholder="What's in this project? Dante uses this to know when to use it."
                   className={`${inputClass} resize-y`}
                 />
               </label>

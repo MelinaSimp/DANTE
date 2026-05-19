@@ -37,7 +37,7 @@ interface DanteGateLinkProps {
   className?: string;
   href?: string;
   /** Override the brand label. If omitted, reads from the
-   *  AssistantNameProvider — Dante for FA, Vergil for RE. */
+   *  AssistantNameProvider — Dante for all verticals. */
   label?: string;
   /** Override the brand icon path. If omitted, reads from the
    *  AssistantNameProvider. */
