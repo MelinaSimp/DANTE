@@ -229,6 +229,7 @@ export default function AskDante({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const lastMessageRef = useRef<string>("");
 
   const inExpandedMode = turns.length > 0 || streamState.streaming;
 
@@ -386,6 +387,7 @@ export default function AskDante({
     const message = (overrideInput ?? input).trim();
     if (!message || streamState.streaming) return;
 
+    lastMessageRef.current = message;
     abortRef.current = new AbortController();
     setTurns((prev) => [...prev, { role: "user", content: message }]);
     setInput("");
@@ -783,8 +785,24 @@ export default function AskDante({
             )}
 
             {streamState.error && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                {streamState.error}
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 flex items-center justify-between gap-3">
+                <span>Something went wrong. Please try again.</span>
+                <button
+                  onClick={() => {
+                    const msg = lastMessageRef.current;
+                    if (!msg) return;
+                    setStreamState(initialStreamState());
+                    setTurns((prev) => {
+                      const last = prev[prev.length - 1];
+                      if (last?.role === "user") return prev.slice(0, -1);
+                      return prev;
+                    });
+                    setTimeout(() => submit(msg), 0);
+                  }}
+                  className="shrink-0 rounded-md bg-red-100 px-3 py-1 text-xs font-medium text-red-800 hover:bg-red-200 transition-colors"
+                >
+                  Try again
+                </button>
               </div>
             )}
 
