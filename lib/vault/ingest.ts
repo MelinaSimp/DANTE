@@ -17,6 +17,7 @@ import { extractText, extractTextWithPages } from "@/lib/vault/extract";
 const CHUNK_WORDS = 500;
 const CHUNK_OVERLAP = 50;
 const MAX_CHUNKS_PER_ITEM = 800; // safety: ~400k words
+const MAX_CHUNK_CHARS = 6000; // safety: ~1500 tokens at 4 chars/token, well under 8191
 
 export interface IngestResult {
   itemId: string;
@@ -68,25 +69,45 @@ function chunkTextWithPages(pages: string[]): ChunkWithPage[] {
   }
 
   if (wordEntries.length === 0) return [];
+
+  const rawChunks: ChunkWithPage[] = [];
+
   if (wordEntries.length <= CHUNK_WORDS) {
-    return [{
+    rawChunks.push({
       content: wordEntries.map((e) => e.word).join(" "),
       page_number: wordEntries[0].page,
-    }];
+    });
+  } else {
+    const stride = CHUNK_WORDS - CHUNK_OVERLAP;
+    for (let i = 0; i < wordEntries.length; i += stride) {
+      const slice = wordEntries.slice(i, i + CHUNK_WORDS);
+      if (slice.length === 0) break;
+      rawChunks.push({
+        content: slice.map((e) => e.word).join(" "),
+        page_number: slice[0].page,
+      });
+      if (rawChunks.length >= MAX_CHUNKS_PER_ITEM) break;
+      if (i + CHUNK_WORDS >= wordEntries.length) break;
+    }
   }
 
+  // Split any chunk that exceeds the character limit (spreadsheets
+  // with dense numeric data can be few words but many tokens)
   const chunks: ChunkWithPage[] = [];
-  const stride = CHUNK_WORDS - CHUNK_OVERLAP;
-  for (let i = 0; i < wordEntries.length; i += stride) {
-    const slice = wordEntries.slice(i, i + CHUNK_WORDS);
-    if (slice.length === 0) break;
-    chunks.push({
-      content: slice.map((e) => e.word).join(" "),
-      page_number: slice[0].page, // page where this chunk starts
-    });
+  for (const c of rawChunks) {
+    if (c.content.length <= MAX_CHUNK_CHARS) {
+      chunks.push(c);
+    } else {
+      for (let off = 0; off < c.content.length; off += MAX_CHUNK_CHARS) {
+        chunks.push({
+          content: c.content.slice(off, off + MAX_CHUNK_CHARS),
+          page_number: c.page_number,
+        });
+      }
+    }
     if (chunks.length >= MAX_CHUNKS_PER_ITEM) break;
-    if (i + CHUNK_WORDS >= wordEntries.length) break;
   }
+
   return chunks;
 }
 
