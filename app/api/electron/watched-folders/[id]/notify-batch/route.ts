@@ -145,9 +145,9 @@ export async function POST(
   const results: FileResult[] = [];
   const vaultItemInserts: Array<Record<string, unknown>> = [];
   const watchedFileInserts: Array<Record<string, unknown>> = [];
-  // Maps: vaultItemInserts index → results index, so we can backfill
-  // vault_item_id after the batch insert returns ordered ids.
+  // Maps: j-th auto-confirmed file → results index and watchedFileInserts index
   const autoConfirmResultIndices: number[] = [];
+  const autoConfirmWfIndices: number[] = [];
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
@@ -234,7 +234,6 @@ export async function POST(
       results.push({
         file_name: file.file_name,
         status: "auto_confirmed",
-        // vault_item_id backfilled below
       });
     } else {
       results.push({
@@ -247,6 +246,7 @@ export async function POST(
 
     // Queue the watched_folder_files row. Auto-confirmed rows get
     // their vault_item_id backfilled after the batch insert.
+    if (shouldAutoConfirm) autoConfirmWfIndices.push(watchedFileInserts.length);
     watchedFileInserts.push({
       folder_id: folderId,
       workspace_id: workspaceId,
@@ -288,34 +288,21 @@ export async function POST(
         }
       }
     } else {
-      // Supabase returns rows in insertion order — zip them with the
-      // autoConfirmResultIndices array to backfill vault_item_ids.
+      // Supabase returns rows in insertion order -- zip with the index
+      // arrays to backfill vault_item_ids into results + watched_folder_files.
       const items = insertedItems as Array<{ id: string }>;
       for (let j = 0; j < items.length; j++) {
         const vid = items[j].id;
         vaultItemIds.push(vid);
 
-        // Backfill into the results array.
         const rIdx = autoConfirmResultIndices[j];
         results[rIdx].vault_item_id = vid;
 
-        // Backfill into the watched_folder_files row. The j-th
-        // vaultItemInsert corresponds to the j-th auto-confirmed
-        // watched_folder_files row (both are appended in the same loop
-        // iteration). Walk watchedFileInserts looking for the matching
-        // auto_confirmed row that still has null vault_item_id.
-        const wf = watchedFileInserts.find(
-          (w) =>
-            w.status === "auto_confirmed" &&
-            w.vault_item_id === null &&
-            w.file_name === results[rIdx].file_name,
-        );
-        if (wf) wf.vault_item_id = vid;
+        // Direct index into watchedFileInserts -- no name-based find()
+        const wfIdx = autoConfirmWfIndices[j];
+        if (wfIdx !== undefined) watchedFileInserts[wfIdx].vault_item_id = vid;
 
-        // Register the hash so later files in the same batch dedup.
-        const sha = files.find(
-          (fl) => fl.file_name === results[rIdx].file_name,
-        )?.content_sha256;
+        const sha = watchedFileInserts[wfIdx]?.content_sha256 as string | null;
         if (sha) hashToVaultId.set(sha, vid);
       }
     }
