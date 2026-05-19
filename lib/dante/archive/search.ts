@@ -19,39 +19,45 @@ export interface SearchInput {
 
 export async function searchArchive(input: SearchInput): Promise<ArchiveSearchHit[]> {
   const k = Math.min(Math.max(Number(input.k) || 5, 1), 20);
-  const vec = await embedOne(input.query);
+
+  const [embeddingHits, titleHits] = await Promise.all([
+    embeddingSearch(input.workspaceId, input.query, k, input.kindFilter, input.projectId),
+    titleFallbackSearch(input.workspaceId, input.query, k, input.projectId),
+  ]);
+
+  if (embeddingHits.length === 0) return titleHits.slice(0, k);
+  if (titleHits.length === 0) return embeddingHits;
+
+  const seenDocIds = new Set(embeddingHits.map((h) => h.document_id));
+  const newFromTitle = titleHits.filter((h) => !seenDocIds.has(h.document_id));
+  return [...embeddingHits, ...newFromTitle].slice(0, k);
+}
+
+async function embeddingSearch(
+  workspaceId: string,
+  query: string,
+  k: number,
+  kindFilter?: string,
+  projectId?: string,
+): Promise<ArchiveSearchHit[]> {
+  const vec = await embedOne(query);
 
   const { data, error } = await supabaseAdmin.rpc("dante_archive_search", {
-    p_workspace_id: input.workspaceId,
+    p_workspace_id: workspaceId,
     p_query_embedding: toPgVector(vec),
     p_limit: k,
-    p_kind_filter: input.kindFilter || null,
-    p_project_id: input.projectId || null,
+    p_kind_filter: kindFilter || null,
+    p_project_id: projectId || null,
   });
 
   if (error) {
-    // 42P01 = undefined_table → migration hasn't run yet; return empty
-    // so the caller degrades instead of blowing up.
     if ((error as { code?: string }).code === "42883" || (error as { code?: string }).code === "42P01") {
       return [];
     }
     throw new Error(`Archive search: ${error.message}`);
   }
 
-  const hits = (data || []) as ArchiveSearchHit[];
-
-  // Fall back to title matching when embedding search found nothing
-  // useful. The RPC always returns rows if ANY chunks exist in the
-  // workspace, so we check similarity — if the best hit is below 0.35,
-  // the embedding didn't really match and the user likely asked for
-  // a specific document by name.
-  const bestSimilarity = hits.length > 0 ? hits[0].similarity : 0;
-  if (hits.length === 0 || bestSimilarity < 0.35) {
-    const titleHits = await titleFallbackSearch(input.workspaceId, input.query, k, input.projectId);
-    if (titleHits.length > 0) return titleHits;
-  }
-
-  return hits;
+  return (data || []) as ArchiveSearchHit[];
 }
 
 const STOP_WORDS = new Set([
