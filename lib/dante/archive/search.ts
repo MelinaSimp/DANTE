@@ -21,17 +21,35 @@ export interface SearchInput {
 export async function searchArchive(input: SearchInput): Promise<ArchiveSearchHit[]> {
   const k = Math.min(Math.max(Number(input.k) || 5, 1), 20);
 
-  const [embeddingHits, titleHits] = await Promise.all([
+  const [embeddingHits, titleHits, fileIndexHits] = await Promise.all([
     embeddingSearch(input.workspaceId, input.query, k, input.kindFilter, input.projectId),
     titleFallbackSearch(input.workspaceId, input.query, k, input.projectId),
+    fileIndexFallbackSearch(input.workspaceId, input.query, k),
   ]);
 
-  if (embeddingHits.length === 0) return titleHits.slice(0, k);
-  if (titleHits.length === 0) return embeddingHits;
+  const seenDocIds = new Set<string>();
+  const merged: ArchiveSearchHit[] = [];
 
-  const seenDocIds = new Set(embeddingHits.map((h) => h.document_id));
-  const newFromTitle = titleHits.filter((h) => !seenDocIds.has(h.document_id));
-  return [...embeddingHits, ...newFromTitle].slice(0, k);
+  for (const h of embeddingHits) {
+    if (!seenDocIds.has(h.document_id)) {
+      seenDocIds.add(h.document_id);
+      merged.push(h);
+    }
+  }
+  for (const h of titleHits) {
+    if (!seenDocIds.has(h.document_id)) {
+      seenDocIds.add(h.document_id);
+      merged.push(h);
+    }
+  }
+  for (const h of fileIndexHits) {
+    if (!seenDocIds.has(h.document_id)) {
+      seenDocIds.add(h.document_id);
+      merged.push(h);
+    }
+  }
+
+  return merged.slice(0, k);
 }
 
 async function embeddingSearch(
@@ -175,6 +193,49 @@ async function titleFallbackSearch(
   }
 
   return results.slice(0, limit);
+}
+
+async function fileIndexFallbackSearch(
+  workspaceId: string,
+  query: string,
+  limit: number,
+): Promise<ArchiveSearchHit[]> {
+  const keywords = query
+    .replace(/[^\w\s]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !STOP_WORDS.has(w.toLowerCase()))
+    .map((w) => w.toLowerCase())
+    .slice(0, 8);
+  if (keywords.length === 0) return [];
+
+  const orClauses = keywords.map((kw) => `file_name.ilike.%${kw}%`).join(",");
+
+  const { data: files, error } = await supabaseAdmin
+    .from("watched_file_index")
+    .select("id, file_name, file_path, vault_item_id, ingest_status")
+    .eq("workspace_id", workspaceId)
+    .is("deleted_at", null)
+    .or(orClauses)
+    .limit(limit);
+
+  if (error || !files || files.length === 0) return [];
+
+  return files
+    .filter((f) => !f.vault_item_id || f.ingest_status !== "ingested")
+    .map((f) => ({
+      chunk_id: f.id,
+      document_id: f.id,
+      chunk_index: 0,
+      page_number: null,
+      content: `[File "${f.file_name}" found on the user's file system at: ${f.file_path}. ` +
+        `This file has not been ingested into the vault yet. ` +
+        `Call file_index.ingest with index_entry_id="${f.id}" to retrieve and index its content, ` +
+        `then use vault.cite to search the extracted text.]`,
+      similarity: 0.35,
+      document_title: f.file_name,
+      document_kind: "other",
+      project_id: null as string | null,
+    }));
 }
 
 /**
