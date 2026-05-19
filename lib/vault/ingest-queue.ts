@@ -94,7 +94,7 @@ export async function claimAndProcessBatch(
 
   const { data: jobs, error: claimErr } = await supabaseAdmin.rpc(
     "claim_ingest_jobs",
-    { batch_size: batchSize, worker_id: workerId },
+    { p_batch_size: batchSize, p_worker_id: workerId },
   );
 
   if (claimErr) {
