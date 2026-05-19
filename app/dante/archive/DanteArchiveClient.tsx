@@ -26,6 +26,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { ARCHIVE_KIND_LABELS, type ArchiveKind, type ArchiveSearchHit } from "@/lib/dante/archive/types";
+import { useAssistantBrand } from "@/components/dante/AssistantNameProvider";
 
 interface DocRow {
   id: string;
@@ -55,6 +56,7 @@ const KIND_OPTIONS: Array<{ value: ArchiveKind | ""; label: string }> = [
 ];
 
 export default function DanteArchiveClient() {
+  const brand = useAssistantBrand();
   const [docs, setDocs] = useState<DocRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [migrationPending, setMigrationPending] = useState(false);
@@ -215,7 +217,7 @@ export default function DanteArchiveClient() {
         </div>
         <Link href="/dante" className="flex items-center gap-1.5 px-3 py-2 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition text-sm font-medium">
           <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
-          <span className="hidden sm:inline">Dante</span>
+          <span className="hidden sm:inline">{brand.name}</span>
         </Link>
       </div>
 

@@ -20,6 +20,7 @@ import {
   Clock, Webhook, MousePointerClick, Users, TrendingUp,
   ChevronRight,
 } from "lucide-react";
+import { useAssistantBrand } from "@/components/dante/AssistantNameProvider";
 
 interface WorkflowRow {
   id: string;
@@ -68,6 +69,7 @@ const EXAMPLE_PROMPTS = [
 ];
 
 export default function DanteWorkflowsClient() {
+  const brand = useAssistantBrand();
   const router = useRouter();
   const [rows, setRows] = useState<WorkflowRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -208,7 +210,7 @@ export default function DanteWorkflowsClient() {
         </div>
         <Link href="/dante" className="flex items-center gap-1.5 px-3 py-2 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition text-sm font-medium">
           <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
-          <span className="hidden sm:inline">Dante</span>
+          <span className="hidden sm:inline">{brand.name}</span>
         </Link>
       </div>
 

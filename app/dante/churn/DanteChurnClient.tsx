@@ -27,6 +27,7 @@ import {
   Flame, MessageSquare, CalendarClock, PhoneCall, TrendingUp,
   Lightbulb,
 } from "lucide-react";
+import { useAssistantBrand } from "@/components/dante/AssistantNameProvider";
 
 type RiskLevel = "healthy" | "watch" | "act_now" | "critical";
 type SourceTable = "note" | "appointment" | "call" | "churn_event";
@@ -80,6 +81,7 @@ const SOURCE_LABEL: Record<SourceTable, string> = {
 };
 
 export default function DanteChurnClient() {
+  const brand = useAssistantBrand();
   const [rows, setRows] = useState<BriefRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [ranking, setRanking] = useState(false);
@@ -191,7 +193,7 @@ export default function DanteChurnClient() {
           </button>
           <Link href="/dante" className="flex items-center gap-1.5 px-3 py-2 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition text-sm font-medium">
             <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
-            <span className="hidden sm:inline">Dante</span>
+            <span className="hidden sm:inline">{brand.name}</span>
           </Link>
         </div>
       </div>

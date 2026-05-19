@@ -19,6 +19,7 @@ import {
   ArrowLeft, Plus, Trash2, Loader2, Key, ShieldCheck,
   AlertCircle, Check,
 } from "lucide-react";
+import { useAssistantBrand } from "@/components/dante/AssistantNameProvider";
 
 interface SecretRow {
   id: string;
@@ -30,6 +31,7 @@ interface SecretRow {
 }
 
 export default function DanteSecretsClient() {
+  const brand = useAssistantBrand();
   const [rows, setRows] = useState<SecretRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -125,7 +127,7 @@ export default function DanteSecretsClient() {
         </div>
         <Link href="/dante" className="flex items-center gap-1.5 px-3 py-2 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition text-sm font-medium">
           <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
-          <span className="hidden sm:inline">Dante</span>
+          <span className="hidden sm:inline">{brand.name}</span>
         </Link>
       </div>
 

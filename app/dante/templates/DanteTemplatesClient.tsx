@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { WORKFLOW_TEMPLATES, type WorkflowTemplate } from "@/lib/dante/templates";
+import { useAssistantBrand } from "@/components/dante/AssistantNameProvider";
 
 // Icon names in the templates module are strings — we resolve them
 // against this whitelist so a typo is a compile error, not a runtime
@@ -80,6 +81,7 @@ interface Props {
 }
 
 export default function DanteTemplatesClient({ archiveReady, canManageArchive }: Props) {
+  const brand = useAssistantBrand();
   const router = useRouter();
   const [cloningSlug, setCloningSlug] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -128,7 +130,7 @@ export default function DanteTemplatesClient({ archiveReady, canManageArchive }:
         </div>
         <Link href="/dante" className="flex items-center gap-1.5 px-3 py-2 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition text-sm font-medium">
           <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
-          <span className="hidden sm:inline">Dante</span>
+          <span className="hidden sm:inline">{brand.name}</span>
         </Link>
       </div>
 

@@ -13,6 +13,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { ArrowLeft } from "lucide-react";
 import ChatThread from "./ChatThread";
 import SourceViewerLayout from "@/components/dante/source-viewer/SourceViewerLayout";
+import { getIndustryConfig } from "@/lib/industry/config";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,13 @@ export default async function ChatPage({
     .is("deleted_at", null)
     .maybeSingle();
   if (!chat || chat.user_id !== user.id) redirect("/dante");
+
+  const { data: ws } = await supabaseAdmin
+    .from("workspaces")
+    .select("industry")
+    .eq("id", chat.workspace_id)
+    .maybeSingle();
+  const brand = getIndustryConfig(ws?.industry);
 
   // Phase 3+ panel fix #2 — pull citation_report so chips render
   // decorated when the user opens yesterday's thread. grounding_score
@@ -62,7 +70,7 @@ export default async function ChatPage({
             href="/dante"
             className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
           >
-            Dante
+            {brand.assistantName}
           </Link>
           <span className="text-xs text-[var(--ink-subtle)]">/</span>
           <span className="text-xs text-[var(--ink)] truncate max-w-[400px]">
@@ -74,7 +82,7 @@ export default async function ChatPage({
           className="flex items-center gap-1.5 px-3 py-2 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition text-sm font-medium"
         >
           <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
-          <span className="hidden sm:inline">Back to Dante</span>
+          <span className="hidden sm:inline">Back to {brand.assistantName}</span>
         </Link>
       </div>
 
