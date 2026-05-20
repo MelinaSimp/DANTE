@@ -10,7 +10,7 @@ import AnalyzeContactAI from "@/components/ai/AnalyzeContactAI";
 import AddTaskForm from "@/components/tasks/AddTaskForm";
 import TaskItem from "@/components/tasks/TaskItem";
 import AddNoteForm from "@/components/notes/AddNoteForm";
-import { FileText, Mic, Upload } from "lucide-react";
+import { FileText, Mail, Mic, NotebookPen, Phone, Upload, User, X } from "lucide-react";
 import { confirmDialog } from "@/components/ui/confirm-dialog";
 
 interface Contact {
@@ -148,7 +148,7 @@ export default function ContactsClient({ initialContacts, workspaceId }: Contact
             onClick={() => setError(null)}
             className="ml-3 text-[#f0494a]/70 transition hover:text-[#f0494a]"
           >
-            ✕
+            <X className="h-4 w-4" />
           </button>
         </div>
       )}
@@ -212,7 +212,7 @@ export default function ContactsClient({ initialContacts, workspaceId }: Contact
       {contacts.length === 0 ? (
         <div className="rounded-2xl border border-[#e5e7eb] bg-[#ffffff] p-12 text-center shadow-lg">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#3166bf]/30">
-            <span className="text-2xl text-[#3166bf]">👤</span>
+            <User className="h-6 w-6 text-[#3166bf]" />
           </div>
           <p className="text-lg font-medium text-[#151515]">No contacts yet.</p>
           <p className="mt-2 text-sm text-[#151515]/60">Add your first contact to get started.</p>
@@ -282,7 +282,7 @@ export default function ContactsClient({ initialContacts, workspaceId }: Contact
               
               <div className="space-y-5 text-sm text-[#151515]/70">
                 <div className="flex items-center">
-                  <div className="mr-3 flex h-10 w-10 items-center justify-center rounded-full bg-[#3166bf]/20 text-lg text-[#3166bf]">📞</div>
+                  <div className="mr-3 flex h-10 w-10 items-center justify-center rounded-full bg-[#3166bf]/20 text-[#3166bf]"><Phone className="h-4 w-4" /></div>
                   <div>
                     <span className="text-xs uppercase tracking-wide text-[#151515]/60">Phone</span>
                     <div>
@@ -296,7 +296,7 @@ export default function ContactsClient({ initialContacts, workspaceId }: Contact
                 {contact.email && (
                   <div className="flex items-center">
                     <div className="mr-3 flex h-9 w-9 items-center justify-center rounded-full bg-[#3166bf]/20 text-[#3166bf]">
-                      ✉️
+                      <Mail className="h-4 w-4" />
                     </div>
                     <div>
                       <span className="text-xs uppercase tracking-wide text-[#151515]/60">Email</span>
@@ -312,7 +312,7 @@ export default function ContactsClient({ initialContacts, workspaceId }: Contact
                 {contact.notes && (
                   <div className="flex items-start">
                     <div className="mr-3 flex h-9 w-9 items-center justify-center rounded-full bg-[#3166bf]/20 text-[#3166bf]">
-                      📝
+                      <NotebookPen className="h-4 w-4" />
                     </div>
                     <div>
                       <span className="text-xs uppercase tracking-wide text-[#151515]/60">Notes</span>
@@ -346,7 +346,7 @@ export default function ContactsClient({ initialContacts, workspaceId }: Contact
               onClick={() => setSelectedContact(null)}
               className="rounded-full border border-[#e5e7eb] bg-[#f3f4f6] px-4 py-2 text-sm font-medium text-[#151515] transition hover:border-[#151515] hover:bg-[#e5e7eb]"
             >
-              ✕ Close
+              <X className="h-4 w-4" /> Close
             </Button>
           </div>
 
