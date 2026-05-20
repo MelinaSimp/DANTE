@@ -1,9 +1,5 @@
 "use client";
 
-// AppSidebar — Mike-style collapsible sidebar. w-64 open, w-14
-// collapsed. Text labels, gray-50 background, gray-200 borders.
-// Chat history section on /dante routes. User profile at bottom.
-
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -24,7 +20,6 @@ import {
   ShieldCheck,
   LayoutDashboard,
   ScrollText,
-  FileClock,
   FolderSync,
   ChevronDown,
   ChevronsUpDown,
@@ -64,7 +59,6 @@ export default function AppSidebar({
   >(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
-  // Persist sidebar state
   useEffect(() => {
     const stored = localStorage.getItem("drift-sidebar-open");
     if (stored !== null) setIsOpen(stored === "true");
@@ -78,7 +72,6 @@ export default function AppSidebar({
     if (!isOpen) setShouldAnimate(true);
   }, [isOpen]);
 
-  // Load recent chats for /dante routes
   useEffect(() => {
     if (!pathname?.startsWith("/dante")) return;
     fetch("/api/dante/chats")
@@ -87,7 +80,6 @@ export default function AppSidebar({
       .catch(() => setRecentChats([]));
   }, [pathname]);
 
-  // Close dropdown on outside click
   useEffect(() => {
     if (!isDropdownOpen) return;
     const handler = () => setIsDropdownOpen(false);
@@ -147,10 +139,8 @@ export default function AppSidebar({
   return (
     <aside
       className={`${
-        isOpen
-          ? "w-64 bg-gray-50 border-r"
-          : "w-14 bg-gray-50 border-r"
-      } border-gray-200 hidden lg:flex flex-col sticky top-0 h-screen transition-all duration-300 overflow-visible`}
+        isOpen ? "w-64" : "w-14"
+      } bg-[var(--surface)] border-r border-[var(--rule)] hidden lg:flex flex-col sticky top-0 h-screen transition-all duration-300 overflow-visible`}
       aria-label="Primary navigation"
     >
       {/* Toggle + Logo */}
@@ -203,39 +193,53 @@ export default function AppSidebar({
                 {!isOpen && si > 0 && (
                   <div className="mx-3 my-1.5 border-t border-gray-200" />
                 )}
-                {visibleItems.map((item) => {
-                  const active = isActive(item.href);
-                  const Icon = item.icon;
-                  return (
-                    <div key={item.href} className="px-2.5">
-                      <Link
-                        href={item.href}
-                        title={!isOpen ? item.label : ""}
-                        className={`w-full h-9 flex items-center gap-3 px-2.5 py-2 rounded-md transition-colors text-left ${
-                          active
-                            ? "bg-gray-100 text-gray-900"
-                            : "hover:bg-gray-100 text-gray-700"
-                        }`}
-                      >
-                        <Icon
-                          className={`h-4 w-4 flex-shrink-0 ${
-                            active ? "text-gray-900" : "text-gray-500"
-                          }`}
-                          strokeWidth={active ? 1.75 : 1.5}
-                        />
-                        {isOpen && (
-                          <span
-                            className={`text-sm font-medium ${
-                              shouldAnimate ? "sidebar-fade-in-2" : ""
-                            }`}
-                          >
-                            {item.label}
-                          </span>
+                {/* Tree connector for grouped sections */}
+                <div className={isOpen && section.label ? "ml-[26px] pl-3" : ""}>
+                  {visibleItems.map((item, ii) => {
+                    const active = isActive(item.href);
+                    const Icon = item.icon;
+                    const isLast = ii === visibleItems.length - 1;
+                    const hasTree = !!(isOpen && section.label);
+                    return (
+                      <div key={item.href} className={hasTree ? "relative" : "px-2.5"}>
+                        {hasTree && (
+                          <>
+                            <div
+                              className="absolute left-0 border-l border-gray-200"
+                              style={isLast ? { top: 0, height: "50%" } : { top: 0, bottom: 0 }}
+                            />
+                            <div className="absolute left-0 top-1/2 w-3 border-t border-gray-200" />
+                          </>
                         )}
-                      </Link>
-                    </div>
-                  );
-                })}
+                        <Link
+                          href={item.href}
+                          title={!isOpen ? item.label : ""}
+                          className={`w-full h-9 flex items-center gap-3 px-2.5 py-2 rounded-md transition-colors text-left ${
+                            active
+                              ? "bg-[var(--surface)] shadow-[0_1px_3px_rgba(0,0,0,0.06)] text-gray-900"
+                              : "hover:bg-gray-50 text-gray-600"
+                          }`}
+                        >
+                          <Icon
+                            className={`h-4 w-4 flex-shrink-0 ${
+                              active ? "text-gray-900" : "text-gray-400"
+                            }`}
+                            strokeWidth={active ? 1.75 : 1.5}
+                          />
+                          {isOpen && (
+                            <span
+                              className={`text-sm ${active ? "font-semibold" : "font-medium"} ${
+                                shouldAnimate ? "sidebar-fade-in-2" : ""
+                              }`}
+                            >
+                              {item.label}
+                            </span>
+                          )}
+                        </Link>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             );
           })}
@@ -254,7 +258,7 @@ export default function AppSidebar({
           )}
         </div>
 
-        {/* Chat History — only on /dante routes when sidebar is open */}
+        {/* Chat History -- only on /dante routes when sidebar is open */}
         {isOpen && pathname?.startsWith("/dante") && (
           <div className="mt-4 flex-1 min-h-0 flex flex-col">
             <button
@@ -311,8 +315,8 @@ export default function AppSidebar({
                         onClick={() => router.push(`/dante/chat/${chat.id}`)}
                         className={`w-full h-9 flex items-center px-2.5 rounded-md text-sm truncate transition-colors ${
                           chatActive
-                            ? "bg-gray-100 text-gray-900 font-medium"
-                            : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                            ? "bg-[var(--surface)] shadow-[0_1px_3px_rgba(0,0,0,0.06)] text-gray-900 font-medium"
+                            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                         }`}
                         title={chat.title}
                       >
@@ -327,7 +331,7 @@ export default function AppSidebar({
         )}
       </nav>
 
-      {/* Footer — user profile + settings */}
+      {/* Footer -- user profile + settings */}
       <div className="mt-auto flex flex-col items-stretch gap-0.5 px-2 pt-2 border-t border-gray-200">
         {isSuperadmin && (
           <Link

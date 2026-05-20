@@ -16,7 +16,7 @@ export function Card({
   ...props
 }: CardProps) {
   const base =
-    "rounded-2xl border border-[var(--rule)] bg-[var(--canvas)] shadow-ground transition-[transform,box-shadow] duration-150 ease-out-quart";
+    "rounded-2xl border border-[var(--rule)] bg-[var(--surface)] shadow-[0_1px_3px_rgba(0,0,0,0.04)] transition-[transform,box-shadow] duration-150 ease-out-quart";
   const hover = interactive
     ? "hover:-translate-y-0.5 hover:shadow-raised cursor-pointer active:translate-y-0 active:shadow-ground"
     : "";
