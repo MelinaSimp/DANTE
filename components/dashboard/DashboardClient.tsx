@@ -164,18 +164,18 @@ function MetricCard({
   href?: string;
 }) {
   const accentMap = {
-    emerald: { iconBg: "bg-emerald-500/10", iconColor: "text-emerald-400" },
-    zinc: { iconBg: "bg-zinc-500/10", iconColor: "text-zinc-400" },
-    amber: { iconBg: "bg-amber-500/10", iconColor: "text-amber-400" },
+    emerald: { iconBg: "bg-emerald-50", iconColor: "text-emerald-600" },
+    zinc: { iconBg: "bg-zinc-500/10", iconColor: "text-[var(--ink-subtle)]" },
+    amber: { iconBg: "bg-amber-500/10", iconColor: "text-amber-600" },
     rose: { iconBg: "bg-rose-500/10", iconColor: "text-rose-400" },
     blue: { iconBg: "bg-blue-500/10", iconColor: "text-blue-400" },
   };
   const a = accentMap[accent];
 
   const inner = (
-    <div className={`border border-zinc-800 bg-zinc-950/80 rounded-xl p-6 transition-all duration-200 hover:border-zinc-700 hover:bg-zinc-950 shadow-sm ${href ? "cursor-pointer" : ""}`}>
+    <div className={`border border-[var(--rule)] bg-[var(--surface)] rounded-xl p-6 transition-all duration-200 hover:border-[var(--rule-strong)] hover:bg-[var(--surface)] shadow-sm ${href ? "cursor-pointer" : ""}`}>
       <div className="flex items-center justify-between mb-3">
-        <span className="text-xs font-medium uppercase tracking-tight text-zinc-600">
+        <span className="text-xs font-medium uppercase tracking-tight text-[var(--ink-muted)]">
           {label}
         </span>
         <div
@@ -187,7 +187,7 @@ function MetricCard({
           />
         </div>
       </div>
-      <div className="text-3xl font-bold tracking-tight text-zinc-50 leading-none">
+      <div className="text-3xl font-bold tracking-tight text-[var(--ink)] leading-none">
         <CountUp value={value} />
       </div>
       <div className="mt-3">{sub}</div>
@@ -219,8 +219,8 @@ const MODALITY_LABELS: Record<string, string> = {
 
 const OUTPUT_TYPE_STYLES: Record<string, string> = {
   insight: "bg-blue-500/10 text-blue-400 border-blue-500/30",
-  recommendation: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
-  alert: "bg-amber-500/10 text-amber-400 border-amber-500/30",
+  recommendation: "bg-emerald-50 text-emerald-600 border-emerald-200",
+  alert: "bg-amber-500/10 text-amber-600 border-amber-500/30",
   report: "bg-purple-500/10 text-purple-400 border-purple-500/30",
 };
 
@@ -259,14 +259,14 @@ export function DashboardClient({
       {/* Header */}
       <div>
         <div className="flex items-center gap-2 mb-3">
-          <span className="rounded-full px-3 py-1 text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+          <span className="rounded-full px-3 py-1 text-xs font-medium bg-emerald-50 text-emerald-600 border border-emerald-200">
             Live
           </span>
         </div>
-        <h1 className="text-4xl md:text-5xl font-bold text-zinc-50 leading-none">
+        <h1 className="text-4xl md:text-5xl font-bold text-[var(--ink)] leading-none">
           Dashboard
         </h1>
-        <p className="text-zinc-500 text-sm mt-2 max-w-2xl">
+        <p className="text-[var(--ink-subtle)] text-sm mt-2 max-w-2xl">
           CRM intelligence overview — contacts, agents, conversations, and
           revenue signals.
         </p>
@@ -283,13 +283,13 @@ export function DashboardClient({
           accent="emerald"
           icon={DollarSign}
           sub={
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-zinc-500 bg-white/[0.03] ring-1 ring-white/[0.05] rounded-full px-2 py-0.5">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[var(--ink-subtle)] bg-white/[0.03] ring-1 ring-white/[0.05] rounded-full px-2 py-0.5">
               {metrics.aumChange.startsWith("No") ? (
                 metrics.aumChange
               ) : (
                 <>
                   <TrendingUp
-                    className="h-3 w-3 text-emerald-400"
+                    className="h-3 w-3 text-emerald-600"
                     strokeWidth={1.5}
                   />
                   {metrics.aumChange}
@@ -304,7 +304,7 @@ export function DashboardClient({
           accent="blue"
           icon={Users}
           sub={
-            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-500 bg-zinc-500/10 ring-1 ring-zinc-500/20 rounded-full px-2 py-0.5">
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--ink-subtle)] bg-zinc-500/10 ring-1 ring-zinc-500/20 rounded-full px-2 py-0.5">
               {metrics.prospects} upcoming appointments
             </span>
           }
@@ -315,7 +315,7 @@ export function DashboardClient({
           accent="emerald"
           icon={MessageSquare}
           sub={
-            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-400 bg-emerald-500/10 ring-1 ring-emerald-500/20 rounded-full px-2 py-0.5">
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 bg-emerald-50 ring-1 ring-emerald-500/20 rounded-full px-2 py-0.5">
               {metrics.totalConversations} total
             </span>
           }
@@ -327,7 +327,7 @@ export function DashboardClient({
           icon={Bot}
           href="/dashboard/agents"
           sub={
-            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-500 bg-zinc-500/10 ring-1 ring-zinc-500/20 rounded-full px-2 py-0.5">
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--ink-subtle)] bg-zinc-500/10 ring-1 ring-zinc-500/20 rounded-full px-2 py-0.5">
               {metrics.churnRisk} pending tasks
             </span>
           }
@@ -337,18 +337,18 @@ export function DashboardClient({
       {/* Meeting Prep */}
       {meetingPrep.length > 0 && (
         <motion.div variants={item}>
-          <div className="border border-zinc-800 bg-zinc-950/80 rounded-xl">
-            <div className="flex items-center justify-between p-6 pb-4 border-b border-zinc-800">
+          <div className="border border-[var(--rule)] bg-[var(--surface)] rounded-xl">
+            <div className="flex items-center justify-between p-6 pb-4 border-b border-[var(--rule)]">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-cyan-500/10 rounded-lg">
-                  <Calendar className="h-4 w-4 text-cyan-400" strokeWidth={1.5} />
+                  <Calendar className="h-4 w-4 text-[var(--accent)]" strokeWidth={1.5} />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-zinc-100">Upcoming Meetings</h2>
-                  <p className="text-xs text-zinc-600 mt-0.5">Prep briefs for your next {meetingPrep.length} meeting{meetingPrep.length !== 1 ? "s" : ""}</p>
+                  <h2 className="text-lg font-semibold text-[var(--ink)]">Upcoming Meetings</h2>
+                  <p className="text-xs text-[var(--ink-muted)] mt-0.5">Prep briefs for your next {meetingPrep.length} meeting{meetingPrep.length !== 1 ? "s" : ""}</p>
                 </div>
               </div>
-              <span className="flex items-center gap-1.5 text-xs font-medium text-cyan-400">
+              <span className="flex items-center gap-1.5 text-xs font-medium text-[var(--accent)]">
                 <Clock className="h-3.5 w-3.5" />
                 Auto-analyzed nightly
               </span>
@@ -358,15 +358,15 @@ export function DashboardClient({
                 {meetingPrep.map((m) => (
                   <div
                     key={m.id}
-                    className="flex flex-col gap-3 p-4 rounded-lg border border-zinc-800 bg-zinc-950/80 hover:border-cyan-800/50 transition-colors"
+                    className="flex flex-col gap-3 p-4 rounded-lg border border-[var(--rule)] bg-[var(--surface)] hover:border-[var(--accent)]/30 transition-colors"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-zinc-200">{m.contactName}</span>
-                      <span className="text-[11px] font-medium text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 rounded-full px-2 py-0.5">
+                      <span className="text-sm font-semibold text-[var(--ink)]">{m.contactName}</span>
+                      <span className="text-[11px] font-medium text-[var(--accent)] bg-cyan-500/10 border border-cyan-500/30 rounded-full px-2 py-0.5">
                         in {formatTimeUntil(m.scheduledAt)}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 text-[11px] text-zinc-500">
+                    <div className="flex items-center gap-2 text-[11px] text-[var(--ink-subtle)]">
                       <span className="bg-zinc-800 rounded-full px-2 py-0.5">{m.serviceType}</span>
                       <span>·</span>
                       <span>{new Date(m.scheduledAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}</span>
@@ -374,7 +374,7 @@ export function DashboardClient({
                       <span>{new Date(m.scheduledAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span>
                     </div>
                     {m.notes && (
-                      <p className="text-xs text-zinc-500 leading-relaxed border-t border-zinc-800/50 pt-2">{m.notes}</p>
+                      <p className="text-xs text-[var(--ink-subtle)] leading-relaxed border-t border-[var(--rule)]/50 pt-2">{m.notes}</p>
                     )}
                   </div>
                 ))}
@@ -388,23 +388,23 @@ export function DashboardClient({
       <div className="grid gap-8 lg:grid-cols-7">
         {/* Chart */}
         <motion.div variants={item} className="lg:col-span-4">
-          <div className="border border-zinc-800 bg-zinc-950/80 rounded-xl p-6 flex flex-col">
+          <div className="border border-[var(--rule)] bg-[var(--surface)] rounded-xl p-6 flex flex-col">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-lg font-semibold text-zinc-100">
+                <h2 className="text-lg font-semibold text-[var(--ink)]">
                   Revenue by Month
                 </h2>
-                <p className="text-xs text-zinc-600 mt-0.5">
+                <p className="text-xs text-[var(--ink-muted)] mt-0.5">
                   Sales records aggregated monthly ($k)
                 </p>
               </div>
-              <span className="text-xs font-medium text-zinc-600">
+              <span className="text-xs font-medium text-[var(--ink-muted)]">
                 Current data
               </span>
             </div>
             <div style={{ width: "100%", height: 280 }}>
               {chartData.length === 0 ? (
-                <div className="flex items-center justify-center h-full text-sm text-zinc-600">
+                <div className="flex items-center justify-center h-full text-sm text-[var(--ink-muted)]">
                   No revenue data yet
                 </div>
               ) : (
@@ -492,24 +492,24 @@ export function DashboardClient({
 
         {/* Priority Action Board */}
         <motion.div variants={item} className="lg:col-span-3">
-          <div className="border border-zinc-800 bg-zinc-950/80 rounded-xl p-6 flex flex-col h-full">
+          <div className="border border-[var(--rule)] bg-[var(--surface)] rounded-xl p-6 flex flex-col h-full">
             <div className="flex items-center justify-between mb-5">
               <div>
-                <h2 className="text-lg font-semibold text-zinc-100">
+                <h2 className="text-lg font-semibold text-[var(--ink)]">
                   Priority Actions
                 </h2>
-                <p className="text-xs text-zinc-600 mt-0.5">
+                <p className="text-xs text-[var(--ink-muted)] mt-0.5">
                   Items requiring your attention
                 </p>
               </div>
-              <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-400">
+              <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                 Active
               </span>
             </div>
             <div className="flex-1 overflow-y-auto flex flex-col gap-3.5 min-h-[280px] max-h-[360px] pr-1 scrollbar-thin scrollbar-thumb-white/[0.06]">
               {alerts.length === 0 ? (
-                <div className="flex h-full items-center justify-center text-sm text-zinc-600">
+                <div className="flex h-full items-center justify-center text-sm text-[var(--ink-muted)]">
                   All clear — no pressing alerts.
                 </div>
               ) : null}
@@ -518,48 +518,48 @@ export function DashboardClient({
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   key={alert.id}
-                  className="flex flex-col gap-3 p-5 rounded-lg border border-zinc-800 bg-zinc-950/80 hover:border-zinc-700 hover:bg-zinc-950 transition-colors duration-200 cursor-pointer"
+                  className="flex flex-col gap-3 p-5 rounded-lg border border-[var(--rule)] bg-[var(--surface)] hover:border-[var(--rule-strong)] hover:bg-[var(--surface)] transition-colors duration-200 cursor-pointer"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       {alert.severity === "critical" ? (
                         <div className="p-1 bg-red-500/10 rounded-md">
                           <AlertTriangle
-                            className="h-3.5 w-3.5 text-red-400"
+                            className="h-3.5 w-3.5 text-red-600"
                             strokeWidth={1.5}
                           />
                         </div>
                       ) : alert.severity === "high" ? (
                         <div className="p-1 bg-amber-500/10 rounded-md">
                           <TrendingUp
-                            className="h-3.5 w-3.5 text-amber-400"
+                            className="h-3.5 w-3.5 text-amber-600"
                             strokeWidth={1.5}
                           />
                         </div>
                       ) : (
-                        <div className="p-1 bg-emerald-500/10 rounded-md">
+                        <div className="p-1 bg-emerald-50 rounded-md">
                           <Target
-                            className="h-3.5 w-3.5 text-emerald-400"
+                            className="h-3.5 w-3.5 text-emerald-600"
                             strokeWidth={1.5}
                           />
                         </div>
                       )}
-                      <span className="text-sm font-medium text-zinc-200">
+                      <span className="text-sm font-medium text-[var(--ink)]">
                         {alert.title}
                       </span>
                     </div>
                     <span
                       className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                         alert.severity === "critical"
-                          ? "bg-red-500/10 text-red-400 border border-red-500/30"
-                          : "bg-zinc-800 text-zinc-400 border border-zinc-700"
+                          ? "bg-red-500/10 text-red-600 border border-red-500/30"
+                          : "bg-zinc-800 text-[var(--ink-subtle)] border border-[var(--rule-strong)]"
                       }`}
                     >
                       {alert.severity}
                     </span>
                   </div>
-                  <p className="text-xs text-zinc-500 pl-6 leading-relaxed">
-                    <span className="font-medium text-zinc-400">
+                  <p className="text-xs text-[var(--ink-subtle)] pl-6 leading-relaxed">
+                    <span className="font-medium text-[var(--ink-subtle)]">
                       {alert.client}:{" "}
                     </span>
                     {alert.description}
@@ -574,25 +574,25 @@ export function DashboardClient({
       {/* Revenue Engine */}
       {revenueEngine.length > 0 && (
         <motion.div variants={item}>
-          <div className="border border-zinc-800 bg-zinc-950/80 rounded-xl">
-            <div className="flex items-center justify-between p-6 pb-5 border-b border-zinc-800">
+          <div className="border border-[var(--rule)] bg-[var(--surface)] rounded-xl">
+            <div className="flex items-center justify-between p-6 pb-5 border-b border-[var(--rule)]">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-amber-500/10 rounded-lg">
                   <Zap
-                    className="h-4 w-4 text-amber-400"
+                    className="h-4 w-4 text-amber-600"
                     strokeWidth={1.5}
                   />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-zinc-100">
+                  <h2 className="text-lg font-semibold text-[var(--ink)]">
                     Revenue Breakdown
                   </h2>
-                  <p className="text-xs text-zinc-600 mt-0.5">
+                  <p className="text-xs text-[var(--ink-muted)] mt-0.5">
                     Top accounts by total revenue
                   </p>
                 </div>
               </div>
-              <span className="text-xs font-medium text-zinc-500 bg-zinc-950 border border-zinc-800 rounded-full px-3 py-1">
+              <span className="text-xs font-medium text-[var(--ink-subtle)] bg-[var(--surface)] border border-[var(--rule)] rounded-full px-3 py-1">
                 {revenueEngine.length} accounts
               </span>
             </div>
@@ -605,24 +605,24 @@ export function DashboardClient({
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       key={opp.id}
-                      className="flex flex-col justify-between min-h-[180px] p-5 rounded-lg border border-zinc-800 bg-zinc-950/80 hover:border-zinc-700 hover:bg-zinc-950 transition-colors duration-200 overflow-hidden"
+                      className="flex flex-col justify-between min-h-[180px] p-5 rounded-lg border border-[var(--rule)] bg-[var(--surface)] hover:border-[var(--rule-strong)] hover:bg-[var(--surface)] transition-colors duration-200 overflow-hidden"
                     >
                       <div>
                         <div className="flex justify-between items-start mb-3">
-                          <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-medium px-2 py-0.5 rounded-full">
+                          <span className="bg-emerald-50 text-emerald-600 border border-emerald-200 text-xs font-medium px-2 py-0.5 rounded-full">
                             {opp.type}
                           </span>
-                          <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-1 rounded-full">
+                          <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-full">
                             {opp.confidence}%
                           </span>
                         </div>
-                        <h3 className="text-base font-semibold text-zinc-100">
+                        <h3 className="text-base font-semibold text-[var(--ink)]">
                           {opp.client}
                         </h3>
-                        <div className="text-2xl font-bold text-zinc-50 mt-0.5">
+                        <div className="text-2xl font-bold text-[var(--ink)] mt-0.5">
                           {opp.value}
                         </div>
-                        <p className="text-xs text-zinc-500 mt-3 leading-relaxed line-clamp-2">
+                        <p className="text-xs text-[var(--ink-subtle)] mt-3 leading-relaxed line-clamp-2">
                           {opp.suggestedAction}
                         </p>
                       </div>
@@ -638,20 +638,20 @@ export function DashboardClient({
       {/* Agent Roster — CRM + Autonomous merged */}
       {(agents.length > 0 || autoAgents.length > 0) && (
         <motion.div variants={item}>
-          <div className="border border-zinc-800 bg-zinc-950/80 rounded-xl">
-            <div className="flex items-center justify-between p-6 pb-5 border-b border-zinc-800">
+          <div className="border border-[var(--rule)] bg-[var(--surface)] rounded-xl">
+            <div className="flex items-center justify-between p-6 pb-5 border-b border-[var(--rule)]">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-amber-500/10 rounded-lg">
-                  <Bot className="h-4 w-4 text-amber-400" strokeWidth={1.5} />
+                  <Bot className="h-4 w-4 text-amber-600" strokeWidth={1.5} />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-zinc-100">Your Agents</h2>
-                  <p className="text-xs text-zinc-600 mt-0.5">{agents.length + autoAgents.length} agents across your workspace</p>
+                  <h2 className="text-lg font-semibold text-[var(--ink)]">Your Agents</h2>
+                  <p className="text-xs text-[var(--ink-muted)] mt-0.5">{agents.length + autoAgents.length} agents across your workspace</p>
                 </div>
               </div>
               <a
                 href="/dashboard/agents"
-                className="text-xs font-medium text-emerald-400 hover:text-emerald-300 transition flex items-center gap-1"
+                className="text-xs font-medium text-emerald-600 hover:text-emerald-300 transition flex items-center gap-1"
               >
                 View all <span aria-hidden="true">&rarr;</span>
               </a>
@@ -662,17 +662,17 @@ export function DashboardClient({
                   <a
                     key={agent.id}
                     href="/dashboard/agents"
-                    className="flex items-center gap-3 p-4 rounded-lg border border-zinc-800 bg-zinc-950/80 hover:border-zinc-700 hover:bg-zinc-950 transition-colors"
+                    className="flex items-center gap-3 p-4 rounded-lg border border-[var(--rule)] bg-[var(--surface)] hover:border-[var(--rule-strong)] hover:bg-[var(--surface)] transition-colors"
                   >
                     <div className="p-2 bg-zinc-800 rounded-lg shrink-0">
-                      <Bot className="h-4 w-4 text-zinc-400" strokeWidth={1.5} />
+                      <Bot className="h-4 w-4 text-[var(--ink-subtle)]" strokeWidth={1.5} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-sm font-medium text-zinc-200 truncate">{agent.name}</span>
+                        <span className="text-sm font-medium text-[var(--ink)] truncate">{agent.name}</span>
                         <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${STATUS_DOTS[agent.status] || "bg-zinc-500"}`} />
                       </div>
-                      <div className="flex items-center gap-2 text-[11px] text-zinc-600">
+                      <div className="flex items-center gap-2 text-[11px] text-[var(--ink-muted)]">
                         <span>{MODALITY_LABELS[agent.modality] || agent.modality}</span>
                         <span>·</span>
                         <span>{agent.conversations.total} convos</span>
@@ -686,24 +686,24 @@ export function DashboardClient({
                   <a
                     key={aa.id}
                     href="/dashboard/agents"
-                    className="flex items-center gap-3 p-4 rounded-lg border border-zinc-800 bg-zinc-950/80 hover:border-zinc-700 hover:bg-zinc-950 transition-colors"
+                    className="flex items-center gap-3 p-4 rounded-lg border border-[var(--rule)] bg-[var(--surface)] hover:border-[var(--rule-strong)] hover:bg-[var(--surface)] transition-colors"
                   >
                     <div className={`p-2 rounded-lg shrink-0 ${aa.color_class?.replace("text-", "bg-").replace("-400", "-500/10") || "bg-zinc-800"}`}>
-                      <Sparkles className={`h-4 w-4 ${aa.color_class || "text-zinc-400"}`} strokeWidth={1.5} />
+                      <Sparkles className={`h-4 w-4 ${aa.color_class || "text-[var(--ink-subtle)]"}`} strokeWidth={1.5} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-sm font-medium text-zinc-200 truncate">{aa.name}</span>
+                        <span className="text-sm font-medium text-[var(--ink)] truncate">{aa.name}</span>
                         <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${aa.status === "RUNNING" ? "bg-blue-500 animate-pulse" : aa.status === "ERROR" ? "bg-red-500" : "bg-zinc-500"}`} />
                       </div>
-                      <div className="flex items-center gap-2 text-[11px] text-zinc-600">
+                      <div className="flex items-center gap-2 text-[11px] text-[var(--ink-muted)]">
                         <span>Autonomous</span>
                         <span>·</span>
                         <span>{aa.success_rate}% success</span>
                         {aa.pending_reviews > 0 && (
                           <>
                             <span>·</span>
-                            <span className="text-amber-400">{aa.pending_reviews} pending</span>
+                            <span className="text-amber-600">{aa.pending_reviews} pending</span>
                           </>
                         )}
                       </div>
@@ -719,15 +719,15 @@ export function DashboardClient({
       {/* AI Agent Outputs */}
       {pendingOutputs.length > 0 && (
         <motion.div variants={item}>
-          <div className="border border-zinc-800 bg-zinc-950/80 rounded-xl">
-            <div className="flex items-center justify-between p-6 pb-4 border-b border-zinc-800">
+          <div className="border border-[var(--rule)] bg-[var(--surface)] rounded-xl">
+            <div className="flex items-center justify-between p-6 pb-4 border-b border-[var(--rule)]">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-purple-500/10 rounded-lg">
                   <Sparkles className="h-4 w-4 text-purple-400" strokeWidth={1.5} />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-zinc-100">Agent Insights</h2>
-                  <p className="text-xs text-zinc-600 mt-0.5">{pendingOutputs.length} pending review{pendingOutputs.length !== 1 ? "s" : ""}</p>
+                  <h2 className="text-lg font-semibold text-[var(--ink)]">Agent Insights</h2>
+                  <p className="text-xs text-[var(--ink-muted)] mt-0.5">{pendingOutputs.length} pending review{pendingOutputs.length !== 1 ? "s" : ""}</p>
                 </div>
               </div>
               <a href="/dashboard/agents" className="text-xs font-medium text-purple-400 hover:text-purple-300 transition flex items-center gap-1">
@@ -736,27 +736,27 @@ export function DashboardClient({
             </div>
             <div className="p-5 space-y-3">
               {pendingOutputs.map((o) => (
-                <div key={o.id} className="flex items-start justify-between gap-4 p-4 rounded-lg border border-zinc-800 bg-zinc-950/80 hover:border-zinc-700 transition-colors">
+                <div key={o.id} className="flex items-start justify-between gap-4 p-4 rounded-lg border border-[var(--rule)] bg-[var(--surface)] hover:border-[var(--rule-strong)] transition-colors">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                       {o.wm_agent_definitions && (
-                        <span className="text-[11px] text-zinc-600 bg-zinc-800 rounded-full px-2 py-0.5">{o.wm_agent_definitions.name}</span>
+                        <span className="text-[11px] text-[var(--ink-muted)] bg-zinc-800 rounded-full px-2 py-0.5">{o.wm_agent_definitions.name}</span>
                       )}
                       <span className={`text-[11px] font-medium border rounded-full px-2 py-0.5 ${OUTPUT_TYPE_STYLES[o.type] || OUTPUT_TYPE_STYLES.insight}`}>{o.type}</span>
                       {o.linked_client && (
-                        <span className="text-[11px] text-zinc-500"><Users className="h-3 w-3 inline mr-0.5" />{o.linked_client}</span>
+                        <span className="text-[11px] text-[var(--ink-subtle)]"><Users className="h-3 w-3 inline mr-0.5" />{o.linked_client}</span>
                       )}
                     </div>
-                    <h3 className="text-sm font-semibold text-zinc-200 mb-0.5">{o.title}</h3>
-                    <p className="text-xs text-zinc-500 leading-relaxed">{o.summary}</p>
+                    <h3 className="text-sm font-semibold text-[var(--ink)] mb-0.5">{o.title}</h3>
+                    <p className="text-xs text-[var(--ink-subtle)] leading-relaxed">{o.summary}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <button onClick={() => onReviewOutput?.(o.id, "APPROVED")}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/30 transition">
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-600 hover:bg-emerald-50 border border-emerald-200 transition">
                       <ThumbsUp className="h-3 w-3" /> Approve
                     </button>
                     <button onClick={() => onReviewOutput?.(o.id, "DISMISSED")}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-400 hover:bg-zinc-800 border border-zinc-700 transition">
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--ink-subtle)] hover:bg-[var(--canvas-muted)] border border-[var(--rule-strong)] transition">
                       <X className="h-3 w-3" /> Dismiss
                     </button>
                   </div>
@@ -770,33 +770,33 @@ export function DashboardClient({
       {/* AI Suggested Tasks */}
       {pendingTasks.length > 0 && (
         <motion.div variants={item}>
-          <div className="border border-zinc-800 bg-zinc-950/80 rounded-xl">
-            <div className="flex items-center gap-3 p-6 pb-4 border-b border-zinc-800">
+          <div className="border border-[var(--rule)] bg-[var(--surface)] rounded-xl">
+            <div className="flex items-center gap-3 p-6 pb-4 border-b border-[var(--rule)]">
               <div className="p-2 bg-amber-500/10 rounded-lg">
-                <CheckCircle className="h-4 w-4 text-amber-400" strokeWidth={1.5} />
+                <CheckCircle className="h-4 w-4 text-amber-600" strokeWidth={1.5} />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-zinc-100">Suggested Tasks</h2>
-                <p className="text-xs text-zinc-600 mt-0.5">AI-generated follow-ups from your CRM data</p>
+                <h2 className="text-lg font-semibold text-[var(--ink)]">Suggested Tasks</h2>
+                <p className="text-xs text-[var(--ink-muted)] mt-0.5">AI-generated follow-ups from your CRM data</p>
               </div>
             </div>
             <div className="p-5 space-y-2">
               {pendingTasks.map((t) => (
-                <div key={t.id} className="flex items-center gap-4 p-4 rounded-lg border border-zinc-800 bg-zinc-950/80 hover:border-zinc-700 transition-colors">
+                <div key={t.id} className="flex items-center gap-4 p-4 rounded-lg border border-[var(--rule)] bg-[var(--surface)] hover:border-[var(--rule-strong)] transition-colors">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-zinc-200">{t.description}</p>
+                    <p className="text-sm text-[var(--ink)]">{t.description}</p>
                     <div className="flex items-center gap-2 mt-1">
-                      {t.wm_agent_definitions && <span className="text-[11px] text-zinc-600">{t.wm_agent_definitions.name}</span>}
-                      {t.linked_client && <span className="text-[11px] text-zinc-500"><Users className="h-3 w-3 inline mr-0.5" />{t.linked_client}</span>}
+                      {t.wm_agent_definitions && <span className="text-[11px] text-[var(--ink-muted)]">{t.wm_agent_definitions.name}</span>}
+                      {t.linked_client && <span className="text-[11px] text-[var(--ink-subtle)]"><Users className="h-3 w-3 inline mr-0.5" />{t.linked_client}</span>}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <button onClick={() => onUpdateTask?.(t.id, "COMPLETED")}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/30 transition">
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-600 hover:bg-emerald-50 border border-emerald-200 transition">
                       <CheckCircle2 className="h-3 w-3" /> Done
                     </button>
                     <button onClick={() => onUpdateTask?.(t.id, "DISMISSED")}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-400 hover:bg-zinc-800 border border-zinc-700 transition">
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--ink-subtle)] hover:bg-[var(--canvas-muted)] border border-[var(--rule-strong)] transition">
                       <X className="h-3 w-3" /> Dismiss
                     </button>
                   </div>
@@ -810,88 +810,88 @@ export function DashboardClient({
       {/* Quick Stats Bar */}
       <motion.div variants={item}>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div className="border border-zinc-800 bg-zinc-950/80 rounded-xl p-4 text-center">
+          <div className="border border-[var(--rule)] bg-[var(--surface)] rounded-xl p-4 text-center">
             <Activity
-              className="h-5 w-5 text-emerald-400 mx-auto mb-2"
+              className="h-5 w-5 text-emerald-600 mx-auto mb-2"
               strokeWidth={1.5}
             />
-            <div className="text-lg font-bold text-zinc-100">
+            <div className="text-lg font-bold text-[var(--ink)]">
               {metrics.automationEvents}
             </div>
-            <div className="text-xs text-zinc-600">Automations (7d)</div>
+            <div className="text-xs text-[var(--ink-muted)]">Automations (7d)</div>
           </div>
-          <div className="border border-zinc-800 bg-zinc-950/80 rounded-xl p-4 text-center">
+          <div className="border border-[var(--rule)] bg-[var(--surface)] rounded-xl p-4 text-center">
             <Calendar
               className="h-5 w-5 text-blue-400 mx-auto mb-2"
               strokeWidth={1.5}
             />
-            <div className="text-lg font-bold text-zinc-100">
+            <div className="text-lg font-bold text-[var(--ink)]">
               {metrics.prospects}
             </div>
-            <div className="text-xs text-zinc-600">Upcoming Appointments</div>
+            <div className="text-xs text-[var(--ink-muted)]">Upcoming Appointments</div>
           </div>
-          <div className="border border-zinc-800 bg-zinc-950/80 rounded-xl p-4 text-center">
+          <div className="border border-[var(--rule)] bg-[var(--surface)] rounded-xl p-4 text-center">
             <MessageSquare
-              className="h-5 w-5 text-amber-400 mx-auto mb-2"
+              className="h-5 w-5 text-amber-600 mx-auto mb-2"
               strokeWidth={1.5}
             />
-            <div className="text-lg font-bold text-zinc-100">
+            <div className="text-lg font-bold text-[var(--ink)]">
               {metrics.totalConversations}
             </div>
-            <div className="text-xs text-zinc-600">Total Conversations</div>
+            <div className="text-xs text-[var(--ink-muted)]">Total Conversations</div>
           </div>
-          <div className="border border-zinc-800 bg-zinc-950/80 rounded-xl p-4 text-center">
+          <div className="border border-[var(--rule)] bg-[var(--surface)] rounded-xl p-4 text-center">
             <Target
               className="h-5 w-5 text-rose-400 mx-auto mb-2"
               strokeWidth={1.5}
             />
-            <div className="text-lg font-bold text-zinc-100">
+            <div className="text-lg font-bold text-[var(--ink)]">
               {metrics.churnRisk}
             </div>
-            <div className="text-xs text-zinc-600">Pending Tasks</div>
+            <div className="text-xs text-[var(--ink-muted)]">Pending Tasks</div>
           </div>
         </div>
       </motion.div>
 
       {/* System Status */}
       <motion.div variants={item}>
-        <div className="border border-zinc-800 bg-zinc-950/80 rounded-xl p-6">
+        <div className="border border-[var(--rule)] bg-[var(--surface)] rounded-xl p-6">
           <div className="flex items-center gap-3 mb-5">
-            <div className="p-2 bg-emerald-500/10 rounded-lg">
-              <Shield className="h-4 w-4 text-emerald-400" strokeWidth={1.5} />
+            <div className="p-2 bg-emerald-50 rounded-lg">
+              <Shield className="h-4 w-4 text-emerald-600" strokeWidth={1.5} />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-zinc-100">System Status</h2>
-              <p className="text-xs text-zinc-600 mt-0.5">Security & automation health</p>
+              <h2 className="text-lg font-semibold text-[var(--ink)]">System Status</h2>
+              <p className="text-xs text-[var(--ink-muted)] mt-0.5">Security & automation health</p>
             </div>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="flex items-center gap-3 p-3 rounded-lg border border-zinc-800 bg-zinc-950/60">
+            <div className="flex items-center gap-3 p-3 rounded-lg border border-[var(--rule)] bg-[var(--surface)]">
               <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
               <div>
-                <div className="text-xs font-medium text-zinc-300">Security Headers</div>
-                <div className="text-[11px] text-zinc-600">CSP + X-Frame active</div>
+                <div className="text-xs font-medium text-[var(--ink-muted)]">Security Headers</div>
+                <div className="text-[11px] text-[var(--ink-muted)]">CSP + X-Frame active</div>
               </div>
             </div>
-            <div className="flex items-center gap-3 p-3 rounded-lg border border-zinc-800 bg-zinc-950/60">
+            <div className="flex items-center gap-3 p-3 rounded-lg border border-[var(--rule)] bg-[var(--surface)]">
               <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
               <div>
-                <div className="text-xs font-medium text-zinc-300">Rate Limiting</div>
-                <div className="text-[11px] text-zinc-600">Auth endpoints protected</div>
+                <div className="text-xs font-medium text-[var(--ink-muted)]">Rate Limiting</div>
+                <div className="text-[11px] text-[var(--ink-muted)]">Auth endpoints protected</div>
               </div>
             </div>
-            <div className="flex items-center gap-3 p-3 rounded-lg border border-zinc-800 bg-zinc-950/60">
+            <div className="flex items-center gap-3 p-3 rounded-lg border border-[var(--rule)] bg-[var(--surface)]">
               <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
               <div>
-                <div className="text-xs font-medium text-zinc-300">Agent Schedule</div>
-                <div className="text-[11px] text-zinc-600">Daily 6:00 AM UTC</div>
+                <div className="text-xs font-medium text-[var(--ink-muted)]">Agent Schedule</div>
+                <div className="text-[11px] text-[var(--ink-muted)]">Daily 6:00 AM UTC</div>
               </div>
             </div>
-            <div className="flex items-center gap-3 p-3 rounded-lg border border-zinc-800 bg-zinc-950/60">
+            <div className="flex items-center gap-3 p-3 rounded-lg border border-[var(--rule)] bg-[var(--surface)]">
               <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
               <div>
-                <div className="text-xs font-medium text-zinc-300">{autoAgents.length} AI Agents</div>
-                <div className="text-[11px] text-zinc-600">{autoAgents.filter((a) => a.last_run).length} have run</div>
+                <div className="text-xs font-medium text-[var(--ink-muted)]">{autoAgents.length} AI Agents</div>
+                <div className="text-[11px] text-[var(--ink-muted)]">{autoAgents.filter((a) => a.last_run).length} have run</div>
               </div>
             </div>
           </div>

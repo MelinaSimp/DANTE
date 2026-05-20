@@ -140,7 +140,7 @@ export default function AppSidebar({
     <aside
       className={`${
         isOpen ? "w-64" : "w-14"
-      } bg-[var(--surface)] border-r border-[var(--rule)] hidden lg:flex flex-col sticky top-0 h-screen transition-all duration-300 overflow-visible`}
+      } bg-[var(--canvas)] border-r border-[var(--rule)] hidden lg:flex flex-col sticky top-0 h-screen transition-all duration-300 overflow-visible`}
       aria-label="Primary navigation"
     >
       {/* Toggle + Logo */}
