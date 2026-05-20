@@ -564,8 +564,8 @@ export default function ProjectDetailClient({
             onClick={() => setTab("vault")}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition ${
               tab === "vault"
-                ? "border-gray-900 text-gray-900"
-                : "border-transparent text-gray-500 hover:text-gray-700"
+                ? "border-[var(--accent)] text-[var(--ink)]"
+                : "border-transparent text-[var(--ink-subtle)] hover:text-[var(--ink-muted)]"
             }`}
           >
             Documents{items.length > 0 ? ` (${items.length})` : ""}
@@ -575,8 +575,8 @@ export default function ProjectDetailClient({
               onClick={() => setTab("indexed")}
               className={`px-4 py-2 text-sm font-medium border-b-2 transition ${
                 tab === "indexed"
-                  ? "border-gray-900 text-gray-900"
-                  : "border-transparent text-gray-500 hover:text-gray-700"
+                  ? "border-[var(--accent)] text-[var(--ink)]"
+                  : "border-transparent text-[var(--ink-subtle)] hover:text-[var(--ink-muted)]"
               }`}
             >
               Indexed files
@@ -590,8 +590,8 @@ export default function ProjectDetailClient({
               onClick={() => setTab("members")}
               className={`px-4 py-2 text-sm font-medium border-b-2 transition flex items-center gap-1.5 ${
                 tab === "members"
-                  ? "border-gray-900 text-gray-900"
-                  : "border-transparent text-gray-500 hover:text-gray-700"
+                  ? "border-[var(--accent)] text-[var(--ink)]"
+                  : "border-transparent text-[var(--ink-subtle)] hover:text-[var(--ink-muted)]"
               }`}
             >
               <Users className="w-3.5 h-3.5" strokeWidth={1.5} />
@@ -957,12 +957,12 @@ export default function ProjectDetailClient({
 function StatusPill({ status }: { status: string }) {
   switch (status) {
     case "indexed":
-      return <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600">Indexed</span>;
+      return <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--glass-hover)] text-[var(--ink-muted)]">Indexed</span>;
     case "ingest_requested":
       return <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-700 animate-pulse">Requested</span>;
     case "ingesting":
       return (
-        <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-100 text-blue-700 inline-flex items-center gap-1">
+        <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--accent-soft)] text-[var(--accent)] inline-flex items-center gap-1">
           <Loader2 className="w-3 h-3 animate-spin" strokeWidth={2} />
           Ingesting
         </span>
@@ -972,7 +972,7 @@ function StatusPill({ status }: { status: string }) {
     case "ingest_failed":
       return <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-100 text-red-700">Failed</span>;
     default:
-      return <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500">{status}</span>;
+      return <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--glass-hover)] text-[var(--ink-subtle)]">{status}</span>;
   }
 }
 
@@ -1083,12 +1083,12 @@ function ProjectMembersPanel({ projectId }: { projectId: string }) {
                 <tr key={a.id} className="border-b border-[var(--rule)] last:border-b-0">
                   <td className="px-4 py-3 text-[var(--ink)]">{a.profile_name}</td>
                   <td className="px-4 py-3">
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600 capitalize">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--glass-hover)] text-[var(--ink-muted)] capitalize">
                       {a.profile_role}
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-50 text-blue-700 capitalize">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[var(--accent-soft)] text-[var(--accent)] capitalize">
                       {a.role}
                     </span>
                   </td>
@@ -1194,7 +1194,7 @@ function IndexedFilesTable({
                 {f.ingest_status === "indexed" && (
                   <button
                     onClick={() => onIngest(f.id)}
-                    className="px-3 py-1 rounded text-xs font-medium bg-gray-900 text-white hover:bg-gray-800 transition"
+                    className="px-3 py-1 rounded text-xs font-medium bg-[var(--glass)] border border-[var(--glass-border)] text-white hover:bg-[var(--canvas-muted)] transition"
                   >
                     Ingest
                   </button>

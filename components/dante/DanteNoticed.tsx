@@ -277,7 +277,7 @@ export default function DanteNoticed({
   // chrome that the hover wrapper already provides.
   const body = (
     <>
-      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-800 flex items-center gap-2 bg-white/50 dark:bg-black/30">
+      <div className="px-4 py-3 border-b border-[var(--glass-border)] dark:border-[var(--glass-border)] flex items-center gap-2 bg-[var(--canvas)]/50 bg-[var(--canvas)]/30">
         <div className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]" />
         <div className="flex-1 min-w-0">
           <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)]">
@@ -290,7 +290,7 @@ export default function DanteNoticed({
           )}
         </div>
       </div>
-      <ul className="divide-y divide-gray-200 dark:divide-gray-800">
+      <ul className="divide-y divide-[var(--glass-border)]">
         {rows.map((row, i) => (
           <li key={i}>{row}</li>
         ))}

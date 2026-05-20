@@ -41,14 +41,14 @@ export default function HeaderClient({
   }
 
   const headerClasses = clsx(
-    "w-full sticky top-0 z-50 border-b border-[#e5e7eb] bg-[#ffffff] transition-colors duration-300"
+    "w-full sticky top-0 z-50 border-b border-[var(--glass-border)] bg-[#ffffff] transition-colors duration-300"
   );
 
   const containerClasses =
     "mx-auto flex max-w-6xl items-center justify-between px-4 py-4 text-[#151515]";
 
   const navWrapperClasses = clsx(
-    "hidden md:flex items-center gap-2 rounded-full border border-[#e5e7eb] bg-[#f3f4f6] px-3 py-1.5 text-sm font-medium text-[#151515] md:mr-6",
+    "hidden md:flex items-center gap-2 rounded-full border border-[var(--glass-border)] bg-[var(--glass-hover)] px-3 py-1.5 text-sm font-medium text-[#151515] md:mr-6",
     isHome && "pointer-events-none opacity-0"
   );
 

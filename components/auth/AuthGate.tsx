@@ -12,7 +12,7 @@ export default async function AuthGate() {
     const label = user.user_metadata?.full_name || user.email || "Account";
     return (
       <div className="flex items-center gap-3">
-        <span className="hidden sm:inline text-sm text-gray-700">Hi, {label}</span>
+        <span className="hidden sm:inline text-sm text-[var(--ink-muted)]">Hi, {label}</span>
         <SignOutButton />
       </div>
     );

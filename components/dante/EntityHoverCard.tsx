@@ -276,7 +276,7 @@ export default function EntityHoverCard({ kind, id, label, children }: Props) {
             >
               <CreativeCard solid className="max-w-none">
               {/* Header */}
-              <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-800 bg-white/50 dark:bg-black/30">
+              <div className="px-3 py-2 border-b border-[var(--glass-border)] dark:border-[var(--glass-border)] bg-[var(--canvas)]/50 bg-[var(--canvas)]/30">
                 <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)]">
                   {kind}
                 </div>

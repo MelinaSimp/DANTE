@@ -90,26 +90,26 @@ export default function InboxPanel({ agentId }: { agentId: string }) {
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
-      <div className="flex items-center gap-6 border-b border-gray-200 mb-4">
+      <div className="flex items-center gap-6 border-b border-[var(--glass-border)] mb-4">
         {(["todo", "follow-up", "done"] as const).map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)} className={`pb-3 text-sm font-medium capitalize transition ${activeTab === tab ? "text-cyan-600 border-b-2 border-cyan-600" : "text-gray-500 hover:text-gray-900"}`}>
+          <button key={tab} onClick={() => setActiveTab(tab)} className={`pb-3 text-sm font-medium capitalize transition ${activeTab === tab ? "text-cyan-600 border-b-2 border-cyan-600" : "text-[var(--ink-subtle)] hover:text-[var(--ink)]"}`}>
             {tab === "follow-up" ? "Follow up" : tab}
           </button>
         ))}
       </div>
       <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--ink-subtle)]" />
         <input type="text" placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-          className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20" />
+          className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[var(--glass-border)] bg-[var(--canvas-subtle)] text-sm focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20" />
       </div>
       {loading ? (
         <div className="space-y-2">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="flex items-start gap-3 bg-white rounded-xl border border-gray-100 p-4">
-              <Skeleton variant="circular" width={40} height={40} className="!bg-gray-100" />
+            <div key={i} className="flex items-start gap-3 bg-[var(--canvas)] rounded-xl border border-[var(--glass-border)] p-4">
+              <Skeleton variant="circular" width={40} height={40} className="!bg-[var(--glass-hover)]" />
               <div className="flex-1 min-w-0 space-y-2">
-                <Skeleton variant="text" width="40%" height={14} className="!bg-gray-100" />
-                <Skeleton variant="text" width="80%" height={12} className="!bg-gray-100" />
+                <Skeleton variant="text" width="40%" height={14} className="!bg-[var(--glass-hover)]" />
+                <Skeleton variant="text" width="80%" height={12} className="!bg-[var(--glass-hover)]" />
               </div>
             </div>
           ))}
@@ -139,7 +139,7 @@ export default function InboxPanel({ agentId }: { agentId: string }) {
             const badge = getBadge(c);
             const Icon = badge.icon;
             return (
-              <div key={c.id} className="group flex items-start gap-3 bg-white rounded-xl border border-gray-100 p-4 hover:shadow-sm transition">
+              <div key={c.id} className="group flex items-start gap-3 bg-[var(--canvas)] rounded-xl border border-[var(--glass-border)] p-4 hover:shadow-sm transition">
                 <div className="relative shrink-0">
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-cyan-600 flex items-center justify-center text-white text-xs font-bold">
                     {getName(c).substring(0, 2).toUpperCase()}
@@ -148,12 +148,12 @@ export default function InboxPanel({ agentId }: { agentId: string }) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-0.5">
-                    <span className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
-                      {getName(c)} {c.modality === "voice" && <Phone className="h-3 w-3 text-gray-400" />}
+                    <span className="text-sm font-semibold text-[var(--ink)] flex items-center gap-1.5">
+                      {getName(c)} {c.modality === "voice" && <Phone className="h-3 w-3 text-[var(--ink-subtle)]" />}
                     </span>
-                    <span className="text-[11px] text-gray-400">{timeAgo(c.updated_at)}</span>
+                    <span className="text-[11px] text-[var(--ink-subtle)]">{timeAgo(c.updated_at)}</span>
                   </div>
-                  <p className="text-sm text-gray-500 truncate mb-1">{getLastMsg(c)}</p>
+                  <p className="text-sm text-[var(--ink-subtle)] truncate mb-1">{getLastMsg(c)}</p>
                   <div className="flex items-center gap-2">
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${badge.cls}`}><Icon className="h-3 w-3" />{badge.label}</span>
                     <button onClick={e => deleteConv(c.id, e)} disabled={deletingId === c.id}

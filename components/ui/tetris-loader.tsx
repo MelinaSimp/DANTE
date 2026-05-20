@@ -3,13 +3,13 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
 const TETRIS_PIECES = [
-  { shape: [[1, 1, 1, 1]], color: "bg-black dark:bg-white" },
-  { shape: [[1, 1], [1, 1]], color: "bg-black dark:bg-white" },
-  { shape: [[0, 1, 0], [1, 1, 1]], color: "bg-black dark:bg-white" },
-  { shape: [[1, 0], [1, 0], [1, 1]], color: "bg-black dark:bg-white" },
-  { shape: [[0, 1, 1], [1, 1, 0]], color: "bg-black dark:bg-white" },
-  { shape: [[1, 1, 0], [0, 1, 1]], color: "bg-black dark:bg-white" },
-  { shape: [[0, 1], [0, 1], [1, 1]], color: "bg-black dark:bg-white" },
+  { shape: [[1, 1, 1, 1]], color: "bg-black dark:bg-[var(--canvas)]" },
+  { shape: [[1, 1], [1, 1]], color: "bg-black dark:bg-[var(--canvas)]" },
+  { shape: [[0, 1, 0], [1, 1, 1]], color: "bg-black dark:bg-[var(--canvas)]" },
+  { shape: [[1, 0], [1, 0], [1, 1]], color: "bg-black dark:bg-[var(--canvas)]" },
+  { shape: [[0, 1, 1], [1, 1, 0]], color: "bg-black dark:bg-[var(--canvas)]" },
+  { shape: [[1, 1, 0], [0, 1, 1]], color: "bg-black dark:bg-[var(--canvas)]" },
+  { shape: [[0, 1], [0, 1], [1, 1]], color: "bg-black dark:bg-[var(--canvas)]" },
 ];
 
 interface Cell {
@@ -173,7 +173,7 @@ export default function TetrisLoading({
           if (linesToClear.includes(rowIndex)) {
             return row.map((cell) => ({
               ...cell,
-              color: "bg-black dark:bg-white animate-pulse opacity-50",
+              color: "bg-black dark:bg-[var(--canvas)] animate-pulse opacity-50",
             }));
           }
           return row;
@@ -301,8 +301,8 @@ export default function TetrisLoading({
         {row.map((cell, colIndex) => (
           <div
             key={`${rowIndex}-${colIndex}`}
-            className={`${config.cellSize} border border-gray-300 dark:border-gray-600 transition-all duration-100 ${
-              cell.filled ? `${cell.color} scale-100` : "bg-white dark:bg-black scale-95"
+            className={`${config.cellSize} border border-[var(--glass-border)] dark:border-[var(--glass-border)] transition-all duration-100 ${
+              cell.filled ? `${cell.color} scale-100` : "bg-[var(--canvas)] bg-[var(--canvas)] scale-95"
             } ${isClearing && rowIndex < 4 ? "animate-pulse" : ""}`}
           />
         ))}
@@ -314,7 +314,7 @@ export default function TetrisLoading({
     <div className="flex flex-col items-center">
       <div className="mb-6">
         <div
-          className={`border-2 border-gray-800 dark:border-gray-200 bg-white dark:bg-black ${config.padding} transition-colors`}
+          className={`border-2 border-[var(--glass-border)] dark:border-[var(--glass-border)] bg-[var(--canvas)] bg-[var(--canvas)] ${config.padding} transition-colors`}
         >
           {renderGrid()}
         </div>

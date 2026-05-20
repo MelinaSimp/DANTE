@@ -21,17 +21,17 @@ export default function MobileNav({ items, backHref = "/select", backLabel = "Ba
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="md:hidden bg-white border-b border-gray-200">
+    <div className="md:hidden bg-[var(--canvas)] border-b border-[var(--glass-border)]">
       <div className="flex items-center justify-between px-4 py-3">
-        <Link href={backHref} className="flex items-center gap-2 text-gray-500 hover:text-gray-800 transition">
+        <Link href={backHref} className="flex items-center gap-2 text-[var(--ink-subtle)] hover:text-[var(--ink)] transition">
           <ArrowLeft className="w-4 h-4" />
           <span className="text-sm font-medium">{backLabel}</span>
         </Link>
         <Link href="/frontend" className="flex items-center gap-2">
           <img src="/brand/logo-circle.png" alt="Drift" className="w-6 h-6 rounded-full object-cover" />
-          <span className="text-sm font-semibold text-gray-900">Drift</span>
+          <span className="text-sm font-semibold text-[var(--ink)]">Drift</span>
         </Link>
-        <button onClick={() => setOpen(!open)} className="text-gray-500 hover:text-gray-800 transition">
+        <button onClick={() => setOpen(!open)} className="text-[var(--ink-subtle)] hover:text-[var(--ink)] transition">
           {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
       </div>
@@ -45,7 +45,7 @@ export default function MobileNav({ items, backHref = "/select", backLabel = "Ba
                 href={item.href}
                 onClick={() => setOpen(false)}
                 className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all ${
-                  item.active ? "bg-gray-100 text-black" : "text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+                  item.active ? "bg-[var(--glass-hover)] text-black" : "text-[var(--ink-subtle)] hover:bg-[var(--canvas-subtle)] hover:text-[var(--ink-muted)]"
                 }`}
               >
                 <Icon className="w-4 h-4" />

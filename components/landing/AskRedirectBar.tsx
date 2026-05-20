@@ -17,7 +17,7 @@ export default function AskRedirectBar() {
   return (
     <div className="mt-10 w-full max-w-[48rem] space-y-6">
       <div className="group relative flex items-center">
-        <div className="absolute left-3 flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/40 text-lg text-gray-400">
+        <div className="absolute left-3 flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/40 text-lg text-[var(--ink-subtle)]">
           +
         </div>
         <input
@@ -27,13 +27,13 @@ export default function AskRedirectBar() {
           readOnly
           onFocus={goToAuth}
           onClick={goToAuth}
-          className="w-full cursor-pointer rounded-full border border-white/10 bg-black/60 py-4 pl-16 pr-32 text-base text-white placeholder:text-gray-500 transition focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+          className="w-full cursor-pointer rounded-full border border-white/10 bg-black/60 py-4 pl-16 pr-32 text-base text-white placeholder:text-[var(--ink-subtle)] transition focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40"
         />
         <div className="absolute right-3 flex items-center gap-2">
           <button
             type="button"
             onClick={goToAuth}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-black/50 text-gray-300 transition hover:text-white"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-black/50 text-[var(--ink-subtle)] transition hover:text-white"
             aria-label="Use microphone"
           >
             <Mic size={18} />
@@ -49,13 +49,13 @@ export default function AskRedirectBar() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-center gap-3 text-sm text-gray-500 lg:justify-center">
+      <div className="flex flex-wrap items-center justify-center gap-3 text-sm text-[var(--ink-subtle)] lg:justify-center">
         {suggestions.map((suggestion) => (
           <button
             key={suggestion}
             type="button"
             onClick={goToAuth}
-            className="flex items-center gap-2 rounded-full border border-white/10 bg-black/40 px-3 py-1 text-gray-400 transition hover:border-blue-500/40 hover:bg-black/30 hover:text-white"
+            className="flex items-center gap-2 rounded-full border border-white/10 bg-black/40 px-3 py-1 text-[var(--ink-subtle)] transition hover:border-[var(--accent)]/40 hover:bg-black/30 hover:text-white"
           >
             <Sparkles size={14} className="text-blue-400" />
             {suggestion}

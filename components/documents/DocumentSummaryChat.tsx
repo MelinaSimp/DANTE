@@ -638,8 +638,8 @@ export default function DocumentSummaryChat({
   const canDownloadPdf = messages.some((m) => m.role === "assistant");
 
   return (
-    <div className="mt-4 p-4 border-t border-[#e5e7eb] bg-[#f9fafb] rounded-b-xl">
-      <p className="text-xs font-medium text-[#6b7280] mb-3">
+    <div className="mt-4 p-4 border-t border-[var(--glass-border)] bg-[#f9fafb] rounded-b-xl">
+      <p className="text-xs font-medium text-[var(--ink-muted)] mb-3">
         {templateName
           ? `Using template "${templateName}". Upload a document to analyze above, then ask the AI to generate (e.g. one-page summary with charts).`
           : "Ask the AI to generate a one-page summary with charts. You can save this document as a template above to reuse its structure for other documents."}
@@ -654,7 +654,7 @@ export default function DocumentSummaryChat({
               className={`max-w-[85%] rounded-xl px-3 py-2 text-sm ${
                 m.role === "user"
                   ? "bg-blue-600 text-white"
-                  : "bg-white border border-[#e5e7eb] text-[#374151]"
+                  : "bg-[var(--canvas)] border border-[var(--glass-border)] text-[#374151]"
               }`}
             >
               <div className="whitespace-pre-wrap">{m.content}</div>
@@ -686,8 +686,8 @@ export default function DocumentSummaryChat({
         ))}
         {loading && (
           <div className="flex justify-start">
-            <div className="rounded-xl px-3 py-2 bg-white border border-[#e5e7eb]">
-              <Loader2 className="h-4 w-4 animate-spin text-[#6b7280]" />
+            <div className="rounded-xl px-3 py-2 bg-[var(--canvas)] border border-[var(--glass-border)]">
+              <Loader2 className="h-4 w-4 animate-spin text-[var(--ink-muted)]" />
             </div>
           </div>
         )}
@@ -698,7 +698,7 @@ export default function DocumentSummaryChat({
           <button
             type="button"
             onClick={downloadLastSummaryAsPDF}
-            className="inline-flex items-center gap-2 rounded-xl border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb]"
+            className="inline-flex items-center gap-2 rounded-xl border border-[var(--glass-border)] bg-[var(--canvas)] px-4 py-2 text-sm font-medium text-[#374151] hover:bg-[#f9fafb]"
           >
             <FileDown className="h-4 w-4" />
             Download as PDF
@@ -711,7 +711,7 @@ export default function DocumentSummaryChat({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="e.g. Generate a one-page summary with charts"
-          className="flex-1 rounded-xl border border-[#e5e7eb] px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 rounded-xl border border-[var(--glass-border)] px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
           disabled={loading}
         />
         <button

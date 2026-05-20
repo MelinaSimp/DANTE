@@ -43,7 +43,7 @@ export default function OfflineIndicator() {
   return (
     <div className="offline-indicator show">
       <div className="flex items-center justify-center gap-2">
-        <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+        <div className="w-2 h-2 bg-[var(--canvas)] rounded-full animate-pulse"></div>
         <span>You're offline. Some features may not work.</span>
       </div>
     </div>

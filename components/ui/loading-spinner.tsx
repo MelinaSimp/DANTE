@@ -21,8 +21,8 @@ export default function LoadingSpinner({ size = "md", text }: LoadingSpinnerProp
   return (
     <div className="flex items-center justify-center">
       <div className="flex items-center space-x-2">
-        <div className={`animate-spin rounded-full border-2 border-gray-300 border-t-blue-600 ${getSizeClasses()}`}></div>
-        {text && <span className="text-sm text-gray-600">{text}</span>}
+        <div className={`animate-spin rounded-full border-2 border-[var(--glass-border)] border-t-blue-600 ${getSizeClasses()}`}></div>
+        {text && <span className="text-sm text-[var(--ink-muted)]">{text}</span>}
       </div>
     </div>
   );

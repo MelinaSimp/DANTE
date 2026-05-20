@@ -234,13 +234,13 @@ export default function PdfViewerWithAnnotations({
   return (
     <div className="flex flex-col h-full bg-[#f5f5f7] rounded-xl overflow-hidden">
       {/* Toolbar */}
-      <div className="flex items-center justify-between gap-4 px-4 py-2 bg-white border-b border-[#e5e7eb] flex-wrap">
+      <div className="flex items-center justify-between gap-4 px-4 py-2 bg-[var(--canvas)] border-b border-[var(--glass-border)] flex-wrap">
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setPageNumber((p) => Math.max(1, p - 1))}
             disabled={pageNumber <= 1}
-            className="rounded p-2 text-[#6b7280] hover:bg-[#f3f4f6] disabled:opacity-40"
+            className="rounded p-2 text-[var(--ink-muted)] hover:bg-[var(--glass-hover)] disabled:opacity-40"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
@@ -254,7 +254,7 @@ export default function PdfViewerWithAnnotations({
             type="button"
             onClick={() => setPageNumber((p) => Math.min(numPages || 1, p + 1))}
             disabled={pageNumber >= numPages}
-            className="rounded p-2 text-[#6b7280] hover:bg-[#f3f4f6] disabled:opacity-40"
+            className="rounded p-2 text-[var(--ink-muted)] hover:bg-[var(--glass-hover)] disabled:opacity-40"
           >
             <ChevronRight className="h-5 w-5" />
           </button>
@@ -263,7 +263,7 @@ export default function PdfViewerWithAnnotations({
           <button
             type="button"
             onClick={handleZoomOut}
-            className="rounded p-2 text-[#6b7280] hover:bg-[#f3f4f6]"
+            className="rounded p-2 text-[var(--ink-muted)] hover:bg-[var(--glass-hover)]"
             title="Zoom out"
           >
             <ZoomOut className="h-4 w-4" />
@@ -271,7 +271,7 @@ export default function PdfViewerWithAnnotations({
           <button
             type="button"
             onClick={handleFitToPage}
-            className={`rounded px-2 py-1 text-xs font-medium ${fitToWidth ? "bg-blue-100 text-blue-800" : "text-[#6b7280] hover:bg-[#f3f4f6]"}`}
+            className={`rounded px-2 py-1 text-xs font-medium ${fitToWidth ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "text-[var(--ink-muted)] hover:bg-[var(--glass-hover)]"}`}
             title="Fit to page"
           >
             <Maximize2 className="h-4 w-4" />
@@ -279,7 +279,7 @@ export default function PdfViewerWithAnnotations({
           <button
             type="button"
             onClick={handleZoomIn}
-            className="rounded p-2 text-[#6b7280] hover:bg-[#f3f4f6]"
+            className="rounded p-2 text-[var(--ink-muted)] hover:bg-[var(--glass-hover)]"
             title="Zoom in"
           >
             <ZoomIn className="h-4 w-4" />
@@ -293,7 +293,7 @@ export default function PdfViewerWithAnnotations({
               className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition ${
                 activeTool === "highlight"
                   ? "bg-amber-100 text-amber-800"
-                  : "text-[#6b7280] hover:bg-[#f3f4f6]"
+                  : "text-[var(--ink-muted)] hover:bg-[var(--glass-hover)]"
               }`}
             >
               <Highlighter className="h-4 w-4" />
@@ -304,8 +304,8 @@ export default function PdfViewerWithAnnotations({
               onClick={() => setActiveTool(activeTool === "comment" ? null : "comment")}
               className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition ${
                 activeTool === "comment"
-                  ? "bg-blue-100 text-blue-800"
-                  : "text-[#6b7280] hover:bg-[#f3f4f6]"
+                  ? "bg-[var(--accent-soft)] text-[var(--accent)]"
+                  : "text-[var(--ink-muted)] hover:bg-[var(--glass-hover)]"
               }`}
             >
               <MessageSquare className="h-4 w-4" />
@@ -317,7 +317,7 @@ export default function PdfViewerWithAnnotations({
               className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition ${
                 activeTool === "tag"
                   ? "bg-purple-100 text-purple-800"
-                  : "text-[#6b7280] hover:bg-[#f3f4f6]"
+                  : "text-[var(--ink-muted)] hover:bg-[var(--glass-hover)]"
               }`}
             >
               <Tag className="h-4 w-4" />
@@ -329,7 +329,7 @@ export default function PdfViewerWithAnnotations({
               className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition ${
                 activeTool === "table"
                   ? "bg-emerald-100 text-emerald-800"
-                  : "text-[#6b7280] hover:bg-[#f3f4f6]"
+                  : "text-[var(--ink-muted)] hover:bg-[var(--glass-hover)]"
               }`}
               title="Data table (box) – LLM will find and extract this table in other PDFs; add a comment to request a chart"
             >
@@ -348,9 +348,9 @@ export default function PdfViewerWithAnnotations({
             onLoadSuccess={onDocumentLoadSuccess}
             onLoadError={onLoadError}
             loading={
-              <div className="flex flex-col items-center justify-center w-full max-w-[600px] min-h-[400px] bg-white rounded-xl gap-3">
-                <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
-                <p className="text-sm text-[#6b7280]">Loading PDF…</p>
+              <div className="flex flex-col items-center justify-center w-full max-w-[600px] min-h-[400px] bg-[var(--canvas)] rounded-xl gap-3">
+                <div className="w-8 h-8 border-2 border-[var(--glass-border)] border-t-blue-600 rounded-full animate-spin" />
+                <p className="text-sm text-[var(--ink-muted)]">Loading PDF…</p>
               </div>
             }
             error={
@@ -462,7 +462,7 @@ export default function PdfViewerWithAnnotations({
       {/* Content modal for comment/tag */}
       {showContentModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-xl shadow-xl p-4 w-80">
+          <div className="bg-[var(--canvas)] rounded-xl shadow-xl p-4 w-80">
             <p className="text-sm font-medium text-[#374151] mb-2">
               {activeTool === "highlight"
                 ? "Add comment (optional)"
@@ -482,7 +482,7 @@ export default function PdfViewerWithAnnotations({
               value={pendingContent}
               onChange={(e) => setPendingContent(e.target.value)}
               placeholder={activeTool === "highlight" ? "Your comment…" : activeTool === "comment" ? "Your comment…" : activeTool === "table" ? "e.g. Holdings table, or convert to bar chart" : "Tag name…"}
-              className="w-full rounded-xl border border-[#e5e7eb] px-3 py-2 text-sm"
+              className="w-full rounded-xl border border-[var(--glass-border)] px-3 py-2 text-sm"
               autoFocus
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleContentSubmit();
@@ -502,7 +502,7 @@ export default function PdfViewerWithAnnotations({
                   setPendingContent("");
                   setSaveError(null);
                 }}
-                className="rounded-xl px-3 py-2 text-sm text-[#6b7280] hover:bg-[#f3f4f6]"
+                className="rounded-xl px-3 py-2 text-sm text-[var(--ink-muted)] hover:bg-[var(--glass-hover)]"
                 disabled={saving}
               >
                 Cancel

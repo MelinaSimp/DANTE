@@ -88,7 +88,7 @@ export default function DanteGateLink({
     },
     "sidebar-full": {
       wrapper:
-        "w-full h-9 flex items-center gap-3 px-2.5 py-2 rounded-md text-gray-700 hover:bg-gray-100 transition group",
+        "w-full h-9 flex items-center gap-3 px-2.5 py-2 rounded-md text-[var(--ink-muted)] hover:bg-[var(--glass-hover)] transition group",
       iconSize: 16,
       iconClass: "transition-transform group-hover:scale-105",
       textClass: "text-sm font-medium",

@@ -12,31 +12,37 @@
   --radius: 0.625rem;
   --color-azure: 0, 136, 255;
 
-  /* Canvas */
-  --canvas: #ffffff;
-  --canvas-subtle: #f9fafb; /* gray-50 */
-  --canvas-muted: #f3f4f6; /* gray-100 */
+  /* Canvas — dark charcoal base */
+  --canvas: #1a1a1e;
+  --canvas-subtle: #202024;
+  --canvas-muted: #27272b;
 
-  /* Ink */
-  --ink: #111827; /* gray-900 */
-  --ink-muted: #6b7280; /* gray-500 */
-  --ink-subtle: #9ca3af; /* gray-400 */
+  /* Glass card surface */
+  --glass: rgba(255, 255, 255, 0.04);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-hover: rgba(255, 255, 255, 0.07);
+  --glass-active: rgba(255, 255, 255, 0.10);
+
+  /* Ink — light text on dark */
+  --ink: #e8e8e6;
+  --ink-muted: #a0a09b;
+  --ink-subtle: #6b6b66;
 
   /* Rule / border */
-  --rule: #e5e7eb; /* gray-200 */
-  --rule-strong: #d1d5db; /* gray-300 */
+  --rule: rgba(255, 255, 255, 0.08);
+  --rule-strong: rgba(255, 255, 255, 0.14);
 
   /* Accent */
   --accent: rgb(0, 136, 255);
-  --accent-soft: rgba(0, 136, 255, 0.05);
+  --accent-soft: rgba(0, 136, 255, 0.10);
 
   /* Semantic */
-  --verified: #16a34a;
-  --verified-soft: #f0fdf4;
-  --flag: #ca8a04;
-  --flag-soft: #fefce8;
-  --danger: #dc2626;
-  --danger-soft: #fef2f2;
+  --verified: #4ade80;
+  --verified-soft: rgba(74, 222, 128, 0.10);
+  --flag: #f5b041;
+  --flag-soft: rgba(245, 176, 65, 0.10);
+  --danger: #ef4444;
+  --danger-soft: rgba(239, 68, 68, 0.10);
 
   /* Typography */
   --font-display: var(--font-display-loaded, "EB Garamond"), Georgia, "Times New Roman", serif;
@@ -44,71 +50,30 @@
   --font-mono: var(--font-mono-loaded, "JetBrains Mono"), "SF Mono", Menlo, Consolas, monospace;
 
   /* shadcn compat */
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent-shadcn: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-
-  color-scheme: light;
-}
-
-.dark {
-  --canvas: #0b0b0c;
-  --canvas-subtle: #131316;
-  --canvas-muted: #1a1a1f;
-
-  --ink: #ededed;
-  --ink-muted: #a8a8a3;
-  --ink-subtle: #6f6f6a;
-
-  --rule: #232328;
-  --rule-strong: #35353f;
-
-  --accent: rgb(0, 136, 255);
-  --accent-soft: rgba(0, 136, 255, 0.1);
-
-  --verified: #4ade80;
-  --verified-soft: #13291a;
-  --flag: #f5b041;
-  --flag-soft: #2b1e0d;
-  --danger: #ef4444;
-  --danger-soft: #2a1010;
-
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent-shadcn: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: oklch(0.14 0 0);
+  --foreground: oklch(0.92 0 0);
+  --card: oklch(0.18 0 0);
+  --card-foreground: oklch(0.92 0 0);
+  --popover: oklch(0.18 0 0);
+  --popover-foreground: oklch(0.92 0 0);
+  --primary: oklch(0.92 0 0);
+  --primary-foreground: oklch(0.14 0 0);
+  --secondary: oklch(0.22 0 0);
+  --secondary-foreground: oklch(0.92 0 0);
+  --muted: oklch(0.22 0 0);
+  --muted-foreground: oklch(0.65 0 0);
+  --accent-shadcn: oklch(0.22 0 0);
+  --accent-foreground: oklch(0.92 0 0);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --border: oklch(1 0 0 / 8%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.5 0 0);
 
   color-scheme: dark;
 }
+
+/* .dark class intentionally omitted — root is dark-first.
+   The dark class inherits all :root tokens unchanged. */
 
 html,
 body {
@@ -208,12 +173,15 @@ main {
 }
 
 .card-flat {
-  background: var(--canvas);
-  border: 1px solid var(--rule);
-  border-radius: 8px;
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .card-flat-hover:hover {
+  background: var(--glass-hover);
   border-color: var(--rule-strong);
 }
 
@@ -372,11 +340,8 @@ main {
 .offline-indicator.show { transform: translateY(0); }
 
 .loading-skeleton {
-  background: #e5e7eb;
+  background: rgba(255, 255, 255, 0.06);
   animation: pulse 1.5s infinite;
-}
-.dark .loading-skeleton {
-  background: #383939;
 }
 @keyframes pulse {
   0%, 100% { opacity: 1; }

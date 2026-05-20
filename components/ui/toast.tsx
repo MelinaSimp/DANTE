@@ -154,7 +154,7 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) =
         </div>
         <button
           onClick={() => onRemove(toast.id)}
-          className="flex-shrink-0 hover:bg-white/20 rounded p-1 transition"
+          className="flex-shrink-0 hover:bg-[var(--canvas)]/20 rounded p-1 transition"
         >
           <X className="h-4 w-4" />
         </button>

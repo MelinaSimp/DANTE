@@ -80,7 +80,7 @@ export function Tooltip({
       {isVisible && (
         <div
           ref={tooltipRef}
-          className="fixed z-50 px-3 py-1.5 text-xs text-white bg-gray-900 rounded-lg shadow-lg pointer-events-none whitespace-nowrap"
+          className="fixed z-50 px-3 py-1.5 text-xs text-white bg-[var(--glass)] border border-[var(--glass-border)] rounded-lg shadow-lg pointer-events-none whitespace-nowrap"
           style={{
             top: `${tooltipPosition.top}px`,
             left: `${tooltipPosition.left}px`,
@@ -88,7 +88,7 @@ export function Tooltip({
         >
           {content}
           <div
-            className={`absolute w-2 h-2 bg-gray-900 transform rotate-45 ${
+            className={`absolute w-2 h-2 bg-[var(--glass)] border border-[var(--glass-border)] transform rotate-45 ${
               position === "top" ? "bottom-[-4px] left-1/2 -translate-x-1/2" :
               position === "bottom" ? "top-[-4px] left-1/2 -translate-x-1/2" :
               position === "left" ? "right-[-4px] top-1/2 -translate-y-1/2" :

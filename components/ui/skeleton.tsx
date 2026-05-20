@@ -15,7 +15,7 @@ export function Skeleton({
   height,
   lines = 1 
 }: SkeletonProps) {
-  const baseClasses = "animate-pulse bg-gray-200 rounded";
+  const baseClasses = "animate-pulse bg-[var(--canvas-muted)] rounded";
   
   if (variant === "text" && lines > 1) {
     return (
@@ -78,7 +78,7 @@ export function AgentListSkeleton() {
   return (
     <div className="space-y-2">
       {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i} className="p-3 border border-gray-200 rounded-2xl">
+        <div key={i} className="p-3 border border-[var(--glass-border)] rounded-2xl">
           <Skeleton variant="text" width="60%" height={20} className="mb-2" />
           <Skeleton variant="text" width="40%" height={14} />
         </div>

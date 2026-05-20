@@ -232,7 +232,7 @@ export default function AgentPlan({
       case "completed":
         return "bg-emerald-50 text-emerald-700 border border-emerald-200";
       case "in-progress":
-        return "bg-blue-50 text-blue-700 border border-blue-200";
+        return "bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--accent)]/20";
       case "need-help":
         return "bg-amber-50 text-amber-700 border border-amber-200";
       case "failed":

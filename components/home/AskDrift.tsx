@@ -166,7 +166,7 @@ export default function AskDrift({ suggestions = [] }: AskDriftProps) {
               key={label}
               type="button"
               onClick={onSelect}
-              className="flex items-center gap-2 rounded-full border border-[#e5e7eb] bg-[#f3f4f6] px-3 py-1 text-[#151515]/70 transition hover:border-[#3166bf]/40 hover:bg-[#e5e7eb] hover:text-[#151515]"
+              className="flex items-center gap-2 rounded-full border border-[var(--glass-border)] bg-[var(--glass-hover)] px-3 py-1 text-[#151515]/70 transition hover:border-[#3166bf]/40 hover:bg-[#e5e7eb] hover:text-[#151515]"
             >
               <img src="/brand/logo-new.png" alt="" className="h-3.5 w-3.5" />
               {label}
@@ -176,7 +176,7 @@ export default function AskDrift({ suggestions = [] }: AskDriftProps) {
       )}
 
       {(answer || error || isLoading) && (
-        <div className="rounded-3xl border border-[#e5e7eb] bg-[#ffffff] p-6 text-left shadow-sm">
+        <div className="rounded-3xl border border-[var(--glass-border)] bg-[#ffffff] p-6 text-left shadow-sm">
           {isLoading && (
             <div className="flex items-center gap-3 text-sm text-[#151515]/70">
               <Loader2 className="h-4 w-4 animate-spin text-[#3166bf]" />
@@ -201,7 +201,7 @@ export default function AskDrift({ suggestions = [] }: AskDriftProps) {
           )}
 
           {!isLoading && !error && operationResults && operationResults.length > 0 && (
-            <div className="mt-6 space-y-4 rounded-2xl border border-[#e5e7eb] bg-[#f3f4f6] p-4 text-sm text-[#151515]/70">
+            <div className="mt-6 space-y-4 rounded-2xl border border-[var(--glass-border)] bg-[var(--glass-hover)] p-4 text-sm text-[#151515]/70">
               <button
                 type="button"
                 onClick={() => setIsExpanded((prev) => !prev)}
@@ -219,7 +219,7 @@ export default function AskDrift({ suggestions = [] }: AskDriftProps) {
                   {operationResults.map((result, idx) => (
                     <li
                       key={`${result.action}-${idx}`}
-                      className="rounded-xl border border-[#e5e7eb] bg-[#ffffff] p-3"
+                      className="rounded-xl border border-[var(--glass-border)] bg-[#ffffff] p-3"
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-medium text-[#151515]">{result.action}</span>
@@ -240,7 +240,7 @@ export default function AskDrift({ suggestions = [] }: AskDriftProps) {
                           <p className="font-semibold text-[11px] uppercase tracking-[0.3em] text-[#151515]/60">
                             Args
                           </p>
-                          <pre className="mt-1 overflow-auto rounded-lg bg-[#f3f4f6] p-2 text-[11px] text-[#151515]/70">
+                          <pre className="mt-1 overflow-auto rounded-lg bg-[var(--glass-hover)] p-2 text-[11px] text-[#151515]/70">
                             {JSON.stringify(operations[idx].args, null, 2)}
                           </pre>
                         </div>
@@ -250,7 +250,7 @@ export default function AskDrift({ suggestions = [] }: AskDriftProps) {
                           <p className="font-semibold text-[11px] uppercase tracking-[0.3em] text-[#151515]/60">
                             Data
                           </p>
-                          <pre className="mt-1 overflow-auto rounded-lg bg-[#f3f4f6] p-2 text-[11px] text-[#151515]/70">
+                          <pre className="mt-1 overflow-auto rounded-lg bg-[var(--glass-hover)] p-2 text-[11px] text-[#151515]/70">
                             {JSON.stringify(result.data, null, 2)}
                           </pre>
                         </div>

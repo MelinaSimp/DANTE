@@ -84,12 +84,12 @@ export default function PanelShell({ title, onClose, children, wide = false, dar
               onClick={onClose}
               className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
                 dark
-                  ? "bg-white/10 hover:bg-white/20"
+                  ? "bg-[var(--canvas)]/10 hover:bg-[var(--canvas)]/20"
                   : "hover:bg-[var(--canvas-subtle)]"
               }`}
             >
               <X
-                className={`w-4 h-4 ${dark ? "text-gray-400" : "text-[var(--ink-muted)]"}`}
+                className={`w-4 h-4 ${dark ? "text-[var(--ink-subtle)]" : "text-[var(--ink-muted)]"}`}
                 strokeWidth={1.5}
               />
             </button>
