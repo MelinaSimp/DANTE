@@ -37,19 +37,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Check phone isn't already taken by a *different* user
-  const { data: collision } = await supabaseAdmin
-    .from("profiles")
-    .select("id")
-    .eq("sms_phone", phone)
-    .neq("id", user.id)
-    .maybeSingle();
-  if (collision) {
-    return NextResponse.json(
-      { error: "That number is already registered to another Drift user." },
-      { status: 409 },
-    );
-  }
+  // If this phone belongs to another user, verification will transfer
+  // ownership — the rightful owner is whoever can receive the SMS code.
 
   // Generate 6-digit code, hash it
   const code = String(Math.floor(100000 + Math.random() * 900000));

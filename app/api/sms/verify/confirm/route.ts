@@ -70,12 +70,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Code didn't match." }, { status: 400 });
   }
 
-  // Match — consume + verify
+  // Match — consume + verify. If another user previously held this
+  // number, unlink them first (verified SMS ownership = rightful owner).
   const now = new Date().toISOString();
   await supabaseAdmin
     .from("sms_phone_verifications")
     .update({ consumed_at: now })
     .eq("id", row.id);
+  await supabaseAdmin
+    .from("profiles")
+    .update({ sms_phone: null, sms_verified_at: null })
+    .eq("sms_phone", row.phone)
+    .neq("id", user.id);
   await supabaseAdmin
     .from("profiles")
     .update({ sms_phone: row.phone, sms_verified_at: now })
