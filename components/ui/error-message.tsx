@@ -15,7 +15,7 @@ export default function ErrorMessage({ message, onDismiss, type = "error" }: Err
       case "warning":
         return "bg-yellow-50 border-yellow-200 text-yellow-800";
       case "info":
-        return "bg-[var(--accent-soft)] border-[var(--accent)]/20 text-[var(--accent)]";
+        return "bg-blue-50 border-blue-200 text-blue-800";
       default:
         return "bg-red-50 border-red-200 text-red-800";
     }
@@ -48,7 +48,7 @@ export default function ErrorMessage({ message, onDismiss, type = "error" }: Err
           <div className="ml-auto pl-3">
             <button
               onClick={onDismiss}
-              className="inline-flex text-[var(--ink-subtle)] hover:text-[var(--ink-muted)]"
+              className="inline-flex text-gray-400 hover:text-gray-600"
             >
               <span className="sr-only">Dismiss</span>
               <X className="h-5 w-5" />

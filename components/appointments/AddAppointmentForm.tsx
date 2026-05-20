@@ -49,7 +49,7 @@ export default function AddAppointmentForm({ workspaceId, onAppointmentAdded, on
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label htmlFor="client_name" className="block text-sm font-medium text-[var(--ink-muted)] mb-1">
+          <label htmlFor="client_name" className="block text-sm font-medium text-gray-700 mb-1">
             Client Name *
           </label>
           <input
@@ -57,13 +57,13 @@ export default function AddAppointmentForm({ workspaceId, onAppointmentAdded, on
             id="client_name"
             name="client_name"
             required
-            className="w-full px-3 py-2 border border-[var(--glass-border)] rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="John Doe"
           />
         </div>
 
         <div>
-          <label htmlFor="client_phone" className="block text-sm font-medium text-[var(--ink-muted)] mb-1">
+          <label htmlFor="client_phone" className="block text-sm font-medium text-gray-700 mb-1">
             Client Phone *
           </label>
           <input
@@ -71,7 +71,7 @@ export default function AddAppointmentForm({ workspaceId, onAppointmentAdded, on
             id="client_phone"
             name="client_phone"
             required
-            className="w-full px-3 py-2 border border-[var(--glass-border)] rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="(555) 123-4567"
           />
         </div>
@@ -79,7 +79,7 @@ export default function AddAppointmentForm({ workspaceId, onAppointmentAdded, on
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label htmlFor="scheduled_at" className="block text-sm font-medium text-[var(--ink-muted)] mb-1">
+          <label htmlFor="scheduled_at" className="block text-sm font-medium text-gray-700 mb-1">
             Date & Time *
           </label>
           <input
@@ -88,19 +88,19 @@ export default function AddAppointmentForm({ workspaceId, onAppointmentAdded, on
             name="scheduled_at"
             required
             defaultValue={defaultDateTime}
-            className="w-full px-3 py-2 border border-[var(--glass-border)] rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
         <div>
-          <label htmlFor="service_type" className="block text-sm font-medium text-[var(--ink-muted)] mb-1">
+          <label htmlFor="service_type" className="block text-sm font-medium text-gray-700 mb-1">
             Service Type *
           </label>
           <select
             id="service_type"
             name="service_type"
             required
-            className="w-full px-3 py-2 border border-[var(--glass-border)] rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">Select service type</option>
             <option value="Plumbing Repair">Plumbing Repair</option>
@@ -115,14 +115,14 @@ export default function AddAppointmentForm({ workspaceId, onAppointmentAdded, on
       </div>
 
       <div>
-        <label htmlFor="notes" className="block text-sm font-medium text-[var(--ink-muted)] mb-1">
+        <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">
           Notes
         </label>
         <textarea
           id="notes"
           name="notes"
           rows={3}
-          className="w-full px-3 py-2 border border-[var(--glass-border)] rounded-md focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="Additional details about the appointment..."
         />
       </div>

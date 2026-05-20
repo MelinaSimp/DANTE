@@ -21,7 +21,7 @@ export default function ChartRenderer({ chartData }: ChartRendererProps) {
   const { type, data, xKey, yKey, title, colors = COLORS } = chartData;
 
   if (!data || data.length === 0) {
-    return <div className="text-[var(--ink-subtle)] p-4">No data available for chart</div>;
+    return <div className="text-gray-500 p-4">No data available for chart</div>;
   }
 
   const renderChart = () => {
@@ -80,13 +80,13 @@ export default function ChartRenderer({ chartData }: ChartRendererProps) {
           </PieChart>
         );
       default:
-        return <div className="text-[var(--ink-subtle)] p-4">Unsupported chart type: {type}</div>;
+        return <div className="text-gray-500 p-4">Unsupported chart type: {type}</div>;
     }
   };
 
   return (
-    <div className="w-full p-4 bg-[var(--canvas)] rounded-lg border border-[var(--glass-border)]">
-      {title && <h3 className="text-lg font-semibold mb-4 text-[var(--ink)]">{title}</h3>}
+    <div className="w-full p-4 bg-white rounded-lg border border-gray-200">
+      {title && <h3 className="text-lg font-semibold mb-4 text-gray-900">{title}</h3>}
       <ResponsiveContainer width="100%" height={320}>
         {renderChart()}
       </ResponsiveContainer>

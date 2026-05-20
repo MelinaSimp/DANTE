@@ -58,7 +58,7 @@ export default function FeatureGrid() {
               <div>
                 <CardTitle className="flex items-center gap-2">
                   {t.title}
-                  <span className="text-[var(--ink-subtle)]">›</span>
+                  <span className="text-gray-400">›</span>
                 </CardTitle>
                 <CardSubtitle className="mt-1">{t.desc}</CardSubtitle>
               </div>

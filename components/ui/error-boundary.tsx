@@ -96,7 +96,7 @@ class ErrorBoundaryClass extends Component<Props, State> {
               </button>
               <a
                 href="/app"
-                className="flex items-center gap-2 px-4 py-2 bg-[var(--canvas)]/10 hover:bg-[var(--canvas)]/20 rounded-xl transition"
+                className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl transition"
               >
                 <Home className="h-4 w-4" />
                 Go Home

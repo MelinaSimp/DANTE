@@ -165,7 +165,7 @@ export default function AutomationsPanel({ agentId }: { agentId: string }) {
 
       {/* Quick Actions */}
       <div>
-        <h3 className="text-sm font-semibold text-[var(--ink)] mb-3 flex items-center gap-2">
+        <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
           <Zap className="h-4 w-4 text-cyan-500" />
           Quick Automations
         </h3>
@@ -180,14 +180,14 @@ export default function AutomationsPanel({ agentId }: { agentId: string }) {
                 className={`relative p-4 rounded-2xl border transition-all ${
                   isActive
                     ? "bg-green-50 border-green-200 shadow-sm"
-                    : "bg-[var(--canvas)] border-[var(--glass-border)] hover:border-[var(--glass-border)] hover:shadow-sm"
+                    : "bg-white border-gray-200 hover:border-gray-300 hover:shadow-sm"
                 }`}
               >
                 <div className="flex items-start justify-between mb-2">
                   <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${
-                    isActive ? "bg-green-100" : "bg-[var(--glass-hover)]"
+                    isActive ? "bg-green-100" : "bg-gray-100"
                   }`}>
-                    <Icon className={`h-4 w-4 ${isActive ? "text-green-600" : "text-[var(--ink-subtle)]"}`} />
+                    <Icon className={`h-4 w-4 ${isActive ? "text-green-600" : "text-gray-500"}`} />
                   </div>
                   <button
                     onClick={() => handleActivate(action.id)}
@@ -195,19 +195,19 @@ export default function AutomationsPanel({ agentId }: { agentId: string }) {
                     className={`px-3 py-1 rounded-lg text-xs font-medium transition flex items-center gap-1 ${
                       isActive
                         ? "bg-green-100 text-green-700 hover:bg-green-200"
-                        : "bg-[var(--glass-hover)] text-[var(--ink-muted)] hover:bg-[var(--canvas-muted)]"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                     }`}
                   >
                     {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : isActive ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
                     {isActive ? "Active" : "Activate"}
                   </button>
                 </div>
-                <h4 className="text-sm font-medium text-[var(--ink)]">{action.name}</h4>
-                <p className="text-[11px] text-[var(--ink-subtle)] mt-0.5">{action.description}</p>
+                <h4 className="text-sm font-medium text-gray-900">{action.name}</h4>
+                <p className="text-[11px] text-gray-500 mt-0.5">{action.description}</p>
                 <div className="flex items-center gap-3 mt-2">
-                  <span className="text-[10px] px-2 py-0.5 rounded-md bg-[var(--glass-hover)] text-[var(--ink-subtle)] font-mono">{action.trigger}</span>
-                  <span className="text-[10px] text-[var(--ink-subtle)]">&rarr;</span>
-                  <span className="text-[10px] text-[var(--ink-subtle)]">{action.channel}</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-md bg-gray-100 text-gray-500 font-mono">{action.trigger}</span>
+                  <span className="text-[10px] text-gray-300">&rarr;</span>
+                  <span className="text-[10px] text-gray-400">{action.channel}</span>
                 </div>
               </div>
             );
@@ -217,28 +217,28 @@ export default function AutomationsPanel({ agentId }: { agentId: string }) {
 
       {/* Activity Log */}
       <div>
-        <h3 className="text-sm font-semibold text-[var(--ink)] mb-3 flex items-center gap-2">
-          <Clock className="h-4 w-4 text-[var(--ink-subtle)]" />
+        <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <Clock className="h-4 w-4 text-gray-400" />
           Recent Activity
         </h3>
         {loadingEvents ? (
-          <div className="flex items-center justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-[var(--ink-subtle)]" /></div>
+          <div className="flex items-center justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-gray-300" /></div>
         ) : events.length === 0 ? (
           <div className="text-center py-8">
-            <Zap className="h-8 w-8 text-[var(--ink-subtle)] mx-auto mb-2" />
-            <p className="text-sm text-[var(--ink-subtle)]">No automation events yet</p>
-            <p className="text-xs text-[var(--ink-subtle)] mt-1">Events will appear here once automations run</p>
+            <Zap className="h-8 w-8 text-gray-200 mx-auto mb-2" />
+            <p className="text-sm text-gray-400">No automation events yet</p>
+            <p className="text-xs text-gray-300 mt-1">Events will appear here once automations run</p>
           </div>
         ) : (
           <div className="space-y-1.5">
             {events.map(evt => (
-              <div key={evt.id} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-[var(--canvas-subtle)] border border-[var(--glass-border)]">
-                <div className="text-[var(--ink-subtle)]">{eventIcon(evt.event_type)}</div>
+              <div key={evt.id} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-gray-50 border border-gray-100">
+                <div className="text-gray-400">{eventIcon(evt.event_type)}</div>
                 <div className="flex-1 min-w-0">
-                  <span className="text-xs font-medium text-[var(--ink-muted)] font-mono">{evt.event_type}</span>
-                  <span className="text-[10px] text-[var(--ink-subtle)] ml-2">{evt.direction}</span>
+                  <span className="text-xs font-medium text-gray-700 font-mono">{evt.event_type}</span>
+                  <span className="text-[10px] text-gray-400 ml-2">{evt.direction}</span>
                 </div>
-                <span className="text-[10px] text-[var(--ink-subtle)] shrink-0">{new Date(evt.created_at).toLocaleTimeString()}</span>
+                <span className="text-[10px] text-gray-400 shrink-0">{new Date(evt.created_at).toLocaleTimeString()}</span>
               </div>
             ))}
           </div>

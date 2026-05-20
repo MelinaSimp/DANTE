@@ -149,20 +149,20 @@ export default function ContactImporter({ onClose, onImported }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-2xl max-h-[90vh] overflow-hidden bg-[var(--canvas)] rounded-xl shadow-2xl flex flex-col">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--glass-border)]">
+      <div className="w-full max-w-2xl max-h-[90vh] overflow-hidden bg-white rounded-xl shadow-2xl flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#e5e7eb]">
           <div>
             <h2 className="text-lg font-semibold text-[#151515]">
               Import contacts
             </h2>
-            <p className="text-xs text-[var(--ink-muted)] mt-0.5">
+            <p className="text-xs text-[#6b7280] mt-0.5">
               CSV export from Google Contacts, Wealthbox, Redtail, Follow Up
               Boss, kvCORE, or any spreadsheet.
             </p>
           </div>
           <button
             onClick={onClose}
-            className="text-[var(--ink-muted)] hover:text-[#151515] transition"
+            className="text-[#6b7280] hover:text-[#151515] transition"
           >
             <X className="w-5 h-5" />
           </button>
@@ -173,14 +173,14 @@ export default function ContactImporter({ onClose, onImported }: Props) {
             <label
               onDragOver={(e) => e.preventDefault()}
               onDrop={onDrop}
-              className="flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-[var(--glass-border)] px-6 py-14 cursor-pointer hover:border-[#3166bf] hover:bg-[#f9fafb] transition"
+              className="flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-[#e5e7eb] px-6 py-14 cursor-pointer hover:border-[#3166bf] hover:bg-[#f9fafb] transition"
             >
               <Upload className="w-8 h-8 text-[#9ca3af]" strokeWidth={1.5} />
               <div className="text-center">
                 <div className="text-sm font-medium text-[#151515]">
                   Drop a CSV here, or click to choose
                 </div>
-                <div className="text-xs text-[var(--ink-muted)] mt-1">
+                <div className="text-xs text-[#6b7280] mt-1">
                   First row should be column headers (name, phone, email…)
                 </div>
               </div>
@@ -199,7 +199,7 @@ export default function ContactImporter({ onClose, onImported }: Props) {
 
           {hasFile && !result && (
             <div className="space-y-5">
-              <div className="flex items-center gap-2 text-xs text-[var(--ink-muted)]">
+              <div className="flex items-center gap-2 text-xs text-[#6b7280]">
                 <FileText className="w-4 h-4" strokeWidth={1.5} />
                 <span>{fileName}</span>
                 <span className="text-[#9ca3af]">·</span>
@@ -275,9 +275,9 @@ export default function ContactImporter({ onClose, onImported }: Props) {
                 <div className="text-xs font-medium text-[#151515] mb-2">
                   Preview
                 </div>
-                <div className="rounded-lg border border-[var(--glass-border)] overflow-hidden">
+                <div className="rounded-lg border border-[#e5e7eb] overflow-hidden">
                   <table className="w-full text-xs">
-                    <thead className="bg-[#f9fafb] text-[var(--ink-muted)]">
+                    <thead className="bg-[#f9fafb] text-[#6b7280]">
                       <tr>
                         <th className="text-left px-3 py-2 font-medium">
                           Name
@@ -300,10 +300,10 @@ export default function ContactImporter({ onClose, onImported }: Props) {
                               </span>
                             )}
                           </td>
-                          <td className="px-3 py-2 text-[var(--ink-muted)]">
+                          <td className="px-3 py-2 text-[#6b7280]">
                             {r.phone || "—"}
                           </td>
-                          <td className="px-3 py-2 text-[var(--ink-muted)]">
+                          <td className="px-3 py-2 text-[#6b7280]">
                             {r.email || "—"}
                           </td>
                         </tr>
@@ -311,7 +311,7 @@ export default function ContactImporter({ onClose, onImported }: Props) {
                     </tbody>
                   </table>
                 </div>
-                <div className="text-xs text-[var(--ink-muted)] mt-2">
+                <div className="text-xs text-[#6b7280] mt-2">
                   {readyCount} of {rows.length} rows have a name. Rows without
                   a name will be skipped.
                 </div>
@@ -349,7 +349,7 @@ export default function ContactImporter({ onClose, onImported }: Props) {
                     />
                     {result.skipped.length} skipped
                   </div>
-                  <div className="rounded-lg border border-[var(--glass-border)] max-h-64 overflow-y-auto">
+                  <div className="rounded-lg border border-[#e5e7eb] max-h-64 overflow-y-auto">
                     <ul className="divide-y divide-[#e5e7eb]">
                       {result.skipped.map((s, i) => (
                         <li
@@ -362,7 +362,7 @@ export default function ContactImporter({ onClose, onImported }: Props) {
                           <span className="flex-1 truncate text-[#151515]">
                             {s.name || "(no name)"}
                           </span>
-                          <span className="text-[var(--ink-muted)] shrink-0">
+                          <span className="text-[#6b7280] shrink-0">
                             {s.reason}
                           </span>
                         </li>
@@ -385,10 +385,10 @@ export default function ContactImporter({ onClose, onImported }: Props) {
           )}
         </div>
 
-        <div className="flex items-center justify-between px-6 py-4 border-t border-[var(--glass-border)] bg-[#f9fafb]">
+        <div className="flex items-center justify-between px-6 py-4 border-t border-[#e5e7eb] bg-[#f9fafb]">
           <button
             onClick={onClose}
-            className="text-sm text-[var(--ink-muted)] hover:text-[#151515] transition"
+            className="text-sm text-[#6b7280] hover:text-[#151515] transition"
           >
             {result ? "Close" : "Cancel"}
           </button>
@@ -424,7 +424,7 @@ function MappingSelect({
 }) {
   return (
     <label className="block">
-      <span className="text-xs text-[var(--ink-muted)]">
+      <span className="text-xs text-[#6b7280]">
         {label}
         {required && <span className="text-[#ef4444]"> *</span>}
       </span>
@@ -434,7 +434,7 @@ function MappingSelect({
           const v = e.target.value;
           onChange(v === "" ? null : Number(v));
         }}
-        className="mt-1 w-full px-3 py-2 text-sm bg-[var(--canvas)] border border-[var(--glass-border)] rounded-lg text-[#151515] outline-none focus:border-[#3166bf]"
+        className="mt-1 w-full px-3 py-2 text-sm bg-white border border-[#e5e7eb] rounded-lg text-[#151515] outline-none focus:border-[#3166bf]"
       >
         <option value="">(none)</option>
         {headers.map((h, i) => (

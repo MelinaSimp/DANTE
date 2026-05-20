@@ -1,5 +1,9 @@
 "use client";
 
+// AppSidebar — Mike-style collapsible sidebar. w-64 open, w-14
+// collapsed. Text labels, gray-50 background, gray-200 borders.
+// Chat history section on /dante routes. User profile at bottom.
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -20,6 +24,7 @@ import {
   ShieldCheck,
   LayoutDashboard,
   ScrollText,
+  FileClock,
   FolderSync,
   ChevronDown,
   ChevronsUpDown,
@@ -59,6 +64,7 @@ export default function AppSidebar({
   >(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
+  // Persist sidebar state
   useEffect(() => {
     const stored = localStorage.getItem("drift-sidebar-open");
     if (stored !== null) setIsOpen(stored === "true");
@@ -72,6 +78,7 @@ export default function AppSidebar({
     if (!isOpen) setShouldAnimate(true);
   }, [isOpen]);
 
+  // Load recent chats for /dante routes
   useEffect(() => {
     if (!pathname?.startsWith("/dante")) return;
     fetch("/api/dante/chats")
@@ -80,6 +87,7 @@ export default function AppSidebar({
       .catch(() => setRecentChats([]));
   }, [pathname]);
 
+  // Close dropdown on outside click
   useEffect(() => {
     if (!isDropdownOpen) return;
     const handler = () => setIsDropdownOpen(false);
@@ -139,8 +147,10 @@ export default function AppSidebar({
   return (
     <aside
       className={`${
-        isOpen ? "w-64" : "w-14"
-      } bg-[var(--canvas-subtle)]/60 backdrop-blur-xl border-r border-[var(--glass-border)] hidden lg:flex flex-col sticky top-0 h-screen transition-all duration-300 overflow-visible`}
+        isOpen
+          ? "w-64 bg-gray-50 border-r"
+          : "w-14 bg-gray-50 border-r"
+      } border-gray-200 hidden lg:flex flex-col sticky top-0 h-screen transition-all duration-300 overflow-visible`}
       aria-label="Primary navigation"
     >
       {/* Toggle + Logo */}
@@ -151,11 +161,11 @@ export default function AppSidebar({
               href="/dashboard"
               className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
             >
-              <div className="w-[22px] h-[22px] rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] flex items-center justify-center text-[9px] font-semibold">
+              <div className="w-[22px] h-[22px] rounded-[4px] bg-gray-900 text-white flex items-center justify-center text-[9px] font-semibold">
                 {initials}
               </div>
               <span
-                className={`text-2xl font-light font-serif text-[var(--ink)] ${
+                className={`text-2xl font-light font-serif ${
                   shouldAnimate ? "sidebar-fade-in" : ""
                 }`}
               >
@@ -166,7 +176,7 @@ export default function AppSidebar({
         )}
         <button
           onClick={() => setIsOpen((v) => !v)}
-          className="h-9 w-9 p-2.5 items-center flex hover:bg-[var(--glass-hover)] rounded-md transition-colors text-[var(--ink-muted)]"
+          className="h-9 w-9 p-2.5 items-center flex hover:bg-gray-100 rounded-md transition-colors"
           title={isOpen ? "Close sidebar" : "Open sidebar"}
         >
           <PanelLeft className="h-4 w-4" />
@@ -186,69 +196,53 @@ export default function AppSidebar({
             return (
               <div key={si}>
                 {section.label && isOpen && (
-                  <div className={`px-5 pt-4 pb-1 text-[10px] uppercase tracking-wider font-semibold text-[var(--ink-subtle)] ${shouldAnimate ? "sidebar-fade-in" : ""}`}>
+                  <div className={`px-5 pt-4 pb-1 text-[10px] uppercase tracking-wider font-semibold text-gray-400 ${shouldAnimate ? "sidebar-fade-in" : ""}`}>
                     {section.label}
                   </div>
                 )}
                 {!isOpen && si > 0 && (
-                  <div className="mx-3 my-1.5 border-t border-[var(--glass-border)]" />
+                  <div className="mx-3 my-1.5 border-t border-gray-200" />
                 )}
-                {/* Tree connector for grouped items */}
-                <div className={isOpen && section.label ? "ml-[26px] pl-3" : ""}>
-                  {visibleItems.map((item, ii) => {
-                    const active = isActive(item.href);
-                    const Icon = item.icon;
-                    const isLast = ii === visibleItems.length - 1;
-                    const hasTree = !!(isOpen && section.label);
-                    return (
-                      <div key={item.href} className={hasTree ? "relative" : "px-2.5"}>
-                        {hasTree && (
-                          <>
-                            {/* Vertical trunk: full height except last item stops at center */}
-                            <div
-                              className="absolute left-0 border-l border-[var(--glass-border)]"
-                              style={isLast ? { top: 0, height: "50%" } : { top: 0, bottom: 0 }}
-                            />
-                            {/* Horizontal branch at vertical center */}
-                            <div className="absolute left-0 top-1/2 w-3 border-t border-[var(--glass-border)]" />
-                          </>
-                        )}
-                        <Link
-                          href={item.href}
-                          title={!isOpen ? item.label : ""}
-                          className={`w-full h-9 flex items-center gap-3 px-2.5 py-2 rounded-md transition-colors text-left ${
-                            active
-                              ? "bg-[var(--glass-active)] text-[var(--ink)]"
-                              : "hover:bg-[var(--glass-hover)] text-[var(--ink-muted)]"
+                {visibleItems.map((item) => {
+                  const active = isActive(item.href);
+                  const Icon = item.icon;
+                  return (
+                    <div key={item.href} className="px-2.5">
+                      <Link
+                        href={item.href}
+                        title={!isOpen ? item.label : ""}
+                        className={`w-full h-9 flex items-center gap-3 px-2.5 py-2 rounded-md transition-colors text-left ${
+                          active
+                            ? "bg-gray-100 text-gray-900"
+                            : "hover:bg-gray-100 text-gray-700"
+                        }`}
+                      >
+                        <Icon
+                          className={`h-4 w-4 flex-shrink-0 ${
+                            active ? "text-gray-900" : "text-gray-500"
                           }`}
-                        >
-                          <Icon
-                            className={`h-4 w-4 flex-shrink-0 ${
-                              active ? "text-[var(--accent)]" : "text-[var(--ink-subtle)]"
+                          strokeWidth={active ? 1.75 : 1.5}
+                        />
+                        {isOpen && (
+                          <span
+                            className={`text-sm font-medium ${
+                              shouldAnimate ? "sidebar-fade-in-2" : ""
                             }`}
-                            strokeWidth={active ? 1.75 : 1.5}
-                          />
-                          {isOpen && (
-                            <span
-                              className={`text-sm font-medium ${
-                                shouldAnimate ? "sidebar-fade-in-2" : ""
-                              }`}
-                            >
-                              {item.label}
-                            </span>
-                          )}
-                        </Link>
-                      </div>
-                    );
-                  })}
-                </div>
+                          >
+                            {item.label}
+                          </span>
+                        )}
+                      </Link>
+                    </div>
+                  );
+                })}
               </div>
             );
           })}
 
           {features.includes("dante") && (
             <>
-              <div className="mx-4 my-2 border-t border-[var(--glass-border)]" />
+              <div className="mx-4 my-2 border-t border-gray-200" />
               <div className="px-2.5">
                 <DanteGateLink
                   variant={isOpen ? "sidebar-full" : "icon-only"}
@@ -260,12 +254,12 @@ export default function AppSidebar({
           )}
         </div>
 
-        {/* Chat History -- only on /dante routes when sidebar is open */}
+        {/* Chat History — only on /dante routes when sidebar is open */}
         {isOpen && pathname?.startsWith("/dante") && (
           <div className="mt-4 flex-1 min-h-0 flex flex-col">
             <button
               onClick={() => setHistoryCollapsed((v) => !v)}
-              className={`mb-2 px-5 flex items-center justify-between text-xs font-semibold text-[var(--ink-subtle)] hover:text-[var(--ink-muted)] transition-colors ${
+              className={`mb-2 px-5 flex items-center justify-between text-xs font-semibold text-gray-500 hover:text-gray-700 transition-colors ${
                 shouldAnimate ? "sidebar-fade-in" : ""
               }`}
             >
@@ -289,7 +283,7 @@ export default function AppSidebar({
                       className="h-9 flex items-center px-3 rounded-md"
                     >
                       <div
-                        className="h-3 bg-[var(--glass)] rounded animate-pulse"
+                        className="h-3 bg-gray-200 rounded animate-pulse"
                         style={{ width: `${w}%` }}
                       />
                     </div>
@@ -297,7 +291,7 @@ export default function AppSidebar({
                 </div>
               ) : recentChats.length === 0 ? (
                 <div
-                  className={`text-xs text-[var(--ink-subtle)] py-2 px-5 ${
+                  className={`text-xs text-gray-500 py-2 px-5 ${
                     shouldAnimate ? "sidebar-fade-in-2" : ""
                   }`}
                 >
@@ -317,8 +311,8 @@ export default function AppSidebar({
                         onClick={() => router.push(`/dante/chat/${chat.id}`)}
                         className={`w-full h-9 flex items-center px-2.5 rounded-md text-sm truncate transition-colors ${
                           chatActive
-                            ? "bg-[var(--glass-active)] text-[var(--ink)] font-medium"
-                            : "text-[var(--ink-muted)] hover:bg-[var(--glass-hover)] hover:text-[var(--ink)]"
+                            ? "bg-gray-100 text-gray-900 font-medium"
+                            : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                         }`}
                         title={chat.title}
                       >
@@ -333,17 +327,17 @@ export default function AppSidebar({
         )}
       </nav>
 
-      {/* Footer -- user profile + settings */}
-      <div className="mt-auto flex flex-col items-stretch gap-0.5 px-2 pt-2 border-t border-[var(--glass-border)]">
+      {/* Footer — user profile + settings */}
+      <div className="mt-auto flex flex-col items-stretch gap-0.5 px-2 pt-2 border-t border-gray-200">
         {isSuperadmin && (
           <Link
             href="/admin"
             title={!isOpen ? "Admin" : ""}
-            className={`h-9 flex items-center gap-3 px-2.5 rounded-md transition-colors text-[var(--ink-muted)] hover:bg-[var(--glass-hover)] ${
+            className={`h-9 flex items-center gap-3 px-2.5 rounded-md transition-colors text-gray-700 hover:bg-gray-100 ${
               !isOpen ? "justify-center" : ""
             }`}
           >
-            <ShieldCheck className="h-4 w-4 flex-shrink-0 text-[var(--accent)]" strokeWidth={1.5} />
+            <ShieldCheck className="h-4 w-4 flex-shrink-0 text-blue-600" strokeWidth={1.5} />
             {isOpen && (
               <span className={`text-sm font-medium ${shouldAnimate ? "sidebar-fade-in-2" : ""}`}>
                 Admin
@@ -356,8 +350,8 @@ export default function AppSidebar({
           title={!isOpen ? "Settings" : ""}
           className={`h-9 flex items-center gap-3 px-2.5 rounded-md transition-colors ${
             pathname?.startsWith("/settings")
-              ? "bg-[var(--glass-active)] text-[var(--ink)]"
-              : "text-[var(--ink-muted)] hover:bg-[var(--glass-hover)]"
+              ? "bg-gray-100 text-gray-900"
+              : "text-gray-700 hover:bg-gray-100"
           } ${!isOpen ? "justify-center" : ""}`}
         >
           <Settings className="h-4 w-4 flex-shrink-0" strokeWidth={1.5} />
@@ -375,11 +369,11 @@ export default function AppSidebar({
             className={`flex items-center transition-colors w-full px-2.5 py-3 ${
               !isOpen ? "justify-center" : ""
             } ${
-              isDropdownOpen ? "bg-[var(--glass-active)]" : "hover:bg-[var(--glass-hover)]"
+              isDropdownOpen ? "bg-gray-100" : "hover:bg-gray-100"
             } rounded-md`}
             title={!isOpen ? workspaceName : undefined}
           >
-            <div className="h-7 w-7 flex-shrink-0 rounded-full bg-[var(--accent)] flex items-center justify-center text-white text-sm font-medium font-serif">
+            <div className="h-7 w-7 flex-shrink-0 rounded-full bg-gray-700 flex items-center justify-center text-white text-sm font-medium font-serif">
               {initials}
             </div>
             {isOpen && (
@@ -389,21 +383,21 @@ export default function AppSidebar({
                 }`}
               >
                 <div className="flex flex-col gap-0.5 min-w-0">
-                  <div className="text-sm font-medium text-[var(--ink)] leading-none truncate">
+                  <div className="text-sm font-medium text-gray-900 leading-none truncate">
                     {workspaceName}
                   </div>
                 </div>
-                <ChevronsUpDown className="h-4 w-4 flex-shrink-0 text-[var(--ink-subtle)]" />
+                <ChevronsUpDown className="h-4 w-4 flex-shrink-0 text-gray-400" />
               </div>
             )}
           </button>
 
           {isDropdownOpen && (
-            <div className="absolute bottom-full left-0 m-1 bg-[var(--canvas-muted)] backdrop-blur-xl rounded-lg shadow-lg border border-[var(--glass-border)] p-1 z-50 w-56 whitespace-nowrap">
+            <div className="absolute bottom-full left-0 m-1 bg-white rounded-lg shadow-lg border border-gray-200 p-1 z-50 w-56 whitespace-nowrap">
               <Link
                 href="/settings"
                 onClick={() => setIsDropdownOpen(false)}
-                className="w-full px-4 py-2 text-left text-sm text-[var(--ink-muted)] hover:bg-[var(--glass-hover)] hover:text-[var(--ink)] flex items-center gap-2 rounded-md"
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 rounded-md"
               >
                 <User className="h-4 w-4" />
                 Account Settings
@@ -413,7 +407,7 @@ export default function AppSidebar({
                   await supabase.auth.signOut();
                   router.push("/auth");
                 }}
-                className="w-full px-4 py-2 text-left text-sm text-[var(--ink-muted)] hover:bg-[var(--glass-hover)] hover:text-[var(--ink)] flex items-center gap-2 rounded-md"
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 rounded-md"
               >
                 <LogOut className="h-4 w-4" />
                 Sign out

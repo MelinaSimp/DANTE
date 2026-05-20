@@ -16,7 +16,7 @@ export function Card({
   ...props
 }: CardProps) {
   const base =
-    "rounded-2xl border border-[var(--glass-border)] bg-[var(--glass)] backdrop-blur-xl shadow-ground transition-[transform,box-shadow] duration-150 ease-out-quart";
+    "rounded-2xl border border-[var(--rule)] bg-[var(--canvas)] shadow-ground transition-[transform,box-shadow] duration-150 ease-out-quart";
   const hover = interactive
     ? "hover:-translate-y-0.5 hover:shadow-raised cursor-pointer active:translate-y-0 active:shadow-ground"
     : "";
@@ -35,7 +35,7 @@ export function CardTitle({ className = "", ...props }: CardProps) {
   return <div className={"text-lg font-semibold mb-1 " + className} {...props} />;
 }
 export function CardSubtitle({ className = "", ...props }: CardProps) {
-  return <div className={"text-sm text-[var(--ink-muted)] mb-2 " + className} {...props} />;
+  return <div className={"text-sm text-gray-600 mb-2 " + className} {...props} />;
 }
 
 export default Card;

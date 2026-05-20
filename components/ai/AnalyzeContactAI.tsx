@@ -99,18 +99,18 @@ export default function AnalyzeContactAI({
       </Button>
 
       {summary && (
-        <div className="bg-[var(--canvas-subtle)] rounded-xl border border-[var(--glass-border)] p-4 shadow-sm">
-          <div className="text-sm font-semibold text-[var(--ink-muted)] mb-3">Summary</div>
-          <div className="text-sm text-[var(--ink-muted)] bg-[var(--canvas)] rounded-lg p-3">{summary}</div>
+        <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 shadow-sm">
+          <div className="text-sm font-semibold text-gray-700 mb-3">Summary</div>
+          <div className="text-sm text-gray-600 bg-white rounded-lg p-3">{summary}</div>
         </div>
       )}
 
       {keywords.length > 0 && (
-        <div className="bg-[var(--canvas-subtle)] rounded-xl border border-[var(--glass-border)] p-4 shadow-sm">
-          <div className="text-sm font-semibold text-[var(--ink-muted)] mb-3">Keywords</div>
+        <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 shadow-sm">
+          <div className="text-sm font-semibold text-gray-700 mb-3">Keywords</div>
           <div className="flex flex-wrap gap-2">
             {keywords.map((k, i) => (
-              <span key={i} className="px-3 py-1 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] text-xs font-medium border border-[var(--accent)]/20">
+              <span key={i} className="px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-medium border border-blue-200">
                 {k}
               </span>
             ))}
@@ -119,16 +119,16 @@ export default function AnalyzeContactAI({
       )}
 
       {suggested.length > 0 && (
-        <div className="bg-[var(--canvas-subtle)] rounded-xl border border-[var(--glass-border)] p-4 shadow-sm">
-          <div className="text-sm font-semibold text-[var(--ink-muted)] mb-3">
+        <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 shadow-sm">
+          <div className="text-sm font-semibold text-gray-700 mb-3">
             Suggested Tasks ({suggested.length})
           </div>
           <div className="space-y-3 mb-4">
             {suggested.map((t, i) => (
-              <div key={i} className="bg-[var(--canvas)] rounded-lg p-3 border border-[var(--glass-border)]">
-                <div className="font-medium text-[var(--ink)] text-sm">{t.title}</div>
-                {t.details && <div className="text-[var(--ink-muted)] text-xs mt-1">{t.details}</div>}
-                {t.due_at && <div className="text-[var(--ink-subtle)] text-xs mt-1">Due: {t.due_at}</div>}
+              <div key={i} className="bg-white rounded-lg p-3 border border-gray-200">
+                <div className="font-medium text-gray-800 text-sm">{t.title}</div>
+                {t.details && <div className="text-gray-600 text-xs mt-1">{t.details}</div>}
+                {t.due_at && <div className="text-gray-500 text-xs mt-1">Due: {t.due_at}</div>}
               </div>
             ))}
           </div>

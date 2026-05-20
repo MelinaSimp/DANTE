@@ -6,7 +6,7 @@ import { Loader2 } from "lucide-react";
 
 const ClientDetailsOverviewClient = dynamic(
   () => import("@/app/client-details-overview/ClientDetailsOverviewClient"),
-  { ssr: false, loading: () => <div className="flex items-center justify-center h-64 text-[var(--ink-subtle)] text-sm">Loading…</div> }
+  { ssr: false, loading: () => <div className="flex items-center justify-center h-64 text-gray-400 text-sm">Loading…</div> }
 );
 
 type Contact = { id: string; name: string; phone?: string; email?: string };
@@ -32,7 +32,7 @@ export default function ClientDetailsPanel({ agentId, initialContactId = null, o
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-5 h-5 animate-spin text-[var(--ink-subtle)]" />
+        <Loader2 className="w-5 h-5 animate-spin text-gray-400" />
       </div>
     );
   }

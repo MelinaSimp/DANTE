@@ -106,25 +106,25 @@ export default function EmailPanel({ agentId }: { agentId: string }) {
       {toast && <div className={`fixed top-20 right-8 z-[60] px-4 py-3 rounded-xl shadow-lg text-sm font-medium ${toast.type === "error" ? "bg-red-500 text-white" : "bg-green-500 text-white"}`}>{toast.msg}</div>}
 
       {/* Templates sidebar */}
-      <div className="w-56 border-r border-[var(--glass-border)] bg-[var(--canvas-subtle)]/50 p-4 shrink-0 hidden md:block overflow-y-auto">
+      <div className="w-56 border-r border-gray-100 bg-gray-50/50 p-4 shrink-0 hidden md:block overflow-y-auto">
         <button onClick={() => { setComposing(true); setSubject(""); setBody(""); setToEmail(""); }} className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-cyan-600 text-white text-sm font-medium hover:bg-cyan-700 mb-4">
           <Plus className="w-4 h-4" />Compose
         </button>
-        <p className="text-[10px] font-semibold text-[var(--ink-subtle)] uppercase tracking-wider mb-2">Templates</p>
+        <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Templates</p>
         <div className="space-y-1">
           {TEMPLATES.map(t => (
-            <button key={t.id} onClick={() => handleTemplate(t)} className="w-full text-left px-3 py-2 rounded-lg text-sm text-[var(--ink-muted)] hover:bg-[var(--canvas)] hover:text-[var(--ink)] transition">{t.name}</button>
+            <button key={t.id} onClick={() => handleTemplate(t)} className="w-full text-left px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-white hover:text-gray-900 transition">{t.name}</button>
           ))}
         </div>
         {sentEmails.length > 0 && (
           <>
-            <p className="text-[10px] font-semibold text-[var(--ink-subtle)] uppercase tracking-wider mt-6 mb-2">Recent ({sentEmails.length})</p>
+            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mt-6 mb-2">Recent ({sentEmails.length})</p>
             <div className="space-y-1">
               {sentEmails.slice(0, 10).map(e => (
-                <div key={e.id} className="px-3 py-2 rounded-lg text-xs text-[var(--ink-subtle)]">
-                  <div className="font-medium text-[var(--ink-muted)] truncate">{e.to_email}</div>
+                <div key={e.id} className="px-3 py-2 rounded-lg text-xs text-gray-500">
+                  <div className="font-medium text-gray-700 truncate">{e.to_email}</div>
                   <div className="truncate">{e.subject}</div>
-                  <div className="text-[10px] text-[var(--ink-subtle)] mt-0.5">{new Date(e.created_at).toLocaleDateString()}</div>
+                  <div className="text-[10px] text-gray-400 mt-0.5">{new Date(e.created_at).toLocaleDateString()}</div>
                 </div>
               ))}
             </div>
@@ -137,8 +137,8 @@ export default function EmailPanel({ agentId }: { agentId: string }) {
         {!composing ? (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
-              <Mail className="w-12 h-12 text-[var(--ink-subtle)] mx-auto mb-3" />
-              <p className="text-[var(--ink-subtle)] text-sm mb-4">Select a template or compose a new email</p>
+              <Mail className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500 text-sm mb-4">Select a template or compose a new email</p>
               <button onClick={() => setComposing(true)} className="px-5 py-2.5 rounded-xl bg-cyan-600 text-white text-sm font-medium hover:bg-cyan-700">Compose</button>
             </div>
           </div>
@@ -146,15 +146,15 @@ export default function EmailPanel({ agentId }: { agentId: string }) {
           <div className="flex-1 flex flex-col p-6 max-w-3xl mx-auto w-full">
             {/* To */}
             <div className="relative mb-3">
-              <label className="text-xs font-medium text-[var(--ink-subtle)] mb-1 block">To</label>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">To</label>
               <input ref={toRef} type="email" value={toEmail} onChange={e => { setToEmail(e.target.value); setShowSuggestions(true); }}
                 onFocus={() => setShowSuggestions(true)} placeholder="email@example.com"
-                className="w-full rounded-xl border border-[var(--glass-border)] bg-[var(--canvas-subtle)] px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20" />
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20" />
               {showSuggestions && filtered.length > 0 && (
-                <div ref={sugRef} className="absolute top-full left-0 right-0 mt-1 bg-[var(--canvas)] border border-[var(--glass-border)] rounded-xl shadow-lg z-10 max-h-40 overflow-y-auto">
+                <div ref={sugRef} className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-10 max-h-40 overflow-y-auto">
                   {filtered.map(c => (
-                    <button key={c.id} onClick={() => handleContact(c)} className="w-full text-left px-4 py-2 hover:bg-[var(--canvas-subtle)] text-sm flex justify-between">
-                      <span className="font-medium text-[var(--ink)]">{c.name}</span><span className="text-[var(--ink-subtle)]">{c.email}</span>
+                    <button key={c.id} onClick={() => handleContact(c)} className="w-full text-left px-4 py-2 hover:bg-gray-50 text-sm flex justify-between">
+                      <span className="font-medium text-gray-900">{c.name}</span><span className="text-gray-500">{c.email}</span>
                     </button>
                   ))}
                 </div>
@@ -162,29 +162,29 @@ export default function EmailPanel({ agentId }: { agentId: string }) {
             </div>
             {/* Subject */}
             <div className="mb-3">
-              <label className="text-xs font-medium text-[var(--ink-subtle)] mb-1 block">Subject</label>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">Subject</label>
               <input type="text" value={subject} onChange={e => setSubject(e.target.value)} placeholder="Subject"
-                className="w-full rounded-xl border border-[var(--glass-border)] bg-[var(--canvas-subtle)] px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20" />
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20" />
             </div>
             {/* Body */}
             <div className="flex-1 mb-3">
-              <label className="text-xs font-medium text-[var(--ink-subtle)] mb-1 block">Body</label>
+              <label className="text-xs font-medium text-gray-500 mb-1 block">Body</label>
               <textarea value={body} onChange={e => setBody(e.target.value)} placeholder="Write your email..."
-                className="w-full h-full min-h-[200px] rounded-xl border border-[var(--glass-border)] bg-[var(--canvas-subtle)] px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-cyan-500/20" />
+                className="w-full h-full min-h-[200px] rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-cyan-500/20" />
             </div>
             {/* AI helper */}
             {showAi && (
-              <div className="mb-3 bg-[var(--canvas-subtle)] rounded-xl border border-[var(--glass-border)] p-4">
+              <div className="mb-3 bg-gray-50 rounded-xl border border-gray-200 p-4">
                 <div className="flex gap-2 mb-2">
                   <input value={aiPrompt} onChange={e => setAiPrompt(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAi()}
-                    placeholder="e.g. Write a follow-up email for John Smith..." className="flex-1 rounded-lg border border-[var(--glass-border)] px-3 py-2 text-sm focus:outline-none" />
+                    placeholder="e.g. Write a follow-up email for John Smith..." className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none" />
                   <button onClick={handleAi} disabled={loadingAi} className="px-3 py-2 rounded-lg bg-cyan-600 text-white text-sm disabled:opacity-50">
                     {loadingAi ? <Loader2 className="w-4 h-4 animate-spin" /> : "Ask"}
                   </button>
                 </div>
                 {aiResponse && (
                   <div className="mt-2">
-                    <pre className="text-sm text-[var(--ink-muted)] whitespace-pre-wrap bg-[var(--canvas)] rounded-lg p-3 border border-[var(--glass-border)] max-h-40 overflow-y-auto">{aiResponse}</pre>
+                    <pre className="text-sm text-gray-700 whitespace-pre-wrap bg-white rounded-lg p-3 border border-gray-200 max-h-40 overflow-y-auto">{aiResponse}</pre>
                     <button onClick={() => { setBody(aiResponse); setAiResponse(""); setShowAi(false); }} className="mt-2 text-sm text-cyan-600 hover:underline">Apply</button>
                   </div>
                 )}
@@ -196,10 +196,10 @@ export default function EmailPanel({ agentId }: { agentId: string }) {
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-cyan-600 text-white text-sm font-medium hover:bg-cyan-700 disabled:opacity-40">
                 {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}Send
               </button>
-              <button onClick={() => setShowAi(!showAi)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--glass-hover)] text-[var(--ink-muted)] text-sm font-medium hover:bg-[var(--canvas-muted)]">
+              <button onClick={() => setShowAi(!showAi)} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200">
                 <Sparkles className="w-4 h-4" />AI Help
               </button>
-              <button onClick={() => setComposing(false)} className="text-sm text-[var(--ink-subtle)] hover:text-[var(--ink-muted)] ml-auto">Cancel</button>
+              <button onClick={() => setComposing(false)} className="text-sm text-gray-500 hover:text-gray-700 ml-auto">Cancel</button>
             </div>
           </div>
         )}

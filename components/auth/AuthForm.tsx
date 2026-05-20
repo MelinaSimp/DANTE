@@ -91,7 +91,7 @@ export default function AuthForm() {
       "flex-1 rounded-full px-4 py-2 text-sm font-medium transition-all",
       active
         ? "bg-gradient-to-r from-[#3351ff] to-[#4b63ff] text-white shadow-lg shadow-blue-500/30"
-        : "border border-white/10 bg-[var(--canvas)]/5 text-white/60 hover:border-white/20 hover:text-white"
+        : "border border-white/10 bg-white/5 text-white/60 hover:border-white/20 hover:text-white"
     );
 
   return (
@@ -109,7 +109,7 @@ export default function AuthForm() {
         <div className="space-y-2">
           <label className="text-sm font-medium text-white/70">Email</label>
           <input
-            className="w-full rounded-2xl border border-white/15 bg-black/50 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40"
+            className="w-full rounded-2xl border border-white/15 bg-black/50 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
             type="email"
             required
             autoComplete="email"
@@ -121,7 +121,7 @@ export default function AuthForm() {
         <div className="space-y-2">
           <label className="text-sm font-medium text-white/70">Password</label>
           <input
-            className="w-full rounded-2xl border border-white/15 bg-black/50 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40"
+            className="w-full rounded-2xl border border-white/15 bg-black/50 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
             type="password"
             required
             autoComplete={step === "signin" ? "current-password" : "new-password"}
@@ -137,7 +137,7 @@ export default function AuthForm() {
               <div className="flex-1 space-y-2">
                 <label className="text-sm font-medium text-white/70">First name</label>
                 <input
-                  className="w-full rounded-2xl border border-white/15 bg-black/50 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40"
+                  className="w-full rounded-2xl border border-white/15 bg-black/50 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
                   type="text"
                   required
                   value={firstName}
@@ -148,7 +148,7 @@ export default function AuthForm() {
               <div className="flex-1 space-y-2">
                 <label className="text-sm font-medium text-white/70">Last name</label>
                 <input
-                  className="w-full rounded-2xl border border-white/15 bg-black/50 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40"
+                  className="w-full rounded-2xl border border-white/15 bg-black/50 px-4 py-3 text-sm text-white placeholder:text-white/40 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
                   type="text"
                   required
                   value={lastName}

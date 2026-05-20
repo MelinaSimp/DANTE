@@ -114,11 +114,11 @@ export default function AddContactForm({ workspaceId, contact, onContactAdded, o
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-[var(--ink-muted)] mb-1">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
             Name *
           </label>
           <input
-            className="w-full rounded-xl border border-[var(--glass-border)] px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent shadow-sm hover:shadow-md transition-shadow"
+            className="w-full rounded-xl border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm hover:shadow-md transition-shadow"
             placeholder="Full name"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -127,11 +127,11 @@ export default function AddContactForm({ workspaceId, contact, onContactAdded, o
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-[var(--ink-muted)] mb-1">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
             Phone *
           </label>
           <input
-            className="w-full rounded-xl border border-[var(--glass-border)] px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent shadow-sm hover:shadow-md transition-shadow"
+            className="w-full rounded-xl border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm hover:shadow-md transition-shadow"
             placeholder="Phone number"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
@@ -140,12 +140,12 @@ export default function AddContactForm({ workspaceId, contact, onContactAdded, o
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-[var(--ink-muted)] mb-1">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
             Email
           </label>
           <input
             type="email"
-            className="w-full rounded-xl border border-[var(--glass-border)] px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent shadow-sm hover:shadow-md transition-shadow"
+            className="w-full rounded-xl border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm hover:shadow-md transition-shadow"
             placeholder="Email address"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -153,11 +153,11 @@ export default function AddContactForm({ workspaceId, contact, onContactAdded, o
         </div>
 
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-[var(--ink-muted)] mb-1">
+          <label className="block text-sm font-medium text-gray-700 mb-1">
             Notes
           </label>
           <textarea
-            className="w-full rounded-xl border border-[var(--glass-border)] px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent shadow-sm hover:shadow-md transition-shadow"
+            className="w-full rounded-xl border border-gray-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm hover:shadow-md transition-shadow"
             placeholder="Additional notes about this contact"
             rows={3}
             value={notes}
@@ -179,7 +179,7 @@ export default function AddContactForm({ workspaceId, contact, onContactAdded, o
           variant="ghost"
           onClick={onCancel}
           disabled={loading}
-          className="rounded-xl border-[var(--glass-border)] hover:border-[var(--rule-strong)] hover:bg-[var(--canvas-subtle)] shadow-sm hover:shadow-md transition-all duration-200"
+          className="rounded-xl border-gray-300 hover:border-gray-400 hover:bg-gray-50 shadow-sm hover:shadow-md transition-all duration-200"
         >
           Cancel
         </Button>

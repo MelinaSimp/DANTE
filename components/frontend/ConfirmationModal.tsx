@@ -36,14 +36,14 @@ export default function ConfirmationModal({
     warning: {
       confirmBg: "bg-[#3351ff] hover:bg-[#4a64ff]",
       iconColor: "text-[#3351ff]",
-      borderColor: "border-[var(--accent)]/20",
-      bgColor: "bg-[var(--accent-soft)]",
+      borderColor: "border-blue-200",
+      bgColor: "bg-blue-50",
     },
     info: {
       confirmBg: "bg-blue-500 hover:bg-blue-600",
       iconColor: "text-blue-600",
-      borderColor: "border-[var(--accent)]/20",
-      bgColor: "bg-[var(--accent-soft)]",
+      borderColor: "border-blue-200",
+      bgColor: "bg-blue-50",
     },
   };
 
@@ -51,25 +51,25 @@ export default function ConfirmationModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="w-full max-w-md mx-4 rounded-2xl border border-[var(--glass-border)] bg-[var(--canvas)] shadow-2xl overflow-hidden">
+      <div className="w-full max-w-md mx-4 rounded-2xl border border-gray-200 bg-white shadow-2xl overflow-hidden">
         {/* Header */}
         <div className={`px-6 py-4 border-b ${styles.borderColor} ${styles.bgColor}`}>
           <div className="flex items-center gap-3">
             <AlertTriangle className={`h-5 w-5 ${styles.iconColor}`} />
-            <h3 className="text-lg font-semibold text-[var(--ink)]">{title}</h3>
+            <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
           </div>
         </div>
 
         {/* Body */}
         <div className="px-6 py-5">
-          <p className="text-[var(--ink-muted)] leading-relaxed">{message}</p>
+          <p className="text-gray-700 leading-relaxed">{message}</p>
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-[var(--glass-border)] bg-[var(--canvas-subtle)] flex items-center justify-end gap-3">
+        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-end gap-3">
           <button
             onClick={onCancel}
-            className="px-4 py-2 rounded-xl border border-[var(--glass-border)] bg-[var(--canvas)] text-[var(--ink)] text-sm font-medium hover:bg-[var(--canvas-subtle)] transition"
+            className="px-4 py-2 rounded-xl border border-gray-300 bg-white text-gray-900 text-sm font-medium hover:bg-gray-50 transition"
           >
             {cancelText}
           </button>

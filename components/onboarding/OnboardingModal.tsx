@@ -33,12 +33,12 @@ export default function OnboardingModal({ isOpen, onClose, onComplete }: Onboard
       description: "Let's get you set up in just a few minutes.",
       content: (
         <div className="text-center space-y-4">
-          <div className="w-16 h-16 bg-[var(--accent-soft)] rounded-full flex items-center justify-center mx-auto">
+          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto">
             <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
             </svg>
           </div>
-          <p className="text-[var(--ink-muted)]">
+          <p className="text-gray-600">
             Your AI receptionist will answer calls, capture customer details, and schedule appointments automatically.
           </p>
         </div>
@@ -50,16 +50,16 @@ export default function OnboardingModal({ isOpen, onClose, onComplete }: Onboard
       description: "Add and organize your customer information.",
       content: (
         <div className="space-y-4">
-          <div className="bg-[var(--accent-soft)] rounded-lg p-4">
+          <div className="bg-blue-50 rounded-lg p-4">
             <h4 className="font-semibold text-blue-900 mb-2">What you can do:</h4>
-            <ul className="text-sm text-[var(--accent)] space-y-1">
+            <ul className="text-sm text-blue-800 space-y-1">
               <li>• Add customer contact information</li>
               <li>• Edit and update contact details</li>
               <li>• Add notes about each customer</li>
               <li>• View all contacts in one place</li>
             </ul>
           </div>
-          <p className="text-sm text-[var(--ink-muted)]">
+          <p className="text-sm text-gray-600">
             Go to the <strong>Contacts</strong> page to add your first customer.
           </p>
         </div>
@@ -93,7 +93,7 @@ export default function OnboardingModal({ isOpen, onClose, onComplete }: Onboard
               <li>• Link appointments to contacts</li>
             </ul>
           </div>
-          <p className="text-sm text-[var(--ink-muted)]">
+          <p className="text-sm text-gray-600">
             Visit the <strong>Appointments</strong> page to schedule your first appointment.
           </p>
         </div>
@@ -127,7 +127,7 @@ export default function OnboardingModal({ isOpen, onClose, onComplete }: Onboard
               <li>• Emergency procedures</li>
             </ul>
           </div>
-          <p className="text-sm text-[var(--ink-muted)]">
+          <p className="text-sm text-gray-600">
             Go to <strong>AI Setup</strong> to teach your AI receptionist about your business.
           </p>
         </div>
@@ -157,7 +157,7 @@ export default function OnboardingModal({ isOpen, onClose, onComplete }: Onboard
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <p className="text-[var(--ink-muted)]">
+          <p className="text-gray-600">
             You can always revisit this guide from the Settings page. Happy growing!
           </p>
         </div>
@@ -191,17 +191,17 @@ export default function OnboardingModal({ isOpen, onClose, onComplete }: Onboard
 
   return (
     <div className="fixed inset-0 bg-black/30 backdrop-blur-xl backdrop-saturate-150 flex items-center justify-center p-4 z-50 animate-fade-in">
-      <div className="bg-[var(--canvas)]/95 backdrop-blur-sm rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-floating border border-[#A67B5B]/20 animate-fade-up">
+      <div className="bg-white/95 backdrop-blur-sm rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-floating border border-[#A67B5B]/20 animate-fade-up">
         <div className="p-6">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-xl font-semibold text-[var(--ink)]">{currentStepData.title}</h2>
-              <p className="text-sm text-[var(--ink-muted)] mt-1">{currentStepData.description}</p>
+              <h2 className="text-xl font-semibold text-gray-900">{currentStepData.title}</h2>
+              <p className="text-sm text-gray-600 mt-1">{currentStepData.description}</p>
             </div>
             <button
               onClick={onClose}
-              className="text-[var(--ink-subtle)] hover:text-[var(--ink-muted)]"
+              className="text-gray-400 hover:text-gray-600"
             >
               <X className="w-6 h-6" />
             </button>
@@ -209,11 +209,11 @@ export default function OnboardingModal({ isOpen, onClose, onComplete }: Onboard
 
           {/* Progress Bar */}
           <div className="mb-6">
-            <div className="flex items-center justify-between text-xs text-[var(--ink-subtle)] mb-2">
+            <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
               <span>Step {currentStep + 1} of {steps.length}</span>
               <span>{Math.round(((currentStep + 1) / steps.length) * 100)}% complete</span>
             </div>
-            <div className="w-full bg-[var(--canvas-muted)] rounded-full h-2">
+            <div className="w-full bg-gray-200 rounded-full h-2">
               <div 
                 className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                 style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}

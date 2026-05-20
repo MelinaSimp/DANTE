@@ -41,7 +41,7 @@ const quickActions: QuickAction[] = [
 
 export default function QuickActions() {
   return (
-    <aside className="mt-6 w-full max-w-xl rounded-3xl border border-[var(--glass-border)] bg-[#ffffff] p-6 text-center shadow-sm">
+    <aside className="mt-6 w-full max-w-xl rounded-3xl border border-[#e5e7eb] bg-[#ffffff] p-6 text-center shadow-sm">
       <p className="text-xs uppercase tracking-[0.3em] text-[#151515]/60">QUICK ACTIONS</p>
       <h2 className="mt-2 text-lg font-semibold text-[#151515]">Jump back into work</h2>
       <div className="mt-5 space-y-3">
@@ -52,10 +52,10 @@ export default function QuickActions() {
             <Link
               key={href}
               href={href}
-              className="group flex items-center justify-between rounded-2xl border border-[var(--glass-border)] bg-[#ffffff] px-4 py-4 transition hover:border-[#3166bf]/40 hover:bg-[var(--glass-hover)]"
+              className="group flex items-center justify-between rounded-2xl border border-[#e5e7eb] bg-[#ffffff] px-4 py-4 transition hover:border-[#3166bf]/40 hover:bg-[#f3f4f6]"
             >
               <div className="flex items-center gap-3">
-                <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--glass-border)] bg-[var(--glass-hover)] text-[#3166bf]">
+                <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-[#e5e7eb] bg-[#f3f4f6] text-[#3166bf]">
                   {Icon ? <Icon size={20} /> : <span className="w-5 h-5" />}
                 </span>
                 <div className="text-left">

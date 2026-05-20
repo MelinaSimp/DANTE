@@ -283,7 +283,7 @@ export function DashboardClient({
           accent="emerald"
           icon={DollarSign}
           sub={
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-zinc-500 bg-[var(--canvas)]/[0.03] ring-1 ring-white/[0.05] rounded-full px-2 py-0.5">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-zinc-500 bg-white/[0.03] ring-1 ring-white/[0.05] rounded-full px-2 py-0.5">
               {metrics.aumChange.startsWith("No") ? (
                 metrics.aumChange
               ) : (

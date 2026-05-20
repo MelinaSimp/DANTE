@@ -102,12 +102,12 @@ export default function ClientsPanel({ agentId, onOpenClientDetails }: { agentId
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--ink-subtle)]" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search clients..."
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[var(--glass-border)] bg-[var(--canvas-subtle)] text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20" />
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20" />
         </div>
         <div className="flex items-center gap-2 ml-3">
-          <button onClick={() => onOpenClientDetails?.()} className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-[var(--glass-hover)] text-[var(--ink-muted)] text-sm font-medium hover:bg-[var(--canvas-muted)] transition">
+          <button onClick={() => onOpenClientDetails?.()} className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 transition">
             <FileText className="w-4 h-4" />Docs
           </button>
           <button onClick={() => setAdding(true)} className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-cyan-600 text-white text-sm font-medium hover:bg-cyan-700">
@@ -118,11 +118,11 @@ export default function ClientsPanel({ agentId, onOpenClientDetails }: { agentId
 
       {/* Add form */}
       {adding && (
-        <div className="bg-[var(--canvas)] rounded-2xl border border-[var(--glass-border)] p-5 mb-4">
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 mb-4">
           <div className="grid grid-cols-3 gap-3 mb-3">
-            <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Name *" className="rounded-xl border border-[var(--glass-border)] bg-[var(--canvas-subtle)] px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20" />
-            <input value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="Phone" className="rounded-xl border border-[var(--glass-border)] bg-[var(--canvas-subtle)] px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20" />
-            <input value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="Email" className="rounded-xl border border-[var(--glass-border)] bg-[var(--canvas-subtle)] px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20" />
+            <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Name *" className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20" />
+            <input value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="Phone" className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20" />
+            <input value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="Email" className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20" />
           </div>
           {addError && (
             <p className="text-xs text-red-600 mb-2">{addError}</p>
@@ -131,7 +131,7 @@ export default function ClientsPanel({ agentId, onOpenClientDetails }: { agentId
             <button onClick={handleAdd} disabled={!newName.trim() || saving} className="px-4 py-2 rounded-xl bg-cyan-600 text-white text-sm font-medium hover:bg-cyan-700 disabled:opacity-40">
               {saving ? "Saving..." : "Save"}
             </button>
-            <button onClick={() => { setAdding(false); setAddError(null); }} className="px-4 py-2 rounded-xl bg-[var(--glass-hover)] text-[var(--ink-muted)] text-sm font-medium hover:bg-[var(--canvas-muted)]">Cancel</button>
+            <button onClick={() => { setAdding(false); setAddError(null); }} className="px-4 py-2 rounded-xl bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200">Cancel</button>
           </div>
         </div>
       )}
@@ -140,11 +140,11 @@ export default function ClientsPanel({ agentId, onOpenClientDetails }: { agentId
       {loading ? (
         <div className="space-y-2">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-4 p-4 bg-[var(--canvas)] rounded-xl border border-[var(--glass-border)]">
-              <Skeleton variant="circular" width={40} height={40} className="!bg-[var(--glass-hover)]" />
+            <div key={i} className="flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-100">
+              <Skeleton variant="circular" width={40} height={40} className="!bg-gray-100" />
               <div className="flex-1 space-y-2">
-                <Skeleton variant="text" width="35%" height={14} className="!bg-[var(--glass-hover)]" />
-                <Skeleton variant="text" width="55%" height={12} className="!bg-[var(--glass-hover)]" />
+                <Skeleton variant="text" width="35%" height={14} className="!bg-gray-100" />
+                <Skeleton variant="text" width="55%" height={12} className="!bg-gray-100" />
               </div>
             </div>
           ))}
@@ -174,16 +174,16 @@ export default function ClientsPanel({ agentId, onOpenClientDetails }: { agentId
           {filtered.map(c => {
             const isExpanded = expandedId === c.id;
             return (
-              <div key={c.id} className="bg-[var(--canvas)] rounded-xl border border-[var(--glass-border)] overflow-hidden transition-all">
-                <div className="group flex items-center gap-4 p-4 hover:bg-[var(--canvas-subtle)]/50 cursor-pointer" onClick={() => { setExpandedId(isExpanded ? null : c.id); setAiSummary(null); }}>
+              <div key={c.id} className="bg-white rounded-xl border border-gray-100 overflow-hidden transition-all">
+                <div className="group flex items-center gap-4 p-4 hover:bg-gray-50/50 cursor-pointer" onClick={() => { setExpandedId(isExpanded ? null : c.id); setAiSummary(null); }}>
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-cyan-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
                     {c.name.substring(0, 2).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[var(--ink)]">{c.name}</p>
+                    <p className="text-sm font-semibold text-gray-900">{c.name}</p>
                     <div className="flex items-center gap-3 mt-0.5">
-                      {c.phone && <span className="flex items-center gap-1 text-xs text-[var(--ink-subtle)]"><Phone className="w-3 h-3" />{c.phone}</span>}
-                      {c.email && <span className="flex items-center gap-1 text-xs text-[var(--ink-subtle)]"><Mail className="w-3 h-3" />{c.email}</span>}
+                      {c.phone && <span className="flex items-center gap-1 text-xs text-gray-500"><Phone className="w-3 h-3" />{c.phone}</span>}
+                      {c.email && <span className="flex items-center gap-1 text-xs text-gray-500"><Mail className="w-3 h-3" />{c.email}</span>}
                     </div>
                   </div>
                   <button onClick={(e) => { e.stopPropagation(); handleDelete(c.id); }} disabled={deletingId === c.id}
@@ -193,7 +193,7 @@ export default function ClientsPanel({ agentId, onOpenClientDetails }: { agentId
                 </div>
 
                 {isExpanded && (
-                  <div className="px-4 pb-4 border-t border-[var(--glass-border)] pt-3 space-y-3">
+                  <div className="px-4 pb-4 border-t border-gray-100 pt-3 space-y-3">
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleAiAnalyze(c)}
@@ -205,7 +205,7 @@ export default function ClientsPanel({ agentId, onOpenClientDetails }: { agentId
                       </button>
                       <button
                         onClick={() => onOpenClientDetails?.(c.id)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--glass-hover)] text-[var(--ink-muted)] text-xs font-medium hover:bg-[var(--canvas-muted)] transition"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 text-xs font-medium hover:bg-gray-200 transition"
                       >
                         <FileText className="w-3 h-3" />
                         Documents & Details
@@ -215,7 +215,7 @@ export default function ClientsPanel({ agentId, onOpenClientDetails }: { agentId
                     {aiSummary && (
                       <div className="rounded-xl bg-cyan-50/50 border border-cyan-100 p-3">
                         <p className="text-xs font-medium text-cyan-700 mb-1">AI Insights</p>
-                        <p className="text-xs text-[var(--ink-muted)] whitespace-pre-wrap">{aiSummary}</p>
+                        <p className="text-xs text-gray-700 whitespace-pre-wrap">{aiSummary}</p>
                       </div>
                     )}
                   </div>

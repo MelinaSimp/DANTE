@@ -31,8 +31,8 @@ export default function SchedulePanel({ agentId }: SchedulePanelProps) {
     load();
   }, [agentId]);
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-[var(--ink-subtle)] text-sm">Loading schedule...</div>;
-  if (!workspaceId) return <div className="flex items-center justify-center h-64 text-[var(--ink-subtle)] text-sm">No workspace found</div>;
+  if (loading) return <div className="flex items-center justify-center h-64 text-gray-400 text-sm">Loading schedule...</div>;
+  if (!workspaceId) return <div className="flex items-center justify-center h-64 text-gray-500 text-sm">No workspace found</div>;
 
   return (
     <div className="h-full p-4">

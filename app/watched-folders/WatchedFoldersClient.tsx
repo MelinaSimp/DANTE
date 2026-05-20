@@ -225,17 +225,17 @@ function FolderList({
       <div className="mb-8">
         <Link
           href="/dashboard"
-          className="inline-flex items-center gap-1.5 text-sm text-[var(--ink-subtle)] hover:text-[var(--ink-muted)] mb-3 transition"
+          className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-3 transition"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           Dashboard
         </Link>
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-serif font-light text-[var(--ink)]">
+            <h1 className="text-3xl font-serif font-light text-gray-900">
               Watched Folders
             </h1>
-            <p className="text-sm text-[var(--ink-subtle)] mt-2 max-w-2xl">
+            <p className="text-sm text-gray-500 mt-2 max-w-2xl">
               Folders connected from your file servers. Drift indexes filenames
               instantly and extracts content into the Vault on demand — when you
               or the agent need it.
@@ -246,7 +246,7 @@ function FolderList({
               <button
                 onClick={onSync}
                 disabled={syncing}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-[var(--glass-border)] text-[var(--ink-muted)] hover:bg-[var(--canvas-subtle)] disabled:opacity-50 transition"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition"
               >
                 <RefreshCw className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} />
                 {syncing ? "Syncing..." : "Sync now"}
@@ -256,7 +256,7 @@ function FolderList({
               <button
                 onClick={onAddFolder}
                 disabled={adding}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-[var(--glass)] border border-[var(--glass-border)] text-white hover:bg-[var(--canvas-muted)] disabled:opacity-50 transition"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50 transition"
               >
                 {adding ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -271,7 +271,7 @@ function FolderList({
       </div>
 
       {loading ? (
-        <div className="flex items-center gap-2 py-12 justify-center text-sm text-[var(--ink-subtle)]">
+        <div className="flex items-center gap-2 py-12 justify-center text-sm text-gray-400">
           <Loader2 className="w-4 h-4 animate-spin" />
           Loading folders...
         </div>
@@ -296,12 +296,12 @@ function EmptyState({
   adding?: boolean;
 }) {
   return (
-    <div className="border border-dashed border-[var(--glass-border)] rounded-xl px-8 py-14 text-center">
-      <FolderPlus className="w-8 h-8 text-[var(--ink-subtle)] mx-auto mb-4" />
-      <h2 className="text-lg font-medium text-[var(--ink-muted)] mb-2">
+    <div className="border border-dashed border-gray-300 rounded-xl px-8 py-14 text-center">
+      <FolderPlus className="w-8 h-8 text-gray-300 mx-auto mb-4" />
+      <h2 className="text-lg font-medium text-gray-700 mb-2">
         No folders connected
       </h2>
-      <p className="text-sm text-[var(--ink-subtle)] max-w-md mx-auto mb-6">
+      <p className="text-sm text-gray-500 max-w-md mx-auto mb-6">
         Connect a folder from a file server or local drive to let Drift index
         your documents. Files stay on your machine — Drift only pulls content
         when you or the agent need it.
@@ -310,7 +310,7 @@ function EmptyState({
         <button
           onClick={onAddFolder}
           disabled={adding}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium bg-[var(--glass)] border border-[var(--glass-border)] text-white hover:bg-[var(--canvas-muted)] disabled:opacity-50 transition"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50 transition"
         >
           {adding ? (
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -320,11 +320,11 @@ function EmptyState({
           Add Folder
         </button>
       ) : (
-        <p className="text-xs text-[var(--ink-subtle)]">
+        <p className="text-xs text-gray-400">
           Open the Drift desktop app to add a watched folder, or use the{" "}
           <Link
             href="/settings"
-            className="text-[var(--ink-subtle)] hover:text-[var(--ink-muted)] underline underline-offset-2 transition"
+            className="text-gray-500 hover:text-gray-700 underline underline-offset-2 transition"
           >
             CLI watcher
           </Link>{" "}
@@ -350,34 +350,34 @@ function FolderCard({
   return (
     <button
       onClick={onClick}
-      className="w-full text-left border border-[var(--glass-border)] rounded-xl px-5 py-4 hover:border-[var(--glass-border)] hover:bg-[var(--canvas-subtle)]/50 transition group"
+      className="w-full text-left border border-gray-200 rounded-xl px-5 py-4 hover:border-gray-300 hover:bg-gray-50/50 transition group"
     >
       <div className="flex items-start gap-4">
-        <div className="mt-0.5 p-2 rounded-lg bg-[var(--glass-hover)] text-[var(--ink-subtle)] group-hover:bg-[var(--canvas-muted)] transition">
+        <div className="mt-0.5 p-2 rounded-lg bg-gray-100 text-gray-500 group-hover:bg-gray-200 transition">
           <FolderOpen className="w-5 h-5" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5">
-            <span className="font-medium text-[var(--ink)] truncate">
+            <span className="font-medium text-gray-900 truncate">
               {folder.folder_label}
             </span>
             {folder.device_label && (
-              <span className="inline-flex items-center gap-1 text-[11px] text-[var(--ink-subtle)]">
+              <span className="inline-flex items-center gap-1 text-[11px] text-gray-400">
                 <Server className="w-3 h-3" />
                 {folder.device_label}
               </span>
             )}
           </div>
-          <div className="text-xs text-[var(--ink-subtle)] truncate mb-2">
+          <div className="text-xs text-gray-400 truncate mb-2">
             {folder.folder_path}
           </div>
-          <div className="flex items-center gap-4 text-xs text-[var(--ink-subtle)]">
+          <div className="flex items-center gap-4 text-xs text-gray-500">
             <span>{fileCount.toLocaleString()} file{fileCount === 1 ? "" : "s"} indexed</span>
-            <span className="text-[var(--ink-subtle)]">|</span>
+            <span className="text-gray-300">|</span>
             <span>Last synced {lastSeen}</span>
           </div>
         </div>
-        <ChevronRight className="w-4 h-4 text-[var(--ink-subtle)] mt-2 group-hover:text-[var(--ink-subtle)] transition" />
+        <ChevronRight className="w-4 h-4 text-gray-300 mt-2 group-hover:text-gray-500 transition" />
       </div>
     </button>
   );
@@ -552,17 +552,17 @@ function FolderDetail({
       <div className="mb-8">
         <button
           onClick={onBack}
-          className="inline-flex items-center gap-1.5 text-sm text-[var(--ink-subtle)] hover:text-[var(--ink-muted)] mb-3 transition"
+          className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-3 transition"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           Watched Folders
         </button>
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-serif font-light text-[var(--ink)]">
+            <h1 className="text-3xl font-serif font-light text-gray-900">
               {folder.folder_label}
             </h1>
-            <p className="text-sm text-[var(--ink-subtle)] mt-1 truncate max-w-xl">
+            <p className="text-sm text-gray-400 mt-1 truncate max-w-xl">
               {folder.folder_path}
             </p>
           </div>
@@ -570,7 +570,7 @@ function FolderDetail({
             <button
               onClick={requestBatchIngest}
               disabled={batchIngesting}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-[var(--glass)] border border-[var(--glass-border)] text-white hover:bg-[var(--canvas-muted)] disabled:opacity-50 transition flex-shrink-0"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50 transition flex-shrink-0"
             >
               {batchIngesting ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -584,11 +584,11 @@ function FolderDetail({
       </div>
 
       {/* Stats bar */}
-      <div className="flex items-center gap-4 mb-6 text-xs text-[var(--ink-subtle)]">
+      <div className="flex items-center gap-4 mb-6 text-xs text-gray-500">
         <span>{total.toLocaleString()} file{total === 1 ? "" : "s"}</span>
         {ingestedCount > 0 && (
           <>
-            <span className="text-[var(--ink-subtle)]">|</span>
+            <span className="text-gray-300">|</span>
             <span className="text-emerald-600">
               {ingestedCount} in Vault
             </span>
@@ -600,13 +600,13 @@ function FolderDetail({
       {/* Search + filters */}
       <div className="flex items-center gap-3 mb-4">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--ink-subtle)]" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
             value={query}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search files by name or path..."
-            className="w-full pl-10 pr-4 py-2.5 border border-[var(--glass-border)] rounded-xl text-sm bg-[var(--canvas)] outline-none focus:border-[var(--accent)] placeholder:text-[var(--ink-subtle)]"
+            className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm bg-white outline-none focus:border-gray-400 placeholder:text-gray-400"
           />
         </div>
         <select
@@ -615,7 +615,7 @@ function FolderDetail({
             setStatusFilter(e.target.value);
             setPage(1);
           }}
-          className="border border-[var(--glass-border)] rounded-xl px-3 py-2.5 text-sm bg-[var(--canvas)] outline-none"
+          className="border border-gray-300 rounded-xl px-3 py-2.5 text-sm bg-white outline-none"
         >
           <option value="">All statuses</option>
           <option value="indexed">Indexed only</option>
@@ -626,9 +626,9 @@ function FolderDetail({
       </div>
 
       {/* File list */}
-      <div className="border border-[var(--glass-border)] rounded-xl overflow-hidden">
+      <div className="border border-gray-200 rounded-xl overflow-hidden">
         {files.length === 0 && !loading ? (
-          <div className="px-6 py-12 text-center text-sm text-[var(--ink-subtle)]">
+          <div className="px-6 py-12 text-center text-sm text-gray-400">
             {query
               ? "No files match your search."
               : "No files indexed in this folder yet. The watcher will populate this as it scans."}
@@ -636,7 +636,7 @@ function FolderDetail({
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-[var(--glass-border)] text-left text-xs text-[var(--ink-subtle)] uppercase tracking-wider">
+              <tr className="border-b border-gray-100 text-left text-xs text-gray-500 uppercase tracking-wider">
                 <th className="px-4 py-3 font-medium">File</th>
                 <th className="px-4 py-3 font-medium w-24">Size</th>
                 <th className="px-4 py-3 font-medium w-32">Status</th>
@@ -645,21 +645,21 @@ function FolderDetail({
             </thead>
             <tbody>
               {files.map((f) => (
-                <tr key={f.id} className="border-b border-[var(--glass-border)] hover:bg-[var(--canvas-subtle)]/50">
+                <tr key={f.id} className="border-b border-gray-50 hover:bg-gray-50/50">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-[var(--ink-subtle)] flex-shrink-0" />
+                      <FileText className="w-4 h-4 text-gray-400 flex-shrink-0" />
                       <div className="min-w-0">
-                        <div className="font-medium text-[var(--ink)] truncate">
+                        <div className="font-medium text-gray-900 truncate">
                           {f.file_name}
                         </div>
-                        <div className="text-xs text-[var(--ink-subtle)] truncate">
+                        <div className="text-xs text-gray-400 truncate">
                           {f.file_path}
                         </div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-[var(--ink-subtle)] text-xs">
+                  <td className="px-4 py-3 text-gray-500 text-xs">
                     {f.file_size_bytes ? formatBytes(f.file_size_bytes) : "—"}
                   </td>
                   <td className="px-4 py-3">
@@ -670,7 +670,7 @@ function FolderDetail({
                       <button
                         onClick={() => requestIngest(f)}
                         disabled={ingesting.has(f.id)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--glass)] border border-[var(--glass-border)] text-white hover:bg-[var(--canvas-muted)] disabled:opacity-50 transition"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-900 text-white hover:bg-gray-800 disabled:opacity-50 transition"
                       >
                         {ingesting.has(f.id) ? (
                           <Loader2 className="w-3 h-3 animate-spin" />
@@ -683,7 +683,7 @@ function FolderDetail({
                     {f.ingest_status === "ingested" && f.vault_item_id && (
                       <a
                         href={`/vault?item=${f.vault_item_id}`}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--glass-hover)] transition"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition"
                       >
                         View in Vault
                       </a>
@@ -707,7 +707,7 @@ function FolderDetail({
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between mt-4 text-sm text-[var(--ink-subtle)]">
+        <div className="flex items-center justify-between mt-4 text-sm text-gray-500">
           <span>
             Page {page} of {totalPages}
           </span>
@@ -715,14 +715,14 @@ function FolderDetail({
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page <= 1}
-              className="p-1.5 rounded-lg hover:bg-[var(--glass-hover)] disabled:opacity-30"
+              className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-30"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
-              className="p-1.5 rounded-lg hover:bg-[var(--glass-hover)] disabled:opacity-30"
+              className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-30"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -745,7 +745,7 @@ function StatusPill({
   switch (status) {
     case "indexed":
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--glass-hover)] text-[var(--ink-muted)]">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-600">
           <HardDrive className="w-3 h-3" />
           Indexed
         </span>
@@ -759,7 +759,7 @@ function StatusPill({
       );
     case "ingesting":
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-[var(--accent-soft)] text-[var(--accent)]">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-50 text-blue-700">
           <Loader2 className="w-3 h-3 animate-spin" />
           Extracting
         </span>

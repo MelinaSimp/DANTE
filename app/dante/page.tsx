@@ -26,7 +26,7 @@ export default async function DantePage() {
   const assistantName = getIndustryConfig(workspace?.industry).assistantName;
 
   return (
-    <div className="h-full bg-[var(--canvas)]">
+    <div className="h-full bg-white">
       <AskDante assistantName={assistantName} />
     </div>
   );

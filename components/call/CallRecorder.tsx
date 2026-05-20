@@ -258,7 +258,7 @@ export default function CallRecorder({
   const ss = String(elapsed % 60).padStart(2, "0");
 
   return (
-    <div className="rounded-2xl border border-[var(--glass-border)] bg-[var(--canvas)] p-6 shadow-sm">
+    <div className="rounded-2xl border border-[#e5e7eb] bg-white p-6 shadow-sm">
       <div className="mb-4 flex items-center justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.3em] text-[#151515]/60">
@@ -279,7 +279,7 @@ export default function CallRecorder({
             type="checkbox"
             checked={captureTab}
             onChange={(e) => setCaptureTab(e.target.checked)}
-            className="h-4 w-4 rounded border-[var(--glass-border)]"
+            className="h-4 w-4 rounded border-[#e5e7eb]"
           />
           Also capture tab audio (the other person's voice from Zoom/Meet/Teams).
           You'll pick the tab in a picker; tick "Share tab audio".
@@ -302,7 +302,7 @@ export default function CallRecorder({
             <Square className="h-4 w-4" /> Stop & save
           </button>
         ) : phase === "uploading" || phase === "transcribing" ? (
-          <div className="inline-flex items-center gap-2 rounded-full bg-[var(--glass-hover)] px-5 py-2 text-sm font-medium text-[#151515]">
+          <div className="inline-flex items-center gap-2 rounded-full bg-[#f3f4f6] px-5 py-2 text-sm font-medium text-[#151515]">
             <Loader2 className="h-4 w-4 animate-spin" /> {status}
           </div>
         ) : phase === "done" ? (
@@ -324,7 +324,7 @@ export default function CallRecorder({
       )}
 
       {summary && (
-        <div className="mt-5 rounded-xl border border-[var(--glass-border)] bg-[#f9fafb] p-4">
+        <div className="mt-5 rounded-xl border border-[#e5e7eb] bg-[#f9fafb] p-4">
           <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[#151515]/60">
             AI summary
           </p>
