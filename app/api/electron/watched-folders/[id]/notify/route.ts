@@ -96,6 +96,12 @@ export async function POST(
     );
   }
 
+  supabaseAdmin
+    .from("watched_folders")
+    .update({ last_seen_at: new Date().toISOString() })
+    .eq("id", folderId)
+    .then(() => undefined, () => undefined);
+
   const ext = (body.file_extension || extractExt(body.file_name)).toLowerCase();
   let status: string = "pending_user_confirm";
   let rejectedReason: string | null = null;

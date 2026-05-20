@@ -114,6 +114,14 @@ export async function POST(
   const isLocalOnly = f.default_processing_mode === "local_only";
   const isFolderConsent = f.confirm_mode === "folder_consent";
 
+  // Touch last_seen_at on every batch so "Last synced" stays fresh
+  // even when all files are duplicates.
+  supabaseAdmin
+    .from("watched_folders")
+    .update({ last_seen_at: new Date().toISOString() })
+    .eq("id", folderId)
+    .then(() => undefined, () => undefined);
+
   // ── Batch sha256 dedup lookup ─────────────────────────────────────
   // One round trip instead of N serial queries.
   const sha256Values = files
