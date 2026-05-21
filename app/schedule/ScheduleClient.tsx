@@ -661,7 +661,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                     onClick={() => { setWeekStart(day.startOf("week")); }}
                     className={`mono text-[11px] py-1 rounded-full transition ${
                       isToday
-                        ? "bg-[var(--neu-active)] shadow-[var(--neu-shadow-pressed)] text-[var(--ink)] font-semibold border border-white/40"
+                        ? "bg-[var(--neu-card)] text-[var(--ink)] font-semibold shadow-[2px_2px_4px_rgba(0,0,0,0.10),-1px_-1px_3px_rgba(255,255,255,0.65)] border border-white/50"
                         : !isCurrentMonth
                         ? "text-[var(--ink-subtle)]"
                         : "text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
@@ -802,7 +802,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                     <div
                       className={`text-xl font-medium mt-0.5 ${
                         isToday
-                          ? "bg-[var(--neu-card)] text-[var(--ink)] w-9 h-9 rounded-full flex items-center justify-center mx-auto shadow-[var(--neu-shadow-pressed)] border border-white/40"
+                          ? "bg-[var(--neu-card)] text-[var(--ink)] w-9 h-9 rounded-full flex items-center justify-center mx-auto shadow-[3px_3px_6px_rgba(0,0,0,0.12),-2px_-2px_5px_rgba(255,255,255,0.70)] border border-white/50 border-t-white/70"
                           : "text-[var(--ink)]"
                       }`}
                     >
@@ -944,7 +944,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                     <div
                       className={`mono text-xs font-medium mb-1 text-center ${
                         isToday
-                          ? "bg-[var(--neu-card)] text-[var(--ink)] w-6 h-6 rounded-full flex items-center justify-center mx-auto shadow-[var(--neu-shadow-pressed)] border border-white/40"
+                          ? "bg-[var(--neu-card)] text-[var(--ink)] w-6 h-6 rounded-full flex items-center justify-center mx-auto shadow-[2px_2px_4px_rgba(0,0,0,0.10),-1px_-1px_3px_rgba(255,255,255,0.65)] border border-white/50"
                           : !isCurrentMonth
                           ? "text-[var(--ink-subtle)]"
                           : "text-[var(--ink)]"

@@ -196,7 +196,7 @@ export default function AppSidebar({
                   <div className="mx-3 my-1.5 border-t border-black/[0.06]" />
                 )}
                 {/* Tree connector for grouped sections */}
-                <div className={isOpen && section.label ? "ml-[26px] pl-3" : ""}>
+                <div className={isOpen && section.label ? "ml-[26px] pl-3 mr-2.5" : ""}>
                   {visibleItems.map((item, ii) => {
                     const active = isActive(item.href);
                     const Icon = item.icon;
