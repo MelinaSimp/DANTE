@@ -899,7 +899,7 @@ function InputBar(p: InputBarProps) {
   // Compact mode — clean bordered input for expanded chat
   if (p.compact) {
     return (
-      <div className="border border-gray-300 rounded-[16px] md:rounded-[20px] bg-white relative">
+      <div className="glass-input rounded-[16px] md:rounded-[20px] bg-[var(--neu-input)] border border-white/30 border-t-white/50 relative">
         <div className="px-4 pt-4">
           <textarea
             ref={p.textareaRef}
@@ -909,7 +909,7 @@ function InputBar(p: InputBarProps) {
             placeholder={`Ask ${p.assistantName} anything…`}
             disabled={p.streaming}
             rows={p.rows}
-            className="w-full resize-none text-sm overflow-hidden border-0 p-0 bg-transparent outline-none placeholder:text-gray-400 leading-6 max-h-48"
+            className="w-full resize-none text-sm overflow-hidden border-0 p-0 bg-transparent outline-none placeholder:text-[var(--ink-subtle)] text-[var(--ink)] leading-6 max-h-48"
           />
         </div>
         <div className="flex items-center justify-end p-2.5">
@@ -932,7 +932,7 @@ function InputBar(p: InputBarProps) {
 
   // Full landing input — Mike's rounded bordered style
   return (
-    <div className="border border-gray-300 rounded-[16px] md:rounded-[20px] bg-white">
+    <div className="glass-input rounded-[16px] md:rounded-[20px] bg-[var(--neu-input)] border border-white/30 border-t-white/50">
       {/* Attachment chips */}
       {p.attachments && p.attachments.length > 0 && (
         <div className="flex flex-wrap gap-1.5 px-3 pt-3">
@@ -968,7 +968,7 @@ function InputBar(p: InputBarProps) {
           placeholder={`Ask ${p.assistantName} anything…`}
           disabled={p.streaming}
           rows={p.rows}
-          className="w-full resize-none text-sm overflow-hidden border-0 p-0 bg-transparent outline-none placeholder:text-gray-400 leading-6 max-h-48"
+          className="w-full resize-none text-sm overflow-hidden border-0 p-0 bg-transparent outline-none placeholder:text-[var(--ink-subtle)] text-[var(--ink)] leading-6 max-h-48"
         />
       </div>
 
@@ -979,7 +979,7 @@ function InputBar(p: InputBarProps) {
             <button
               onClick={p.onOpenFilesAndSources}
               disabled={p.streaming}
-              className="flex items-center gap-1.5 rounded-lg px-2 h-8 text-sm text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-lg px-2 h-8 text-sm text-[var(--ink-subtle)] hover:bg-[var(--neu-hover)] hover:text-[var(--ink-muted)] transition-colors disabled:opacity-50"
             >
               <Plus className="w-3.5 h-3.5" strokeWidth={2} />
               <span className="hidden sm:inline">Files</span>
@@ -1032,8 +1032,8 @@ function InputBar(p: InputBarProps) {
       </div>
 
       {p.promptsOpen && (
-        <div className="border-t border-gray-200 px-3 py-3">
-          <div className="text-[10px] uppercase tracking-wider text-gray-400 mb-2">
+        <div className="border-t border-black/[0.06] px-3 py-3">
+          <div className="text-[10px] uppercase tracking-wider text-[var(--ink-subtle)] mb-2">
             Quick prompts
           </div>
           <div className="space-y-1">
@@ -1077,10 +1077,10 @@ function ToolbarButton({
   onClick?: () => void;
 }) {
   const palette = active
-    ? "text-blue-600 hover:bg-blue-50"
+    ? "text-blue-600 bg-[var(--neu-active)] shadow-[var(--neu-shadow-pressed)]"
     : disabled
-      ? "text-gray-300"
-      : "text-gray-400 hover:bg-gray-100 hover:text-gray-700";
+      ? "text-[var(--ink-subtle)] opacity-50"
+      : "text-[var(--ink-subtle)] hover:bg-[var(--neu-hover)] hover:text-[var(--ink-muted)]";
   return (
     <button
       onClick={onClick}
