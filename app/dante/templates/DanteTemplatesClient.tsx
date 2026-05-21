@@ -8,7 +8,7 @@
 // endpoint and, on success, redirects to the freshly-cloned workflow's
 // canvas so the user lands directly in the editor.
 //
-// Archive-aware templates show a "needs archive" pill, and we surface
+// Archive-aware templates show a "needs vault" pill, and we surface
 // a soft warning at the top of the page when the workspace has zero
 // indexed documents — the templates will still run, they'll just get
 // empty context blocks.
@@ -75,11 +75,11 @@ const CATEGORY_ORDER: WorkflowTemplate["category"][] = [
 ];
 
 interface Props {
-  archiveReady: number;
-  canManageArchive: boolean;
+  vaultReady: number;
+  canManageVault: boolean;
 }
 
-export default function DanteTemplatesClient({ archiveReady, canManageArchive }: Props) {
+export default function DanteTemplatesClient({ vaultReady, canManageVault }: Props) {
   const brand = useAssistantBrand();
   const router = useRouter();
   const [cloningSlug, setCloningSlug] = useState<string | null>(null);
@@ -95,7 +95,7 @@ export default function DanteTemplatesClient({ archiveReady, canManageArchive }:
     return map;
   }, []);
 
-  const archiveAwareCount = WORKFLOW_TEMPLATES.filter((t) => t.requiresArchive).length;
+  const vaultAwareCount = WORKFLOW_TEMPLATES.filter((t) => t.requiresVault).length;
 
   async function clone(slug: string) {
     setError(null);
@@ -154,35 +154,30 @@ export default function DanteTemplatesClient({ archiveReady, canManageArchive }:
             </span>
             <span className="inline-flex items-center gap-1.5">
               <ArchiveIcon className="w-3.5 h-3.5" strokeWidth={1.5} />
-              <strong className="font-semibold text-[var(--ink)]">{archiveAwareCount}</strong> archive-aware
+              <strong className="font-semibold text-[var(--ink)]">{vaultAwareCount}</strong> vault-aware
             </span>
           </div>
         </div>
 
-        {/* Archive warning — advisory, doesn't block. Copy + CTA vary
-            based on who's looking: the owner gets a link to the vault,
-            a member gets told to route through their owner (the
-            archive is owner-only by design). */}
-        {archiveReady === 0 && (
+        {/* Vault empty warning — advisory, doesn't block. */}
+        {vaultReady === 0 && (
           <div className="mb-8 card-flat p-4 flex items-start gap-3 border-[var(--flag-soft)] bg-[var(--flag-soft)]/50">
             <AlertCircle className="w-4 h-4 text-[var(--flag)] mt-0.5 shrink-0" strokeWidth={1.5} />
             <div className="flex-1 text-sm">
               <div className="font-semibold text-[var(--ink)] mb-0.5">
-                {canManageArchive ? "Your archive is empty." : "The firm archive is empty."}
+                {canManageVault ? "Your vault is empty." : "The firm vault is empty."}
               </div>
               <p className="text-[var(--ink-muted)] leading-relaxed">
-                Templates marked <em>needs archive</em> will still run, but
-                their <code className="text-[var(--ink)]">archive_lookup</code> steps
-                will return empty context — downstream prompts get nothing
-                to cite.{" "}
-                {canManageArchive
-                  ? "Upload some firm documents first and the same templates become far more useful."
-                  : "Ask your workspace owner to upload the firm's core documents (IPS, policies, compliance memos) before running these."}
+                Templates marked <em>needs vault</em> will still run, but
+                their document-search steps will return empty context.{" "}
+                {canManageVault
+                  ? "Upload documents first and those templates become far more useful."
+                  : "Ask your workspace owner to upload core documents before running these."}
               </p>
-              {canManageArchive && (
-                <Link href="/dante/archive"
+              {canManageVault && (
+                <Link href="/vault"
                   className="mt-2 inline-flex items-center gap-1 text-[var(--accent)] hover:underline">
-                  Go to archive
+                  Go to vault
                   <ArrowUpRight className="w-3 h-3" strokeWidth={1.5} />
                 </Link>
               )}
@@ -231,10 +226,10 @@ export default function DanteTemplatesClient({ archiveReady, canManageArchive }:
                               <h3 className="text-[15px] font-semibold text-[var(--ink)]">
                                 {t.name}
                               </h3>
-                              {t.requiresArchive && (
+                              {t.requiresVault && (
                                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[3px] bg-[var(--accent-soft)] text-[var(--accent)] text-[10px] font-medium">
                                   <ArchiveIcon className="w-2.5 h-2.5" strokeWidth={1.5} />
-                                  needs archive
+                                  needs vault
                                 </span>
                               )}
                             </div>

@@ -101,11 +101,11 @@ const EXAMPLE_PROMPTS = [
 ];
 
 interface Props {
-  archiveReady: number;
-  canManageArchive: boolean;
+  vaultReady: number;
+  canManageVault: boolean;
 }
 
-export default function WorkflowsPageClient({ archiveReady, canManageArchive }: Props) {
+export default function WorkflowsPageClient({ vaultReady, canManageVault }: Props) {
   const router = useRouter();
   const [rows, setRows] = useState<WorkflowRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -135,7 +135,7 @@ export default function WorkflowsPageClient({ archiveReady, canManageArchive }: 
     return map;
   }, []);
 
-  const archiveAwareCount = WORKFLOW_TEMPLATES.filter((t) => t.requiresArchive).length;
+  const vaultAwareCount = WORKFLOW_TEMPLATES.filter((t) => t.requiresVault).length;
 
   const load = useCallback(async () => {
     try {
@@ -292,10 +292,10 @@ export default function WorkflowsPageClient({ archiveReady, canManageArchive }: 
             <DriftMark className="w-3.5 h-3.5" />
             <strong className="font-semibold text-[var(--ink)]">{WORKFLOW_TEMPLATES.length}</strong> templates
           </span>
-          {archiveAwareCount > 0 && (
+          {vaultAwareCount > 0 && (
             <span className="inline-flex items-center gap-1.5">
               <ArchiveIcon className="w-3.5 h-3.5" strokeWidth={1.5} />
-              <strong className="font-semibold text-[var(--ink)]">{archiveAwareCount}</strong> archive-aware
+              <strong className="font-semibold text-[var(--ink)]">{vaultAwareCount}</strong> vault-aware
             </span>
           )}
         </div>
@@ -621,26 +621,25 @@ export default function WorkflowsPageClient({ archiveReady, canManageArchive }: 
         </div>
       )}
 
-      {/* Archive warning */}
-      {archiveReady === 0 && (
+      {/* Vault empty warning */}
+      {vaultReady === 0 && (
         <div className="mb-8 card-flat p-4 flex items-start gap-3 border-[var(--flag-soft)] bg-[var(--flag-soft)]/50">
           <AlertCircle className="w-4 h-4 text-[var(--flag)] mt-0.5 shrink-0" strokeWidth={1.5} />
           <div className="flex-1 text-sm">
             <div className="font-semibold text-[var(--ink)] mb-0.5">
-              {canManageArchive ? "Your archive is empty." : "The firm archive is empty."}
+              {canManageVault ? "Your vault is empty." : "The firm vault is empty."}
             </div>
             <p className="text-[var(--ink-muted)] leading-relaxed">
-              Templates marked <em>needs archive</em> will still run, but
-              their <code className="text-[var(--ink)]">archive_lookup</code> steps
-              will return empty context.{" "}
-              {canManageArchive
+              Templates marked <em>needs vault</em> will still run, but
+              their document-search steps will return empty context.{" "}
+              {canManageVault
                 ? "Upload documents first and those templates become far more useful."
                 : "Ask your workspace owner to upload core documents before running these."}
             </p>
-            {canManageArchive && (
-              <Link href="/dante/archive"
+            {canManageVault && (
+              <Link href="/vault"
                 className="mt-2 inline-flex items-center gap-1 text-[var(--accent)] hover:underline">
-                Go to archive
+                Go to vault
                 <ArrowUpRight className="w-3 h-3" strokeWidth={1.5} />
               </Link>
             )}
@@ -681,10 +680,10 @@ export default function WorkflowsPageClient({ archiveReady, canManageArchive }: 
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap mb-0.5">
                             <h3 className="text-[15px] font-semibold text-[var(--ink)]">{t.name}</h3>
-                            {t.requiresArchive && (
+                            {t.requiresVault && (
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[3px] bg-[var(--accent-soft)] text-[var(--accent)] text-[10px] font-medium">
                                 <ArchiveIcon className="w-2.5 h-2.5" strokeWidth={1.5} />
-                                needs archive
+                                needs vault
                               </span>
                             )}
                           </div>

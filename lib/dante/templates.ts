@@ -24,7 +24,7 @@ export interface WorkflowTemplate {
   icon: string;
   accent: "verified" | "ink" | "accent" | "flag";
   triggerLabel: string;
-  requiresArchive?: boolean;
+  requiresVault?: boolean;
   graph: WorkflowGraph;
 }
 
@@ -1767,7 +1767,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     icon: "ClipboardCheck",
     accent: "verified",
     triggerLabel: "On offer-accepted webhook",
-    requiresArchive: true,
+    requiresVault: true,
     graph: dueDiligenceGraph,
   },
   {
@@ -1788,7 +1788,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     icon: "TrendingUp",
     accent: "ink",
     triggerLabel: "Manual (one-click)",
-    requiresArchive: true,
+    requiresVault: true,
     graph: marketUpdateGraph,
   },
   {

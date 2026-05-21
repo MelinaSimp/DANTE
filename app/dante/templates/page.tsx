@@ -22,20 +22,14 @@ export default async function DanteTemplatesPage() {
     .select("workspace_id, role, is_superadmin").eq("id", user.id).maybeSingle();
   if (!profile?.workspace_id) redirect("/dashboard");
 
-  // Surface the archive-ready count so we can show a "needs archive"
-  // warning inline when the user tries to clone a template that relies
-  // on vector lookups against an empty vault.
-  const archiveCountResp = await supabaseAdmin
-    .from("dante_archive_documents").select("id", { count: "exact", head: true })
-    .eq("workspace_id", profile.workspace_id).eq("status", "ready");
-  const archiveReady = archiveCountResp.error ? 0 : (archiveCountResp.count ?? 0);
+  const vaultCountResp = await supabaseAdmin
+    .from("vault_items").select("id", { count: "exact", head: true })
+    .eq("workspace_id", profile.workspace_id);
+  const vaultReady = vaultCountResp.error ? 0 : (vaultCountResp.count ?? 0);
 
-  // The Archive itself is owner-only; we pass the flag down so the
-  // empty-archive warning can either link to the archive page (for
-  // owners) or tell a member to ask their owner (everyone else).
-  const canManageArchive =
+  const canManageVault =
     isOwner(profile.role) ||
     hasSuperadminAccess(user.email, profile.is_superadmin);
 
-  return <DanteTemplatesClient archiveReady={archiveReady} canManageArchive={canManageArchive} />;
+  return <DanteTemplatesClient vaultReady={vaultReady} canManageVault={canManageVault} />;
 }

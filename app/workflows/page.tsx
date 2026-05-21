@@ -22,18 +22,18 @@ export default async function WorkflowsPage() {
     .select("workspace_id, role, is_superadmin").eq("id", user.id).maybeSingle();
   if (!profile?.workspace_id) redirect("/dashboard");
 
-  const archiveCountResp = await supabaseAdmin
-    .from("dante_archive_documents").select("id", { count: "exact", head: true })
-    .eq("workspace_id", profile.workspace_id).eq("status", "ready");
-  const archiveReady = archiveCountResp.error ? 0 : (archiveCountResp.count ?? 0);
+  const vaultCountResp = await supabaseAdmin
+    .from("vault_items").select("id", { count: "exact", head: true })
+    .eq("workspace_id", profile.workspace_id);
+  const vaultReady = vaultCountResp.error ? 0 : (vaultCountResp.count ?? 0);
 
-  const canManageArchive =
+  const canManageVault =
     isOwner(profile.role) ||
     hasSuperadminAccess(user.email, profile.is_superadmin);
 
   return (
     <AppShell {...ctx}>
-      <WorkflowsPageClient archiveReady={archiveReady} canManageArchive={canManageArchive} />
+      <WorkflowsPageClient vaultReady={vaultReady} canManageVault={canManageVault} />
     </AppShell>
   );
 }

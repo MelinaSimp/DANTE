@@ -39,7 +39,6 @@ import {
   BookOpen,
   Users,
   CalendarDays,
-  Workflow,
   History,
   X,
   Search,
@@ -140,16 +139,13 @@ const QUICK_PROMPTS_REALTOR: Array<{ label: string; prompt: string }> = [
 
 // Quick-jump pills under the landing input. Each routes to its real
 // page so the "Memory" / "Vault" / etc. labels aren't decorative —
-// click them and you land on the workspace's archive, vault docs,
-// contacts list, calendar, or workflows builder. Workflows added
-// because the user uses it daily; without it the pill row was just
-// a passive legend.
+// click them and you land on the workspace's memory, vault docs,
+// contacts list, or calendar. Workflows is now a top-level nav item.
 const KNOWLEDGE_SOURCES = [
   { label: "Memory", icon: Database, href: "/dante/archive" },
   { label: "Vault", icon: BookOpen, href: "/vault" },
   { label: "Contacts", icon: Users, href: "/client-details-overview" },
   { label: "Calendar", icon: CalendarDays, href: "/calendar" },
-  { label: "Workflows", icon: Workflow, href: "/dante/workflows" },
 ] as const;
 
 // Workflow tiles surfaced on the landing — the four highest-value
