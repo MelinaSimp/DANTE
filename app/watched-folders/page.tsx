@@ -1,10 +1,15 @@
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
+import { getShellContext } from "@/lib/shell/workspace-context";
+import AppShell from "@/components/shell/AppShell";
 import WatchedFoldersClient from "./WatchedFoldersClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function WatchedFoldersPage() {
+  const ctx = await getShellContext();
+  if (!ctx) redirect("/auth");
+
   const supabase = await createServerSupabase();
   const {
     data: { user },
@@ -18,5 +23,9 @@ export default async function WatchedFoldersPage() {
     .maybeSingle();
   if (!profile?.workspace_id) redirect("/dashboard");
 
-  return <WatchedFoldersClient />;
+  return (
+    <AppShell {...ctx}>
+      <WatchedFoldersClient />
+    </AppShell>
+  );
 }
