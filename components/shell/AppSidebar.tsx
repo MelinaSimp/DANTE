@@ -140,22 +140,22 @@ export default function AppSidebar({
     <aside
       className={`${
         isOpen ? "w-64" : "w-14"
-      } bg-white/30 backdrop-blur-2xl backdrop-saturate-150 shadow-[4px_0_24px_rgba(0,0,0,0.12)] hidden lg:flex flex-col sticky top-0 h-screen transition-all duration-300 overflow-visible`}
+      } glass-panel glass-sidebar hidden lg:flex flex-col h-full transition-all duration-300 overflow-visible`}
       aria-label="Primary navigation"
     >
-      {/* Toggle + Logo */}
-      <div className="flex items-center justify-between px-2.5 py-2 mb-3">
+      {/* macOS traffic-light drag region + collapse toggle */}
+      <div className="flex items-center justify-between px-3 pt-8 pb-1 mb-1">
         {isOpen && (
-          <div className="px-2.5">
+          <div className="px-1">
             <Link
               href="/dashboard"
-              className="flex items-center gap-1.5 hover:opacity-80 transition-opacity"
+              className="flex items-center gap-2 hover:opacity-80 transition-opacity"
             >
-              <div className="w-[22px] h-[22px] rounded-[4px] bg-gray-900 text-white flex items-center justify-center text-[9px] font-semibold">
+              <div className="w-[22px] h-[22px] rounded-[5px] bg-[var(--ink)] text-white flex items-center justify-center text-[9px] font-semibold">
                 {initials}
               </div>
               <span
-                className={`text-2xl font-light font-serif ${
+                className={`text-2xl font-light font-serif text-[var(--ink)] ${
                   shouldAnimate ? "sidebar-fade-in" : ""
                 }`}
               >
@@ -166,10 +166,10 @@ export default function AppSidebar({
         )}
         <button
           onClick={() => setIsOpen((v) => !v)}
-          className="h-9 w-9 p-2.5 items-center flex hover:bg-white/20 rounded-md transition-colors"
+          className="h-8 w-8 flex items-center justify-center hover:bg-white/25 rounded-lg transition-colors"
           title={isOpen ? "Close sidebar" : "Open sidebar"}
         >
-          <PanelLeft className="h-4 w-4" />
+          <PanelLeft className="h-3.5 w-3.5 text-[var(--ink-subtle)]" />
         </button>
       </div>
 
@@ -186,12 +186,12 @@ export default function AppSidebar({
             return (
               <div key={si}>
                 {section.label && isOpen && (
-                  <div className={`px-5 pt-4 pb-1 text-[10px] uppercase tracking-wider font-semibold text-gray-400 ${shouldAnimate ? "sidebar-fade-in" : ""}`}>
+                  <div className={`px-5 pt-4 pb-1 text-[10px] uppercase tracking-[0.08em] font-medium text-[var(--ink-subtle)] ${shouldAnimate ? "sidebar-fade-in" : ""}`}>
                     {section.label}
                   </div>
                 )}
                 {!isOpen && si > 0 && (
-                  <div className="mx-3 my-1.5 border-t border-white/20" />
+                  <div className="mx-3 my-1.5 border-t border-white/15" />
                 )}
                 {/* Tree connector for grouped sections */}
                 <div className={isOpen && section.label ? "ml-[26px] pl-3" : ""}>
@@ -205,24 +205,24 @@ export default function AppSidebar({
                         {hasTree && (
                           <>
                             <div
-                              className="absolute left-0 border-l border-white/20"
+                              className="absolute left-0 border-l border-white/15"
                               style={isLast ? { top: 0, height: "50%" } : { top: 0, bottom: 0 }}
                             />
-                            <div className="absolute left-0 top-1/2 w-3 border-t border-white/20" />
+                            <div className="absolute left-0 top-1/2 w-3 border-t border-white/15" />
                           </>
                         )}
                         <Link
                           href={item.href}
                           title={!isOpen ? item.label : ""}
-                          className={`w-full h-9 flex items-center gap-3 px-2.5 py-2 rounded-md transition-colors text-left ${
+                          className={`w-full h-9 flex items-center gap-3 px-2.5 py-2 rounded-lg transition-colors text-left ${
                             active
-                              ? "bg-white/40 shadow-[0_1px_3px_rgba(0,0,0,0.06)] text-gray-900"
-                              : "hover:bg-white/15 text-gray-600"
+                              ? "bg-white/50 shadow-[0_1px_4px_rgba(0,0,0,0.06)] text-[var(--ink)] font-medium"
+                              : "hover:bg-white/25 text-[var(--ink-muted)]"
                           }`}
                         >
                           <Icon
                             className={`h-4 w-4 flex-shrink-0 ${
-                              active ? "text-gray-900" : "text-gray-400"
+                              active ? "text-[var(--ink)]" : "text-[var(--ink-subtle)]"
                             }`}
                             strokeWidth={active ? 1.75 : 1.5}
                           />
@@ -246,7 +246,7 @@ export default function AppSidebar({
 
           {features.includes("dante") && (
             <>
-              <div className="mx-4 my-2 border-t border-white/20" />
+              <div className="mx-4 my-2 border-t border-white/15" />
               <div className="px-2.5">
                 <DanteGateLink
                   variant={isOpen ? "sidebar-full" : "icon-only"}
@@ -263,7 +263,7 @@ export default function AppSidebar({
           <div className="mt-4 flex-1 min-h-0 flex flex-col">
             <button
               onClick={() => setHistoryCollapsed((v) => !v)}
-              className={`mb-2 px-5 flex items-center justify-between text-xs font-semibold text-gray-500 hover:text-gray-700 transition-colors ${
+              className={`mb-2 px-5 flex items-center justify-between text-xs font-medium text-[var(--ink-subtle)] hover:text-[var(--ink-muted)] transition-colors ${
                 shouldAnimate ? "sidebar-fade-in" : ""
               }`}
             >
@@ -284,10 +284,10 @@ export default function AppSidebar({
                   {[40, 60, 50, 70, 45].map((w, i) => (
                     <div
                       key={i}
-                      className="h-9 flex items-center px-3 rounded-md"
+                      className="h-9 flex items-center px-3 rounded-lg"
                     >
                       <div
-                        className="h-3 bg-gray-200 rounded animate-pulse"
+                        className="h-3 bg-white/20 rounded animate-pulse"
                         style={{ width: `${w}%` }}
                       />
                     </div>
@@ -295,7 +295,7 @@ export default function AppSidebar({
                 </div>
               ) : recentChats.length === 0 ? (
                 <div
-                  className={`text-xs text-gray-500 py-2 px-5 ${
+                  className={`text-xs text-[var(--ink-subtle)] py-2 px-5 ${
                     shouldAnimate ? "sidebar-fade-in-2" : ""
                   }`}
                 >
@@ -313,10 +313,10 @@ export default function AppSidebar({
                       <button
                         key={chat.id}
                         onClick={() => router.push(`/dante/chat/${chat.id}`)}
-                        className={`w-full h-9 flex items-center px-2.5 rounded-md text-sm truncate transition-colors ${
+                        className={`w-full h-9 flex items-center px-2.5 rounded-lg text-sm truncate transition-colors ${
                           chatActive
-                            ? "bg-white/40 shadow-[0_1px_3px_rgba(0,0,0,0.06)] text-gray-900 font-medium"
-                            : "text-gray-600 hover:bg-white/15 hover:text-gray-900"
+                            ? "bg-white/50 shadow-[0_1px_4px_rgba(0,0,0,0.06)] text-[var(--ink)] font-medium"
+                            : "text-[var(--ink-muted)] hover:bg-white/25 hover:text-[var(--ink)]"
                         }`}
                         title={chat.title}
                       >
@@ -332,39 +332,18 @@ export default function AppSidebar({
       </nav>
 
       {/* Footer -- user profile + settings */}
-      <div className="mt-auto flex flex-col items-stretch gap-0.5 px-2 pt-2 border-t border-white/20">
-        {isSuperadmin && (
+      <div className="mt-auto flex flex-col items-stretch gap-0.5 px-2 pt-2 border-t border-white/15">
+        {isSuperadmin && isOpen && (
           <Link
             href="/admin"
-            title={!isOpen ? "Admin" : ""}
-            className={`h-9 flex items-center gap-3 px-2.5 rounded-md transition-colors text-gray-700 hover:bg-white/20 ${
-              !isOpen ? "justify-center" : ""
-            }`}
+            className="h-9 flex items-center gap-3 px-2.5 rounded-lg transition-colors text-[var(--ink-muted)] hover:bg-white/25"
           >
             <ShieldCheck className="h-4 w-4 flex-shrink-0 text-blue-600" strokeWidth={1.5} />
-            {isOpen && (
-              <span className={`text-sm font-medium ${shouldAnimate ? "sidebar-fade-in-2" : ""}`}>
-                Admin
-              </span>
-            )}
+            <span className={`text-sm font-medium ${shouldAnimate ? "sidebar-fade-in-2" : ""}`}>
+              Admin
+            </span>
           </Link>
         )}
-        <Link
-          href="/settings"
-          title={!isOpen ? "Settings" : ""}
-          className={`h-9 flex items-center gap-3 px-2.5 rounded-md transition-colors ${
-            pathname?.startsWith("/settings")
-              ? "bg-white/25 text-gray-900"
-              : "text-gray-700 hover:bg-white/20"
-          } ${!isOpen ? "justify-center" : ""}`}
-        >
-          <Settings className="h-4 w-4 flex-shrink-0" strokeWidth={1.5} />
-          {isOpen && (
-            <span className={`text-sm font-medium ${shouldAnimate ? "sidebar-fade-in-2" : ""}`}>
-              Settings
-            </span>
-          )}
-        </Link>
 
         {/* User profile section */}
         <div className="relative">
@@ -374,10 +353,10 @@ export default function AppSidebar({
               !isOpen ? "justify-center" : ""
             } ${
               isDropdownOpen ? "bg-white/25" : "hover:bg-white/20"
-            } rounded-md`}
+            } rounded-lg`}
             title={!isOpen ? workspaceName : undefined}
           >
-            <div className="h-7 w-7 flex-shrink-0 rounded-full bg-gray-700 flex items-center justify-center text-white text-sm font-medium font-serif">
+            <div className="h-8 w-8 flex-shrink-0 rounded-full bg-[var(--ink)] flex items-center justify-center text-white text-sm font-medium font-serif">
               {initials}
             </div>
             {isOpen && (
@@ -387,21 +366,21 @@ export default function AppSidebar({
                 }`}
               >
                 <div className="flex flex-col gap-0.5 min-w-0">
-                  <div className="text-sm font-medium text-gray-900 leading-none truncate">
+                  <div className="text-sm font-medium text-[var(--ink)] leading-none truncate">
                     {workspaceName}
                   </div>
                 </div>
-                <ChevronsUpDown className="h-4 w-4 flex-shrink-0 text-gray-400" />
+                <ChevronsUpDown className="h-4 w-4 flex-shrink-0 text-[var(--ink-subtle)]" />
               </div>
             )}
           </button>
 
           {isDropdownOpen && (
-            <div className="absolute bottom-full left-0 m-1 bg-white/50 backdrop-blur-xl rounded-lg shadow-lg border border-white/20 p-1 z-50 w-56 whitespace-nowrap">
+            <div className="absolute bottom-full left-0 m-1 glass-card p-1 z-50 w-56 whitespace-nowrap">
               <Link
                 href="/settings"
                 onClick={() => setIsDropdownOpen(false)}
-                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-white/20 flex items-center gap-2 rounded-md"
+                className="w-full px-4 py-2 text-left text-sm text-[var(--ink-muted)] hover:bg-white/25 flex items-center gap-2 rounded-lg"
               >
                 <User className="h-4 w-4" />
                 Account Settings
@@ -411,7 +390,7 @@ export default function AppSidebar({
                   await supabase.auth.signOut();
                   router.push("/auth");
                 }}
-                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-white/20 flex items-center gap-2 rounded-md"
+                className="w-full px-4 py-2 text-left text-sm text-[var(--ink-muted)] hover:bg-white/25 flex items-center gap-2 rounded-lg"
               >
                 <LogOut className="h-4 w-4" />
                 Sign out

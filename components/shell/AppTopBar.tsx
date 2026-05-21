@@ -61,10 +61,30 @@ export default function AppTopBar() {
   return (
     <>
       <header
-        className="relative z-10 flex items-center justify-end gap-3 px-4 md:px-6 py-2"
+        className="relative z-10 flex items-center justify-end gap-3 px-5 py-3"
         aria-label="Page header"
       >
         <UpdateAffordance />
+
+        {/* Search trigger */}
+        <button
+          type="button"
+          onClick={() => {
+            setSeedPrompt(undefined);
+            setInitialMode("search");
+            setOpen(true);
+          }}
+          className="inline-flex items-center gap-2 glass-input px-3 py-1.5 text-sm text-[var(--ink-subtle)] hover:text-[var(--ink-muted)] transition-colors cursor-pointer"
+          aria-keyshortcuts={isMac ? "Meta+K" : "Control+K"}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <span>Search</span>
+          <span className="ml-2 text-[11px] opacity-40 font-mono" aria-hidden="true">
+            {isMac ? "⌘ K" : "Ctrl K"}
+          </span>
+        </button>
+
+        {/* Ask assistant — primary CTA (solid dark, highest contrast element) */}
         <button
           type="button"
           onClick={() => {
@@ -72,15 +92,12 @@ export default function AppTopBar() {
             setInitialMode("ask");
             setOpen(true);
           }}
-          className="inline-flex items-center gap-2 rounded-lg bg-gray-900/80 backdrop-blur-md text-white px-3.5 py-1.5 text-sm font-medium transition hover:bg-gray-900/90 active:scale-[0.98]"
+          className="inline-flex items-center gap-2 rounded-[10px] bg-[rgba(20,20,22,0.92)] text-white px-4 py-1.5 text-sm font-medium transition hover:bg-[rgba(20,20,22,0.82)] active:scale-[0.98]"
           aria-keyshortcuts={isMac ? "Meta+D" : "Control+D"}
           aria-label={`Ask ${name}`}
         >
           <Sparkles className="w-3.5 h-3.5" strokeWidth={1.75} />
           <span>Ask {name}</span>
-          <span className="ml-1 text-[11px] opacity-50 font-mono" aria-hidden="true">
-            {shortcutHint}
-          </span>
         </button>
       </header>
 

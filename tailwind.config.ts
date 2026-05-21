@@ -83,6 +83,14 @@ const config: Config = {
           "0 2px 4px rgba(0,0,0,0.05), 0 12px 24px -6px rgba(0,0,0,0.10)",
         floating:
           "0 8px 16px -4px rgba(0,0,0,0.10), 0 24px 48px -12px rgba(0,0,0,0.18)",
+        glass:
+          "var(--shadow-glass)",
+        "glass-card":
+          "var(--shadow-card)",
+        "glass-card-hover":
+          "var(--shadow-card-hover)",
+        rail:
+          "var(--shadow-rail)",
       },
       keyframes: {
         "fade-up": {

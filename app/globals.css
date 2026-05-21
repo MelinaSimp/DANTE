@@ -9,23 +9,36 @@
 @tailwind utilities;
 
 :root {
-  --radius: 0.625rem;
+  --radius: 0.75rem;
+  --radius-panel: 1rem;
   --color-azure: 0, 136, 255;
 
-  /* Canvas — transparent base, glass cards (Electron vibrancy shows desktop) */
+  /* Panel gaps — space between floating panels and viewport edges */
+  --shell-gap: 8px;
+  --panel-gap: 4px;
+
+  /* Glass hierarchy — layered translucency over desktop/wallpaper */
+  --glass-rail: rgba(20, 20, 22, 0.82);
+  --glass-sidebar: rgba(240, 240, 242, 0.45);
+  --glass-main: rgba(245, 245, 247, 0.55);
+  --glass-card: rgba(255, 255, 255, 0.40);
+  --glass-input: rgba(255, 255, 255, 0.35);
+  --glass-hover: rgba(255, 255, 255, 0.10);
+
+  /* Canvas — backwards compat aliases mapped to glass tokens */
   --canvas: rgba(255, 255, 255, 0.08);
   --canvas-subtle: rgba(255, 255, 255, 0.12);
   --canvas-muted: rgba(255, 255, 255, 0.05);
-  --surface: rgba(255, 255, 255, 0.35);
+  --surface: var(--glass-card);
 
-  /* Ink */
-  --ink: #111827; /* gray-900 */
-  --ink-muted: #6b7280; /* gray-500 */
-  --ink-subtle: #9ca3af; /* gray-400 */
+  /* Ink — never pure black, always slightly warm */
+  --ink: rgba(30, 30, 35, 0.88);
+  --ink-muted: rgba(30, 30, 35, 0.55);
+  --ink-subtle: rgba(30, 30, 35, 0.38);
 
-  /* Rule / border */
+  /* Rule / border — white hairlines for glass edge definition */
   --rule: rgba(255, 255, 255, 0.18);
-  --rule-strong: rgba(255, 255, 255, 0.28);
+  --rule-strong: rgba(255, 255, 255, 0.30);
 
   /* Accent */
   --accent: rgb(0, 136, 255);
@@ -33,16 +46,22 @@
 
   /* Semantic */
   --verified: #16a34a;
-  --verified-soft: #f0fdf4;
+  --verified-soft: rgba(34, 160, 90, 0.12);
   --flag: #ca8a04;
-  --flag-soft: #fefce8;
+  --flag-soft: rgba(202, 138, 4, 0.10);
   --danger: #dc2626;
-  --danger-soft: #fef2f2;
+  --danger-soft: rgba(220, 38, 38, 0.08);
 
   /* Typography */
   --font-display: var(--font-display-loaded, "EB Garamond"), Georgia, "Times New Roman", serif;
   --font-ui: var(--font-ui-loaded, "Inter"), system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: var(--font-mono-loaded, "JetBrains Mono"), "SF Mono", Menlo, Consolas, monospace;
+
+  /* Shadow layers — tight + diffused for glass depth */
+  --shadow-glass: 0 1px 3px rgba(0, 0, 0, 0.08), 0 16px 48px rgba(0, 0, 0, 0.05);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.08), 0 8px 24px -4px rgba(0, 0, 0, 0.10);
+  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.10), 0 12px 32px -4px rgba(0, 0, 0, 0.14);
+  --shadow-rail: 0 8px 32px rgba(0, 0, 0, 0.25);
 
   /* shadcn compat */
   --background: oklch(1 0 0);
@@ -67,30 +86,42 @@
   color-scheme: light;
 }
 
-/* .dark mirrors :root — Drift ships one visual mode (light gray canvas).
+/* .dark mirrors :root — Drift ships one visual mode (frosted glass).
    The class still exists so the ThemeProvider doesn't error. */
 .dark {
+  --glass-rail: rgba(20, 20, 22, 0.82);
+  --glass-sidebar: rgba(240, 240, 242, 0.45);
+  --glass-main: rgba(245, 245, 247, 0.55);
+  --glass-card: rgba(255, 255, 255, 0.40);
+  --glass-input: rgba(255, 255, 255, 0.35);
+  --glass-hover: rgba(255, 255, 255, 0.10);
+
   --canvas: rgba(255, 255, 255, 0.08);
   --canvas-subtle: rgba(255, 255, 255, 0.12);
   --canvas-muted: rgba(255, 255, 255, 0.05);
-  --surface: rgba(255, 255, 255, 0.35);
+  --surface: var(--glass-card);
 
-  --ink: #111827;
-  --ink-muted: #6b7280;
-  --ink-subtle: #9ca3af;
+  --ink: rgba(30, 30, 35, 0.88);
+  --ink-muted: rgba(30, 30, 35, 0.55);
+  --ink-subtle: rgba(30, 30, 35, 0.38);
 
   --rule: rgba(255, 255, 255, 0.18);
-  --rule-strong: rgba(255, 255, 255, 0.28);
+  --rule-strong: rgba(255, 255, 255, 0.30);
 
   --accent: rgb(0, 136, 255);
   --accent-soft: rgba(0, 136, 255, 0.05);
 
   --verified: #16a34a;
-  --verified-soft: #f0fdf4;
+  --verified-soft: rgba(34, 160, 90, 0.12);
   --flag: #ca8a04;
-  --flag-soft: #fefce8;
+  --flag-soft: rgba(202, 138, 4, 0.10);
   --danger: #dc2626;
-  --danger-soft: #fef2f2;
+  --danger-soft: rgba(220, 38, 38, 0.08);
+
+  --shadow-glass: 0 1px 3px rgba(0, 0, 0, 0.08), 0 16px 48px rgba(0, 0, 0, 0.05);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.08), 0 8px 24px -4px rgba(0, 0, 0, 0.10);
+  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.10), 0 12px 32px -4px rgba(0, 0, 0, 0.14);
+  --shadow-rail: 0 8px 32px rgba(0, 0, 0, 0.25);
 
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -138,7 +169,54 @@ html.density-large {
 
 main {
   background: transparent;
-  min-height: 100vh;
+}
+
+/* ── Glass panel primitives ──────────────────────────────────── */
+
+.glass-panel {
+  -webkit-backdrop-filter: saturate(1.8) blur(40px);
+  backdrop-filter: saturate(1.8) blur(40px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: var(--shadow-glass);
+  border-radius: var(--radius-panel);
+}
+
+.glass-rail {
+  background: var(--glass-rail);
+  -webkit-backdrop-filter: saturate(1.8) blur(40px);
+  backdrop-filter: saturate(1.8) blur(40px);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow: var(--shadow-rail);
+  border-radius: var(--radius-panel);
+}
+
+.glass-sidebar {
+  background: var(--glass-sidebar);
+}
+
+.glass-main {
+  background: var(--glass-main);
+}
+
+.glass-card {
+  background: var(--glass-card);
+  -webkit-backdrop-filter: saturate(1.5) blur(24px);
+  backdrop-filter: saturate(1.5) blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.30);
+  box-shadow: var(--shadow-card);
+  border-radius: var(--radius);
+}
+
+.glass-card-hover:hover {
+  box-shadow: var(--shadow-card-hover);
+}
+
+.glass-input {
+  background: var(--glass-input);
+  -webkit-backdrop-filter: saturate(1.2) blur(12px);
+  backdrop-filter: saturate(1.2) blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: calc(var(--radius) - 2px);
 }
 
 @layer base {
@@ -220,16 +298,16 @@ main {
 }
 
 .card-flat {
-  background: rgba(255, 255, 255, 0.45);
-  -webkit-backdrop-filter: blur(24px) saturate(1.4);
-  backdrop-filter: blur(24px) saturate(1.4);
-  border: none;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 8px 24px -4px rgba(0, 0, 0, 0.1);
+  background: var(--glass-card);
+  -webkit-backdrop-filter: saturate(1.5) blur(24px);
+  backdrop-filter: saturate(1.5) blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.30);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
 }
 
 .card-flat-hover:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), 0 12px 32px -4px rgba(0, 0, 0, 0.14);
+  box-shadow: var(--shadow-card-hover);
 }
 
 .hr-rule {

@@ -74,17 +74,11 @@ export function BentoCard({
   href,
   tone = "default",
 }: BentoCardProps) {
-  // Borders: alert tone keeps the warm flag color so attention cards
-  // still read distinct; default tone goes solid black at full opacity
-  // for a sharper editorial look — paired with a small drop shadow
-  // so the cards lift off the canvas instead of dissolving into it.
   const alertRing = tone === "alert" ? "ring-1 ring-[var(--flag)]/30" : "";
-  const shadow = "shadow-[0_2px_8px_rgba(0,0,0,0.08),0_8px_24px_-4px_rgba(0,0,0,0.10)]";
-  const hoverShadow = "hover:shadow-[0_4px_12px_rgba(0,0,0,0.10),0_12px_32px_-4px_rgba(0,0,0,0.14)]";
 
   return (
     <div
-      className={`relative group rounded-xl bg-white/40 backdrop-blur-xl backdrop-saturate-150 ${alertRing} ${shadow} ${hoverShadow} transition p-5 flex flex-col overflow-hidden ${className || ""}`}
+      className={`relative group glass-card glass-card-hover ${alertRing} transition p-5 flex flex-col overflow-hidden ${className || ""}`}
     >
       {(label || title) && (
         <div className="flex items-baseline justify-between gap-3 mb-3">

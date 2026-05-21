@@ -63,10 +63,10 @@ const CreativeCard: React.FC<CreativeCardProps> = ({
 
         {/* Body */}
         <div
-          className={`relative flex flex-col rounded-xl w-full overflow-hidden border transition-[box-shadow,border-color] duration-300 ease-out-quart ${
+          className={`relative flex flex-col rounded-xl w-full overflow-hidden transition-[box-shadow,border-color] duration-300 ease-out-quart ${
             solid
-              ? "bg-[var(--canvas)] dark:bg-[var(--canvas)] border-[var(--rule)] shadow-[0_24px_60px_-12px_rgba(0,0,0,0.45),0_8px_16px_-4px_rgba(0,0,0,0.25)] group-focus-within/cc:border-[#3351ff]/30"
-              : "dark:bg-black/50 bg-white/40 backdrop-blur-sm border-gray-200 dark:border-gray-800 shadow-ground group-focus-within/cc:shadow-raised group-focus-within/cc:border-[#3351ff]/30"
+              ? "glass-card shadow-[0_24px_60px_-12px_rgba(0,0,0,0.45),0_8px_16px_-4px_rgba(0,0,0,0.25)] group-focus-within/cc:border-[#3351ff]/30"
+              : "glass-card group-focus-within/cc:shadow-glass-card-hover group-focus-within/cc:border-[#3351ff]/30"
           }`}
         >
           {children}

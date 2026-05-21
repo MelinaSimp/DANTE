@@ -51,7 +51,7 @@ export default function PanelShell({ title, onClose, children, wide = false, dar
           } ${
             dark
               ? "rounded-3xl shadow-2xl backdrop-blur-xl bg-[#1a1a1a]/90 border border-white/10"
-              : "rounded-[6px] shadow-xl bg-[var(--canvas)] border border-[var(--rule)]"
+              : "glass-card rounded-2xl shadow-floating"
           }`}
         >
           {/* Header with optional accent gradient wash (dark only) */}

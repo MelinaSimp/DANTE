@@ -224,7 +224,7 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
             in the sidebar; this page just renders the dashboard
             content. */}
 
-      <div className="max-w-6xl mx-auto px-6 md:px-10 py-12 md:py-16">
+      <div className="max-w-6xl mx-auto px-6 md:px-8 py-8 md:py-10">
         {/* Editorial header */}
         <div className="mb-12">
           <div className="label-section mb-3">
