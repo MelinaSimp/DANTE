@@ -9,6 +9,7 @@ import type { StepType, WorkflowStep } from "@/lib/dante/workflow-types";
 import {
   Hand, Clock4, Webhook, Globe, Sparkles, Users, Pencil, Mail, GitBranch, Clock,
   BookOpen, Building2, ListChecks, Handshake, FileSearch, Search,
+  MessageSquare, Bot, CalendarClock,
 } from "lucide-react";
 
 export interface NodeTypeMeta {
@@ -122,6 +123,24 @@ export const NODE_TYPES: NodeTypeMeta[] = [
     default: (id) => mk({ id, type: "web_search", name: "Web search",
       config: { query: "", max_results: 5, search_depth: "basic" } }),
   },
+  {
+    type: "send_sms", label: "Send SMS", hint: "iMessage / SMS via SendBlue",
+    icon: MessageSquare, group: "action", accent: "ink",
+    default: (id) => mk({ id, type: "send_sms", name: "Send SMS",
+      config: { to_phone: "", body: "" } }),
+  },
+  {
+    type: "agent", label: "Agent", hint: "Autonomous LLM loop with tools",
+    icon: Bot, group: "action", accent: "accent",
+    default: (id) => mk({ id, type: "agent", name: "Agent",
+      config: { objective: "", tools: [], max_steps: 8 } }),
+  },
+  {
+    type: "trigger_at", label: "Scheduled fire", hint: "One-shot at a specific time",
+    icon: CalendarClock, group: "trigger", accent: "verified",
+    default: (id) => mk({ id, type: "trigger_at", name: "Scheduled fire",
+      config: { scheduled_for: new Date().toISOString() } }),
+  },
 ];
 
 export function getMeta(type: StepType): NodeTypeMeta | undefined {
@@ -129,7 +148,7 @@ export function getMeta(type: StepType): NodeTypeMeta | undefined {
 }
 
 export function isTriggerType(t: StepType): boolean {
-  return t === "trigger_manual" || t === "trigger_cron" || t === "trigger_webhook";
+  return t === "trigger_manual" || t === "trigger_cron" || t === "trigger_webhook" || t === "trigger_at";
 }
 
 /** Accent → (bg, fg, border) tuple of CSS var strings. */

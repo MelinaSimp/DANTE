@@ -116,6 +116,7 @@ export default function WorkflowsPageClient({ archiveReady, canManageArchive }: 
 
   const [runFeed, setRunFeed] = useState<RunFeedItem[]>([]);
   const [runFeedLoading, setRunFeedLoading] = useState(true);
+  const [runFeedError, setRunFeedError] = useState<string | null>(null);
 
   const [prompt, setPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -152,11 +153,13 @@ export default function WorkflowsPageClient({ archiveReady, canManageArchive }: 
   const loadRunFeed = useCallback(async () => {
     try {
       const res = await fetch("/api/dante/workflows/runs", { credentials: "include" });
-      if (!res.ok) return;
+      if (!res.ok) throw new Error(`Failed to load runs (${res.status})`);
       const json = await res.json();
       setRunFeed(json.runs || []);
-    } catch { /* silent */ }
-    finally { setRunFeedLoading(false); }
+      setRunFeedError(null);
+    } catch (e) {
+      setRunFeedError(e instanceof Error ? e.message : "Failed to load runs");
+    } finally { setRunFeedLoading(false); }
   }, []);
 
   useEffect(() => { loadRunFeed(); }, [loadRunFeed]);
@@ -488,7 +491,13 @@ export default function WorkflowsPageClient({ archiveReady, canManageArchive }: 
       )}
 
       {/* Recent run results */}
-      {!runFeedLoading && runFeed.length > 0 && (
+      {!runFeedLoading && runFeedError && (
+        <section className="mb-8">
+          <div className="label-section mb-3">Recent results</div>
+          <p className="text-sm text-[var(--flag)]">{runFeedError}</p>
+        </section>
+      )}
+      {!runFeedLoading && !runFeedError && runFeed.length > 0 && (
         <section className="mb-8">
           <div className="label-section mb-3">Recent results</div>
           <div className="space-y-2">
@@ -714,24 +723,32 @@ export default function WorkflowsPageClient({ archiveReady, canManageArchive }: 
   );
 }
 
+function extractOutputText(o: Record<string, unknown>): string | null {
+  if (typeof o.text === "string" && o.text.trim()) return o.text.trim().slice(0, 300);
+  if (typeof o.answer === "string" && o.answer.trim()) return o.answer.trim().slice(0, 300);
+  if (typeof o.context === "string" && o.context.trim()) return o.context.trim().slice(0, 300);
+  if (typeof o.count === "number") return `${o.count} result${o.count === 1 ? "" : "s"} returned`;
+  if (Array.isArray(o.delivered) && o.delivered.length > 0) return `${o.delivered.length} message${o.delivered.length === 1 ? "" : "s"} sent`;
+  if (Array.isArray(o.hits) && o.hits.length > 0) return `${o.hits.length} hit${o.hits.length === 1 ? "" : "s"} found`;
+  if (Array.isArray(o.results) && o.results.length > 0) return `${o.results.length} result${o.results.length === 1 ? "" : "s"} returned`;
+  if (Array.isArray(o.abstracts) && o.abstracts.length > 0) return `${o.abstracts.length} lease${o.abstracts.length === 1 ? "" : "s"} found`;
+  if (o.contact && typeof o.contact === "object") return "contact updated";
+  if (typeof o.email_id === "string") return `email sent (${o.to || "recipient"})`;
+  return null;
+}
+
 function extractRunSummary(run: RunFeedItem): string | null {
   if (run.output && typeof run.output === "object") {
     const out = run.output as Record<string, unknown>;
-    if (typeof out.text === "string" && out.text.trim()) {
-      return out.text.trim().slice(0, 300);
-    }
+    const t = extractOutputText(out);
+    if (t) return t;
   }
   if (run.log && run.log.length > 0) {
     for (let i = run.log.length - 1; i >= 0; i--) {
       const entry = run.log[i];
-      if (entry.status === "success" && entry.output) {
-        const o = entry.output as Record<string, unknown>;
-        if (typeof o.text === "string" && o.text.trim()) {
-          return o.text.trim().slice(0, 300);
-        }
-        if (typeof o.count === "number") {
-          return `${o.count} result${o.count === 1 ? "" : "s"} returned`;
-        }
+      if (entry.status === "success" && entry.output && typeof entry.output === "object") {
+        const t = extractOutputText(entry.output as Record<string, unknown>);
+        if (t) return t;
       }
     }
   }

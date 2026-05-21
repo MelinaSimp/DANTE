@@ -19,7 +19,7 @@
 
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { claimQueuedRun, executeClaimedRun } from "@/lib/dante/run-executor";
+import { claimQueuedRun, executeClaimedRun, notifyRunFailure } from "@/lib/dante/run-executor";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -47,16 +47,32 @@ async function handle(request: Request) {
   // Mark any run that's been "running" for more than 10 minutes as
   // errored so it doesn't block the queue or confuse the UI.
   const staleThreshold = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const staleError = "Run timed out — worker may have crashed. Try running again.";
   const { data: staleRuns } = await supabaseAdmin
     .from("dante_workflow_runs")
     .update({
       status: "error",
-      error: "Run timed out — worker may have crashed. Try running again.",
+      error: staleError,
       finished_at: new Date().toISOString(),
     })
     .eq("status", "running")
     .lt("started_at", staleThreshold)
-    .select("id");
+    .select("id, workflow_id, workspace_id");
+
+  for (const sr of staleRuns || []) {
+    const { data: wf } = await supabaseAdmin
+      .from("dante_workflows")
+      .select("name")
+      .eq("id", sr.workflow_id)
+      .maybeSingle();
+    notifyRunFailure({
+      workflowId: sr.workflow_id,
+      workflowName: wf?.name || sr.workflow_id,
+      workspaceId: sr.workspace_id,
+      runId: sr.id,
+      error: staleError,
+    }).catch(() => {});
+  }
 
   // Pull a batch of queued rows, oldest first. We ask for a small
   // overhead (limit * 2) so that if a parallel worker steals some we

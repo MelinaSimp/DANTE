@@ -62,6 +62,8 @@ RULES
      - "trigger_manual"   -> user clicks Run
      - "trigger_cron"     -> time-based. config.cron is a 5-field crontab.
      - "trigger_webhook"  -> external POST fires the run.
+     - "trigger_at"       -> one-shot at a specific time. config: { "scheduled_for": "2026-06-01T09:00:00Z", "timezone": "America/New_York" }
+       Fires once, then disarms. Use for "remind me at X" or one-time scheduled tasks.
    The trigger node's step object looks like:
      { "id": "trigger", "type": "trigger_manual", "name": "Manual trigger", "config": {} }
    or for cron:
@@ -270,6 +272,13 @@ function validate(raw: unknown): GeneratedWorkflow {
       : `${source}->${target}${sourceHandle ? `:${sourceHandle}` : ""}`;
     return { id, source, target, sourceHandle };
   });
+
+  const conditionIds = new Set(nodes.filter((n) => n.type === "condition").map((n) => n.id));
+  for (const e of edges) {
+    if (conditionIds.has(e.source) && !e.sourceHandle) {
+      e.sourceHandle = "true";
+    }
+  }
 
   // Auto-layout: if every node has the same x AND y (model punted), or
   // positions overlap, lay them out as a vertical column.

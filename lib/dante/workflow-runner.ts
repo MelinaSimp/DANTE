@@ -384,12 +384,18 @@ async function runLeaseLookup(
   return { abstracts, count: abstracts.length };
 }
 
+function toStringArray(v: unknown): string[] {
+  if (Array.isArray(v)) return v.map(String).filter(Boolean);
+  if (typeof v === "string" && v.trim()) return v.split(",").map(s => s.trim()).filter(Boolean);
+  return [];
+}
+
 async function runWebSearch(cfg: {
   query: string;
   max_results?: number;
   search_depth?: "basic" | "advanced";
-  include_domains?: string[];
-  exclude_domains?: string[];
+  include_domains?: string[] | string;
+  exclude_domains?: string[] | string;
 }) {
   const apiKey = process.env.TAVILY_API_KEY;
   if (!apiKey) throw new Error("TAVILY_API_KEY not configured");
@@ -401,8 +407,8 @@ async function runWebSearch(cfg: {
       query: cfg.query,
       max_results: Math.min(Math.max(Number(cfg.max_results) || 5, 1), 20),
       search_depth: cfg.search_depth || "basic",
-      include_domains: cfg.include_domains || [],
-      exclude_domains: cfg.exclude_domains || [],
+      include_domains: toStringArray(cfg.include_domains),
+      exclude_domains: toStringArray(cfg.exclude_domains),
       include_answer: true,
     }),
   });

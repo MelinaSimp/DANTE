@@ -329,10 +329,10 @@ function renderBody(
             </select>
           </Field>
           <Field label="Include domains (comma-separated)" hint="Only search these domains. Leave blank for all.">
-            <Text value={String(cfg.include_domains ?? "")} onChange={(v) => setConfig("include_domains", v)} placeholder="loopnet.com, crexi.com" />
+            <Text value={Array.isArray(cfg.include_domains) ? cfg.include_domains.join(", ") : String(cfg.include_domains ?? "")} onChange={(v) => setConfig("include_domains", v.split(",").map((s: string) => s.trim()).filter(Boolean))} placeholder="loopnet.com, crexi.com" />
           </Field>
           <Field label="Exclude domains (comma-separated)" hint="Skip these domains.">
-            <Text value={String(cfg.exclude_domains ?? "")} onChange={(v) => setConfig("exclude_domains", v)} placeholder="" />
+            <Text value={Array.isArray(cfg.exclude_domains) ? cfg.exclude_domains.join(", ") : String(cfg.exclude_domains ?? "")} onChange={(v) => setConfig("exclude_domains", v.split(",").map((s: string) => s.trim()).filter(Boolean))} placeholder="" />
           </Field>
           <Help>
             Searches the web via Tavily. Output includes an AI-generated answer
@@ -340,6 +340,107 @@ function renderBody(
             <code className="mx-1 text-[var(--ink)]">{"{{steps.<this-id>.answer}}"}</code> or
             <code className="mx-1 text-[var(--ink)]">{"{{steps.<this-id>.results}}"}</code>.
           </Help>
+        </>
+      );
+
+    case "send_sms":
+      return (
+        <>
+          <Field label="Recipient type">
+            <select
+              value={cfg.to_phone ? "phone" : cfg.to_role ? "role" : cfg.to_member_id ? "member" : "phone"}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === "phone") { setConfig("to_role", undefined); setConfig("to_member_id", undefined); setConfig("to_phone", cfg.to_phone || ""); }
+                if (v === "role")  { setConfig("to_phone", undefined); setConfig("to_member_id", undefined); setConfig("to_role", cfg.to_role || "owner"); }
+                if (v === "member") { setConfig("to_phone", undefined); setConfig("to_role", undefined); setConfig("to_member_id", cfg.to_member_id || ""); }
+              }}
+              className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
+            >
+              <option value="phone">Phone number</option>
+              <option value="role">Team role</option>
+              <option value="member">Specific member</option>
+            </select>
+          </Field>
+          {cfg.to_phone !== undefined && (
+            <Field label="Phone (E.164)" hint="+15551234567">
+              <Text value={String(cfg.to_phone ?? "")} onChange={(v) => setConfig("to_phone", v)} placeholder="+15551234567" />
+            </Field>
+          )}
+          {cfg.to_role !== undefined && (
+            <Field label="Role">
+              <select
+                value={String(cfg.to_role ?? "owner")}
+                onChange={(e) => setConfig("to_role", e.target.value)}
+                className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
+              >
+                <option value="owner">Owner</option>
+                <option value="admin">Admin</option>
+                <option value="member">Member</option>
+                <option value="all">All members</option>
+              </select>
+            </Field>
+          )}
+          {cfg.to_member_id !== undefined && (
+            <Field label="Member ID">
+              <Text value={String(cfg.to_member_id ?? "")} onChange={(v) => setConfig("to_member_id", v)} placeholder="profile uuid" />
+            </Field>
+          )}
+          <Field label="Message body" hint="Supports {{steps.<id>.<field>}} templates">
+            <Textarea value={String(cfg.body ?? "")} onChange={(v) => setConfig("body", v)} rows={3} placeholder="Your workflow result: {{steps.search.answer}}" />
+          </Field>
+        </>
+      );
+
+    case "agent":
+      return (
+        <>
+          <Field label="Objective" hint="What should the agent accomplish? Supports {{steps.<id>.<field>}} templates.">
+            <Textarea value={String(cfg.objective ?? "")} onChange={(v) => setConfig("objective", v)} rows={3} placeholder="Research commercial listings near {{steps.trigger.input.location}} and summarize the top opportunities." />
+          </Field>
+          <Field label="Tools (comma-separated)" hint="e.g. web.search, memory.write, clients.query, site_scan.search">
+            <Text
+              value={Array.isArray(cfg.tools) ? cfg.tools.filter((t: unknown) => typeof t === "string").join(", ") : ""}
+              onChange={(v) => setConfig("tools", v.split(",").map((s: string) => s.trim()).filter(Boolean))}
+              placeholder="web.search, memory.write, clients.query"
+            />
+          </Field>
+          <Field label="Max steps" hint="1-20. Each step is one tool call.">
+            <Text value={String(cfg.max_steps ?? "")} onChange={(v) => setConfig("max_steps", v)} placeholder="8" />
+          </Field>
+          <Field label="Model">
+            <select
+              value={String(cfg.model ?? "")}
+              onChange={(e) => setConfig("model", e.target.value || undefined)}
+              className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
+            >
+              <option value="">Default (claude-sonnet-4-6)</option>
+              <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
+              <option value="gpt-4o-mini">GPT-4o Mini</option>
+              <option value="gpt-4o">GPT-4o</option>
+            </select>
+          </Field>
+          <Field label="System prompt (optional)" hint="Role or persona instructions for the agent.">
+            <Textarea value={String(cfg.system ?? "")} onChange={(v) => setConfig("system", v)} rows={2} placeholder="" />
+          </Field>
+          <Help>
+            The agent loops (observe, tool call, observe) until it produces a final
+            answer or hits max steps. Each tool call emits its own log entry.
+            Reference the final answer via
+            <code className="mx-1 text-[var(--ink)]">{"{{steps.<this-id>.text}}"}</code>.
+          </Help>
+        </>
+      );
+
+    case "trigger_at":
+      return (
+        <>
+          <Field label="Fire at (ISO 8601)" hint="The run fires once at this time, then disarms.">
+            <Text value={String(cfg.scheduled_for ?? "")} onChange={(v) => setConfig("scheduled_for", v)} placeholder="2026-06-01T09:00:00Z" />
+          </Field>
+          <Field label="Timezone (optional)">
+            <Text value={String(cfg.timezone ?? "")} onChange={(v) => setConfig("timezone", v)} placeholder="America/New_York" />
+          </Field>
         </>
       );
 

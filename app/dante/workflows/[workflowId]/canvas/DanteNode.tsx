@@ -136,6 +136,10 @@ function nodeSummary(step: WorkflowStep): string | null {
     case "query_offers":     return `offers · limit ${cfg.limit ?? 25}`;
     case "lease_lookup":     return `leases · ${cfg.status ?? "completed"}`;
     case "web_search":       return truncate(String(cfg.query ?? ""), 32);
+    case "archive_lookup":   return truncate(String(cfg.query ?? ""), 32);
+    case "send_sms":         return cfg.to_phone ? `to: ${String(cfg.to_phone)}` : (cfg.to_role ? `role: ${String(cfg.to_role)}` : null);
+    case "agent":            return truncate(String(cfg.objective ?? ""), 32);
+    case "trigger_at":       return cfg.scheduled_for ? String(cfg.scheduled_for).slice(0, 16).replace("T", " ") : null;
     default:                 return null;
   }
 }
