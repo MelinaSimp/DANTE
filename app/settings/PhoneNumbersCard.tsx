@@ -210,7 +210,7 @@ function ConnectForm({
               value={sid}
               onChange={(e) => setSid(e.target.value)}
               placeholder="AC••••••••••••••••••••••••••••••••"
-              className="mt-1 w-full px-3 py-2 text-sm bg-white border border-[var(--rule)] rounded-[4px] text-[var(--ink)] outline-none focus:border-[var(--accent)] font-mono"
+              className="mt-1 w-full px-3 py-2 text-sm bg-[var(--neu-input)] border border-white/30 border-t-white/50 rounded-[4px] text-[var(--ink)] outline-none focus:border-[var(--accent)] shadow-[var(--neu-shadow-pressed)] font-mono"
               autoComplete="off"
               spellCheck={false}
             />
@@ -224,7 +224,7 @@ function ConnectForm({
               onChange={(e) => setToken(e.target.value)}
               type="password"
               placeholder="••••••••••••••••••••••••••••••••"
-              className="mt-1 w-full px-3 py-2 text-sm bg-white border border-[var(--rule)] rounded-[4px] text-[var(--ink)] outline-none focus:border-[var(--accent)] font-mono"
+              className="mt-1 w-full px-3 py-2 text-sm bg-[var(--neu-input)] border border-white/30 border-t-white/50 rounded-[4px] text-[var(--ink)] outline-none focus:border-[var(--accent)] shadow-[var(--neu-shadow-pressed)] font-mono"
               autoComplete="off"
               spellCheck={false}
             />
@@ -861,7 +861,7 @@ function NumberRowItem({
             value={currentAgentId}
             onChange={(e) => handleAssign(e.target.value)}
             disabled={saving || agents.length === 0}
-            className="px-3 py-1.5 text-sm bg-white border border-[var(--rule)] rounded-[4px] text-[var(--ink)] outline-none focus:border-[var(--accent)] disabled:opacity-50 min-w-[180px]"
+            className="px-3 py-1.5 text-sm bg-[var(--neu-input)] border border-white/30 border-t-white/50 rounded-[4px] text-[var(--ink)] outline-none focus:border-[var(--accent)] shadow-[var(--neu-shadow-pressed)] disabled:opacity-50 min-w-[180px]"
           >
             <option value="">Unassigned</option>
             {/* Include the currently-attached agent even if they're
@@ -966,7 +966,7 @@ function HumanFallbackForm({
               value={value}
               onChange={(e) => setValue(e.target.value)}
               placeholder="+1 555 123 4567"
-              className="flex-1 px-3 py-1.5 text-sm bg-white border border-[var(--rule)] rounded-[4px] text-[var(--ink)] outline-none focus:border-[var(--accent)] font-mono"
+              className="flex-1 px-3 py-1.5 text-sm bg-[var(--neu-input)] border border-white/30 border-t-white/50 rounded-[4px] text-[var(--ink)] outline-none focus:border-[var(--accent)] shadow-[var(--neu-shadow-pressed)] font-mono"
             />
             <button
               onClick={() => save(value.trim() || null)}
