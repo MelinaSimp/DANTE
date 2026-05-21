@@ -18,12 +18,12 @@
   --panel-gap: 4px;
 
   /* Glass hierarchy — layered translucency over desktop/wallpaper */
-  --glass-rail: rgba(20, 20, 22, 0.82);
-  --glass-sidebar: rgba(240, 240, 242, 0.45);
-  --glass-main: rgba(245, 245, 247, 0.55);
-  --glass-card: rgba(255, 255, 255, 0.40);
-  --glass-input: rgba(255, 255, 255, 0.35);
-  --glass-hover: rgba(255, 255, 255, 0.10);
+  --glass-rail: rgba(20, 20, 22, 0.85);
+  --glass-sidebar: rgba(245, 245, 248, 0.55);
+  --glass-main: rgba(248, 248, 250, 0.62);
+  --glass-card: rgba(255, 255, 255, 0.65);
+  --glass-input: rgba(255, 255, 255, 0.45);
+  --glass-hover: rgba(255, 255, 255, 0.12);
 
   /* Canvas — backwards compat aliases mapped to glass tokens */
   --canvas: rgba(255, 255, 255, 0.08);
@@ -58,10 +58,10 @@
   --font-mono: var(--font-mono-loaded, "JetBrains Mono"), "SF Mono", Menlo, Consolas, monospace;
 
   /* Shadow layers — tight + diffused for glass depth */
-  --shadow-glass: 0 1px 3px rgba(0, 0, 0, 0.08), 0 16px 48px rgba(0, 0, 0, 0.05);
-  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.08), 0 8px 24px -4px rgba(0, 0, 0, 0.10);
-  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.10), 0 12px 32px -4px rgba(0, 0, 0, 0.14);
-  --shadow-rail: 0 8px 32px rgba(0, 0, 0, 0.25);
+  --shadow-glass: 0 1px 2px rgba(0, 0, 0, 0.07), 0 4px 16px rgba(0, 0, 0, 0.06), 0 12px 40px -8px rgba(0, 0, 0, 0.10);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06), 0 4px 16px -2px rgba(0, 0, 0, 0.10), 0 10px 28px -6px rgba(0, 0, 0, 0.08);
+  --shadow-card-hover: 0 2px 6px rgba(0, 0, 0, 0.08), 0 8px 24px -4px rgba(0, 0, 0, 0.14), 0 16px 40px -8px rgba(0, 0, 0, 0.12);
+  --shadow-rail: 4px 0 16px rgba(0, 0, 0, 0.18), 0 8px 32px rgba(0, 0, 0, 0.22);
 
   /* shadcn compat */
   --background: oklch(1 0 0);
@@ -89,12 +89,12 @@
 /* .dark mirrors :root — Drift ships one visual mode (frosted glass).
    The class still exists so the ThemeProvider doesn't error. */
 .dark {
-  --glass-rail: rgba(20, 20, 22, 0.82);
-  --glass-sidebar: rgba(240, 240, 242, 0.45);
-  --glass-main: rgba(245, 245, 247, 0.55);
-  --glass-card: rgba(255, 255, 255, 0.40);
-  --glass-input: rgba(255, 255, 255, 0.35);
-  --glass-hover: rgba(255, 255, 255, 0.10);
+  --glass-rail: rgba(20, 20, 22, 0.85);
+  --glass-sidebar: rgba(245, 245, 248, 0.55);
+  --glass-main: rgba(248, 248, 250, 0.62);
+  --glass-card: rgba(255, 255, 255, 0.65);
+  --glass-input: rgba(255, 255, 255, 0.45);
+  --glass-hover: rgba(255, 255, 255, 0.12);
 
   --canvas: rgba(255, 255, 255, 0.08);
   --canvas-subtle: rgba(255, 255, 255, 0.12);
@@ -118,10 +118,10 @@
   --danger: #dc2626;
   --danger-soft: rgba(220, 38, 38, 0.08);
 
-  --shadow-glass: 0 1px 3px rgba(0, 0, 0, 0.08), 0 16px 48px rgba(0, 0, 0, 0.05);
-  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.08), 0 8px 24px -4px rgba(0, 0, 0, 0.10);
-  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.10), 0 12px 32px -4px rgba(0, 0, 0, 0.14);
-  --shadow-rail: 0 8px 32px rgba(0, 0, 0, 0.25);
+  --shadow-glass: 0 1px 2px rgba(0, 0, 0, 0.07), 0 4px 16px rgba(0, 0, 0, 0.06), 0 12px 40px -8px rgba(0, 0, 0, 0.10);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06), 0 4px 16px -2px rgba(0, 0, 0, 0.10), 0 10px 28px -6px rgba(0, 0, 0, 0.08);
+  --shadow-card-hover: 0 2px 6px rgba(0, 0, 0, 0.08), 0 8px 24px -4px rgba(0, 0, 0, 0.14), 0 16px 40px -8px rgba(0, 0, 0, 0.12);
+  --shadow-rail: 4px 0 16px rgba(0, 0, 0, 0.18), 0 8px 32px rgba(0, 0, 0, 0.22);
 
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -147,7 +147,11 @@
 
 html {
   height: 100%;
-  background: #e8e9ec;
+  background:
+    radial-gradient(ellipse 80% 60% at 15% 60%, rgba(160, 150, 190, 0.18) 0%, transparent 70%),
+    radial-gradient(ellipse 70% 50% at 85% 25%, rgba(140, 170, 210, 0.14) 0%, transparent 65%),
+    radial-gradient(ellipse 60% 50% at 50% 90%, rgba(190, 175, 160, 0.10) 0%, transparent 60%),
+    #e8e9ec;
 }
 
 body {
@@ -160,7 +164,7 @@ body {
 }
 
 html.electron-vibrancy {
-  background: transparent;
+  background: transparent !important;
 }
 
 html.density-large {
@@ -176,8 +180,10 @@ main {
 .glass-panel {
   -webkit-backdrop-filter: saturate(1.8) blur(40px);
   backdrop-filter: saturate(1.8) blur(40px);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  box-shadow: var(--shadow-glass);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-top-color: rgba(255, 255, 255, 0.50);
+  border-left-color: rgba(255, 255, 255, 0.42);
+  box-shadow: var(--shadow-glass), inset 0 1px 0 rgba(255, 255, 255, 0.30);
   border-radius: var(--radius-panel);
 }
 
@@ -185,8 +191,10 @@ main {
   background: var(--glass-rail);
   -webkit-backdrop-filter: saturate(1.8) blur(40px);
   backdrop-filter: saturate(1.8) blur(40px);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  box-shadow: var(--shadow-rail);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-top-color: rgba(255, 255, 255, 0.14);
+  border-left-color: rgba(255, 255, 255, 0.10);
+  box-shadow: var(--shadow-rail), inset 0 1px 0 rgba(255, 255, 255, 0.07);
   border-radius: var(--radius-panel);
 }
 
@@ -202,13 +210,15 @@ main {
   background: var(--glass-card);
   -webkit-backdrop-filter: saturate(1.5) blur(24px);
   backdrop-filter: saturate(1.5) blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.30);
-  box-shadow: var(--shadow-card);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-top-color: rgba(255, 255, 255, 0.65);
+  border-left-color: rgba(255, 255, 255, 0.52);
+  box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255, 255, 255, 0.40);
   border-radius: var(--radius);
 }
 
 .glass-card-hover:hover {
-  box-shadow: var(--shadow-card-hover);
+  box-shadow: var(--shadow-card-hover), inset 0 1px 0 rgba(255, 255, 255, 0.40);
 }
 
 .glass-input {
@@ -301,9 +311,11 @@ main {
   background: var(--glass-card);
   -webkit-backdrop-filter: saturate(1.5) blur(24px);
   backdrop-filter: saturate(1.5) blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.30);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-top-color: rgba(255, 255, 255, 0.65);
+  border-left-color: rgba(255, 255, 255, 0.52);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255, 255, 255, 0.40);
 }
 
 .card-flat-hover:hover {
