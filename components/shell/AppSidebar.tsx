@@ -218,7 +218,7 @@ export default function AppSidebar({
                           title={!isOpen ? item.label : ""}
                           className={`w-full h-9 flex items-center gap-3 px-2.5 py-2 rounded-lg transition-colors text-left ${
                             active
-                              ? "bg-[var(--neu-active)] shadow-[var(--neu-shadow-raised)] text-[var(--ink)] font-medium"
+                              ? "bg-[var(--neu-active)] shadow-[var(--neu-shadow-pressed)] text-[var(--ink)] font-medium border border-white/30 border-t-white/50"
                               : "hover:bg-[var(--neu-hover)] text-[var(--ink-muted)]"
                           }`}
                         >
@@ -317,7 +317,7 @@ export default function AppSidebar({
                         onClick={() => router.push(`/dante/chat/${chat.id}`)}
                         className={`w-full h-9 flex items-center px-2.5 rounded-lg text-sm truncate transition-colors ${
                           chatActive
-                            ? "bg-[var(--neu-active)] shadow-[var(--neu-shadow-raised)] text-[var(--ink)] font-medium"
+                            ? "bg-[var(--neu-active)] shadow-[var(--neu-shadow-pressed)] text-[var(--ink)] font-medium border border-white/30 border-t-white/50"
                             : "text-[var(--ink-muted)] hover:bg-[var(--neu-hover)] hover:text-[var(--ink)]"
                         }`}
                         title={chat.title}

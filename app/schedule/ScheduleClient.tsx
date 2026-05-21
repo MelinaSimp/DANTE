@@ -661,7 +661,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                     onClick={() => { setWeekStart(day.startOf("week")); }}
                     className={`mono text-[11px] py-1 rounded-full transition ${
                       isToday
-                        ? "bg-[var(--ink)] text-[var(--canvas)] font-semibold"
+                        ? "bg-[var(--neu-active)] shadow-[var(--neu-shadow-pressed)] text-[var(--ink)] font-semibold border border-white/40"
                         : !isCurrentMonth
                         ? "text-[var(--ink-subtle)]"
                         : "text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
@@ -789,12 +789,12 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                   <div
                     key={i}
                     className={`text-center py-2 border-r border-[var(--rule)] ${i === 6 ? "border-r-0" : ""} ${
-                      isToday ? "bg-[var(--accent-soft)]" : ""
+                      isToday ? "bg-[var(--neu-active)]" : ""
                     }`}
                   >
                     <div
                       className={`mono text-[11px] uppercase ${
-                        isToday ? "text-[var(--accent)]" : "text-[var(--ink-subtle)]"
+                        isToday ? "text-[var(--ink)] font-semibold" : "text-[var(--ink-subtle)]"
                       }`}
                     >
                       {day.format("ddd")}
@@ -802,7 +802,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                     <div
                       className={`text-xl font-medium mt-0.5 ${
                         isToday
-                          ? "bg-[var(--accent)] text-[var(--canvas)] w-9 h-9 rounded-full flex items-center justify-center mx-auto"
+                          ? "bg-[var(--neu-card)] text-[var(--ink)] w-9 h-9 rounded-full flex items-center justify-center mx-auto shadow-[var(--neu-shadow-pressed)] border border-white/40"
                           : "text-[var(--ink)]"
                       }`}
                     >
@@ -836,7 +836,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                     <div
                       key={dayIdx}
                       className={`relative border-r border-[var(--rule)] ${dayIdx === 6 ? "border-r-0" : ""} ${
-                        isToday ? "bg-[var(--accent-soft)]" : ""
+                        isToday ? "bg-[var(--neu-active)]" : ""
                       }`}
                     >
                       {/* Hour lines */}
@@ -935,7 +935,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                     key={i}
                     className={`border-b border-r border-[var(--rule)] p-1 min-h-[80px] ${
                       isToday
-                        ? "bg-[var(--accent-soft)]"
+                        ? "bg-[var(--neu-active)]"
                         : !isCurrentMonth
                         ? "bg-[var(--canvas-subtle)]"
                         : "bg-[var(--canvas)]"
@@ -944,7 +944,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                     <div
                       className={`mono text-xs font-medium mb-1 text-center ${
                         isToday
-                          ? "bg-[var(--accent)] text-[var(--canvas)] w-6 h-6 rounded-full flex items-center justify-center mx-auto"
+                          ? "bg-[var(--neu-card)] text-[var(--ink)] w-6 h-6 rounded-full flex items-center justify-center mx-auto shadow-[var(--neu-shadow-pressed)] border border-white/40"
                           : !isCurrentMonth
                           ? "text-[var(--ink-subtle)]"
                           : "text-[var(--ink)]"
