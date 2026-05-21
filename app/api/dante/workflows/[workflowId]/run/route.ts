@@ -20,7 +20,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { runWorkflow } from "@/lib/dante/workflow-runner";
 import { definitionFromRow } from "@/lib/dante/workflow-types";
-import { enqueueRun, kickQueueWorker } from "@/lib/dante/run-executor";
+import { enqueueRun, kickQueueWorker, notifyRunFailure } from "@/lib/dante/run-executor";
 import { requireActiveBilling } from "@/lib/billing/gate";
 
 export const dynamic = "force-dynamic";
@@ -104,6 +104,16 @@ export async function POST(
       last_run_status: result.status,
     }).eq("id", workflowId);
 
+    if (result.status === "error") {
+      notifyRunFailure({
+        workflowId,
+        workflowName: definition.name,
+        workspaceId: profile.workspace_id,
+        runId: runId!,
+        error: result.error || "Unknown error",
+      }).catch(() => {});
+    }
+
     return NextResponse.json({ run_id: runId, ...result });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Run failed";
@@ -112,6 +122,15 @@ export async function POST(
       error: msg,
       finished_at: new Date().toISOString(),
     }).eq("id", runId);
+
+    notifyRunFailure({
+      workflowId,
+      workflowName: wf.name,
+      workspaceId: profile.workspace_id,
+      runId: runId!,
+      error: msg,
+    }).catch(() => {});
+
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

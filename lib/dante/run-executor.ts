@@ -13,6 +13,80 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { runWorkflow } from "./workflow-runner";
 import { definitionFromRow } from "./workflow-types";
 
+// ── Failure notifications ────────────────────────────────────
+// Email + SMS the workspace owner when a workflow errors so cron
+// workflows don't fail silently for days.
+
+export async function notifyRunFailure(opts: {
+  workflowId: string;
+  workflowName: string;
+  workspaceId: string;
+  runId: string;
+  error: string;
+}): Promise<void> {
+  try {
+    const { data: owners } = await supabaseAdmin
+      .from("profiles")
+      .select("id, full_name, sms_phone, sms_verified_at")
+      .eq("workspace_id", opts.workspaceId)
+      .eq("role", "owner");
+
+    if (!owners?.length) return;
+
+    const apiKey = process.env.RESEND_API_KEY;
+    const from = process.env.RESEND_FROM_EMAIL || "Drift <ops@driftai.studio>";
+    const errorSnippet = opts.error.length > 300
+      ? opts.error.slice(0, 297) + "..."
+      : opts.error;
+
+    for (const owner of owners) {
+      // Email (via auth.users since email isn't on profiles)
+      if (apiKey) {
+        try {
+          const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(owner.id);
+          const email = authUser.user?.email;
+          if (email) {
+            await fetch("https://api.resend.com/emails", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                from,
+                to: email,
+                subject: `Workflow failed: ${opts.workflowName}`,
+                text: [
+                  `Your workflow "${opts.workflowName}" just failed.`,
+                  ``,
+                  `Error: ${errorSnippet}`,
+                  ``,
+                  `View the run: https://driftai.studio/dante/workflows/${opts.workflowId}`,
+                ].join("\n"),
+              }),
+            });
+          }
+        } catch (e) {
+          console.warn("[run-notify] email failed:", e);
+        }
+      }
+
+      // SMS if owner has a verified phone
+      const p = owner as { sms_phone: string | null; sms_verified_at: string | null };
+      if (p.sms_phone && p.sms_verified_at) {
+        try {
+          const { sendMessage } = await import("@/lib/sms/sender");
+          await sendMessage(
+            p.sms_phone,
+            `Workflow failed: ${opts.workflowName}\n${errorSnippet}`,
+          );
+        } catch (e) {
+          console.warn("[run-notify] sms failed:", e);
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("[run-notify] notification failed:", e);
+  }
+}
+
 /**
  * Atomic claim: flip a queued row to running. Returns the workflow row
  * we should execute, or null if another worker beat us to it.
@@ -83,6 +157,16 @@ export async function executeClaimedRun(
       last_run_status: result.status,
     }).eq("id", run.workflow_id);
 
+    if (result.status === "error") {
+      notifyRunFailure({
+        workflowId: run.workflow_id,
+        workflowName: definition.name,
+        workspaceId: definition.workspace_id,
+        runId: run.id,
+        error: result.error || "Unknown error",
+      }).catch(() => {});
+    }
+
     return { status: result.status };
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Run failed";
@@ -95,6 +179,22 @@ export async function executeClaimedRun(
       last_run_at: new Date().toISOString(),
       last_run_status: "error",
     }).eq("id", run.workflow_id);
+
+    const wfName = (() => {
+      try { return definitionFromRow(workflow as Parameters<typeof definitionFromRow>[0]).name; }
+      catch { return run.workflow_id; }
+    })();
+    const wsId = (workflow as { workspace_id?: string }).workspace_id;
+    if (wsId) {
+      notifyRunFailure({
+        workflowId: run.workflow_id,
+        workflowName: wfName,
+        workspaceId: wsId,
+        runId: run.id,
+        error: msg,
+      }).catch(() => {});
+    }
+
     return { status: "error" };
   }
 }
