@@ -47,6 +47,26 @@ interface WorkflowRow {
   last_run_at: string | null;
   last_run_status: string | null;
   updated_at: string;
+  proposal_state?: string | null;
+}
+
+interface StepLogEntry {
+  step_id: string;
+  step_name?: string;
+  status: "success" | "error" | "skipped";
+  output?: unknown;
+  error?: string;
+}
+
+interface RunFeedItem {
+  id: string;
+  workflow_id: string;
+  status: string;
+  started_at: string | null;
+  finished_at: string | null;
+  error: string | null;
+  output: unknown;
+  log: StepLogEntry[] | null;
 }
 
 interface WorkflowProposal {
@@ -94,6 +114,9 @@ export default function WorkflowsPageClient({ archiveReady, canManageArchive }: 
   const [error, setError] = useState<string | null>(null);
   const [cloningSlug, setCloningSlug] = useState<string | null>(null);
 
+  const [runFeed, setRunFeed] = useState<RunFeedItem[]>([]);
+  const [runFeedLoading, setRunFeedLoading] = useState(true);
+
   const [prompt, setPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
   const [proposals, setProposals] = useState<WorkflowProposal[] | null>(null);
@@ -125,6 +148,43 @@ export default function WorkflowsPageClient({ archiveReady, canManageArchive }: 
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const loadRunFeed = useCallback(async () => {
+    try {
+      const res = await fetch("/api/dante/workflows/runs", { credentials: "include" });
+      if (!res.ok) return;
+      const json = await res.json();
+      setRunFeed(json.runs || []);
+    } catch { /* silent */ }
+    finally { setRunFeedLoading(false); }
+  }, []);
+
+  useEffect(() => { loadRunFeed(); }, [loadRunFeed]);
+
+  const pendingProposals = rows.filter((r) => r.proposal_state === "pending");
+  const activeWorkflows = rows.filter((r) => r.proposal_state !== "pending");
+
+  const acceptProposal = async (id: string) => {
+    try {
+      await fetch(`/api/dante/workflows/${id}/proposal`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "accept" }),
+      });
+      setRows((prev) => prev.map((r) => r.id === id ? { ...r, proposal_state: null, enabled: true } : r));
+    } catch { /* silent */ }
+  };
+
+  const declineProposal = async (id: string) => {
+    try {
+      await fetch(`/api/dante/workflows/${id}/proposal`, {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "decline" }),
+      });
+      setRows((prev) => prev.filter((r) => r.id !== id));
+    } catch { /* silent */ }
+  };
 
   const createBlank = async () => {
     setCreating(true); setError(null);
@@ -392,6 +452,100 @@ export default function WorkflowsPageClient({ archiveReady, canManageArchive }: 
         </section>
       )}
 
+      {/* Pending proposals from Dante */}
+      {pendingProposals.length > 0 && (
+        <section className="mb-8">
+          <div className="label-section mb-3">Pending proposals</div>
+          <p className="text-xs text-[var(--ink-muted)] mb-3 -mt-1">
+            Dante drafted these workflows for you. Review and accept to activate, or decline to discard.
+          </p>
+          <div className="space-y-2">
+            {pendingProposals.map((r) => (
+              <div key={r.id} className="card-flat flex items-center gap-4 px-5 py-4 border-l-2 border-l-[var(--accent)]">
+                <div className="border border-[var(--rule)] bg-[var(--accent-soft)] rounded-[4px] p-2 shrink-0">
+                  <DriftMark className="h-4 w-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-semibold text-[var(--ink)] truncate">{r.name}</h3>
+                  {r.description && <p className="text-xs text-[var(--ink-muted)] line-clamp-1 mt-0.5">{r.description}</p>}
+                </div>
+                <Link href={`/dante/workflows/${r.id}`}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] border border-[var(--rule)] text-[var(--ink-muted)] hover:bg-[var(--canvas-subtle)] text-xs font-medium transition">
+                  Review
+                </Link>
+                <button onClick={() => acceptProposal(r.id)}
+                  className="px-3 py-1.5 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-xs font-medium hover:opacity-90 transition">
+                  Accept
+                </button>
+                <button onClick={() => declineProposal(r.id)}
+                  className="px-3 py-1.5 rounded-[4px] border border-[var(--rule)] text-[var(--ink-muted)] hover:text-[var(--danger)] hover:border-[var(--danger)] text-xs font-medium transition">
+                  Decline
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Recent run results */}
+      {!runFeedLoading && runFeed.length > 0 && (
+        <section className="mb-8">
+          <div className="label-section mb-3">Recent results</div>
+          <div className="space-y-2">
+            {runFeed.slice(0, 8).map((run) => {
+              const wf = rows.find((r) => r.id === run.workflow_id);
+              const isSuccess = run.status === "success";
+              const summary = extractRunSummary(run);
+              return (
+                <div key={run.id} className="card-flat px-5 py-4">
+                  <div className="flex items-start gap-3">
+                    <div className="shrink-0 mt-0.5">
+                      {isSuccess
+                        ? <CheckCircle2 className="w-4 h-4 text-[var(--verified)]" strokeWidth={1.5} />
+                        : <AlertCircle className="w-4 h-4 text-[var(--danger)]" strokeWidth={1.5} />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-sm font-semibold text-[var(--ink)] truncate">
+                          {wf?.name || "Workflow"}
+                        </span>
+                        <span className="text-[11px] text-[var(--ink-subtle)]">
+                          {run.finished_at ? timeAgo(run.finished_at) : ""}
+                        </span>
+                      </div>
+                      {run.error ? (
+                        <p className="text-xs text-[var(--danger)] line-clamp-2 mono">{run.error}</p>
+                      ) : summary ? (
+                        <p className="text-xs text-[var(--ink-muted)] leading-relaxed line-clamp-3">{summary}</p>
+                      ) : null}
+                      {run.log && run.log.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {run.log.map((entry, i) => (
+                            <span key={i} className={`text-[10px] mono rounded-full px-2 py-0.5 border border-[var(--rule)] ${
+                              entry.status === "success" ? "text-[var(--verified)] bg-[var(--verified-soft)]"
+                                : entry.status === "error" ? "text-[var(--danger)] bg-[var(--danger-soft)]"
+                                : "text-[var(--ink-subtle)] bg-[var(--canvas-subtle)]"
+                            }`}>
+                              {entry.step_name || entry.step_id}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {wf && (
+                      <Link href={`/dante/workflows/${wf.id}`}
+                        className="shrink-0 text-[11px] text-[var(--ink-muted)] hover:text-[var(--ink)] underline underline-offset-2">
+                        Details
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       {/* Your workflows */}
       <div className="label-section mb-3">Your workflows</div>
 
@@ -399,7 +553,7 @@ export default function WorkflowsPageClient({ archiveReady, canManageArchive }: 
         <div className="card-flat p-12 text-center">
           <Loader2 className="h-6 w-6 animate-spin text-[var(--ink-muted)] mx-auto" strokeWidth={1.5} />
         </div>
-      ) : rows.length === 0 ? (
+      ) : activeWorkflows.length === 0 ? (
         <div className="card-flat p-12 text-center mb-10">
           <Zap className="h-10 w-10 text-[var(--ink-subtle)] mx-auto mb-3" strokeWidth={1.5} />
           <p className="text-[var(--ink-muted)] mb-1">No workflows yet</p>
@@ -407,7 +561,7 @@ export default function WorkflowsPageClient({ archiveReady, canManageArchive }: 
         </div>
       ) : (
         <div className="space-y-2 mb-10">
-          {rows.map((r) => (
+          {activeWorkflows.map((r) => (
             <div key={r.id} className="card-flat card-flat-hover flex items-center gap-4 px-5 py-4">
               <div className="border border-[var(--rule)] bg-[var(--canvas)] rounded-[4px] p-2 shrink-0">
                 <Zap className="h-4 w-4 text-[var(--ink)]" strokeWidth={1.5} />
@@ -558,4 +712,41 @@ export default function WorkflowsPageClient({ archiveReady, canManageArchive }: 
       </div>
     </div>
   );
+}
+
+function extractRunSummary(run: RunFeedItem): string | null {
+  if (run.output && typeof run.output === "object") {
+    const out = run.output as Record<string, unknown>;
+    if (typeof out.text === "string" && out.text.trim()) {
+      return out.text.trim().slice(0, 300);
+    }
+  }
+  if (run.log && run.log.length > 0) {
+    for (let i = run.log.length - 1; i >= 0; i--) {
+      const entry = run.log[i];
+      if (entry.status === "success" && entry.output) {
+        const o = entry.output as Record<string, unknown>;
+        if (typeof o.text === "string" && o.text.trim()) {
+          return o.text.trim().slice(0, 300);
+        }
+        if (typeof o.count === "number") {
+          return `${o.count} result${o.count === 1 ? "" : "s"} returned`;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function timeAgo(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}d ago`;
+  return new Date(iso).toLocaleDateString();
 }
