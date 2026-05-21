@@ -789,7 +789,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                   <div
                     key={i}
                     className={`text-center py-2 border-r border-[var(--rule)] ${i === 6 ? "border-r-0" : ""} ${
-                      isToday ? "bg-[var(--neu-active)]" : ""
+                      isToday ? "bg-[var(--neu-active)] shadow-[inset_0_1px_0_rgba(255,255,255,0.45),inset_0_-1px_2px_rgba(0,0,0,0.04)]" : ""
                     }`}
                   >
                     <div
@@ -802,7 +802,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                     <div
                       className={`text-xl font-medium mt-0.5 ${
                         isToday
-                          ? "bg-[var(--neu-card)] text-[var(--ink)] w-9 h-9 rounded-full flex items-center justify-center mx-auto shadow-[3px_3px_6px_rgba(0,0,0,0.12),-2px_-2px_5px_rgba(255,255,255,0.70)] border border-white/50 border-t-white/70"
+                          ? "text-[var(--ink)]"
                           : "text-[var(--ink)]"
                       }`}
                     >
@@ -836,7 +836,7 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
                     <div
                       key={dayIdx}
                       className={`relative border-r border-[var(--rule)] ${dayIdx === 6 ? "border-r-0" : ""} ${
-                        isToday ? "bg-[var(--neu-active)]" : ""
+                        isToday ? "bg-[var(--neu-active)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.25)]" : ""
                       }`}
                     >
                       {/* Hour lines */}
