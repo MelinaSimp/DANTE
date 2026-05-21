@@ -152,6 +152,18 @@ function createWindow() {
   if (isDev || process.env.DEBUG === "true") {
     mainWindow.webContents.openDevTools();
   }
+
+  // Cmd+Shift+I toggles DevTools in all builds (production included)
+  mainWindow.webContents.on("before-input-event", (_e, input) => {
+    if (
+      input.type === "keyDown" &&
+      input.key === "I" &&
+      input.shift &&
+      (input.meta || input.control)
+    ) {
+      mainWindow.webContents.toggleDevTools();
+    }
+  });
 }
 
 function createTray() {
