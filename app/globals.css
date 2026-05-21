@@ -12,11 +12,11 @@
   --radius: 0.625rem;
   --color-azure: 0, 136, 255;
 
-  /* Canvas — light gray base, white cards */
-  --canvas: #f0f1f3;
-  --canvas-subtle: #f5f6f7;
-  --canvas-muted: #eaebee;
-  --surface: #ffffff;
+  /* Canvas — transparent base, glass cards (Electron vibrancy shows desktop) */
+  --canvas: rgba(255, 255, 255, 0.08);
+  --canvas-subtle: rgba(255, 255, 255, 0.12);
+  --canvas-muted: rgba(255, 255, 255, 0.05);
+  --surface: rgba(255, 255, 255, 0.35);
 
   /* Ink */
   --ink: #111827; /* gray-900 */
@@ -24,8 +24,8 @@
   --ink-subtle: #9ca3af; /* gray-400 */
 
   /* Rule / border */
-  --rule: #e5e7eb; /* gray-200 */
-  --rule-strong: #d1d5db; /* gray-300 */
+  --rule: rgba(255, 255, 255, 0.18);
+  --rule-strong: rgba(255, 255, 255, 0.28);
 
   /* Accent */
   --accent: rgb(0, 136, 255);
@@ -70,17 +70,17 @@
 /* .dark mirrors :root — Drift ships one visual mode (light gray canvas).
    The class still exists so the ThemeProvider doesn't error. */
 .dark {
-  --canvas: #f0f1f3;
-  --canvas-subtle: #f5f6f7;
-  --canvas-muted: #eaebee;
-  --surface: #ffffff;
+  --canvas: rgba(255, 255, 255, 0.08);
+  --canvas-subtle: rgba(255, 255, 255, 0.12);
+  --canvas-muted: rgba(255, 255, 255, 0.05);
+  --surface: rgba(255, 255, 255, 0.35);
 
   --ink: #111827;
   --ink-muted: #6b7280;
   --ink-subtle: #9ca3af;
 
-  --rule: #e5e7eb;
-  --rule-strong: #d1d5db;
+  --rule: rgba(255, 255, 255, 0.18);
+  --rule-strong: rgba(255, 255, 255, 0.28);
 
   --accent: rgb(0, 136, 255);
   --accent-soft: rgba(0, 136, 255, 0.05);
@@ -114,14 +114,22 @@
   color-scheme: light;
 }
 
-html,
+html {
+  height: 100%;
+  background: #e8e9ec;
+}
+
 body {
   height: 100%;
-  background: var(--canvas);
+  background: transparent;
   color: var(--ink);
   font-family: var(--font-ui);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+html.electron-vibrancy {
+  background: transparent;
 }
 
 html.density-large {
@@ -129,7 +137,7 @@ html.density-large {
 }
 
 main {
-  background: var(--canvas);
+  background: transparent;
   min-height: 100vh;
 }
 
@@ -212,14 +220,16 @@ main {
 }
 
 .card-flat {
-  background: var(--surface);
-  border: 1px solid var(--rule);
+  background: rgba(255, 255, 255, 0.45);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  backdrop-filter: blur(24px) saturate(1.4);
+  border: none;
   border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 8px 24px -4px rgba(0, 0, 0, 0.1);
 }
 
 .card-flat-hover:hover {
-  border-color: var(--rule-strong);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), 0 12px 32px -4px rgba(0, 0, 0, 0.14);
 }
 
 .hr-rule {

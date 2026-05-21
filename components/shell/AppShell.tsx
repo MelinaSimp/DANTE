@@ -24,7 +24,7 @@ export default function AppShell({ children, ...sidebarProps }: Props) {
       iconPath={brand.assistantIconPath}
     >
       <PageContextProvider>
-        <div className="h-dvh bg-[var(--canvas)] flex">
+        <div className="h-dvh flex">
           <AppSidebar {...sidebarProps} />
           <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
             <UsageBanner />

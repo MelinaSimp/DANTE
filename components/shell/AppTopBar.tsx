@@ -72,7 +72,7 @@ export default function AppTopBar() {
             setInitialMode("ask");
             setOpen(true);
           }}
-          className="inline-flex items-center gap-2 rounded-lg bg-gray-900 text-white px-3.5 py-1.5 text-sm font-medium transition hover:bg-gray-800 active:scale-[0.98]"
+          className="inline-flex items-center gap-2 rounded-lg bg-gray-900/80 backdrop-blur-md text-white px-3.5 py-1.5 text-sm font-medium transition hover:bg-gray-900/90 active:scale-[0.98]"
           aria-keyshortcuts={isMac ? "Meta+D" : "Control+D"}
           aria-label={`Ask ${name}`}
         >

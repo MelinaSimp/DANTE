@@ -218,7 +218,7 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
       features={data.features}
       isSuperadmin={data.isSuperadmin}
     >
-      <div className="bg-[var(--canvas)] text-[var(--ink)]">
+      <div className="text-[var(--ink)]">
         {/* Top nav has been replaced by the persistent left sidebar
             in AppShell. Sign-out, settings, and module nav now live
             in the sidebar; this page just renders the dashboard

@@ -76,7 +76,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeScript />
         <DensityScript />
       </head>
-      <body className="bg-[var(--canvas)] min-h-screen antialiased text-[var(--ink)]">
+      <body className="min-h-screen antialiased text-[var(--ink)]">
         <ThemeProvider>
         <DensityProvider>
         <QueryProvider>
@@ -88,7 +88,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <Header />
                 </div>
                 <ErrorBoundary>
-                  <main className="relative z-0 bg-[var(--canvas)]">{children}</main>
+                  <main className="relative z-0">{children}</main>
                 </ErrorBoundary>
                 <CommandPalette />
                 <PushNotificationManager />
@@ -102,6 +102,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script
           dangerouslySetInnerHTML={{
             __html: `
+              if (window.electronAPI && window.electronAPI.isElectron) {
+                document.documentElement.classList.add('electron-vibrancy');
+              }
               if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.getRegistrations().then(function(registrations) {
                   for(let registration of registrations) {

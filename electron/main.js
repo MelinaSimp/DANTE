@@ -108,7 +108,10 @@ function createWindow() {
     minHeight: 680,
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 16, y: 16 },
-    backgroundColor: "#000000",
+    transparent: true,
+    vibrancy: "under-window",
+    visualEffectState: "active",
+    backgroundColor: "#00000000",
     show: false,
     icon: path.join(__dirname, "../public/brand/logo-circle.png"),
     webPreferences: {

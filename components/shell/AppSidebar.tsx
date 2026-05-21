@@ -140,7 +140,7 @@ export default function AppSidebar({
     <aside
       className={`${
         isOpen ? "w-64" : "w-14"
-      } bg-[var(--canvas)] border-r border-[var(--rule)] hidden lg:flex flex-col sticky top-0 h-screen transition-all duration-300 overflow-visible`}
+      } bg-white/30 backdrop-blur-2xl backdrop-saturate-150 shadow-[4px_0_24px_rgba(0,0,0,0.12)] hidden lg:flex flex-col sticky top-0 h-screen transition-all duration-300 overflow-visible`}
       aria-label="Primary navigation"
     >
       {/* Toggle + Logo */}
@@ -166,7 +166,7 @@ export default function AppSidebar({
         )}
         <button
           onClick={() => setIsOpen((v) => !v)}
-          className="h-9 w-9 p-2.5 items-center flex hover:bg-gray-100 rounded-md transition-colors"
+          className="h-9 w-9 p-2.5 items-center flex hover:bg-white/20 rounded-md transition-colors"
           title={isOpen ? "Close sidebar" : "Open sidebar"}
         >
           <PanelLeft className="h-4 w-4" />
@@ -191,7 +191,7 @@ export default function AppSidebar({
                   </div>
                 )}
                 {!isOpen && si > 0 && (
-                  <div className="mx-3 my-1.5 border-t border-gray-200" />
+                  <div className="mx-3 my-1.5 border-t border-white/20" />
                 )}
                 {/* Tree connector for grouped sections */}
                 <div className={isOpen && section.label ? "ml-[26px] pl-3" : ""}>
@@ -205,10 +205,10 @@ export default function AppSidebar({
                         {hasTree && (
                           <>
                             <div
-                              className="absolute left-0 border-l border-gray-200"
+                              className="absolute left-0 border-l border-white/20"
                               style={isLast ? { top: 0, height: "50%" } : { top: 0, bottom: 0 }}
                             />
-                            <div className="absolute left-0 top-1/2 w-3 border-t border-gray-200" />
+                            <div className="absolute left-0 top-1/2 w-3 border-t border-white/20" />
                           </>
                         )}
                         <Link
@@ -216,8 +216,8 @@ export default function AppSidebar({
                           title={!isOpen ? item.label : ""}
                           className={`w-full h-9 flex items-center gap-3 px-2.5 py-2 rounded-md transition-colors text-left ${
                             active
-                              ? "bg-[var(--surface)] shadow-[0_1px_3px_rgba(0,0,0,0.06)] text-gray-900"
-                              : "hover:bg-gray-50 text-gray-600"
+                              ? "bg-white/40 shadow-[0_1px_3px_rgba(0,0,0,0.06)] text-gray-900"
+                              : "hover:bg-white/15 text-gray-600"
                           }`}
                         >
                           <Icon
@@ -246,7 +246,7 @@ export default function AppSidebar({
 
           {features.includes("dante") && (
             <>
-              <div className="mx-4 my-2 border-t border-gray-200" />
+              <div className="mx-4 my-2 border-t border-white/20" />
               <div className="px-2.5">
                 <DanteGateLink
                   variant={isOpen ? "sidebar-full" : "icon-only"}
@@ -315,8 +315,8 @@ export default function AppSidebar({
                         onClick={() => router.push(`/dante/chat/${chat.id}`)}
                         className={`w-full h-9 flex items-center px-2.5 rounded-md text-sm truncate transition-colors ${
                           chatActive
-                            ? "bg-[var(--surface)] shadow-[0_1px_3px_rgba(0,0,0,0.06)] text-gray-900 font-medium"
-                            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                            ? "bg-white/40 shadow-[0_1px_3px_rgba(0,0,0,0.06)] text-gray-900 font-medium"
+                            : "text-gray-600 hover:bg-white/15 hover:text-gray-900"
                         }`}
                         title={chat.title}
                       >
@@ -332,12 +332,12 @@ export default function AppSidebar({
       </nav>
 
       {/* Footer -- user profile + settings */}
-      <div className="mt-auto flex flex-col items-stretch gap-0.5 px-2 pt-2 border-t border-gray-200">
+      <div className="mt-auto flex flex-col items-stretch gap-0.5 px-2 pt-2 border-t border-white/20">
         {isSuperadmin && (
           <Link
             href="/admin"
             title={!isOpen ? "Admin" : ""}
-            className={`h-9 flex items-center gap-3 px-2.5 rounded-md transition-colors text-gray-700 hover:bg-gray-100 ${
+            className={`h-9 flex items-center gap-3 px-2.5 rounded-md transition-colors text-gray-700 hover:bg-white/20 ${
               !isOpen ? "justify-center" : ""
             }`}
           >
@@ -354,8 +354,8 @@ export default function AppSidebar({
           title={!isOpen ? "Settings" : ""}
           className={`h-9 flex items-center gap-3 px-2.5 rounded-md transition-colors ${
             pathname?.startsWith("/settings")
-              ? "bg-gray-100 text-gray-900"
-              : "text-gray-700 hover:bg-gray-100"
+              ? "bg-white/25 text-gray-900"
+              : "text-gray-700 hover:bg-white/20"
           } ${!isOpen ? "justify-center" : ""}`}
         >
           <Settings className="h-4 w-4 flex-shrink-0" strokeWidth={1.5} />
@@ -373,7 +373,7 @@ export default function AppSidebar({
             className={`flex items-center transition-colors w-full px-2.5 py-3 ${
               !isOpen ? "justify-center" : ""
             } ${
-              isDropdownOpen ? "bg-gray-100" : "hover:bg-gray-100"
+              isDropdownOpen ? "bg-white/25" : "hover:bg-white/20"
             } rounded-md`}
             title={!isOpen ? workspaceName : undefined}
           >
@@ -397,11 +397,11 @@ export default function AppSidebar({
           </button>
 
           {isDropdownOpen && (
-            <div className="absolute bottom-full left-0 m-1 bg-white rounded-lg shadow-lg border border-gray-200 p-1 z-50 w-56 whitespace-nowrap">
+            <div className="absolute bottom-full left-0 m-1 bg-white/50 backdrop-blur-xl rounded-lg shadow-lg border border-white/20 p-1 z-50 w-56 whitespace-nowrap">
               <Link
                 href="/settings"
                 onClick={() => setIsDropdownOpen(false)}
-                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 rounded-md"
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-white/20 flex items-center gap-2 rounded-md"
               >
                 <User className="h-4 w-4" />
                 Account Settings
@@ -411,7 +411,7 @@ export default function AppSidebar({
                   await supabase.auth.signOut();
                   router.push("/auth");
                 }}
-                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 rounded-md"
+                className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-white/20 flex items-center gap-2 rounded-md"
               >
                 <LogOut className="h-4 w-4" />
                 Sign out

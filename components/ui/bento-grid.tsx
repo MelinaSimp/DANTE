@@ -78,15 +78,13 @@ export function BentoCard({
   // still read distinct; default tone goes solid black at full opacity
   // for a sharper editorial look — paired with a small drop shadow
   // so the cards lift off the canvas instead of dissolving into it.
-  const borderTone =
-    tone === "alert" ? "border-[var(--flag)]/40" : "border-[var(--ink)]";
-  const bgTone = "bg-[var(--canvas)]";
-  const shadow = "shadow-[0_1px_2px_rgba(20,20,20,0.06),0_4px_12px_-6px_rgba(20,20,20,0.10)]";
-  const hoverShadow = "hover:shadow-[0_2px_4px_rgba(20,20,20,0.08),0_8px_20px_-8px_rgba(20,20,20,0.14)]";
+  const alertRing = tone === "alert" ? "ring-1 ring-[var(--flag)]/30" : "";
+  const shadow = "shadow-[0_2px_8px_rgba(0,0,0,0.08),0_8px_24px_-4px_rgba(0,0,0,0.10)]";
+  const hoverShadow = "hover:shadow-[0_4px_12px_rgba(0,0,0,0.10),0_12px_32px_-4px_rgba(0,0,0,0.14)]";
 
   return (
     <div
-      className={`relative group rounded-[6px] border ${borderTone} ${bgTone} ${shadow} ${hoverShadow} transition p-5 flex flex-col overflow-hidden ${className || ""}`}
+      className={`relative group rounded-xl bg-white/40 backdrop-blur-xl backdrop-saturate-150 ${alertRing} ${shadow} ${hoverShadow} transition p-5 flex flex-col overflow-hidden ${className || ""}`}
     >
       {(label || title) && (
         <div className="flex items-baseline justify-between gap-3 mb-3">
