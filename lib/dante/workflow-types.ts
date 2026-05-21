@@ -30,7 +30,12 @@ export type StepType =
   | "condition"       // branches to outgoing `true` / `false` edges
   | "delay"           // pause N seconds
   | "archive_lookup"  // vector-search the Dante archive → {hits, context}
-  | "agent";          // model-driven loop; picks tools itself
+  | "agent"           // model-driven loop; picks tools itself
+  // CRE-native nodes:
+  | "query_properties"  // Supabase select on properties, with pipeline stage filters
+  | "query_listings"    // Supabase select on re_listings (active/pending/sold)
+  | "query_offers"      // Supabase select on re_offers, with status filters
+  | "lease_lookup";     // query lease_abstracts for extracted lease terms
 
 export interface BaseStep {
   id: string;
@@ -197,6 +202,41 @@ export interface AgentStep extends BaseStep {
   };
 }
 
+// ── CRE-native step interfaces ────────────────────────────────
+
+export interface QueryPropertiesStep extends BaseStep {
+  type: "query_properties";
+  config: {
+    filter?: Record<string, string>;
+    limit?: number;
+  };
+}
+
+export interface QueryListingsStep extends BaseStep {
+  type: "query_listings";
+  config: {
+    filter?: Record<string, string>;
+    limit?: number;
+  };
+}
+
+export interface QueryOffersStep extends BaseStep {
+  type: "query_offers";
+  config: {
+    filter?: Record<string, string>;
+    limit?: number;
+  };
+}
+
+export interface LeaseLookupStep extends BaseStep {
+  type: "lease_lookup";
+  config: {
+    property_id?: string;
+    status?: "completed" | "pending" | "processing";
+    limit?: number;
+  };
+}
+
 // Vector-search the workspace's Dante archive. Output surfaces both
 // the raw hits (for debugging / conditional branching) and a
 // pre-formatted `context` string ready to drop into an openai step's
@@ -269,7 +309,11 @@ export type WorkflowStep =
   | ConditionStep
   | DelayStep
   | ArchiveLookupStep
-  | AgentStep;
+  | AgentStep
+  | QueryPropertiesStep
+  | QueryListingsStep
+  | QueryOffersStep
+  | LeaseLookupStep;
 
 // ── Graph model ────────────────────────────────────────────────
 // React Flow speaks this shape natively. Each node carries its full

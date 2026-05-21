@@ -248,6 +248,142 @@ async function runQueryClients(
   return { contacts: data || [], count: data?.length ?? 0 };
 }
 
+async function runQueryProperties(
+  cfg: { filter?: Record<string, string>; limit?: number },
+  workspaceId: string
+) {
+  let q = supabaseAdmin
+    .from("properties")
+    .select("id, name, address, city, state, zip, transaction_stage, stage_entered_at, expected_close_date, lease_end_date, monthly_rent_cents, tenant_contact_id, year_built, lot_size_sqft")
+    .eq("workspace_id", workspaceId);
+
+  for (const [k, v] of Object.entries(cfg.filter || {})) {
+    if (v === "" || v === null || v === undefined) continue;
+    const sv = String(v);
+    const opMatch = sv.match(/^(gte|lte|gt|lt|neq|like|ilike):(.+)$/);
+    if (opMatch) {
+      const [, op, val] = opMatch;
+      switch (op) {
+        case "gte":   q = q.gte(k, val); break;
+        case "lte":   q = q.lte(k, val); break;
+        case "gt":    q = q.gt(k, val); break;
+        case "lt":    q = q.lt(k, val); break;
+        case "neq":   q = q.neq(k, val); break;
+        case "like":  q = q.like(k, val); break;
+        case "ilike": q = q.ilike(k, val); break;
+      }
+    } else {
+      q = q.eq(k, sv);
+    }
+  }
+  const limit = Math.min(Math.max(Number(cfg.limit) || 25, 1), 500);
+  q = q.order("stage_entered_at", { ascending: false }).limit(limit);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return { properties: data || [], count: data?.length ?? 0 };
+}
+
+async function runQueryListings(
+  cfg: { filter?: Record<string, string>; limit?: number },
+  workspaceId: string
+) {
+  let q = supabaseAdmin
+    .from("re_listings")
+    .select("id, property_id, list_price_cents, list_date, expires_on, agency_type, commission_pct, status, notes")
+    .eq("workspace_id", workspaceId)
+    .is("deleted_at", null);
+
+  for (const [k, v] of Object.entries(cfg.filter || {})) {
+    if (v === "" || v === null || v === undefined) continue;
+    const sv = String(v);
+    const opMatch = sv.match(/^(gte|lte|gt|lt|neq|like|ilike):(.+)$/);
+    if (opMatch) {
+      const [, op, val] = opMatch;
+      switch (op) {
+        case "gte":   q = q.gte(k, val); break;
+        case "lte":   q = q.lte(k, val); break;
+        case "gt":    q = q.gt(k, val); break;
+        case "lt":    q = q.lt(k, val); break;
+        case "neq":   q = q.neq(k, val); break;
+        case "like":  q = q.like(k, val); break;
+        case "ilike": q = q.ilike(k, val); break;
+      }
+    } else {
+      q = q.eq(k, sv);
+    }
+  }
+  const limit = Math.min(Math.max(Number(cfg.limit) || 25, 1), 500);
+  q = q.order("list_date", { ascending: false }).limit(limit);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return { listings: data || [], count: data?.length ?? 0 };
+}
+
+async function runQueryOffers(
+  cfg: { filter?: Record<string, string>; limit?: number },
+  workspaceId: string
+) {
+  let q = supabaseAdmin
+    .from("re_offers")
+    .select("id, property_id, listing_id, buyer_contact_id, offer_price_cents, earnest_money_cents, contingencies, expires_at, closing_target, status, notes")
+    .eq("workspace_id", workspaceId)
+    .is("deleted_at", null);
+
+  for (const [k, v] of Object.entries(cfg.filter || {})) {
+    if (v === "" || v === null || v === undefined) continue;
+    const sv = String(v);
+    const opMatch = sv.match(/^(gte|lte|gt|lt|neq|like|ilike):(.+)$/);
+    if (opMatch) {
+      const [, op, val] = opMatch;
+      switch (op) {
+        case "gte":   q = q.gte(k, val); break;
+        case "lte":   q = q.lte(k, val); break;
+        case "gt":    q = q.gt(k, val); break;
+        case "lt":    q = q.lt(k, val); break;
+        case "neq":   q = q.neq(k, val); break;
+        case "like":  q = q.like(k, val); break;
+        case "ilike": q = q.ilike(k, val); break;
+      }
+    } else {
+      q = q.eq(k, sv);
+    }
+  }
+  const limit = Math.min(Math.max(Number(cfg.limit) || 25, 1), 500);
+  q = q.order("created_at", { ascending: false }).limit(limit);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return { offers: data || [], count: data?.length ?? 0 };
+}
+
+async function runLeaseLookup(
+  cfg: { property_id?: string; status?: string; limit?: number },
+  workspaceId: string
+) {
+  let q = supabaseAdmin
+    .from("lease_abstracts")
+    .select("id, vault_item_id, status, fields, context_analysis, created_at")
+    .eq("workspace_id", workspaceId);
+
+  if (cfg.status) q = q.eq("status", cfg.status);
+  const limit = Math.min(Math.max(Number(cfg.limit) || 10, 1), 100);
+  q = q.order("created_at", { ascending: false }).limit(limit);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+
+  const abstracts = (data || []).map((row) => {
+    const fields = Array.isArray(row.fields) ? row.fields : [];
+    const summary: Record<string, unknown> = {};
+    for (const f of fields as Array<{ name: string; value: unknown; confidence: string }>) {
+      if (f.value != null && f.confidence !== "not_found") {
+        summary[f.name] = f.value;
+      }
+    }
+    return { id: row.id, vault_item_id: row.vault_item_id, status: row.status, terms: summary, created_at: row.created_at };
+  });
+
+  return { abstracts, count: abstracts.length };
+}
+
 async function runUpdateContact(
   cfg: { contact_id: string; patch: Record<string, unknown> },
   workspaceId: string
@@ -659,6 +795,14 @@ async function executeNode(
         truncated: result.truncated,
       };
     }
+    case "query_properties":
+      return runQueryProperties(cfg as Parameters<typeof runQueryProperties>[0], workspaceId);
+    case "query_listings":
+      return runQueryListings(cfg as Parameters<typeof runQueryListings>[0], workspaceId);
+    case "query_offers":
+      return runQueryOffers(cfg as Parameters<typeof runQueryOffers>[0], workspaceId);
+    case "lease_lookup":
+      return runLeaseLookup(cfg as Parameters<typeof runLeaseLookup>[0], workspaceId);
     default: {
       const t = (step as { type: string }).type;
       throw new Error(`Unknown node type: ${t}`);

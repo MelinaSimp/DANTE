@@ -65,14 +65,13 @@ function accentClasses(accent: WorkflowTemplate["accent"]): {
   }
 }
 
-// Render category order — keep "Client communication" first since
-// it's the most tangible starting point for advisors new to Dante.
 const CATEGORY_ORDER: WorkflowTemplate["category"][] = [
-  "Client communication",
+  "Site intelligence",
+  "Deal pipeline",
+  "Lease management",
   "Operations",
-  "Compliance",
-  "Research",
   "Prospecting",
+  "Client communication",
 ];
 
 interface Props {

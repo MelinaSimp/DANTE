@@ -24,6 +24,7 @@ import {
   ChevronDown,
   ChevronsUpDown,
   User,
+  Workflow,
 } from "lucide-react";
 import { getIndustryConfig } from "@/lib/industry/config";
 import DanteGateLink from "@/components/dante/DanteGateLink";
@@ -116,6 +117,7 @@ export default function AppSidebar({
       label: "Tools",
       items: [
         { href: "/agent", label: "Agent", icon: Mic },
+        { href: "/workflows", label: "Workflows", icon: Workflow, feature: "dante" },
         { href: "/properties", label: "Properties", icon: Home, industry: "real_estate" },
         { href: "/review-tables", label: "Review tables", icon: Table2, industry: "financial_advisor" },
         { href: "/audit", label: "Audit log", icon: ScrollText },

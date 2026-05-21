@@ -228,13 +228,15 @@ function renderBody(
               className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
             >
               <option value="">All kinds</option>
-              <option value="form_adv">Form ADV</option>
-              <option value="ips">Investment Policy Statement</option>
-              <option value="prospectus">Prospectus</option>
-              <option value="client_agreement">Client agreement</option>
+              <option value="lease">Lease</option>
               <option value="policy">Policy / SOP</option>
-              <option value="regulation">Regulation</option>
               <option value="memo">Memo</option>
+              <option value="comp">Comp / market data</option>
+              <option value="inspection">Inspection report</option>
+              <option value="disclosure">Disclosure</option>
+              <option value="deed">Deed</option>
+              <option value="insurance">Insurance / COI</option>
+              <option value="regulation">Regulation</option>
               <option value="other">Other</option>
             </select>
           </Field>
@@ -242,6 +244,67 @@ function renderBody(
             Downstream: pipe into an <b>OpenAI prompt</b> step and reference
             <code className="mx-1 text-[var(--ink)]">{"{{steps.<this-id>.context}}"}</code>
             to ground the model on cited chunks.
+          </Help>
+        </>
+      );
+
+    case "query_properties":
+      return (
+        <>
+          <Field label="Filter (JSON)" hint="Columns: id, name, address, transaction_stage, lease_end_date, monthly_rent_cents, etc.">
+            <Json value={cfg.filter} onChange={(v) => setConfig("filter", v)} rows={3} placeholder='{"transaction_stage": "listed"}' />
+          </Field>
+          <Field label="Limit">
+            <Text value={String(cfg.limit ?? "")} onChange={(v) => setConfig("limit", v)} placeholder="25" />
+          </Field>
+        </>
+      );
+
+    case "query_listings":
+      return (
+        <>
+          <Field label="Filter (JSON)" hint="Columns: id, property_id, list_price_cents, list_date, expires_on, status, commission_pct">
+            <Json value={cfg.filter} onChange={(v) => setConfig("filter", v)} rows={3} placeholder='{"status": "active"}' />
+          </Field>
+          <Field label="Limit">
+            <Text value={String(cfg.limit ?? "")} onChange={(v) => setConfig("limit", v)} placeholder="25" />
+          </Field>
+        </>
+      );
+
+    case "query_offers":
+      return (
+        <>
+          <Field label="Filter (JSON)" hint="Columns: id, property_id, listing_id, buyer_contact_id, offer_price_cents, status, closing_target">
+            <Json value={cfg.filter} onChange={(v) => setConfig("filter", v)} rows={3} placeholder='{"status": "pending"}' />
+          </Field>
+          <Field label="Limit">
+            <Text value={String(cfg.limit ?? "")} onChange={(v) => setConfig("limit", v)} placeholder="25" />
+          </Field>
+        </>
+      );
+
+    case "lease_lookup":
+      return (
+        <>
+          <Field label="Status filter">
+            <select
+              value={(cfg.status as string) || "completed"}
+              onChange={(e) => setConfig("status", e.target.value)}
+              className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
+            >
+              <option value="completed">Completed</option>
+              <option value="pending">Pending</option>
+              <option value="processing">Processing</option>
+            </select>
+          </Field>
+          <Field label="Limit">
+            <Text value={String(cfg.limit ?? "")} onChange={(v) => setConfig("limit", v)} placeholder="10" />
+          </Field>
+          <Help>
+            Returns abstracted lease terms (base rent, escalation, expiration,
+            key clauses). Reference via
+            <code className="mx-1 text-[var(--ink)]">{"{{steps.<this-id>.abstracts}}"}</code>.
           </Help>
         </>
       );

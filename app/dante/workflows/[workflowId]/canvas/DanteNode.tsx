@@ -129,9 +129,13 @@ function nodeSummary(step: WorkflowStep): string | null {
     case "query_clients":  return `contacts · limit ${cfg.limit ?? 25}`;
     case "update_contact": return `id: ${truncate(String(cfg.contact_id ?? ""), 24)}`;
     case "send_email":     return `to: ${truncate(String(cfg.to ?? ""), 28)}`;
-    case "condition":      return truncate(String(cfg.expression ?? ""), 32);
-    case "delay":          return `${cfg.seconds ?? 0}s`;
-    default:               return null;
+    case "condition":        return truncate(String(cfg.expression ?? ""), 32);
+    case "delay":            return `${cfg.seconds ?? 0}s`;
+    case "query_properties": return `properties · limit ${cfg.limit ?? 25}`;
+    case "query_listings":   return `listings · limit ${cfg.limit ?? 25}`;
+    case "query_offers":     return `offers · limit ${cfg.limit ?? 25}`;
+    case "lease_lookup":     return `leases · ${cfg.status ?? "completed"}`;
+    default:                 return null;
   }
 }
 

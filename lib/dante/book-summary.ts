@@ -45,9 +45,19 @@ export interface BookSummary {
     scored_calls_last_30d: number;
   };
   segments: {
-    stale_60d: number;   // contacts with no note/appt/call in 60+ days
-    new_30d: number;     // contacts created in the last 30 days
-    active_30d: number;  // contacts with any touch in last 30 days
+    stale_60d: number;
+    new_30d: number;
+    active_30d: number;
+  };
+  pipeline: {
+    properties_total: number;
+    properties_by_stage: Record<string, number>;
+    active_listings: number;
+    pending_offers: number;
+    accepted_offers: number;
+    lease_abstractions_completed: number;
+    leases_expiring_90d: number;
+    tours_scheduled: number;
   };
   existing_workflows: Array<{
     id: string;
@@ -66,6 +76,8 @@ export async function buildBookSummary(
   const t60 = new Date(now - 60 * DAY_MS).toISOString();
 
   // ── Parallel queries for counts ──
+  const t90 = new Date(now - 90 * DAY_MS).toISOString();
+
   const [
     contactsCount,
     callsCount,
@@ -76,6 +88,13 @@ export async function buildBookSummary(
     recentTouches,
     newContacts,
     workflows,
+    propertiesData,
+    activeListings,
+    pendingOffers,
+    acceptedOffers,
+    leaseAbstractions,
+    leasesExpiring,
+    toursScheduled,
   ] = await Promise.all([
     supabaseAdmin
       .from("contacts")
@@ -106,9 +125,6 @@ export async function buildBookSummary(
       .eq("workspace_id", workspace_id)
       .gte("created_at", t30)
       .not("sentiment_score", "is", null),
-    // For stale/active segmentation: pull every touch in the last 60d
-    // and infer activity per contact. Bounded — we never join across
-    // full tables here.
     pullRecentTouchContactIds(workspace_id, t60),
     supabaseAdmin
       .from("contacts")
@@ -121,6 +137,46 @@ export async function buildBookSummary(
       .eq("workspace_id", workspace_id)
       .order("updated_at", { ascending: false })
       .limit(20),
+    // CRE pipeline queries
+    supabaseAdmin
+      .from("properties")
+      .select("id, transaction_stage")
+      .eq("workspace_id", workspace_id),
+    supabaseAdmin
+      .from("re_listings")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspace_id)
+      .eq("status", "active")
+      .is("deleted_at", null),
+    supabaseAdmin
+      .from("re_offers")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspace_id)
+      .eq("status", "pending")
+      .is("deleted_at", null),
+    supabaseAdmin
+      .from("re_offers")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspace_id)
+      .eq("status", "accepted")
+      .is("deleted_at", null),
+    supabaseAdmin
+      .from("lease_abstracts")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspace_id)
+      .eq("status", "completed"),
+    supabaseAdmin
+      .from("properties")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspace_id)
+      .not("lease_end_date", "is", null)
+      .lte("lease_end_date", new Date(now + 90 * DAY_MS).toISOString().split("T")[0]),
+    supabaseAdmin
+      .from("re_tours")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspace_id)
+      .eq("status", "scheduled")
+      .is("deleted_at", null),
   ]);
 
   // Risk distribution from cached briefs (lazy-populated; advisors
@@ -149,6 +205,14 @@ export async function buildBookSummary(
   const activeCount = activeIds.size;
   const staleCount = Math.max(0, totalContacts - activeCount);
 
+  // CRE pipeline aggregation.
+  const allProperties = propertiesData.data ?? [];
+  const stageMap: Record<string, number> = {};
+  for (const p of allProperties) {
+    const stage = (p.transaction_stage as string) || "none";
+    stageMap[stage] = (stageMap[stage] || 0) + 1;
+  }
+
   return {
     workspace_id,
     generated_at: new Date().toISOString(),
@@ -173,6 +237,16 @@ export async function buildBookSummary(
       stale_60d: staleCount,
       new_30d: newContacts.count ?? 0,
       active_30d: activeCount,
+    },
+    pipeline: {
+      properties_total: allProperties.length,
+      properties_by_stage: stageMap,
+      active_listings: activeListings.count ?? 0,
+      pending_offers: pendingOffers.count ?? 0,
+      accepted_offers: acceptedOffers.count ?? 0,
+      lease_abstractions_completed: leaseAbstractions.count ?? 0,
+      leases_expiring_90d: leasesExpiring.count ?? 0,
+      tours_scheduled: toursScheduled.count ?? 0,
     },
     existing_workflows: (workflows.data ?? []).map((w) => ({
       id: w.id,
@@ -256,6 +330,35 @@ export function renderBookSummaryText(s: BookSummary): string {
     );
   } else {
     lines.push(`Call sentiment last 30d: no scored calls in window.`);
+  }
+  // CRE pipeline summary.
+  if (s.pipeline.properties_total > 0) {
+    const stageDesc = Object.entries(s.pipeline.properties_by_stage)
+      .map(([stage, count]) => `${count} ${stage}`)
+      .join(", ");
+    lines.push(
+      `Properties: ${s.pipeline.properties_total} total (${stageDesc}).`
+    );
+  } else {
+    lines.push(`Properties: none in the system yet.`);
+  }
+  lines.push(
+    `CRE pipeline: ${s.pipeline.active_listings} active listing${s.pipeline.active_listings === 1 ? "" : "s"}, ${s.pipeline.pending_offers} pending offer${s.pipeline.pending_offers === 1 ? "" : "s"}, ${s.pipeline.accepted_offers} accepted offer${s.pipeline.accepted_offers === 1 ? "" : "s"}.`
+  );
+  if (s.pipeline.leases_expiring_90d > 0) {
+    lines.push(
+      `Leases expiring in next 90 days: ${s.pipeline.leases_expiring_90d}.`
+    );
+  }
+  if (s.pipeline.lease_abstractions_completed > 0) {
+    lines.push(
+      `Lease abstractions completed: ${s.pipeline.lease_abstractions_completed}.`
+    );
+  }
+  if (s.pipeline.tours_scheduled > 0) {
+    lines.push(
+      `Tours currently scheduled: ${s.pipeline.tours_scheduled}.`
+    );
   }
   if (s.existing_workflows.length > 0) {
     lines.push(

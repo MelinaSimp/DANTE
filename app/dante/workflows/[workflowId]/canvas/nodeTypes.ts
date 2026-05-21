@@ -8,7 +8,7 @@ import type { LucideIcon } from "lucide-react";
 import type { StepType, WorkflowStep } from "@/lib/dante/workflow-types";
 import {
   Hand, Clock4, Webhook, Globe, Sparkles, Users, Pencil, Mail, GitBranch, Clock,
-  BookOpen,
+  BookOpen, Building2, ListChecks, Handshake, FileSearch,
 } from "lucide-react";
 
 export interface NodeTypeMeta {
@@ -90,6 +90,31 @@ export const NODE_TYPES: NodeTypeMeta[] = [
     icon: BookOpen, group: "action", accent: "accent",
     default: (id) => mk({ id, type: "archive_lookup", name: "Archive lookup",
       config: { query: "", k: 5 } }),
+  },
+  // ── CRE nodes ──
+  {
+    type: "query_properties", label: "Query properties", hint: "Select from properties table",
+    icon: Building2, group: "action", accent: "accent",
+    default: (id) => mk({ id, type: "query_properties", name: "Query properties",
+      config: { filter: {}, limit: 25 } }),
+  },
+  {
+    type: "query_listings", label: "Query listings", hint: "Select from active listings",
+    icon: ListChecks, group: "action", accent: "accent",
+    default: (id) => mk({ id, type: "query_listings", name: "Query listings",
+      config: { filter: {}, limit: 25 } }),
+  },
+  {
+    type: "query_offers", label: "Query offers", hint: "Select from offers table",
+    icon: Handshake, group: "action", accent: "ink",
+    default: (id) => mk({ id, type: "query_offers", name: "Query offers",
+      config: { filter: {}, limit: 25 } }),
+  },
+  {
+    type: "lease_lookup", label: "Lease lookup", hint: "Fetch abstracted lease terms",
+    icon: FileSearch, group: "action", accent: "accent",
+    default: (id) => mk({ id, type: "lease_lookup", name: "Lease lookup",
+      config: { status: "completed", limit: 10 } }),
   },
 ];
 
