@@ -384,6 +384,47 @@ async function runLeaseLookup(
   return { abstracts, count: abstracts.length };
 }
 
+async function runWebSearch(cfg: {
+  query: string;
+  max_results?: number;
+  search_depth?: "basic" | "advanced";
+  include_domains?: string[];
+  exclude_domains?: string[];
+}) {
+  const apiKey = process.env.TAVILY_API_KEY;
+  if (!apiKey) throw new Error("TAVILY_API_KEY not configured");
+  const res = await fetch("https://api.tavily.com/search", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      api_key: apiKey,
+      query: cfg.query,
+      max_results: Math.min(Math.max(Number(cfg.max_results) || 5, 1), 20),
+      search_depth: cfg.search_depth || "basic",
+      include_domains: cfg.include_domains || [],
+      exclude_domains: cfg.exclude_domains || [],
+      include_answer: true,
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Tavily search failed (${res.status}): ${text}`);
+  }
+  const data = await res.json();
+  const results = (data.results || []).map((r: { title: string; url: string; content: string; score: number }) => ({
+    title: r.title,
+    url: r.url,
+    snippet: r.content,
+    score: r.score,
+  }));
+  return {
+    answer: data.answer || null,
+    results,
+    count: results.length,
+    query: cfg.query,
+  };
+}
+
 async function runUpdateContact(
   cfg: { contact_id: string; patch: Record<string, unknown> },
   workspaceId: string
@@ -803,6 +844,8 @@ async function executeNode(
       return runQueryOffers(cfg as Parameters<typeof runQueryOffers>[0], workspaceId);
     case "lease_lookup":
       return runLeaseLookup(cfg as Parameters<typeof runLeaseLookup>[0], workspaceId);
+    case "web_search":
+      return runWebSearch(cfg as Parameters<typeof runWebSearch>[0]);
     default: {
       const t = (step as { type: string }).type;
       throw new Error(`Unknown node type: ${t}`);

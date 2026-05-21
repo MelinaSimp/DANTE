@@ -525,6 +525,48 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
       },
     },
   },
+  "web.search": {
+    type: "function",
+    function: {
+      name: "web_search",
+      description:
+        "Search the web for market intelligence, news, listings, regulations, " +
+        "or any publicly available information. Returns an AI-generated summary " +
+        "answer plus individual source URLs with snippets. Use for competitive " +
+        "research, market data, zoning regulations, recent transactions, or " +
+        "any question that benefits from current web information.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "The search query",
+          },
+          max_results: {
+            type: "number",
+            description: "Number of results to return (1-20, default 5)",
+          },
+          search_depth: {
+            type: "string",
+            enum: ["basic", "advanced"],
+            description:
+              "basic (fast) or advanced (slower, more thorough). Default basic.",
+          },
+          include_domains: {
+            type: "array",
+            items: { type: "string" },
+            description: "Only search these domains (e.g. loopnet.com)",
+          },
+          exclude_domains: {
+            type: "array",
+            items: { type: "string" },
+            description: "Skip these domains",
+          },
+        },
+        required: ["query"],
+      },
+    },
+  },
   "site_scan.void_analysis": {
     type: "function",
     function: {
@@ -608,6 +650,7 @@ const NAME_TO_TOOL: Record<string, AgentToolName> = {
   site_scan_detail: "site_scan.detail",
   site_scan_listings: "site_scan.listings",
   site_scan_void_analysis: "site_scan.void_analysis",
+  web_search: "web.search",
 };
 
 // ── Tool executor adapters ────────────────────────────────────
@@ -651,6 +694,7 @@ const PER_TOOL_BUDGET: Partial<Record<AgentToolName, number>> = {
   "site_scan.detail": 5,
   "site_scan.listings": 3,
   "site_scan.void_analysis": 3,
+  "web.search": 10,
 };
 
 /**
@@ -1464,6 +1508,33 @@ async function dispatchTool(
         ),
       );
     }
+
+    case "web.search": {
+      const query = String(args.query || "");
+      if (!query) return JSON.stringify({ error: "query is required" });
+      const apiKey = process.env.TAVILY_API_KEY;
+      if (!apiKey) return JSON.stringify({ error: "TAVILY_API_KEY not configured" });
+      if (ctx.simulate) return JSON.stringify({ answer: "(simulated)", results: [], query });
+      const res = await fetch("https://api.tavily.com/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          api_key: apiKey,
+          query,
+          max_results: Math.min(Math.max(Number(args.max_results) || 5, 1), 20),
+          search_depth: args.search_depth === "advanced" ? "advanced" : "basic",
+          include_domains: Array.isArray(args.include_domains) ? args.include_domains : [],
+          exclude_domains: Array.isArray(args.exclude_domains) ? args.exclude_domains : [],
+          include_answer: true,
+        }),
+      });
+      if (!res.ok) return JSON.stringify({ error: `Tavily ${res.status}: ${await res.text()}` });
+      const data = await res.json();
+      const results = (data.results || []).map((r: { title?: string; url?: string; content?: string }) => ({
+        title: r.title, url: r.url, snippet: r.content,
+      }));
+      return JSON.stringify({ answer: data.answer || null, results, count: results.length, query });
+    }
   }
 }
 
@@ -1721,6 +1792,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       "site_scan.detail": 0,
       "site_scan.listings": 0,
       "site_scan.void_analysis": 0,
+      "web.search": 0,
     },
   };
 

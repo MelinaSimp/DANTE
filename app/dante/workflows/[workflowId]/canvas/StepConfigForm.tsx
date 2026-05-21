@@ -309,6 +309,40 @@ function renderBody(
         </>
       );
 
+    case "web_search":
+      return (
+        <>
+          <Field label="Query" hint="Supports {{steps.<id>.<field>}} templates">
+            <Textarea value={String(cfg.query ?? "")} onChange={(v) => setConfig("query", v)} rows={2} placeholder="commercial real estate listings in {{steps.trigger.input.market}}" />
+          </Field>
+          <Field label="Max results">
+            <Text value={String(cfg.max_results ?? "")} onChange={(v) => setConfig("max_results", v)} placeholder="5" />
+          </Field>
+          <Field label="Search depth">
+            <select
+              value={(cfg.search_depth as string) || "basic"}
+              onChange={(e) => setConfig("search_depth", e.target.value)}
+              className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
+            >
+              <option value="basic">Basic</option>
+              <option value="advanced">Advanced (slower, more thorough)</option>
+            </select>
+          </Field>
+          <Field label="Include domains (comma-separated)" hint="Only search these domains. Leave blank for all.">
+            <Text value={String(cfg.include_domains ?? "")} onChange={(v) => setConfig("include_domains", v)} placeholder="loopnet.com, crexi.com" />
+          </Field>
+          <Field label="Exclude domains (comma-separated)" hint="Skip these domains.">
+            <Text value={String(cfg.exclude_domains ?? "")} onChange={(v) => setConfig("exclude_domains", v)} placeholder="" />
+          </Field>
+          <Help>
+            Searches the web via Tavily. Output includes an AI-generated answer
+            and individual result URLs. Reference via
+            <code className="mx-1 text-[var(--ink)]">{"{{steps.<this-id>.answer}}"}</code> or
+            <code className="mx-1 text-[var(--ink)]">{"{{steps.<this-id>.results}}"}</code>.
+          </Help>
+        </>
+      );
+
     default:
       return null;
   }

@@ -135,6 +135,7 @@ function nodeSummary(step: WorkflowStep): string | null {
     case "query_listings":   return `listings · limit ${cfg.limit ?? 25}`;
     case "query_offers":     return `offers · limit ${cfg.limit ?? 25}`;
     case "lease_lookup":     return `leases · ${cfg.status ?? "completed"}`;
+    case "web_search":       return truncate(String(cfg.query ?? ""), 32);
     default:                 return null;
   }
 }

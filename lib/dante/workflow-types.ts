@@ -35,7 +35,9 @@ export type StepType =
   | "query_properties"  // Supabase select on properties, with pipeline stage filters
   | "query_listings"    // Supabase select on re_listings (active/pending/sold)
   | "query_offers"      // Supabase select on re_offers, with status filters
-  | "lease_lookup";     // query lease_abstracts for extracted lease terms
+  | "lease_lookup"      // query lease_abstracts for extracted lease terms
+  // Web intelligence:
+  | "web_search";       // Tavily web search → { results: [...], answer }
 
 export interface BaseStep {
   id: string;
@@ -169,7 +171,8 @@ export type AgentToolName =
   | "site_scan.search"    // search parcels by location, zoning, acreage
   | "site_scan.detail"    // full parcel intelligence (auditor, tax, demographics, EPA)
   | "site_scan.listings"  // search active commercial listings near a location
-  | "site_scan.void_analysis"; // multi-point corridor search, score + rank top sites
+  | "site_scan.void_analysis" // multi-point corridor search, score + rank top sites
+  | "web.search";            // Tavily web search for market intel, listings, news
 
 export type AgentToolEntry =
   | AgentToolName
@@ -234,6 +237,17 @@ export interface LeaseLookupStep extends BaseStep {
     property_id?: string;
     status?: "completed" | "pending" | "processing";
     limit?: number;
+  };
+}
+
+export interface WebSearchStep extends BaseStep {
+  type: "web_search";
+  config: {
+    query: string;
+    max_results?: number;
+    search_depth?: "basic" | "advanced";
+    include_domains?: string[];
+    exclude_domains?: string[];
   };
 }
 
@@ -313,7 +327,8 @@ export type WorkflowStep =
   | QueryPropertiesStep
   | QueryListingsStep
   | QueryOffersStep
-  | LeaseLookupStep;
+  | LeaseLookupStep
+  | WebSearchStep;
 
 // ── Graph model ────────────────────────────────────────────────
 // React Flow speaks this shape natively. Each node carries its full

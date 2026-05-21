@@ -126,10 +126,19 @@ RULES
        - memory.write: save findings to workspace memory for future reference
        - memory.search: search workspace memory
        - clients.query: query contacts
+       - web.search: search the web for market intel, news, listings, regulations
      Use agent nodes for outbound intelligence workflows: void analysis,
      site prospecting, parcel deep-dives, environmental scanning. Agent
      nodes are heavyweight (multi-step LLM loops) so use them only when
      the task genuinely requires tool use and autonomous reasoning.
+
+   - "web_search" (Tavily web search -> emits { answer, results, count, query }):
+     config: { "query": "...", "max_results": 5, "search_depth": "basic"|"advanced",
+       "include_domains": ["loopnet.com"], "exclude_domains": [] }
+     Returns an AI-generated answer and individual result URLs with snippets.
+     Use for market research, comp searches, zoning lookups, news monitoring,
+     or any question that benefits from current web data. Supports templates
+     in the query field. The agent node also has "web.search" as a tool.
 
    - "update_contact" (patch one contact):
      config: { "contact_id": "uuid or template", "patch": { ... } }
@@ -192,6 +201,7 @@ const VALID_STEP_TYPES: StepType[] = [
   "http", "openai", "query_clients", "update_contact",
   "send_email", "send_sms", "condition", "delay", "archive_lookup",
   "agent", "query_properties", "query_listings", "query_offers", "lease_lookup",
+  "web_search",
 ];
 
 function isObj(v: unknown): v is Record<string, unknown> {

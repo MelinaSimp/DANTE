@@ -8,7 +8,7 @@ import type { LucideIcon } from "lucide-react";
 import type { StepType, WorkflowStep } from "@/lib/dante/workflow-types";
 import {
   Hand, Clock4, Webhook, Globe, Sparkles, Users, Pencil, Mail, GitBranch, Clock,
-  BookOpen, Building2, ListChecks, Handshake, FileSearch,
+  BookOpen, Building2, ListChecks, Handshake, FileSearch, Search,
 } from "lucide-react";
 
 export interface NodeTypeMeta {
@@ -115,6 +115,12 @@ export const NODE_TYPES: NodeTypeMeta[] = [
     icon: FileSearch, group: "action", accent: "accent",
     default: (id) => mk({ id, type: "lease_lookup", name: "Lease lookup",
       config: { status: "completed", limit: 10 } }),
+  },
+  {
+    type: "web_search", label: "Web search", hint: "Search the web via Tavily",
+    icon: Search, group: "action", accent: "accent",
+    default: (id) => mk({ id, type: "web_search", name: "Web search",
+      config: { query: "", max_results: 5, search_depth: "basic" } }),
   },
 ];
 
