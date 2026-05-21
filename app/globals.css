@@ -23,10 +23,10 @@
   --neu-rail: #28282e;
   --neu-sidebar: #dfe1e7;
   --neu-main: #e3e5ea;
-  --neu-card: #eceef2;
+  --neu-card: #e6e8ed;
   --neu-input: #e0e2e7;
   --neu-hover: rgba(255, 255, 255, 0.18);
-  --neu-active: #f2f3f6;
+  --neu-active: #eceef2;
 
   /* Glass aliases for backward compatibility */
   --glass-rail: var(--neu-rail);
@@ -124,10 +124,10 @@
   --neu-rail: #28282e;
   --neu-sidebar: #dfe1e7;
   --neu-main: #e3e5ea;
-  --neu-card: #eceef2;
+  --neu-card: #e6e8ed;
   --neu-input: #e0e2e7;
   --neu-hover: rgba(255, 255, 255, 0.18);
-  --neu-active: #f2f3f6;
+  --neu-active: #eceef2;
 
   --glass-rail: var(--neu-rail);
   --glass-sidebar: var(--neu-sidebar);
@@ -264,12 +264,12 @@ main {
 
 .glass-card {
   background: var(--neu-card);
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  border-top-color: rgba(255, 255, 255, 0.75);
-  border-left-color: rgba(255, 255, 255, 0.60);
-  border-bottom-color: rgba(0, 0, 0, 0.03);
-  border-right-color: rgba(0, 0, 0, 0.02);
-  box-shadow: var(--neu-shadow-card), inset 0 1px 0 rgba(255, 255, 255, 0.50);
+  border: 1px solid rgba(255, 255, 255, 0.30);
+  border-top-color: rgba(255, 255, 255, 0.45);
+  border-left-color: rgba(255, 255, 255, 0.35);
+  border-bottom-color: rgba(0, 0, 0, 0.04);
+  border-right-color: rgba(0, 0, 0, 0.03);
+  box-shadow: var(--neu-shadow-card), inset 0 1px 0 rgba(255, 255, 255, 0.30);
   border-radius: var(--radius);
 }
 
@@ -364,13 +364,13 @@ main {
 
 .card-flat {
   background: var(--neu-card);
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  border-top-color: rgba(255, 255, 255, 0.75);
-  border-left-color: rgba(255, 255, 255, 0.60);
-  border-bottom-color: rgba(0, 0, 0, 0.03);
-  border-right-color: rgba(0, 0, 0, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.30);
+  border-top-color: rgba(255, 255, 255, 0.45);
+  border-left-color: rgba(255, 255, 255, 0.35);
+  border-bottom-color: rgba(0, 0, 0, 0.04);
+  border-right-color: rgba(0, 0, 0, 0.03);
   border-radius: var(--radius);
-  box-shadow: var(--neu-shadow-card), inset 0 1px 0 rgba(255, 255, 255, 0.50);
+  box-shadow: var(--neu-shadow-card), inset 0 1px 0 rgba(255, 255, 255, 0.30);
 }
 
 .card-flat-hover:hover {
