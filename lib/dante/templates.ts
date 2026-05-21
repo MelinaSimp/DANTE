@@ -551,23 +551,22 @@ const coiExpirationGraph: WorkflowGraph = {
       } },
     },
     {
-      id: "docs", type: "openai", position: row(1),
+      id: "docs", type: "archive_lookup", position: row(1),
       data: { step: {
-        id: "docs", type: "openai", name: "Query expiring property documents",
+        id: "docs", type: "archive_lookup", name: "Search for insurance / COI documents",
         config: {
-          model: "claude-sonnet-4-6",
-          system: "You are a CRE compliance assistant. Return JSON only.",
-          prompt: "Today: {{steps.trigger.input.fired_at}}\n\nQuery the property_documents table for documents with doc_kind = 'insurance' and expires_at within the next 60 days. For each, note the property, document title, and expiration date. Return [{ property_id, document_title, expires_at, days_until_expiry, tenant_name }].\n\nNote: If no documents are expiring, return an empty array.",
-          max_tokens: 800,
+          query: "certificate of insurance COI expiration renewal tenant insurance requirements",
+          k: 15,
+          kind: "insurance",
         },
       } },
     },
     {
       id: "check", type: "condition", position: row(2),
       data: { step: {
-        id: "check", type: "condition", name: "Any expiring COIs?",
+        id: "check", type: "condition", name: "Any COI docs found?",
         config: {
-          expression: "{{steps.docs.text}} contains \"property_id\"",
+          expression: "{{steps.docs.count}} > 0",
           on_false: "stop",
         },
       } },
@@ -578,9 +577,9 @@ const coiExpirationGraph: WorkflowGraph = {
         id: "drafts", type: "openai", name: "Draft COI renewal notices",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You draft professional, firm but friendly insurance compliance notices from a property manager to tenants.",
-          prompt: "Expiring insurance documents:\n{{steps.docs.text}}\n\nFor each tenant with an expiring COI, draft a notice email:\n- State the lease requirement for valid insurance\n- Note the current expiration date\n- Request updated certificate by 15 days before expiration\n- CC the property manager\n\nReturn JSON: [{ tenant_name, email_subject, email_body }].",
-          max_tokens: 1000,
+          system: "You are a CRE compliance assistant. You review insurance documents and draft professional, firm but friendly renewal notices from a property manager to tenants.",
+          prompt: "Today: {{steps.trigger.input.fired_at}}\n\nInsurance / COI documents from the archive:\n{{steps.docs.context}}\n\nReview these documents for any certificates of insurance that are expiring within the next 60 days. For each expiring COI, draft a tenant notice:\n- State the lease requirement for valid insurance\n- Note the current expiration date\n- Request updated certificate by 15 days before expiration\n\nIf no COIs are expiring soon, say so. Otherwise return the drafted notices.",
+          max_tokens: 1200,
         },
       } },
     },
