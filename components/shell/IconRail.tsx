@@ -47,7 +47,7 @@ export default function IconRail({ initials }: IconRailProps) {
       </Link>
 
       {/* Divider */}
-      <div className="w-5 border-t border-white/10 my-3" />
+      <div className="w-5 border-t border-white/[0.08] my-3" />
 
       {/* Nav icons */}
       <div className="flex flex-col gap-1.5 flex-1">
@@ -58,9 +58,9 @@ export default function IconRail({ initials }: IconRailProps) {
               key={href}
               href={href}
               title={label}
-              className={`w-10 h-10 flex items-center justify-center rounded-xl transition-colors ${
+              className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all ${
                 active
-                  ? "bg-white/15 text-white/90"
+                  ? "bg-white/12 text-white/90 shadow-[inset_2px_2px_6px_rgba(0,0,0,0.30),inset_-1px_-1px_3px_rgba(255,255,255,0.06)]"
                   : "text-white/40 hover:text-white/70 hover:bg-white/8"
               }`}
             >
@@ -74,9 +74,9 @@ export default function IconRail({ initials }: IconRailProps) {
       <Link
         href="/settings"
         title="Settings"
-        className={`w-10 h-10 flex items-center justify-center rounded-xl transition-colors ${
+        className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all ${
           pathname?.startsWith("/settings")
-            ? "bg-white/15 text-white/90"
+            ? "bg-white/12 text-white/90 shadow-[inset_2px_2px_6px_rgba(0,0,0,0.30),inset_-1px_-1px_3px_rgba(255,255,255,0.06)]"
             : "text-white/40 hover:text-white/70 hover:bg-white/8"
         }`}
       >

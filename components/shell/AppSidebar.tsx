@@ -166,7 +166,7 @@ export default function AppSidebar({
         )}
         <button
           onClick={() => setIsOpen((v) => !v)}
-          className="h-8 w-8 flex items-center justify-center hover:bg-white/25 rounded-lg transition-colors"
+          className="h-8 w-8 flex items-center justify-center hover:bg-[var(--neu-hover)] rounded-lg transition-colors"
           title={isOpen ? "Close sidebar" : "Open sidebar"}
         >
           <PanelLeft className="h-3.5 w-3.5 text-[var(--ink-subtle)]" />
@@ -191,7 +191,7 @@ export default function AppSidebar({
                   </div>
                 )}
                 {!isOpen && si > 0 && (
-                  <div className="mx-3 my-1.5 border-t border-white/15" />
+                  <div className="mx-3 my-1.5 border-t border-black/[0.06]" />
                 )}
                 {/* Tree connector for grouped sections */}
                 <div className={isOpen && section.label ? "ml-[26px] pl-3" : ""}>
@@ -205,10 +205,10 @@ export default function AppSidebar({
                         {hasTree && (
                           <>
                             <div
-                              className="absolute left-0 border-l border-white/15"
+                              className="absolute left-0 border-l border-black/[0.06]"
                               style={isLast ? { top: 0, height: "50%" } : { top: 0, bottom: 0 }}
                             />
-                            <div className="absolute left-0 top-1/2 w-3 border-t border-white/15" />
+                            <div className="absolute left-0 top-1/2 w-3 border-t border-black/[0.06]" />
                           </>
                         )}
                         <Link
@@ -216,8 +216,8 @@ export default function AppSidebar({
                           title={!isOpen ? item.label : ""}
                           className={`w-full h-9 flex items-center gap-3 px-2.5 py-2 rounded-lg transition-colors text-left ${
                             active
-                              ? "bg-white/50 shadow-[0_1px_4px_rgba(0,0,0,0.06)] text-[var(--ink)] font-medium"
-                              : "hover:bg-white/25 text-[var(--ink-muted)]"
+                              ? "bg-[var(--neu-active)] shadow-[var(--neu-shadow-raised)] text-[var(--ink)] font-medium"
+                              : "hover:bg-[var(--neu-hover)] text-[var(--ink-muted)]"
                           }`}
                         >
                           <Icon
@@ -246,7 +246,7 @@ export default function AppSidebar({
 
           {features.includes("dante") && (
             <>
-              <div className="mx-4 my-2 border-t border-white/15" />
+              <div className="mx-4 my-2 border-t border-black/[0.06]" />
               <div className="px-2.5">
                 <DanteGateLink
                   variant={isOpen ? "sidebar-full" : "icon-only"}
@@ -287,7 +287,7 @@ export default function AppSidebar({
                       className="h-9 flex items-center px-3 rounded-lg"
                     >
                       <div
-                        className="h-3 bg-white/20 rounded animate-pulse"
+                        className="h-3 bg-black/[0.04] rounded animate-pulse"
                         style={{ width: `${w}%` }}
                       />
                     </div>
@@ -315,8 +315,8 @@ export default function AppSidebar({
                         onClick={() => router.push(`/dante/chat/${chat.id}`)}
                         className={`w-full h-9 flex items-center px-2.5 rounded-lg text-sm truncate transition-colors ${
                           chatActive
-                            ? "bg-white/50 shadow-[0_1px_4px_rgba(0,0,0,0.06)] text-[var(--ink)] font-medium"
-                            : "text-[var(--ink-muted)] hover:bg-white/25 hover:text-[var(--ink)]"
+                            ? "bg-[var(--neu-active)] shadow-[var(--neu-shadow-raised)] text-[var(--ink)] font-medium"
+                            : "text-[var(--ink-muted)] hover:bg-[var(--neu-hover)] hover:text-[var(--ink)]"
                         }`}
                         title={chat.title}
                       >
@@ -332,11 +332,11 @@ export default function AppSidebar({
       </nav>
 
       {/* Footer -- user profile + settings */}
-      <div className="mt-auto flex flex-col items-stretch gap-0.5 px-2 pt-2 border-t border-white/15">
+      <div className="mt-auto flex flex-col items-stretch gap-0.5 px-2 pt-2 border-t border-black/[0.06]">
         {isSuperadmin && isOpen && (
           <Link
             href="/admin"
-            className="h-9 flex items-center gap-3 px-2.5 rounded-lg transition-colors text-[var(--ink-muted)] hover:bg-white/25"
+            className="h-9 flex items-center gap-3 px-2.5 rounded-lg transition-colors text-[var(--ink-muted)] hover:bg-[var(--neu-hover)]"
           >
             <ShieldCheck className="h-4 w-4 flex-shrink-0 text-blue-600" strokeWidth={1.5} />
             <span className={`text-sm font-medium ${shouldAnimate ? "sidebar-fade-in-2" : ""}`}>
@@ -352,7 +352,7 @@ export default function AppSidebar({
             className={`flex items-center transition-colors w-full px-2.5 py-3 ${
               !isOpen ? "justify-center" : ""
             } ${
-              isDropdownOpen ? "bg-white/25" : "hover:bg-white/20"
+              isDropdownOpen ? "bg-white/25" : "hover:bg-black/[0.04]"
             } rounded-lg`}
             title={!isOpen ? workspaceName : undefined}
           >
@@ -380,7 +380,7 @@ export default function AppSidebar({
               <Link
                 href="/settings"
                 onClick={() => setIsDropdownOpen(false)}
-                className="w-full px-4 py-2 text-left text-sm text-[var(--ink-muted)] hover:bg-white/25 flex items-center gap-2 rounded-lg"
+                className="w-full px-4 py-2 text-left text-sm text-[var(--ink-muted)] hover:bg-[var(--neu-hover)] flex items-center gap-2 rounded-lg"
               >
                 <User className="h-4 w-4" />
                 Account Settings
@@ -390,7 +390,7 @@ export default function AppSidebar({
                   await supabase.auth.signOut();
                   router.push("/auth");
                 }}
-                className="w-full px-4 py-2 text-left text-sm text-[var(--ink-muted)] hover:bg-white/25 flex items-center gap-2 rounded-lg"
+                className="w-full px-4 py-2 text-left text-sm text-[var(--ink-muted)] hover:bg-[var(--neu-hover)] flex items-center gap-2 rounded-lg"
               >
                 <LogOut className="h-4 w-4" />
                 Sign out

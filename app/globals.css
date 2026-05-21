@@ -17,28 +17,59 @@
   --shell-gap: 8px;
   --panel-gap: 4px;
 
-  /* Glass hierarchy — layered translucency over desktop/wallpaper */
-  --glass-rail: rgba(20, 20, 22, 0.85);
-  --glass-sidebar: rgba(245, 245, 248, 0.55);
-  --glass-main: rgba(248, 248, 250, 0.62);
-  --glass-card: rgba(255, 255, 255, 0.65);
-  --glass-input: rgba(255, 255, 255, 0.45);
-  --glass-hover: rgba(255, 255, 255, 0.12);
+  /* Neumorphic surface palette — same family, progressively lighter.
+     Panels are opaque and "extruded" from the background. */
+  --neu-bg: #bfc2c9;
+  --neu-rail: #28282e;
+  --neu-sidebar: #dfe1e7;
+  --neu-main: #e3e5ea;
+  --neu-card: #eceef2;
+  --neu-input: #e0e2e7;
+  --neu-hover: rgba(255, 255, 255, 0.18);
+  --neu-active: #f2f3f6;
 
-  /* Canvas — backwards compat aliases mapped to glass tokens */
-  --canvas: rgba(255, 255, 255, 0.08);
-  --canvas-subtle: rgba(255, 255, 255, 0.12);
-  --canvas-muted: rgba(255, 255, 255, 0.05);
-  --surface: var(--glass-card);
+  /* Glass aliases for backward compatibility */
+  --glass-rail: var(--neu-rail);
+  --glass-sidebar: var(--neu-sidebar);
+  --glass-main: var(--neu-main);
+  --glass-card: var(--neu-card);
+  --glass-input: var(--neu-input);
+  --glass-hover: var(--neu-hover);
+
+  /* Canvas — backwards compat */
+  --canvas: var(--neu-main);
+  --canvas-subtle: #e7e9ed;
+  --canvas-muted: #dbdde2;
+  --surface: var(--neu-card);
 
   /* Ink — never pure black, always slightly warm */
-  --ink: rgba(30, 30, 35, 0.88);
-  --ink-muted: rgba(30, 30, 35, 0.55);
-  --ink-subtle: rgba(30, 30, 35, 0.38);
+  --ink: #1e1e24;
+  --ink-muted: #6b6d76;
+  --ink-subtle: #9b9da5;
 
-  /* Rule / border — white hairlines for glass edge definition */
-  --rule: rgba(255, 255, 255, 0.18);
-  --rule-strong: rgba(255, 255, 255, 0.30);
+  /* Rule / border — luminous edge highlights for glass-inspired lighting */
+  --rule: rgba(255, 255, 255, 0.35);
+  --rule-strong: rgba(255, 255, 255, 0.55);
+
+  /* Neumorphic shadow pairs — dark + light for "extruded" depth */
+  --neu-shadow-panel:
+    6px 6px 16px rgba(0, 0, 0, 0.10),
+    -4px -4px 12px rgba(255, 255, 255, 0.60);
+  --neu-shadow-card:
+    3px 3px 8px rgba(0, 0, 0, 0.07),
+    -2px -2px 6px rgba(255, 255, 255, 0.50);
+  --neu-shadow-card-hover:
+    5px 5px 14px rgba(0, 0, 0, 0.10),
+    -3px -3px 10px rgba(255, 255, 255, 0.55);
+  --neu-shadow-rail:
+    6px 0 20px rgba(0, 0, 0, 0.22),
+    -2px 0 8px rgba(255, 255, 255, 0.05);
+  --neu-shadow-raised:
+    3px 3px 6px rgba(0, 0, 0, 0.08),
+    -2px -2px 5px rgba(255, 255, 255, 0.55);
+  --neu-shadow-pressed:
+    inset 2px 2px 5px rgba(0, 0, 0, 0.07),
+    inset -2px -2px 4px rgba(255, 255, 255, 0.45);
 
   /* Accent */
   --accent: rgb(0, 136, 255);
@@ -57,11 +88,11 @@
   --font-ui: var(--font-ui-loaded, "Inter"), system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: var(--font-mono-loaded, "JetBrains Mono"), "SF Mono", Menlo, Consolas, monospace;
 
-  /* Shadow layers — tight + diffused for glass depth */
-  --shadow-glass: 0 1px 2px rgba(0, 0, 0, 0.07), 0 4px 16px rgba(0, 0, 0, 0.06), 0 12px 40px -8px rgba(0, 0, 0, 0.10);
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06), 0 4px 16px -2px rgba(0, 0, 0, 0.10), 0 10px 28px -6px rgba(0, 0, 0, 0.08);
-  --shadow-card-hover: 0 2px 6px rgba(0, 0, 0, 0.08), 0 8px 24px -4px rgba(0, 0, 0, 0.14), 0 16px 40px -8px rgba(0, 0, 0, 0.12);
-  --shadow-rail: 4px 0 16px rgba(0, 0, 0, 0.18), 0 8px 32px rgba(0, 0, 0, 0.22);
+  /* Legacy shadow aliases — mapped to neumorphic tokens */
+  --shadow-glass: var(--neu-shadow-panel);
+  --shadow-card: var(--neu-shadow-card);
+  --shadow-card-hover: var(--neu-shadow-card-hover);
+  --shadow-rail: var(--neu-shadow-rail);
 
   /* shadcn compat */
   --background: oklch(1 0 0);
@@ -89,24 +120,33 @@
 /* .dark mirrors :root — Drift ships one visual mode (frosted glass).
    The class still exists so the ThemeProvider doesn't error. */
 .dark {
-  --glass-rail: rgba(20, 20, 22, 0.85);
-  --glass-sidebar: rgba(245, 245, 248, 0.55);
-  --glass-main: rgba(248, 248, 250, 0.62);
-  --glass-card: rgba(255, 255, 255, 0.65);
-  --glass-input: rgba(255, 255, 255, 0.45);
-  --glass-hover: rgba(255, 255, 255, 0.12);
+  --neu-bg: #bfc2c9;
+  --neu-rail: #28282e;
+  --neu-sidebar: #dfe1e7;
+  --neu-main: #e3e5ea;
+  --neu-card: #eceef2;
+  --neu-input: #e0e2e7;
+  --neu-hover: rgba(255, 255, 255, 0.18);
+  --neu-active: #f2f3f6;
 
-  --canvas: rgba(255, 255, 255, 0.08);
-  --canvas-subtle: rgba(255, 255, 255, 0.12);
-  --canvas-muted: rgba(255, 255, 255, 0.05);
-  --surface: var(--glass-card);
+  --glass-rail: var(--neu-rail);
+  --glass-sidebar: var(--neu-sidebar);
+  --glass-main: var(--neu-main);
+  --glass-card: var(--neu-card);
+  --glass-input: var(--neu-input);
+  --glass-hover: var(--neu-hover);
 
-  --ink: rgba(30, 30, 35, 0.88);
-  --ink-muted: rgba(30, 30, 35, 0.55);
-  --ink-subtle: rgba(30, 30, 35, 0.38);
+  --canvas: var(--neu-main);
+  --canvas-subtle: #e7e9ed;
+  --canvas-muted: #dbdde2;
+  --surface: var(--neu-card);
 
-  --rule: rgba(255, 255, 255, 0.18);
-  --rule-strong: rgba(255, 255, 255, 0.30);
+  --ink: #1e1e24;
+  --ink-muted: #6b6d76;
+  --ink-subtle: #9b9da5;
+
+  --rule: rgba(255, 255, 255, 0.35);
+  --rule-strong: rgba(255, 255, 255, 0.55);
 
   --accent: rgb(0, 136, 255);
   --accent-soft: rgba(0, 136, 255, 0.05);
@@ -118,10 +158,29 @@
   --danger: #dc2626;
   --danger-soft: rgba(220, 38, 38, 0.08);
 
-  --shadow-glass: 0 1px 2px rgba(0, 0, 0, 0.07), 0 4px 16px rgba(0, 0, 0, 0.06), 0 12px 40px -8px rgba(0, 0, 0, 0.10);
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06), 0 4px 16px -2px rgba(0, 0, 0, 0.10), 0 10px 28px -6px rgba(0, 0, 0, 0.08);
-  --shadow-card-hover: 0 2px 6px rgba(0, 0, 0, 0.08), 0 8px 24px -4px rgba(0, 0, 0, 0.14), 0 16px 40px -8px rgba(0, 0, 0, 0.12);
-  --shadow-rail: 4px 0 16px rgba(0, 0, 0, 0.18), 0 8px 32px rgba(0, 0, 0, 0.22);
+  --neu-shadow-panel:
+    6px 6px 16px rgba(0, 0, 0, 0.10),
+    -4px -4px 12px rgba(255, 255, 255, 0.60);
+  --neu-shadow-card:
+    3px 3px 8px rgba(0, 0, 0, 0.07),
+    -2px -2px 6px rgba(255, 255, 255, 0.50);
+  --neu-shadow-card-hover:
+    5px 5px 14px rgba(0, 0, 0, 0.10),
+    -3px -3px 10px rgba(255, 255, 255, 0.55);
+  --neu-shadow-rail:
+    6px 0 20px rgba(0, 0, 0, 0.22),
+    -2px 0 8px rgba(255, 255, 255, 0.05);
+  --neu-shadow-raised:
+    3px 3px 6px rgba(0, 0, 0, 0.08),
+    -2px -2px 5px rgba(255, 255, 255, 0.55);
+  --neu-shadow-pressed:
+    inset 2px 2px 5px rgba(0, 0, 0, 0.07),
+    inset -2px -2px 4px rgba(255, 255, 255, 0.45);
+
+  --shadow-glass: var(--neu-shadow-panel);
+  --shadow-card: var(--neu-shadow-card);
+  --shadow-card-hover: var(--neu-shadow-card-hover);
+  --shadow-rail: var(--neu-shadow-rail);
 
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -148,10 +207,9 @@
 html {
   height: 100%;
   background:
-    radial-gradient(ellipse 80% 60% at 15% 60%, rgba(160, 150, 190, 0.18) 0%, transparent 70%),
-    radial-gradient(ellipse 70% 50% at 85% 25%, rgba(140, 170, 210, 0.14) 0%, transparent 65%),
-    radial-gradient(ellipse 60% 50% at 50% 90%, rgba(190, 175, 160, 0.10) 0%, transparent 60%),
-    #e8e9ec;
+    radial-gradient(ellipse 80% 60% at 15% 60%, rgba(150, 140, 175, 0.12) 0%, transparent 70%),
+    radial-gradient(ellipse 70% 50% at 85% 25%, rgba(130, 155, 190, 0.10) 0%, transparent 65%),
+    var(--neu-bg);
 }
 
 body {
@@ -175,57 +233,54 @@ main {
   background: transparent;
 }
 
-/* ── Glass panel primitives ──────────────────────────────────── */
+/* ── Neumorphic panel primitives ────────────────────────────── */
 
 .glass-panel {
-  -webkit-backdrop-filter: saturate(1.8) blur(40px);
-  backdrop-filter: saturate(1.8) blur(40px);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  border-top-color: rgba(255, 255, 255, 0.50);
-  border-left-color: rgba(255, 255, 255, 0.42);
-  box-shadow: var(--shadow-glass), inset 0 1px 0 rgba(255, 255, 255, 0.30);
+  border: 1px solid rgba(255, 255, 255, 0.40);
+  border-top-color: rgba(255, 255, 255, 0.60);
+  border-left-color: rgba(255, 255, 255, 0.50);
+  border-bottom-color: rgba(0, 0, 0, 0.04);
+  border-right-color: rgba(0, 0, 0, 0.03);
+  box-shadow: var(--neu-shadow-panel), inset 0 1px 0 rgba(255, 255, 255, 0.45);
   border-radius: var(--radius-panel);
 }
 
 .glass-rail {
-  background: var(--glass-rail);
-  -webkit-backdrop-filter: saturate(1.8) blur(40px);
-  backdrop-filter: saturate(1.8) blur(40px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-top-color: rgba(255, 255, 255, 0.14);
-  border-left-color: rgba(255, 255, 255, 0.10);
-  box-shadow: var(--shadow-rail), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  background: var(--neu-rail);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-top-color: rgba(255, 255, 255, 0.10);
+  border-bottom-color: rgba(0, 0, 0, 0.15);
+  box-shadow: var(--neu-shadow-rail), inset 0 1px 0 rgba(255, 255, 255, 0.06);
   border-radius: var(--radius-panel);
 }
 
 .glass-sidebar {
-  background: var(--glass-sidebar);
+  background: var(--neu-sidebar);
 }
 
 .glass-main {
-  background: var(--glass-main);
+  background: var(--neu-main);
 }
 
 .glass-card {
-  background: var(--glass-card);
-  -webkit-backdrop-filter: saturate(1.5) blur(24px);
-  backdrop-filter: saturate(1.5) blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  border-top-color: rgba(255, 255, 255, 0.65);
-  border-left-color: rgba(255, 255, 255, 0.52);
-  box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255, 255, 255, 0.40);
+  background: var(--neu-card);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-top-color: rgba(255, 255, 255, 0.75);
+  border-left-color: rgba(255, 255, 255, 0.60);
+  border-bottom-color: rgba(0, 0, 0, 0.03);
+  border-right-color: rgba(0, 0, 0, 0.02);
+  box-shadow: var(--neu-shadow-card), inset 0 1px 0 rgba(255, 255, 255, 0.50);
   border-radius: var(--radius);
 }
 
 .glass-card-hover:hover {
-  box-shadow: var(--shadow-card-hover), inset 0 1px 0 rgba(255, 255, 255, 0.40);
+  box-shadow: var(--neu-shadow-card-hover), inset 0 1px 0 rgba(255, 255, 255, 0.50);
 }
 
 .glass-input {
-  background: var(--glass-input);
-  -webkit-backdrop-filter: saturate(1.2) blur(12px);
-  backdrop-filter: saturate(1.2) blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: var(--neu-input);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: var(--neu-shadow-pressed);
   border-radius: calc(var(--radius) - 2px);
 }
 
@@ -308,14 +363,14 @@ main {
 }
 
 .card-flat {
-  background: var(--glass-card);
-  -webkit-backdrop-filter: saturate(1.5) blur(24px);
-  backdrop-filter: saturate(1.5) blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  border-top-color: rgba(255, 255, 255, 0.65);
-  border-left-color: rgba(255, 255, 255, 0.52);
+  background: var(--neu-card);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-top-color: rgba(255, 255, 255, 0.75);
+  border-left-color: rgba(255, 255, 255, 0.60);
+  border-bottom-color: rgba(0, 0, 0, 0.03);
+  border-right-color: rgba(0, 0, 0, 0.02);
   border-radius: var(--radius);
-  box-shadow: var(--shadow-card), inset 0 1px 0 rgba(255, 255, 255, 0.40);
+  box-shadow: var(--neu-shadow-card), inset 0 1px 0 rgba(255, 255, 255, 0.50);
 }
 
 .card-flat-hover:hover {
