@@ -18,13 +18,21 @@ export interface SearchInput {
   projectId?: string;    // restrict to one vault project
 }
 
+function withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  return Promise.race([
+    p,
+    new Promise<T>((resolve) => { timer = setTimeout(() => resolve(fallback), ms); }),
+  ]).finally(() => clearTimeout(timer!));
+}
+
 export async function searchArchive(input: SearchInput): Promise<ArchiveSearchHit[]> {
   const k = Math.min(Math.max(Number(input.k) || 5, 1), 20);
 
   const [embeddingHits, titleHits, fileIndexHits] = await Promise.all([
-    embeddingSearch(input.workspaceId, input.query, k, input.kindFilter, input.projectId),
-    titleFallbackSearch(input.workspaceId, input.query, k, input.projectId),
-    fileIndexFallbackSearch(input.workspaceId, input.query, k),
+    withTimeout(embeddingSearch(input.workspaceId, input.query, k, input.kindFilter, input.projectId), 8000, []),
+    withTimeout(titleFallbackSearch(input.workspaceId, input.query, k, input.projectId), 6000, []),
+    withTimeout(fileIndexFallbackSearch(input.workspaceId, input.query, k), 4000, []),
   ]);
 
   const seenDocIds = new Set<string>();
@@ -59,7 +67,13 @@ async function embeddingSearch(
   kindFilter?: string,
   projectId?: string,
 ): Promise<ArchiveSearchHit[]> {
-  const vec = await embedOne(query);
+  let vec: number[];
+  try {
+    vec = await embedOne(query);
+  } catch (err) {
+    console.error("[archive-search] embedding failed, falling back to title search:", err instanceof Error ? err.message : err);
+    return [];
+  }
 
   const { data, error } = await supabaseAdmin.rpc("dante_archive_search", {
     p_workspace_id: workspaceId,
@@ -70,10 +84,11 @@ async function embeddingSearch(
   });
 
   if (error) {
+    console.error("[archive-search] RPC error:", (error as { code?: string }).code, error.message);
     if ((error as { code?: string }).code === "42883" || (error as { code?: string }).code === "42P01") {
       return [];
     }
-    throw new Error(`Archive search: ${error.message}`);
+    return [];
   }
 
   return (data || []) as ArchiveSearchHit[];
@@ -124,33 +139,24 @@ async function titleFallbackSearch(
   // synthetic hit from the item content/title.
   const results: ArchiveSearchHit[] = [];
 
+  const itemIds = items.map((it) => it.id);
+  const { data: allChunks } = await supabaseAdmin
+    .from("vault_item_chunks")
+    .select("id, item_id, chunk_index, page_number, content")
+    .in("item_id", itemIds)
+    .order("chunk_index")
+    .limit(limit * 3);
+
+  const chunksByItem = new Map<string, typeof allChunks>();
+  for (const c of allChunks || []) {
+    const arr = chunksByItem.get(c.item_id) || [];
+    if (arr.length < 3) arr.push(c);
+    chunksByItem.set(c.item_id, arr);
+  }
+
+  const unchunkedIds: string[] = [];
   for (const item of items) {
-    let { data: chunks } = await supabaseAdmin
-      .from("vault_item_chunks")
-      .select("id, chunk_index, page_number, content")
-      .eq("item_id", item.id)
-      .order("chunk_index")
-      .limit(3);
-
-    if ((!chunks || chunks.length === 0) && item.id) {
-      try {
-        console.log(`[archive-search] auto-ingest starting for "${item.title}" (${item.id})`);
-        const result = await ingestVaultItem(item.id, { force: true });
-        console.log(`[archive-search] auto-ingest result for ${item.id}: chunks=${result.chunkCount}, skipped=${result.skipped ?? "no"}`);
-        if (result.chunkCount > 0) {
-          const { data: freshChunks } = await supabaseAdmin
-            .from("vault_item_chunks")
-            .select("id, chunk_index, page_number, content")
-            .eq("item_id", item.id)
-            .order("chunk_index")
-            .limit(3);
-          if (freshChunks && freshChunks.length > 0) chunks = freshChunks;
-        }
-      } catch (err) {
-        console.error(`[archive-search] auto-ingest FAILED for "${item.title}" (${item.id}):`, err instanceof Error ? err.message : err);
-      }
-    }
-
+    const chunks = chunksByItem.get(item.id);
     if (chunks && chunks.length > 0) {
       for (const c of chunks) {
         results.push({
@@ -178,18 +184,27 @@ async function titleFallbackSearch(
         project_id: item.project_id,
       });
     } else {
+      unchunkedIds.push(item.id);
       results.push({
         chunk_id: item.id,
         document_id: item.id,
         chunk_index: 0,
         page_number: null,
-        content: `[Document "${item.title}" exists in the vault. The system attempted to extract its content but was unable to read the file. This is a system-level issue, not something the user did wrong. Report this to the user and offer to try again.]`,
+        content: `[Document "${item.title}" found in vault but not yet indexed. Content will be available shortly.]`,
         similarity: 0.3,
         document_title: item.title,
         document_kind: item.kind,
         project_id: item.project_id,
       });
     }
+  }
+
+  if (unchunkedIds.length > 0) {
+    Promise.allSettled(
+      unchunkedIds.slice(0, 3).map((id) =>
+        ingestVaultItem(id, { force: true }).catch(() => {})
+      )
+    );
   }
 
   return results.slice(0, limit);
