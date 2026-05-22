@@ -528,7 +528,7 @@ export default function AskDante({
       >
         <div className="flex-col items-center w-full max-w-4xl relative px-0 xl:px-8">
           <div className="mb-10 text-center">
-            <h1 className="text-4xl font-serif font-light text-gray-900">
+            <h1 className="text-4xl font-serif font-light text-[var(--ink)]">
               Hi, how can {brand.name} help?
             </h1>
           </div>
@@ -536,12 +536,12 @@ export default function AskDante({
           {/* Scope chips — thin affordance row */}
           <div className="flex items-center justify-center gap-4 mb-6">
             {contextProject ? (
-              <span className="inline-flex items-center gap-1.5 text-xs text-gray-700 bg-gray-100 rounded-full px-3 py-1">
+              <span className="inline-flex items-center gap-1.5 text-xs text-[var(--ink-muted)] bg-[var(--neu-hover)] rounded-full px-3 py-1">
                 <BookOpen className="w-3.5 h-3.5" strokeWidth={1.5} />
                 {contextProject.name}
                 <button
                   onClick={() => setContextProject(null)}
-                  className="hover:text-gray-900 ml-0.5"
+                  className="hover:text-[var(--ink)] ml-0.5"
                   title="Clear project scope"
                 >
                   <X className="w-3 h-3" strokeWidth={2} />
@@ -551,15 +551,15 @@ export default function AskDante({
               <div className="relative">
                 <button
                   onClick={() => setProjectPickerOpen((v) => !v)}
-                  className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-700 transition"
+                  className="inline-flex items-center gap-1.5 text-xs text-[var(--ink-subtle)] hover:text-[var(--ink-muted)] transition"
                 >
                   <BookOpen className="w-3.5 h-3.5" strokeWidth={1.5} />
                   Choose Vault project
                 </button>
                 {projectPickerOpen && (
-                  <div className="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 p-1 z-50 w-64 max-h-60 overflow-y-auto">
+                  <div className="absolute top-full left-0 mt-1 glass-card rounded-lg p-1 z-50 w-64 max-h-60 overflow-y-auto">
                     {vaultProjects.length === 0 ? (
-                      <div className="px-3 py-2 text-xs text-gray-400">No projects yet</div>
+                      <div className="px-3 py-2 text-xs text-[var(--ink-subtle)]">No projects yet</div>
                     ) : (
                       vaultProjects.map((p) => (
                         <button
@@ -568,7 +568,7 @@ export default function AskDante({
                             setContextProject(p);
                             setProjectPickerOpen(false);
                           }}
-                          className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 rounded-md truncate"
+                          className="w-full px-3 py-2 text-left text-sm text-[var(--ink-muted)] hover:bg-[var(--neu-hover)] rounded-md truncate"
                         >
                           {p.name}
                         </button>
@@ -586,7 +586,7 @@ export default function AskDante({
             ) : (
               <button
                 onClick={() => setContactPickerOpen(true)}
-                className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-700 transition"
+                className="inline-flex items-center gap-1.5 text-xs text-[var(--ink-subtle)] hover:text-[var(--ink-muted)] transition"
               >
                 <Users className="w-3.5 h-3.5" strokeWidth={1.5} />
                 Set client context
@@ -628,7 +628,7 @@ export default function AskDante({
                 accept=".txt,.md,.csv,.json,.log,.yaml,.yml,.tsv,.pdf,.docx,.doc"
               />
               <div className="text-center">
-                <p className="text-xs py-3 text-gray-500">
+                <p className="text-xs py-3 text-[var(--ink-subtle)]">
                   AI can make mistakes. Answers are not legal or financial advice.
                 </p>
               </div>
@@ -639,7 +639,7 @@ export default function AskDante({
                   <Link
                     key={s.label}
                     href={s.href}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-200 text-xs text-gray-500 hover:text-gray-800 hover:border-gray-300 transition"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/30 border-t-white/50 bg-[var(--neu-card)] text-xs text-[var(--ink-subtle)] hover:text-[var(--ink-muted)] hover:bg-[var(--neu-hover)] transition"
                   >
                     <s.icon className="w-3 h-3" strokeWidth={1.5} />
                     {s.label}
@@ -654,12 +654,12 @@ export default function AskDante({
                     <Link
                       key={w.slug}
                       href={`/dante/workflows?run=${w.slug}`}
-                      className="group flex flex-col gap-1 rounded-lg border border-gray-200 p-3 hover:border-gray-300 hover:shadow-sm transition"
+                      className="group flex flex-col gap-1 glass-card rounded-lg p-3 hover:shadow-[var(--neu-shadow-raised)] transition"
                     >
-                      <span className="text-[10px] uppercase tracking-wider text-gray-400 font-medium">
+                      <span className="text-[10px] uppercase tracking-wider text-[var(--ink-subtle)] font-medium">
                         {w.kindLabel} · {w.steps} steps
                       </span>
-                      <span className="text-sm text-gray-800 group-hover:text-gray-900 transition leading-snug">
+                      <span className="text-sm text-[var(--ink-muted)] group-hover:text-[var(--ink)] transition leading-snug">
                         {w.name}
                       </span>
                     </Link>
@@ -668,7 +668,7 @@ export default function AskDante({
                 <div className="text-center mt-3">
                   <Link
                     href="/dante/workflows"
-                    className="text-xs text-gray-400 hover:text-gray-700 transition inline-flex items-center gap-1"
+                    className="text-xs text-[var(--ink-subtle)] hover:text-[var(--ink-muted)] transition inline-flex items-center gap-1"
                   >
                     All workflows <ArrowUpRight className="w-3 h-3" strokeWidth={1.5} />
                   </Link>
@@ -680,7 +680,7 @@ export default function AskDante({
                 <div className="w-full max-w-2xl mx-auto mb-4">
                   <button
                     onClick={() => setHistoryOpen((v) => !v)}
-                    className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-700 transition mb-2"
+                    className="flex items-center gap-1.5 text-xs text-[var(--ink-subtle)] hover:text-[var(--ink-muted)] transition mb-2"
                   >
                     <History className="w-3 h-3" strokeWidth={1.5} />
                     Recent conversations
@@ -696,10 +696,10 @@ export default function AskDante({
                         <Link
                           key={c.id}
                           href={`/dante/chat/${c.id}`}
-                          className="flex items-center justify-between px-3 py-2 rounded-md text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition"
+                          className="flex items-center justify-between px-3 py-2 rounded-md text-sm text-[var(--ink-muted)] hover:bg-[var(--neu-hover)] hover:text-[var(--ink)] transition"
                         >
                           <span className="truncate flex-1">{c.title}</span>
-                          <span className="text-[10px] text-gray-400 ml-4 shrink-0">
+                          <span className="text-[10px] text-[var(--ink-subtle)] ml-4 shrink-0">
                             {new Date(c.updated_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
                           </span>
                         </Link>
@@ -716,10 +716,10 @@ export default function AskDante({
       {/* Expanded mode header — navigate back to landing */}
       {inExpandedMode && (
         <div className="flex items-center justify-between px-6 md:px-8 py-2 max-w-4xl mx-auto w-full">
-          <span className="text-sm font-medium text-gray-400">{brand.name}</span>
+          <span className="text-sm font-medium text-[var(--ink-subtle)]">{brand.name}</span>
           <Link
             href="/dante"
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-gray-900 transition px-2.5 py-1.5 rounded-md hover:bg-gray-100"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--ink-subtle)] hover:text-[var(--ink)] transition px-2.5 py-1.5 rounded-md hover:bg-[var(--neu-hover)]"
           >
             Home
           </Link>
@@ -731,12 +731,12 @@ export default function AskDante({
         <div className="flex-1 min-h-0 overflow-y-auto">
           {/* Compact context chips */}
           {(contextContact || contextProject) && (
-            <div className="mb-4 flex items-center gap-4 text-xs text-gray-500 max-w-4xl mx-auto px-6 md:px-8 pt-4">
+            <div className="mb-4 flex items-center gap-4 text-xs text-[var(--ink-subtle)] max-w-4xl mx-auto px-6 md:px-8 pt-4">
               {contextProject && (
                 <span className="flex items-center gap-1.5">
                   <BookOpen className="w-3 h-3" strokeWidth={1.5} />
-                  <span className="text-gray-900 font-medium">{contextProject.name}</span>
-                  <button onClick={() => setContextProject(null)} className="hover:text-gray-700" title="Clear project scope">
+                  <span className="text-[var(--ink)] font-medium">{contextProject.name}</span>
+                  <button onClick={() => setContextProject(null)} className="hover:text-[var(--ink-muted)]" title="Clear project scope">
                     <X className="w-3 h-3" strokeWidth={2} />
                   </button>
                 </span>
@@ -744,10 +744,10 @@ export default function AskDante({
               {contextContact && (
                 <span className="flex items-center gap-1.5">
                   <Users className="w-3 h-3" strokeWidth={1.5} />
-                  <span className="text-gray-900 font-medium">
+                  <span className="text-[var(--ink)] font-medium">
                     {contextContact.name || contextContact.email}
                   </span>
-                  <button onClick={() => setContextContact(null)} className="hover:text-gray-700" title="Clear context">
+                  <button onClick={() => setContextContact(null)} className="hover:text-[var(--ink-muted)]" title="Clear context">
                     <X className="w-3 h-3" strokeWidth={2} />
                   </button>
                 </span>
@@ -1041,7 +1041,7 @@ function InputBar(p: InputBarProps) {
                   p.setPromptsOpen(false);
                   p.textareaRef.current?.focus();
                 }}
-                className="block w-full text-left rounded-md px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-100 transition"
+                className="block w-full text-left rounded-md px-2 py-1.5 text-xs text-[var(--ink-muted)] hover:bg-[var(--neu-hover)] transition"
               >
                 {q.label}
               </button>
@@ -1165,22 +1165,22 @@ function ContactPicker({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden"
+        className="w-full max-w-md glass-card rounded-lg overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center gap-2 border-b border-gray-200 px-3 py-2">
-          <Search className="w-4 h-4 text-gray-400" strokeWidth={1.5} />
+        <div className="flex items-center gap-2 border-b border-black/[0.06] px-3 py-2">
+          <Search className="w-4 h-4 text-[var(--ink-subtle)]" strokeWidth={1.5} />
           <input
             autoFocus
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search contacts…"
-            className="flex-1 bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none"
+            className="flex-1 bg-transparent text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none"
           />
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-700"
+            className="text-[var(--ink-subtle)] hover:text-[var(--ink-muted)]"
             title="Close (Esc)"
           >
             <X className="w-4 h-4" strokeWidth={1.5} />
@@ -1188,12 +1188,12 @@ function ContactPicker({
         </div>
         <div className="max-h-80 overflow-y-auto">
           {loading ? (
-            <div className="px-3 py-6 text-center text-xs text-gray-500">
+            <div className="px-3 py-6 text-center text-xs text-[var(--ink-subtle)]">
               <Loader2 className="w-4 h-4 animate-spin inline-block mr-1.5" />
               Loading contacts…
             </div>
           ) : filtered.length === 0 ? (
-            <div className="px-3 py-6 text-center text-xs text-gray-500">
+            <div className="px-3 py-6 text-center text-xs text-[var(--ink-subtle)]">
               No matching contacts.
             </div>
           ) : (
@@ -1201,11 +1201,11 @@ function ContactPicker({
               <button
                 key={c.id}
                 onClick={() => onPick(c)}
-                className="block w-full text-left px-3 py-2 text-sm text-gray-900 hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                className="block w-full text-left px-3 py-2 text-sm text-[var(--ink)] hover:bg-[var(--neu-hover)] border-b border-black/[0.04] last:border-0"
               >
                 <div className="font-medium">{c.name || "(unnamed)"}</div>
                 {c.email && (
-                  <div className="text-[11px] text-gray-500">{c.email}</div>
+                  <div className="text-[11px] text-[var(--ink-subtle)]">{c.email}</div>
                 )}
               </button>
             ))
