@@ -98,7 +98,12 @@ export default function AuthPage() {
         });
 
         if (signUpError) {
-          setError(signUpError.message);
+          const msg = signUpError.message || "";
+          setError(
+            msg === "{}" || (signUpError as any).name === "AuthRetryableFetchError"
+              ? "Unable to connect to the authentication server. Please try again."
+              : msg || "Sign up failed. Please try again.",
+          );
         } else if (data.session) {
           window.location.href = "/auth/callback";
         } else {
@@ -111,11 +116,13 @@ export default function AuthPage() {
           await supabase.auth.signInWithPassword({ email, password });
 
         if (signInError) {
-          setError(
-            typeof signInError.message === "string" && signInError.message
-              ? signInError.message
-              : "Sign in failed. Check your email and password.",
-          );
+          const name = (signInError as any).name || "";
+          const msg = signInError.message || "";
+          if (name === "AuthRetryableFetchError" || msg === "{}" || msg.includes("Failed to fetch")) {
+            setError("Unable to connect to the authentication server. Please try again.");
+          } else {
+            setError(msg || "Sign in failed. Check your email and password.");
+          }
         } else if (data.session) {
           window.location.href = "/auth/callback";
         }
