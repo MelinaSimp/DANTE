@@ -68,10 +68,7 @@ export async function POST(
       // workflow-types.ts).
       steps: [],
       graph,
-      // Cloned workflows start disabled so the user can review the
-      // graph (and populate any {{secrets.*}} placeholders) before
-      // the scheduler picks it up.
-      enabled: false,
+      enabled: true,
     })
     .select()
     .single();

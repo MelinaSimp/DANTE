@@ -1414,6 +1414,63 @@ async function dispatchTool(
         }
       }
 
+      // Auto-ingest any files that have metadata only (status='indexed').
+      // Fire content_requests so the watcher picks them up in the
+      // background — the LLM shouldn't have to make a separate call.
+      const needIngest = files.filter(
+        (f) => f.ingest_status === "indexed" || (f.ingest_status === "ingest_failed"),
+      );
+      if (needIngest.length > 0) {
+        const folderLookup = await supabaseAdmin
+          .from("watched_file_index")
+          .select("id, folder_id, file_path")
+          .in("id", needIngest.map((f) => f.id));
+        const folderMap = new Map(
+          (folderLookup.data || []).map((r) => [r.id, r]),
+        );
+
+        const requests = needIngest
+          .filter((f) => folderMap.has(f.id))
+          .map((f) => {
+            const info = folderMap.get(f.id)!;
+            return {
+              workspace_id: ctx.workspaceId,
+              folder_id: info.folder_id,
+              index_entry_id: f.id,
+              file_path: info.file_path,
+              requested_by: `dante:${ctx.runId}`,
+            };
+          });
+
+        if (requests.length > 0) {
+          await supabaseAdmin.from("content_requests").insert(requests);
+          await supabaseAdmin
+            .from("watched_file_index")
+            .update({ ingest_status: "ingest_requested" })
+            .in("id", needIngest.map((f) => f.id));
+        }
+
+        // Brief poll (up to 8s) — gives the watcher a chance to
+        // fulfill fast files so the LLM can cite them immediately.
+        for (let tick = 0; tick < 4; tick++) {
+          await new Promise((r) => setTimeout(r, 2000));
+          const { data: refreshed } = await supabaseAdmin
+            .from("watched_file_index")
+            .select("id, ingest_status, vault_item_id")
+            .in("id", needIngest.map((f) => f.id));
+          if (refreshed) {
+            for (const r of refreshed) {
+              const orig = files.find((f) => f.id === r.id);
+              if (orig) {
+                (orig as any).ingest_status = r.ingest_status;
+                (orig as any).vault_item_id = r.vault_item_id;
+              }
+            }
+            if (refreshed.every((r) => r.ingest_status === "ingested" || r.ingest_status === "ingest_failed")) break;
+          }
+        }
+      }
+
       return {
         results: files.map((f) => ({
           id: f.id,
@@ -1425,7 +1482,9 @@ async function dispatchTool(
           vault_item_id: f.vault_item_id,
         })),
         total: files.length,
-        hint: "Files with status='indexed' have metadata only. Call file_index.ingest to retrieve their content into the vault.",
+        hint: needIngest.length > 0
+          ? "Ingestion was automatically triggered for files that hadn't been indexed yet. Files with vault_item_id set can be searched with vault.cite."
+          : undefined,
       };
     }
 

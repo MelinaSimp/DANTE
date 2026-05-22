@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       trigger: template.trigger,
       graph: template.graph,
       steps: [],
-      enabled: false,
+      enabled: true,
     })
     .select("id, name")
     .single();
