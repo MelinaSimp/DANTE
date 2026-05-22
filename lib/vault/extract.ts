@@ -3,17 +3,13 @@
 // Pulls plain text out of an uploaded file's bytes so the ingest
 // pipeline (chunk + embed) has something to work with. Without this,
 // every PDF / docx upload sat in the vault un-indexed and
-// archive.search returned 0 hits — the bug that made Vergil say
-// "I couldn't find any Medina rent rolls" with a Medina rent roll
-// sitting right there in the vault.
+// archive.search returned 0 hits.
 //
-// PDF: uses unpdf, which bundles a pdfjs-dist build stripped of the
-// browser-only canvas dependencies (DOMMatrix, Path2D, etc) that
-// crash pdf-parse / vanilla pdfjs-dist in Node / Vercel serverless.
-//
-// Plain text: decoded directly. docx / xlsx will need mammoth +
-// sheetjs and can be added as new branches — return text or empty,
-// don't throw, and ingest will record "unsupported file type" cleanly.
+// Supported formats:
+//   PDF  — unpdf (pdfjs-dist stripped of browser canvas deps)
+//   DOCX — mammoth (extracts paragraphs as plain text)
+//   XLSX — SheetJS (renders each sheet as tab-separated rows)
+//   Plain text — decoded directly (txt, md, csv, html, json, xml)
 
 export interface ExtractResult {
   text: string;
@@ -36,6 +32,16 @@ const PLAIN_TEXT_MIMES = new Set([
   "application/xml",
 ]);
 
+const DOCX_MIMES = new Set([
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/msword",
+]);
+
+const XLSX_MIMES = new Set([
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-excel",
+]);
+
 export async function extractText(
   buffer: Buffer,
   mimeType: string | null,
@@ -50,11 +56,20 @@ export async function extractText(
     return { text: text || "", pageCount: totalPages };
   }
 
+  if (DOCX_MIMES.has(mt)) {
+    return extractDocx(buffer);
+  }
+
+  if (XLSX_MIMES.has(mt)) {
+    return extractXlsx(buffer);
+  }
+
   if (PLAIN_TEXT_MIMES.has(mt) || mt.startsWith("text/")) {
     return { text: buffer.toString("utf8") };
   }
 
-  return { text: "" };
+  // Last resort: try to detect by magic bytes
+  return extractByMagicBytes(buffer);
 }
 
 /**
@@ -77,13 +92,97 @@ export async function extractTextWithPages(
     const { totalPages, text } = await unpdfExtract(new Uint8Array(buffer), {
       mergePages: false,
     });
-    // unpdf with mergePages:false returns text as string[] (one per page)
     const pages = Array.isArray(text) ? text.map((p) => String(p)) : [String(text || "")];
     return { pages, pageCount: totalPages ?? pages.length };
   }
 
-  // Non-PDF: single "page"
+  if (XLSX_MIMES.has(mt)) {
+    return extractXlsxWithPages(buffer);
+  }
+
+  // docx + plain text: single "page"
   const result = await extractText(buffer, mimeType);
   if (!result.text) return { pages: [], pageCount: 0 };
   return { pages: [result.text], pageCount: 1 };
+}
+
+// ── DOCX extraction ──────────────────────────────────────────────
+
+async function extractDocx(buffer: Buffer): Promise<ExtractResult> {
+  try {
+    const mammoth = await import("mammoth");
+    const result = await mammoth.extractRawText({ buffer });
+    return { text: result.value || "" };
+  } catch (err) {
+    console.error("[extract] docx extraction failed:", err instanceof Error ? err.message : err);
+    return { text: "" };
+  }
+}
+
+// ── XLSX extraction ──────────────────────────────────────────────
+
+function extractXlsx(buffer: Buffer): ExtractResult {
+  try {
+    const XLSX = require("xlsx") as typeof import("xlsx");
+    const workbook = XLSX.read(buffer, { type: "buffer" });
+    const sheets: string[] = [];
+    for (const name of workbook.SheetNames) {
+      const sheet = workbook.Sheets[name];
+      if (!sheet) continue;
+      const text = XLSX.utils.sheet_to_csv(sheet, { FS: "\t", RS: "\n" });
+      if (text.trim()) {
+        sheets.push(`--- Sheet: ${name} ---\n${text.trim()}`);
+      }
+    }
+    const fullText = sheets.join("\n\n");
+    return { text: fullText, pageCount: workbook.SheetNames.length };
+  } catch (err) {
+    console.error("[extract] xlsx extraction failed:", err instanceof Error ? err.message : err);
+    return { text: "" };
+  }
+}
+
+function extractXlsxWithPages(buffer: Buffer): PageAwareExtractResult {
+  try {
+    const XLSX = require("xlsx") as typeof import("xlsx");
+    const workbook = XLSX.read(buffer, { type: "buffer" });
+    const pages: string[] = [];
+    for (const name of workbook.SheetNames) {
+      const sheet = workbook.Sheets[name];
+      if (!sheet) continue;
+      const text = XLSX.utils.sheet_to_csv(sheet, { FS: "\t", RS: "\n" });
+      pages.push(`Sheet: ${name}\n${text.trim()}`);
+    }
+    return { pages, pageCount: pages.length };
+  } catch (err) {
+    console.error("[extract] xlsx page extraction failed:", err instanceof Error ? err.message : err);
+    return { pages: [], pageCount: 0 };
+  }
+}
+
+// ── Magic byte detection ─────────────────────────────────────────
+// Handles cases where mime type is wrong or missing (common with
+// file watcher uploads that guess mime from extension).
+
+function extractByMagicBytes(buffer: Buffer): Promise<ExtractResult> | ExtractResult {
+  if (buffer.length < 4) return { text: "" };
+
+  // ZIP-based formats (docx, xlsx) start with PK\x03\x04
+  if (buffer[0] === 0x50 && buffer[1] === 0x4B && buffer[2] === 0x03 && buffer[3] === 0x04) {
+    // Peek inside the zip for content type indicators
+    const header = buffer.toString("utf8", 0, Math.min(buffer.length, 2000));
+    if (header.includes("word/")) {
+      return extractDocx(buffer);
+    }
+    if (header.includes("xl/")) {
+      return extractXlsx(buffer);
+    }
+  }
+
+  // PDF starts with %PDF
+  if (buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46) {
+    return extractText(buffer, "application/pdf");
+  }
+
+  return { text: "" };
 }

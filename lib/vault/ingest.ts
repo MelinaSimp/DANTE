@@ -250,15 +250,18 @@ async function downloadAndExtractWithPages(
   const buffer = Buffer.from(arrayBuf);
   const mt = fileType || res.headers.get("content-type") || "";
 
-  // For PDFs, use page-aware extraction to preserve page boundaries
-  const isPdf = mt.toLowerCase() === "application/pdf";
-  if (isPdf) {
+  // Page-aware extraction for PDFs and multi-sheet spreadsheets
+  const mtLower = mt.toLowerCase();
+  const usePageAware = mtLower === "application/pdf"
+    || mtLower === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    || mtLower === "application/vnd.ms-excel";
+  if (usePageAware) {
     const { pages, pageCount } = await extractTextWithPages(buffer, mt);
     const fullText = pages.join("\n\n");
     return { fullText, pages: pageCount > 1 ? pages : null };
   }
 
-  // Non-PDF: no page structure
+  // Single-page formats (docx, plain text, etc.)
   const { text } = await extractText(buffer, mt);
   return { fullText: text, pages: null };
 }
