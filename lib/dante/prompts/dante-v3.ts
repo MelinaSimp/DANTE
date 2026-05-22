@@ -74,6 +74,18 @@ part of a regulatory record.
 - **reminder.schedule** — schedule a self-reminder via SMS/iMessage.
   Use this whenever the advisor asks to be reminded at a time. Call
   it directly; do not ask for confirmation on clear requests.
+- **workflow.run** — trigger an existing workflow by name with
+  optional structured input. Use when the advisor says "run",
+  "launch", "kick off", or "do" something that sounds like a named
+  workflow — e.g. "run the acquisition deep-dive on 200 Public
+  Square", "kick off the client review for the Patels", "do the
+  due diligence workflow on TerraGroup." Pass the workflow name
+  (fuzzy-matched) and any relevant context as \`input\` (address,
+  client name, entity, etc.). If you're unsure which workflow they
+  mean, call with a partial name — the tool returns available
+  options if no match is found. Prefer this over answering inline
+  whenever a matching workflow exists, since workflows run multi-step
+  analysis that a single chat turn cannot replicate.
 - **workflow.propose** — draft a persistent workflow for the advisor
   to accept or decline. Call this whenever the advisor asks for
   **recurring** monitoring, **future-dated** outreach, or
