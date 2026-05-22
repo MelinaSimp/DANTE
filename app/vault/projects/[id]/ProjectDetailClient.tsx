@@ -57,6 +57,7 @@ interface Project {
   created_at: string;
   updated_at: string;
   items: VaultItem[];
+  total_items?: number;
 }
 
 interface IndexedFile {
@@ -167,6 +168,7 @@ export default function ProjectDetailClient({
   const [tab, setTab] = useState<"vault" | "indexed" | "members">("vault");
   const [indexedFiles, setIndexedFiles] = useState<IndexedFile[] | null>(null);
   const [indexedCount, setIndexedCount] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   // Edit-name (proper projects only)
   const [editingName, setEditingName] = useState(false);
@@ -213,6 +215,26 @@ export default function ProjectDetailClient({
     load();
   }, [load]);
 
+  const loadMore = useCallback(async () => {
+    if (!project || isLoose || loadingMore) return;
+    const currentCount = project.items.length;
+    if (currentCount >= (project.total_items ?? 0)) return;
+    setLoadingMore(true);
+    try {
+      const r = await fetch(
+        `/api/vault/projects/${projectId}?offset=${currentCount}&limit=100`,
+        { credentials: "include" }
+      );
+      if (!r.ok) return;
+      const p = await r.json();
+      setProject((prev) =>
+        prev ? { ...prev, items: [...prev.items, ...(p.items || [])] } : prev
+      );
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [project, projectId, isLoose, loadingMore]);
+
   useEffect(() => {
     const pid = isLoose ? "loose" : projectId;
     fetch(`/api/vault/projects/${pid}/indexed-files`, { credentials: "include" })
@@ -225,6 +247,7 @@ export default function ProjectDetailClient({
   }, [projectId, isLoose]);
 
   const items = isLoose ? looseItems ?? [] : project?.items ?? [];
+  const hasMore = !isLoose && (project?.total_items ?? 0) > items.length;
   const filteredItems = useMemo(() => {
     if (!search.trim()) return items;
     const q = search.toLowerCase();
@@ -796,6 +819,24 @@ export default function ProjectDetailClient({
                   })}
                 </tbody>
               </table>
+              {hasMore && (
+                <div className="flex justify-center py-4">
+                  <button
+                    onClick={loadMore}
+                    disabled={loadingMore}
+                    className="px-4 py-2 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--neu-hover)] rounded-md transition disabled:opacity-50"
+                  >
+                    {loadingMore ? (
+                      <span className="flex items-center gap-2">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Loading...
+                      </span>
+                    ) : (
+                      `Load more (${items.length} of ${project?.total_items ?? 0})`
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}

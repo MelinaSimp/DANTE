@@ -46,22 +46,14 @@ export async function GET() {
     return NextResponse.json({ error: "Failed" }, { status: 500 });
   }
 
-  // Augment each project with item counts so the landing card can
-  // render "12 files · 3 templates" without the client doing a
-  // second round-trip per card.
-  const ids = (projects || []).map((p: any) => p.id);
+  // Augment each project with item counts via a single aggregation
+  // query instead of downloading every vault_item row.
   const counts = new Map<string, { templates: number; documents: number }>();
-  if (ids.length > 0) {
-    const { data: items } = await supabase
-      .from("vault_items")
-      .select("project_id, kind")
-      .eq("workspace_id", profile.workspace_id)
-      .in("project_id", ids);
-    for (const it of items || []) {
-      const c = counts.get(it.project_id) || { templates: 0, documents: 0 };
-      if (it.kind === "template") c.templates++;
-      else c.documents++;
-      counts.set(it.project_id, c);
+  if ((projects || []).length > 0) {
+    const { data: rows } = await supabase
+      .rpc("vault_project_counts", { p_workspace_id: profile.workspace_id });
+    for (const r of (rows || []) as Array<{ project_id: string; doc_count: number; template_count: number }>) {
+      counts.set(r.project_id, { documents: r.doc_count, templates: r.template_count });
     }
   }
 

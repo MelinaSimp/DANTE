@@ -22,7 +22,7 @@ async function loadAuth() {
 }
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const ctx = await loadAuth();
@@ -41,16 +41,28 @@ export async function GET(
     .maybeSingle();
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const { data: items } = await ctx.supabase
+  const url = new URL(req.url);
+  const limit = Math.min(parseInt(url.searchParams.get("limit") || "100", 10), 500);
+  const offset = parseInt(url.searchParams.get("offset") || "0", 10);
+
+  const { data: items, count } = await ctx.supabase
     .from("vault_items")
     .select(
-      "id, kind, title, description, file_url, file_size, file_type, created_at, updated_at"
+      "id, kind, title, file_url, file_size, file_type, created_at, updated_at",
+      { count: "exact" }
     )
     .eq("project_id", id)
     .eq("workspace_id", ctx.workspaceId)
-    .order("updated_at", { ascending: false });
+    .order("updated_at", { ascending: false })
+    .range(offset, offset + limit - 1);
 
-  return NextResponse.json({ ...project, items: items || [] });
+  return NextResponse.json({
+    ...project,
+    items: items || [],
+    total_items: count ?? 0,
+    limit,
+    offset,
+  });
 }
 
 export async function PATCH(
