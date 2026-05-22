@@ -103,18 +103,19 @@ export async function middleware(req: NextRequest) {
 
   // Check authentication for protected routes
   if (isProtectedRoute || pathname === "/") {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    let user = null;
+    try {
+      const { data } = await supabase.auth.getUser();
+      user = data.user;
+    } catch {
+      // Supabase auth timeout — treat as unauthenticated
+    }
 
     if (!user) {
-      // Anonymous hits on the root go to the public download/marketing
-      // page; hits on protected app routes go to /auth for sign-in.
       const target = pathname === "/" ? "/download" : "/auth";
       return NextResponse.redirect(new URL(target, req.url));
     }
 
-    // For root path, let the page component handle the redirect
     if (pathname === "/") {
       return response;
     }
