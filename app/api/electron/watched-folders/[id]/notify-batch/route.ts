@@ -191,9 +191,13 @@ export async function POST(
     const hasText =
       typeof file.extracted_text === "string" &&
       file.extracted_text.trim().length > 0;
+    // Auto-confirm all non-rejected files in cloud-mode folders.
+    // Images and other non-extractable files get vault_items with
+    // null content — they appear in the project inventory even
+    // without searchable text.
     const shouldAutoConfirm =
       status === "pending_user_confirm" &&
-      (isFolderConsent || (!isLocalOnly && hasText));
+      (isFolderConsent || !isLocalOnly);
 
     if (shouldAutoConfirm) {
       const sanitizedText = hasText

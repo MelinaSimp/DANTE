@@ -146,14 +146,14 @@ export async function POST(
     body.extracted_text.trim().length > 0;
   const acceptedText =
     status === "pending_user_confirm" &&
-    (isFolderConsent || (!isLocalOnly && hasText))
+    (isFolderConsent || !isLocalOnly)
       ? hasText
         ? sanitizeForPostgres(body.extracted_text!.trim())
         : null
       : null;
   const shouldAutoConfirm =
     status === "pending_user_confirm" &&
-    (isFolderConsent || (!isLocalOnly && hasText));
+    (isFolderConsent || !isLocalOnly);
 
   let autoConfirmedVaultId: string | null = null;
   let autoConfirmError: string | null = null;
