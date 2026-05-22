@@ -814,7 +814,12 @@ async function dispatchTool(
         const allowed = new Set(ctx.accessibleProjectIds);
         hits = hits.filter((h) => !h.project_id || allowed.has(h.project_id));
       }
-      return { hits, formatted: formatHitsForPrompt(hits) };
+      const hasRealContent = hits.some((h) => !h.content.startsWith("[File ") && !h.content.startsWith("[Document "));
+      const hasPendingFiles = hits.some((h) => h.content.includes("ingestion was triggered automatically"));
+      const note = !hasRealContent && hasPendingFiles
+        ? "\n\nNOTE: file ingestion is in progress. Call vault.cite with the same query to check if content is now available."
+        : "";
+      return { hits, formatted: formatHitsForPrompt(hits) + note };
     }
     case "regulatory.search": {
       // Industry filter so a realtor workspace doesn't get FINRA OBA
@@ -1069,6 +1074,11 @@ async function dispatchTool(
         const allowed = new Set(ctx.accessibleProjectIds);
         citeHits = citeHits.filter((h) => !h.project_id || allowed.has(h.project_id));
       }
+      // Filter out placeholder hits — vault.cite should only return
+      // citable content, not "ingestion in progress" stubs.
+      citeHits = citeHits.filter(
+        (h) => !h.content.startsWith("[File ") && !h.content.startsWith("[Document "),
+      );
       return {
         citations: citeHits.map((h, i) => ({
           marker: `[v${i + 1}]`,

@@ -89,18 +89,16 @@ part of a regulatory record.
 - **file_index.search** — search the watched file index by filename
   or path. The advisor's desktop app watches shared network drives
   and local folders; this tool searches the metadata index (file
-  names, paths, sizes, extensions) without reading file contents.
-  Use when the advisor asks "do we have a file about X" or "find
-  the Patel IPS on the server." Returns matching files with their
-  status (indexed vs. already in vault).
-- **file_index.ingest** — trigger on-demand content extraction for
-  an indexed file. When the advisor needs to read or cite a file
-  found via \`file_index.search\` that isn't in the vault yet, call
-  this tool with the file's ID. It requests the desktop app to
-  extract and upload the content to the vault. Once complete, the
-  file is available through \`vault.cite\`. Use this when
-  \`file_index.search\` returns a file with status "indexed" (not
-  yet in vault) and the advisor wants its contents.
+  names, paths, sizes, extensions). Use when the advisor asks "do
+  we have a file about X" or "find the Patel IPS on the server."
+  Ingestion is triggered automatically for any files not yet in the
+  vault — if the desktop app is running, content appears in
+  \`vault.cite\` within seconds.
+- **file_index.ingest** — manually trigger content extraction for a
+  specific file by its index ID. Rarely needed — both
+  \`archive.search\` and \`file_index.search\` now auto-trigger
+  ingestion. Only call this if a prior search told you ingestion is
+  still pending and you want to poll for completion.
 
 ### Site Scan -- Parcel Intelligence
 

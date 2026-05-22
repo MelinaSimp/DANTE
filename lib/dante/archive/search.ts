@@ -32,7 +32,7 @@ export async function searchArchive(input: SearchInput): Promise<ArchiveSearchHi
   const [embeddingHits, titleHits, fileIndexHits] = await Promise.all([
     withTimeout(embeddingSearch(input.workspaceId, input.query, k, input.kindFilter, input.projectId), 8000, []),
     withTimeout(titleFallbackSearch(input.workspaceId, input.query, k, input.projectId), 6000, []),
-    withTimeout(fileIndexFallbackSearch(input.workspaceId, input.query, k), 4000, []),
+    withTimeout(fileIndexFallbackSearch(input.workspaceId, input.query, k), 12000, []),
   ]);
 
   const seenDocIds = new Set<string>();
@@ -226,7 +226,7 @@ async function fileIndexFallbackSearch(
 
   const { data: files, error } = await supabaseAdmin
     .from("watched_file_index")
-    .select("id, file_name, file_path, vault_item_id, ingest_status")
+    .select("id, file_name, file_path, folder_id, vault_item_id, ingest_status")
     .eq("workspace_id", workspaceId)
     .is("deleted_at", null)
     .or(orClauses)
@@ -234,22 +234,117 @@ async function fileIndexFallbackSearch(
 
   if (error || !files || files.length === 0) return [];
 
-  return files
-    .filter((f) => !f.vault_item_id || f.ingest_status !== "ingested")
-    .map((f) => ({
-      chunk_id: f.id,
-      document_id: f.id,
-      chunk_index: 0,
-      page_number: null,
-      content: `[File "${f.file_name}" found on the user's file system at: ${f.file_path}. ` +
-        `This file has not been ingested into the vault yet. ` +
-        `Call file_index.ingest with index_entry_id="${f.id}" to retrieve and index its content, ` +
-        `then use vault.cite to search the extracted text.]`,
-      similarity: 0.35,
-      document_title: f.file_name,
-      document_kind: "other",
-      project_id: null as string | null,
-    }));
+  const needIngest = files.filter(
+    (f) => !f.vault_item_id || f.ingest_status !== "ingested",
+  );
+
+  // Already-ingested files are covered by embeddingSearch / titleFallback.
+  if (needIngest.length === 0) return [];
+
+  // ── Auto-trigger ingest for uningesteed files ──────────────────
+  const toRequest = needIngest.filter(
+    (f) => f.ingest_status !== "ingest_requested" && f.ingest_status !== "ingesting",
+  );
+  if (toRequest.length > 0) {
+    const requests = toRequest
+      .filter((f) => f.folder_id)
+      .map((f) => ({
+        workspace_id: workspaceId,
+        folder_id: f.folder_id,
+        index_entry_id: f.id,
+        file_path: f.file_path,
+        requested_by: "archive-search:auto",
+      }));
+    if (requests.length > 0) {
+      await Promise.all([
+        supabaseAdmin.from("content_requests").insert(requests),
+        supabaseAdmin
+          .from("watched_file_index")
+          .update({ ingest_status: "ingest_requested" })
+          .in("id", toRequest.map((f) => f.id)),
+      ]);
+    }
+  }
+
+  // ── Poll for completion (up to ~8s) ────────────────────────────
+  // The desktop watcher fulfills small files in 2-4s. If it finishes
+  // in time, we return real vault content instead of a placeholder.
+  const ids = needIngest.map((f) => f.id);
+  let resolved: Array<{ id: string; vault_item_id: string | null; ingest_status: string }> = [];
+  for (let tick = 0; tick < 4; tick++) {
+    await new Promise((r) => setTimeout(r, 2000));
+    const { data: check } = await supabaseAdmin
+      .from("watched_file_index")
+      .select("id, vault_item_id, ingest_status")
+      .in("id", ids);
+    if (!check) continue;
+    resolved = check;
+    if (check.every((c) => c.ingest_status === "ingested" || c.ingest_status === "ingest_failed")) break;
+  }
+
+  // ── Build results ──────────────────────────────────────────────
+  const resolvedMap = new Map(resolved.map((r) => [r.id, r]));
+  const completedVaultIds = resolved
+    .filter((r) => r.ingest_status === "ingested" && r.vault_item_id)
+    .map((r) => r.vault_item_id!);
+
+  // Fetch actual chunks for files that completed ingest.
+  let chunksByVaultItem = new Map<string, Array<{
+    id: string; item_id: string; chunk_index: number;
+    page_number: number | null; content: string;
+  }>>();
+  if (completedVaultIds.length > 0) {
+    const { data: chunks } = await supabaseAdmin
+      .from("vault_item_chunks")
+      .select("id, item_id, chunk_index, page_number, content")
+      .in("item_id", completedVaultIds)
+      .order("chunk_index")
+      .limit(completedVaultIds.length * 3);
+    for (const c of chunks || []) {
+      const arr = chunksByVaultItem.get(c.item_id) || [];
+      if (arr.length < 3) arr.push(c);
+      chunksByVaultItem.set(c.item_id, arr);
+    }
+  }
+
+  const results: ArchiveSearchHit[] = [];
+  for (const f of needIngest) {
+    const status = resolvedMap.get(f.id);
+    const vaultId = status?.vault_item_id || f.vault_item_id;
+    const chunks = vaultId ? chunksByVaultItem.get(vaultId) : undefined;
+
+    if (chunks && chunks.length > 0) {
+      for (const c of chunks) {
+        results.push({
+          chunk_id: c.id,
+          document_id: vaultId!,
+          chunk_index: c.chunk_index,
+          page_number: c.page_number,
+          content: c.content,
+          similarity: 0.45,
+          document_title: f.file_name,
+          document_kind: "other",
+          project_id: null,
+        });
+      }
+    } else {
+      results.push({
+        chunk_id: f.id,
+        document_id: f.id,
+        chunk_index: 0,
+        page_number: null,
+        content: `[File "${f.file_name}" at ${f.file_path}. ` +
+          `Content ingestion was triggered automatically and is in progress. ` +
+          `Try vault.cite for this file's contents shortly.]`,
+        similarity: 0.35,
+        document_title: f.file_name,
+        document_kind: "other",
+        project_id: null,
+      });
+    }
+  }
+
+  return results.slice(0, limit);
 }
 
 /**
