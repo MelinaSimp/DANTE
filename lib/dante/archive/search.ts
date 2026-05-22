@@ -120,12 +120,13 @@ async function titleFallbackSearch(
   // Uses Supabase `.or()` with individual ilike conditions.
   const orClauses = keywords.map((kw) => `title.ilike.%${kw}%`).join(",");
 
+  const fetchLimit = Math.max(limit * 4, 20);
   let q = supabaseAdmin
     .from("vault_items")
     .select("id, title, kind, content, project_id")
     .eq("workspace_id", workspaceId)
     .or(orClauses)
-    .limit(limit);
+    .limit(fetchLimit);
 
   if (projectId) {
     q = q.eq("project_id", projectId);
@@ -134,9 +135,6 @@ async function titleFallbackSearch(
   const { data: items, error } = await q;
   if (error || !items || items.length === 0) return [];
 
-  // Convert vault_items rows into ArchiveSearchHit format.
-  // If the item has chunks, return those; otherwise return a
-  // synthetic hit from the item content/title.
   const results: ArchiveSearchHit[] = [];
 
   const itemIds = items.map((it) => it.id);
@@ -145,7 +143,7 @@ async function titleFallbackSearch(
     .select("id, item_id, chunk_index, page_number, content")
     .in("item_id", itemIds)
     .order("chunk_index")
-    .limit(limit * 3);
+    .limit(fetchLimit * 3);
 
   const chunksByItem = new Map<string, typeof allChunks>();
   for (const c of allChunks || []) {
@@ -154,55 +152,56 @@ async function titleFallbackSearch(
     chunksByItem.set(c.item_id, arr);
   }
 
-  const unchunkedIds: string[] = [];
-  for (const item of items) {
-    const chunks = chunksByItem.get(item.id);
-    if (chunks && chunks.length > 0) {
-      for (const c of chunks) {
-        results.push({
-          chunk_id: c.id,
-          document_id: item.id,
-          chunk_index: c.chunk_index,
-          page_number: c.page_number,
-          content: c.content,
-          similarity: 0.5,
-          document_title: item.title,
-          document_kind: item.kind,
-          project_id: item.project_id,
-        });
-      }
-    } else if (item.content) {
+  const chunkedItems = items.filter((it) => chunksByItem.has(it.id));
+  const contentItems = items.filter((it) => !chunksByItem.has(it.id) && it.content);
+  const emptyItems = items.filter((it) => !chunksByItem.has(it.id) && !it.content);
+
+  for (const item of chunkedItems) {
+    for (const c of chunksByItem.get(item.id)!) {
       results.push({
-        chunk_id: item.id,
+        chunk_id: c.id,
         document_id: item.id,
-        chunk_index: 0,
-        page_number: null,
-        content: item.content.slice(0, 2000),
-        similarity: 0.4,
-        document_title: item.title,
-        document_kind: item.kind,
-        project_id: item.project_id,
-      });
-    } else {
-      unchunkedIds.push(item.id);
-      results.push({
-        chunk_id: item.id,
-        document_id: item.id,
-        chunk_index: 0,
-        page_number: null,
-        content: `[Document "${item.title}" found in vault but not yet indexed. Content will be available shortly.]`,
-        similarity: 0.3,
+        chunk_index: c.chunk_index,
+        page_number: c.page_number,
+        content: c.content,
+        similarity: 0.5,
         document_title: item.title,
         document_kind: item.kind,
         project_id: item.project_id,
       });
     }
   }
+  for (const item of contentItems) {
+    results.push({
+      chunk_id: item.id,
+      document_id: item.id,
+      chunk_index: 0,
+      page_number: null,
+      content: item.content!.slice(0, 2000),
+      similarity: 0.4,
+      document_title: item.title,
+      document_kind: item.kind,
+      project_id: item.project_id,
+    });
+  }
+  for (const item of emptyItems.slice(0, 3)) {
+    results.push({
+      chunk_id: item.id,
+      document_id: item.id,
+      chunk_index: 0,
+      page_number: null,
+      content: `[Document "${item.title}" found in vault but not yet indexed.]`,
+      similarity: 0.2,
+      document_title: item.title,
+      document_kind: item.kind,
+      project_id: item.project_id,
+    });
+  }
 
-  if (unchunkedIds.length > 0) {
+  if (emptyItems.length > 0) {
     Promise.allSettled(
-      unchunkedIds.slice(0, 3).map((id) =>
-        ingestVaultItem(id, { force: true }).catch(() => {})
+      emptyItems.slice(0, 3).map((it) =>
+        ingestVaultItem(it.id, { force: true }).catch(() => {})
       )
     );
   }
