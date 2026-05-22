@@ -254,7 +254,7 @@ async function runQueryProperties(
 ) {
   let q = supabaseAdmin
     .from("properties")
-    .select("id, name, address, city, state, zip, transaction_stage, stage_entered_at, expected_close_date, lease_end_date, monthly_rent_cents, tenant_contact_id, year_built, lot_size_sqft")
+    .select("id, name, address_line1, city, state, zip, transaction_stage, stage_entered_at, expected_close_date, lease_end_date, monthly_rent_cents, tenant_contact_id, year_built, lot_size_sqft")
     .eq("workspace_id", workspaceId);
 
   for (const [k, v] of Object.entries(cfg.filter || {})) {
