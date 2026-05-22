@@ -196,6 +196,7 @@ export default function AskDante({
   const router = useRouter();
   const [input, setInput] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
+  const [chatId, setChatId] = useState<string | undefined>();
   const [streamState, setStreamState] = useState<StreamState>(initialStreamState());
   const [recent, setRecent] = useState<RecentChat[]>([]);
   const [promptsOpen, setPromptsOpen] = useState(false);
@@ -413,6 +414,7 @@ export default function AskDante({
         endpoint,
         body: {
           message,
+          chat_id: chatId,
           deep: deepResearch,
           context_contact_id: isManagedAgent ? undefined : contextContact?.id,
           context_contact_name: isManagedAgent ? undefined : (contextContact?.name || undefined),
@@ -436,6 +438,7 @@ export default function AskDante({
         citationReport: captured.citationReport ?? null,
         grounding: captured.grounding ?? null,
       };
+      if (captured.chatId) setChatId(captured.chatId);
       setTurns((prev) => [...prev, assistantTurn]);
       setStreamState(initialStreamState());
       refreshRecent();
@@ -809,7 +812,7 @@ export default function AskDante({
 
       {/* Pinned input bar in expanded mode */}
       {inExpandedMode && (
-        <div className="fixed bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white/95 to-transparent pt-6 pb-4 z-30">
+        <div className="fixed bottom-0 left-64 right-0 bg-gradient-to-t from-[var(--canvas)] via-[var(--canvas)]/95 to-transparent pt-6 pb-4 z-30">
           <div className="max-w-4xl mx-auto px-6 md:px-8">
             <InputBar
               compact
