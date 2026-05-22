@@ -254,7 +254,9 @@ async function downloadAndExtractWithPages(
   const mtLower = mt.toLowerCase();
   const usePageAware = mtLower === "application/pdf"
     || mtLower === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    || mtLower === "application/vnd.ms-excel";
+    || mtLower === "application/vnd.ms-excel"
+    || mtLower === "xlsx"
+    || mtLower === "xls";
   if (usePageAware) {
     const { pages, pageCount } = await extractTextWithPages(buffer, mt);
     const fullText = pages.join("\n\n");

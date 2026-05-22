@@ -22,6 +22,10 @@ const OFFICE_TYPES = [
   "application/msword",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "application/vnd.ms-excel",
+  "docx",
+  "doc",
+  "xlsx",
+  "xls",
 ];
 
 const OFFICE_EXTENSIONS = [".docx", ".doc", ".xlsx", ".xls"];

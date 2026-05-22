@@ -35,11 +35,15 @@ const PLAIN_TEXT_MIMES = new Set([
 const DOCX_MIMES = new Set([
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/msword",
+  "docx",
+  "doc",
 ]);
 
 const XLSX_MIMES = new Set([
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "application/vnd.ms-excel",
+  "xlsx",
+  "xls",
 ]);
 
 export async function extractText(
