@@ -29,6 +29,16 @@ export default function AuthPage() {
 
   const industryConfig = getIndustryConfig(industry);
 
+  // If we landed on /auth, any lingering stale session should be cleared
+  // so that token-refresh errors don't interfere with a fresh sign-in.
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (!data.session) {
+        supabase.auth.signOut({ scope: "local" }).catch(() => {});
+      }
+    });
+  }, []);
+
   // The old dark-theme override set html/body to #000. The whole app is
   // now white-by-default, so we just make sure nothing legacy is still
   // overriding it.
@@ -101,19 +111,25 @@ export default function AuthPage() {
           await supabase.auth.signInWithPassword({ email, password });
 
         if (signInError) {
-          setError(signInError.message);
+          setError(
+            typeof signInError.message === "string" && signInError.message
+              ? signInError.message
+              : "Sign in failed. Check your email and password.",
+          );
         } else if (data.session) {
           window.location.href = "/auth/callback";
         }
       }
     } catch (err: any) {
+      const msg = typeof err?.message === "string" ? err.message : "";
       if (
-        err.message?.includes("Failed to fetch") ||
-        err.message?.includes("NetworkError")
+        msg.includes("Failed to fetch") ||
+        msg.includes("NetworkError") ||
+        err?.name === "AuthRetryableFetchError"
       ) {
-        setError("Unable to connect. Please check your internet connection.");
+        setError("Unable to connect. Please check your internet connection and try again.");
       } else {
-        setError(err.message || "An error occurred");
+        setError(msg || "An error occurred. Please try again.");
       }
     } finally {
       setLoading(false);
