@@ -101,22 +101,15 @@ export async function middleware(req: NextRequest) {
   const protectedRoutes = ["/app", "/admin", "/frontend", "/home", "/select", "/superadmin", "/schedule", "/client-details-overview", "/dashboard", "/settings", "/contacts", "/appointments"];
   const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
 
-  // Check authentication for protected routes
+  // Check authentication for protected routes.
+  // Uses getSession() (local JWT read) instead of getUser() (network
+  // call to Supabase). This means page loads never depend on Supabase
+  // availability — a Supabase outage won't block the entire app.
+  // API routes still verify tokens server-side via getUser().
   if (isProtectedRoute || pathname === "/") {
-    let user = null;
-    try {
-      const result = await Promise.race([
-        supabase.auth.getUser(),
-        new Promise<{ data: { user: null } }>((resolve) =>
-          setTimeout(() => resolve({ data: { user: null } }), 8000)
-        ),
-      ]);
-      user = result.data.user;
-    } catch {
-      // Supabase auth unreachable — treat as unauthenticated
-    }
+    const { data: { session } } = await supabase.auth.getSession();
 
-    if (!user) {
+    if (!session) {
       const target = pathname === "/" ? "/download" : "/auth";
       return NextResponse.redirect(new URL(target, req.url));
     }
