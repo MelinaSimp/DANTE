@@ -105,10 +105,15 @@ export async function middleware(req: NextRequest) {
   if (isProtectedRoute || pathname === "/") {
     let user = null;
     try {
-      const { data } = await supabase.auth.getUser();
-      user = data.user;
+      const result = await Promise.race([
+        supabase.auth.getUser(),
+        new Promise<{ data: { user: null } }>((resolve) =>
+          setTimeout(() => resolve({ data: { user: null } }), 8000)
+        ),
+      ]);
+      user = result.data.user;
     } catch {
-      // Supabase auth timeout — treat as unauthenticated
+      // Supabase auth unreachable — treat as unauthenticated
     }
 
     if (!user) {
