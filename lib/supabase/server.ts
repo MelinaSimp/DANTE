@@ -1,6 +1,14 @@
 // lib/supabase/server.ts
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
+import type { User } from "@supabase/supabase-js";
+
+export async function getSessionUser(): Promise<{ user: User; supabase: ReturnType<typeof createServerClient> } | null> {
+  const supabase = await createServerSupabase();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) return null;
+  return { user: session.user, supabase };
+}
 
 export async function createServerSupabase() {
   const cookieStore = await cookies(); // Next 15 can be async here

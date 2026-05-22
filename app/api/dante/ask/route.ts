@@ -22,7 +22,7 @@
 // each skill's own auto_approve gate.
 
 import { NextRequest } from "next/server";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { createServerSupabase, getSessionUser } from "@/lib/supabase/server";
 import { complete as llmComplete } from "@/lib/llm/client";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { runAgent, type AgentEvent } from "@/lib/dante/agent";
@@ -87,11 +87,9 @@ const DEFAULT_TOOLS: AgentToolEntry[] = [
 // See lib/dante/system-prompt.ts.
 
 export async function POST(req: NextRequest) {
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return jsonError(401, "unauthorized");
+  const auth = await getSessionUser();
+  if (!auth) return jsonError(401, "unauthorized");
+  const { user, supabase } = auth;
 
   const { data: profile } = await supabase
     .from("profiles")
