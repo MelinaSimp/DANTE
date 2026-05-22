@@ -27,32 +27,30 @@ async function handle(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // Reset stale entries stuck in "ingest_requested" whose content_requests expired.
+  // Reset file_index entries stuck in "ingest_requested" whose content_requests
+  // all expired. Query expired requests directly (indexed), then reset the
+  // linked file_index entries so the drain can re-queue them.
   let staleResetCount = 0;
-  const { data: stale } = await supabaseAdmin
-    .from("watched_file_index")
-    .select("id")
-    .is("deleted_at", null)
-    .is("vault_item_id", null)
-    .eq("ingest_status", "ingest_requested")
-    .limit(50);
-  if (stale && stale.length > 0) {
-    const staleIds = stale.map((s) => s.id);
-    const { data: activeReqs } = await supabaseAdmin
+  const { data: expiredReqs } = await supabaseAdmin
+    .from("content_requests")
+    .select("index_entry_id")
+    .eq("status", "pending")
+    .lt("expires_at", new Date().toISOString())
+    .limit(30);
+  if (expiredReqs && expiredReqs.length > 0) {
+    const expiredIds = [...new Set(expiredReqs.map((r) => r.index_entry_id))];
+    await supabaseAdmin
       .from("content_requests")
-      .select("index_entry_id")
-      .in("index_entry_id", staleIds)
-      .gt("expires_at", new Date().toISOString())
-      .is("fulfilled_at", null);
-    const activeSet = new Set((activeReqs || []).map((r) => r.index_entry_id));
-    const resetIds = staleIds.filter((id) => !activeSet.has(id));
-    if (resetIds.length > 0) {
-      await supabaseAdmin
-        .from("watched_file_index")
-        .update({ ingest_status: "indexed" })
-        .in("id", resetIds);
-      staleResetCount = resetIds.length;
-    }
+      .update({ status: "expired" })
+      .in("index_entry_id", expiredIds)
+      .eq("status", "pending")
+      .lt("expires_at", new Date().toISOString());
+    await supabaseAdmin
+      .from("watched_file_index")
+      .update({ ingest_status: "indexed" })
+      .in("id", expiredIds)
+      .eq("ingest_status", "ingest_requested");
+    staleResetCount = expiredIds.length;
   }
 
   // Find file_index entries that have never been ingested and don't
