@@ -6,6 +6,7 @@
 // where the items in that project are listed.
 
 import { createServerSupabase } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { getAccessibleProjectIds } from "@/lib/vault/project-access";
 
@@ -50,7 +51,7 @@ export async function GET() {
   // query instead of downloading every vault_item row.
   const counts = new Map<string, { templates: number; documents: number }>();
   if ((projects || []).length > 0) {
-    const { data: rows } = await supabase
+    const { data: rows } = await supabaseAdmin
       .rpc("vault_project_counts", { p_workspace_id: profile.workspace_id });
     for (const r of (rows || []) as Array<{ project_id: string; doc_count: number; template_count: number }>) {
       counts.set(r.project_id, { documents: r.doc_count, templates: r.template_count });
