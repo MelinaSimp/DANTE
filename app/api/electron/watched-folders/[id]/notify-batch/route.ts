@@ -204,7 +204,9 @@ export async function POST(
         ? sanitizeForPostgres(file.extracted_text!.trim())
         : null;
 
-      // Resolve project per-file (cached by subfolder name)
+      // Resolve project per-file (cached by subfolder name).
+      // Only cache successful resolutions — a transient failure
+      // (race condition, network blip) shouldn't poison the entire batch.
       let fileProjectId: string | null = null;
       const projName = projectNameForWatchedFolder(f.folder_path, file.file_path);
       if (projName && projectCache.has(projName)) {
@@ -218,14 +220,13 @@ export async function POST(
             userId: user.id,
           });
           fileProjectId = auto.projectId;
-          projectCache.set(projName, fileProjectId);
+          if (fileProjectId) projectCache.set(projName, fileProjectId);
         } catch (err) {
           console.warn(
             "[notify-batch] auto-project resolution failed for",
             projName, ":",
             err instanceof Error ? err.message : err,
           );
-          projectCache.set(projName, null);
         }
       }
 

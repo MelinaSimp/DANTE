@@ -61,11 +61,14 @@ export async function resolveProjectForWatchedFile(
   if (!projectName) return NULL_RESULT;
 
   // Try to find an existing project case-insensitively.
+  // Use a pattern that tolerates extra whitespace around the " / " delimiter
+  // (disk folders with leading spaces produce " /  X" in older rows).
+  const ilikePattern = projectName.replace(" / ", " /%");
   const { data: existing } = await supabaseAdmin
     .from("vault_projects")
     .select("id, name")
     .eq("workspace_id", opts.workspaceId)
-    .ilike("name", projectName)
+    .ilike("name", ilikePattern)
     .maybeSingle();
   if (existing) {
     return {
@@ -100,7 +103,7 @@ export async function resolveProjectForWatchedFile(
       .from("vault_projects")
       .select("id, name")
       .eq("workspace_id", opts.workspaceId)
-      .ilike("name", projectName)
+      .ilike("name", ilikePattern)
       .maybeSingle();
     if (refetched) {
       return {
