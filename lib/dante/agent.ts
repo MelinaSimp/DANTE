@@ -363,6 +363,29 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
     },
   },
 
+  "workflow.run": {
+    type: "function",
+    function: {
+      name: "workflow_run",
+      description:
+        "Trigger an existing workflow by name, passing structured input. Use this when the user asks you to 'run the acquisition deep-dive on X', 'kick off the meeting prep for Y', or any phrasing that implies running an existing workflow with specific parameters. The workflow's trigger node exposes input fields via {{steps.trigger.input.<field>}} — pass the fields the workflow expects. If you're unsure which fields a workflow needs, call with just the name to see its expected inputs.",
+      parameters: {
+        type: "object",
+        properties: {
+          workflow_name: {
+            type: "string",
+            description: "Name (or partial name) of the workflow to run. Fuzzy-matched against existing workflows in the workspace.",
+          },
+          input: {
+            type: "object",
+            description: "Key-value input to pass to the workflow trigger. Fields depend on the workflow — e.g. { address, city, state } for an acquisition workflow.",
+            additionalProperties: true,
+          },
+        },
+        required: ["workflow_name"],
+      },
+    },
+  },
   "file_index.search": {
     type: "function",
     function: {
@@ -644,6 +667,7 @@ const NAME_TO_TOOL: Record<string, AgentToolName> = {
   skill_run: "skill.run",
   reminder_schedule: "reminder.schedule",
   workflow_propose: "workflow.propose",
+  workflow_run: "workflow.run",
   file_index_search: "file_index.search",
   file_index_ingest: "file_index.ingest",
   site_scan_search: "site_scan.search",
@@ -688,6 +712,7 @@ const PER_TOOL_BUDGET: Partial<Record<AgentToolName, number>> = {
   "rmd.calculate": 10,    // a multi-account briefing might compute several at once
   "inconsistency.detect": 4, // expensive (full doc content in prompt); rarely needs more
   "workflow.propose": 2,  // one ask = one proposal; cap covers a "and also..." follow-up
+  "workflow.run": 3,      // trigger existing workflows; 3 covers multi-step asks
   "file_index.search": 5,
   "file_index.ingest": 3,
   "site_scan.search": 5,
@@ -1283,6 +1308,60 @@ async function dispatchTool(
       };
     }
 
+    case "workflow.run": {
+      const nameQuery = String(args.workflow_name || "").trim();
+      if (!nameQuery) return { error: "workflow.run: 'workflow_name' required." };
+
+      const { data: workflows } = await supabaseAdmin
+        .from("dante_workflows")
+        .select("id, name, graph, enabled")
+        .eq("workspace_id", ctx.workspaceId)
+        .is("proposal_state", null)
+        .order("updated_at", { ascending: false });
+
+      if (!workflows || workflows.length === 0) {
+        return { error: "workflow.run: no workflows found in this workspace." };
+      }
+
+      const lowerQuery = nameQuery.toLowerCase();
+      const match = workflows.find((w: any) => w.name.toLowerCase() === lowerQuery)
+        || workflows.find((w: any) => w.name.toLowerCase().includes(lowerQuery));
+      if (!match) {
+        const available = workflows.slice(0, 10).map((w: any) => w.name);
+        return {
+          error: `workflow.run: no workflow matching "${nameQuery}". Available: ${available.join(", ")}`,
+        };
+      }
+
+      const wfInput = (args.input as Record<string, unknown>) || {};
+
+      const { enqueueRun, kickQueueWorker } = await import("@/lib/dante/run-executor");
+      const result = await enqueueRun({
+        workflow_id: match.id,
+        workspace_id: ctx.workspaceId,
+        triggered_by: ctx.userId || null,
+        payload: wfInput,
+      });
+
+      if ("error" in result) {
+        return { error: `workflow.run: ${result.error}` };
+      }
+
+      const origin = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : "http://localhost:3000";
+      kickQueueWorker(origin);
+
+      return {
+        ok: true,
+        run_id: result.run_id,
+        workflow_name: match.name,
+        workflow_id: match.id,
+        input_provided: wfInput,
+        message: `Workflow "${match.name}" has been triggered. It's now running in the background.`,
+      };
+    }
+
     case "file_index.search": {
       const q = String(args.query || "").trim();
       if (!q) return { error: "file_index.search: 'query' required." };
@@ -1786,6 +1865,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       "skill.run": 0,
       "reminder.schedule": 0,
       "workflow.propose": 0,
+      "workflow.run": 0,
       "file_index.search": 0,
       "file_index.ingest": 0,
       "site_scan.search": 0,

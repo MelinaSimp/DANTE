@@ -75,6 +75,7 @@ const DEFAULT_TOOLS: AgentToolEntry[] = [
   "file_index.ingest",
   "reminder.schedule",
   "workflow.propose",
+  "workflow.run",
   "site_scan.search",
   "site_scan.detail",
   "site_scan.listings",

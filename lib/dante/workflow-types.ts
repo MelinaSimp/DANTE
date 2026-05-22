@@ -166,6 +166,7 @@ export type AgentToolName =
   | "rmd.calculate"     // deterministic Required Minimum Distribution math with IRS citations
   | "inconsistency.detect" // cross-document contradiction detection
   | "workflow.propose" // draft a persistent workflow for the user to accept or decline
+  | "workflow.run"     // trigger an existing workflow by name with structured input
   | "file_index.search"   // search the watched file index by filename/path
   | "file_index.ingest"   // trigger on-demand content retrieval for an indexed file
   | "site_scan.search"    // search parcels by location, zoning, acreage
