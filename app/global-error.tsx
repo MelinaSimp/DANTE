@@ -3,6 +3,16 @@
 import * as Sentry from "@sentry/nextjs";
 import { useEffect } from "react";
 
+function isChunkLoadError(error: Error): boolean {
+  const msg = error.message || "";
+  return (
+    msg.includes("Loading chunk") ||
+    msg.includes("ChunkLoadError") ||
+    msg.includes("Loading CSS chunk") ||
+    (error.name === "ChunkLoadError")
+  );
+}
+
 export default function GlobalError({
   error,
   reset,
@@ -11,6 +21,10 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
+    if (isChunkLoadError(error)) {
+      window.location.reload();
+      return;
+    }
     Sentry.captureException(error);
   }, [error]);
 

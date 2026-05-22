@@ -4,6 +4,16 @@ import * as Sentry from "@sentry/nextjs";
 import Link from "next/link";
 import { useEffect } from "react";
 
+function isChunkLoadError(error: Error): boolean {
+  const msg = error.message || "";
+  return (
+    msg.includes("Loading chunk") ||
+    msg.includes("ChunkLoadError") ||
+    msg.includes("Loading CSS chunk") ||
+    (error.name === "ChunkLoadError")
+  );
+}
+
 export default function RouteError({
   error,
   reset,
@@ -12,6 +22,10 @@ export default function RouteError({
   reset: () => void;
 }) {
   useEffect(() => {
+    if (isChunkLoadError(error)) {
+      window.location.reload();
+      return;
+    }
     Sentry.captureException(error);
   }, [error]);
 
