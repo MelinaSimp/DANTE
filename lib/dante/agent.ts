@@ -432,6 +432,28 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
       },
     },
   },
+  "file_index.list_folder": {
+    type: "function",
+    function: {
+      name: "file_index_list_folder",
+      description:
+        "List all files inside a watched folder (or subfolder path). Use when the user asks 'what files are in the X folder' or 'show me everything in /path/to/folder'. Returns every file in that folder tree with name, path, extension, size, and ingest status.",
+      parameters: {
+        type: "object",
+        properties: {
+          folder_path: {
+            type: "string",
+            description: "Full or partial folder path to list, e.g. '/Volumes/Server/Clients/Patel' or 'Medina'. Matches against file_path using contains/prefix matching.",
+          },
+          limit: {
+            type: "number",
+            description: "Max results (1-200, default 50).",
+          },
+        },
+        required: ["folder_path"],
+      },
+    },
+  },
   "site_scan.search": {
     type: "function",
     function: {
@@ -670,6 +692,7 @@ const NAME_TO_TOOL: Record<string, AgentToolName> = {
   workflow_run: "workflow.run",
   file_index_search: "file_index.search",
   file_index_ingest: "file_index.ingest",
+  file_index_list_folder: "file_index.list_folder",
   site_scan_search: "site_scan.search",
   site_scan_detail: "site_scan.detail",
   site_scan_listings: "site_scan.listings",
@@ -715,6 +738,7 @@ const PER_TOOL_BUDGET: Partial<Record<AgentToolName, number>> = {
   "workflow.run": 3,      // trigger existing workflows; 3 covers multi-step asks
   "file_index.search": 5,
   "file_index.ingest": 3,
+  "file_index.list_folder": 5,
   "site_scan.search": 5,
   "site_scan.detail": 5,
   "site_scan.listings": 3,
@@ -1439,6 +1463,7 @@ async function dispatchTool(
           (folderLookup.data || []).map((r) => [r.id, r]),
         );
 
+        const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
         const requests = needIngest
           .filter((f) => folderMap.has(f.id))
           .map((f) => {
@@ -1449,6 +1474,7 @@ async function dispatchTool(
               index_entry_id: f.id,
               file_path: info.file_path,
               requested_by: `dante:${ctx.runId}`,
+              expires_at: expires,
             };
           });
 
@@ -1530,6 +1556,7 @@ async function dispatchTool(
             index_entry_id: entry.id,
             file_path: entry.file_path,
             requested_by: `dante:${ctx.runId}`,
+            expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
           });
         if (crErr) return { error: `file_index.ingest: ${crErr.message}` };
 
@@ -1562,6 +1589,71 @@ async function dispatchTool(
       return {
         pending: true,
         message: `Content retrieval for ${entry.file_name} is still in progress. The file watcher may be offline or busy. Ask the user to check that their Drift desktop app or watcher daemon is running, then try again.`,
+      };
+    }
+
+    case "file_index.list_folder": {
+      const folderPath = String(args.folder_path || "").trim();
+      if (!folderPath) return { error: "file_index.list_folder: 'folder_path' required." };
+      const listLimit = Math.min(Math.max(Number(args.limit) || 50, 1), 200);
+
+      const { data: files, error: listErr } = await supabaseAdmin
+        .from("watched_file_index")
+        .select("id, file_name, file_path, file_extension, file_size_bytes, ingest_status, vault_item_id, file_modified_at")
+        .eq("workspace_id", ctx.workspaceId)
+        .is("deleted_at", null)
+        .ilike("file_path", `%${folderPath}%`)
+        .order("file_path", { ascending: true })
+        .limit(listLimit);
+
+      if (listErr) return { error: `file_index.list_folder: ${listErr.message}` };
+      if (!files || files.length === 0) {
+        return { results: [], total: 0, message: `No files found matching folder path "${folderPath}".` };
+      }
+
+      const needIngest = files.filter(
+        (f) => !f.vault_item_id && (f.ingest_status === "indexed" || f.ingest_status === "ingest_failed"),
+      );
+      if (needIngest.length > 0) {
+        const folderLookup = await supabaseAdmin
+          .from("watched_file_index")
+          .select("id, folder_id, file_path")
+          .in("id", needIngest.map((f) => f.id));
+        const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        const requests = (folderLookup.data || [])
+          .filter((r) => r.folder_id)
+          .map((r) => ({
+            workspace_id: ctx.workspaceId,
+            folder_id: r.folder_id,
+            index_entry_id: r.id,
+            file_path: r.file_path,
+            requested_by: `dante:${ctx.runId}`,
+            expires_at: expires,
+          }));
+        if (requests.length > 0) {
+          await supabaseAdmin.from("content_requests").insert(requests);
+          await supabaseAdmin
+            .from("watched_file_index")
+            .update({ ingest_status: "ingest_requested" })
+            .in("id", needIngest.map((f) => f.id));
+        }
+      }
+
+      return {
+        results: files.map((f) => ({
+          id: f.id,
+          name: f.file_name,
+          path: f.file_path,
+          extension: f.file_extension,
+          size_bytes: f.file_size_bytes,
+          modified_at: f.file_modified_at,
+          status: f.ingest_status,
+          vault_item_id: f.vault_item_id,
+        })),
+        total: files.length,
+        hint: needIngest.length > 0
+          ? `Ingestion was triggered for ${needIngest.length} file(s) not yet in the vault. Files with vault_item_id can be searched with vault.cite.`
+          : undefined,
       };
     }
 
@@ -1937,6 +2029,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       "workflow.run": 0,
       "file_index.search": 0,
       "file_index.ingest": 0,
+      "file_index.list_folder": 0,
       "site_scan.search": 0,
       "site_scan.detail": 0,
       "site_scan.listings": 0,
@@ -2212,8 +2305,9 @@ function synthesizeSummary(
   const names = toolCalls.map((c) => c.function.name);
   if (names.includes("memory_search")) return "Checking memory…";
   if (names.includes("archive_search") || names.includes("vault_cite")) return "Searching the vault…";
-  if (names.includes("file_index_search")) return "Searching the file index…";
-  if (names.includes("file_index_ingest")) return "Retrieving file content…";
+  if (names.includes("file_index_search")) return "Searching the file index...";
+  if (names.includes("file_index_ingest")) return "Retrieving file content...";
+  if (names.includes("file_index_list_folder")) return "Listing folder contents...";
   if (names.includes("clients_query")) return "Looking up contacts…";
   if (names.includes("skill_run")) return "Running a skill…";
   if (names.some((n) => n.startsWith("mcp__"))) return "Calling an external tool…";

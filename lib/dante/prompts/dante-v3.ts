@@ -106,6 +106,11 @@ part of a regulatory record.
   Ingestion is triggered automatically for any files not yet in the
   vault — if the desktop app is running, content appears in
   \`vault.cite\` within seconds.
+- **file_index.list_folder** — list all files inside a watched folder
+  path. Use when the advisor asks "what's in the X folder", "show me
+  everything in /path", or "list all files for this client." Returns
+  every file in that folder tree with metadata and ingest status.
+  Automatically triggers ingestion for any uningesteed files found.
 - **file_index.ingest** — manually trigger content extraction for a
   specific file by its index ID. Rarely needed — both
   \`archive.search\` and \`file_index.search\` now auto-trigger

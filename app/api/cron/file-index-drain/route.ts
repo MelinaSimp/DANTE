@@ -27,6 +27,34 @@ async function handle(request: Request) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  // Reset stale entries stuck in "ingest_requested" whose content_requests expired.
+  let staleResetCount = 0;
+  const { data: stale } = await supabaseAdmin
+    .from("watched_file_index")
+    .select("id")
+    .is("deleted_at", null)
+    .is("vault_item_id", null)
+    .eq("ingest_status", "ingest_requested")
+    .limit(50);
+  if (stale && stale.length > 0) {
+    const staleIds = stale.map((s) => s.id);
+    const { data: activeReqs } = await supabaseAdmin
+      .from("content_requests")
+      .select("index_entry_id")
+      .in("index_entry_id", staleIds)
+      .gt("expires_at", new Date().toISOString())
+      .is("fulfilled_at", null);
+    const activeSet = new Set((activeReqs || []).map((r) => r.index_entry_id));
+    const resetIds = staleIds.filter((id) => !activeSet.has(id));
+    if (resetIds.length > 0) {
+      await supabaseAdmin
+        .from("watched_file_index")
+        .update({ ingest_status: "indexed" })
+        .in("id", resetIds);
+      staleResetCount = resetIds.length;
+    }
+  }
+
   // Find file_index entries that have never been ingested and don't
   // have a pending content_request already.
   const { data: candidates, error } = await supabaseAdmin
@@ -39,9 +67,10 @@ async function handle(request: Request) {
     .limit(BATCH_SIZE);
 
   if (error || !candidates || candidates.length === 0) {
-    return NextResponse.json({ ok: true, created: 0, remaining: 0 });
+    return NextResponse.json({ ok: true, created: 0, remaining: 0, stale_reset: staleResetCount });
   }
 
+  const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   const requests = candidates
     .filter((c) => c.folder_id)
     .map((c) => ({
@@ -50,6 +79,7 @@ async function handle(request: Request) {
       index_entry_id: c.id,
       file_path: c.file_path,
       requested_by: "cron:file-index-drain",
+      expires_at: expires,
     }));
 
   if (requests.length === 0) {
@@ -74,6 +104,7 @@ async function handle(request: Request) {
     ok: true,
     created: requests.length,
     remaining: count ?? 0,
+    stale_reset: staleResetCount,
   });
 }
 

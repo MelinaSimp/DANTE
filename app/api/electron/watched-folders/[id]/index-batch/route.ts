@@ -96,12 +96,14 @@ export async function POST(
   const batch = needIngest.slice(0, 20);
   let contentRequestsCreated = 0;
   if (batch.length > 0) {
+    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
     const requests = batch.map((r) => ({
       workspace_id: folder.workspace_id,
       folder_id: folder.id,
       index_entry_id: r.id,
       file_path: r.file_path,
       requested_by: "index-batch:auto",
+      expires_at: expires,
     }));
     const { error: crErr } = await supabaseAdmin
       .from("content_requests")

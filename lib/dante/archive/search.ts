@@ -246,6 +246,7 @@ async function fileIndexFallbackSearch(
     (f) => f.ingest_status !== "ingest_requested" && f.ingest_status !== "ingesting",
   );
   if (toRequest.length > 0) {
+    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
     const requests = toRequest
       .filter((f) => f.folder_id)
       .map((f) => ({
@@ -254,6 +255,7 @@ async function fileIndexFallbackSearch(
         index_entry_id: f.id,
         file_path: f.file_path,
         requested_by: "archive-search:auto",
+        expires_at: expires,
       }));
     if (requests.length > 0) {
       await Promise.all([

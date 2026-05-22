@@ -169,6 +169,7 @@ export type AgentToolName =
   | "workflow.run"     // trigger an existing workflow by name with structured input
   | "file_index.search"   // search the watched file index by filename/path
   | "file_index.ingest"   // trigger on-demand content retrieval for an indexed file
+  | "file_index.list_folder" // list all files within a watched folder path
   | "site_scan.search"    // search parcels by location, zoning, acreage
   | "site_scan.detail"    // full parcel intelligence (auditor, tax, demographics, EPA)
   | "site_scan.listings"  // search active commercial listings near a location
