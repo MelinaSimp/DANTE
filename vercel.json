@@ -85,6 +85,10 @@
     {
       "path": "/api/cron/ingest-worker",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/file-index-drain",
+      "schedule": "* * * * *"
     }
   ]
 }

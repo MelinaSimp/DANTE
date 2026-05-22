@@ -72,10 +72,10 @@ export async function POST(
       last_seen_at: new Date().toISOString(),
     }));
 
-  const { error, count } = await supabaseAdmin
+  const { data: upserted, error } = await supabaseAdmin
     .from("watched_file_index")
     .upsert(rows, { onConflict: "folder_id,file_path", ignoreDuplicates: false })
-    .select("id");
+    .select("id, file_path, ingest_status, vault_item_id");
 
   if (error) {
     console.error("[index-batch] upsert error:", error);
@@ -87,5 +87,36 @@ export async function POST(
     .update({ last_seen_at: new Date().toISOString() })
     .eq("id", folder.id);
 
-  return NextResponse.json({ indexed: count ?? rows.length });
+  // Auto-fire content_requests for newly-indexed files so the
+  // Electron app extracts them immediately instead of waiting for
+  // Dante to search. Cap at 20 per batch to avoid flooding.
+  const needIngest = (upserted || []).filter(
+    (r) => !r.vault_item_id && r.ingest_status !== "ingest_requested" && r.ingest_status !== "ingesting" && r.ingest_status !== "ingested",
+  );
+  const batch = needIngest.slice(0, 20);
+  let contentRequestsCreated = 0;
+  if (batch.length > 0) {
+    const requests = batch.map((r) => ({
+      workspace_id: folder.workspace_id,
+      folder_id: folder.id,
+      index_entry_id: r.id,
+      file_path: r.file_path,
+      requested_by: "index-batch:auto",
+    }));
+    const { error: crErr } = await supabaseAdmin
+      .from("content_requests")
+      .insert(requests);
+    if (!crErr) {
+      contentRequestsCreated = batch.length;
+      await supabaseAdmin
+        .from("watched_file_index")
+        .update({ ingest_status: "ingest_requested" })
+        .in("id", batch.map((r) => r.id));
+    }
+  }
+
+  return NextResponse.json({
+    indexed: upserted?.length ?? rows.length,
+    content_requests_created: contentRequestsCreated,
+  });
 }
