@@ -937,6 +937,82 @@ async function runApproval(
   };
 }
 
+function runTransform(
+  cfg: { operations: Array<{ action: string; field: string; value?: unknown; from?: string }> },
+  ctx: Ctx,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const op of cfg.operations || []) {
+    switch (op.action) {
+      case "set":
+        result[op.field] = op.value;
+        break;
+      case "rename":
+        if (op.from) {
+          const parts = op.from.split(".");
+          let val: unknown = ctx.steps;
+          for (const p of parts) val = (val as Record<string, unknown>)?.[p];
+          result[op.field] = val;
+        }
+        break;
+      case "delete":
+        result[op.field] = undefined;
+        break;
+      case "expression": {
+        const expr = String(op.value ?? "");
+        try {
+          result[op.field] = JSON.parse(expr);
+        } catch {
+          result[op.field] = expr;
+        }
+        break;
+      }
+    }
+  }
+  return result;
+}
+
+function runSwitch(
+  cfg: { expression: string; cases: Array<{ value: string; label?: string }>; default_case?: string },
+): { expression: string; matched_case: string; matched_index: number } {
+  const val = String(cfg.expression ?? "").trim();
+  for (let i = 0; i < (cfg.cases || []).length; i++) {
+    if (val === cfg.cases[i].value) {
+      return { expression: val, matched_case: cfg.cases[i].value, matched_index: i };
+    }
+  }
+  return { expression: val, matched_case: cfg.default_case || "__default__", matched_index: -1 };
+}
+
+async function runSubWorkflow(
+  cfg: { workflow_id: string; input: Record<string, unknown> },
+  workspaceId: string,
+  parentRunId: string,
+): Promise<Record<string, unknown>> {
+  const { supabaseAdmin } = await import("@/lib/supabase/admin");
+  const { data: wfRow } = await supabaseAdmin
+    .from("dante_workflows")
+    .select("*")
+    .eq("id", cfg.workflow_id)
+    .eq("workspace_id", workspaceId)
+    .single();
+
+  if (!wfRow) throw new Error(`Sub-workflow ${cfg.workflow_id} not found`);
+
+  const { definitionFromRow } = await import("./workflow-types");
+  const def = definitionFromRow(wfRow);
+  const result = await runWorkflow(def, cfg.input || {}, {
+    runId: `${parentRunId}_sub_${Date.now().toString(36)}`,
+  });
+
+  return {
+    status: result.status,
+    output: result.output,
+    log_entries: result.log.length,
+    error: result.error,
+  };
+}
+
 // ── Graph walk ────────────────────────────────────────────────
 
 /**
@@ -1130,6 +1206,16 @@ async function executeNode(
       }
       return runApproval(cfg as Parameters<typeof runApproval>[0], workspaceId, runId);
     }
+    case "transform":
+      return runTransform(cfg as Parameters<typeof runTransform>[0], ctx);
+    case "switch":
+      return runSwitch(cfg as Parameters<typeof runSwitch>[0]);
+    case "sub_workflow": {
+      if (ctx.simulate) {
+        return { simulated: true, would_have: { action: "sub_workflow", workflow_id: cfg.workflow_id } };
+      }
+      return runSubWorkflow(cfg as Parameters<typeof runSubWorkflow>[0], workspaceId, runId);
+    }
     default: {
       const t = (step as { type: string }).type;
       throw new Error(`Unknown node type: ${t}`);
@@ -1156,6 +1242,13 @@ function nextNodeIds(
     return outgoing
       .filter((e) => (e.sourceHandle || "true") === handle)
       .map((e) => e.target);
+  }
+
+  if (nodeType === "switch") {
+    const matched = (output as { matched_case: string })?.matched_case ?? "__default__";
+    const matched_edges = outgoing.filter((e) => e.sourceHandle === matched);
+    if (matched_edges.length > 0) return matched_edges.map((e) => e.target);
+    return outgoing.filter((e) => e.sourceHandle === "__default__").map((e) => e.target);
   }
 
   return outgoing.map((e) => e.target);

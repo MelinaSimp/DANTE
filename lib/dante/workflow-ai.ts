@@ -188,6 +188,29 @@ RULES
      Pauses the workflow run and emails the approver with magic links.
      Downstream nodes can branch on {{steps.<id>.approved}} (true/false).
 
+   - "transform" (reshape data between steps -> emits fields you define):
+     config: { "operations": [
+       {"action": "set", "field": "full_address", "value": "{{steps.trigger.input.street}}, {{steps.trigger.input.city}}"},
+       {"action": "rename", "field": "contact_name", "from": "query.contacts.0.name"},
+       {"action": "delete", "field": "temp"},
+       {"action": "expression", "field": "parsed", "value": "{\"key\": \"val\"}"}
+     ] }
+     Use to reshape data between steps. Output fields become {{steps.<id>.<field>}}.
+
+   - "switch" (multi-way branch with N output handles + default):
+     config: { "expression": "{{steps.classify.text}}", "cases": [
+       {"value": "high", "label": "High priority"},
+       {"value": "medium", "label": "Medium"},
+       {"value": "low", "label": "Low"}
+     ], "default_case": "__default__" }
+     Like condition but with 3+ branches. Each case has a sourceHandle matching its value.
+     Edges leaving a switch node MUST set sourceHandle to a case value or "__default__".
+
+   - "sub_workflow" (run another workflow as a nested step -> emits { status, output, log_entries }):
+     config: { "workflow_id": "uuid-of-another-workflow", "input": {"key": "{{steps.trigger.input.val}}"} }
+     Runs the referenced workflow synchronously. The sub-workflow's full output is available
+     at {{steps.<id>.output}}. Use for composition -- break complex logic into reusable pieces.
+
 3. Trigger types also include:
    - "trigger_lease_expiry": fires when leases are within N days of expiration.
      config: { "days_before": 90 }. Checked daily. Input includes { properties: [...] }.
@@ -198,9 +221,9 @@ RULES
 4. IDs are short snake_case unique strings, e.g. "classify", "send_alert".
    Node id, data.step.id, and edge ids must all match up.
 
-5. Edges connect nodes. Use sourceHandle ONLY on edges that leave a
-   condition node -- "true" for the pass branch, "false" for the fail
-   branch. Every other edge omits sourceHandle entirely (or sets null).
+5. Edges connect nodes. Use sourceHandle on edges that leave a
+   condition node ("true" / "false") or a switch node (case value or
+   "__default__"). Every other edge omits sourceHandle (or sets null).
 
 6. Templating: any config string can reference a prior node's output
    with {{steps.<node_id>.<path>}}. The trigger exposes the run input
@@ -237,6 +260,7 @@ const VALID_STEP_TYPES: StepType[] = [
   "agent", "query_properties", "query_listings", "query_offers", "lease_lookup",
   "web_search",
   "integration_query", "due_diligence", "generate_document", "for_each",
+  "transform", "switch", "sub_workflow",
   "approval",
 ];
 

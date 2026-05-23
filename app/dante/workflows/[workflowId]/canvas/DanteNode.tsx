@@ -29,6 +29,10 @@ export default function DanteNode({ data, selected }: NodeProps) {
   const accent = accentClasses(meta?.accent ?? "ink");
   const isTrigger = isTriggerType(step.type);
   const isCondition = step.type === "condition";
+  const isSwitch = step.type === "switch";
+  const switchCases = isSwitch
+    ? ((step.config as Record<string, unknown>).cases as Array<{ value: string; label?: string }>) || []
+    : [];
 
   const summary = nodeSummary(step);
 
@@ -99,6 +103,32 @@ export default function DanteNode({ data, selected }: NodeProps) {
             <span className="text-[var(--danger)]">false</span>
           </div>
         </>
+      ) : isSwitch && switchCases.length > 0 ? (
+        <>
+          {switchCases.map((c, i) => (
+            <Handle
+              key={c.value}
+              id={c.value}
+              type="source"
+              position={Position.Bottom}
+              style={{ left: `${((i + 1) / (switchCases.length + 2)) * 100}%` }}
+              className="!w-2 !h-2 !bg-[var(--accent)] !border-[var(--canvas)] !border-2"
+            />
+          ))}
+          <Handle
+            id="__default__"
+            type="source"
+            position={Position.Bottom}
+            style={{ left: `${((switchCases.length + 1) / (switchCases.length + 2)) * 100}%` }}
+            className="!w-2 !h-2 !bg-[var(--ink-muted)] !border-[var(--canvas)] !border-2"
+          />
+          <div className="flex justify-between px-3 pb-1.5 text-[9px] uppercase tracking-wider mono gap-1">
+            {switchCases.map((c) => (
+              <span key={c.value} className="text-[var(--accent)] truncate">{c.label || c.value}</span>
+            ))}
+            <span className="text-[var(--ink-muted)]">else</span>
+          </div>
+        </>
       ) : (
         <Handle
           type="source"
@@ -158,6 +188,12 @@ function nodeSummary(step: WorkflowStep): string | null {
       const at = (cfg.action_type as string) || "";
       return at ? `${at} x array` : null;
     }
+    case "transform": {
+      const ops = cfg.operations as Array<{ action: string; field: string }>;
+      return Array.isArray(ops) ? `${ops.length} op${ops.length !== 1 ? "s" : ""}` : null;
+    }
+    case "switch":             return truncate(String(cfg.expression ?? ""), 28);
+    case "sub_workflow":       return cfg.workflow_id ? `wf: ${truncate(String(cfg.workflow_id), 20)}` : null;
     case "approval":           return truncate(String(cfg.message ?? ""), 28);
     case "trigger_lease_expiry": return `${cfg.days_before ?? 90}d before`;
     case "trigger_deal_stage": {

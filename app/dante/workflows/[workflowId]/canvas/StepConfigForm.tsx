@@ -559,6 +559,63 @@ function renderBody(
         </>
       );
 
+    case "transform":
+      return (
+        <>
+          <Field label="Operations (JSON array)" hint='Each: {"action": "set|rename|delete|expression", "field": "output_name", "value": "...", "from": "step_id.path"}'>
+            <Json value={cfg.operations} onChange={(v) => setConfig("operations", v)} rows={6} placeholder={'[\n  {"action": "set", "field": "full_address", "value": "{{steps.trigger.input.street}}, {{steps.trigger.input.city}}"}\n]'} />
+          </Field>
+          <Help>
+            Reshape data between steps. Actions:<br />
+            <b>set</b> -- assign a value (supports templates).<br />
+            <b>rename</b> -- copy a field from a prior step (<code className="text-[var(--ink)]">from</code> = dot path).<br />
+            <b>delete</b> -- remove a field.<br />
+            <b>expression</b> -- evaluate value as JSON or keep as string.<br />
+            Output fields are available as
+            <code className="mx-1 text-[var(--ink)]">{"{{steps.<id>.<field>}}"}</code>.
+          </Help>
+        </>
+      );
+
+    case "switch":
+      return (
+        <>
+          <Field label="Expression" hint="The value to match against cases. Supports templates.">
+            <Text value={(cfg.expression as string) || ""} onChange={(v) => setConfig("expression", v)} placeholder='{{steps.classify.text}}' />
+          </Field>
+          <Field label="Cases (JSON array)" hint='Each: {"value": "match_value", "label": "Display name"}. Connect each output handle to a downstream node.'>
+            <Json value={cfg.cases} onChange={(v) => setConfig("cases", v)} rows={4} placeholder={'[\n  {"value": "high", "label": "High priority"},\n  {"value": "low", "label": "Low priority"}\n]'} />
+          </Field>
+          <Field label="Default case ID" hint="Handle ID for unmatched values. Leave as __default__.">
+            <Text value={(cfg.default_case as string) || "__default__"} onChange={(v) => setConfig("default_case", v)} placeholder="__default__" />
+          </Field>
+          <Help>
+            Multi-way branch. The resolved expression is compared against each
+            case value. The matching output handle fires; if none match, the
+            <code className="mx-1 text-[var(--ink)]">__default__</code> handle fires.
+            Connect each handle to a different downstream path.
+          </Help>
+        </>
+      );
+
+    case "sub_workflow":
+      return (
+        <>
+          <Field label="Workflow ID" hint="The UUID of the workflow to run as a sub-step.">
+            <Text value={(cfg.workflow_id as string) || ""} onChange={(v) => setConfig("workflow_id", v)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+          </Field>
+          <Field label="Input (JSON)" hint="Passed as the sub-workflow's trigger input. Supports templates.">
+            <Json value={cfg.input} onChange={(v) => setConfig("input", v)} rows={4} placeholder={'{"address": "{{steps.trigger.input.address}}"}'} />
+          </Field>
+          <Help>
+            Runs another workflow in your workspace as a nested step.
+            The sub-workflow executes fully before this step completes.
+            Output is available as
+            <code className="mx-1 text-[var(--ink)]">{"{{steps.<id>.output}}"}</code>.
+          </Help>
+        </>
+      );
+
     case "approval":
       return (
         <>

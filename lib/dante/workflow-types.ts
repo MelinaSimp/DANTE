@@ -43,6 +43,10 @@ export type StepType =
   | "due_diligence"     // Census + BLS + FEMA + EPA consolidated lookup
   | "generate_document" // branded PDF generation via workspace branding
   | "for_each"          // iterate over array, apply action per item
+  // Foundational primitives:
+  | "transform"          // set / rename / map fields between steps
+  | "switch"             // multi-branch (3+ outputs) on expression matching
+  | "sub_workflow"       // call another workflow as a step
   // Stateful / trigger nodes (Phase B):
   | "approval"           // pause run, notify approver, resume on approve/reject
   | "trigger_lease_expiry" // fires when leases are within N days of expiration
@@ -325,6 +329,40 @@ export interface ForEachStep extends BaseStep {
   };
 }
 
+// ── Foundational primitive interfaces ─────────────────────────
+
+export interface TransformStep extends BaseStep {
+  type: "transform";
+  config: {
+    operations: Array<{
+      action: "set" | "rename" | "delete" | "expression";
+      field: string;
+      value?: unknown;
+      from?: string;
+    }>;
+  };
+}
+
+export interface SwitchStep extends BaseStep {
+  type: "switch";
+  config: {
+    expression: string;
+    cases: Array<{
+      value: string;
+      label?: string;
+    }>;
+    default_case?: string;
+  };
+}
+
+export interface SubWorkflowStep extends BaseStep {
+  type: "sub_workflow";
+  config: {
+    workflow_id: string;
+    input: Record<string, unknown>;
+  };
+}
+
 export interface ApprovalStep extends BaseStep {
   type: "approval";
   config: {
@@ -420,6 +458,9 @@ export type WorkflowStep =
   | DueDiligenceStep
   | GenerateDocumentStep
   | ForEachStep
+  | TransformStep
+  | SwitchStep
+  | SubWorkflowStep
   | ApprovalStep
   | TriggerLeaseExpiryStep
   | TriggerDealStageStep;
@@ -444,7 +485,7 @@ export interface GraphEdge {
   target: string;        // target node id
   // Condition nodes emit two source handles: "true" and "false".
   // Everything else uses the default single handle (undefined).
-  sourceHandle?: "true" | "false";
+  sourceHandle?: string;
   targetHandle?: string;
 }
 

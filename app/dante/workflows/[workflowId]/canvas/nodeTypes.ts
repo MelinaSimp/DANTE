@@ -12,6 +12,7 @@ import {
   MessageSquare, Bot, CalendarClock,
   Plug, ShieldCheck, FileText, Repeat,
   UserCheck, CalendarX2, ArrowRightLeft,
+  Shuffle, SquareFunction, Workflow,
 } from "lucide-react";
 
 export interface NodeTypeMeta {
@@ -167,6 +168,25 @@ export const NODE_TYPES: NodeTypeMeta[] = [
     icon: Repeat, group: "action", accent: "flag",
     default: (id) => mk({ id, type: "for_each", name: "For each",
       config: { items: "{{steps.trigger.input.items}}", action_type: "send_email", action_config: {} } }),
+  },
+  // ── Foundational primitives ──
+  {
+    type: "transform", label: "Transform", hint: "Set / rename / map fields",
+    icon: Shuffle, group: "action", accent: "ink",
+    default: (id) => mk({ id, type: "transform", name: "Transform",
+      config: { operations: [{ action: "set", field: "result", value: "" }] } }),
+  },
+  {
+    type: "switch", label: "Switch", hint: "Multi-branch on expression",
+    icon: SquareFunction, group: "action", accent: "flag",
+    default: (id) => mk({ id, type: "switch", name: "Switch",
+      config: { expression: "", cases: [{ value: "a", label: "Case A" }, { value: "b", label: "Case B" }], default_case: "__default__" } }),
+  },
+  {
+    type: "sub_workflow", label: "Sub-workflow", hint: "Run another workflow as a step",
+    icon: Workflow, group: "action", accent: "accent",
+    default: (id) => mk({ id, type: "sub_workflow", name: "Sub-workflow",
+      config: { workflow_id: "", input: {} } }),
   },
   {
     type: "approval", label: "Approval", hint: "Pause for human approve / reject",
