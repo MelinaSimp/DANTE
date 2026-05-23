@@ -66,29 +66,7 @@ export interface IntegrationAdapter {
 // Adapter registry. Lazy-imported per provider so a misconfigured
 // provider doesn't crash boot.
 const ADAPTERS: Record<string, () => Promise<IntegrationAdapter>> = {
-  wealthbox: async () => (await import("./wealthbox/adapter")).default,
-  redtail: async () => (await import("./redtail/adapter")).default,
-  holistiplan: async () => (await import("./holistiplan/adapter")).default,
-  nitrogen: async () => (await import("./nitrogen/adapter")).default,
-  rightcapital: async () => (await import("./rightcapital/adapter")).default,
-  // Phase 5 — Schwab and Altruist have real adapters that error
-  // cleanly when partner credentials aren't in env. The remaining
-  // partner-only providers fall back to the stub.
-  schwab: async () => (await import("./custodians/schwab")).default,
-  altruist: async () => (await import("./custodians/altruist")).default,
-  fidelity: async () => (await import("./_partner-stub")).makeStub("fidelity"),
-  pershing: async () => (await import("./_partner-stub")).makeStub("pershing"),
-  orion: async () => (await import("./_partner-stub")).makeStub("orion"),
-  tamarac: async () => (await import("./_partner-stub")).makeStub("tamarac"),
-  addepar: async () => (await import("./_partner-stub")).makeStub("addepar"),
-  black_diamond: async () => (await import("./_partner-stub")).makeStub("black_diamond"),
-  morningstar: async () => (await import("./_partner-stub")).makeStub("morningstar"),
-  ycharts: async () => (await import("./_partner-stub")).makeStub("ycharts"),
-  cch: async () => (await import("./_partner-stub")).makeStub("cch"),
-  salesforce_fs_cloud: async () =>
-    (await import("./_partner-stub")).makeStub("salesforce_fs_cloud"),
-
-  // ── Phase 6 — CRE integrations ──
+  // ── CRE integrations ──
   // API-key providers use the generic stub that stores the key.
   // OAuth providers use the OAuth stub. Partner-pending use partner stub.
   yardi: async () => (await import("./_api-key-stub")).makeApiKeyStub("yardi"),

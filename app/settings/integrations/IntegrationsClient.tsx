@@ -1,8 +1,7 @@
 "use client";
 
 // IntegrationsClient — connect / sync / disconnect for every
-// integration in the registry. Two sections: Phase 4 (live or
-// scaffolded) and Phase 5 (partner-pending).
+// integration in the registry.
 
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -25,7 +24,7 @@ interface ProviderRow {
   description: string;
   auth_method: "oauth" | "api_key" | "partner_oauth" | "partner_api";
   status: "live" | "scaffolded" | "partner_pending";
-  phase: 4 | 5 | 6;
+  phase: 6;
   capabilities: string[];
   docs_url?: string;
   api_key_help?: string;
@@ -42,13 +41,6 @@ interface ProviderRow {
 
 const KIND_LABEL: Record<string, string> = {
   crm: "CRM",
-  planning: "Planning",
-  risk: "Risk",
-  tax_planning: "Tax planning",
-  custodian: "Custodian",
-  aggregator: "Aggregator",
-  research: "Research",
-  tax_content: "Tax content",
   property_mgmt: "Property management",
   accounting: "Accounting",
   market_data: "Market data",
@@ -218,14 +210,10 @@ export default function IntegrationsClient() {
     }
   };
 
-  const phase4 = providers.filter((p) => p.phase === 4);
-  const phase5 = providers.filter((p) => p.phase === 5);
-  const phase6 = providers.filter((p) => p.phase === 6);
-
-  const phase6Connected = phase6.filter(
+  const connected = providers.filter(
     (p) => p.status !== "partner_pending"
   );
-  const phase6Pending = phase6.filter(
+  const pending = providers.filter(
     (p) => p.status === "partner_pending"
   );
 
@@ -281,37 +269,11 @@ export default function IntegrationsClient() {
           </div>
         ) : (
           <>
-            <ProviderSection
-              title="Wealth management"
-              subtitle="RIA integrations. Connect → use."
-              rows={phase4}
-              working={working}
-              onOAuth={connectOauth}
-              onApiKey={(p) => {
-                setShowApiKey(p);
-                setApiKeyInput({ api_key: "", username: "", password: "" });
-              }}
-              onSync={sync}
-              onDisconnect={disconnect}
-            />
-            <ProviderSection
-              title="Wealth management -- coming soon"
-              subtitle="Custodian / aggregator / research / Salesforce. Drift submits the partner application as part of customer onboarding."
-              rows={phase5}
-              working={working}
-              onOAuth={connectOauth}
-              onApiKey={(p) => {
-                setShowApiKey(p);
-                setApiKeyInput({ api_key: "", username: "", password: "" });
-              }}
-              onSync={sync}
-              onDisconnect={disconnect}
-            />
-            {phase6Connected.length > 0 && (
+            {connected.length > 0 && (
               <ProviderSection
                 title="Commercial real estate"
                 subtitle="Connect your PM, accounting, CRM, market data, and deal tools. Paste your API key or sign in with OAuth."
-                rows={phase6Connected}
+                rows={connected}
                 working={working}
                 onOAuth={connectOauth}
                 onApiKey={(p) => {
@@ -322,11 +284,11 @@ export default function IntegrationsClient() {
                 onDisconnect={disconnect}
               />
             )}
-            {phase6Pending.length > 0 && (
+            {pending.length > 0 && (
               <ProviderSection
-                title="Commercial real estate -- coming soon"
+                title="Coming soon"
                 subtitle="Partner approval or contract required before wiring."
-                rows={phase6Pending}
+                rows={pending}
                 working={working}
                 onOAuth={connectOauth}
                 onApiKey={(p) => {
@@ -368,27 +330,6 @@ export default function IntegrationsClient() {
                 placeholder="API key"
                 className="w-full text-xs px-2 py-1.5 border border-[var(--rule)] rounded-[4px] bg-[var(--canvas)]"
               />
-              {showApiKey === "redtail" && (
-                <>
-                  <input
-                    value={apiKeyInput.username}
-                    onChange={(e) =>
-                      setApiKeyInput({ ...apiKeyInput, username: e.target.value })
-                    }
-                    placeholder="Username"
-                    className="w-full text-xs px-2 py-1.5 border border-[var(--rule)] rounded-[4px] bg-[var(--canvas)]"
-                  />
-                  <input
-                    type="password"
-                    value={apiKeyInput.password}
-                    onChange={(e) =>
-                      setApiKeyInput({ ...apiKeyInput, password: e.target.value })
-                    }
-                    placeholder="Password"
-                    className="w-full text-xs px-2 py-1.5 border border-[var(--rule)] rounded-[4px] bg-[var(--canvas)]"
-                  />
-                </>
-              )}
               <div className="flex items-center gap-2 justify-end">
                 <button
                   onClick={() => setShowApiKey(null)}
