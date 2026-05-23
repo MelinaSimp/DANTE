@@ -23,7 +23,7 @@ export default function HelpButton({ appearance = "light" }: HelpButtonProps) {
         "inline-flex h-9 items-center gap-2 rounded-full px-4 text-sm font-medium transition focus:outline-none",
         isDark
           ? "border border-white/15 bg-white/5 text-white hover:bg-white/10"
-          : "border border-gray-200 bg-white/80 text-gray-700 hover:bg-white"
+          : "border border-[var(--rule)] bg-[var(--canvas)]/80 text-[var(--ink-muted)] hover:bg-[var(--canvas)]"
       )}
     >
       <HelpCircle className="h-4 w-4" />

@@ -117,17 +117,16 @@
   color-scheme: light;
 }
 
-/* .dark mirrors :root — Drift ships one visual mode (frosted glass).
-   The class still exists so the ThemeProvider doesn't error. */
+/* ── Dark mode — graphite neumorphic with glass edges ──────── */
 .dark {
-  --neu-bg: #bfc2c9;
-  --neu-rail: #28282e;
-  --neu-sidebar: #dfe1e7;
-  --neu-main: #e3e5ea;
-  --neu-card: #e6e8ed;
-  --neu-input: #e0e2e7;
-  --neu-hover: rgba(255, 255, 255, 0.18);
-  --neu-active: #eceef2;
+  --neu-bg: #1e1f26;
+  --neu-rail: #141418;
+  --neu-sidebar: #252630;
+  --neu-main: #2a2b34;
+  --neu-card: #30313b;
+  --neu-input: #262730;
+  --neu-hover: rgba(255, 255, 255, 0.06);
+  --neu-active: #35363f;
 
   --glass-rail: var(--neu-rail);
   --glass-sidebar: var(--neu-sidebar);
@@ -137,71 +136,71 @@
   --glass-hover: var(--neu-hover);
 
   --canvas: var(--neu-main);
-  --canvas-subtle: #e7e9ed;
-  --canvas-muted: #dbdde2;
+  --canvas-subtle: #2e2f38;
+  --canvas-muted: #242530;
   --surface: var(--neu-card);
 
-  --ink: #1e1e24;
-  --ink-muted: #6b6d76;
-  --ink-subtle: #9b9da5;
+  --ink: #e4e5ea;
+  --ink-muted: #8b8d96;
+  --ink-subtle: #5c5e67;
 
-  --rule: rgba(255, 255, 255, 0.35);
-  --rule-strong: rgba(255, 255, 255, 0.55);
+  --rule: rgba(255, 255, 255, 0.08);
+  --rule-strong: rgba(255, 255, 255, 0.14);
 
-  --accent: rgb(0, 136, 255);
-  --accent-soft: rgba(0, 136, 255, 0.05);
+  --accent: rgb(56, 162, 255);
+  --accent-soft: rgba(56, 162, 255, 0.10);
 
-  --verified: #16a34a;
-  --verified-soft: rgba(34, 160, 90, 0.12);
-  --flag: #ca8a04;
-  --flag-soft: rgba(202, 138, 4, 0.10);
-  --danger: #dc2626;
-  --danger-soft: rgba(220, 38, 38, 0.08);
+  --verified: #22c55e;
+  --verified-soft: rgba(34, 197, 94, 0.14);
+  --flag: #eab308;
+  --flag-soft: rgba(234, 179, 8, 0.12);
+  --danger: #ef4444;
+  --danger-soft: rgba(239, 68, 68, 0.12);
 
   --neu-shadow-panel:
-    6px 6px 16px rgba(0, 0, 0, 0.10),
-    -4px -4px 12px rgba(255, 255, 255, 0.60);
+    6px 6px 20px rgba(0, 0, 0, 0.35),
+    -4px -4px 14px rgba(255, 255, 255, 0.03);
   --neu-shadow-card:
-    3px 3px 8px rgba(0, 0, 0, 0.07),
-    -2px -2px 6px rgba(255, 255, 255, 0.50);
+    3px 3px 10px rgba(0, 0, 0, 0.30),
+    -2px -2px 8px rgba(255, 255, 255, 0.02);
   --neu-shadow-card-hover:
-    5px 5px 14px rgba(0, 0, 0, 0.10),
-    -3px -3px 10px rgba(255, 255, 255, 0.55);
+    5px 5px 16px rgba(0, 0, 0, 0.35),
+    -3px -3px 12px rgba(255, 255, 255, 0.03);
   --neu-shadow-rail:
-    6px 0 20px rgba(0, 0, 0, 0.22),
-    -2px 0 8px rgba(255, 255, 255, 0.05);
+    6px 0 24px rgba(0, 0, 0, 0.40),
+    -2px 0 8px rgba(255, 255, 255, 0.02);
   --neu-shadow-raised:
-    3px 3px 6px rgba(0, 0, 0, 0.08),
-    -2px -2px 5px rgba(255, 255, 255, 0.55);
+    3px 3px 8px rgba(0, 0, 0, 0.30),
+    -2px -2px 6px rgba(255, 255, 255, 0.02);
   --neu-shadow-pressed:
-    inset 2px 2px 5px rgba(0, 0, 0, 0.07),
-    inset -2px -2px 4px rgba(255, 255, 255, 0.45);
+    inset 2px 2px 6px rgba(0, 0, 0, 0.25),
+    inset -2px -2px 4px rgba(255, 255, 255, 0.02);
 
   --shadow-glass: var(--neu-shadow-panel);
   --shadow-card: var(--neu-shadow-card);
   --shadow-card-hover: var(--neu-shadow-card-hover);
   --shadow-rail: var(--neu-shadow-rail);
 
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
+  --background: oklch(0.178 0 0);
+  --foreground: oklch(0.92 0 0);
+  --card: oklch(0.21 0 0);
+  --card-foreground: oklch(0.92 0 0);
+  --popover: oklch(0.21 0 0);
+  --popover-foreground: oklch(0.92 0 0);
+  --primary: oklch(0.92 0 0);
+  --primary-foreground: oklch(0.178 0 0);
+  --secondary: oklch(0.25 0 0);
+  --secondary-foreground: oklch(0.92 0 0);
+  --muted: oklch(0.25 0 0);
   --muted-foreground: oklch(0.556 0 0);
-  --accent-shadcn: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --accent-shadcn: oklch(0.25 0 0);
+  --accent-foreground: oklch(0.92 0 0);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: oklch(0.28 0 0);
+  --input: oklch(0.28 0 0);
+  --ring: oklch(0.40 0 0);
 
-  color-scheme: light;
+  color-scheme: dark;
 }
 
 html {
@@ -209,6 +208,13 @@ html {
   background:
     radial-gradient(ellipse 80% 60% at 15% 60%, rgba(150, 140, 175, 0.12) 0%, transparent 70%),
     radial-gradient(ellipse 70% 50% at 85% 25%, rgba(130, 155, 190, 0.10) 0%, transparent 65%),
+    var(--neu-bg);
+}
+
+html.dark {
+  background:
+    radial-gradient(ellipse 80% 60% at 15% 60%, rgba(80, 70, 120, 0.08) 0%, transparent 70%),
+    radial-gradient(ellipse 70% 50% at 85% 25%, rgba(50, 90, 140, 0.06) 0%, transparent 65%),
     var(--neu-bg);
 }
 
@@ -282,6 +288,44 @@ main {
   border: 1px solid rgba(255, 255, 255, 0.25);
   box-shadow: var(--neu-shadow-pressed);
   border-radius: calc(var(--radius) - 2px);
+}
+
+/* ── Dark-mode glass overrides — same directional lighting, dimmed ── */
+
+.dark .glass-panel {
+  border-color: rgba(255, 255, 255, 0.06);
+  border-top-color: rgba(255, 255, 255, 0.10);
+  border-left-color: rgba(255, 255, 255, 0.08);
+  border-bottom-color: rgba(0, 0, 0, 0.20);
+  border-right-color: rgba(0, 0, 0, 0.15);
+  box-shadow: var(--neu-shadow-panel), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.dark .glass-rail {
+  border-color: rgba(255, 255, 255, 0.03);
+  border-top-color: rgba(255, 255, 255, 0.05);
+  border-bottom-color: rgba(0, 0, 0, 0.30);
+  box-shadow: var(--neu-shadow-rail), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.dark .glass-card,
+.dark .card-flat {
+  border-color: rgba(255, 255, 255, 0.05);
+  border-top-color: rgba(255, 255, 255, 0.08);
+  border-left-color: rgba(255, 255, 255, 0.06);
+  border-bottom-color: rgba(0, 0, 0, 0.18);
+  border-right-color: rgba(0, 0, 0, 0.12);
+  box-shadow: var(--neu-shadow-card), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.dark .glass-card-hover:hover,
+.dark .card-flat-hover:hover {
+  box-shadow: var(--neu-shadow-card-hover), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.dark .glass-input {
+  border-color: rgba(255, 255, 255, 0.04);
+  box-shadow: var(--neu-shadow-pressed);
 }
 
 @layer base {
@@ -536,7 +580,7 @@ main {
   animation: pulse 1.5s infinite;
 }
 .dark .loading-skeleton {
-  background: #383939;
+  background: #35363f;
 }
 @keyframes pulse {
   0%, 100% { opacity: 1; }

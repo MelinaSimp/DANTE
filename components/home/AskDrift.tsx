@@ -113,7 +113,7 @@ export default function AskDrift({ suggestions = [] }: AskDriftProps) {
           submitPrompt();
         }}
       >
-        <div className="absolute left-3 flex h-10 w-10 items-center justify-center text-lg text-[#151515]/60">
+        <div className="absolute left-3 flex h-10 w-10 items-center justify-center text-lg text-[var(--ink-muted)]">
           +
         </div>
         <input
@@ -128,12 +128,12 @@ export default function AskDrift({ suggestions = [] }: AskDriftProps) {
               submitPrompt();
             }
           }}
-          className="w-full rounded-full border border-[#3166bf] bg-[#ffffff] py-4 pl-14 pr-32 text-base text-[#151515] placeholder:text-[#9ca3af] transition focus:border-[#3166bf] focus:outline-none focus:ring-2 focus:ring-[#3166bf]/20"
+          className="w-full rounded-full border border-[var(--accent)] bg-[var(--surface)] py-4 pl-14 pr-32 text-base text-[var(--ink)] placeholder:text-[var(--ink-subtle)] transition focus:border-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20"
         />
         <div className="absolute right-3 flex items-center gap-2">
           <button
             type="button"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-full text-[#151515]/40 transition hover:text-[#151515]"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full text-[var(--ink-subtle)] transition hover:text-[var(--ink)]"
             aria-label="Use microphone"
             disabled
           >
@@ -141,7 +141,7 @@ export default function AskDrift({ suggestions = [] }: AskDriftProps) {
           </button>
           <button
             type="submit"
-            className="inline-flex items-center gap-2 rounded-full bg-[#3166bf] px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-[#2a5aa8] disabled:cursor-not-allowed disabled:opacity-70"
+            className="inline-flex items-center gap-2 rounded-full bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
             disabled={isLoading}
           >
             {isLoading ? (
@@ -160,13 +160,13 @@ export default function AskDrift({ suggestions = [] }: AskDriftProps) {
       </form>
 
       {hasSuggestions && (
-        <div className="flex flex-wrap items-center justify-center gap-3 text-sm text-[#151515]/60 lg:justify-center">
+        <div className="flex flex-wrap items-center justify-center gap-3 text-sm text-[var(--ink-muted)] lg:justify-center">
           {suggestionButtons.map(({ label, onSelect }) => (
             <button
               key={label}
               type="button"
               onClick={onSelect}
-              className="flex items-center gap-2 rounded-full border border-[#e5e7eb] bg-[#f3f4f6] px-3 py-1 text-[#151515]/70 transition hover:border-[#3166bf]/40 hover:bg-[#e5e7eb] hover:text-[#151515]"
+              className="flex items-center gap-2 rounded-full border border-[var(--rule)] bg-[var(--canvas-muted)] px-3 py-1 text-[var(--ink-muted)] transition hover:border-[var(--accent)]/40 hover:bg-[var(--canvas-subtle)] hover:text-[var(--ink)]"
             >
               <img src="/brand/logo-new.png" alt="" className="h-3.5 w-3.5" />
               {label}
@@ -176,16 +176,16 @@ export default function AskDrift({ suggestions = [] }: AskDriftProps) {
       )}
 
       {(answer || error || isLoading) && (
-        <div className="rounded-3xl border border-[#e5e7eb] bg-[#ffffff] p-6 text-left shadow-sm">
+        <div className="rounded-3xl border border-[var(--rule)] bg-[var(--surface)] p-6 text-left shadow-sm">
           {isLoading && (
-            <div className="flex items-center gap-3 text-sm text-[#151515]/70">
-              <Loader2 className="h-4 w-4 animate-spin text-[#3166bf]" />
+            <div className="flex items-center gap-3 text-sm text-[var(--ink-muted)]">
+              <Loader2 className="h-4 w-4 animate-spin text-[var(--accent)]" />
               Generating a response…
             </div>
           )}
 
           {!isLoading && error && (
-            <div className="flex items-start gap-3 text-sm text-[#f0494a]">
+            <div className="flex items-start gap-3 text-sm text-[var(--danger)]">
               <AlertCircle className="mt-0.5 h-4 w-4" />
               <p>{error}</p>
             </div>
@@ -193,8 +193,8 @@ export default function AskDrift({ suggestions = [] }: AskDriftProps) {
 
           {!isLoading && !error && (displayAnswer || answer) && (
             <div className="space-y-3">
-              <p className="text-xs uppercase tracking-[0.3em] text-[#151515]/60">Drift says</p>
-              <p className="whitespace-pre-wrap text-base leading-7 text-[#151515]">
+              <p className="text-xs uppercase tracking-[0.3em] text-[var(--ink-muted)]">Drift says</p>
+              <p className="whitespace-pre-wrap text-base leading-7 text-[var(--ink)]">
                 {displayAnswer || answer}
               </p>
             </div>

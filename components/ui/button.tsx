@@ -10,15 +10,15 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-[#3351ff] text-white shadow-sm shadow-black/5 hover:bg-[#4a64ff]",
+        default: "bg-[var(--accent)] text-white shadow-sm shadow-black/5 hover:brightness-110",
         destructive:
           "bg-destructive text-destructive-foreground shadow-sm shadow-black/5 hover:bg-destructive/90",
         outline:
-          "border border-input bg-background shadow-sm shadow-black/5 hover:bg-accent hover:text-accent-foreground",
-        secondary: "bg-white text-[#3351ff] border border-[#3351ff]/20 hover:bg-[#3351ff]/5 hover:border-[#3351ff]/30",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 hover:underline",
-        accent: "bg-[#3351ff] text-white hover:bg-[#4a64ff]",
+          "border border-[var(--rule)] bg-[var(--canvas)] shadow-sm shadow-black/5 hover:bg-[var(--canvas-subtle)]",
+        secondary: "bg-[var(--canvas)] text-[var(--accent)] border border-[var(--accent)]/20 hover:bg-[var(--accent)]/5 hover:border-[var(--accent)]/30",
+        ghost: "hover:bg-[var(--canvas-subtle)] hover:text-[var(--ink)]",
+        link: "text-[var(--accent)] underline-offset-4 hover:underline",
+        accent: "bg-[var(--accent)] text-white hover:brightness-110",
       },
       size: {
         default: "h-9 px-4 py-2",
