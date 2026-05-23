@@ -25,7 +25,7 @@ interface ProviderRow {
   description: string;
   auth_method: "oauth" | "api_key" | "partner_oauth" | "partner_api";
   status: "live" | "scaffolded" | "partner_pending";
-  phase: 4 | 5;
+  phase: 4 | 5 | 6;
   capabilities: string[];
   docs_url?: string;
   api_key_help?: string;
@@ -49,6 +49,13 @@ const KIND_LABEL: Record<string, string> = {
   aggregator: "Aggregator",
   research: "Research",
   tax_content: "Tax content",
+  property_mgmt: "Property management",
+  accounting: "Accounting",
+  market_data: "Market data",
+  deal_mgmt: "Deal management",
+  esignature: "E-signature",
+  networking: "Networking",
+  listings: "Listings",
 };
 
 function StatusChip({ status }: { status: string | null }) {
@@ -213,6 +220,14 @@ export default function IntegrationsClient() {
 
   const phase4 = providers.filter((p) => p.phase === 4);
   const phase5 = providers.filter((p) => p.phase === 5);
+  const phase6 = providers.filter((p) => p.phase === 6);
+
+  const phase6Connected = phase6.filter(
+    (p) => p.status !== "partner_pending"
+  );
+  const phase6Pending = phase6.filter(
+    (p) => p.status === "partner_pending"
+  );
 
   return (
     <div className="min-h-screen bg-[var(--canvas)] text-[var(--ink)]">
@@ -223,9 +238,9 @@ export default function IntegrationsClient() {
             Integrations
           </h1>
           <p className="prose-body text-[var(--ink-muted)] mt-1.5 max-w-prose">
-            Connect Drift to your CRM, planning software, custodian, and
-            research feeds. Connected integrations sync nightly, or on
-            demand from the row's Sync button.
+            Connect Drift to your tools -- CRM, property management,
+            accounting, market data, and more. Connected integrations
+            sync nightly, or on demand from the row's Sync button.
           </p>
         </div>
 
@@ -267,8 +282,8 @@ export default function IntegrationsClient() {
         ) : (
           <>
             <ProviderSection
-              title="Available now"
-              subtitle="Code-only integrations. Connect → use."
+              title="Wealth management"
+              subtitle="RIA integrations. Connect → use."
               rows={phase4}
               working={working}
               onOAuth={connectOauth}
@@ -280,7 +295,7 @@ export default function IntegrationsClient() {
               onDisconnect={disconnect}
             />
             <ProviderSection
-              title="Coming soon"
+              title="Wealth management -- coming soon"
               subtitle="Custodian / aggregator / research / Salesforce. Drift submits the partner application as part of customer onboarding."
               rows={phase5}
               working={working}
@@ -292,6 +307,36 @@ export default function IntegrationsClient() {
               onSync={sync}
               onDisconnect={disconnect}
             />
+            {phase6Connected.length > 0 && (
+              <ProviderSection
+                title="Commercial real estate"
+                subtitle="Connect your PM, accounting, CRM, market data, and deal tools. Paste your API key or sign in with OAuth."
+                rows={phase6Connected}
+                working={working}
+                onOAuth={connectOauth}
+                onApiKey={(p) => {
+                  setShowApiKey(p);
+                  setApiKeyInput({ api_key: "", username: "", password: "" });
+                }}
+                onSync={sync}
+                onDisconnect={disconnect}
+              />
+            )}
+            {phase6Pending.length > 0 && (
+              <ProviderSection
+                title="Commercial real estate -- coming soon"
+                subtitle="Partner approval or contract required before wiring."
+                rows={phase6Pending}
+                working={working}
+                onOAuth={connectOauth}
+                onApiKey={(p) => {
+                  setShowApiKey(p);
+                  setApiKeyInput({ api_key: "", username: "", password: "" });
+                }}
+                onSync={sync}
+                onDisconnect={disconnect}
+              />
+            )}
           </>
         )}
 

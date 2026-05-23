@@ -87,6 +87,41 @@ const ADAPTERS: Record<string, () => Promise<IntegrationAdapter>> = {
   cch: async () => (await import("./_partner-stub")).makeStub("cch"),
   salesforce_fs_cloud: async () =>
     (await import("./_partner-stub")).makeStub("salesforce_fs_cloud"),
+
+  // ── Phase 6 — CRE integrations ──
+  // API-key providers use the generic stub that stores the key.
+  // OAuth providers use the OAuth stub. Partner-pending use partner stub.
+  yardi: async () => (await import("./_api-key-stub")).makeApiKeyStub("yardi"),
+  yardi_breeze: async () => (await import("./_api-key-stub")).makeApiKeyStub("yardi_breeze"),
+  appfolio: async () => (await import("./_api-key-stub")).makeApiKeyStub("appfolio"),
+  realpage: async () => (await import("./_api-key-stub")).makeApiKeyStub("realpage"),
+  entrata: async () => (await import("./_api-key-stub")).makeApiKeyStub("entrata"),
+  mri_software: async () => (await import("./_api-key-stub")).makeApiKeyStub("mri_software"),
+  buildium: async () => (await import("./_api-key-stub")).makeApiKeyStub("buildium"),
+  quickbooks: async () => (await import("./_oauth-stub")).makeOAuthStub("quickbooks"),
+  sage_intacct: async () => (await import("./_api-key-stub")).makeApiKeyStub("sage_intacct"),
+  netsuite: async () => (await import("./_api-key-stub")).makeApiKeyStub("netsuite"),
+  xero: async () => (await import("./_oauth-stub")).makeOAuthStub("xero"),
+  salesforce: async () => (await import("./_oauth-stub")).makeOAuthStub("salesforce"),
+  hubspot: async () => (await import("./_api-key-stub")).makeApiKeyStub("hubspot"),
+  apto: async () => (await import("./_api-key-stub")).makeApiKeyStub("apto"),
+  buildout: async () => (await import("./_api-key-stub")).makeApiKeyStub("buildout"),
+  dealpath: async () => (await import("./_api-key-stub")).makeApiKeyStub("dealpath"),
+  juniper_square: async () => (await import("./_api-key-stub")).makeApiKeyStub("juniper_square"),
+  northspyre: async () => (await import("./_api-key-stub")).makeApiKeyStub("northspyre"),
+  costar: async () => (await import("./_api-key-stub")).makeApiKeyStub("costar"),
+  crexi: async () => (await import("./_api-key-stub")).makeApiKeyStub("crexi"),
+  reonomy: async () => (await import("./_api-key-stub")).makeApiKeyStub("reonomy"),
+  placer_ai: async () => (await import("./_api-key-stub")).makeApiKeyStub("placer_ai"),
+  yardi_matrix: async () => (await import("./_api-key-stub")).makeApiKeyStub("yardi_matrix"),
+  rca: async () => (await import("./_api-key-stub")).makeApiKeyStub("rca"),
+  docusign: async () => (await import("./_oauth-stub")).makeOAuthStub("docusign"),
+  pandadoc: async () => (await import("./_api-key-stub")).makeApiKeyStub("pandadoc"),
+  zoominfo: async () => (await import("./_api-key-stub")).makeApiKeyStub("zoominfo"),
+  apollo: async () => (await import("./_api-key-stub")).makeApiKeyStub("apollo"),
+  linkedin_sales_nav: async () => (await import("./_partner-stub")).makeStub("linkedin_sales_nav"),
+  auction_com: async () => (await import("./_api-key-stub")).makeApiKeyStub("auction_com"),
+  ten_x: async () => (await import("./_api-key-stub")).makeApiKeyStub("ten_x"),
 };
 
 export async function getAdapter(
