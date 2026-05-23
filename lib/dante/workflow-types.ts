@@ -37,7 +37,16 @@ export type StepType =
   | "query_offers"      // Supabase select on re_offers, with status filters
   | "lease_lookup"      // query lease_abstracts for extracted lease terms
   // Web intelligence:
-  | "web_search";       // Tavily web search → { results: [...], answer }
+  | "web_search"        // Tavily web search → { results: [...], answer }
+  // Integration + data source nodes:
+  | "integration_query" // query a connected integration using stored credentials
+  | "due_diligence"     // Census + BLS + FEMA + EPA consolidated lookup
+  | "generate_document" // branded PDF generation via workspace branding
+  | "for_each"          // iterate over array, apply action per item
+  // Stateful / trigger nodes (Phase B):
+  | "approval"           // pause run, notify approver, resume on approve/reject
+  | "trigger_lease_expiry" // fires when leases are within N days of expiration
+  | "trigger_deal_stage";  // fires when a property's pipeline stage changes
 
 export interface BaseStep {
   id: string;
@@ -266,6 +275,82 @@ export interface ArchiveLookupStep extends BaseStep {
   };
 }
 
+// ── Integration + data source step interfaces ─────────────────
+
+export interface IntegrationQueryStep extends BaseStep {
+  type: "integration_query";
+  config: {
+    provider: string;
+    endpoint: string;
+    method?: "GET" | "POST" | "PUT" | "DELETE";
+    params?: Record<string, unknown>;
+    headers?: Record<string, string>;
+  };
+}
+
+export interface DueDiligenceStep extends BaseStep {
+  type: "due_diligence";
+  config: {
+    latitude: number;
+    longitude: number;
+    state_fips: string;
+    county_fips: string;
+    tract_fips?: string;
+  };
+}
+
+export interface GenerateDocumentStep extends BaseStep {
+  type: "generate_document";
+  config: {
+    title: string;
+    subtitle?: string;
+    sections: Array<{ heading: string; body: string }>;
+  };
+}
+
+export type ForEachActionType =
+  | "send_email"
+  | "update_contact"
+  | "http"
+  | "send_sms"
+  | "generate_document"
+  | "integration_query";
+
+export interface ForEachStep extends BaseStep {
+  type: "for_each";
+  config: {
+    items: string;
+    action_type: ForEachActionType;
+    action_config: Record<string, unknown>;
+  };
+}
+
+export interface ApprovalStep extends BaseStep {
+  type: "approval";
+  config: {
+    approver_role?: "owner" | "admin" | "any";
+    message: string;
+    timeout_hours?: number;
+  };
+}
+
+// ── Event-driven trigger interfaces ───────────────────────────
+
+export interface TriggerLeaseExpiryStep extends BaseStep {
+  type: "trigger_lease_expiry";
+  config: {
+    days_before: number;
+  };
+}
+
+export interface TriggerDealStageStep extends BaseStep {
+  type: "trigger_deal_stage";
+  config: {
+    from_stage?: string;
+    to_stage?: string;
+  };
+}
+
 // ── Trigger nodes ──────────────────────────────────────────────
 // Every graph must start from exactly one trigger node. For the
 // runner, triggers are pass-throughs — their `config` is metadata
@@ -330,7 +415,14 @@ export type WorkflowStep =
   | QueryListingsStep
   | QueryOffersStep
   | LeaseLookupStep
-  | WebSearchStep;
+  | WebSearchStep
+  | IntegrationQueryStep
+  | DueDiligenceStep
+  | GenerateDocumentStep
+  | ForEachStep
+  | ApprovalStep
+  | TriggerLeaseExpiryStep
+  | TriggerDealStageStep;
 
 // ── Graph model ────────────────────────────────────────────────
 // React Flow speaks this shape natively. Each node carries its full
@@ -384,10 +476,12 @@ export interface StepLogEntry {
 }
 
 export interface WorkflowRunResult {
-  status: "success" | "error";
+  status: "success" | "error" | "waiting_approval";
   log: StepLogEntry[];
   output: Record<string, unknown>; // keyed by step id
   error?: string;
+  paused_at_node?: string;
+  approval_context?: Record<string, unknown>;
 }
 
 // ── Legacy → graph migration ───────────────────────────────────

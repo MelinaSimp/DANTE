@@ -76,6 +76,10 @@ function findAtTrigger(graph: WorkflowGraph): GraphNode | null {
   return graph.nodes.find((n) => n.type === "trigger_at") ?? null;
 }
 
+function findLeaseExpiryTrigger(graph: WorkflowGraph): GraphNode | null {
+  return graph.nodes.find((n) => n.type === "trigger_lease_expiry") ?? null;
+}
+
 // ── Handler ───────────────────────────────────────────────────
 
 async function handle(request: Request) {
@@ -206,6 +210,88 @@ async function handle(request: Request) {
         last_run_at: nowIso,
         enabled: false,
       }).eq("id", wf.id);
+    }
+  }
+
+  // ── Third pass: trigger_lease_expiry ──────────────────────────
+  {
+    const { data: allWfs } = await supabaseAdmin
+      .from("dante_workflows")
+      .select("*")
+      .eq("enabled", true);
+
+    for (const wf of allWfs || []) {
+      const def = definitionFromRow(wf);
+      const trig = findLeaseExpiryTrigger(def.graph);
+      if (!trig) continue;
+
+      if (wf.last_run_at && wf.last_run_at > new Date(now.getTime() - 86_400_000).toISOString()) {
+        skipped.push({ id: wf.id, reason: "lease_expiry_recent" });
+        continue;
+      }
+
+      const daysBefore = (trig.data.step.config as { days_before?: number }).days_before ?? 90;
+      const horizon = new Date(now.getTime() + daysBefore * 86_400_000).toISOString().slice(0, 10);
+
+      const { data: leases } = await supabaseAdmin
+        .from("lease_abstracts")
+        .select("id, property_id, expiration_date, tenant_name")
+        .eq("workspace_id", wf.workspace_id)
+        .gte("expiration_date", now.toISOString().slice(0, 10))
+        .lte("expiration_date", horizon);
+
+      if (!leases?.length) {
+        skipped.push({ id: wf.id, reason: "no_expiring_leases" });
+        continue;
+      }
+
+      const enq = await enqueueRun({
+        workflow_id: wf.id,
+        workspace_id: wf.workspace_id,
+        triggered_by: null,
+        payload: {
+          triggered_by: "lease_expiry",
+          properties: leases,
+          days_before: daysBefore,
+          fired_at: nowIso,
+        },
+      });
+
+      if ("error" in enq) {
+        fired.push({ id: wf.id, status: "enqueue_failed" });
+      } else {
+        fired.push({ id: wf.id, status: "queued" });
+        await supabaseAdmin.from("dante_workflows").update({
+          last_run_at: new Date().toISOString(),
+        }).eq("id", wf.id);
+      }
+    }
+  }
+
+  // ── Fourth pass: approval timeout ───────────────────────────
+  {
+    const { data: waitingRuns } = await supabaseAdmin
+      .from("dante_workflow_runs")
+      .select("id, approval_context, created_at")
+      .eq("status", "waiting_approval");
+
+    for (const run of waitingRuns || []) {
+      const ctx = run.approval_context as Record<string, unknown> | null;
+      const pausedNode = Object.values(ctx ?? {}).find(
+        (v) => v && typeof v === "object" && (v as Record<string, unknown>).__approval_pause,
+      ) as Record<string, unknown> | undefined;
+      const timeoutHours = (pausedNode?.timeout_hours as number) || 72;
+      const createdAt = new Date(run.created_at).getTime();
+      if (now.getTime() - createdAt > timeoutHours * 3_600_000) {
+        await supabaseAdmin
+          .from("dante_workflow_runs")
+          .update({
+            status: "error",
+            result: { status: "error", error: `Approval timed out after ${timeoutHours}h`, log: [] },
+            completed_at: nowIso,
+          })
+          .eq("id", run.id);
+      }
     }
   }
 

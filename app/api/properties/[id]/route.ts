@@ -224,6 +224,18 @@ export async function PATCH(
     request,
   });
 
+  if (stageChanged) {
+    import("@/lib/dante/deal-stage-trigger").then(({ evaluateDealStageWorkflows }) =>
+      evaluateDealStageWorkflows({
+        workspaceId: ctx.workspaceId,
+        propertyId: id,
+        fromStage: prior?.transaction_stage ?? null,
+        toStage: updates.transaction_stage as string,
+        propertyAddress: [prior?.address_line1, prior?.city].filter(Boolean).join(", "),
+      }),
+    );
+  }
+
   return NextResponse.json(data);
 }
 

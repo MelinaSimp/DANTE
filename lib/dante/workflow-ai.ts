@@ -164,31 +164,62 @@ RULES
    - "archive_lookup" (vector-search the firm's document archive -> emits { hits, context, citations }):
      config: { "query": "...", "k": 5, "kind": "lease"|"policy"|"memo"|"comp"|"inspection"|"disclosure"|"deed"|"insurance"|"regulation"|"other" }
 
-3. IDs are short snake_case unique strings, e.g. "classify", "send_alert".
+   - "integration_query" (query a connected integration -> emits { status, ok, body, provider }):
+     config: { "provider": "costar", "endpoint": "https://api.costar.com/v1/...", "method": "GET"|"POST"|"PUT"|"DELETE",
+               "params": {...}, "headers": {...} }
+     Credentials (API key) are loaded automatically from Settings > Integrations.
+
+   - "due_diligence" (Census + BLS + FEMA + EPA consolidated lookup -> emits { census, employment, flood_zone, epa, errors }):
+     config: { "latitude": 41.4993, "longitude": -81.6944, "state_fips": "39", "county_fips": "035", "tract_fips": "110100" }
+     Runs all four data sources in parallel. tract_fips is optional (falls back to county-level).
+     Output includes flood_zone.sfha (boolean for Special Flood Hazard Area).
+
+   - "generate_document" (branded PDF report -> emits { url, size_bytes, filename }):
+     config: { "title": "...", "subtitle": "...", "sections": [{"heading": "...", "body": "..."}] }
+     Uses workspace branding (logo, colors). PDF is uploaded to vault with a 24h signed URL.
+
+   - "for_each" (iterate over array, apply action per item -> emits { results, total, succeeded, failed }):
+     config: { "items": "{{steps.query.contacts}}", "action_type": "send_email"|"update_contact"|"http"|"send_sms"|"generate_document"|"integration_query",
+               "action_config": { "to": "{{item.email}}", "subject": "...", "text": "..." } }
+     Use {{item.<field>}} in action_config to reference the current item.
+
+   - "approval" (pause for human approve/reject -> emits { approved, action, reason }):
+     config: { "approver_role": "owner"|"admin"|"any", "message": "Please review...", "timeout_hours": 72 }
+     Pauses the workflow run and emails the approver with magic links.
+     Downstream nodes can branch on {{steps.<id>.approved}} (true/false).
+
+3. Trigger types also include:
+   - "trigger_lease_expiry": fires when leases are within N days of expiration.
+     config: { "days_before": 90 }. Checked daily. Input includes { properties: [...] }.
+   - "trigger_deal_stage": fires when a property's pipeline stage changes.
+     config: { "from_stage": "listed"|""|null, "to_stage": "pending"|""|null }
+     Empty/null means "any". Input includes { property_id, from_stage, to_stage, address }.
+
+4. IDs are short snake_case unique strings, e.g. "classify", "send_alert".
    Node id, data.step.id, and edge ids must all match up.
 
-4. Edges connect nodes. Use sourceHandle ONLY on edges that leave a
+5. Edges connect nodes. Use sourceHandle ONLY on edges that leave a
    condition node -- "true" for the pass branch, "false" for the fail
    branch. Every other edge omits sourceHandle entirely (or sets null).
 
-5. Templating: any config string can reference a prior node's output
+6. Templating: any config string can reference a prior node's output
    with {{steps.<node_id>.<path>}}. The trigger exposes the run input
    at {{steps.<trigger_id>.input.<field>}}.
    Secrets: {{secrets.<key>}} for API keys, broker email, tokens.
    Date math: {{now}}, {{now - 24h}}, {{now - 7d}}, {{now - 2w}}, {{now - 1m}}.
 
-6. Positions: trigger at {x:80,y:80}, then each downstream node 160px
+7. Positions: trigger at {x:80,y:80}, then each downstream node 160px
    below. Branching conditions can spread left/right (x +/- 240).
 
-7. Prefer small graphs. 3-6 nodes is typical. For outbound intelligence
+8. Prefer small graphs. 3-6 nodes is typical. For outbound intelligence
    (void analysis, site selection, parcel research), use an agent node
    rather than chaining many individual steps.
 
-8. Cron scheduling: cron fires at most ONCE per day on this platform.
+9. Cron scheduling: cron fires at most ONCE per day on this platform.
    If the user asks for sub-daily frequency, set a sensible daily time
    and mention the limitation in the description.
 
-9. Never invent node types. Stick to the list above.
+10. Never invent node types. Stick to the list above.
 
 OUTPUT ONLY THE JSON OBJECT.
 `.trim();
@@ -200,10 +231,13 @@ OUTPUT ONLY THE JSON OBJECT.
 
 const VALID_STEP_TYPES: StepType[] = [
   "trigger_manual", "trigger_cron", "trigger_webhook", "trigger_at",
+  "trigger_lease_expiry", "trigger_deal_stage",
   "http", "openai", "query_clients", "update_contact",
   "send_email", "send_sms", "condition", "delay", "archive_lookup",
   "agent", "query_properties", "query_listings", "query_offers", "lease_lookup",
   "web_search",
+  "integration_query", "due_diligence", "generate_document", "for_each",
+  "approval",
 ];
 
 function isObj(v: unknown): v is Record<string, unknown> {

@@ -144,6 +144,23 @@ export async function executeClaimedRun(
     const input = (run.input && typeof run.input === "object") ? run.input as Record<string, unknown> : {};
     const result = await runWorkflow(definition, input);
 
+    if (result.status === "waiting_approval") {
+      await supabaseAdmin.from("dante_workflow_runs").update({
+        status: "waiting_approval",
+        log: result.log,
+        output: result.output,
+        paused_at_node: result.paused_at_node ?? null,
+        approval_context: result.approval_context ?? null,
+      }).eq("id", run.id);
+
+      await supabaseAdmin.from("dante_workflows").update({
+        last_run_at: new Date().toISOString(),
+        last_run_status: "waiting_approval",
+      }).eq("id", run.workflow_id);
+
+      return { status: "waiting_approval" };
+    }
+
     await supabaseAdmin.from("dante_workflow_runs").update({
       status: result.status,
       log: result.log,

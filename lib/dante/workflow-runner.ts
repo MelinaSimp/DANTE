@@ -686,6 +686,257 @@ async function runArchiveLookup(
   };
 }
 
+// ── Integration + data source handlers ────────────────────────
+
+async function runIntegrationQuery(
+  cfg: { provider: string; endpoint: string; method?: string; params?: Record<string, unknown>; headers?: Record<string, string> },
+  workspaceId: string,
+) {
+  if (!cfg.provider) throw new Error("integration_query: provider is required");
+  if (!cfg.endpoint) throw new Error("integration_query: endpoint is required");
+
+  const { data: conn } = await supabaseAdmin
+    .from("integration_connections")
+    .select("credentials")
+    .eq("workspace_id", workspaceId)
+    .eq("provider", cfg.provider)
+    .eq("status", "connected")
+    .maybeSingle();
+
+  if (!conn) {
+    throw new Error(`No connected ${cfg.provider} integration. Connect it in Settings > Integrations.`);
+  }
+
+  const creds = conn.credentials as Record<string, string>;
+  const apiKey = creds.api_key || creds.access_token || "";
+  const method = (cfg.method || "GET").toUpperCase();
+
+  let url = cfg.endpoint;
+  if (method === "GET" && cfg.params && Object.keys(cfg.params).length > 0) {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(cfg.params)) qs.set(k, String(v));
+    url += (url.includes("?") ? "&" : "?") + qs.toString();
+  }
+
+  const headers: Record<string, string> = {
+    "Authorization": `Bearer ${apiKey}`,
+    "Content-Type": "application/json",
+    ...(cfg.headers || {}),
+  };
+
+  const fetchOpts: RequestInit = { method, headers };
+  if (method !== "GET" && cfg.params) {
+    fetchOpts.body = JSON.stringify(cfg.params);
+  }
+
+  const res = await fetch(url, fetchOpts);
+  const body = await res.json().catch(() => res.text());
+
+  return { status: res.status, ok: res.ok, body, provider: cfg.provider };
+}
+
+async function runDueDiligence(
+  cfg: { latitude: number; longitude: number; state_fips: string; county_fips: string; tract_fips?: string },
+) {
+  const { fetchAcsByTract, fetchAcsByCounty } = await import("@/lib/data-sources/census");
+  const { fetchEmployment } = await import("@/lib/data-sources/bls");
+  const { queryFloodZone } = await import("@/lib/data-sources/fema-flood");
+  const { queryToxicsFacilities, querySuperfundSites } = await import("@/lib/data-sources/epa");
+
+  const lat = Number(cfg.latitude);
+  const lng = Number(cfg.longitude);
+
+  const results = await Promise.allSettled([
+    cfg.tract_fips
+      ? fetchAcsByTract(cfg.state_fips, cfg.county_fips, cfg.tract_fips)
+      : fetchAcsByCounty(cfg.state_fips, cfg.county_fips),
+    fetchEmployment(cfg.state_fips + cfg.county_fips),
+    queryFloodZone(lat, lng),
+    queryToxicsFacilities(lat, lng, 1),
+    querySuperfundSites(cfg.state_fips),
+  ]);
+
+  const val = (i: number) => results[i].status === "fulfilled" ? (results[i] as PromiseFulfilledResult<unknown>).value : null;
+  const err = (i: number) => results[i].status === "rejected" ? String((results[i] as PromiseRejectedResult).reason) : null;
+
+  const errors = [
+    err(0) && `census: ${err(0)}`,
+    err(1) && `bls: ${err(1)}`,
+    err(2) && `fema: ${err(2)}`,
+    err(3) && `epa_toxics: ${err(3)}`,
+    err(4) && `epa_superfund: ${err(4)}`,
+  ].filter(Boolean);
+
+  return {
+    census: val(0),
+    employment: val(1),
+    flood_zone: val(2),
+    epa: {
+      toxics_facilities: val(3),
+      superfund_sites: val(4),
+    },
+    errors,
+  };
+}
+
+async function runGenerateDocument(
+  cfg: { title: string; subtitle?: string; sections: Array<{ heading: string; body: string }> },
+  workspaceId: string,
+  runId: string,
+) {
+  const { renderBrandedReport } = await import("@/lib/pdf/render");
+
+  const title = String(cfg.title || "Untitled Report");
+  const sections = Array.isArray(cfg.sections) ? cfg.sections : [];
+
+  const buffer = await renderBrandedReport({
+    workspaceId,
+    title,
+    subtitle: cfg.subtitle || undefined,
+    sections: sections.map((s) => ({
+      heading: String(s.heading || ""),
+      body: String(s.body || ""),
+    })),
+  });
+
+  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
+  const path = `workflows/${workspaceId}/${runId}/${slug}.pdf`;
+
+  await supabaseAdmin.storage.from("dante-archive").upload(path, buffer, {
+    contentType: "application/pdf",
+    upsert: true,
+  });
+
+  const { data: signed } = await supabaseAdmin.storage
+    .from("dante-archive")
+    .createSignedUrl(path, 86400);
+
+  return {
+    url: signed?.signedUrl || null,
+    storage_path: path,
+    size_bytes: buffer.length,
+    filename: `${slug}.pdf`,
+  };
+}
+
+async function runForEach(
+  cfg: { items: string; action_type: string; action_config: Record<string, unknown> },
+  ctx: Ctx,
+  workspaceId: string,
+  runId: string,
+) {
+  let items: unknown[];
+  const raw = cfg.items;
+  if (Array.isArray(raw)) {
+    items = raw;
+  } else if (typeof raw === "string") {
+    try { items = JSON.parse(raw); } catch { items = []; }
+  } else {
+    items = [];
+  }
+
+  if (!Array.isArray(items)) items = [];
+
+  const results: Array<{ index: number; status: "ok" | "error"; data?: unknown; error?: string }> = [];
+  let succeeded = 0;
+  let failed = 0;
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    ctx.steps["__foreach_item__"] = item;
+
+    const resolvedConfig = resolveTemplate(cfg.action_config, ctx) as Record<string, unknown>;
+
+    try {
+      let result: unknown;
+      switch (cfg.action_type) {
+        case "send_email":
+          if (ctx.simulate) {
+            result = { simulated: true, would_have: { action: "send_email", to: resolvedConfig.to } };
+          } else {
+            result = await runSendEmail(resolvedConfig as Parameters<typeof runSendEmail>[0]);
+          }
+          break;
+        case "update_contact":
+          if (ctx.simulate) {
+            result = { simulated: true, would_have: { action: "update_contact", contact_id: resolvedConfig.contact_id } };
+          } else {
+            result = await runUpdateContact(resolvedConfig as Parameters<typeof runUpdateContact>[0], workspaceId);
+          }
+          break;
+        case "http":
+          if (ctx.simulate && resolvedConfig.method && String(resolvedConfig.method).toUpperCase() !== "GET") {
+            result = { simulated: true, would_have: { action: "http", method: resolvedConfig.method, url: resolvedConfig.url } };
+          } else {
+            result = await runHttp(resolvedConfig as Parameters<typeof runHttp>[0]);
+          }
+          break;
+        case "send_sms":
+          if (ctx.simulate) {
+            result = { simulated: true, would_have: { action: "send_sms", body: String(resolvedConfig.body || "").slice(0, 100) } };
+          } else {
+            result = await runSendSms(resolvedConfig as Parameters<typeof runSendSms>[0], workspaceId);
+          }
+          break;
+        case "generate_document":
+          if (ctx.simulate) {
+            result = { simulated: true, would_have: { action: "generate_document", title: resolvedConfig.title } };
+          } else {
+            result = await runGenerateDocument(resolvedConfig as Parameters<typeof runGenerateDocument>[0], workspaceId, runId);
+          }
+          break;
+        case "integration_query":
+          result = await runIntegrationQuery(resolvedConfig as Parameters<typeof runIntegrationQuery>[0], workspaceId);
+          break;
+        default:
+          throw new Error(`for_each: unsupported action_type "${cfg.action_type}"`);
+      }
+      results.push({ index: i, status: "ok", data: result });
+      succeeded++;
+    } catch (err) {
+      results.push({ index: i, status: "error", error: err instanceof Error ? err.message : String(err) });
+      failed++;
+    }
+  }
+
+  delete ctx.steps["__foreach_item__"];
+
+  return { results, total: items.length, succeeded, failed };
+}
+
+async function runApproval(
+  cfg: { message: string; approver_role?: string; timeout_hours?: number },
+  workspaceId: string,
+  runId: string,
+): Promise<Record<string, unknown>> {
+  const { supabaseAdmin: sb } = await import("@/lib/supabase/admin");
+  const expiresAt = new Date(Date.now() + (cfg.timeout_hours || 72) * 3600_000).toISOString();
+
+  const tokens: Record<string, string> = {};
+  for (const action of ["approve", "reject"] as const) {
+    const { data } = await sb
+      .from("dante_approval_tokens")
+      .insert({
+        run_id: runId,
+        workspace_id: workspaceId,
+        action,
+        expires_at: expiresAt,
+      })
+      .select("token")
+      .single();
+    tokens[action] = data?.token ?? "";
+  }
+
+  return {
+    __approval_pause: true,
+    message: cfg.message,
+    approver_role: cfg.approver_role || "any",
+    timeout_hours: cfg.timeout_hours || 72,
+    approve_token: tokens.approve,
+    reject_token: tokens.reject,
+  };
+}
+
 // ── Graph walk ────────────────────────────────────────────────
 
 /**
@@ -706,8 +957,8 @@ async function executeNode(
     case "trigger_cron":
     case "trigger_at":
     case "trigger_webhook":
-      // Triggers expose the run input so downstream can template off
-      // {{steps.<trigger_id>.input.<field>}}.
+    case "trigger_lease_expiry":
+    case "trigger_deal_stage":
       return { input: ctx.input };
     case "http": {
       const httpCfg = cfg as Parameters<typeof runHttp>[0];
@@ -852,6 +1103,33 @@ async function executeNode(
       return runLeaseLookup(cfg as Parameters<typeof runLeaseLookup>[0], workspaceId);
     case "web_search":
       return runWebSearch(cfg as Parameters<typeof runWebSearch>[0]);
+    case "integration_query": {
+      if (ctx.simulate) {
+        return { simulated: true, would_have: { action: "integration_query", provider: cfg.provider, endpoint: cfg.endpoint, method: cfg.method || "GET" } };
+      }
+      return runIntegrationQuery(cfg as Parameters<typeof runIntegrationQuery>[0], workspaceId);
+    }
+    case "due_diligence":
+      return runDueDiligence(cfg as Parameters<typeof runDueDiligence>[0]);
+    case "generate_document": {
+      if (ctx.simulate) {
+        return { simulated: true, would_have: { action: "generate_document", title: cfg.title, sections: Array.isArray(cfg.sections) ? cfg.sections.length : 0 } };
+      }
+      return runGenerateDocument(cfg as Parameters<typeof runGenerateDocument>[0], workspaceId, runId);
+    }
+    case "for_each": {
+      if (ctx.simulate) {
+        const items = typeof cfg.items === "string" ? JSON.parse(cfg.items) : cfg.items;
+        return { simulated: true, would_have: { action: "for_each", action_type: cfg.action_type, item_count: Array.isArray(items) ? items.length : "unknown" } };
+      }
+      return runForEach(cfg as Parameters<typeof runForEach>[0], ctx, workspaceId, runId);
+    }
+    case "approval": {
+      if (ctx.simulate) {
+        return { simulated: true, would_have: { action: "approval", message: cfg.message, approver_role: cfg.approver_role || "any" } };
+      }
+      return runApproval(cfg as Parameters<typeof runApproval>[0], workspaceId, runId);
+    }
     default: {
       const t = (step as { type: string }).type;
       throw new Error(`Unknown node type: ${t}`);
@@ -967,6 +1245,20 @@ export async function runWorkflow(
         // can still reference it.
         output: redactSecrets(output, secrets),
       });
+
+      if (
+        output &&
+        typeof output === "object" &&
+        (output as Record<string, unknown>).__approval_pause === true
+      ) {
+        return {
+          status: "waiting_approval",
+          log,
+          output: redactSecrets(ctx.steps, secrets),
+          paused_at_node: step.id,
+          approval_context: ctx.steps as Record<string, unknown>,
+        };
+      }
     } catch (err) {
       errored = true;
       const message = err instanceof Error ? err.message : String(err);
@@ -996,6 +1288,119 @@ export async function runWorkflow(
       ? edges.filter((e) => e.source === id).map((e) => e.target)
       : nextNodeIds(id, step.type, output, edges);
     for (const n of nexts) if (!fired.has(n)) queue.push(n);
+  }
+
+  return { status: "success", log, output: redactSecrets(ctx.steps, secrets) };
+}
+
+export async function resumeWorkflow(
+  workflow: WorkflowDefinition,
+  pausedAtNode: string,
+  approvalContext: Record<string, unknown>,
+  approvalResult: { action: "approve" | "reject"; reason?: string },
+  options: { runId?: string } = {},
+): Promise<WorkflowRunResult> {
+  const runId = options.runId || `run_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const secrets = await loadWorkspaceSecrets(workflow.workspace_id);
+  const ctx: Ctx = {
+    input: (approvalContext as Record<string, Record<string, unknown>>)?.trigger?.input as Record<string, unknown> ?? {},
+    steps: approvalContext,
+    secrets,
+    simulate: false,
+  };
+  ctx.steps[pausedAtNode] = {
+    ...(ctx.steps[pausedAtNode] as Record<string, unknown> ?? {}),
+    approved: approvalResult.action === "approve",
+    action: approvalResult.action,
+    reason: approvalResult.reason,
+  };
+
+  const log: StepLogEntry[] = [];
+  const { nodes, edges } = workflow.graph;
+  const nodeById = new Map(nodes.map((n) => [n.id, n]));
+
+  if (approvalResult.action === "reject") {
+    return {
+      status: "error",
+      log,
+      output: redactSecrets(ctx.steps, secrets),
+      error: `Approval rejected${approvalResult.reason ? `: ${approvalResult.reason}` : ""}`,
+    };
+  }
+
+  const fired = new Set<string>();
+  for (const key of Object.keys(approvalContext)) {
+    fired.add(key);
+  }
+
+  const nexts = edges.filter((e) => e.source === pausedAtNode).map((e) => e.target);
+  const queue = nexts.filter((n) => !fired.has(n));
+
+  while (queue.length > 0) {
+    const id = queue.shift()!;
+    if (fired.has(id)) continue;
+    const node = nodeById.get(id);
+    if (!node) continue;
+    fired.add(id);
+
+    const step = node.data.step;
+    const started_at = new Date().toISOString();
+    let output: unknown;
+    let errored = false;
+
+    try {
+      output = await executeNode(step, ctx, workflow.workspace_id, log, runId);
+      ctx.steps[step.id] = output;
+      log.push({
+        step_id: step.id,
+        step_type: step.type,
+        step_name: step.name || step.type,
+        status: "success",
+        started_at,
+        finished_at: new Date().toISOString(),
+        output: redactSecrets(output, secrets),
+      });
+
+      if (
+        output &&
+        typeof output === "object" &&
+        (output as Record<string, unknown>).__approval_pause === true
+      ) {
+        return {
+          status: "waiting_approval",
+          log,
+          output: redactSecrets(ctx.steps, secrets),
+          paused_at_node: step.id,
+          approval_context: ctx.steps as Record<string, unknown>,
+        };
+      }
+    } catch (err) {
+      errored = true;
+      const message = err instanceof Error ? err.message : String(err);
+      log.push({
+        step_id: step.id,
+        step_type: step.type,
+        step_name: step.name || step.type,
+        status: "error",
+        started_at,
+        finished_at: new Date().toISOString(),
+        error: redactSecrets(message, secrets),
+      });
+      if (step.on_error !== "continue") {
+        return {
+          status: "error",
+          log,
+          output: redactSecrets(ctx.steps, secrets),
+          error: redactSecrets(message, secrets),
+        };
+      }
+      ctx.steps[step.id] = { error: message };
+    }
+
+    const nextIds = errored
+      ? edges.filter((e) => e.source === id).map((e) => e.target)
+      : nextNodeIds(id, step.type, output, edges);
+    for (const n of nextIds) if (!fired.has(n)) queue.push(n);
   }
 
   return { status: "success", log, output: redactSecrets(ctx.steps, secrets) };

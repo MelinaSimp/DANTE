@@ -10,6 +10,8 @@ import {
   Hand, Clock4, Webhook, Globe, Sparkles, Users, Pencil, Mail, GitBranch, Clock,
   BookOpen, Building2, ListChecks, Handshake, FileSearch, Search,
   MessageSquare, Bot, CalendarClock,
+  Plug, ShieldCheck, FileText, Repeat,
+  UserCheck, CalendarX2, ArrowRightLeft,
 } from "lucide-react";
 
 export interface NodeTypeMeta {
@@ -141,6 +143,50 @@ export const NODE_TYPES: NodeTypeMeta[] = [
     default: (id) => mk({ id, type: "trigger_at", name: "Scheduled fire",
       config: { scheduled_for: new Date().toISOString() } }),
   },
+  // ── Integration + data source nodes ──
+  {
+    type: "integration_query", label: "Integration query", hint: "Query a connected integration",
+    icon: Plug, group: "action", accent: "accent",
+    default: (id) => mk({ id, type: "integration_query", name: "Integration query",
+      config: { provider: "", endpoint: "", method: "GET" } }),
+  },
+  {
+    type: "due_diligence", label: "Due diligence", hint: "Census + BLS + FEMA + EPA lookup",
+    icon: ShieldCheck, group: "action", accent: "accent",
+    default: (id) => mk({ id, type: "due_diligence", name: "Due diligence",
+      config: { latitude: 0, longitude: 0, state_fips: "", county_fips: "" } }),
+  },
+  {
+    type: "generate_document", label: "Generate document", hint: "Branded PDF report",
+    icon: FileText, group: "action", accent: "accent",
+    default: (id) => mk({ id, type: "generate_document", name: "Generate document",
+      config: { title: "", sections: [] } }),
+  },
+  {
+    type: "for_each", label: "For each", hint: "Iterate array, apply action per item",
+    icon: Repeat, group: "action", accent: "flag",
+    default: (id) => mk({ id, type: "for_each", name: "For each",
+      config: { items: "{{steps.trigger.input.items}}", action_type: "send_email", action_config: {} } }),
+  },
+  {
+    type: "approval", label: "Approval", hint: "Pause for human approve / reject",
+    icon: UserCheck, group: "action", accent: "flag",
+    default: (id) => mk({ id, type: "approval", name: "Approval",
+      config: { message: "Please review and approve this workflow step.", timeout_hours: 72 } }),
+  },
+  // ── Event-driven triggers ──
+  {
+    type: "trigger_lease_expiry", label: "Lease expiry", hint: "Fires when leases expire within N days",
+    icon: CalendarX2, group: "trigger", accent: "verified",
+    default: (id) => mk({ id, type: "trigger_lease_expiry", name: "Lease expiry",
+      config: { days_before: 90 } }),
+  },
+  {
+    type: "trigger_deal_stage", label: "Deal stage change", hint: "Fires on pipeline stage transition",
+    icon: ArrowRightLeft, group: "trigger", accent: "verified",
+    default: (id) => mk({ id, type: "trigger_deal_stage", name: "Deal stage change",
+      config: {} }),
+  },
 ];
 
 export function getMeta(type: StepType): NodeTypeMeta | undefined {
@@ -148,7 +194,7 @@ export function getMeta(type: StepType): NodeTypeMeta | undefined {
 }
 
 export function isTriggerType(t: StepType): boolean {
-  return t === "trigger_manual" || t === "trigger_cron" || t === "trigger_webhook" || t === "trigger_at";
+  return t.startsWith("trigger_");
 }
 
 /** Accent → (bg, fg, border) tuple of CSS var strings. */

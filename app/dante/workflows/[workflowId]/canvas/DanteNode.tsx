@@ -140,6 +140,31 @@ function nodeSummary(step: WorkflowStep): string | null {
     case "send_sms":         return cfg.to_phone ? `to: ${String(cfg.to_phone)}` : (cfg.to_role ? `role: ${String(cfg.to_role)}` : null);
     case "agent":            return truncate(String(cfg.objective ?? ""), 32);
     case "trigger_at":       return cfg.scheduled_for ? String(cfg.scheduled_for).slice(0, 16).replace("T", " ") : null;
+    case "integration_query": {
+      const p = (cfg.provider as string) || "";
+      const m = (cfg.method as string) || "GET";
+      return p ? `${p} · ${m}` : null;
+    }
+    case "due_diligence": {
+      const sf = cfg.state_fips as string;
+      const cf = cfg.county_fips as string;
+      if (sf && cf) return `FIPS: ${sf}-${cf}`;
+      const lat = cfg.latitude as number;
+      const lng = cfg.longitude as number;
+      return lat && lng ? `${lat.toFixed(2)}, ${lng.toFixed(2)}` : null;
+    }
+    case "generate_document": return truncate(String(cfg.title ?? ""), 28);
+    case "for_each": {
+      const at = (cfg.action_type as string) || "";
+      return at ? `${at} x array` : null;
+    }
+    case "approval":           return truncate(String(cfg.message ?? ""), 28);
+    case "trigger_lease_expiry": return `${cfg.days_before ?? 90}d before`;
+    case "trigger_deal_stage": {
+      const from = (cfg.from_stage as string) || "any";
+      const to = (cfg.to_stage as string) || "any";
+      return `${from} -> ${to}`;
+    }
     default:                 return null;
   }
 }

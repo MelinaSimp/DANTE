@@ -20,7 +20,7 @@ export interface WorkflowTemplate {
   slug: string;
   name: string;
   description: string;
-  category: "Deal pipeline" | "Lease management" | "Client communication" | "Operations" | "Prospecting" | "Site intelligence";
+  category: "Deal pipeline" | "Lease management" | "Client communication" | "Operations" | "Prospecting" | "Site intelligence" | "Due diligence" | "Risk management";
   icon: string;
   accent: "verified" | "ink" | "accent" | "flag";
   triggerLabel: string;
@@ -1635,6 +1635,94 @@ const zoningOpportunityGraph: WorkflowGraph = {
 };
 
 // ══════════════════════════════════════════════════════════════
+// 28 - Property due diligence report (manual)
+// ══════════════════════════════════════════════════════════════
+
+const propertyDueDiligenceGraph: WorkflowGraph = {
+  nodes: [
+    { id: "trigger", type: "trigger_manual", position: row(0), data: { step: { id: "trigger", type: "trigger_manual", name: "Manual trigger", config: {} } } },
+    { id: "dd", type: "due_diligence", position: row(1), data: { step: { id: "dd", type: "due_diligence", name: "Due diligence", config: { latitude: 0, longitude: 0, state_fips: "", county_fips: "" } } } },
+    { id: "analyze", type: "openai", position: row(2), data: { step: { id: "analyze", type: "openai", name: "Analyze results", config: { model: "gpt-4o-mini", system: "You are a CRE due diligence analyst. Summarize findings concisely, flag risks.", prompt: "Property at {{steps.trigger.input.address}}.\n\nCensus: {{steps.dd.census}}\nEmployment: {{steps.dd.employment}}\nFlood zone: {{steps.dd.flood_zone}}\nEPA: {{steps.dd.epa}}\n\nProvide a structured due diligence summary with risk flags.", max_tokens: 1200 } } } },
+    { id: "report", type: "generate_document", position: row(3), data: { step: { id: "report", type: "generate_document", name: "Generate report", config: { title: "Due Diligence Report", subtitle: "{{steps.trigger.input.address}}", sections: [{ heading: "Summary", body: "{{steps.analyze.text}}" }, { heading: "Flood Zone", body: "Zone: {{steps.dd.flood_zone.flood_zone}} -- {{steps.dd.flood_zone.zone_description}}. SFHA: {{steps.dd.flood_zone.sfha}}" }] } } } },
+  ],
+  edges: [edge("trigger", "dd"), edge("dd", "analyze"), edge("analyze", "report")],
+};
+
+// ══════════════════════════════════════════════════════════════
+// 29 - Lease expiry auto-alert (trigger_lease_expiry)
+// ══════════════════════════════════════════════════════════════
+
+const leaseExpiryAutoAlertGraph: WorkflowGraph = {
+  nodes: [
+    { id: "trigger", type: "trigger_lease_expiry", position: row(0), data: { step: { id: "trigger", type: "trigger_lease_expiry", name: "Lease expiry (90d)", config: { days_before: 90 } } } },
+    { id: "notify", type: "for_each", position: row(1), data: { step: { id: "notify", type: "for_each", name: "Email each tenant", config: { items: "{{steps.trigger.input.properties}}", action_type: "send_email", action_config: { to: "{{item.tenant_email}}", subject: "Lease Expiry Notice -- {{item.property_name}}", text: "Your lease at {{item.property_name}} expires on {{item.expiration_date}}. Please contact us to discuss renewal options." } } } } },
+  ],
+  edges: [edge("trigger", "notify")],
+};
+
+// ══════════════════════════════════════════════════════════════
+// 30 - Weekly pipeline digest (cron)
+// ══════════════════════════════════════════════════════════════
+
+const weeklyPipelineDigestGraph: WorkflowGraph = {
+  nodes: [
+    { id: "trigger", type: "trigger_cron", position: row(0), data: { step: { id: "trigger", type: "trigger_cron", name: "Monday 9am UTC", config: { cron: "0 9 * * 1" } } } },
+    { id: "props", type: "query_properties", position: row(1), data: { step: { id: "props", type: "query_properties", name: "Active pipeline", config: { filter: {}, limit: 100 } } } },
+    { id: "summarize", type: "openai", position: row(2), data: { step: { id: "summarize", type: "openai", name: "Summarize pipeline", config: { model: "gpt-4o-mini", system: "You are a CRE portfolio analyst. Write a concise weekly pipeline digest.", prompt: "Properties in pipeline:\n{{steps.props.properties}}\n\nWrite a brief pipeline digest grouped by stage. Highlight any deals stuck for over 14 days.", max_tokens: 1000 } } } },
+    { id: "email", type: "send_email", position: row(3), data: { step: { id: "email", type: "send_email", name: "Send digest", config: { to: "{{secrets.team_email}}", subject: "Weekly Pipeline Digest", text: "{{steps.summarize.text}}" } } } },
+  ],
+  edges: [edge("trigger", "props"), edge("props", "summarize"), edge("summarize", "email")],
+};
+
+// ══════════════════════════════════════════════════════════════
+// 31 - New listing analysis (manual + integration)
+// ══════════════════════════════════════════════════════════════
+
+const listingAnalysisGraph: WorkflowGraph = {
+  nodes: [
+    { id: "trigger", type: "trigger_manual", position: row(0), data: { step: { id: "trigger", type: "trigger_manual", name: "Manual trigger", config: {} } } },
+    { id: "ext", type: "integration_query", position: row(1), data: { step: { id: "ext", type: "integration_query", name: "Integration lookup", config: { provider: "costar", endpoint: "https://api.example.com/v1/search", method: "GET", params: { address: "{{steps.trigger.input.address}}" } } } } },
+    { id: "dd", type: "due_diligence", position: row(2), data: { step: { id: "dd", type: "due_diligence", name: "Due diligence", config: { latitude: 0, longitude: 0, state_fips: "", county_fips: "" } } } },
+    { id: "report", type: "generate_document", position: row(3), data: { step: { id: "report", type: "generate_document", name: "Generate report", config: { title: "Listing Analysis", subtitle: "{{steps.trigger.input.address}}", sections: [{ heading: "Market Data", body: "{{steps.ext.body}}" }, { heading: "Environmental & Demographics", body: "Census: {{steps.dd.census}}\nFlood: {{steps.dd.flood_zone}}\nEPA: {{steps.dd.epa}}" }] } } } },
+  ],
+  edges: [edge("trigger", "ext"), edge("ext", "dd"), edge("dd", "report")],
+};
+
+// ══════════════════════════════════════════════════════════════
+// 32 - Deal stage notification (trigger_deal_stage)
+// ══════════════════════════════════════════════════════════════
+
+const dealStageNotificationGraph: WorkflowGraph = {
+  nodes: [
+    { id: "trigger", type: "trigger_deal_stage", position: row(0), data: { step: { id: "trigger", type: "trigger_deal_stage", name: "Deal -> Pending", config: { to_stage: "pending" } } } },
+    { id: "contacts", type: "query_clients", position: row(1), data: { step: { id: "contacts", type: "query_clients", name: "Get contacts", config: { filter: {}, limit: 25 } } } },
+    { id: "notify", type: "send_email", position: row(2), data: { step: { id: "notify", type: "send_email", name: "Notify team", config: { to: "{{secrets.team_email}}", subject: "Deal moved to Pending -- {{steps.trigger.input.address}}", text: "Property {{steps.trigger.input.address}} has moved from {{steps.trigger.input.from_stage}} to pending." } } } },
+  ],
+  edges: [edge("trigger", "contacts"), edge("contacts", "notify")],
+};
+
+// ══════════════════════════════════════════════════════════════
+// 33 - Environmental risk screen with approval
+// ══════════════════════════════════════════════════════════════
+
+const environmentalRiskScreenGraph: WorkflowGraph = {
+  nodes: [
+    { id: "trigger", type: "trigger_manual", position: row(0), data: { step: { id: "trigger", type: "trigger_manual", name: "Manual trigger", config: {} } } },
+    { id: "dd", type: "due_diligence", position: row(1), data: { step: { id: "dd", type: "due_diligence", name: "Due diligence", config: { latitude: 0, longitude: 0, state_fips: "", county_fips: "" } } } },
+    { id: "check_flood", type: "condition", position: row(2), data: { step: { id: "check_flood", type: "condition", name: "In flood zone?", config: { expression: "{{steps.dd.flood_zone.sfha}} == true", on_false: "continue" } } } },
+    { id: "approve", type: "approval", position: { x: X + 260, y: 40 + 3 * 150 }, data: { step: { id: "approve", type: "approval", name: "Approve flood risk", config: { message: "Property is in a Special Flood Hazard Area ({{steps.dd.flood_zone.flood_zone}}). Proceed?", approver_role: "owner", timeout_hours: 48 } } } },
+    { id: "notify", type: "send_email", position: row(4), data: { step: { id: "notify", type: "send_email", name: "Send results", config: { to: "{{secrets.team_email}}", subject: "Environmental Screen -- {{steps.trigger.input.address}}", text: "Flood zone: {{steps.dd.flood_zone.flood_zone}} ({{steps.dd.flood_zone.zone_description}})\nSFHA: {{steps.dd.flood_zone.sfha}}\nToxics: {{steps.dd.epa.toxics_facilities}}\nSuperfund: {{steps.dd.epa.superfund_sites}}" } } } },
+  ],
+  edges: [
+    edge("trigger", "dd"),
+    edge("dd", "check_flood"),
+    edge("check_flood", "approve", "true"),
+    edge("check_flood", "notify", "false"),
+    edge("approve", "notify"),
+  ],
+};
+
+// ══════════════════════════════════════════════════════════════
 // Registry
 // ══════════════════════════════════════════════════════════════
 
@@ -1891,6 +1979,67 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     accent: "accent",
     triggerLabel: "Biweekly Fridays 6am ET",
     graph: zoningOpportunityGraph,
+  },
+  // ── Phase B templates (new step types) ──
+  {
+    slug: "property-due-diligence-report",
+    name: "Property due diligence report",
+    description: "Run Census, BLS, FEMA, and EPA checks on a property, analyze with AI, and generate a branded PDF report.",
+    category: "Due diligence",
+    icon: "ShieldCheck",
+    accent: "accent",
+    triggerLabel: "Manual",
+    graph: propertyDueDiligenceGraph,
+  },
+  {
+    slug: "lease-expiry-auto-alert",
+    name: "Lease expiry auto-alert",
+    description: "Fires daily when leases are within 90 days of expiration, emails each tenant contact automatically.",
+    category: "Lease management",
+    icon: "CalendarX2",
+    accent: "verified",
+    triggerLabel: "90 days before expiry",
+    graph: leaseExpiryAutoAlertGraph,
+  },
+  {
+    slug: "weekly-pipeline-digest",
+    name: "Weekly pipeline digest",
+    description: "Every Monday at 9am, query the full pipeline, generate an AI summary grouped by stage, and email the team.",
+    category: "Deal pipeline",
+    icon: "BarChart3",
+    accent: "ink",
+    triggerLabel: "Mondays 9am UTC",
+    graph: weeklyPipelineDigestGraph,
+  },
+  {
+    slug: "listing-analysis-with-integration",
+    name: "New listing analysis",
+    description: "Pull data from a connected integration, run due diligence, and generate a branded analysis report.",
+    category: "Due diligence",
+    icon: "FileText",
+    accent: "accent",
+    triggerLabel: "Manual",
+    graph: listingAnalysisGraph,
+  },
+  {
+    slug: "deal-stage-notification",
+    name: "Deal stage notification",
+    description: "When a property moves to a pending stage, automatically email the team with the deal details.",
+    category: "Deal pipeline",
+    icon: "ArrowRightLeft",
+    accent: "verified",
+    triggerLabel: "Stage change to pending",
+    graph: dealStageNotificationGraph,
+  },
+  {
+    slug: "environmental-risk-screen-with-approval",
+    name: "Environmental risk screen with approval",
+    description: "Run due diligence, flag flood zones, pause for owner approval if SFHA, then email the team.",
+    category: "Risk management",
+    icon: "AlertTriangle",
+    accent: "flag",
+    triggerLabel: "Manual",
+    graph: environmentalRiskScreenGraph,
   },
 ];
 

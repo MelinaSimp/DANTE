@@ -444,6 +444,199 @@ function renderBody(
         </>
       );
 
+    case "integration_query":
+      return (
+        <>
+          <Field label="Provider" hint="Must match a connected integration in Settings > Integrations.">
+            <Text value={(cfg.provider as string) || ""} onChange={(v) => setConfig("provider", v)} placeholder="costar" />
+          </Field>
+          <Field label="Endpoint URL">
+            <Text value={(cfg.endpoint as string) || ""} onChange={(v) => setConfig("endpoint", v)} placeholder="https://api.costar.com/v1/properties" />
+          </Field>
+          <Field label="Method">
+            <select
+              value={(cfg.method as string) || "GET"}
+              onChange={(e) => setConfig("method", e.target.value)}
+              className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
+            >
+              {["GET", "POST", "PUT", "DELETE"].map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Params (JSON)">
+            <Json value={cfg.params} onChange={(v) => setConfig("params", v)} rows={3} placeholder='{"zip": "44113"}' />
+          </Field>
+          <Field label="Extra headers (JSON)" hint="Authorization is added automatically from stored credentials.">
+            <Json value={cfg.headers} onChange={(v) => setConfig("headers", v)} rows={2} placeholder='{}' />
+          </Field>
+          <Help>
+            Credentials are loaded automatically from the integration connection.
+            The stored API key is sent as a Bearer token.
+          </Help>
+        </>
+      );
+
+    case "due_diligence":
+      return (
+        <>
+          <Field label="Latitude" hint={'Use {{steps.trigger.input.latitude}} for dynamic values.'}>
+            <Text value={String(cfg.latitude ?? "")} onChange={(v) => setConfig("latitude", v)} placeholder="41.4993" />
+          </Field>
+          <Field label="Longitude">
+            <Text value={String(cfg.longitude ?? "")} onChange={(v) => setConfig("longitude", v)} placeholder="-81.6944" />
+          </Field>
+          <Field label="State FIPS" hint="2-digit code. Ohio = 39.">
+            <Text value={(cfg.state_fips as string) || ""} onChange={(v) => setConfig("state_fips", v)} placeholder="39" />
+          </Field>
+          <Field label="County FIPS" hint="3-digit code. Cuyahoga = 035.">
+            <Text value={(cfg.county_fips as string) || ""} onChange={(v) => setConfig("county_fips", v)} placeholder="035" />
+          </Field>
+          <Field label="Tract FIPS (optional)" hint="6-digit code. Leave blank to use county-level Census data.">
+            <Text value={(cfg.tract_fips as string) || ""} onChange={(v) => setConfig("tract_fips", v)} placeholder="110100" />
+          </Field>
+          <Help>
+            Runs Census ACS demographics, BLS employment, FEMA flood zone, and EPA
+            environmental queries in parallel. Output includes
+            <code className="mx-1 text-[var(--ink)]">{"{{steps.<id>.flood_zone}}"}</code>,
+            <code className="mx-1 text-[var(--ink)]">{"{{steps.<id>.census}}"}</code>,
+            <code className="mx-1 text-[var(--ink)]">{"{{steps.<id>.epa}}"}</code>.
+          </Help>
+        </>
+      );
+
+    case "generate_document":
+      return (
+        <>
+          <Field label="Title">
+            <Text value={(cfg.title as string) || ""} onChange={(v) => setConfig("title", v)} placeholder="Due Diligence Report" />
+          </Field>
+          <Field label="Subtitle (optional)">
+            <Text value={(cfg.subtitle as string) || ""} onChange={(v) => setConfig("subtitle", v)} placeholder="{{steps.trigger.input.address}}" />
+          </Field>
+          <Field label="Sections (JSON array)" hint='Each item: {"heading": "...", "body": "..."}'>
+            <Json value={cfg.sections} onChange={(v) => setConfig("sections", v)} rows={6} placeholder={'[\n  {"heading": "Summary", "body": "{{steps.analysis.text}}"}\n]'} />
+          </Field>
+          <Help>
+            Generates a branded PDF with your workspace logo and colors.
+            The file is uploaded to the vault and a signed download URL is returned as
+            <code className="mx-1 text-[var(--ink)]">{"{{steps.<id>.url}}"}</code>.
+          </Help>
+        </>
+      );
+
+    case "for_each":
+      return (
+        <>
+          <Field label="Items" hint="Template that resolves to a JSON array. e.g. {{steps.query.contacts}}">
+            <Text value={(cfg.items as string) || ""} onChange={(v) => setConfig("items", v)} placeholder="{{steps.query.contacts}}" />
+          </Field>
+          <Field label="Action type">
+            <select
+              value={(cfg.action_type as string) || "send_email"}
+              onChange={(e) => setConfig("action_type", e.target.value)}
+              className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
+            >
+              <option value="send_email">Send email</option>
+              <option value="update_contact">Update contact</option>
+              <option value="http">HTTP request</option>
+              <option value="send_sms">Send SMS</option>
+              <option value="generate_document">Generate document</option>
+              <option value="integration_query">Integration query</option>
+            </select>
+          </Field>
+          <Field label="Action config (JSON)" hint={'Use {{item.<field>}} to reference the current item.'}>
+            <Json value={cfg.action_config} onChange={(v) => setConfig("action_config", v)} rows={5} placeholder={'{"to": "{{item.email}}", "subject": "Update", "text": "Hello {{item.name}}"}'} />
+          </Field>
+          <Help>
+            Iterates over each item in the array and executes the selected action.
+            Use <code className="mx-1 text-[var(--ink)]">{"{{item.<field>}}"}</code> in
+            the action config to reference fields on the current item. Output:
+            <code className="mx-1 text-[var(--ink)]">{"{{steps.<id>.total}}"}</code>,
+            <code className="mx-1 text-[var(--ink)]">{"{{steps.<id>.succeeded}}"}</code>,
+            <code className="mx-1 text-[var(--ink)]">{"{{steps.<id>.failed}}"}</code>.
+          </Help>
+        </>
+      );
+
+    case "approval":
+      return (
+        <>
+          <Field label="Approver role" hint="Who can approve this step.">
+            <select
+              value={(cfg.approver_role as string) || "any"}
+              onChange={(e) => setConfig("approver_role", e.target.value)}
+              className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
+            >
+              <option value="owner">Owner only</option>
+              <option value="admin">Admin or above</option>
+              <option value="any">Any team member</option>
+            </select>
+          </Field>
+          <Field label="Message" hint="Shown to the approver in email and the approval UI.">
+            <Textarea value={(cfg.message as string) || ""} onChange={(v) => setConfig("message", v)} rows={3} placeholder="Please review and approve this workflow step." />
+          </Field>
+          <Field label="Timeout (hours)" hint="Auto-reject after this many hours. Default 72.">
+            <Text value={String(cfg.timeout_hours ?? "72")} onChange={(v) => setConfig("timeout_hours", Number(v) || 72)} placeholder="72" />
+          </Field>
+          <Help>
+            Pauses the workflow and sends an email with approve / reject links.
+            The run resumes automatically when someone responds. Downstream nodes
+            can check the result via
+            <code className="mx-1 text-[var(--ink)]">{"{{steps.<id>.approved}}"}</code>.
+          </Help>
+        </>
+      );
+
+    case "trigger_lease_expiry":
+      return (
+        <>
+          <Field label="Days before expiry" hint="Fires when a lease's expiration date is within this window.">
+            <Text value={String(cfg.days_before ?? "90")} onChange={(v) => setConfig("days_before", Number(v) || 90)} placeholder="90" />
+          </Field>
+          <Help>
+            Checked daily by the scheduler. Matching leases are passed as
+            <code className="mx-1 text-[var(--ink)]">{"{{steps.<trigger-id>.input.properties}}"}</code>.
+            De-duped: won't re-fire within 24h for the same workflow.
+          </Help>
+        </>
+      );
+
+    case "trigger_deal_stage":
+      return (
+        <>
+          <Field label="From stage" hint="The stage the property was in before the change. 'Any' matches all.">
+            <select
+              value={(cfg.from_stage as string) || ""}
+              onChange={(e) => setConfig("from_stage", e.target.value)}
+              className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
+            >
+              <option value="">Any</option>
+              {["listed", "showing", "offer", "pending", "closed", "withdrawn", "expired"].map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="To stage" hint="The stage the property moved to. 'Any' matches all.">
+            <select
+              value={(cfg.to_stage as string) || ""}
+              onChange={(e) => setConfig("to_stage", e.target.value)}
+              className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
+            >
+              <option value="">Any</option>
+              {["listed", "showing", "offer", "pending", "closed", "withdrawn", "expired"].map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </Field>
+          <Help>
+            Fires immediately when a property's pipeline stage changes.
+            The property data is available as
+            <code className="mx-1 text-[var(--ink)]">{"{{steps.<trigger-id>.input}}"}</code>.
+          </Help>
+        </>
+      );
+
     default:
       return null;
   }

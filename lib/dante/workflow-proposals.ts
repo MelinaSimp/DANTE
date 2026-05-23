@@ -27,7 +27,7 @@ import { complete as llmComplete } from "@/lib/llm/client";
 
 // ── Types ─────────────────────────────────────────────────────
 
-export type ProposalTriggerType = "manual" | "cron" | "webhook";
+export type ProposalTriggerType = "manual" | "cron" | "webhook" | "lease_expiry" | "deal_stage";
 
 export interface WorkflowProposal {
   id: string;
@@ -88,7 +88,7 @@ RULES
 
 5. "enriched_prompt" is the concrete spec the next phase will hand to the graph generator. Write it as if YOU were the broker asking for exactly this workflow — include the trigger schedule, the segment filter, the action, and any fields the graph will need. This is the single most important field. 2-4 sentences.
 
-6. "node_sketch" is an ordered list of the Drift node types this workflow would use. Valid types: "trigger_manual", "trigger_cron", "trigger_webhook", "http", "openai", "query_clients", "query_properties", "query_listings", "query_offers", "lease_lookup", "update_contact", "send_email", "send_sms", "condition", "delay", "archive_lookup", "agent". First element must be a trigger.
+6. "node_sketch" is an ordered list of the Drift node types this workflow would use. Valid types: "trigger_manual", "trigger_cron", "trigger_webhook", "trigger_at", "trigger_lease_expiry", "trigger_deal_stage", "http", "openai", "query_clients", "query_properties", "query_listings", "query_offers", "lease_lookup", "update_contact", "send_email", "send_sms", "condition", "delay", "archive_lookup", "agent", "web_search", "integration_query", "due_diligence", "generate_document", "for_each", "approval". First element must be a trigger.
 
 7. "rationale" is one sentence on why this proposal suits THIS workspace specifically. Reference a real number from the book summary. No hand-waving.
 
@@ -102,7 +102,7 @@ OUTPUT SHAPE (return ONLY this JSON object, no prose):
       "id": "proposal-1",
       "title": "Short imperative title (<60 chars)",
       "description": "One-sentence plain-English description for the broker.",
-      "trigger": { "type": "manual" | "cron" | "webhook", "detail": "e.g. Mondays 9am ET, or On tour-completed webhook" },
+      "trigger": { "type": "manual" | "cron" | "webhook" | "lease_expiry" | "deal_stage", "detail": "e.g. Mondays 9am ET, or On tour-completed webhook, or 90 days before lease expiry, or When deal moves to pending" },
       "projected_volume": {
         "estimate": 12,
         "unit": "properties per run" | "deals per week" | "listings per day" | etc,
