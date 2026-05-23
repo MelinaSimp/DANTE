@@ -48,6 +48,9 @@ const KIND_LABEL: Record<string, string> = {
   esignature: "E-signature",
   networking: "Networking",
   listings: "Listings",
+  parcel_data: "Parcel data",
+  geocoding: "Geocoding",
+  entity_data: "Entity data",
 };
 
 function StatusChip({ status }: { status: string | null }) {

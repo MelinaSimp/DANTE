@@ -100,6 +100,9 @@ const ADAPTERS: Record<string, () => Promise<IntegrationAdapter>> = {
   linkedin_sales_nav: async () => (await import("./_partner-stub")).makeStub("linkedin_sales_nav"),
   auction_com: async () => (await import("./_api-key-stub")).makeApiKeyStub("auction_com"),
   ten_x: async () => (await import("./_api-key-stub")).makeApiKeyStub("ten_x"),
+  regrid: async () => (await import("./_api-key-stub")).makeApiKeyStub("regrid"),
+  google_maps: async () => (await import("./_api-key-stub")).makeApiKeyStub("google_maps"),
+  opencorporates: async () => (await import("./_api-key-stub")).makeApiKeyStub("opencorporates"),
 };
 
 export async function getAdapter(

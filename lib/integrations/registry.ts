@@ -22,7 +22,10 @@ export type ProviderKind =
   | "deal_mgmt"        // Dealpath, Juniper Square, Northspyre
   | "esignature"       // DocuSign, PandaDoc
   | "networking"       // ZoomInfo, Apollo.io, LinkedIn
-  | "listings";        // Crexi, Auction.com, Ten-X
+  | "listings"         // Crexi, Auction.com, Ten-X
+  | "parcel_data"      // Regrid
+  | "geocoding"        // Google Maps Platform
+  | "entity_data";     // OpenCorporates
 
 export type AuthMethod =
   | "oauth"           // standard OAuth 2.0 — auth_url + token_url
@@ -509,6 +512,54 @@ export const PROVIDERS: ProviderDefinition[] = [
     docs_url: "https://www.ten-x.com/company/commercial/",
     phase: 6,
     capabilities: ["listings", "transactions"],
+  },
+
+  // ── Parcel / Property Data ──
+  {
+    id: "regrid",
+    name: "Regrid",
+    kind: "parcel_data",
+    description:
+      "Nationwide parcel data. Pulls boundaries, ownership, zoning, land use, and assessed values for 155M+ parcels.",
+    auth_method: "api_key",
+    status: "scaffolded",
+    api_key_help:
+      "Sign up at regrid.com and choose a plan (Pro $10/mo or Team $20/mo). Your API key is in Account Settings > API.",
+    docs_url: "https://regrid.com/api",
+    phase: 6,
+    capabilities: ["parcels", "boundaries", "ownership", "zoning", "assessed_values"],
+  },
+
+  // ── Geocoding & Places ──
+  {
+    id: "google_maps",
+    name: "Google Maps Platform",
+    kind: "geocoding",
+    description:
+      "Geocoding, places, and distance matrix. Powers address validation, property location mapping, and drive-time analysis.",
+    auth_method: "api_key",
+    status: "scaffolded",
+    api_key_help:
+      "Go to console.cloud.google.com > APIs & Services > Credentials. Create an API key and enable Geocoding, Places, and Distance Matrix APIs.",
+    docs_url: "https://developers.google.com/maps/documentation",
+    phase: 6,
+    capabilities: ["geocoding", "places", "distance_matrix"],
+  },
+
+  // ── Entity / Corporate Data ──
+  {
+    id: "opencorporates",
+    name: "OpenCorporates",
+    kind: "entity_data",
+    description:
+      "Corporate entity registry. Pulls company filings, officers, registered agents, and jurisdictional data for ownership verification and LP research.",
+    auth_method: "api_key",
+    status: "scaffolded",
+    api_key_help:
+      "Request an API key at opencorporates.com/api_accounts/new. Free tier available with rate limits.",
+    docs_url: "https://api.opencorporates.com/documentation/API-Reference",
+    phase: 6,
+    capabilities: ["companies", "officers", "filings", "jurisdictions"],
   },
 ];
 
