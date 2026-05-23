@@ -288,7 +288,7 @@ async function handle(request: Request) {
           .update({
             status: "error",
             result: { status: "error", error: `Approval timed out after ${timeoutHours}h`, log: [] },
-            completed_at: nowIso,
+            finished_at: nowIso,
           })
           .eq("id", run.id);
       }

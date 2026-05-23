@@ -87,7 +87,7 @@ export async function POST(
       result,
       paused_at_node: result.paused_at_node ?? null,
       approval_context: result.approval_context ?? null,
-      completed_at: finalStatus !== "waiting_approval" ? new Date().toISOString() : null,
+      finished_at: finalStatus !== "waiting_approval" ? new Date().toISOString() : null,
     })
     .eq("id", run.id);
 
