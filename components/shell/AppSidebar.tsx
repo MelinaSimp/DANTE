@@ -119,7 +119,7 @@ export default function AppSidebar({
         { href: "/agent", label: "Agent", icon: Mic },
         { href: "/workflows", label: "Workflows", icon: Workflow, feature: "dante" },
         { href: "/properties", label: "Properties", icon: Home, industry: "real_estate" },
-        { href: "/review-tables", label: "Review tables", icon: Table2, industry: "financial_advisor" },
+        { href: "/review-tables", label: "Review tables", icon: Table2 },
         { href: "/audit", label: "Audit log", icon: ScrollText },
       ],
     },

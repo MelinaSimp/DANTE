@@ -35,7 +35,7 @@ export default async function SignupPage({
     // real_estate workspaces keep working; the front door is
     // closed, the back rooms aren't.
     if (!(SIGNUP_INDUSTRIES as readonly string[]).includes(industry)) {
-      throw new Error("Please confirm you're a financial advisor.");
+      throw new Error("Industry not supported. Drift is for commercial real estate professionals.");
     }
 
     if (!token) throw new Error("Invite token is required.");

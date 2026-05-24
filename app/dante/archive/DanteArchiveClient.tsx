@@ -226,11 +226,11 @@ export default function DanteArchiveClient() {
         <div className="mb-8">
           <div className="label-section mb-3">Archive</div>
           <h1 className="heading-display text-4xl text-[var(--ink)] mb-3">
-            Every document a financial advisor has to know — searchable.
+            Every document your brokerage touches — searchable.
           </h1>
           <p className="text-sm text-[var(--ink-muted)] max-w-2xl leading-relaxed">
-            Drop in Form ADVs, client agreements, IPS templates, compliance memos,
-            or any regulatory text the firm references. Dante extracts, chunks,
+            Drop in leases, listing agreements, rent rolls, disclosures, inspection
+            reports, or any deal document the team references. Dante extracts, chunks,
             and embeds each document so workflows and search queries can cite it
             with page-level precision.
           </p>

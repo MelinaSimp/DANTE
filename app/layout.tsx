@@ -41,9 +41,9 @@ const fontMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Drift — for financial advisors",
+  title: "Drift — CRE deal intelligence",
   description:
-    "Grounded AI for RIAs. Citation-backed summaries, compliance review, client intelligence.",
+    "AI for commercial real estate. Lease abstraction, parcel intelligence, underwriting math, citation-grounded search.",
   manifest: "/manifest.json",
   icons: {
     icon: "/brand/logo-circle.png",

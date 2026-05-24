@@ -47,7 +47,7 @@ export default function OnboardingWizardClient({
   progress: Progress;
 }) {
   const isRealtor = industry === "real_estate";
-  const verticalNoun = isRealtor ? "real estate agent" : "financial advisor";
+  const verticalNoun = "CRE broker";
   const assistantName = "Dante";
 
   const steps: Step[] = useMemo(() => {

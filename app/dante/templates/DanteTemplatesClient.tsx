@@ -138,11 +138,11 @@ export default function DanteTemplatesClient({ vaultReady, canManageVault }: Pro
         <div className="mb-10">
           <div className="label-section mb-3">Dante · Workflow templates</div>
           <h1 className="heading-display text-4xl text-[var(--ink)] mb-4">
-            Starter automations, tuned for financial advisors.
+            Starter automations, tuned for CRE.
           </h1>
           <p className="text-base text-[var(--ink-muted)] max-w-2xl leading-relaxed">
-            Each template is a real, runnable workflow — meeting prep,
-            follow-up drafts, QBR reminders, life-event scanners. Clone
+            Each template is a real, runnable workflow — lease tracking,
+            deal prep, comp surveys, void analyses, showing follow-ups. Clone
             one into your workspace and tweak it in the visual canvas.
             Archive-aware templates cite your firm&apos;s own documents.
           </p>
