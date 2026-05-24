@@ -18,7 +18,7 @@ import {
   Sparkles,
 } from "lucide-react";
 
-type Category = "financial_advisor" | "real_estate" | "restaurant" | "other";
+type Category = "real_estate" | "restaurant" | "other";
 
 interface SeedEntry {
   id: string;
@@ -45,74 +45,6 @@ interface Props {
 // empty knowledge base and an AI that makes things up.
 function seedsFor(category: Category, firmName: string): SeedEntry[] {
   const nm = firmName || "our firm";
-
-  if (category === "financial_advisor") {
-    return [
-      {
-        id: "about",
-        category: "Company Info",
-        title: `About ${nm}`,
-        content: `Describe ${nm} in a paragraph: who you serve, your specialty (retirement, business owners, high-net-worth, etc.), and what makes you different. The AI uses this to frame the conversation when a prospect calls in.`,
-        included: true,
-      },
-      {
-        id: "registration",
-        category: "Company Info",
-        title: "What kind of firm we are",
-        content:
-          "State this plainly: RIA (fee-only fiduciary), dual-registered, or broker-dealer rep. The AI should never guess — it matters for suitability and for what it's allowed to say on a recorded line.",
-        included: true,
-      },
-      {
-        id: "services",
-        category: "Services",
-        title: "What we do",
-        content:
-          "Bullet the services you offer: financial planning, investment management, retirement income, tax planning, estate, insurance review, etc. Keep each one a sentence. The AI will answer 'do you do X?' from this list.",
-        included: true,
-      },
-      {
-        id: "fit",
-        category: "Services",
-        title: "Who we work with",
-        content:
-          "Typical client profile: minimum AUM or planning fee, states you're licensed in, life stages you focus on. This helps the AI gracefully decline prospects who aren't a fit instead of booking a meeting that wastes everyone's time.",
-        included: true,
-      },
-      {
-        id: "fees",
-        category: "Pricing",
-        title: "How we charge",
-        content:
-          "Fee structure in plain language — AUM %, flat planning fee, hourly, commission, or some mix. If you'd rather discuss fees on the intro call, say so here so the AI defers to you instead of improvising a number.",
-        included: true,
-      },
-      {
-        id: "intake",
-        category: "Scheduling Rules",
-        title: "How to book an intro call",
-        content:
-          "What happens between 'I'd like to talk' and a meeting: calendar link, what you ask callers to prepare, typical intro-call length, and whether the intro is free. The AI will quote this word-for-word.",
-        included: true,
-      },
-      {
-        id: "hours",
-        category: "Hours & Coverage",
-        title: "Hours & callback policy",
-        content:
-          "Office hours (time zone!), when you typically return calls, and the after-hours path. Markets move — say explicitly whether urgent trade questions have a different path than routine questions.",
-        included: true,
-      },
-      {
-        id: "compliance",
-        category: "Emergency Procedures",
-        title: "What the AI should never do",
-        content:
-          "A short do-not list: don't give specific investment advice on a recorded line, don't promise returns, don't discuss other clients, don't confirm someone is a client without verifying identity. Add anything your compliance officer insists on.",
-        included: true,
-      },
-    ];
-  }
 
   if (category === "real_estate") {
     return [

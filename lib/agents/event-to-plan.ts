@@ -136,7 +136,6 @@ function prettyToolName(raw: string): string {
     case "archive.search": return "Searching archive";
     case "regulatory.search": return "Searching regulators";
     case "inconsistency.detect": return "Cross-doc check";
-    case "rmd.calculate": return "Computing RMD";
     case "clients.query": return "Querying clients";
     case "skill.run": return "Running skill";
     case "reminder.schedule": return "Scheduling reminder";

@@ -179,7 +179,7 @@ export async function generateAuditPack(input: ExportInput): Promise<ExportBundl
       to_date: toDate,
       generated_at: new Date().toISOString(),
       generated_by: input.userId,
-      industry: industry ?? "financial_advisor",
+      industry: industry ?? "real_estate",
       schema_version: "1.0",
     },
     contact: null,
@@ -377,7 +377,7 @@ function buildComplianceSummary(
 ): string[] {
   const lines: string[] = [];
   const spec = getVerticalSpecLoose(industry);
-  lines.push(`Industry: ${industry ?? "financial_advisor"}.`);
+  lines.push(`Industry: ${industry ?? "real_estate"}.`);
   lines.push(
     `Retention defaults: ${spec.retentionDefaults.contacts_retention_days} days (${spec.retentionDefaults.rationale})`,
   );

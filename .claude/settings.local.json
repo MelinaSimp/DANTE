@@ -58,7 +58,8 @@
       "Bash(xargs basename *)",
       "Read(//Users/zsoltsgewinn/drift-crm/**)",
       "Bash(vercel logs *)",
-      "Bash(vercel ls *)"
+      "Bash(vercel ls *)",
+      "Bash(grep -E \"\\\\.\\(sql|ts\\)$\")"
     ]
   }
 }

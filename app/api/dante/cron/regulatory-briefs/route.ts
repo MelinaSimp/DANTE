@@ -85,7 +85,7 @@ async function listActiveWorkspaces(): Promise<
   return ((ws || []) as Array<{ id: string; industry?: string | null }>).map(
     (w) => ({
       id: w.id,
-      industry: w.industry === "real_estate" ? "real_estate" : "financial_advisor",
+      industry: "real_estate" as const,
     }),
   );
 }
@@ -148,9 +148,7 @@ async function handle(request: Request) {
       {
         id: (ws as { id: string }).id,
         industry:
-          (ws as { industry?: string | null }).industry === "real_estate"
-            ? "real_estate"
-            : "financial_advisor",
+          "real_estate" as const,
       },
     ];
   } else {

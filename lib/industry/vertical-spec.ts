@@ -1,53 +1,27 @@
 // lib/industry/vertical-spec.ts
 //
-// Phase 3 W3.5 — structured per-vertical specifications.
+// CRE-only structured specifications.
 //
 // lib/industry/config.ts owns the user-facing copy (eyebrow, hero,
 // starter questions). This file owns the structured behavior — the
 // pieces the agent loop, retention worker, compliance scanner, and
 // memory taxonomy actually read at runtime.
 //
-// Why split? config.ts is small enough to scan as a copy file. As
-// per-vertical behavior accretes (tool whitelists, memory
-// categories, retention defaults, compliance flag taxonomies), it
-// would crowd that file out. Keeping behavior in this companion
-// keeps both readable.
-//
-// Both verticals are populated at parity. Adding a new field is a
-// dual-vertical change by construction — a TS error if either side
-// is missing.
+// RIA vertical removed 2026-05-24.
 
 import type { Industry } from "./config";
 
 // ── Memory taxonomy ──────────────────────────────────────────────
-//
-// Vertical-specific categories that ride on top of the generic
-// `dante_memory.kind` (fact / summary / episode). We persist the
-// category in `dante_memory.metadata.category` (jsonb) so the
-// scorecard can query "how many financial_planning facts in this
-// workspace" without a schema change.
-
-export const ADVISOR_MEMORY_CATEGORIES = [
-  "risk_profile",
-  "life_event",
-  "goal_change",
-  "compliance_note",
-  "family_context",
-  "tax_situation",
-  "estate_plan",
-  "advisor_preference",      // "prefers Tuesday morning calls"
-] as const;
-export type AdvisorMemoryCategory = (typeof ADVISOR_MEMORY_CATEGORIES)[number];
 
 export const REALTOR_MEMORY_CATEGORIES = [
-  "preference",              // "wants finished basement"
-  "dealbreaker",             // "no flood zones"
+  "preference",
+  "dealbreaker",
   "financing_status",
   "timeline",
   "objection_handled",
   "tour_feedback",
   "neighborhood_interest",
-  "realtor_preference",      // "prefers text over email"
+  "realtor_preference",
 ] as const;
 export type RealtorMemoryCategory = (typeof REALTOR_MEMORY_CATEGORIES)[number];
 
@@ -104,84 +78,6 @@ export interface VerticalSpec {
   transactionFileDocKinds: string[];
 }
 
-const ADVISOR_SPEC: VerticalSpec = {
-  industry: "financial_advisor",
-  toolWhitelist: {
-    builtin: [
-      "memory.search",
-      "archive.search",
-      "vault.cite",
-      "clients.query",
-      "skill.run",
-      "reminder.schedule",
-      "workflow.propose",
-      "workflow.run",
-      "file_index.search",
-      "file_index.ingest",
-      "file_index.list_folder",
-      "site_scan.search",
-      "site_scan.detail",
-      "site_scan.listings",
-      "site_scan.void_analysis",
-      "regulatory.search",
-      "inconsistency.detect",
-      "rmd.calculate",
-    ],
-    promoted_skills: [
-      "draft_review_meeting_recap",
-      "summarize_recent_emails",
-      "prep_briefing_for_meeting",
-      // Phase 3 W3.5 expansion targets — registered here as the
-      // canonical names; skill rows are seeded as workspaces opt in:
-      // "rmd_reminder_check",
-      // "tax_loss_harvest_scan",
-      // "ips_drift_check",
-      // "compliance_letter_draft",
-    ],
-  },
-  memoryCategories: ADVISOR_MEMORY_CATEGORIES,
-  complianceFlags: [
-    {
-      code: "ria.unsupervised_communication",
-      label: "Unsupervised client communication",
-      severity: "high",
-      description:
-        "Client-facing message sent without principal review. FINRA 3110 / SEC 206(4)-7 implicate.",
-    },
-    {
-      code: "ria.performance_representation_uncited",
-      label: "Performance claim without source",
-      severity: "high",
-      description:
-        "A representation about returns or performance was made without a citation to a source document.",
-    },
-    {
-      code: "ria.missing_disclosure",
-      label: "Missing disclosure",
-      severity: "medium",
-      description:
-        "Material conflict / fee / risk not disclosed where context requires it.",
-    },
-    {
-      code: "ria.ips_deviation",
-      label: "IPS deviation",
-      severity: "medium",
-      description:
-        "Recommendation drifts from the client's Investment Policy Statement without addendum.",
-    },
-  ],
-  retentionDefaults: {
-    contacts_retention_days: 2555,        // 7 years
-    documents_retention_days: 2555,       // 7 years
-    memories_retention_days: 2555,
-    conversations_retention_days: 2555,
-    rationale:
-      "SEC Rule 17a-4 + FINRA Rule 4511 require ≥5 years for communications and books-and-records. Default 7 years for headroom.",
-  },
-  defaultReviewerRole: "principal",
-  transactionFileDocKinds: ["form_adv", "ips", "client_agreement"],
-};
-
 const REALTOR_SPEC: VerticalSpec = {
   industry: "real_estate",
   toolWhitelist: {
@@ -203,7 +99,6 @@ const REALTOR_SPEC: VerticalSpec = {
       "site_scan.void_analysis",
       "regulatory.search",
       "inconsistency.detect",
-      "rmd.calculate",
     ],
     promoted_skills: [
       "draft_listing_prep_recap",
@@ -263,20 +158,12 @@ const REALTOR_SPEC: VerticalSpec = {
   ],
 };
 
-const SPECS: Record<Industry, VerticalSpec> = {
-  financial_advisor: ADVISOR_SPEC,
-  real_estate: REALTOR_SPEC,
-};
-
-export function getVerticalSpec(industry: Industry): VerticalSpec {
-  return SPECS[industry];
+export function getVerticalSpec(_industry?: Industry): VerticalSpec {
+  return REALTOR_SPEC;
 }
 
-/** Resolve from a free-form string with the same fallback policy as
- *  getIndustryConfig. */
 export function getVerticalSpecLoose(
-  industry: string | null | undefined,
+  _industry?: string | null | undefined,
 ): VerticalSpec {
-  if (industry === "real_estate") return SPECS.real_estate;
-  return SPECS.financial_advisor;
+  return REALTOR_SPEC;
 }

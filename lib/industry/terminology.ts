@@ -24,25 +24,6 @@ export interface TerminologyEntry {
   scope?: string;
 }
 
-const ADVISOR_TERMS: TerminologyEntry[] = [
-  { term: "Schwab", scope: "custodian", definition: "Charles Schwab — major custodian for RIAs." },
-  { term: "Fidelity", scope: "custodian", definition: "Fidelity — major custodian for RIAs." },
-  { term: "Altruist", scope: "custodian", definition: "Altruist — newer-generation RIA custodian." },
-  { term: "Pershing", scope: "custodian", definition: "Pershing (BNY Mellon) — institutional custodian." },
-  { term: "IPS", scope: "doc_kind", definition: "Investment Policy Statement — defines client's portfolio rules." },
-  { term: "Form ADV", scope: "doc_kind", definition: "SEC-required RIA registration document." },
-  { term: "RMD", scope: "compliance", definition: "Required Minimum Distribution — IRS rule on retirement accounts." },
-  { term: "AUM", scope: "metric", definition: "Assets Under Management." },
-  { term: "QBI", scope: "tax", definition: "Qualified Business Income deduction." },
-  { term: "Roth", scope: "account_type", definition: "Roth IRA / Roth 401(k) — post-tax retirement account." },
-  { term: "TLH", scope: "strategy", definition: "Tax-Loss Harvesting — selling at a loss to offset gains." },
-  { term: "rebalance", scope: "strategy", definition: "Adjust portfolio to target allocation." },
-  { term: "Black Diamond", scope: "platform", definition: "Black Diamond Wealth Platform (SS&C) — portfolio reporting." },
-  { term: "Orion", scope: "platform", definition: "Orion Advisor Tech — portfolio + reporting platform." },
-  { term: "Tamarac", scope: "platform", definition: "Tamarac (Envestnet) — portfolio management platform." },
-  { term: "529", scope: "account_type", definition: "529 plan — tax-advantaged education savings account." },
-];
-
 const REALTOR_TERMS: TerminologyEntry[] = [
   { term: "MLS", scope: "system", definition: "Multiple Listing Service — broker-shared listing database." },
   { term: "BBA", scope: "doc_kind", definition: "Buyer-Broker Agreement." },
@@ -63,7 +44,6 @@ const REALTOR_TERMS: TerminologyEntry[] = [
 ];
 
 const BUILTIN: Record<Industry, TerminologyEntry[]> = {
-  financial_advisor: ADVISOR_TERMS,
   real_estate: REALTOR_TERMS,
 };
 

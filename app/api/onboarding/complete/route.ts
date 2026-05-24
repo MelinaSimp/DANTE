@@ -14,8 +14,8 @@ import type { Industry } from "@/lib/industry/config";
 
 export const dynamic = "force-dynamic";
 
-function normalizeIndustry(value: unknown): Industry {
-  return value === "real_estate" ? "real_estate" : "financial_advisor";
+function normalizeIndustry(_value: unknown): Industry {
+  return "real_estate";
 }
 
 interface SeedEntryPayload {

@@ -111,17 +111,7 @@ export async function GET() {
     );
   }
 
-  // Industry drives which vertical-specific groups we fan out for.
-  // Default to financial_advisor on null (matches getIndustryConfig).
-  const { data: ws } = await supabaseAdmin
-    .from("workspaces")
-    .select("industry")
-    .eq("id", workspaceId)
-    .maybeSingle();
-  const industry =
-    (ws as { industry?: string | null } | null)?.industry === "real_estate"
-      ? "real_estate"
-      : "financial_advisor";
+  const industry = "real_estate" as const;
 
   const lastSeenAt = (profile as { last_seen_at?: string | null }).last_seen_at;
   const since = lastSeenAt ?? null;

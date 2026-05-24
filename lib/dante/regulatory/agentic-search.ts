@@ -46,7 +46,7 @@ const TOP_K_PER_ROUND = 8;
 
 export interface AgenticSearchInput {
   query: string;
-  industry?: "financial_advisor" | "real_estate" | null;
+  industry?: "real_estate" | null;
   /** Final top-K to return. Default 5; the loop fetches more per
    *  round and merges. */
   k?: number;
@@ -187,7 +187,7 @@ interface RefineInput {
   originalQuery: string;
   lastQuery: string;
   hitsSoFar: RegulatoryHit[];
-  industry: "financial_advisor" | "real_estate" | null;
+  industry: "real_estate" | null;
 }
 
 /**

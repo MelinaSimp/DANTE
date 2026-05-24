@@ -6,8 +6,7 @@
 // the template, and get a fully populated wizard ready to point at
 // docs.
 //
-// Templates are vertical-aware: real_estate gets listing /
-// purchase / closing / lease forms; financial_advisor gets client
+// Templates are CRE-focused: listing / purchase / closing / lease
 // onboarding / IPS / tax. The picker filters by the workspace's
 // industry so users only see relevant ones.
 
@@ -30,7 +29,7 @@ export interface ReviewTemplate {
   id: string;
   name: string;
   description: string;
-  industry: "real_estate" | "financial_advisor" | "any";
+  industry: "real_estate" | "any";
   columns: TemplateColumn[];
 }
 
@@ -87,58 +86,6 @@ export const TEMPLATES: ReviewTemplate[] = [
       { name: "Lease end", prompt: "When does the lease end?", kind: "date" },
       { name: "Pets allowed?", prompt: "Are pets permitted?", kind: "yes_no" },
       { name: "Renewal terms (verbatim)", prompt: "Quote the renewal/extension clause verbatim.", kind: "verbatim" },
-    ],
-  },
-  {
-    id: "fa_client_onboarding",
-    name: "Client Onboarding Form",
-    description:
-      "Pull KYC + suitability data across new-client forms — risk tolerance, income, goals.",
-    industry: "financial_advisor",
-    columns: [
-      { name: "Client name", prompt: "Full legal name of the primary client.", kind: "text" },
-      { name: "Date of birth", prompt: "Client's date of birth.", kind: "date" },
-      { name: "Annual income", prompt: "Stated annual income.", kind: "currency" },
-      { name: "Net worth", prompt: "Stated net worth.", kind: "currency" },
-      { name: "Risk tolerance", prompt: "Stated risk tolerance level (conservative / moderate / aggressive / etc.).", kind: "text" },
-      { name: "Investment objective", prompt: "Primary investment objective.", kind: "text" },
-      { name: "Time horizon (years)", prompt: "Investment time horizon in years.", kind: "number" },
-      { name: "Beneficiaries", prompt: "Listed beneficiaries.", kind: "list" },
-      { name: "Suitability acknowledgment (verbatim)", prompt: "Quote the suitability acknowledgment paragraph verbatim.", kind: "verbatim" },
-    ],
-  },
-  {
-    id: "fa_investment_policy",
-    name: "Investment Policy Statement",
-    description:
-      "Standardize IPS data — allocation targets, constraints, review cadence.",
-    industry: "financial_advisor",
-    columns: [
-      { name: "Client", prompt: "Name of client / account.", kind: "text" },
-      { name: "Target equity %", prompt: "Target equity allocation percentage.", kind: "number" },
-      { name: "Target fixed income %", prompt: "Target fixed income allocation percentage.", kind: "number" },
-      { name: "Target alternatives %", prompt: "Target alternatives allocation percentage.", kind: "number" },
-      { name: "Rebalancing trigger", prompt: "When does the IPS trigger rebalancing?", kind: "text" },
-      { name: "Review frequency", prompt: "How often is the IPS reviewed?", kind: "text" },
-      { name: "Restrictions (verbatim)", prompt: "Quote any restricted holdings or sectors verbatim.", kind: "verbatim" },
-      { name: "Effective date", prompt: "IPS effective date.", kind: "date" },
-    ],
-  },
-  {
-    id: "fa_1099",
-    name: "1099 / Tax Form",
-    description:
-      "Extract reportable amounts across client tax forms — dividends, interest, gains.",
-    industry: "financial_advisor",
-    columns: [
-      { name: "Recipient name", prompt: "Recipient name on the form.", kind: "text" },
-      { name: "Tax year", prompt: "Tax year covered.", kind: "number" },
-      { name: "Total ordinary dividends", prompt: "Total ordinary dividends reported.", kind: "currency" },
-      { name: "Qualified dividends", prompt: "Qualified dividends.", kind: "currency" },
-      { name: "Interest income", prompt: "Interest income reported.", kind: "currency" },
-      { name: "Capital gains (LT)", prompt: "Long-term capital gains.", kind: "currency" },
-      { name: "Capital gains (ST)", prompt: "Short-term capital gains.", kind: "currency" },
-      { name: "Federal tax withheld", prompt: "Federal income tax withheld.", kind: "currency" },
     ],
   },
 ];

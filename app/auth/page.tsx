@@ -9,9 +9,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import {
-  ALL_INDUSTRIES,
   getIndustryConfig,
-  type Industry,
 } from "@/lib/industry/config";
 
 export default function AuthPage() {
@@ -21,7 +19,7 @@ export default function AuthPage() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [workspaceCode, setWorkspaceCode] = useState("");
-  const [industry, setIndustry] = useState<Industry>("real_estate");
+  const industry = "real_estate" as const;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -270,45 +268,6 @@ export default function AuthPage() {
                 required
                 minLength={8}
               />
-
-              {isSignUp && (
-                <div>
-                  <div
-                    className="label-section mb-1.5"
-                    style={{ color: "var(--ink-muted)" }}
-                  >
-                    I am a…
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {ALL_INDUSTRIES.map((id) => {
-                      const cfg = getIndustryConfig(id);
-                      const selected = industry === id;
-                      return (
-                        <button
-                          key={id}
-                          type="button"
-                          onClick={() => setIndustry(id)}
-                          className="text-left text-sm px-3 py-2.5 transition"
-                          style={{
-                            border: selected
-                              ? "1px solid var(--ink)"
-                              : "1px solid var(--rule)",
-                            background: selected
-                              ? "var(--canvas-subtle)"
-                              : "var(--canvas)",
-                            color: "var(--ink)",
-                            borderRadius: "var(--r-input)",
-                            fontWeight: selected ? 600 : 400,
-                          }}
-                          aria-pressed={selected}
-                        >
-                          {cfg.shortLabel}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
 
               {isSignUp && (
                 <div>

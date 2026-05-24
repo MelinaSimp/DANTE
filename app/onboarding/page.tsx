@@ -48,17 +48,7 @@ export default async function OnboardingPage() {
     user.email?.split("@")[0] ||
     "there";
 
-  // Four vertical shapes today. Order matters: financial_advisor is
-  // primary audience, real_estate is near-term expansion, the legacy
-  // "service"/"restaurant" values still work for any old signups, and
-  // everything else lands on "other" (generic service-business copy).
-  const rawCategory = profile.company_category ?? "";
-  const category: "financial_advisor" | "real_estate" | "restaurant" | "other" =
-    rawCategory === "financial_advisor" ||
-    rawCategory === "real_estate" ||
-    rawCategory === "restaurant"
-      ? rawCategory
-      : "other";
+  const category = "real_estate" as const;
 
   return (
     <OnboardingClient

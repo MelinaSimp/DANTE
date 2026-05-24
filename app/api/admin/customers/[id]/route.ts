@@ -35,7 +35,7 @@ export async function GET(
 
   const { data: ws, error } = await supabaseAdmin
     .from("workspaces")
-    .select("id, name, industry, monthly_price_cents, usage_allowance_cents, overage_markup_pct, model_overrides, created_at")
+    .select("id, name, industry, monthly_price_cents, usage_allowance_cents, overage_markup_pct, billing_notes, model_overrides, created_at")
     .eq("id", id)
     .maybeSingle();
   if (error || !ws) {
@@ -75,6 +75,7 @@ interface PatchBody {
   monthly_price_cents?: number;
   usage_allowance_cents?: number;
   overage_markup_pct?: number;
+  billing_notes?: string | null;
   model_overrides?: Record<string, string>;
 }
 
@@ -102,6 +103,9 @@ export async function PATCH(
   }
   if (typeof body.overage_markup_pct === "number" && body.overage_markup_pct >= 0 && body.overage_markup_pct <= 500) {
     update.overage_markup_pct = Math.floor(body.overage_markup_pct);
+  }
+  if (body.billing_notes !== undefined) {
+    update.billing_notes = typeof body.billing_notes === "string" ? body.billing_notes.slice(0, 2000) : null;
   }
   if (body.model_overrides && typeof body.model_overrides === "object") {
     // Whitelist allowed keys to keep the jsonb shape predictable.

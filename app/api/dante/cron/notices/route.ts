@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
   const noticerSummary: Array<{ workspace_id: string; reason: string; emitted: number }> = [];
 
   for (const ws of (workspaces || []) as WorkspaceRow[]) {
-    if (ws.industry !== "financial_advisor" && ws.industry !== "real_estate") {
+    if (ws.industry !== "real_estate") {
       totalSkippedNoVertical += 1;
       continue;
     }

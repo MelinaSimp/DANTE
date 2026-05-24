@@ -12,18 +12,10 @@
 //     Used by CI / nightly evals.
 
 import type { EvalTask } from "./types";
-import { RMD_BASIC } from "./tasks/rmd-basic";
-import { RMD_INHERITED } from "./tasks/rmd-inherited";
-import { OBA_DISCLOSURE } from "./tasks/oba-disclosure";
 import { FAIR_HOUSING_MARKETING } from "./tasks/fair-housing-marketing";
-import { COMPLIANCE_MEMO } from "./tasks/compliance-memo";
 
 export const TASKS: EvalTask[] = [
-  RMD_BASIC,
-  RMD_INHERITED,
-  OBA_DISCLOSURE,
   FAIR_HOUSING_MARKETING,
-  COMPLIANCE_MEMO,
 ];
 
 export function getTask(slug: string): EvalTask | undefined {

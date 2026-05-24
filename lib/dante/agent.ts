@@ -34,7 +34,6 @@ import {
   agenticSearchRegulatoryCorpus,
   formatAgenticHitsForPrompt,
 } from "@/lib/dante/regulatory/agentic-search";
-import { calculateRmd } from "@/lib/dante/calculators/rmd";
 import {
   detectInconsistencies,
   formatInconsistenciesForPrompt,
@@ -176,28 +175,6 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
           },
         },
         required: ["doc_ids", "question"],
-      },
-    },
-  },
-  "rmd.calculate": {
-    type: "function",
-    function: {
-      name: "rmd_calculate",
-      description:
-        "Compute a Required Minimum Distribution (RMD) deterministically. Returns the exact dollar amount, the IRS table used (Uniform Lifetime / Joint & Last Survivor / Single Life), the divisor, citations to IRS Pub 590-B and Treas. Reg. §1.401(a)(9), and any caveats (inherited-IRA 10-year rule, year-of-death RMD, EDB stretch). Use this whenever the user asks 'what's the RMD', 'how much does X have to take this year', or for inherited-IRA edge cases. Do NOT estimate or compute manually — call this tool, then quote the explanation and citations verbatim. The tool handles SECURE Act 1.0 + 2.0 (RMD age 73 from 2023, 75 from 2033), spousal-beneficiary >10y younger Joint table selection, and inherited-IRA branches. For account_kind='inherited_ira_non_edb' the tool flags the 10-year rule and whether annual RMDs apply during years 1-9.",
-      parameters: {
-        type: "object",
-        properties: {
-          date_of_birth: { type: "string", description: "Account holder's DOB (YYYY-MM-DD). For inherited IRAs, this is the BENEFICIARY's DOB; pass decedent_date_of_birth separately." },
-          tax_year: { type: "number", description: "Tax year for which we're computing the RMD (e.g. 2026)." },
-          prior_year_end_balance: { type: "number", description: "Account balance on Dec 31 of the prior year, in dollars." },
-          account_kind: { type: "string", enum: ["traditional_ira", "sep_ira", "simple_ira", "401k", "403b", "457b", "inherited_ira_edb", "inherited_ira_non_edb"] },
-          beneficiary_kind: { type: "string", enum: ["spouse_sole", "spouse_sole_younger_10", "non_spouse", "trust", "estate", "none"], description: "Optional. Drives Joint & Last Survivor selection when spouse_sole_younger_10." },
-          spouse_date_of_birth: { type: "string", description: "Required when beneficiary_kind=spouse_sole_younger_10." },
-          decedent_date_of_death: { type: "string", description: "Required for inherited_ira_* account_kind. YYYY-MM-DD." },
-          decedent_date_of_birth: { type: "string", description: "Inherited-IRA only — needed to determine if decedent had reached RBD before death." },
-        },
-        required: ["date_of_birth", "tax_year", "prior_year_end_balance", "account_kind"],
       },
     },
   },
@@ -679,7 +656,6 @@ const NAME_TO_TOOL: Record<string, AgentToolName> = {
   memory_write: "memory.write",
   archive_search: "archive.search",
   regulatory_search: "regulatory.search",
-  rmd_calculate: "rmd.calculate",
   inconsistency_detect: "inconsistency.detect",
   vault_cite: "vault.cite",
   clients_query: "clients.query",
@@ -732,7 +708,6 @@ const PER_TOOL_BUDGET: Partial<Record<AgentToolName, number>> = {
   "vault.cite": 18,       // lease abstraction needs 14+ passes; 18 gives retry headroom
   "reminder.schedule": 5, // bound the runaway-reminders failure mode
   "regulatory.search": 8, // bounded: a single answer rarely needs >3-4 SEC/IRS lookups
-  "rmd.calculate": 10,    // a multi-account briefing might compute several at once
   "inconsistency.detect": 4, // expensive (full doc content in prompt); rarely needs more
   "workflow.propose": 2,  // one ask = one proposal; cap covers a "and also..." follow-up
   "workflow.run": 3,      // trigger existing workflows; 3 covers multi-step asks
@@ -855,10 +830,7 @@ async function dispatchTool(
         .select("industry")
         .eq("id", ctx.workspaceId)
         .maybeSingle();
-      const industry =
-        (ws as { industry?: string | null } | null)?.industry === "real_estate"
-          ? "real_estate"
-          : "financial_advisor";
+      const industry = "real_estate" as const;
       const k = Number(args.k) || 5;
       // When the agent flags this as a hard question, run the
       // iterative refinement loop (Patrick's call: free recall lift
@@ -913,40 +885,6 @@ async function dispatchTool(
           ...result,
           formatted: formatInconsistenciesForPrompt(result),
         };
-      } catch (err) {
-        return {
-          error: err instanceof Error ? err.message : String(err),
-        };
-      }
-    }
-    case "rmd.calculate": {
-      // Deterministic math — no LLM, no DB, just IRS-table lookup.
-      // Wrap in try/catch so missing-table-entry errors surface as
-      // structured tool errors instead of crashing the agent loop.
-      try {
-        const result = calculateRmd({
-          date_of_birth: String(args.date_of_birth || ""),
-          tax_year: Number(args.tax_year),
-          prior_year_end_balance: Number(args.prior_year_end_balance) || 0,
-          account_kind: String(args.account_kind) as Parameters<
-            typeof calculateRmd
-          >[0]["account_kind"],
-          beneficiary_kind: args.beneficiary_kind
-            ? (String(args.beneficiary_kind) as Parameters<
-                typeof calculateRmd
-              >[0]["beneficiary_kind"])
-            : undefined,
-          spouse_date_of_birth: args.spouse_date_of_birth
-            ? String(args.spouse_date_of_birth)
-            : undefined,
-          decedent_date_of_death: args.decedent_date_of_death
-            ? String(args.decedent_date_of_death)
-            : undefined,
-          decedent_date_of_birth: args.decedent_date_of_birth
-            ? String(args.decedent_date_of_birth)
-            : undefined,
-        });
-        return { result };
       } catch (err) {
         return {
           error: err instanceof Error ? err.message : String(err),
@@ -2016,7 +1954,6 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       "memory.write": 0,
       "archive.search": 0,
       "regulatory.search": 0,
-      "rmd.calculate": 0,
       "inconsistency.detect": 0,
       "vault.cite": 0,
       "clients.query": 0,

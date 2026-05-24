@@ -40,12 +40,7 @@ const AGENCIES: Array<{
   authority: string;   // → regulatory_corpus_items.authority
   industry_scope: string[];
 }> = [
-  // Wealth-side: tax + ERISA + securities rulemaking
-  { slug: "internal-revenue-service", authority: "IRS", industry_scope: ["financial_advisor"] },
-  { slug: "employee-benefits-security-administration", authority: "DOL", industry_scope: ["financial_advisor"] },
-  { slug: "securities-and-exchange-commission", authority: "SEC", industry_scope: ["financial_advisor", "real_estate"] },
-
-  // Realtor-side: HUD fair-housing rulemaking
+  { slug: "securities-and-exchange-commission", authority: "SEC", industry_scope: ["real_estate"] },
   { slug: "housing-and-urban-development-department", authority: "HUD", industry_scope: ["real_estate"] },
 ];
 

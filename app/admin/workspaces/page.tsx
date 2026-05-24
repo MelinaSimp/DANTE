@@ -266,11 +266,7 @@ export default function WorkspacesPage() {
                         </div>
                       </td>
                       <td className="py-4 px-4 text-xs text-[var(--ink-muted)]">
-                        {ws.industry === "real_estate"
-                          ? "Real estate"
-                          : ws.industry === "financial_advisor"
-                          ? "Financial advisor"
-                          : "—"}
+                        CRE
                       </td>
                       <td className="py-4 px-4">
                         <span

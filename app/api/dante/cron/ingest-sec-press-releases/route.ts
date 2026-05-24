@@ -169,7 +169,7 @@ async function handle(request: Request) {
           title: item.title,
           body: body || item.title,
           published_at: item.pubDate ? new Date(item.pubDate).toISOString() : null,
-          industry_scope: ["financial_advisor", "real_estate"],
+          industry_scope: ["real_estate"],
         });
         summary.inserted += 1;
         continue;
@@ -185,7 +185,7 @@ async function handle(request: Request) {
           title: item.title,
           body,
           published_at: item.pubDate ? new Date(item.pubDate).toISOString() : null,
-          industry_scope: ["financial_advisor", "real_estate"],
+          industry_scope: ["real_estate"],
         })
         .select("id")
         .single();

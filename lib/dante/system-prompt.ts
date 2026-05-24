@@ -1,44 +1,21 @@
-// Desktop chat system prompt for Dante / Vergil.
+// Desktop chat system prompt — CRE only.
 //
-// Authoritative source: `prompts/dante-v3.md` and `prompts/vergil-v3.md`.
-// Production reads from sibling .ts modules (lib/dante/prompts/*.ts)
+// Authoritative source: `prompts/vergil-v3.md`.
+// Production reads from the .ts module (lib/dante/prompts/vergil-v3.ts)
 // because Vercel's serverless bundler doesn't reliably trace runtime
-// fs.readFileSync calls — the .md files were ENOENT in /var/task on
-// prod, the agent fell back to a minimal stub, the chat surface
-// went silent. Bundling via TS imports is the only reliable path.
-//
-// Workflow: edit prompts/*.md (canonical, human-edit), then sync the
-// content into the matching .ts module under lib/dante/prompts/.
-// `getActivePromptVersion()` is logged on every agent run for
-// traceability so an audit can match an output to the prompt rev.
+// fs.readFileSync calls.
 
 import { getIndustryConfig } from "@/lib/industry/config";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { DANTE_V3_PROMPT, DANTE_V3_VERSION } from "./prompts/dante-v3";
 import { VERGIL_V3_PROMPT, VERGIL_V3_VERSION } from "./prompts/vergil-v3";
 
 interface BuildDantePromptInput {
-  industry: string | null;
-  /** Phase 7 W7.5 — when set, append per-firm custom instructions
-   *  loaded from workspace_firm_prompts. Audit-visible additions to
-   *  the standard prompt. Optional. */
+  industry?: string | null;
   workspaceId?: string;
 }
 
-interface PromptEntry {
-  body: string;
-  version: string;
-}
-
-const PROMPTS: Record<"financial_advisor" | "real_estate", PromptEntry> = {
-  financial_advisor: { body: DANTE_V3_PROMPT, version: DANTE_V3_VERSION },
-  real_estate: { body: VERGIL_V3_PROMPT, version: VERGIL_V3_VERSION },
-};
-
-export function buildDanteSystemPrompt(input: BuildDantePromptInput): string {
-  const key: keyof typeof PROMPTS =
-    input.industry === "real_estate" ? "real_estate" : "financial_advisor";
-  return PROMPTS[key].body;
+export function buildDanteSystemPrompt(_input?: BuildDantePromptInput): string {
+  return VERGIL_V3_PROMPT;
 }
 
 /**
@@ -103,7 +80,7 @@ function sanitizeCustomInstructions(raw: string): {
 export async function buildDanteSystemPromptWithFirm(
   input: BuildDantePromptInput,
 ): Promise<string> {
-  const base = buildDanteSystemPrompt(input);
+  const base = buildDanteSystemPrompt();
   if (!input.workspaceId) return base;
   try {
     const { data } = await supabaseAdmin
@@ -139,13 +116,8 @@ export async function buildDanteSystemPromptWithFirm(
   }
 }
 
-/** Returns the version string of the currently-loaded prompt for a
- *  given industry. Used by telemetry / audit logging so every agent
- *  run carries the prompt rev it executed against. */
-export function getActivePromptVersion(industry: string | null): string {
-  const key: keyof typeof PROMPTS =
-    industry === "real_estate" ? "real_estate" : "financial_advisor";
-  return PROMPTS[key].version;
+export function getActivePromptVersion(_industry?: string | null): string {
+  return VERGIL_V3_VERSION;
 }
 
 export function getAssistantName(industry: string | null): string {

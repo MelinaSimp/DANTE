@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
     const v = summary.byVertical[task.vertical];
     if (!v) continue;
     v.total++;
-    const industry = task.vertical === "realtor" ? "real_estate" : "financial_advisor";
+    const industry = "real_estate" as const;
     const systemPrompt = buildDanteSystemPrompt({ industry });
     const log: never[] = [];
     try {

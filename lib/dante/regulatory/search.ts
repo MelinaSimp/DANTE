@@ -15,11 +15,7 @@ import { embedOne, toPgVector } from "@/lib/dante/archive/embed";
 
 export interface RegulatorySearchInput {
   query: string;
-  /** Workspace's vertical — usually pulled from workspaces.industry.
-   *  Drives industry_scope filtering: 'financial_advisor' workspaces
-   *  see SEC/IRS/DOL/FINRA, 'real_estate' workspaces see HUD/STATE_RE
-   *  plus shared SEC/FTC. NULL → no filter (superadmin only). */
-  industry?: "financial_advisor" | "real_estate" | null;
+  industry?: "real_estate" | null;
   /** Top-k chunks (default 5, max 25). */
   k?: number;
   /** Drop hits below this cosine similarity. Default 0 → no floor. */

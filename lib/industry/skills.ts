@@ -1,15 +1,9 @@
 // lib/industry/skills.ts
 //
-// Default Dante/Vergil skills seeded into a workspace on first
-// onboarding completion. Skill *bodies* (objective, system prompt,
-// tools, IO schema) live here in TypeScript so they're versioned in
-// the repo alongside the rest of the product. The slugs that map to
-// each vertical are listed in lib/industry/config.ts → seededSkills.
-//
-// Advisor slugs match the rows seeded by the original Phase 3
-// migration (20260425040000_seed_default_skills.sql). Realtor slugs
-// are net-new — see 20260428000000_seed_realtor_skills.sql for the
-// backfill into existing realtor workspaces.
+// Default CRE skills seeded into a workspace on first onboarding
+// completion. Skill bodies (objective, system prompt, tools, IO
+// schema) live here in TypeScript so they're versioned in the repo.
+// RIA skills removed 2026-05-24.
 
 import type { Industry } from "./config";
 
@@ -30,70 +24,6 @@ export interface SkillSeed {
   /** false = client-facing output, requires advisor/agent approval before mutating tools fire. */
   auto_approve: boolean;
 }
-
-const DRAFT_REVIEW_MEETING_RECAP: SkillSeed = {
-  name: "draft_review_meeting_recap",
-  description:
-    "Draft a follow-up email recapping a client review meeting, grounded in memory + vault citations.",
-  config: {
-    objective:
-      "Draft a follow-up email to {{input.contact_name}} recapping our meeting today. Pull recent context from memory, cite any vault documents that support advice you reference, and end with a clear list of next steps each side committed to. Meeting notes: {{input.meeting_notes}}",
-    system:
-      "You are drafting on behalf of a financial advisor. Keep it warm but professional. Always ground specific recommendations in vault citations using the [v1] [v2] markers from vault.cite.",
-    tools: ["memory.search", "vault.cite"],
-    max_steps: 6,
-  },
-  input_schema: {
-    type: "object",
-    required: ["contact_id", "contact_name", "meeting_notes"],
-    properties: {
-      contact_id: { type: "string" },
-      contact_name: { type: "string" },
-      meeting_notes: { type: "string" },
-    },
-  },
-  auto_approve: false,
-};
-
-const SUMMARIZE_RECENT_EMAILS: SkillSeed = {
-  name: "summarize_recent_emails",
-  description:
-    "Roll up the last 14 days of correspondence with a contact into a 4-bullet brief the advisor can read before a call.",
-  config: {
-    objective:
-      'Search memory for episode-kind entries with source_kind="email" about contact {{input.contact_id}} from the last 14 days. Summarize them as 4 bullets focusing on: (1) any concerns raised, (2) any commitments either side made, (3) the emotional tone of recent exchanges, (4) anything still open. Be concise.',
-    system:
-      "You are summarizing for a financial advisor about to call this client. They have 90 seconds to read this. No fluff.",
-    tools: ["memory.search"],
-    max_steps: 4,
-  },
-  input_schema: {
-    type: "object",
-    required: ["contact_id"],
-    properties: { contact_id: { type: "string" } },
-  },
-  auto_approve: true,
-};
-
-const PREP_BRIEFING_FOR_MEETING: SkillSeed = {
-  name: "prep_briefing_for_meeting",
-  description:
-    "Surface what the advisor needs to know before a meeting: open promises, recent concerns, pending action items.",
-  config: {
-    objective:
-      "Prepare a meeting brief for contact {{input.contact_id}}. Pull facts and summaries from memory. Surface: (a) anything the advisor previously promised this client and hasn't closed out, (b) any concerns raised in recent correspondence or calls, (c) one suggested opener that references a personal detail (family, hobby) if memory has one. Output as markdown with headers.",
-    system:
-      "You are briefing a financial advisor 5 minutes before they walk into a meeting. They want to feel prepared, not buried in detail.",
-    tools: ["memory.search", "archive.search"],
-    max_steps: 5,
-  },
-  input_schema: {
-    type: "object",
-    required: ["contact_id"],
-    properties: { contact_id: { type: "string" } },
-  },
-  auto_approve: true,
-};
 
 const DRAFT_LISTING_PREP_RECAP: SkillSeed = {
   name: "draft_listing_prep_recap",
@@ -193,9 +123,6 @@ const ABSTRACT_LEASE: SkillSeed = {
 };
 
 const REGISTRY: Record<string, SkillSeed> = {
-  draft_review_meeting_recap: DRAFT_REVIEW_MEETING_RECAP,
-  summarize_recent_emails: SUMMARIZE_RECENT_EMAILS,
-  prep_briefing_for_meeting: PREP_BRIEFING_FOR_MEETING,
   draft_listing_prep_recap: DRAFT_LISTING_PREP_RECAP,
   summarize_recent_buyer_emails: SUMMARIZE_RECENT_BUYER_EMAILS,
   prep_briefing_for_showing: PREP_BRIEFING_FOR_SHOWING,
@@ -206,26 +133,19 @@ export function getSkillSeed(slug: string): SkillSeed | null {
   return REGISTRY[slug] ?? null;
 }
 
-const DEFAULTS: Record<Industry, string[]> = {
-  financial_advisor: [
-    "draft_review_meeting_recap",
-    "summarize_recent_emails",
-    "prep_briefing_for_meeting",
-  ],
-  real_estate: [
-    "draft_listing_prep_recap",
-    "summarize_recent_buyer_emails",
-    "prep_briefing_for_showing",
-    "abstract_lease",
-  ],
-};
+const DEFAULTS: string[] = [
+  "draft_listing_prep_recap",
+  "summarize_recent_buyer_emails",
+  "prep_briefing_for_showing",
+  "abstract_lease",
+];
 
-export function defaultSkillSlugsFor(industry: Industry): string[] {
-  return DEFAULTS[industry];
+export function defaultSkillSlugsFor(_industry?: Industry): string[] {
+  return DEFAULTS;
 }
 
-export function defaultSkillSeedsFor(industry: Industry): SkillSeed[] {
-  return DEFAULTS[industry]
+export function defaultSkillSeedsFor(_industry?: Industry): SkillSeed[] {
+  return DEFAULTS
     .map((slug) => REGISTRY[slug])
     .filter((s): s is SkillSeed => Boolean(s));
 }

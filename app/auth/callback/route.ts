@@ -18,15 +18,7 @@ async function ensureUserWorkspace(user: any, supabase: any): Promise<string | n
     typeof meta.pending_workspace_code === "string"
       ? meta.pending_workspace_code.trim().toUpperCase()
       : "";
-  // Stamped on the workspace when the user redeems their code below.
-  // Whitelisted to the two verticals we sell; anything else falls
-  // through to financial_advisor (the primary persona).
-  const pendingIndustry =
-    meta.pending_industry === "real_estate"
-      ? "real_estate"
-      : meta.pending_industry === "financial_advisor"
-      ? "financial_advisor"
-      : null;
+  const pendingIndustry = "real_estate" as const;
   const computedFullName = `${firstName} ${lastName}`.trim() || userEmail.split("@")[0];
 
   const { data: existingProfile } = await supabase

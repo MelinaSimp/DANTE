@@ -95,7 +95,7 @@ export async function GET() {
       id: w.id,
       name: w.name,
       industry: w.industry,
-      monthly_price_cents: w.monthly_price_cents ?? 14900,
+      monthly_price_cents: w.monthly_price_cents ?? 0,
       usage_allowance_cents: allowance,
       overage_markup_pct: w.overage_markup_pct ?? 30,
       mtd_cents: mtd,

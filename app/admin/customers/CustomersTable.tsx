@@ -88,7 +88,7 @@ export default function CustomersTable() {
                   <div className="font-medium text-[var(--ink)]">{r.name}</div>
                   {r.industry && (
                     <div className="text-[11px] mono text-[var(--ink-subtle)] uppercase tracking-wider">
-                      {r.industry === "financial_advisor" ? "RIA" : "Realtor"}
+                      CRE
                     </div>
                   )}
                 </Td>

@@ -1,15 +1,20 @@
 "use client";
 
-// Per-customer pricing detail page. Editable fields:
-//   • monthly_price_cents
-//   • usage_allowance_cents
-//   • overage_markup_pct
+// Per-customer pricing detail page. Every customer gets a custom
+// deal — no tiers, no public pricing page. You negotiate the rate,
+// set it here, and add notes on why (deal context, renegotiation
+// date, special terms).
+//
+// Editable fields:
+//   • monthly_price_cents — what they pay per month
+//   • usage_allowance_cents — included AI spend before overage
+//   • overage_markup_pct — markup on AI cost above allowance
+//   • billing_notes — free-text deal context
 //   • model_overrides.{routing, bulk, hard}
 //
 // Read-only: 12-month usage history bar chart.
 //
-// Saves via PATCH /api/admin/customers/[id]. Optimistic; revert on
-// error.
+// Saves via PATCH /api/admin/customers/[id].
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -22,6 +27,7 @@ interface Workspace {
   monthly_price_cents: number;
   usage_allowance_cents: number;
   overage_markup_pct: number;
+  billing_notes: string | null;
   model_overrides: { routing?: string; bulk?: string; hard?: string };
   created_at: string;
 }
@@ -61,6 +67,7 @@ export default function CustomerDetailClient({ workspaceId }: { workspaceId: str
   const [priceDollars, setPriceDollars] = useState("");
   const [allowanceDollars, setAllowanceDollars] = useState("");
   const [markupPct, setMarkupPct] = useState("");
+  const [billingNotes, setBillingNotes] = useState("");
   const [routingModel, setRoutingModel] = useState(DEFAULTS.routing);
   const [bulkModel, setBulkModel] = useState(DEFAULTS.bulk);
   const [hardModel, setHardModel] = useState(DEFAULTS.hard);
@@ -80,6 +87,7 @@ export default function CustomerDetailClient({ workspaceId }: { workspaceId: str
         setPriceDollars(((w.monthly_price_cents ?? 0) / 100).toFixed(2));
         setAllowanceDollars(((w.usage_allowance_cents ?? 0) / 100).toFixed(2));
         setMarkupPct(String(w.overage_markup_pct ?? 30));
+        setBillingNotes(w.billing_notes ?? "");
         setRoutingModel(w.model_overrides?.routing || DEFAULTS.routing);
         setBulkModel(w.model_overrides?.bulk || DEFAULTS.bulk);
         setHardModel(w.model_overrides?.hard || DEFAULTS.hard);
@@ -96,6 +104,7 @@ export default function CustomerDetailClient({ workspaceId }: { workspaceId: str
       monthly_price_cents: Math.round(parseFloat(priceDollars || "0") * 100),
       usage_allowance_cents: Math.round(parseFloat(allowanceDollars || "0") * 100),
       overage_markup_pct: parseInt(markupPct || "0", 10),
+      billing_notes: billingNotes.trim() || null,
       model_overrides: {
         routing: routingModel,
         bulk: bulkModel,
@@ -140,17 +149,23 @@ export default function CustomerDetailClient({ workspaceId }: { workspaceId: str
         </Link>
         <h1 className="heading-display text-3xl">{ws.name}</h1>
         <div className="text-xs mono uppercase tracking-wider text-[var(--ink-subtle)] mt-1">
-          {ws.industry === "financial_advisor" ? "RIA" : ws.industry === "real_estate" ? "Realtor" : "—"} · created {new Date(ws.created_at).toLocaleDateString()}
+          CRE · created {new Date(ws.created_at).toLocaleDateString()}
         </div>
       </div>
 
-      {/* Pricing */}
+      {/* Deal pricing */}
       <section className="border border-[var(--rule)] rounded-md p-5">
-        <div className="text-[11px] mono uppercase tracking-wider text-[var(--ink-subtle)] mb-3">Pricing</div>
+        <div className="flex items-baseline justify-between mb-4">
+          <div className="text-[11px] mono uppercase tracking-wider text-[var(--ink-subtle)]">Custom pricing</div>
+          <div className="text-2xl font-semibold tabular-nums text-[var(--ink)]">
+            ${parseFloat(priceDollars || "0").toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+            <span className="text-sm font-normal text-[var(--ink-muted)]">/mo</span>
+          </div>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Field label="Monthly price (USD)">
             <input
-              type="number" step="0.01" min="0"
+              type="number" step="1" min="0"
               value={priceDollars}
               onChange={(e) => setPriceDollars(e.target.value)}
               className="w-full rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
@@ -170,6 +185,17 @@ export default function CustomerDetailClient({ workspaceId }: { workspaceId: str
               value={markupPct}
               onChange={(e) => setMarkupPct(e.target.value)}
               className="w-full rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
+            />
+          </Field>
+        </div>
+        <div className="mt-4">
+          <Field label="Deal notes">
+            <textarea
+              value={billingNotes}
+              onChange={(e) => setBillingNotes(e.target.value)}
+              rows={3}
+              placeholder="Why this price? When to renegotiate? Special terms?"
+              className="w-full rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)] resize-y"
             />
           </Field>
         </div>

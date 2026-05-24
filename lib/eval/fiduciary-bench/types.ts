@@ -9,14 +9,8 @@ export type RubricScore = {
 };
 
 export type EvalTaskCategory =
-  | "compliance_memo"
-  | "rmd_calculation"
   | "fair_housing_review"
-  | "form_adv_consistency"
-  | "oba_disclosure"
-  | "marketing_review"
-  | "tax_loss_harvesting"
-  | "wash_sale_detection";
+  | "marketing_review";
 
 export type EvalGraderKind = "auto" | "human";
 
@@ -45,7 +39,7 @@ export interface EvalTask {
    *  instance.inputs at runtime. */
   prompt_template: string;
   /** Vertical scope. Wealth-only / realtor-only / both. */
-  industry_scope: Array<"financial_advisor" | "real_estate">;
+  industry_scope: Array<"real_estate">;
   /** Concrete scenarios this task runs against. */
   instances: EvalTaskInstance[];
   /** Optional auto-grader. When set, the runner computes a

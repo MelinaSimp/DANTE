@@ -70,7 +70,7 @@ const BRIEF_MODEL = "claude-haiku-4-5";
  * workspaces with thousands of contacts.
  */
 async function loadWorkspaceContext(workspaceId: string): Promise<{
-  industry: "financial_advisor" | "real_estate";
+  industry: "real_estate";
   contact_count: number;
   contact_sample: Array<{ id: string; name: string; stage?: string | null }>;
 }> {
@@ -79,10 +79,7 @@ async function loadWorkspaceContext(workspaceId: string): Promise<{
     .select("industry")
     .eq("id", workspaceId)
     .maybeSingle();
-  const industry: "financial_advisor" | "real_estate" =
-    (ws as { industry?: string | null } | null)?.industry === "real_estate"
-      ? "real_estate"
-      : "financial_advisor";
+  const industry = "real_estate" as const;
 
   const { data: contacts, count } = await supabaseAdmin
     .from("contacts")
@@ -107,15 +104,12 @@ async function loadWorkspaceContext(workspaceId: string): Promise<{
 }
 
 function buildPrompt(
-  industry: "financial_advisor" | "real_estate",
+  industry: "real_estate",
   contactCount: number,
   contactSample: Array<{ id: string; name: string; stage?: string | null }>,
   items: RegulatoryItem[],
 ): string {
-  const role =
-    industry === "real_estate"
-      ? "real estate brokerage"
-      : "registered investment advisor (RIA)";
+  const role = "real estate brokerage";
   const audience =
     industry === "real_estate"
       ? "buyers, sellers, properties, transactions, fair-housing posture, brokerage supervision"

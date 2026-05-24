@@ -61,7 +61,7 @@ export default async function OnboardingWizardPage() {
 
   return (
     <OnboardingWizardClient
-      industry={(workspace?.industry as string | null) ?? "financial_advisor"}
+      industry={(workspace?.industry as string | null) ?? "real_estate"}
       workspaceName={workspace?.name ?? "Your workspace"}
       userName={profile.full_name ?? user.email?.split("@")[0] ?? "there"}
       progress={{
