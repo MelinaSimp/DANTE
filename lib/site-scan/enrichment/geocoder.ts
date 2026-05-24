@@ -94,6 +94,20 @@ async function geocodeNominatim(
 // ── Census Bureau: tract lookup by coordinates ───────────────────
 
 async function getCensusTract(lat: number, lng: number): Promise<string> {
+  const fips = await getCensusFips(lat, lng);
+  return fips.tractGeoid;
+}
+
+/**
+ * Resolve state FIPS, county FIPS, and tract GEOID from coordinates
+ * using the Census Bureau geocoder. Free, no API key needed.
+ * Used by the DD pipeline when Nominatim provides lat/lng but not
+ * county FIPS codes.
+ */
+export async function getCensusFips(
+  lat: number,
+  lng: number,
+): Promise<{ stateFips: string; countyFips: string; tractGeoid: string }> {
   const url = new URL(
     "https://geocoding.geo.census.gov/geocoder/geographies/coordinates",
   );
@@ -107,12 +121,16 @@ async function getCensusTract(lat: number, lng: number): Promise<string> {
     const res = await fetch(url.toString(), {
       signal: AbortSignal.timeout(8000),
     });
-    if (!res.ok) return "";
+    if (!res.ok) return { stateFips: "", countyFips: "", tractGeoid: "" };
     const json = await res.json();
     const geo = json.result?.geographies?.["Census Tracts"]?.[0];
-    return geo?.GEOID ?? "";
+    return {
+      stateFips: geo?.STATE ?? "",
+      countyFips: geo?.COUNTY ?? "",
+      tractGeoid: geo?.GEOID ?? "",
+    };
   } catch {
-    return "";
+    return { stateFips: "", countyFips: "", tractGeoid: "" };
   }
 }
 

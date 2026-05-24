@@ -52,7 +52,7 @@ export interface DistanceResult {
 
 // ── State FIPS lookup (for auto-resolving from geocode results) ──
 
-const STATE_ABBR_TO_FIPS: Record<string, string> = {
+export const STATE_ABBR_TO_FIPS: Record<string, string> = {
   AL: "01", AK: "02", AZ: "04", AR: "05", CA: "06",
   CO: "08", CT: "09", DE: "10", DC: "11", FL: "12",
   GA: "13", HI: "15", ID: "16", IL: "17", IN: "18",

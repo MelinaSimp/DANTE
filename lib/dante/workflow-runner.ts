@@ -289,8 +289,24 @@ async function runOpenAI(cfg: {
   const messages: Array<{ role: "system" | "user"; content: string }> = [];
   if (cfg.system) messages.push({ role: "system", content: cfg.system });
   messages.push({ role: "user", content: cfg.prompt });
+
+  // Resolve model with fallback: if the requested model's provider key
+  // is missing, fall back to whichever provider IS configured.
+  let model = cfg.model || "claude-sonnet-4-6";
+  if (model.startsWith("claude-") && !process.env.ANTHROPIC_API_KEY) {
+    if (process.env.OPENAI_API_KEY) {
+      model = "gpt-4o-mini";
+      console.warn(`[workflow] ANTHROPIC_API_KEY missing, falling back to ${model}`);
+    }
+  } else if (model.startsWith("gpt-") && !process.env.OPENAI_API_KEY) {
+    if (process.env.ANTHROPIC_API_KEY) {
+      model = "claude-sonnet-4-6";
+      console.warn(`[workflow] OPENAI_API_KEY missing, falling back to ${model}`);
+    }
+  }
+
   const result = await llmComplete({
-    model: cfg.model || "claude-sonnet-4-6",
+    model,
     messages,
     maxTokens: Number(cfg.max_tokens) || 800,
     feature: "workflow.openai_node",
@@ -898,6 +914,7 @@ async function runDueDiligence(
   let geocoded: Awaited<ReturnType<typeof geocodeAddress>> = null;
 
   if (cfg.address && gmapsKey) {
+    // Google Maps geocoding (best: returns FIPS, formatted address)
     geocoded = await geocodeAddress(cfg.address, gmapsKey);
     if (geocoded) {
       lat = geocoded.latitude;
@@ -908,6 +925,38 @@ async function runDueDiligence(
       if (!countyName && geocoded.address_components.county) {
         countyName = geocoded.address_components.county.toUpperCase();
       }
+    }
+  } else if (cfg.address && !gmapsKey) {
+    // Nominatim fallback (free, no API key needed) — gets lat/lng +
+    // state/county name. Then Census Bureau geocoder resolves the FIPS
+    // codes from coordinates (also free, no key).
+    const { geocodeAddress: nominatimGeocode, getCensusFips } = await import("@/lib/site-scan/enrichment/geocoder");
+    const { STATE_ABBR_TO_FIPS } = await import("@/lib/data-sources/google-maps");
+    const nom = await nominatimGeocode(cfg.address);
+    if (nom) {
+      lat = nom.lat;
+      lng = nom.lng;
+      countyName = nom.county.toUpperCase();
+      if (!stateFips && nom.state) {
+        stateFips = STATE_ABBR_TO_FIPS[nom.state] || "";
+      }
+      // Resolve county FIPS from Census Bureau (Nominatim doesn't provide it)
+      if (!countyFips) {
+        const censusFips = await getCensusFips(nom.lat, nom.lng);
+        if (censusFips.countyFips) countyFips = censusFips.countyFips;
+        if (censusFips.stateFips && !stateFips) stateFips = censusFips.stateFips;
+      }
+      // Build a geocoded-like object for the output
+      geocoded = {
+        formatted_address: nom.matched_address,
+        latitude: nom.lat,
+        longitude: nom.lng,
+        address_components: {
+          state: nom.state,
+          state_fips: stateFips,
+          county: nom.county,
+        },
+      } as Awaited<ReturnType<typeof geocodeAddress>>;
     }
   } else if (lat && lng && !cfg.address && gmapsKey) {
     // Reverse geocode to get formatted address + fill missing FIPS
@@ -923,7 +972,7 @@ async function runDueDiligence(
   }
 
   if (!lat || !lng) {
-    throw new Error("due_diligence: either address (with Google Maps key) or latitude/longitude is required");
+    throw new Error("due_diligence: address could not be geocoded, or provide latitude/longitude directly");
   }
 
   // ── Government data sources (parallel) ──
