@@ -47,6 +47,7 @@ import {
   handleSiteScanListings,
   handleSiteScanVoidAnalysis,
 } from "@/lib/site-scan/tools";
+import { calculateCre, AVAILABLE_METRICS } from "@/lib/dante/calculators/cre";
 import { getWorkspaceModel } from "@/lib/dante/model";
 import { complete as llmComplete } from "@/lib/llm/client";
 import {
@@ -646,6 +647,49 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
       },
     },
   },
+  "cre.calculate": {
+    type: "function",
+    function: {
+      name: "cre_calculate",
+      description:
+        "Run CRE financial calculations. Deterministic math -- no AI involved. " +
+        "Pass one or more metric names and the required numeric inputs. The tool " +
+        "returns computed results with formulas shown. Use this for due diligence, " +
+        "underwriting, deal screening, and investment analysis.\n\n" +
+        "Available metrics: noi, cap_rate, cash_on_cash, dscr, grm, price_per_sf, " +
+        "rent_per_sf, ltv, debt_yield, opex_ratio, break_even_occupancy, debt_service, " +
+        "equity_multiple, irr.\n\n" +
+        "You can request multiple metrics in one call (e.g. [\"noi\", \"cap_rate\", \"dscr\"]) " +
+        "and they all compute against the same inputs. For IRR, pass cash flows as " +
+        "cash_flow_0 (negative initial investment), cash_flow_1, cash_flow_2, etc.\n\n" +
+        "Common input keys: gross_potential_rent, vacancy_rate, other_income, " +
+        "operating_expenses, purchase_price, market_value, noi, annual_debt_service, " +
+        "total_cash_invested, gross_annual_rent, building_sf, rentable_sf, loan_amount, " +
+        "interest_rate (decimal, e.g. 0.065), amortization_years, appraised_value.",
+      parameters: {
+        type: "object",
+        properties: {
+          metrics: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "Which metrics to compute. One or more of: noi, cap_rate, cash_on_cash, " +
+              "dscr, grm, price_per_sf, rent_per_sf, ltv, debt_yield, opex_ratio, " +
+              "break_even_occupancy, debt_service, equity_multiple, irr.",
+          },
+          inputs: {
+            type: "object",
+            description:
+              "Numeric inputs keyed by name. All values must be numbers. " +
+              "For percentages/rates, use decimals (0.05 = 5%, 0.065 = 6.5%). " +
+              "For currency, use full dollar amounts (not cents).",
+            additionalProperties: { type: "number" },
+          },
+        },
+        required: ["metrics", "inputs"],
+      },
+    },
+  },
 };
 
 // Inverse map: function-name string → AgentToolName. The OpenAI API
@@ -674,6 +718,7 @@ const NAME_TO_TOOL: Record<string, AgentToolName> = {
   site_scan_listings: "site_scan.listings",
   site_scan_void_analysis: "site_scan.void_analysis",
   web_search: "web.search",
+  cre_calculate: "cre.calculate",
 };
 
 // ── Tool executor adapters ────────────────────────────────────
@@ -719,6 +764,7 @@ const PER_TOOL_BUDGET: Partial<Record<AgentToolName, number>> = {
   "site_scan.listings": 3,
   "site_scan.void_analysis": 3,
   "web.search": 10,
+  "cre.calculate": 10, // cheap (pure math), but cap to prevent runaway loops
 };
 
 /**
@@ -1713,6 +1759,21 @@ async function dispatchTool(
       }));
       return JSON.stringify({ answer: data.answer || null, results, count: results.length, query });
     }
+
+    case "cre.calculate": {
+      const metrics = Array.isArray(args.metrics)
+        ? (args.metrics as string[])
+        : [String(args.metrics || "")];
+      const inputs: Record<string, number> = {};
+      if (args.inputs && typeof args.inputs === "object") {
+        for (const [k, v] of Object.entries(args.inputs as Record<string, unknown>)) {
+          const n = Number(v);
+          if (!Number.isNaN(n)) inputs[k] = n;
+        }
+      }
+      const results = calculateCre(metrics, inputs);
+      return { results, metrics_computed: results.filter((r) => !("error" in r)).length };
+    }
   }
 }
 
@@ -1972,6 +2033,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       "site_scan.listings": 0,
       "site_scan.void_analysis": 0,
       "web.search": 0,
+      "cre.calculate": 0,
     },
   };
 

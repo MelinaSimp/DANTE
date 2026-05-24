@@ -99,6 +99,7 @@ const REALTOR_SPEC: VerticalSpec = {
       "site_scan.void_analysis",
       "regulatory.search",
       "inconsistency.detect",
+      "cre.calculate",
     ],
     promoted_skills: [
       "draft_listing_prep_recap",

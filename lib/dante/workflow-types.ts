@@ -186,7 +186,8 @@ export type AgentToolName =
   | "site_scan.detail"    // full parcel intelligence (auditor, tax, demographics, EPA)
   | "site_scan.listings"  // search active commercial listings near a location
   | "site_scan.void_analysis" // multi-point corridor search, score + rank top sites
-  | "web.search";            // Tavily web search for market intel, listings, news
+  | "web.search"             // Tavily web search for market intel, listings, news
+  | "cre.calculate";         // deterministic CRE financial math (cap rate, NOI, DSCR, IRR, etc.)
 
 export type AgentToolEntry =
   | AgentToolName

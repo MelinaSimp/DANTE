@@ -139,6 +139,7 @@ function prettyToolName(raw: string): string {
     case "clients.query": return "Querying clients";
     case "skill.run": return "Running skill";
     case "reminder.schedule": return "Scheduling reminder";
+    case "cre.calculate": return "Running CRE math";
     default:
       return raw;
   }
