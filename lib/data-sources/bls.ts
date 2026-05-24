@@ -18,9 +18,8 @@ export async function fetchEmployment(
   const sy = startYear ?? now - 1;
   const ey = endYear ?? now;
 
-  // LAUS series: unemployment rate = LAUSTxxxx03, employment = LAUSTxxxx05
-  const rateSeries = `LAUST${areaCode}0000000003`;
-  const empSeries = `LAUST${areaCode}0000000005`;
+  const rateSeries = `LAUCN${areaCode}0000000003`;
+  const empSeries = `LAUCN${areaCode}0000000005`;
 
   const res = await fetch(BASE, {
     method: "POST",
@@ -33,6 +32,8 @@ export async function fetchEmployment(
   });
 
   if (!res.ok) return [];
+  const ct = res.headers.get("content-type") || "";
+  if (!ct.includes("json")) return [];
 
   const json = await res.json();
   if (json.status !== "REQUEST_SUCCEEDED") return [];

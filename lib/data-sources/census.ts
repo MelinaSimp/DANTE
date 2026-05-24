@@ -1,4 +1,5 @@
 const BASE = "https://api.census.gov/data";
+const API_KEY = process.env.CENSUS_API_KEY || "";
 
 export interface CensusAcsData {
   tract: string;
@@ -30,10 +31,13 @@ export async function fetchAcsByTract(
     "B25003_003E", // renter-occupied
   ].join(",");
 
-  const url = `${BASE}/${year}/acs/acs5?get=${variables}&for=tract:${tract}&in=state:${state}%20county:${county}`;
+  const keyParam = API_KEY ? `&key=${API_KEY}` : "";
+  const url = `${BASE}/${year}/acs/acs5?get=${variables}&for=tract:${tract}&in=state:${state}%20county:${county}${keyParam}`;
 
   const res = await fetch(url);
   if (!res.ok) return null;
+  const ct = res.headers.get("content-type") || "";
+  if (!ct.includes("json")) return null;
 
   const rows: string[][] = await res.json();
   if (!rows || rows.length < 2) return null;
@@ -77,10 +81,13 @@ export async function fetchAcsByCounty(
     "B25003_003E",
   ].join(",");
 
-  const url = `${BASE}/${year}/acs/acs5?get=${variables}&for=county:${county}&in=state:${state}`;
+  const keyParam = API_KEY ? `&key=${API_KEY}` : "";
+  const url = `${BASE}/${year}/acs/acs5?get=${variables}&for=county:${county}&in=state:${state}${keyParam}`;
 
   const res = await fetch(url);
   if (!res.ok) return null;
+  const ct = res.headers.get("content-type") || "";
+  if (!ct.includes("json")) return null;
 
   const rows: string[][] = await res.json();
   if (!rows || rows.length < 2) return null;

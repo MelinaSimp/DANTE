@@ -40,6 +40,8 @@ export async function queryFloodZone(
 
   const res = await fetch(`${BASE}?${params}`);
   if (!res.ok) return null;
+  const ct = res.headers.get("content-type") || "";
+  if (!ct.includes("json")) return null;
 
   const data = await res.json();
   const feature = data.features?.[0];

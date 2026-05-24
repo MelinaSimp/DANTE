@@ -736,7 +736,7 @@ async function runIntegrationQuery(
 }
 
 async function runDueDiligence(
-  cfg: { latitude: number; longitude: number; state_fips: string; county_fips: string; tract_fips?: string },
+  cfg: { latitude: number; longitude: number; state_fips: string; county_fips: string; tract_fips?: string; county_name?: string },
 ) {
   const { fetchAcsByTract, fetchAcsByCounty } = await import("@/lib/data-sources/census");
   const { fetchEmployment } = await import("@/lib/data-sources/bls");
@@ -752,7 +752,7 @@ async function runDueDiligence(
       : fetchAcsByCounty(cfg.state_fips, cfg.county_fips),
     fetchEmployment(cfg.state_fips + cfg.county_fips),
     queryFloodZone(lat, lng),
-    queryToxicsFacilities(lat, lng, 1),
+    queryToxicsFacilities(lat, lng, 3, { stateFips: cfg.state_fips, countyName: cfg.county_name }),
     querySuperfundSites(cfg.state_fips),
   ]);
 
@@ -779,6 +779,50 @@ async function runDueDiligence(
   };
 }
 
+/** Format a section body for PDF output. If the value is a JSON array
+ *  of objects (common when templates resolve structured data), render
+ *  it as a human-readable bullet list instead of raw JSON. */
+function formatSectionBody(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith("[")) return trimmed;
+
+  let parsed: unknown[];
+  try { parsed = JSON.parse(trimmed); } catch { return trimmed; }
+  if (!Array.isArray(parsed)) return trimmed;
+
+  // Array of objects: render as a line-per-item summary
+  return parsed.map((item, i) => {
+    if (typeof item !== "object" || item === null) return String(item);
+    const obj = item as Record<string, unknown>;
+
+    // Try to find human-readable fields and build a one-liner
+    const name = obj.facility_name || obj.site_name || obj.name || obj.title || "";
+    const city = obj.city || obj.city_name || "";
+    const dist = obj.distance_miles != null ? `${obj.distance_miles} mi` : "";
+    const period = obj.period || "";
+    const year = obj.year || "";
+    const rate = obj.unemployment_rate != null ? `${obj.unemployment_rate}% unemployment` : "";
+    const emp = obj.total_employment != null ? `${Number(obj.total_employment).toLocaleString()} employed` : "";
+
+    if (name) {
+      const parts = [name, city, dist].filter(Boolean);
+      return `${i + 1}. ${parts.join(" - ")}`;
+    }
+    if (year && period) {
+      const parts = [`${year} ${period}`, rate, emp].filter(Boolean);
+      return parts.join(" | ");
+    }
+
+    // Fallback: key=value pairs, skip internal IDs
+    const skip = new Set(["registry_id", "handler_id", "series_id", "area_code"]);
+    const pairs = Object.entries(obj)
+      .filter(([k]) => !skip.has(k))
+      .map(([k, v]) => `${k}: ${v}`)
+      .slice(0, 6);
+    return `${i + 1}. ${pairs.join(", ")}`;
+  }).join("\n");
+}
+
 async function runGenerateDocument(
   cfg: { title: string; subtitle?: string; sections: Array<{ heading: string; body: string }> },
   workspaceId: string,
@@ -795,26 +839,34 @@ async function runGenerateDocument(
     subtitle: cfg.subtitle || undefined,
     sections: sections.map((s) => ({
       heading: String(s.heading || ""),
-      body: String(s.body || ""),
+      body: formatSectionBody(String(s.body || "")),
     })),
   });
 
+  const buf = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
   const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
   const path = `workflows/${workspaceId}/${runId}/${slug}.pdf`;
 
-  await supabaseAdmin.storage.from("dante-archive").upload(path, buffer, {
-    contentType: "application/pdf",
-    upsert: true,
-  });
-
-  const { data: signed } = await supabaseAdmin.storage
-    .from("dante-archive")
-    .createSignedUrl(path, 86400);
+  let url: string | null = null;
+  try {
+    const { error: uploadErr } = await supabaseAdmin.storage.from("dante-archive").upload(path, buf, {
+      contentType: "application/pdf",
+      upsert: true,
+    });
+    if (!uploadErr) {
+      const { data: signed } = await supabaseAdmin.storage
+        .from("dante-archive")
+        .createSignedUrl(path, 86400);
+      url = signed?.signedUrl || null;
+    }
+  } catch {
+    // storage upload is best-effort
+  }
 
   return {
-    url: signed?.signedUrl || null,
+    url,
     storage_path: path,
-    size_bytes: buffer.length,
+    size_bytes: buf.byteLength,
     filename: `${slug}.pdf`,
   };
 }

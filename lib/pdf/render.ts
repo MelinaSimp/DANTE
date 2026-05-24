@@ -123,7 +123,7 @@ export async function renderBrandedReport(input: RenderReportInput): Promise<Buf
   });
 
   const sectionElems = input.sections.map((s, i) =>
-    React.createElement(View, { key: i, wrap: false }, [
+    React.createElement(View, { key: i }, [
       React.createElement(Text, { key: "h", style: styles.sectionHeading }, s.heading),
       React.createElement(Text, { key: "b", style: styles.sectionBody }, s.body),
     ]),
@@ -164,8 +164,7 @@ export async function renderBrandedReport(input: RenderReportInput): Promise<Buf
     ]),
   );
 
-  // pdf().toBuffer() returns a Node Buffer.
-  const stream = pdf(docElement as never);
-  const buf = await stream.toBuffer();
-  return buf as Buffer;
+  // renderToBuffer returns a Node Buffer directly.
+  const buf = await reactPdf.renderToBuffer(docElement as never);
+  return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
 }
