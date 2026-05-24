@@ -1376,7 +1376,12 @@ const multiMarketVoidGraph: WorkflowGraph = {
       id: "trigger", type: "trigger_manual", position: row(0),
       data: { step: {
         id: "trigger", type: "trigger_manual", name: "Broker triggers with thesis",
-        config: {},
+        config: { input_fields: [
+          { name: "brief", label: "Client Brief", type: "textarea" as const, required: true, placeholder: "Describe the client's needs..." },
+          { name: "target_use", label: "Target Use", type: "text" as const, required: true, placeholder: "e.g., Quick-service restaurant" },
+          { name: "target_area", label: "Target Area", type: "text" as const, required: true, placeholder: "e.g., Northeast Ohio" },
+          { name: "size_requirement", label: "Size Requirement", type: "text" as const, placeholder: "e.g., 2,000-5,000 SF" },
+        ] },
       } },
     },
     {
@@ -1452,7 +1457,12 @@ const environmentalScannerGraph: WorkflowGraph = {
       id: "trigger", type: "trigger_manual", position: row(0),
       data: { step: {
         id: "trigger", type: "trigger_manual", name: "Broker triggers with area",
-        config: {},
+        config: { input_fields: [
+          { name: "location", label: "Target Area", type: "text" as const, required: true, placeholder: "e.g., Euclid Ave corridor, Cleveland OH" },
+          { name: "zoning", label: "Zoning Filter", type: "text" as const, placeholder: "e.g., C-2 Commercial" },
+          { name: "acreage_min", label: "Min Acreage", type: "number" as const, placeholder: "1" },
+          { name: "acreage_max", label: "Max Acreage", type: "number" as const, placeholder: "10" },
+        ] },
       } },
     },
     {
@@ -1640,8 +1650,8 @@ const zoningOpportunityGraph: WorkflowGraph = {
 
 const propertyDueDiligenceGraph: WorkflowGraph = {
   nodes: [
-    { id: "trigger", type: "trigger_manual", position: row(0), data: { step: { id: "trigger", type: "trigger_manual", name: "Manual trigger", config: {} } } },
-    { id: "dd", type: "due_diligence", position: row(1), data: { step: { id: "dd", type: "due_diligence", name: "Due diligence", config: { latitude: 0, longitude: 0, state_fips: "", county_fips: "" } } } },
+    { id: "trigger", type: "trigger_manual", position: row(0), data: { step: { id: "trigger", type: "trigger_manual", name: "Manual trigger", config: { input_fields: [{ name: "address", label: "Property Address", type: "text" as const, required: true, placeholder: "1600 Euclid Ave, Cleveland, OH 44115" }] } } } },
+    { id: "dd", type: "due_diligence", position: row(1), data: { step: { id: "dd", type: "due_diligence", name: "Due diligence", config: { address: "{{steps.trigger.input.address}}" } } } },
     { id: "analyze", type: "openai", position: row(2), data: { step: { id: "analyze", type: "openai", name: "Analyze results", config: { model: "gpt-4o-mini", system: "You are a CRE due diligence analyst. Summarize findings concisely, flag risks.", prompt: "Property at {{steps.trigger.input.address}}.\n\nCensus: {{steps.dd.census}}\nEmployment: {{steps.dd.employment}}\nFlood zone: {{steps.dd.flood_zone}}\nEPA: {{steps.dd.epa}}\n\nProvide a structured due diligence summary with risk flags.", max_tokens: 1200 } } } },
     { id: "report", type: "generate_document", position: row(3), data: { step: { id: "report", type: "generate_document", name: "Generate report", config: { title: "Due Diligence Report", subtitle: "{{steps.trigger.input.address}}", sections: [{ heading: "Summary", body: "{{steps.analyze.text}}" }, { heading: "Flood Zone", body: "Zone: {{steps.dd.flood_zone.flood_zone}} -- {{steps.dd.flood_zone.zone_description}}. SFHA: {{steps.dd.flood_zone.sfha}}" }] } } } },
   ],
@@ -1680,9 +1690,9 @@ const weeklyPipelineDigestGraph: WorkflowGraph = {
 
 const listingAnalysisGraph: WorkflowGraph = {
   nodes: [
-    { id: "trigger", type: "trigger_manual", position: row(0), data: { step: { id: "trigger", type: "trigger_manual", name: "Manual trigger", config: {} } } },
+    { id: "trigger", type: "trigger_manual", position: row(0), data: { step: { id: "trigger", type: "trigger_manual", name: "Manual trigger", config: { input_fields: [{ name: "address", label: "Property Address", type: "text" as const, required: true, placeholder: "123 Main St, City, ST 12345" }] } } } },
     { id: "ext", type: "integration_query", position: row(1), data: { step: { id: "ext", type: "integration_query", name: "Integration lookup", config: { provider: "costar", endpoint: "https://api.example.com/v1/search", method: "GET", params: { address: "{{steps.trigger.input.address}}" } } } } },
-    { id: "dd", type: "due_diligence", position: row(2), data: { step: { id: "dd", type: "due_diligence", name: "Due diligence", config: { latitude: 0, longitude: 0, state_fips: "", county_fips: "" } } } },
+    { id: "dd", type: "due_diligence", position: row(2), data: { step: { id: "dd", type: "due_diligence", name: "Due diligence", config: { address: "{{steps.trigger.input.address}}" } } } },
     { id: "report", type: "generate_document", position: row(3), data: { step: { id: "report", type: "generate_document", name: "Generate report", config: { title: "Listing Analysis", subtitle: "{{steps.trigger.input.address}}", sections: [{ heading: "Market Data", body: "{{steps.ext.body}}" }, { heading: "Environmental & Demographics", body: "Census: {{steps.dd.census}}\nFlood: {{steps.dd.flood_zone}}\nEPA: {{steps.dd.epa}}" }] } } } },
   ],
   edges: [edge("trigger", "ext"), edge("ext", "dd"), edge("dd", "report")],
@@ -1707,8 +1717,8 @@ const dealStageNotificationGraph: WorkflowGraph = {
 
 const environmentalRiskScreenGraph: WorkflowGraph = {
   nodes: [
-    { id: "trigger", type: "trigger_manual", position: row(0), data: { step: { id: "trigger", type: "trigger_manual", name: "Manual trigger", config: {} } } },
-    { id: "dd", type: "due_diligence", position: row(1), data: { step: { id: "dd", type: "due_diligence", name: "Due diligence", config: { latitude: 0, longitude: 0, state_fips: "", county_fips: "" } } } },
+    { id: "trigger", type: "trigger_manual", position: row(0), data: { step: { id: "trigger", type: "trigger_manual", name: "Manual trigger", config: { input_fields: [{ name: "address", label: "Property Address", type: "text" as const, required: true, placeholder: "123 Main St, City, ST 12345" }] } } } },
+    { id: "dd", type: "due_diligence", position: row(1), data: { step: { id: "dd", type: "due_diligence", name: "Due diligence", config: { address: "{{steps.trigger.input.address}}" } } } },
     { id: "check_flood", type: "condition", position: row(2), data: { step: { id: "check_flood", type: "condition", name: "In flood zone?", config: { expression: "{{steps.dd.flood_zone.sfha}} == true", on_false: "continue" } } } },
     { id: "approve", type: "approval", position: { x: X + 260, y: 40 + 3 * 150 }, data: { step: { id: "approve", type: "approval", name: "Approve flood risk", config: { message: "Property is in a Special Flood Hazard Area ({{steps.dd.flood_zone.flood_zone}}). Proceed?", approver_role: "owner", timeout_hours: 48 } } } },
     { id: "notify", type: "send_email", position: row(4), data: { step: { id: "notify", type: "send_email", name: "Send results", config: { to: "{{secrets.team_email}}", subject: "Environmental Screen -- {{steps.trigger.input.address}}", text: "Flood zone: {{steps.dd.flood_zone.flood_zone}} ({{steps.dd.flood_zone.zone_description}})\nSFHA: {{steps.dd.flood_zone.sfha}}\nToxics: {{steps.dd.epa.toxics_facilities}}\nSuperfund: {{steps.dd.epa.superfund_sites}}" } } } },

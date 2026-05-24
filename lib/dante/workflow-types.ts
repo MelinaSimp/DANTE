@@ -295,11 +295,14 @@ export interface IntegrationQueryStep extends BaseStep {
 export interface DueDiligenceStep extends BaseStep {
   type: "due_diligence";
   config: {
-    latitude: number;
-    longitude: number;
-    state_fips: string;
-    county_fips: string;
+    address?: string;
+    latitude?: number;
+    longitude?: number;
+    state_fips?: string;
+    county_fips?: string;
     tract_fips?: string;
+    county_name?: string;
+    drive_time_destinations?: string[] | string;
   };
 }
 
@@ -395,9 +398,21 @@ export interface TriggerDealStageStep extends BaseStep {
 // for the scheduler (cron) or webhook dispatch (webhook), and the
 // run's `input` is exposed via {{steps.<trigger_id>.input}}.
 
+/** A field the user fills in when clicking "Run" on a manual-trigger workflow. */
+export interface TriggerInputField {
+  name: string;       // key in the input object, e.g. "address"
+  label: string;      // UI label, e.g. "Property Address"
+  type: "text" | "textarea" | "number";
+  required?: boolean;
+  placeholder?: string;
+  default_value?: string;
+}
+
 export interface TriggerManualStep extends BaseStep {
   type: "trigger_manual";
-  config: Record<string, never>;
+  config: {
+    input_fields?: TriggerInputField[];
+  };
 }
 
 export interface TriggerCronStep extends BaseStep {

@@ -6,7 +6,7 @@
 // a node is selected on the canvas. One <StepConfigForm /> per node;
 // the parent editor owns the state and passes an onChange callback.
 
-import type { WorkflowStep } from "@/lib/dante/workflow-types";
+import type { WorkflowStep, TriggerInputField } from "@/lib/dante/workflow-types";
 
 // We loosen the patch type to `Record<string, unknown>` because
 // WorkflowStep is a discriminated union — a `Partial<WorkflowStep>`
@@ -65,14 +65,73 @@ function renderBody(
   setConfig: (k: string, v: unknown) => void,
 ) {
   switch (step.type) {
-    case "trigger_manual":
+    case "trigger_manual": {
+      const fields = (cfg.input_fields || []) as TriggerInputField[];
+      const updateField = (idx: number, patch: Partial<TriggerInputField>) => {
+        const next = fields.map((f, i) => (i === idx ? { ...f, ...patch } : f));
+        setConfig("input_fields", next);
+      };
+      const addField = () => {
+        setConfig("input_fields", [...fields, { name: "", label: "", type: "text" as const, required: false, placeholder: "" }]);
+      };
+      const removeField = (idx: number) => {
+        setConfig("input_fields", fields.filter((_, i) => i !== idx));
+      };
       return (
-        <Help>
-          This trigger fires when someone clicks <b>Run</b> in this editor,
-          or when <code className="mono">POST /api/dante/workflows/{"{id}"}/run</code>
-          is called with a session.
-        </Help>
+        <>
+          <Help>
+            This trigger fires when someone clicks <b>Run</b> in this editor,
+            or when <code className="mono">POST /api/dante/workflows/{"{id}"}/run</code>
+            is called with a session. Define input fields below to prompt the
+            user for values when they click Run. Access them downstream with{" "}
+            <code className="mono">{"{{steps.trigger.input.<field_name>}}"}</code>.
+          </Help>
+          <div className="space-y-3 mt-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-[var(--ink-muted)] uppercase tracking-wide">
+                Input fields
+              </span>
+              <button onClick={addField} type="button"
+                className="text-xs text-[var(--accent)] hover:underline">
+                + Add field
+              </button>
+            </div>
+            {fields.map((f, i) => (
+              <div key={i} className="border border-[var(--rule)] rounded-[4px] p-3 space-y-2 bg-[var(--canvas-subtle)]">
+                <div className="flex gap-2">
+                  <Text value={f.name || ""} onChange={(v) => updateField(i, { name: v.replace(/\s+/g, "_").toLowerCase() })} placeholder="field_name" />
+                  <Text value={f.label || ""} onChange={(v) => updateField(i, { label: v })} placeholder="Display label" />
+                  <button onClick={() => removeField(i)} type="button"
+                    className="text-[var(--ink-muted)] hover:text-[var(--danger)] shrink-0 p-1">
+                    <span className="text-xs">x</span>
+                  </button>
+                </div>
+                <div className="flex gap-2 items-center">
+                  <select value={f.type || "text"}
+                    onChange={(e) => updateField(i, { type: e.target.value as "text" | "textarea" | "number" })}
+                    className="bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-2 py-1 text-xs text-[var(--ink)]">
+                    <option value="text">Text</option>
+                    <option value="textarea">Long text</option>
+                    <option value="number">Number</option>
+                  </select>
+                  <label className="flex items-center gap-1 text-xs text-[var(--ink-muted)]">
+                    <input type="checkbox" checked={!!f.required}
+                      onChange={(e) => updateField(i, { required: e.target.checked })} />
+                    Required
+                  </label>
+                </div>
+                <Text value={f.placeholder || ""} onChange={(v) => updateField(i, { placeholder: v })} placeholder="Placeholder text (optional)" />
+              </div>
+            ))}
+            {fields.length === 0 && (
+              <p className="text-xs text-[var(--ink-muted)]">
+                No input fields. The Run button will execute immediately without prompting.
+              </p>
+            )}
+          </div>
+        </>
       );
+    }
 
     case "trigger_cron":
       return (

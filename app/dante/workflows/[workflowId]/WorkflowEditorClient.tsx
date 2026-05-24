@@ -59,6 +59,7 @@ import type {
   GraphNode,
   GraphEdge,
   StepLogEntry,
+  TriggerInputField,
 } from "@/lib/dante/workflow-types";
 import { definitionFromRow } from "@/lib/dante/workflow-types";
 
@@ -198,6 +199,11 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
   const [webhookToken, setWebhookToken] = useState<string | null>(null);
   const [mintingToken, setMintingToken] = useState(false);
 
+  // Run input dialog state. When a manual trigger has input_fields,
+  // clicking Run opens this dialog instead of executing immediately.
+  const [runInputOpen, setRunInputOpen] = useState(false);
+  const [runInputValues, setRunInputValues] = useState<Record<string, string>>({});
+
   // Run history drawer state. Opens from the toolbar; rows show
   // status + when, expand to load the full log.
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -316,7 +322,26 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
     } finally { setSaving(false); }
   }, [workflow.id, name, description, enabled, nodes, edges]);
 
-  const run = useCallback(async () => {
+  // Check if the trigger has input fields; if so, open the dialog
+  // instead of running immediately.
+  const handleRunClick = useCallback(() => {
+    const triggerNode = nodes.find((n) => n.data.step.type === "trigger_manual");
+    const fields = (triggerNode?.data.step.config as { input_fields?: TriggerInputField[] })?.input_fields;
+    if (fields && fields.length > 0 && fields.some((f) => f.name)) {
+      // Seed defaults
+      const defaults: Record<string, string> = {};
+      for (const f of fields) {
+        if (f.name) defaults[f.name] = f.default_value || "";
+      }
+      setRunInputValues(defaults);
+      setRunInputOpen(true);
+    } else {
+      run({});
+    }
+  }, [nodes]);
+
+  const run = useCallback(async (input: Record<string, unknown>) => {
+    setRunInputOpen(false);
     setRunning(true); setError(null); setRunLog(null); setRunStatus(null);
     try {
       // Save first so the run uses the current canvas.
@@ -337,7 +362,7 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
       const enqueueRes = await fetch(`/api/dante/workflows/${workflow.id}/run`, {
         method: "POST", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input: {}, mode: "queue" }),
+        body: JSON.stringify({ input, mode: "queue" }),
       });
       const enqueueJson = await enqueueRes.json();
       if (!enqueueRes.ok) throw new Error(enqueueJson.error || "Enqueue failed");
@@ -597,7 +622,7 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
               : <FlaskConical className="w-4 h-4" strokeWidth={1.5} />}
             Test
           </button>
-          <button onClick={run} disabled={running || dryRunning || nodes.length === 0}
+          <button onClick={handleRunClick} disabled={running || dryRunning || nodes.length === 0}
             className="flex items-center gap-1.5 px-3 py-2 rounded-[4px] bg-[var(--ink)] hover:opacity-90 text-[var(--canvas)] text-sm font-semibold transition disabled:opacity-50">
             {running ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.5} /> : <Play className="w-4 h-4" strokeWidth={1.5} />}
             Run
@@ -620,6 +645,77 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
           </button>
         </div>
       )}
+
+      {/* Run input dialog — shown when trigger has input_fields */}
+      {runInputOpen && (() => {
+        const triggerNode = nodes.find((n) => n.data.step.type === "trigger_manual");
+        const fields = ((triggerNode?.data.step.config as { input_fields?: TriggerInputField[] })?.input_fields || []).filter((f) => f.name);
+        const missingRequired = fields.some((f) => f.required && !runInputValues[f.name]?.trim());
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-[var(--canvas)] rounded-lg shadow-xl border border-[var(--rule)] w-full max-w-md mx-4">
+              <div className="px-6 py-4 border-b border-[var(--rule)]">
+                <h3 className="text-base font-semibold text-[var(--ink)]">Run workflow</h3>
+                <p className="text-xs text-[var(--ink-muted)] mt-1">
+                  Provide the inputs this workflow needs to run.
+                </p>
+              </div>
+              <div className="px-6 py-4 space-y-4">
+                {fields.map((f) => (
+                  <div key={f.name}>
+                    <label className="block text-sm font-medium text-[var(--ink)] mb-1">
+                      {f.label || f.name}
+                      {f.required && <span className="text-[var(--danger)] ml-0.5">*</span>}
+                    </label>
+                    {f.type === "textarea" ? (
+                      <textarea
+                        value={runInputValues[f.name] || ""}
+                        onChange={(e) => setRunInputValues((v) => ({ ...v, [f.name]: e.target.value }))}
+                        placeholder={f.placeholder || ""}
+                        rows={3}
+                        className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
+                      />
+                    ) : (
+                      <input
+                        type={f.type === "number" ? "number" : "text"}
+                        value={runInputValues[f.name] || ""}
+                        onChange={(e) => setRunInputValues((v) => ({ ...v, [f.name]: e.target.value }))}
+                        placeholder={f.placeholder || ""}
+                        className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="px-6 py-3 border-t border-[var(--rule)] flex justify-end gap-2">
+                <button
+                  onClick={() => setRunInputOpen(false)}
+                  className="px-4 py-2 rounded-[4px] border border-[var(--rule)] text-sm text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    const input: Record<string, unknown> = {};
+                    for (const f of fields) {
+                      const val = runInputValues[f.name]?.trim() || "";
+                      if (val) input[f.name] = f.type === "number" ? Number(val) : val;
+                    }
+                    run(input);
+                  }}
+                  disabled={missingRequired}
+                  className="px-4 py-2 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-sm font-semibold hover:opacity-90 disabled:opacity-50"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Play className="w-3.5 h-3.5" strokeWidth={1.5} />
+                    Run
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Main area */}
       <div className="flex-1 flex min-h-0">
