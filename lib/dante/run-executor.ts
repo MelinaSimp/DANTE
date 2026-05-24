@@ -142,7 +142,7 @@ export async function executeClaimedRun(
   try {
     const definition = definitionFromRow(workflow as Parameters<typeof definitionFromRow>[0]);
     const input = (run.input && typeof run.input === "object") ? run.input as Record<string, unknown> : {};
-    const result = await runWorkflow(definition, input);
+    const result = await runWorkflow(definition, input, { runId: run.id });
 
     if (result.status === "waiting_approval") {
       await supabaseAdmin.from("dante_workflow_runs").update({
@@ -174,6 +174,7 @@ export async function executeClaimedRun(
       last_run_status: result.status,
     }).eq("id", run.workflow_id);
 
+    // Only notify on actual errors, not cancellations
     if (result.status === "error") {
       notifyRunFailure({
         workflowId: run.workflow_id,
@@ -226,6 +227,22 @@ export async function enqueueRun(input: {
   triggered_by?: string | null;
   payload: Record<string, unknown>;
 }): Promise<{ run_id: string } | { error: string }> {
+  // ── Execution lock: prevent concurrent runs of the same workflow ──
+  // If this workflow already has a queued or running run, reject the
+  // new enqueue. This prevents cron double-fires and manual spam.
+  const { data: active } = await supabaseAdmin
+    .from("dante_workflow_runs")
+    .select("id, status")
+    .eq("workflow_id", input.workflow_id)
+    .in("status", ["queued", "running"])
+    .limit(1);
+
+  if (active && active.length > 0) {
+    return {
+      error: `Workflow already has an active run (${active[0].status}). Wait for it to complete before starting another.`,
+    };
+  }
+
   const { data, error } = await supabaseAdmin
     .from("dante_workflow_runs")
     .insert({

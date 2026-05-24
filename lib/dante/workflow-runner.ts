@@ -32,6 +32,99 @@ import { searchArchive, formatHitsForPrompt } from "./archive/search";
 import { runAgent } from "./agent";
 import { complete as llmComplete } from "@/lib/llm/client";
 
+// ── Retry with exponential backoff ───────────────────────────
+// Wraps any async function with 3 attempts. Only retries on
+// transient failures (network errors, 5xx, rate limits). Validation
+// errors (4xx, missing config) fail immediately.
+
+const MAX_RETRIES = 3;
+const RETRY_DELAYS = [1000, 4000, 16000]; // ms between attempts
+
+function isRetryable(err: unknown): boolean {
+  if (err instanceof Error) {
+    const msg = err.message.toLowerCase();
+    // Network failures
+    if (msg.includes("fetch failed") || msg.includes("econnreset") ||
+        msg.includes("econnrefused") || msg.includes("etimedout") ||
+        msg.includes("socket hang up") || msg.includes("network") ||
+        msg.includes("dns") || msg.includes("abort")) return true;
+    // HTTP 5xx or rate limit
+    if (/\b(50[0-9]|429)\b/.test(msg)) return true;
+    // Timeout
+    if (msg.includes("timeout") || msg.includes("timed out")) return true;
+  }
+  return false;
+}
+
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  label: string,
+): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (attempt < MAX_RETRIES - 1 && isRetryable(err)) {
+        const delay = RETRY_DELAYS[attempt] ?? 4000;
+        console.warn(`[workflow-runner] ${label} attempt ${attempt + 1} failed, retrying in ${delay}ms:`, err instanceof Error ? err.message : err);
+        await new Promise((r) => setTimeout(r, delay));
+      } else {
+        throw err; // non-retryable or final attempt
+      }
+    }
+  }
+  throw lastErr; // unreachable but satisfies TS
+}
+
+// ── Rate limiting ────────────────────────────────────────────
+// Per-workspace hourly caps on email and SMS sends to prevent
+// runaway for_each loops from burning the domain reputation.
+
+const RATE_LIMITS = { email: 200, sms: 100 } as const;
+
+async function checkRateLimit(
+  workspaceId: string,
+  channel: "email" | "sms",
+  count: number = 1,
+): Promise<{ allowed: boolean; current: number; limit: number }> {
+  const limit = RATE_LIMITS[channel];
+  const windowStart = new Date();
+  windowStart.setMinutes(0, 0, 0);
+
+  // Atomic upsert+increment via RPC (created in migration)
+  const { data, error } = await supabaseAdmin.rpc("increment_send_counter", {
+    p_workspace_id: workspaceId,
+    p_channel: channel,
+    p_window_start: windowStart.toISOString(),
+    p_count: count,
+  });
+
+  if (error) {
+    // If the RPC doesn't exist yet (migration not run), allow through
+    // but log. Don't block workflows on a missing rate-limit table.
+    console.warn("[rate-limit] RPC failed, allowing through:", error.message);
+    return { allowed: true, current: 0, limit };
+  }
+
+  const current = typeof data === "number" ? data : (data?.[0]?.send_count ?? count);
+  return { allowed: current <= limit, current, limit };
+}
+
+// ── Cancellation check ──────────────────────────────────────
+// Called every few nodes during BFS to allow mid-execution
+// cancellation. Returns true if the run has been cancelled.
+
+async function isRunCancelled(runId: string): Promise<boolean> {
+  const { data } = await supabaseAdmin
+    .from("dante_workflow_runs")
+    .select("status")
+    .eq("id", runId)
+    .maybeSingle();
+  return data?.status === "cancelled";
+}
+
 // ── Template resolver ─────────────────────────────────────────
 
 type Ctx = {
@@ -170,17 +263,24 @@ function coerce(s: string): string | number {
 async function runHttp(cfg: {
   url: string; method?: string; headers?: Record<string, string>; body?: unknown;
 }) {
-  const res = await fetch(cfg.url, {
-    method: cfg.method || "GET",
-    headers: { "Content-Type": "application/json", ...(cfg.headers || {}) },
-    body: cfg.body !== undefined && cfg.method && cfg.method !== "GET"
-      ? typeof cfg.body === "string" ? cfg.body : JSON.stringify(cfg.body)
-      : undefined,
-  });
-  const text = await res.text();
-  let json: unknown;
-  try { json = JSON.parse(text); } catch { json = null; }
-  return { status: res.status, ok: res.ok, body: json ?? text };
+  return withRetry(async () => {
+    const res = await fetch(cfg.url, {
+      method: cfg.method || "GET",
+      headers: { "Content-Type": "application/json", ...(cfg.headers || {}) },
+      body: cfg.body !== undefined && cfg.method && cfg.method !== "GET"
+        ? typeof cfg.body === "string" ? cfg.body : JSON.stringify(cfg.body)
+        : undefined,
+    });
+    // Throw on 5xx so retry kicks in; 4xx is a client error, don't retry.
+    if (res.status >= 500) {
+      const text = await res.text();
+      throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
+    }
+    const text = await res.text();
+    let json: unknown;
+    try { json = JSON.parse(text); } catch { json = null; }
+    return { status: res.status, ok: res.ok, body: json ?? text };
+  }, `http ${cfg.method || "GET"} ${cfg.url}`);
 }
 
 async function runOpenAI(cfg: {
@@ -399,36 +499,38 @@ async function runWebSearch(cfg: {
 }) {
   const apiKey = process.env.TAVILY_API_KEY;
   if (!apiKey) throw new Error("TAVILY_API_KEY not configured");
-  const res = await fetch("https://api.tavily.com/search", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      api_key: apiKey,
+  return withRetry(async () => {
+    const res = await fetch("https://api.tavily.com/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        api_key: apiKey,
+        query: cfg.query,
+        max_results: Math.min(Math.max(Number(cfg.max_results) || 5, 1), 20),
+        search_depth: cfg.search_depth || "basic",
+        include_domains: toStringArray(cfg.include_domains),
+        exclude_domains: toStringArray(cfg.exclude_domains),
+        include_answer: true,
+      }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Tavily search failed (${res.status}): ${text}`);
+    }
+    const data = await res.json();
+    const results = (data.results || []).map((r: { title: string; url: string; content: string; score: number }) => ({
+      title: r.title,
+      url: r.url,
+      snippet: r.content,
+      score: r.score,
+    }));
+    return {
+      answer: data.answer || null,
+      results,
+      count: results.length,
       query: cfg.query,
-      max_results: Math.min(Math.max(Number(cfg.max_results) || 5, 1), 20),
-      search_depth: cfg.search_depth || "basic",
-      include_domains: toStringArray(cfg.include_domains),
-      exclude_domains: toStringArray(cfg.exclude_domains),
-      include_answer: true,
-    }),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Tavily search failed (${res.status}): ${text}`);
-  }
-  const data = await res.json();
-  const results = (data.results || []).map((r: { title: string; url: string; content: string; score: number }) => ({
-    title: r.title,
-    url: r.url,
-    snippet: r.content,
-    score: r.score,
-  }));
-  return {
-    answer: data.answer || null,
-    results,
-    count: results.length,
-    query: cfg.query,
-  };
+    };
+  }, `web_search "${cfg.query}"`);
 }
 
 async function runUpdateContact(
@@ -446,22 +548,40 @@ async function runUpdateContact(
   return { contact: data };
 }
 
-async function runSendEmail(cfg: {
-  to: string; subject: string; html?: string; text?: string;
-}) {
+async function runSendEmail(
+  cfg: { to: string; subject: string; html?: string; text?: string },
+  workspaceId?: string,
+) {
+  // Rate limit check (if workspace context is available)
+  if (workspaceId) {
+    const rl = await checkRateLimit(workspaceId, "email");
+    if (!rl.allowed) {
+      throw new Error(`Email rate limit exceeded: ${rl.current}/${rl.limit} per hour. Wait for the next hour window.`);
+    }
+  }
+
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) throw new Error("RESEND_API_KEY not configured");
   const from = process.env.RESEND_FROM_EMAIL || "noreply@driftai.studio";
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      from, to: cfg.to, subject: cfg.subject, html: cfg.html, text: cfg.text,
-    }),
-  });
-  const json = await res.json();
-  if (!res.ok) throw new Error(json?.message || `Resend ${res.status}`);
-  return { email_id: json.id, to: cfg.to };
+
+  return withRetry(async () => {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        from, to: cfg.to, subject: cfg.subject, html: cfg.html, text: cfg.text,
+      }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      // 429 = rate limited by Resend, 5xx = server error — both retryable
+      if (res.status === 429 || res.status >= 500) {
+        throw new Error(`Resend ${res.status}: ${json?.message || "server error"}`);
+      }
+      throw new Error(json?.message || `Resend ${res.status}`);
+    }
+    return { email_id: json.id, to: cfg.to };
+  }, `send_email to ${cfg.to}`);
 }
 
 // SMS / iMessage delivery via SendBlue. Returns the delivery channel
@@ -597,6 +717,12 @@ async function runSendSms(
     };
   }
 
+  // Rate limit check before fanning out
+  const rl = await checkRateLimit(workspaceId, "sms", recipients.length);
+  if (!rl.allowed) {
+    throw new Error(`SMS rate limit exceeded: ${rl.current}/${rl.limit} per hour. ${recipients.length} recipients would exceed the cap.`);
+  }
+
   // Fan out — one HTTP call per recipient. SendBlue is happy to take
   // these in parallel; bound the concurrency at 4 to be polite.
   const results: Array<{
@@ -611,9 +737,10 @@ async function runSendSms(
     const batch = await Promise.all(
       slice.map(async (rcpt) => {
         try {
-          const result = await sendMessage(rcpt.phone, cfg.body, {
-            fromNumber: cfg.from_number,
-          });
+          const result = await withRetry(
+            () => sendMessage(rcpt.phone, cfg.body, { fromNumber: cfg.from_number }),
+            `sms to ${rcpt.phone}`,
+          );
           return {
             to_phone: rcpt.phone,
             delivery_channel: result.delivery_channel,
@@ -729,10 +856,15 @@ async function runIntegrationQuery(
     fetchOpts.body = JSON.stringify(cfg.params);
   }
 
-  const res = await fetch(url, fetchOpts);
-  const body = await res.json().catch(() => res.text());
-
-  return { status: res.status, ok: res.ok, body, provider: cfg.provider };
+  return withRetry(async () => {
+    const res = await fetch(url, fetchOpts);
+    if (res.status >= 500) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`${cfg.provider} ${res.status}: ${text.slice(0, 200)}`);
+    }
+    const body = await res.json().catch(() => res.text());
+    return { status: res.status, ok: res.ok, body, provider: cfg.provider };
+  }, `integration ${cfg.provider} ${method} ${cfg.endpoint}`);
 }
 
 async function runDueDiligence(
@@ -1013,6 +1145,8 @@ async function runGenerateDocument(
   };
 }
 
+const FOR_EACH_MAX_ITEMS = 200;
+
 async function runForEach(
   cfg: { items: string; action_type: string; action_config: Record<string, unknown> },
   ctx: Ctx,
@@ -1030,6 +1164,28 @@ async function runForEach(
   }
 
   if (!Array.isArray(items)) items = [];
+
+  // Hard iteration cap — prevents runaway loops from sending
+  // thousands of emails or hammering external APIs.
+  const originalCount = items.length;
+  if (items.length > FOR_EACH_MAX_ITEMS) {
+    console.warn(`[workflow-runner] for_each capped: ${items.length} items truncated to ${FOR_EACH_MAX_ITEMS}`);
+    items = items.slice(0, FOR_EACH_MAX_ITEMS);
+  }
+
+  // Pre-check rate limits for send actions before starting the loop
+  if (cfg.action_type === "send_email" && items.length > 0) {
+    const rl = await checkRateLimit(workspaceId, "email", items.length);
+    if (!rl.allowed) {
+      throw new Error(`for_each would send ${items.length} emails but rate limit is ${rl.limit}/hour (currently at ${rl.current - items.length}). Reduce the list or wait.`);
+    }
+  }
+  if (cfg.action_type === "send_sms" && items.length > 0) {
+    const rl = await checkRateLimit(workspaceId, "sms", items.length);
+    if (!rl.allowed) {
+      throw new Error(`for_each would send ${items.length} SMS but rate limit is ${rl.limit}/hour (currently at ${rl.current - items.length}). Reduce the list or wait.`);
+    }
+  }
 
   const results: Array<{ index: number; status: "ok" | "error"; data?: unknown; error?: string }> = [];
   let succeeded = 0;
@@ -1095,7 +1251,17 @@ async function runForEach(
 
   delete ctx.steps["__foreach_item__"];
 
-  return { results, total: items.length, succeeded, failed };
+  return {
+    results,
+    total: items.length,
+    succeeded,
+    failed,
+    ...(originalCount > FOR_EACH_MAX_ITEMS && {
+      truncated: true,
+      original_count: originalCount,
+      cap: FOR_EACH_MAX_ITEMS,
+    }),
+  };
 }
 
 async function runApproval(
@@ -1284,7 +1450,7 @@ async function executeNode(
           },
         };
       }
-      return runSendEmail(emailCfg);
+      return runSendEmail(emailCfg, workspaceId);
     }
     case "send_sms": {
       const smsCfg = cfg as Parameters<typeof runSendSms>[0];
@@ -1504,12 +1670,32 @@ export async function runWorkflow(
   // n8n's own default is "whoever gets here first wins".
   const queue: string[] = [trigger.id];
   const fired = new Set<string>();
+  // Real run IDs are UUIDs from Supabase (have dashes). Synthetic
+  // test IDs start with "run_" — skip cancellation checks for those.
+  const isRealRun = runId.includes("-");
 
   while (queue.length > 0) {
     const id = queue.shift()!;
     if (fired.has(id)) continue;
     const node = nodeById.get(id);
     if (!node) continue;
+
+    // Check for mid-execution cancellation every 3 nodes.
+    // One extra DB query per 3 nodes is negligible vs node execution
+    // time, and lets cancel take effect within seconds.
+    if (isRealRun && fired.size > 0 && fired.size % 3 === 0) {
+      try {
+        if (await isRunCancelled(runId)) {
+          return {
+            status: "cancelled" as WorkflowRunResult["status"],
+            log,
+            output: redactSecrets(ctx.steps, secrets),
+            error: "Run was cancelled by user",
+          };
+        }
+      } catch { /* DB check failed -- keep going */ }
+    }
+
     fired.add(id);
 
     const step = node.data.step;

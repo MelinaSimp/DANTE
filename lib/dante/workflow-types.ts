@@ -517,7 +517,7 @@ export interface StepLogEntry {
 }
 
 export interface WorkflowRunResult {
-  status: "success" | "error" | "waiting_approval";
+  status: "success" | "error" | "waiting_approval" | "cancelled";
   log: StepLogEntry[];
   output: Record<string, unknown>; // keyed by step id
   error?: string;
