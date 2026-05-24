@@ -480,25 +480,40 @@ function renderBody(
     case "due_diligence":
       return (
         <>
+          <Field label="Address" hint="Type a street address and we auto-resolve coordinates + FIPS codes via Google Maps.">
+            <Text value={(cfg.address as string) || ""} onChange={(v) => setConfig("address", v)} placeholder="1600 Euclid Ave, Cleveland, OH 44115" />
+          </Field>
+          <div className="text-[11px] text-center text-[var(--ink-muted)] mono py-1">or enter coordinates manually</div>
           <Field label="Latitude" hint={'Use {{steps.trigger.input.latitude}} for dynamic values.'}>
             <Text value={String(cfg.latitude ?? "")} onChange={(v) => setConfig("latitude", v)} placeholder="41.4993" />
           </Field>
           <Field label="Longitude">
             <Text value={String(cfg.longitude ?? "")} onChange={(v) => setConfig("longitude", v)} placeholder="-81.6944" />
           </Field>
-          <Field label="State FIPS" hint="2-digit code. Ohio = 39.">
+          <Field label="State FIPS" hint="Auto-resolved from address. Manual: Ohio = 39.">
             <Text value={(cfg.state_fips as string) || ""} onChange={(v) => setConfig("state_fips", v)} placeholder="39" />
           </Field>
-          <Field label="County FIPS" hint="3-digit code. Cuyahoga = 035.">
-            <Text value={(cfg.county_fips as string) || ""} onChange={(v) => setConfig("county_fips", v)} placeholder="035" />
+          <Field label="County FIPS" hint="3-digit code. Cuyahoga = 049.">
+            <Text value={(cfg.county_fips as string) || ""} onChange={(v) => setConfig("county_fips", v)} placeholder="049" />
           </Field>
           <Field label="Tract FIPS (optional)" hint="6-digit code. Leave blank to use county-level Census data.">
             <Text value={(cfg.tract_fips as string) || ""} onChange={(v) => setConfig("tract_fips", v)} placeholder="110100" />
           </Field>
+          <Field label="Drive-time destinations (optional)" hint='Comma-separated. e.g. "Cleveland Hopkins Airport, I-90 / I-71 interchange"'>
+            <Text
+              value={(cfg.drive_time_destinations as string) || ""}
+              onChange={(v) => setConfig("drive_time_destinations", v)}
+              placeholder="Cleveland Hopkins Airport, Progressive Field"
+            />
+          </Field>
           <Help>
-            Runs Census ACS demographics, BLS employment, FEMA flood zone, and EPA
-            environmental queries in parallel. Output includes
-            <code className="mx-1 text-[var(--ink)]">{"{{steps.<id>.flood_zone}}"}</code>,
+            Pulls Census demographics, BLS employment, FEMA flood zone, and EPA
+            environmental data in parallel. With a Google Maps API key connected in
+            Settings, also resolves addresses, finds nearby amenities, and calculates
+            drive times. Output:
+            <code className="mx-1 text-[var(--ink)]">{"{{steps.<id>.location}}"}</code>,
+            <code className="mx-1 text-[var(--ink)]">{"{{steps.<id>.nearby_places}}"}</code>,
+            <code className="mx-1 text-[var(--ink)]">{"{{steps.<id>.drive_times}}"}</code>,
             <code className="mx-1 text-[var(--ink)]">{"{{steps.<id>.census}}"}</code>,
             <code className="mx-1 text-[var(--ink)]">{"{{steps.<id>.epa}}"}</code>.
           </Help>

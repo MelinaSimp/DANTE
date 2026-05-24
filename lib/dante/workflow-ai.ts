@@ -169,10 +169,15 @@ RULES
                "params": {...}, "headers": {...} }
      Credentials (API key) are loaded automatically from Settings > Integrations.
 
-   - "due_diligence" (Census + BLS + FEMA + EPA consolidated lookup -> emits { census, employment, flood_zone, epa, errors }):
-     config: { "latitude": 41.4993, "longitude": -81.6944, "state_fips": "39", "county_fips": "035", "tract_fips": "110100" }
-     Runs all four data sources in parallel. tract_fips is optional (falls back to county-level).
-     Output includes flood_zone.sfha (boolean for Special Flood Hazard Area).
+   - "due_diligence" (Census + BLS + FEMA + EPA + Google Maps consolidated lookup -> emits { location, census, employment, flood_zone, epa, nearby_places, drive_times, errors }):
+     config: { "address": "1600 Euclid Ave, Cleveland, OH 44115" }
+     OR config: { "latitude": 41.4993, "longitude": -81.6944, "state_fips": "39", "county_fips": "049" }
+     Accepts a street address (auto-geocoded via Google Maps if API key is connected) OR lat/lng coordinates.
+     Runs government data sources (Census ACS, BLS employment, FEMA flood, EPA TRI) in parallel.
+     If Google Maps API key is connected: also returns nearby_places (transit, hospitals, schools, retail) and drive_times.
+     Optional: "drive_time_destinations": "Cleveland Hopkins Airport, Progressive Field" (comma-separated).
+     Prefer address mode -- it auto-resolves FIPS codes, county name, and coordinates.
+     Output includes location.formatted_address, flood_zone.sfha, nearby_places (sorted by distance).
 
    - "generate_document" (branded PDF report -> emits { url, size_bytes, filename }):
      config: { "title": "...", "subtitle": "...", "sections": [{"heading": "...", "body": "..."}] }

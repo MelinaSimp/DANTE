@@ -736,38 +736,134 @@ async function runIntegrationQuery(
 }
 
 async function runDueDiligence(
-  cfg: { latitude: number; longitude: number; state_fips: string; county_fips: string; tract_fips?: string; county_name?: string },
+  cfg: {
+    address?: string;
+    latitude?: number;
+    longitude?: number;
+    state_fips?: string;
+    county_fips?: string;
+    tract_fips?: string;
+    county_name?: string;
+    drive_time_destinations?: string[] | string;
+  },
+  workspaceId: string,
 ) {
   const { fetchAcsByTract, fetchAcsByCounty } = await import("@/lib/data-sources/census");
   const { fetchEmployment } = await import("@/lib/data-sources/bls");
   const { queryFloodZone } = await import("@/lib/data-sources/fema-flood");
   const { queryToxicsFacilities, querySuperfundSites } = await import("@/lib/data-sources/epa");
+  const { geocodeAddress, reverseGeocode, nearbyPlaces, distanceMatrix } = await import("@/lib/data-sources/google-maps");
 
-  const lat = Number(cfg.latitude);
-  const lng = Number(cfg.longitude);
+  // ── Resolve Google Maps API key ──
+  const gmapsKey = await resolveGoogleMapsKey(workspaceId);
 
-  const results = await Promise.allSettled([
-    cfg.tract_fips
-      ? fetchAcsByTract(cfg.state_fips, cfg.county_fips, cfg.tract_fips)
-      : fetchAcsByCounty(cfg.state_fips, cfg.county_fips),
-    fetchEmployment(cfg.state_fips + cfg.county_fips),
+  // ── Geocode: address -> coordinates + FIPS ──
+  let lat = cfg.latitude ? Number(cfg.latitude) : 0;
+  let lng = cfg.longitude ? Number(cfg.longitude) : 0;
+  let stateFips = cfg.state_fips || "";
+  let countyFips = cfg.county_fips || "";
+  let countyName = cfg.county_name || "";
+  let geocoded: Awaited<ReturnType<typeof geocodeAddress>> = null;
+
+  if (cfg.address && gmapsKey) {
+    geocoded = await geocodeAddress(cfg.address, gmapsKey);
+    if (geocoded) {
+      lat = geocoded.latitude;
+      lng = geocoded.longitude;
+      if (!stateFips && geocoded.address_components.state_fips) {
+        stateFips = geocoded.address_components.state_fips;
+      }
+      if (!countyName && geocoded.address_components.county) {
+        countyName = geocoded.address_components.county.toUpperCase();
+      }
+    }
+  } else if (lat && lng && !cfg.address && gmapsKey) {
+    // Reverse geocode to get formatted address + fill missing FIPS
+    geocoded = await reverseGeocode(lat, lng, gmapsKey);
+    if (geocoded) {
+      if (!stateFips && geocoded.address_components.state_fips) {
+        stateFips = geocoded.address_components.state_fips;
+      }
+      if (!countyName && geocoded.address_components.county) {
+        countyName = geocoded.address_components.county.toUpperCase();
+      }
+    }
+  }
+
+  if (!lat || !lng) {
+    throw new Error("due_diligence: either address (with Google Maps key) or latitude/longitude is required");
+  }
+
+  // ── Government data sources (parallel) ──
+  const govFetches = Promise.allSettled([
+    stateFips && countyFips
+      ? (cfg.tract_fips
+          ? fetchAcsByTract(stateFips, countyFips, cfg.tract_fips)
+          : fetchAcsByCounty(stateFips, countyFips))
+      : Promise.resolve(null),
+    stateFips && countyFips
+      ? fetchEmployment(stateFips + countyFips)
+      : Promise.resolve([]),
     queryFloodZone(lat, lng),
-    queryToxicsFacilities(lat, lng, 3, { stateFips: cfg.state_fips, countyName: cfg.county_name }),
-    querySuperfundSites(cfg.state_fips),
+    queryToxicsFacilities(lat, lng, 3, { stateFips, countyName }),
+    querySuperfundSites(stateFips),
   ]);
 
-  const val = (i: number) => results[i].status === "fulfilled" ? (results[i] as PromiseFulfilledResult<unknown>).value : null;
-  const err = (i: number) => results[i].status === "rejected" ? String((results[i] as PromiseRejectedResult).reason) : null;
+  // ── Google Maps data (parallel with gov data) ──
+  const dests = Array.isArray(cfg.drive_time_destinations)
+    ? cfg.drive_time_destinations
+    : typeof cfg.drive_time_destinations === "string"
+      ? cfg.drive_time_destinations.split(",").map((d) => d.trim()).filter(Boolean)
+      : [];
+  const mapsFetches = gmapsKey
+    ? Promise.allSettled([
+        nearbyPlaces(lat, lng, gmapsKey),
+        dests.length
+          ? distanceMatrix(lat, lng, dests, gmapsKey)
+          : Promise.resolve([]),
+      ])
+    : Promise.resolve(null);
 
-  const errors = [
-    err(0) && `census: ${err(0)}`,
-    err(1) && `bls: ${err(1)}`,
-    err(2) && `fema: ${err(2)}`,
-    err(3) && `epa_toxics: ${err(3)}`,
-    err(4) && `epa_superfund: ${err(4)}`,
-  ].filter(Boolean);
+  const [govResults, mapsResults] = await Promise.all([govFetches, mapsFetches]);
+
+  const val = (i: number) => govResults[i].status === "fulfilled" ? (govResults[i] as PromiseFulfilledResult<unknown>).value : null;
+  const err = (i: number) => govResults[i].status === "rejected" ? String((govResults[i] as PromiseRejectedResult).reason) : null;
+
+  const errors: string[] = [];
+  if (err(0)) errors.push(`census: ${err(0)}`);
+  if (err(1)) errors.push(`bls: ${err(1)}`);
+  if (err(2)) errors.push(`fema: ${err(2)}`);
+  if (err(3)) errors.push(`epa_toxics: ${err(3)}`);
+  if (err(4)) errors.push(`epa_superfund: ${err(4)}`);
+
+  // Extract maps data
+  let nearby: unknown = null;
+  let driveTimes: unknown = null;
+  if (Array.isArray(mapsResults)) {
+    const mVal = (i: number) => mapsResults[i]?.status === "fulfilled" ? (mapsResults[i] as PromiseFulfilledResult<unknown>).value : null;
+    const mErr = (i: number) => mapsResults[i]?.status === "rejected" ? String((mapsResults[i] as PromiseRejectedResult).reason) : null;
+    nearby = mVal(0);
+    driveTimes = mVal(1);
+    if (mErr(0)) errors.push(`google_places: ${mErr(0)}`);
+    if (mErr(1)) errors.push(`google_distance: ${mErr(1)}`);
+  }
 
   return {
+    location: geocoded ? {
+      formatted_address: geocoded.formatted_address,
+      latitude: lat,
+      longitude: lng,
+      county: countyName,
+      state: geocoded.address_components.state,
+      state_fips: stateFips,
+      county_fips: countyFips,
+    } : {
+      latitude: lat,
+      longitude: lng,
+      state_fips: stateFips,
+      county_fips: countyFips,
+      county: countyName || null,
+    },
     census: val(0),
     employment: val(1),
     flood_zone: val(2),
@@ -775,8 +871,33 @@ async function runDueDiligence(
       toxics_facilities: val(3),
       superfund_sites: val(4),
     },
+    nearby_places: nearby,
+    drive_times: driveTimes,
     errors,
   };
+}
+
+/** Resolve Google Maps API key from integration_connections or env var */
+async function resolveGoogleMapsKey(workspaceId: string): Promise<string | null> {
+  // 1. Try workspace integration connection
+  try {
+    const { data: conn } = await supabaseAdmin
+      .from("integration_connections")
+      .select("credentials")
+      .eq("workspace_id", workspaceId)
+      .eq("provider", "google_maps")
+      .eq("status", "connected")
+      .maybeSingle();
+    if (conn) {
+      const creds = conn.credentials as Record<string, string>;
+      if (creds.api_key) return creds.api_key;
+    }
+  } catch { /* fall through */ }
+
+  // 2. Try env var (platform-level fallback)
+  if (process.env.GOOGLE_MAPS_API_KEY) return process.env.GOOGLE_MAPS_API_KEY;
+
+  return null;
 }
 
 /** Format a section body for PDF output. If the value is a JSON array
@@ -803,11 +924,32 @@ function formatSectionBody(raw: string): string {
     const year = obj.year || "";
     const rate = obj.unemployment_rate != null ? `${obj.unemployment_rate}% unemployment` : "";
     const emp = obj.total_employment != null ? `${Number(obj.total_employment).toLocaleString()} employed` : "";
+    const vicinity = obj.vicinity || "";
+    const distMeters = obj.distance_meters != null ? `${(Number(obj.distance_meters) / 1609.34).toFixed(1)} mi` : "";
+    const rating = obj.rating != null ? `${obj.rating}/5` : "";
+    const placeType = obj.type || "";
 
-    if (name) {
+    // Nearby places format (Google Maps)
+    if (name && (vicinity || distMeters)) {
+      const parts = [name, vicinity || city, distMeters || dist, rating].filter(Boolean);
+      const prefix = placeType ? `[${String(placeType).replace(/_/g, " ")}] ` : "";
+      return `${i + 1}. ${prefix}${parts.join(" - ")}`;
+    }
+
+    // TRI/facility format
+    if (name && (city || dist)) {
       const parts = [name, city, dist].filter(Boolean);
       return `${i + 1}. ${parts.join(" - ")}`;
     }
+
+    // Drive time format
+    const destination = obj.destination || "";
+    const duration = obj.duration_text || "";
+    const distText = obj.distance_text || "";
+    if (destination && duration) {
+      return `${destination}: ${duration} (${distText})`;
+    }
+
     if (year && period) {
       const parts = [`${year} ${period}`, rate, emp].filter(Boolean);
       return parts.join(" | ");
@@ -1238,7 +1380,7 @@ async function executeNode(
       return runIntegrationQuery(cfg as Parameters<typeof runIntegrationQuery>[0], workspaceId);
     }
     case "due_diligence":
-      return runDueDiligence(cfg as Parameters<typeof runDueDiligence>[0]);
+      return runDueDiligence(cfg as Parameters<typeof runDueDiligence>[0], workspaceId);
     case "generate_document": {
       if (ctx.simulate) {
         return { simulated: true, would_have: { action: "generate_document", title: cfg.title, sections: Array.isArray(cfg.sections) ? cfg.sections.length : 0 } };

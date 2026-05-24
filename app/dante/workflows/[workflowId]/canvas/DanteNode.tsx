@@ -176,6 +176,8 @@ function nodeSummary(step: WorkflowStep): string | null {
       return p ? `${p} · ${m}` : null;
     }
     case "due_diligence": {
+      const addr = cfg.address as string;
+      if (addr) return truncate(addr, 32);
       const sf = cfg.state_fips as string;
       const cf = cfg.county_fips as string;
       if (sf && cf) return `FIPS: ${sf}-${cf}`;
