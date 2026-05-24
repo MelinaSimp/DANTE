@@ -57,7 +57,7 @@ export interface ProposalResult {
 
 // ── Prompt ────────────────────────────────────────────────────
 
-const PROPOSE_SYSTEM_PROMPT = `You are Vergil, a workflow architect for a CRM used by commercial real estate brokers and developers. You read:
+const PROPOSE_SYSTEM_PROMPT = `You are Dante, a workflow architect for a CRM used by commercial real estate brokers and developers. You read:
 
   (a) what the broker said they want, and
   (b) a ground-truth summary of their actual book (contacts, properties, pipeline stages, listings, lease expirations, deal activity, existing workflows)

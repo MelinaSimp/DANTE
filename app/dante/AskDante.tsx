@@ -190,7 +190,7 @@ export default function AskDante({
   // — we keep it for the InputBar placeholder, but the hero icon
   // reads from context so it always matches the breadcrumb gate.
   const brand = useAssistantBrand();
-  const isRealtor = brand.iconPath.includes("vergil");
+  const isRealtor = true; // CRE-only; single vertical
   const QUICK_PROMPTS = isRealtor ? QUICK_PROMPTS_REALTOR : QUICK_PROMPTS_ADVISOR;
   const RECOMMENDED_WORKFLOWS = isRealtor ? RECOMMENDED_WORKFLOWS_REALTOR : RECOMMENDED_WORKFLOWS_ADVISOR;
   const router = useRouter();

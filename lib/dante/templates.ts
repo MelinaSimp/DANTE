@@ -1953,7 +1953,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   {
     slug: "multi-market-void-analysis",
     name: "Multi-market site selection",
-    description: "Manual trigger. Broker provides a development thesis; Vergil runs void analyses across 3+ corridors, scans competitive landscape around top candidates, and delivers an investment-grade site selection report.",
+    description: "Manual trigger. Broker provides a development thesis; Dante runs void analyses across 3+ corridors, scans competitive landscape around top candidates, and delivers an investment-grade site selection report.",
     category: "Site intelligence",
     icon: "Globe2",
     accent: "flag",

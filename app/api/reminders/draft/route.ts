@@ -61,7 +61,7 @@ export async function POST(request: Request) {
 
 Rules:
 - The body should be a polished, ready-to-send email — concise, friendly, and useful.
-- Sign off as the user (their name is supplied below). Never sign as "Drift" or "Vergil".
+- Sign off as the user (their name is supplied below). Never sign as "Drift" or "Dante".
 - If the user's prompt doesn't specify a time, pick a sensible default (next business day at 9am local, treated as US/Eastern unless prompt says otherwise).
 - If you can't find the contact in the list, set contact_id to null but still draft the message. The user will pick a contact manually.
 - Never invent facts about the contact. Keep the body to topic + ask, no fabricated history.`;

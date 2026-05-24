@@ -21,7 +21,7 @@ export const FEATURE_DEFINITIONS = {
   // ── Base — included with $400/mo Drift core ───────────────────
   dante: {
     id: "dante",
-    name: "Dante / Vergil chat",
+    name: "Dante chat",
     description:
       "AI assistant chat surface, contextual ask panels, draft helper, ⌘/ Ask mode, EntityAsk hover handles.",
     tier: "base",

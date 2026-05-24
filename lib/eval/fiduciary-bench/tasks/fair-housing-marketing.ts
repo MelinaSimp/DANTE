@@ -1,6 +1,6 @@
 // FiduciaryBench task (realtor-side): fair-housing language review.
 //
-// Vergil's wedge. Tests whether the AI catches the steering and
+// Dante's wedge. Tests whether the AI catches the steering and
 // preference-signaling language HUD enforcement actually flags in
 // real cases, vs. innocuous descriptions that aren't violations.
 
@@ -12,7 +12,7 @@ export const FAIR_HOUSING_MARKETING: EvalTask = {
   category: "fair_housing_review",
   title: "Fair-housing review of listing language",
   description:
-    "Tests whether the AI flags Fair Housing Act protected-class violations in listing descriptions, distinguishing actual violations from innocuous neighborhood descriptions. Realtor-side — Vergil's compliance core.",
+    "Tests whether the AI flags Fair Housing Act protected-class violations in listing descriptions, distinguishing actual violations from innocuous neighborhood descriptions. Realtor-side — Dante's compliance core.",
   prompt_template:
     "Review this listing description for Fair Housing Act compliance issues:\n\n\"\"\"\n{{listing_text}}\n\"\"\"\n\nFlag any protected-class violations (race, color, religion, national origin, sex, familial status, disability), explain the issue, suggest replacement language, and cite HUD or FHA guidance.",
   industry_scope: ["real_estate"],
