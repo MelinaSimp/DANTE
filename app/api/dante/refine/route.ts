@@ -19,11 +19,11 @@ import { complete as llmComplete } from "@/lib/llm/client";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
-const PROMPT_SYSTEM = `You are a writing coach helping a financial advisor refine a query they're about to send to an AI assistant. Your job: take their draft prompt and rewrite it to be more specific, concrete, and likely to produce a useful answer. Keep the user's intent. Do not answer the question. Return ONLY the rewritten prompt, no preamble.
+const PROMPT_SYSTEM = `You are a writing coach helping a CRE broker refine a query they're about to send to an AI assistant. Your job: take their draft prompt and rewrite it to be more specific, concrete, and likely to produce a useful answer. Keep the user's intent. Do not answer the question. Return ONLY the rewritten prompt, no preamble.
 
 If the user provides an instruction (e.g. "more specific"), apply it. Otherwise, default to: add specificity, name the contact if implied, request a particular output format (bullets, table, prose) when appropriate.`;
 
-const ANSWER_SYSTEM = `You are an editor helping a financial advisor refine an AI-generated answer. Your job: rewrite the answer per the user's instruction (e.g. "shorter", "add bullets", "more formal"). Preserve any citation markers like [v1] or [mem:abc12345] verbatim — they're load-bearing. Return ONLY the rewritten answer, no preamble.`;
+const ANSWER_SYSTEM = `You are an editor helping a CRE broker refine an AI-generated answer. Your job: rewrite the answer per the user's instruction (e.g. "shorter", "add bullets", "more formal"). Preserve any citation markers like [v1] or [mem:abc12345] verbatim — they're load-bearing. Return ONLY the rewritten answer, no preamble.`;
 
 export async function POST(req: NextRequest) {
   const supabase = await createServerSupabase();

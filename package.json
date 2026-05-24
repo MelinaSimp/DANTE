@@ -13,6 +13,7 @@
     "lint": "next lint",
     "check:llm": "tsx scripts/check-llm-imports.ts",
     "check:schema": "tsx scripts/check-schema.ts",
+    "check:vertical": "bash scripts/check-vertical-language.sh",
     "test": "vitest run",
     "test:watch": "vitest",
     "smoke": "tsx tests/smoke/run.ts",

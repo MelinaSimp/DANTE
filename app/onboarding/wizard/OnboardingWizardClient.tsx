@@ -51,9 +51,7 @@ export default function OnboardingWizardClient({
   const assistantName = "Dante";
 
   const steps: Step[] = useMemo(() => {
-    const docCta = isRealtor
-      ? "Upload your first listing agreement"
-      : "Upload your first IPS or Form ADV";
+    const docCta = "Upload your first listing agreement";
     const contactCta = isRealtor ? "Add your first buyer or seller" : "Add your first client";
     const chatCta = isRealtor
       ? `Ask ${assistantName} to prep you for a showing`

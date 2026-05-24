@@ -27,7 +27,7 @@ function stripEmojis(text: string): string {
   return text.replace(EMOJI_RE, "").replace(/  +/g, " ");
 }
 
-const SYSTEM_PROMPT = `You are a web research assistant for Drift, a platform for financial advisors and real estate professionals.
+const SYSTEM_PROMPT = `You are a web research assistant for Drift, a platform for commercial real estate professionals.
 
 When asked to research a topic, URL, company, or data point:
 1. Use the web_search tool to find relevant, current information.
@@ -35,7 +35,7 @@ When asked to research a topic, URL, company, or data point:
 3. Cite every factual claim with its source URL.
 4. If a specific URL or domain was mentioned, search for content on that site.
 
-Focus on facts and data useful for financial advisors or real estate professionals. Be thorough but concise.`;
+Focus on facts and data useful for CRE brokers, developers, and investors. Be thorough but concise.`;
 
 function getClient(): Anthropic {
   const apiKey = process.env.ANTHROPIC_API_KEY;

@@ -565,8 +565,7 @@ async function generateFollowups(
   answer: string,
   industry: string | null,
 ): Promise<string[]> {
-  const verticalNoun =
-    industry === "real_estate" ? "real estate agent" : "financial advisor";
+  const verticalNoun = "commercial real estate professional";
 
   const result = await llmComplete({
     model: "claude-sonnet-4-6",

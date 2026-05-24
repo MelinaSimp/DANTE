@@ -8,13 +8,11 @@ import { Button } from "@/components/ui/button";
 
 type Step = "signin" | "signup";
 
-// Target verticals. Financial advisors are the primary audience;
-// real estate is the near-term expansion. "Other" stays as a soft
-// escape hatch so we don't block signups from adjacent industries,
-// but everything onboarding/dashboard-wise is tuned for the first two.
+// CRE-only vertical. "Other" stays as a soft escape hatch so we
+// don't block signups from adjacent industries, but everything
+// onboarding/dashboard-wise is tuned for commercial real estate.
 const COMPANY_OPTIONS = [
-  { value: "financial_advisor", label: "Financial advisor" },
-  { value: "real_estate", label: "Real estate" },
+  { value: "real_estate", label: "Commercial real estate" },
   { value: "other", label: "Other" },
 ] as const;
 

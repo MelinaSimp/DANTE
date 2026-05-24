@@ -45,9 +45,9 @@ interface DocRow {
 
 const KIND_OPTIONS: Array<{ value: ArchiveKind | ""; label: string }> = [
   { value: "", label: "Choose a kind…" },
-  { value: "form_adv", label: "Form ADV" },
-  { value: "ips", label: "Investment Policy Statement" },
-  { value: "prospectus", label: "Prospectus" },
+  { value: "lease", label: "Lease" },
+  { value: "listing_agreement", label: "Listing agreement" },
+  { value: "rent_roll", label: "Rent roll" },
   { value: "client_agreement", label: "Client agreement" },
   { value: "policy", label: "Internal policy / SOP" },
   { value: "regulation", label: "Regulation" },
