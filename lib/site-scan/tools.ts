@@ -15,6 +15,7 @@ import { upsertParcel, findParcel } from "./parcels";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { CountyAdapterConfig } from "./adapters/types";
 import { ArcGISError, CircuitOpenError } from "./adapters/resilience";
+import { nearbyPlaces, type NearbyPlace } from "@/lib/data-sources/google-maps";
 
 /**
  * Build a real URL to the ArcGIS REST HTML view for a specific parcel.
@@ -381,6 +382,145 @@ export async function handleSiteScanDetail(
 
 // ---- site_scan.void_analysis ---------------------------------
 
+// ── Market gap analysis via Google Maps Places ────────────────
+//
+// For each corridor anchor point, query Google Maps for existing
+// businesses in categories related to the target use. Count by
+// category and identify underserved segments (the actual "void").
+
+const TARGET_USE_TO_PLACE_TYPES: Record<string, string[]> = {
+  "grocery":          ["supermarket", "grocery_or_supermarket"],
+  "retail":           ["shopping_mall", "department_store", "clothing_store", "supermarket"],
+  "retail strip center": ["shopping_mall", "department_store", "clothing_store", "supermarket", "restaurant"],
+  "restaurant":       ["restaurant", "cafe", "meal_takeaway", "meal_delivery"],
+  "medical":          ["hospital", "doctor", "dentist", "pharmacy", "physiotherapist"],
+  "medical office":   ["hospital", "doctor", "dentist", "pharmacy"],
+  "fitness":          ["gym"],
+  "gas station":      ["gas_station"],
+  "bank":             ["bank", "atm"],
+  "office":           ["accounting", "insurance_agency", "lawyer", "real_estate_agency"],
+  "industrial":       ["storage"],
+  "mixed-use":        ["restaurant", "cafe", "supermarket", "bank", "gym", "doctor"],
+  "convenience":      ["convenience_store", "gas_station", "atm"],
+  "childcare":        ["school", "primary_school", "secondary_school"],
+  "general commercial": ["supermarket", "restaurant", "bank", "gas_station", "shopping_mall", "hospital"],
+};
+
+interface MarketGapResult {
+  corridor_coverage: Array<{
+    location: string;
+    lat: number;
+    lng: number;
+    businesses_found: number;
+    categories: Record<string, number>;
+    top_businesses: Array<{ name: string; type: string; distance_meters: number | null }>;
+  }>;
+  void_segments: Array<{
+    location: string;
+    missing_categories: string[];
+    businesses_in_area: number;
+    assessment: string;
+  }>;
+  market_density: {
+    total_businesses: number;
+    avg_per_point: number;
+    densest_point: string;
+    sparsest_point: string;
+  };
+}
+
+async function scanMarketGaps(
+  geoPoints: Array<{ loc: string; lat: number; lng: number }>,
+  targetUse: string,
+  gmapsKey: string,
+): Promise<MarketGapResult> {
+  const useKey = targetUse.toLowerCase().trim();
+  const placeTypes = TARGET_USE_TO_PLACE_TYPES[useKey]
+    || TARGET_USE_TO_PLACE_TYPES["general commercial"];
+
+  const corridorCoverage: MarketGapResult["corridor_coverage"] = [];
+
+  for (const point of geoPoints) {
+    const places = await nearbyPlaces(point.lat, point.lng, gmapsKey, {
+      radiusMeters: 3218, // 2 miles
+      types: placeTypes,
+    });
+
+    const categories: Record<string, number> = {};
+    for (const p of places) {
+      categories[p.type] = (categories[p.type] || 0) + 1;
+    }
+
+    corridorCoverage.push({
+      location: point.loc,
+      lat: point.lat,
+      lng: point.lng,
+      businesses_found: places.length,
+      categories,
+      top_businesses: places.slice(0, 5).map((p) => ({
+        name: p.name,
+        type: p.type,
+        distance_meters: p.distance_meters,
+      })),
+    });
+  }
+
+  // Identify void segments (locations where certain categories are missing)
+  const voidSegments: MarketGapResult["void_segments"] = [];
+  for (const point of corridorCoverage) {
+    const missing = placeTypes.filter((t) => !point.categories[t] || point.categories[t] === 0);
+    if (missing.length > 0) {
+      const severity = missing.length / placeTypes.length;
+      let assessment: string;
+      if (severity > 0.7) {
+        assessment = `Significant void: ${missing.length} of ${placeTypes.length} target categories absent. Strong development opportunity.`;
+      } else if (severity > 0.4) {
+        assessment = `Moderate void: ${missing.length} of ${placeTypes.length} target categories absent. Potential niche opportunity.`;
+      } else {
+        assessment = `Minor gap: ${missing.length} underrepresented category(s). Market is mostly served.`;
+      }
+      voidSegments.push({
+        location: point.location,
+        missing_categories: missing.map((t) => t.replace(/_/g, " ")),
+        businesses_in_area: point.businesses_found,
+        assessment,
+      });
+    }
+  }
+
+  const totals = corridorCoverage.map((c) => c.businesses_found);
+  const total = totals.reduce((a, b) => a + b, 0);
+
+  return {
+    corridor_coverage: corridorCoverage,
+    void_segments: voidSegments,
+    market_density: {
+      total_businesses: total,
+      avg_per_point: Math.round(total / Math.max(corridorCoverage.length, 1)),
+      densest_point: corridorCoverage.reduce((a, b) => a.businesses_found > b.businesses_found ? a : b).location,
+      sparsest_point: corridorCoverage.reduce((a, b) => a.businesses_found < b.businesses_found ? a : b).location,
+    },
+  };
+}
+
+/** Resolve Google Maps API key from workspace integration or env */
+async function resolveGmapsKey(workspaceId: string): Promise<string | null> {
+  try {
+    const { data: conn } = await supabaseAdmin
+      .from("integration_connections")
+      .select("credentials")
+      .eq("workspace_id", workspaceId)
+      .eq("provider", "google_maps")
+      .eq("status", "connected")
+      .maybeSingle();
+    if (conn) {
+      const creds = conn.credentials as Record<string, string>;
+      if (creds.api_key) return creds.api_key;
+    }
+  } catch { /* fall through */ }
+  return process.env.GOOGLE_MAPS_API_KEY || null;
+}
+
 export async function handleSiteScanVoidAnalysis(
   args: {
     locations: string[];
@@ -432,7 +572,26 @@ export async function handleSiteScanVoidAnalysis(
     });
   }
 
-  // 2. Search each geocoded point (10-mile radius, up to 40 results each)
+  // 2a. Kick off Google Maps market gap scan in parallel (if key available)
+  const targetUse = args.target_use ?? "general commercial";
+  const gmapsKeyPromise = resolveGmapsKey(workspaceId);
+  const marketGapPromise: Promise<MarketGapResult | null> = gmapsKeyPromise.then(
+    async (key) => {
+      if (!key) return null;
+      try {
+        return await scanMarketGaps(
+          validGeos.map((g) => ({ loc: g.loc, lat: g.geo.lat, lng: g.geo.lng })),
+          targetUse,
+          key,
+        );
+      } catch (err) {
+        console.warn("[void_analysis] market gap scan failed:", err);
+        return null;
+      }
+    },
+  );
+
+  // 2b. Search each geocoded point (10-mile radius, up to 40 results each)
   const allParcels: Array<{
     parcel_number: string;
     address: string;
@@ -670,9 +829,12 @@ export async function handleSiteScanVoidAnalysis(
     )
     .join("\n\n");
 
+  // 8. Await Google Maps market gap results (was running in parallel)
+  const marketGap = await marketGapPromise;
+
   return JSON.stringify({
     analysis_type: "directional_void_analysis",
-    target_use: args.target_use ?? "general commercial",
+    target_use: targetUse,
     search_points: validGeos.map((g) => g.geo.matched_address),
     total_parcels_scanned: allParcels.length,
     unique_after_dedup: unique.length,
@@ -682,6 +844,17 @@ export async function handleSiteScanVoidAnalysis(
       data_source_note:
         `${dataSourceIssues.length} county source(s) had issues. ` +
         "Results may be incomplete for those areas. Mention affected counties when presenting findings.",
+    }),
+    ...(marketGap && {
+      market_gap: {
+        corridor_coverage: marketGap.corridor_coverage,
+        void_segments: marketGap.void_segments,
+        market_density: marketGap.market_density,
+        note:
+          "Market gap analysis powered by Google Maps Places API. " +
+          "Void segments indicate locations where target-use categories have " +
+          "low or zero existing competition within 2 miles.",
+      },
     }),
     formatted,
     citations,
