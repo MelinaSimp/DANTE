@@ -38,7 +38,7 @@ const REAL_ESTATE: IndustryConfig = {
   marketingChips: ["Parcel intelligence", "Citation-grounded"],
   displayName: "CRE Broker",
   assistantName: "Dante",
-  assistantIconPath: "/brand/dante-double-gate-black.png",
+  assistantIconPath: "/brand/dante-double-gate-black.png?v=2",
   clientLabel: "client",
   clientLabelPlural: "clients",
   danteHero: "What do you need today?",
