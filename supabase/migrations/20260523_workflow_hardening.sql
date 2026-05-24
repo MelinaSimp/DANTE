@@ -59,10 +59,17 @@ CREATE INDEX IF NOT EXISTS idx_dante_runs_active_per_workflow
   ON public.dante_workflow_runs (workflow_id)
   WHERE status IN ('queued', 'running');
 
--- ── Cancelled status support ────────────────────────────────
--- Index for the cancel endpoint to quickly find runs by ID+status.
--- The existing PK covers id lookups, but the status filter benefits
--- from a partial index for the queue tick's stale-run recovery.
+-- ── Cancelled + waiting_approval status support ─────────────
+-- Expand the CHECK constraint to include new statuses.
+
+ALTER TABLE public.dante_workflow_runs
+  DROP CONSTRAINT IF EXISTS dante_workflow_runs_status_valid;
+ALTER TABLE public.dante_workflow_runs
+  ADD CONSTRAINT dante_workflow_runs_status_valid
+  CHECK (status = ANY (ARRAY[
+    'queued', 'running', 'success', 'error',
+    'cancelled', 'waiting_approval'
+  ]));
 
 CREATE INDEX IF NOT EXISTS idx_dante_runs_cancelled
   ON public.dante_workflow_runs (id)
