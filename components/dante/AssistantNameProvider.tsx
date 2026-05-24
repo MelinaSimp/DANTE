@@ -15,7 +15,7 @@ interface AssistantBrand {
 
 const DEFAULT_BRAND: AssistantBrand = {
   name: "Dante",
-  iconPath: "/brand/dante-double-gate-black.png?v=2",
+  iconPath: "/brand/dante-sword.png",
 };
 
 const AssistantBrandContext = createContext<AssistantBrand>(DEFAULT_BRAND);

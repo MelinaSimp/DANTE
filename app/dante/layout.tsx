@@ -28,7 +28,7 @@ export async function generateMetadata(): Promise<Metadata> {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return { icons: { icon: "/brand/dante-double-gate-black.png?v=2" } };
+    return { icons: { icon: "/brand/dante-sword.png" } };
   }
   const { data: profile } = await supabase
     .from("profiles")
@@ -36,7 +36,7 @@ export async function generateMetadata(): Promise<Metadata> {
     .eq("id", user.id)
     .maybeSingle();
   if (!profile?.workspace_id) {
-    return { icons: { icon: "/brand/dante-double-gate-black.png?v=2" } };
+    return { icons: { icon: "/brand/dante-sword.png" } };
   }
   const { data: workspace } = await supabase
     .from("workspaces")
