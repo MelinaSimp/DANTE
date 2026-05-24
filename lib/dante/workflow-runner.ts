@@ -305,10 +305,16 @@ async function runOpenAI(cfg: {
     }
   }
 
+  // Floor at 2000 tokens — anything less risks truncated output for
+  // real documents (DD checklists, analysis reports, etc.). Configured
+  // values above 2000 are honored as-is.
+  const requestedTokens = Number(cfg.max_tokens) || 4000;
+  const maxTokens = Math.max(requestedTokens, 2000);
+
   const result = await llmComplete({
     model,
     messages,
-    maxTokens: Number(cfg.max_tokens) || 800,
+    maxTokens,
     feature: "workflow.openai_node",
   });
   return { text: result.message.content ?? "", raw: result.raw };

@@ -816,9 +816,9 @@ const dueDiligenceGraph: WorkflowGraph = {
         id: "checklist", type: "openai", name: "Generate DD checklist",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You produce thorough, actionable due diligence checklists for CRE transactions. Cite firm policy where available. Include deadlines relative to the closing target.",
+          system: "You produce thorough, actionable due diligence checklists for CRE transactions. Cite firm policy where available. Include deadlines relative to the closing target. Be concise but complete — use bullet points, not full paragraphs.",
           prompt: "Deal details:\nProperty: {{steps.trigger.input.property_address}}\nBuyer: {{steps.trigger.input.buyer_name}}\nSale price: {{steps.trigger.input.sale_price}}\nClosing target: {{steps.trigger.input.closing_target}}\nContingencies: {{steps.trigger.input.contingencies}}\n\nExisting lease data:\n{{steps.leases.abstracts}}\n\nFirm DD policy (if available):\n{{steps.archive.context}}\n\nGenerate a complete due diligence checklist with:\n1. Title and survey items (with deadlines)\n2. Environmental (Phase I/II if needed)\n3. Physical inspection items\n4. Financial review (rent rolls, operating statements, tax returns)\n5. Lease review (existing tenants, estoppels, SNDAs)\n6. Zoning and permitting verification\n7. Insurance requirements\n\nInclude responsible party and deadline for each item. Format as a professional email body.",
-          max_tokens: 1500,
+          max_tokens: 4000,
         },
       } },
     },
