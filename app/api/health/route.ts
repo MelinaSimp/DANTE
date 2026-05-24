@@ -7,7 +7,7 @@ import { createClient } from "@supabase/supabase-js";
 // Pings Supabase and verifies the OpenAI key is present.
 // Returns 200 when healthy, 503 when degraded.
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 interface Check {

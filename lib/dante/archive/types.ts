@@ -5,19 +5,19 @@
 // server helpers and client components.
 
 export type ArchiveKind =
-  | "form_adv"          // SEC Form ADV filings
-  | "ips"               // Investment Policy Statement
-  | "prospectus"        // fund prospectus / offering docs
-  | "client_agreement"  // advisory / engagement letters
-  | "policy"            // internal firm policy / SOP
-  | "regulation"        // FINRA / SEC / state rulebook excerpts
-  | "memo"              // compliance / research memos
+  | "lease"              // commercial lease agreements
+  | "listing_agreement"  // exclusive listing / representation agreements
+  | "rent_roll"          // tenant rent rolls
+  | "client_agreement"   // engagement / representation letters
+  | "policy"             // internal firm policy / SOP
+  | "regulation"         // zoning, environmental, municipal code
+  | "memo"               // deal memos / research
   | "other";
 
 export const ARCHIVE_KIND_LABELS: Record<ArchiveKind, string> = {
-  form_adv: "Form ADV",
-  ips: "IPS",
-  prospectus: "Prospectus",
+  lease: "Lease",
+  listing_agreement: "Listing agreement",
+  rent_roll: "Rent roll",
   client_agreement: "Client agreement",
   policy: "Policy / SOP",
   regulation: "Regulation",

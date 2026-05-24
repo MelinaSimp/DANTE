@@ -1,10 +1,9 @@
 "use client";
 
-// Provides the per-workspace assistant brand (name + icon path) — Dante
-// + double-gate for FA, Vergil + echo for RE — to every component under
-// /dante/*. Lives at the layout level so the six sub-page breadcrumbs
-// can read it without each parent server page having to fetch + thread
-// the prop down.
+// Provides the per-workspace assistant brand (name + icon path) to every
+// component under /dante/*. Lives at the layout level so the sub-page
+// breadcrumbs can read it without each parent server page having to
+// fetch + thread the prop down.
 
 import { createContext, useContext, type ReactNode } from "react";
 

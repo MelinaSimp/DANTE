@@ -308,7 +308,7 @@ export default function DanteArchiveClient() {
                 <div className="label-section mb-1.5">Tags</div>
                 <input
                   value={tags} onChange={(e) => setTags(e.target.value)}
-                  placeholder="retirement, rollover, 2024"
+                  placeholder="industrial, downtown, 2024"
                   className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
                 />
               </div>
@@ -316,7 +316,7 @@ export default function DanteArchiveClient() {
                 <div className="label-section mb-1.5">Source URL (optional)</div>
                 <input
                   value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)}
-                  placeholder="https://adviserinfo.sec.gov/…"
+                  placeholder="https://loopnet.com/listing/…"
                   className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
                 />
               </div>

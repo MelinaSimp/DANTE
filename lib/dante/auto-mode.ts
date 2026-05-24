@@ -4,7 +4,7 @@
 // lib/llm/processing-mode.ts walks workspace → contact → doc →
 // chat (most-restrictive wins) and is right when the local_only
 // flag is set on something the agent already has in scope. But
-// when the user asks Dante (or Vergil) about a file by name —
+// when the user asks Dante about a file by name —
 // "what does the LOI say about exclusivity?" — the static
 // resolver doesn't know which doc the question is about, so a
 // cloud-default workspace stays cloud, and a local_only file

@@ -25,7 +25,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const VALID_KINDS = new Set<ArchiveKind>([
-  "form_adv", "ips", "prospectus", "client_agreement",
+  "lease", "listing_agreement", "rent_roll", "client_agreement",
   "policy", "regulation", "memo", "other",
 ]);
 

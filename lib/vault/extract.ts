@@ -127,7 +127,8 @@ async function extractDocx(buffer: Buffer): Promise<ExtractResult> {
 
 function extractXlsx(buffer: Buffer): ExtractResult {
   try {
-    const XLSX = require("xlsx") as typeof import("xlsx");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+    const XLSX = require("xlsx");
     const workbook = XLSX.read(buffer, { type: "buffer" });
     const sheets: string[] = [];
     for (const name of workbook.SheetNames) {
@@ -148,7 +149,8 @@ function extractXlsx(buffer: Buffer): ExtractResult {
 
 function extractXlsxWithPages(buffer: Buffer): PageAwareExtractResult {
   try {
-    const XLSX = require("xlsx") as typeof import("xlsx");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+    const XLSX = require("xlsx");
     const workbook = XLSX.read(buffer, { type: "buffer" });
     const pages: string[] = [];
     for (const name of workbook.SheetNames) {
