@@ -137,6 +137,89 @@ const QUICK_PROMPTS_REALTOR: Array<{ label: string; prompt: string }> = [
   },
 ];
 
+// Deep analysis templates — heavyweight prompts that run multi-tool
+// agent loops. Each has a placeholder (__________) the user fills in.
+const DEEP_PROMPTS_REALTOR: Array<{ label: string; description: string; prompt: string }> = [
+  {
+    label: "Full void analysis",
+    description: "Parcel data, demographics, tenant gaps, traffic, competitive supply, highest-and-best-use",
+    prompt: `I'm looking at __________. Run a full void analysis on this property and its trade area.
+
+Start with the site — pull whatever you can on the parcel: zoning, lot size, assessed value, current use, and any recent tax or ownership history. If there's an existing structure, give me the building specs.
+
+Then analyze the trade area — 1-mile and 3-mile rings from this address:
+
+1. DEMOGRAPHIC SNAPSHOT: Population, median household income, median age, household growth trend. How does the 1-mile ring compare to the 3-mile ring — am I in the stronger pocket or the weaker one?
+
+2. VOID ANALYSIS: What tenant categories are missing or underserved relative to the demographics? Flag gaps in medical, dental, veterinary, QSR, fast-casual, personal services (salon, barber, spa), fitness, professional office, and specialty retail. Cross-reference against what's already clustered along the corridor — I don't want to duplicate what's within a 5-minute drive.
+
+3. TRAFFIC & ACCESS: What are the AADT counts at this location? Signalized intersection? Ingress/egress constraints? How does visibility and access compare to nearby retail nodes?
+
+4. COMPETITIVE SUPPLY: What other retail or mixed-use vacancies exist within 3 miles? If there's available space nearby at lower basis, tell me — I need to know what I'm competing against for tenant attention.
+
+5. HIGHEST AND BEST USE: Given the zoning, parcel size, location along the corridor, and the void gaps you identified — what tenant mix would maximize rent per square foot while maintaining low turnover risk? Give me a realistic lease-up scenario.
+
+6. RENT COMPS: What are NNN asking rents for comparable retail/office space in this submarket? What spread should I expect between inline and endcap?
+
+Tell me what this site wants to be.`,
+  },
+  {
+    label: "Acquisition underwrite",
+    description: "NOI rebuild, cap rate analysis, refinance risk, comp transactions",
+    prompt: `I'm evaluating __________ for acquisition. The asking price is $__________.
+
+Run a full underwriting analysis:
+
+1. RENT ROLL AUDIT: What is the current gross rent roll versus effective collections? Break out vacancy, concessions, and credit loss.
+
+2. NOI REBUILD: Reconstruct the stabilized NOI. Assume realistic market rents for any vacant or month-to-month spaces, 6 months of downtime per turnover, and $15/SF TI allowance on new leases.
+
+3. CAP RATE: What cap rate should I underwrite for this submarket and asset class — not the broker's quoted rate, the rate a lender would use for sizing?
+
+4. COMP TRANSACTIONS: What comparable transactions have closed within 10 miles in the last 18 months? How does the asking basis per square foot compare?
+
+5. REFINANCE RISK: Given the tenant mix and remaining lease terms, what is my refinance risk at year 5 if rates stay flat vs. rise 75bps?
+
+6. VERDICT: Walk me through whether this is a buy, a negotiate, or a pass.`,
+  },
+  {
+    label: "Lease abstract + red flags",
+    description: "Full lease abstraction with risk analysis and clause-by-clause review",
+    prompt: `Abstract the lease for __________. I need a full breakdown:
+
+1. PARTIES AND PREMISES: Tenant, landlord, guarantor, premises description, permitted use.
+
+2. TERM: Commencement, expiration, renewal options (terms and notice periods), early termination rights.
+
+3. RENT STRUCTURE: Base rent schedule with escalations, percentage rent if applicable, free rent/abatement periods.
+
+4. OPERATING EXPENSES: CAM/OpEx structure (NNN, modified gross, full service?), tax obligations, insurance requirements, management fee caps.
+
+5. KEY CLAUSES: Co-tenancy, exclusive use, go-dark provisions, assignment/subletting restrictions, SNDA, holdover terms, default/cure periods.
+
+6. RED FLAGS: Flag anything unusual, one-sided, or that creates outsized landlord/tenant risk. Note any cross-reference inconsistencies between sections.
+
+Cite specific sections and page numbers for every data point.`,
+  },
+  {
+    label: "Market rent comp survey",
+    description: "Asking rents, vacancy rates, and absorption trends for a submarket",
+    prompt: `Run a rent comp survey for the __________ submarket.
+
+1. ASKING RENTS: What are current NNN asking rents for comparable retail/office space? Break out by asset quality (A/B/C) and position (inline, endcap, pad, freestanding).
+
+2. VACANCY: What is the current vacancy rate and how does it compare to the trailing 12-month average?
+
+3. ABSORPTION: Is net absorption positive or negative? What new supply is in the pipeline?
+
+4. TENANT MIX TRENDS: What categories are expanding vs. contracting in this market? Where is demand strongest?
+
+5. RENT GROWTH: What has annual rent growth been over the last 3 years? What is the forward outlook?
+
+Chart the data wherever it helps — I want to see the numbers, not just read about them.`,
+  },
+];
+
 // Quick-jump pills under the landing input. Each routes to its real
 // page so the "Memory" / "Vault" / etc. labels aren't decorative —
 // click them and you land on the workspace's memory, vault docs,
@@ -621,6 +704,7 @@ export default function AskDante({
                 attachments={attachments}
                 onRemoveAttachment={(idx) => setAttachments((prev) => prev.filter((_, i) => i !== idx))}
                 quickPrompts={QUICK_PROMPTS}
+                isRealtor={isRealtor}
               />
               <input
                 ref={fileInputRef}
@@ -892,6 +976,7 @@ interface InputBarProps {
    *  feel like noise. */
   compact?: boolean;
   quickPrompts?: Array<{ label: string; prompt: string }>;
+  isRealtor?: boolean;
 }
 
 function InputBar(p: InputBarProps) {
@@ -1031,7 +1116,7 @@ function InputBar(p: InputBarProps) {
       </div>
 
       {p.promptsOpen && (
-        <div className="border-t border-black/[0.06] px-3 py-3">
+        <div className="border-t border-black/[0.06] px-3 py-3 max-h-[50vh] overflow-y-auto">
           <div className="text-[10px] uppercase tracking-wider text-[var(--ink-subtle)] mb-2">
             Quick prompts
           </div>
@@ -1050,6 +1135,34 @@ function InputBar(p: InputBarProps) {
               </button>
             ))}
           </div>
+
+          {p.isRealtor && (
+            <>
+              <div className="text-[10px] uppercase tracking-wider text-[var(--ink-subtle)] mb-2 mt-4 pt-3 border-t border-black/[0.06]">
+                Deep analysis
+              </div>
+              <div className="space-y-1.5">
+                {DEEP_PROMPTS_REALTOR.map((q) => (
+                  <button
+                    key={q.label}
+                    onClick={() => {
+                      p.setInput(q.prompt);
+                      p.setPromptsOpen(false);
+                      p.textareaRef.current?.focus();
+                    }}
+                    className="block w-full text-left rounded-lg px-3 py-2.5 hover:bg-[var(--neu-hover)] transition group"
+                  >
+                    <div className="text-[13px] text-[var(--ink)] font-medium group-hover:text-[var(--ink)]">
+                      {q.label}
+                    </div>
+                    <div className="text-[11px] text-[var(--ink-subtle)] mt-0.5 leading-relaxed">
+                      {q.description}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -1076,7 +1189,7 @@ function ToolbarButton({
   onClick?: () => void;
 }) {
   const palette = active
-    ? "text-blue-600 bg-[var(--neu-active)] shadow-[var(--neu-shadow-pressed)]"
+    ? "text-[var(--ink)] bg-[var(--neu-active)] shadow-[var(--neu-shadow-pressed)]"
     : disabled
       ? "text-[var(--ink-subtle)] opacity-50"
       : "text-[var(--ink-subtle)] hover:bg-[var(--neu-hover)] hover:text-[var(--ink-muted)]";
