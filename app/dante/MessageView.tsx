@@ -11,6 +11,7 @@
 // aggregated Sources block, suggested follow-ups. Harvey-style.
 
 import { useState } from "react";
+import { LumaSpin } from "@/components/ui/luma-spin";
 import {
   Loader2,
   ChevronDown,
@@ -355,10 +356,7 @@ export function LiveThinking({
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center gap-2 px-3 py-2 text-xs text-[var(--ink-subtle)]"
       >
-        <span
-          className="relative inline-flex w-1.5 h-1.5 rounded-full bg-[var(--ink-subtle)] animate-glow-pulse"
-          aria-hidden
-        />
+        <LumaSpin size={14} className="text-[var(--ink-muted)]" />
         <span className="font-medium text-[var(--ink-muted)]">Working…</span>
         {deep && (
           <span className="inline-flex items-center gap-1 rounded-full bg-[var(--neu-hover)] px-2 py-0.5 text-[10px] text-[var(--ink-muted)]">
