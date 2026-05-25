@@ -891,32 +891,31 @@ export default function AskDante({
 
             <div ref={bottomRef} />
           </div>
-        </div>
-      )}
 
-      {/* Pinned input bar in expanded mode */}
-      {inExpandedMode && (
-        <div className="fixed bottom-0 left-64 right-0 bg-gradient-to-t from-[var(--canvas)] via-[var(--canvas)]/95 to-transparent pt-6 pb-4 z-30">
-          <div className="max-w-4xl mx-auto px-6 md:px-8">
-            <InputBar
-              compact
-              input={input}
-              setInput={setInput}
-              onKeyDown={onKeyDown}
-              submit={() => submit()}
-              streaming={streamState.streaming}
-              deepResearch={deepResearch}
-              setDeepResearch={setDeepResearch}
-              webScrape={webScrape}
-              setWebScrape={setWebScrape}
-              promptsOpen={promptsOpen}
-              setPromptsOpen={setPromptsOpen}
-              onCustomize={onCustomize}
-              customizing={refining === "customize"}
-              textareaRef={textareaRef}
-              rows={2}
-              assistantName={assistantName}
-            />
+          {/* Pinned input bar — sticky within the scroll container so it
+              centres against the same width as the messages above. */}
+          <div className="sticky bottom-0 z-30 bg-gradient-to-t from-[var(--canvas)] via-[var(--canvas)]/95 to-transparent pt-6 pb-4">
+            <div className="max-w-4xl mx-auto px-6 md:px-8">
+              <InputBar
+                compact
+                input={input}
+                setInput={setInput}
+                onKeyDown={onKeyDown}
+                submit={() => submit()}
+                streaming={streamState.streaming}
+                deepResearch={deepResearch}
+                setDeepResearch={setDeepResearch}
+                webScrape={webScrape}
+                setWebScrape={setWebScrape}
+                promptsOpen={promptsOpen}
+                setPromptsOpen={setPromptsOpen}
+                onCustomize={onCustomize}
+                customizing={refining === "customize"}
+                textareaRef={textareaRef}
+                rows={2}
+                assistantName={assistantName}
+              />
+            </div>
           </div>
         </div>
       )}
