@@ -10,105 +10,85 @@
 // hiding the work in prose, the user gets a visual breakdown they
 // can scan at a glance.
 //
-// Format the agent emits:
-//
-//     ```reasoning
-//     {
-//       "kind": "calculation" | "decision" | "comparison",
-//       "title": "RMD calculation for Sarah Smith, 2026",
-//       "steps": [
-//         {
-//           "label": "Account balance (Dec 31 2025)",
-//           "value": "$850,000"
-//         },
-//         {
-//           "label": "Holder age in 2026",
-//           "value": "73"
-//         },
-//         {
-//           "label": "Uniform Lifetime divisor",
-//           "value": "26.5",
-//           "source": "Treas. Reg. §1.401(a)(9)-9 Table III"
-//         },
-//         {
-//           "label": "RMD = balance ÷ divisor",
-//           "value": "$32,075.47",
-//           "highlight": true
-//         }
-//       ]
-//     }
-//     ```
+// Supported kinds:
+//   calculation  — numbered steps leading to a result
+//   decision     — branching logic with a conclusion
+//   comparison   — side-by-side columns
+//   allocation   — proportional bars summing to 100%
+//   timeline     — chronological milestones
+//   chart        — bar / line / pie via recharts
 //
 // Why custom JSON instead of Mermaid:
-//   • The audience (older RIA principals) doesn't read flowcharts.
-//     Step-cards are more familiar and more readable.
-//   • No new dependency (mermaid would be +600KB).
-//   • Tighter design control — matches the citation chip / vault
-//     popover styling.
-//   • Each step can carry a `source` field that integrates with the
-//     existing citation infrastructure.
-//
-// The renderer is intentionally minimal — three shapes (calc /
-// decision / comparison), one styled card per shape. If we need
-// richer diagrams later, mermaid is an additive option that drops
-// in alongside this without replacing it.
+//   The audience (55-70+ CRE brokers) doesn't read flowcharts.
+//   Step-cards and charts are more familiar and more readable.
+//   No new dependency (mermaid would be +600KB).
+//   Tighter design control — matches the citation chip / vault
+//   popover styling.
 
+import { useMemo } from "react";
 import {
   Calculator,
   GitBranch,
   ArrowLeftRight,
   Sparkles,
-  PieChart,
+  PieChart as PieChartIcon,
   CalendarDays,
+  BarChart3,
 } from "lucide-react";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from "recharts";
 
 export type ReasoningKind =
   | "calculation"
   | "decision"
   | "comparison"
-  // Allocation — proportional bars summing toward a whole. Dante:
-  // portfolio asset-class %, expense breakdown, sector tilt. Vergil:
-  // budget allocation, comp-price distribution, deal-stage funnel.
   | "allocation"
-  // Timeline — chronological milestones. Dante: client lifecycle,
-  // RMD windows, contribution deadlines. Vergil: transaction
-  // timeline, contingency cadence, listing schedule.
-  | "timeline";
+  | "timeline"
+  // Chart — renders a recharts bar, line, or pie chart. Vergil uses
+  // this for rent comps, demographic breakdowns, vacancy rates, cap
+  // rate trends, and any numeric dataset that reads better visual.
+  | "chart";
 
 export interface ReasoningStep {
-  /** What this step represents — short label, no period. */
   label: string;
-  /** The value or outcome. Free text — currency, divisor, "yes", etc. */
   value: string;
-  /** Optional citation. Free text; no enforced format. */
   source?: string;
-  /** Optional — when true, the step is rendered as the conclusion
-   *  (heavier weight, accent color). The final step of a calculation
-   *  is the typical use. */
   highlight?: boolean;
-  /** Optional — for "comparison" kind, which column the step
-   *  belongs to. Free text label like "Roth conversion" or
-   *  "Stay in traditional". */
   column?: string;
-  /** Optional — for "allocation" kind, the proportional weight of
-   *  this slice. Numeric; renderer normalizes to 100%. If omitted,
-   *  the renderer tries to parse a % out of `value`. */
   weight?: number;
-  /** Optional — for "timeline" kind, ISO date string or human-
-   *  readable date label ("Q3 2026", "Mar 15, 2026"). */
   date?: string;
+  /** For "chart" kind — numeric value for the data point. If omitted,
+   *  the renderer tries to parse a number out of `value`. */
+  numericValue?: number;
+  /** For "chart" kind — optional color hex for this data point. */
+  color?: string;
 }
 
 export interface ReasoningBlockData {
   kind: ReasoningKind;
   title: string;
-  /** Optional one-line subtitle — when the calculation has a key
-   *  caveat the user should see immediately ("Assumes single
-   *  beneficiary; spousal Joint table not applied"). */
   subtitle?: string;
   steps: ReasoningStep[];
-  /** Optional — for "decision" kind, the final answer. */
   conclusion?: string;
+  /** For "chart" kind — "bar" | "line" | "pie". Defaults to "bar". */
+  chartType?: "bar" | "line" | "pie";
+  /** For "chart" kind — Y-axis label (e.g. "$/SF", "Units", "%"). */
+  yAxisLabel?: string;
+  /** For "chart" kind — X-axis label. */
+  xAxisLabel?: string;
 }
 
 /**
@@ -125,7 +105,8 @@ export function parseReasoningBlock(raw: string): ReasoningBlockData | null {
       obj.kind !== "decision" &&
       obj.kind !== "comparison" &&
       obj.kind !== "allocation" &&
-      obj.kind !== "timeline"
+      obj.kind !== "timeline" &&
+      obj.kind !== "chart"
     ) {
       return null;
     }
@@ -146,6 +127,9 @@ export default function ReasoningBlock({ data }: { data: ReasoningBlockData }) {
   }
   if (data.kind === "timeline") {
     return <TimelineView data={data} />;
+  }
+  if (data.kind === "chart") {
+    return <ChartView data={data} />;
   }
 
   const Icon = data.kind === "calculation" ? Calculator : GitBranch;
@@ -351,7 +335,7 @@ function AllocationView({ data }: { data: ReasoningBlockData }) {
       className="my-3 border border-[var(--rule)] rounded-md overflow-hidden bg-[var(--surface,#fff)]"
     >
       <header className="flex items-center gap-2 px-4 py-3 border-b border-[var(--rule)] bg-[var(--canvas-subtle,rgba(0,0,0,0.025))]">
-        <PieChart
+        <PieChartIcon
           className="w-3.5 h-3.5 text-[var(--ink-muted)]"
           strokeWidth={1.5}
         />
@@ -490,6 +474,87 @@ function TimelineView({ data }: { data: ReasoningBlockData }) {
           <span className="mono text-[10px] uppercase tracking-wider text-[var(--ink-subtle)] mr-2">
             Result
           </span>
+          {data.conclusion}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ── Chart view ──────────────────────────────────────────────────
+
+const CHART_PALETTE = [
+  "#374151", "#6B7280", "#9CA3AF", "#1F2937",
+  "#D1D5DB", "#4B5563", "#E5E7EB", "#111827",
+];
+
+function ChartView({ data }: { data: ReasoningBlockData }) {
+  const chartType = data.chartType || "bar";
+
+  const chartData = useMemo(() =>
+    data.steps.map((step) => {
+      let num = step.numericValue;
+      if (num == null) {
+        const cleaned = step.value.replace(/[$,%]/g, "").replace(/,/g, "");
+        num = parseFloat(cleaned) || 0;
+      }
+      return { name: step.label, value: num, displayValue: step.value, color: step.color };
+    }),
+  [data.steps]);
+
+  const tip = {
+    background: "var(--surface, #fff)",
+    border: "1px solid var(--rule, #e5e7eb)",
+    borderRadius: 6, fontSize: 12,
+    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+  };
+
+  return (
+    <section aria-label={data.title} className="my-5 border border-[var(--rule)] rounded-lg overflow-hidden bg-[var(--surface,#fff)]">
+      <header className="flex items-center gap-2 px-5 py-4 border-b border-[var(--rule)] bg-[var(--canvas-subtle,rgba(0,0,0,0.025))]">
+        <BarChart3 className="w-4 h-4 text-[var(--ink-muted)]" strokeWidth={1.5} />
+        <div className="flex-1 min-w-0">
+          <div className="text-[11px] mono uppercase tracking-wider text-[var(--ink-subtle)]">
+            {chartType === "pie" ? "Distribution" : "Chart"}
+          </div>
+          <div className="text-sm font-medium text-[var(--ink)] truncate">{data.title}</div>
+        </div>
+      </header>
+      {data.subtitle && <div className="px-5 pt-3 text-xs text-[var(--ink-muted)] italic">{data.subtitle}</div>}
+      <div className="px-4 py-5" style={{ height: chartType === "pie" ? 320 : 280 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          {chartType === "bar" ? (
+            <BarChart data={chartData} margin={{ top: 8, right: 16, bottom: 24, left: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--rule, #e5e7eb)" vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 11, fill: "var(--ink-muted, #6b7280)" }} axisLine={{ stroke: "var(--rule, #e5e7eb)" }} tickLine={false} interval={0} angle={chartData.length > 6 ? -35 : 0} textAnchor={chartData.length > 6 ? "end" : "middle"} height={chartData.length > 6 ? 60 : 30} label={data.xAxisLabel ? { value: data.xAxisLabel, position: "insideBottom", offset: -20, fontSize: 11, fill: "var(--ink-subtle, #9ca3af)" } : undefined} />
+              <YAxis tick={{ fontSize: 11, fill: "var(--ink-muted, #6b7280)" }} axisLine={false} tickLine={false} width={50} label={data.yAxisLabel ? { value: data.yAxisLabel, angle: -90, position: "insideLeft", offset: 10, fontSize: 11, fill: "var(--ink-subtle, #9ca3af)" } : undefined} />
+              <Tooltip contentStyle={tip} formatter={(_v: number, _n: string, p: any) => [p.payload.displayValue, ""]} labelStyle={{ fontWeight: 500 }} />
+              <Bar dataKey="value" radius={[3, 3, 0, 0]} maxBarSize={48}>
+                {chartData.map((e, i) => <Cell key={i} fill={e.color || CHART_PALETTE[i % CHART_PALETTE.length]} />)}
+              </Bar>
+            </BarChart>
+          ) : chartType === "line" ? (
+            <LineChart data={chartData} margin={{ top: 8, right: 16, bottom: 24, left: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--rule, #e5e7eb)" vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 11, fill: "var(--ink-muted, #6b7280)" }} axisLine={{ stroke: "var(--rule, #e5e7eb)" }} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: "var(--ink-muted, #6b7280)" }} axisLine={false} tickLine={false} width={50} />
+              <Tooltip contentStyle={tip} formatter={(_v: number, _n: string, p: any) => [p.payload.displayValue, ""]} />
+              <Line type="monotone" dataKey="value" stroke="#374151" strokeWidth={2} dot={{ fill: "#374151", r: 3 }} activeDot={{ r: 5, strokeWidth: 0 }} />
+            </LineChart>
+          ) : (
+            <PieChart>
+              <Pie data={chartData} cx="50%" cy="50%" outerRadius={100} innerRadius={50} dataKey="value" nameKey="name" paddingAngle={2} stroke="none" label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`} labelLine={{ stroke: "var(--ink-subtle, #9ca3af)", strokeWidth: 1 }}>
+                {chartData.map((e, i) => <Cell key={i} fill={e.color || CHART_PALETTE[i % CHART_PALETTE.length]} />)}
+              </Pie>
+              <Tooltip contentStyle={tip} formatter={(_v: number, _n: string, p: any) => [p.payload.displayValue, ""]} />
+              <Legend wrapperStyle={{ fontSize: 11, color: "var(--ink-muted, #6b7280)" }} />
+            </PieChart>
+          )}
+        </ResponsiveContainer>
+      </div>
+      {data.conclusion && (
+        <div className="px-5 py-3 border-t border-[var(--rule)] bg-[var(--accent-soft,rgba(37,99,235,0.05))] text-sm text-[var(--ink)]">
+          <span className="mono text-[10px] uppercase tracking-wider text-[var(--ink-subtle)] mr-2">Takeaway</span>
           {data.conclusion}
         </div>
       )}

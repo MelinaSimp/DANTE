@@ -759,7 +759,7 @@ export default function AskDante({
           )}
 
           {/* Threaded messages */}
-          <div className="max-w-4xl mx-auto px-6 md:px-8 pt-4 md:pt-6 pb-32 space-y-6">
+          <div className="max-w-4xl mx-auto px-6 md:px-10 pt-6 md:pt-8 pb-32 space-y-10">
             {turns.map((t, i) =>
               t.role === "user" ? (
                 <UserMessage key={i} content={t.content} />

@@ -44,7 +44,7 @@ export default function MarkdownRenderer({ content, trace, citationReport }: Pro
   const segments = splitTablesOut(content);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {segments.map((seg, i) => {
         if (seg.type === "text") {
           return (

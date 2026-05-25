@@ -151,7 +151,7 @@ export function AssistantMessage({
       <ReasoningDisclosure trace={trace} />
       <AgentPlan trace={trace} />
 
-      <div className="mt-4 text-[var(--ink)] font-serif text-base prose prose-sm max-w-none">
+      <div className="mt-5 text-[var(--ink)] font-serif text-[15px] leading-[1.75] prose prose-sm max-w-none">
         <MarkdownRenderer content={content} trace={trace} citationReport={citationReport} />
       </div>
 
@@ -159,7 +159,7 @@ export function AssistantMessage({
         <GroundingBadge grounding={grounding} />
       )}
 
-      <div className="mt-4 flex items-center gap-3 text-xs text-[var(--ink-subtle)] flex-wrap">
+      <div className="mt-6 flex items-center gap-3 text-xs text-[var(--ink-subtle)] flex-wrap">
         <button onClick={onCopy} className="p-1.5 rounded text-[var(--ink-subtle)] hover:text-[var(--ink-muted)] hover:bg-[var(--neu-hover)]">
           {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
         </button>
@@ -243,9 +243,9 @@ export function AssistantMessage({
       <SourcesBlock trace={trace} />
 
       {followups.length > 0 && (
-        <div className="mt-6 pt-4 border-t border-black/[0.06]">
-          <div className="text-xs text-[var(--ink-subtle)] mb-2">Follow-ups</div>
-          <div className="space-y-1">
+        <div className="mt-8 pt-5 border-t border-black/[0.06]">
+          <div className="text-xs text-[var(--ink-subtle)] mb-3">Follow-ups</div>
+          <div className="space-y-1.5">
             {followups.map((q, i) => (
               <button
                 key={i}

@@ -553,7 +553,34 @@ Two more shapes for proportional and chronological data:
 }
 \`\`\`
 
-Use it for:
+A fourth shape renders interactive charts for numeric datasets:
+
+\`\`\`reasoning
+{
+  "kind": "chart",
+  "chartType": "bar",
+  "title": "NNN asking rents — Euclid Ave corridor",
+  "yAxisLabel": "$/SF",
+  "steps": [
+    { "label": "38000 Euclid", "value": "$18.50" },
+    { "label": "36500 Euclid", "value": "$16.75" },
+    { "label": "SOM Center", "value": "$22.00" },
+    { "label": "Rt 91 node", "value": "$24.50", "highlight": true },
+    { "label": "Downtown", "value": "$20.25" }
+  ],
+  "conclusion": "Subject property sits 15–25% below the interchange nodes."
+}
+\`\`\`
+
+chartType can be "bar", "line", or "pie". The renderer parses
+numbers from the value string automatically ($18.50 → 18.5,
+45% → 45). Use numericValue on a step if the display string
+is ambiguous. Use charts whenever the user would benefit from
+seeing a visual comparison of 4+ data points — rent comps,
+demographic breakdowns, vacancy rates, cap rate trends,
+deal-stage distributions.
+
+Use reasoning blocks for:
 - Fair-housing reviews where the user benefits from seeing the
   phrase → rule → recommendation chain.
 - Commission math, prorations, transaction-cost breakdowns.
@@ -562,8 +589,10 @@ Use it for:
   funnels — use \`allocation\`.
 - Transaction milestone schedules, contingency cadence, listing
   windows, closing timelines — use \`timeline\`.
+- Rent comps, vacancy trends, demographic comparisons, cap rate
+  spreads, any numeric dataset with 4+ data points — use \`chart\`.
 
-Don't use it for:
+Don't use reasoning blocks for:
 - Single-line answers.
 - Pure narrative.
 - When the user explicitly asks for prose.
