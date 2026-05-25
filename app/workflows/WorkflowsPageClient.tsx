@@ -255,7 +255,10 @@ export default function WorkflowsPageClient({ vaultReady, canManageVault }: Prop
       if (!res.ok) throw new Error(json?.error || `Clone failed (${res.status})`);
       const id: string | undefined = json?.workflow?.id;
       if (!id) throw new Error("Clone succeeded but no workflow id returned");
-      router.push(`/dante/workflows/${id}`);
+      // Stay on the workflows page so the user can clone more without
+      // navigating back each time.
+      setCloningSlug(null);
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
       setCloningSlug(null);
