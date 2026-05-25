@@ -179,6 +179,8 @@ export type AgentToolName =
   | "inconsistency.detect"
   | "workflow.propose" // draft a persistent workflow for the user to accept or decline
   | "workflow.run"     // trigger an existing workflow by name with structured input
+  | "workflow.list_templates" // list available pre-built workflow templates
+  | "workflow.clone_template" // clone a template into the workspace
   | "file_index.search"   // search the watched file index by filename/path
   | "file_index.ingest"   // trigger on-demand content retrieval for an indexed file
   | "file_index.list_folder" // list all files within a watched folder path

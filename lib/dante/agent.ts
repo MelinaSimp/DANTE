@@ -364,6 +364,41 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
       },
     },
   },
+  "workflow.list_templates": {
+    type: "function",
+    function: {
+      name: "workflow_list_templates",
+      description:
+        "List all available pre-built workflow templates. Returns each template's slug, name, description, category, and trigger type. Use this to show the user what templates are available before cloning. Call this first when the user asks about templates, wants to see what's available, or asks to set up standard workflows.",
+      parameters: {
+        type: "object",
+        properties: {
+          category: {
+            type: "string",
+            description: "Optional filter by category: 'Deal pipeline', 'Lease management', 'Client communication', 'Operations', 'Prospecting', 'Site intelligence', 'Due diligence', 'Risk management'. Omit to list all.",
+          },
+        },
+      },
+    },
+  },
+  "workflow.clone_template": {
+    type: "function",
+    function: {
+      name: "workflow_clone_template",
+      description:
+        "Clone a pre-built workflow template into the user's workspace. The template becomes a fully editable workflow, enabled and ready to run. Use this when the user says 'set up the lease expiry alerts', 'clone all the DD templates', 'add the pipeline digest workflow', or anything that implies installing a template. Call workflow.list_templates first if you need to find the right slug.",
+      parameters: {
+        type: "object",
+        properties: {
+          slug: {
+            type: "string",
+            description: "The template slug to clone. Get this from workflow.list_templates.",
+          },
+        },
+        required: ["slug"],
+      },
+    },
+  },
   "file_index.search": {
     type: "function",
     function: {
@@ -710,6 +745,8 @@ const NAME_TO_TOOL: Record<string, AgentToolName> = {
   reminder_schedule: "reminder.schedule",
   workflow_propose: "workflow.propose",
   workflow_run: "workflow.run",
+  workflow_list_templates: "workflow.list_templates",
+  workflow_clone_template: "workflow.clone_template",
   file_index_search: "file_index.search",
   file_index_ingest: "file_index.ingest",
   file_index_list_folder: "file_index.list_folder",
@@ -756,6 +793,8 @@ const PER_TOOL_BUDGET: Partial<Record<AgentToolName, number>> = {
   "inconsistency.detect": 4, // expensive (full doc content in prompt); rarely needs more
   "workflow.propose": 2,  // one ask = one proposal; cap covers a "and also..." follow-up
   "workflow.run": 3,      // trigger existing workflows; 3 covers multi-step asks
+  "workflow.list_templates": 3,
+  "workflow.clone_template": 40, // cloning all 33 templates in one go is a valid ask
   "file_index.search": 5,
   "file_index.ingest": 3,
   "file_index.list_folder": 5,
@@ -1393,6 +1432,72 @@ async function dispatchTool(
         workflow_id: match.id,
         input_provided: wfInput,
         message: `Workflow "${match.name}" has been triggered. It's now running in the background.`,
+      };
+    }
+
+    case "workflow.list_templates": {
+      const { WORKFLOW_TEMPLATES } = await import("@/lib/dante/templates");
+      const categoryFilter = args.category ? String(args.category) : null;
+      const templates = WORKFLOW_TEMPLATES
+        .filter((t) => !categoryFilter || t.category === categoryFilter)
+        .map((t) => ({
+          slug: t.slug,
+          name: t.name,
+          description: t.description,
+          category: t.category,
+          trigger: t.triggerLabel,
+        }));
+      return {
+        templates,
+        count: templates.length,
+        categories: [...new Set(WORKFLOW_TEMPLATES.map((t) => t.category))],
+      };
+    }
+
+    case "workflow.clone_template": {
+      const slug = String(args.slug || "").trim();
+      if (!slug) return { error: "workflow.clone_template: 'slug' required. Call workflow.list_templates first to see available slugs." };
+
+      if (ctx.simulate) {
+        return { simulated: true, would_have: { action: "workflow.clone_template", slug } };
+      }
+
+      const { getTemplate } = await import("@/lib/dante/templates");
+      const template = getTemplate(slug);
+      if (!template) {
+        return { error: `workflow.clone_template: unknown template "${slug}". Call workflow.list_templates to see available slugs.` };
+      }
+
+      const graph = structuredClone(template.graph);
+      const triggerNode = graph.nodes.find((n: { type: string }) => n.type.startsWith("trigger_"));
+      const triggerType = triggerNode?.type.replace("trigger_", "") || "manual";
+
+      const { data: wf, error: insertErr } = await supabaseAdmin
+        .from("dante_workflows")
+        .insert({
+          workspace_id: ctx.workspaceId,
+          created_by: ctx.userId ?? null,
+          name: template.name,
+          description: template.description,
+          trigger: { type: triggerType },
+          steps: [],
+          graph,
+          enabled: true,
+        })
+        .select("id")
+        .single();
+
+      if (insertErr) {
+        return { error: `workflow.clone_template: ${insertErr.message}` };
+      }
+
+      return {
+        ok: true,
+        workflow_id: (wf as { id: string }).id,
+        name: template.name,
+        category: template.category,
+        trigger: template.triggerLabel,
+        message: `Cloned "${template.name}" into your workspace. It's enabled and ready to use.`,
       };
     }
 
@@ -2041,6 +2146,8 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       "reminder.schedule": 0,
       "workflow.propose": 0,
       "workflow.run": 0,
+      "workflow.list_templates": 0,
+      "workflow.clone_template": 0,
       "file_index.search": 0,
       "file_index.ingest": 0,
       "file_index.list_folder": 0,
