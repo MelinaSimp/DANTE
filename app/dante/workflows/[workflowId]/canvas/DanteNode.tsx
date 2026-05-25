@@ -2,24 +2,38 @@
 
 // app/dante/workflows/[workflowId]/canvas/DanteNode.tsx
 //
-// Custom React Flow node for every Dante step type. We keep ONE
-// component for all 10 types and branch on `data.step.type` for the
-// visual differences — the vast majority of the presentation is
-// shared (card chrome, icon chip, name, hint, handles).
+// Custom React Flow node for Dante workflow steps. Each card is
+// designed to communicate what a step DOES and what DATA it
+// touches — making the canvas read like infrastructure, not a toy.
 //
-// Condition nodes get two output handles ("true" / "false"), every
-// other node a single default. Triggers get no input handle.
+// Visual tiers:
+//   Triggers:  top accent bar (verified green), pulse dot
+//   AI/LLM:   accent bar (blue), sparkle badge
+//   Data:      subtle bar (ink), database icon
+//   Actions:   flag bar (amber) for flow control, ink for I/O
 
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import {
+  CheckCircle2, AlertCircle, Loader2,
+  Database, Sparkles, Zap, ArrowDownToLine,
+} from "lucide-react";
 import type { WorkflowStep } from "@/lib/dante/workflow-types";
 import { getMeta, isTriggerType, accentClasses } from "./nodeTypes";
 
 export interface DanteNodeData {
   step: WorkflowStep;
   runStatus?: "success" | "error" | "running" | null;
-  [key: string]: unknown; // satisfy @xyflow/react generic index signature
+  runDuration?: number | null;
+  [key: string]: unknown;
 }
+
+// Which node types are AI-powered
+const AI_TYPES = new Set(["openai", "agent", "archive_lookup", "due_diligence", "web_search"]);
+// Which node types are data lookups
+const DATA_TYPES = new Set([
+  "query_clients", "query_properties", "query_listings", "query_offers",
+  "lease_lookup", "integration_query",
+]);
 
 export default function DanteNode({ data, selected }: NodeProps) {
   const d = data as DanteNodeData;
@@ -30,53 +44,132 @@ export default function DanteNode({ data, selected }: NodeProps) {
   const isTrigger = isTriggerType(step.type);
   const isCondition = step.type === "condition";
   const isSwitch = step.type === "switch";
+  const isAI = AI_TYPES.has(step.type);
+  const isData = DATA_TYPES.has(step.type);
   const switchCases = isSwitch
     ? ((step.config as Record<string, unknown>).cases as Array<{ value: string; label?: string }>) || []
     : [];
 
   const summary = nodeSummary(step);
+  const typeLabel = meta?.label ?? step.type;
+
+  // Accent bar color
+  const barColor = isTrigger
+    ? "bg-[var(--verified)]"
+    : isAI
+      ? "bg-[var(--accent)]"
+      : meta?.accent === "flag"
+        ? "bg-[var(--flag)]"
+        : "bg-[var(--ink)]";
 
   return (
     <div
       className={`
-        group relative bg-[var(--canvas)] border rounded-[6px] transition
+        group relative rounded-[8px] transition-all duration-150
         ${selected
-          ? `border-[var(--rule-strong)] ring-2 ring-offset-1 ring-offset-[var(--canvas)] ${accent.selectedOutline}`
-          : "border-[var(--rule)] hover:border-[var(--rule-strong)]"}
-        min-w-[220px] max-w-[260px]
+          ? `ring-2 ring-offset-2 ring-offset-[var(--canvas)] ${accent.selectedOutline} shadow-lg`
+          : "shadow-sm hover:shadow-md"}
+        min-w-[260px] max-w-[300px]
+        overflow-hidden
       `}
+      style={{
+        background: "var(--canvas)",
+        border: "1px solid var(--rule)",
+      }}
     >
-      {/* Input handle — not on triggers */}
+      {/* Top accent bar */}
+      <div className={`h-[3px] w-full ${barColor}`} />
+
+      {/* Input handle */}
       {!isTrigger && (
         <Handle
           type="target"
           position={Position.Top}
-          className="!w-2 !h-2 !bg-[var(--ink)] !border-[var(--canvas)] !border-2"
+          className="!w-2.5 !h-2.5 !bg-[var(--ink)] !border-[var(--canvas)] !border-2 !-top-[5px]"
         />
       )}
 
-      <div className="flex items-start gap-2.5 px-3 py-2.5">
-        <div className={`border border-[var(--rule)] rounded-[4px] p-1.5 shrink-0 ${accent.iconWrap}`}>
-          {Icon && <Icon className="w-3.5 h-3.5" strokeWidth={1.5} />}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="text-[11px] uppercase tracking-wide text-[var(--ink-subtle)] mono">
-            {meta?.label ?? step.type}
+      {/* Main content */}
+      <div className="px-4 pt-3 pb-3">
+        {/* Header row: icon + type + badges */}
+        <div className="flex items-center gap-2.5 mb-2">
+          <div className={`rounded-[6px] p-2 shrink-0 ${accent.iconWrap}`}>
+            {Icon && <Icon className="w-4 h-4" strokeWidth={1.5} />}
           </div>
-          <div className="text-sm font-semibold text-[var(--ink)] truncate">
-            {step.name || meta?.label || step.type}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] uppercase tracking-[0.06em] text-[var(--ink-subtle)] font-medium">
+                {typeLabel}
+              </span>
+              {isTrigger && (
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--verified)] opacity-40" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--verified)]" />
+                </span>
+              )}
+              {isAI && (
+                <Sparkles className="w-3 h-3 text-[var(--accent)]" strokeWidth={2} />
+              )}
+              {isData && (
+                <Database className="w-3 h-3 text-[var(--ink-subtle)]" strokeWidth={1.5} />
+              )}
+            </div>
           </div>
-          {summary && (
-            <div className="text-[11px] text-[var(--ink-muted)] truncate mt-0.5 mono">
-              {summary}
+
+          {/* Run status badge */}
+          {d.runStatus && (
+            <div className={`shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] text-[10px] font-medium ${
+              d.runStatus === "success"
+                ? "bg-[var(--verified-soft)] text-[var(--verified)]"
+                : d.runStatus === "error"
+                  ? "bg-red-50 text-[var(--danger)]"
+                  : "bg-[var(--canvas-subtle)] text-[var(--ink-muted)]"
+            }`}>
+              {d.runStatus === "success" && <CheckCircle2 className="w-3 h-3" strokeWidth={2} />}
+              {d.runStatus === "error"   && <AlertCircle  className="w-3 h-3" strokeWidth={2} />}
+              {d.runStatus === "running" && <Loader2     className="w-3 h-3 animate-spin" strokeWidth={2} />}
+              <span className="hidden">
+                {d.runStatus === "success" ? "OK" : d.runStatus === "error" ? "Err" : "..."}
+              </span>
             </div>
           )}
         </div>
-        {d.runStatus && (
-          <div className="shrink-0">
-            {d.runStatus === "success" && <CheckCircle2 className="w-3.5 h-3.5 text-[var(--verified)]" strokeWidth={1.5} />}
-            {d.runStatus === "error"   && <AlertCircle  className="w-3.5 h-3.5 text-[var(--danger)]"  strokeWidth={1.5} />}
-            {d.runStatus === "running" && <Loader2     className="w-3.5 h-3.5 text-[var(--ink-muted)] animate-spin" strokeWidth={1.5} />}
+
+        {/* Step name */}
+        <div className="text-[13px] font-semibold text-[var(--ink)] leading-tight mb-1 truncate">
+          {step.name || typeLabel}
+        </div>
+
+        {/* Config summary */}
+        {summary && (
+          <div className="text-[11px] text-[var(--ink-muted)] leading-snug truncate font-mono">
+            {summary}
+          </div>
+        )}
+
+        {/* Data flow indicator for data/AI nodes */}
+        {(isAI || isData) && (
+          <div className="mt-2.5 pt-2 border-t border-[var(--rule)] flex items-center gap-1.5">
+            {isAI ? (
+              <>
+                <Zap className="w-3 h-3 text-[var(--accent)]" strokeWidth={1.5} />
+                <span className="text-[10px] text-[var(--ink-subtle)]">
+                  {step.type === "openai" ? (step.config as any)?.model || "LLM" : "AI-powered"}
+                </span>
+              </>
+            ) : (
+              <>
+                <ArrowDownToLine className="w-3 h-3 text-[var(--ink-subtle)]" strokeWidth={1.5} />
+                <span className="text-[10px] text-[var(--ink-subtle)]">
+                  {step.type === "lease_lookup" ? "Lease abstractions" :
+                   step.type === "query_clients" ? "Contact records" :
+                   step.type === "query_properties" ? "Property records" :
+                   step.type === "query_listings" ? "Active listings" :
+                   step.type === "query_offers" ? "Offer records" :
+                   "Data source"}
+                </span>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -84,27 +177,33 @@ export default function DanteNode({ data, selected }: NodeProps) {
       {/* Output handles */}
       {isCondition ? (
         <>
+          <div className="flex justify-between px-4 pb-2 text-[9px] uppercase tracking-wider font-mono font-medium">
+            <span className="text-[var(--verified)]">true</span>
+            <span className="text-[var(--danger)]">false</span>
+          </div>
           <Handle
             id="true"
             type="source"
             position={Position.Bottom}
             style={{ left: "30%" }}
-            className="!w-2 !h-2 !bg-[var(--verified)] !border-[var(--canvas)] !border-2"
+            className="!w-2.5 !h-2.5 !bg-[var(--verified)] !border-[var(--canvas)] !border-2 !-bottom-[5px]"
           />
           <Handle
             id="false"
             type="source"
             position={Position.Bottom}
             style={{ left: "70%" }}
-            className="!w-2 !h-2 !bg-[var(--danger)] !border-[var(--canvas)] !border-2"
+            className="!w-2.5 !h-2.5 !bg-[var(--danger)] !border-[var(--canvas)] !border-2 !-bottom-[5px]"
           />
-          <div className="flex justify-between px-3 pb-1.5 text-[9px] uppercase tracking-wider mono">
-            <span className="text-[var(--verified)]">true</span>
-            <span className="text-[var(--danger)]">false</span>
-          </div>
         </>
       ) : isSwitch && switchCases.length > 0 ? (
         <>
+          <div className="flex justify-between px-4 pb-2 text-[9px] uppercase tracking-wider font-mono gap-1">
+            {switchCases.map((c) => (
+              <span key={c.value} className="text-[var(--accent)] truncate">{c.label || c.value}</span>
+            ))}
+            <span className="text-[var(--ink-muted)]">else</span>
+          </div>
           {switchCases.map((c, i) => (
             <Handle
               key={c.value}
@@ -112,7 +211,7 @@ export default function DanteNode({ data, selected }: NodeProps) {
               type="source"
               position={Position.Bottom}
               style={{ left: `${((i + 1) / (switchCases.length + 2)) * 100}%` }}
-              className="!w-2 !h-2 !bg-[var(--accent)] !border-[var(--canvas)] !border-2"
+              className="!w-2.5 !h-2.5 !bg-[var(--accent)] !border-[var(--canvas)] !border-2 !-bottom-[5px]"
             />
           ))}
           <Handle
@@ -120,20 +219,14 @@ export default function DanteNode({ data, selected }: NodeProps) {
             type="source"
             position={Position.Bottom}
             style={{ left: `${((switchCases.length + 1) / (switchCases.length + 2)) * 100}%` }}
-            className="!w-2 !h-2 !bg-[var(--ink-muted)] !border-[var(--canvas)] !border-2"
+            className="!w-2.5 !h-2.5 !bg-[var(--ink-muted)] !border-[var(--canvas)] !border-2 !-bottom-[5px]"
           />
-          <div className="flex justify-between px-3 pb-1.5 text-[9px] uppercase tracking-wider mono gap-1">
-            {switchCases.map((c) => (
-              <span key={c.value} className="text-[var(--accent)] truncate">{c.label || c.value}</span>
-            ))}
-            <span className="text-[var(--ink-muted)]">else</span>
-          </div>
         </>
       ) : (
         <Handle
           type="source"
           position={Position.Bottom}
-          className="!w-2 !h-2 !bg-[var(--ink)] !border-[var(--canvas)] !border-2"
+          className="!w-2.5 !h-2.5 !bg-[var(--ink)] !border-[var(--canvas)] !border-2 !-bottom-[5px]"
         />
       )}
     </div>
@@ -141,30 +234,29 @@ export default function DanteNode({ data, selected }: NodeProps) {
 }
 
 // ── One-line node summary ────────────────────────────────────
-// Shows the most-identifying config field right on the node card so
-// you don't have to click every node to see what's configured.
+// Shows the most-identifying config field right on the node card.
 
 function nodeSummary(step: WorkflowStep): string | null {
   const cfg = step.config as Record<string, unknown>;
   switch (step.type) {
     case "trigger_manual":  return null;
-    case "trigger_cron":    return typeof cfg.cron === "string" ? `cron: ${cfg.cron}` : null;
-    case "trigger_webhook": return "POST /api/dante/hooks/…";
+    case "trigger_cron":    return typeof cfg.cron === "string" ? cfg.cron : null;
+    case "trigger_webhook": return "POST /api/dante/hooks/...";
     case "http": {
       const m = (cfg.method as string) || "GET";
       const u = (cfg.url as string) || "";
       return `${m} ${u}`;
     }
-    case "openai":         return (cfg.model as string) || "gpt-4o-mini";
-    case "query_clients":  return `contacts · limit ${cfg.limit ?? 25}`;
+    case "openai":         return (cfg.model as string) || "claude-sonnet-4-6";
+    case "query_clients":  return `limit ${cfg.limit ?? 25}`;
     case "update_contact": return `id: ${truncate(String(cfg.contact_id ?? ""), 24)}`;
     case "send_email":     return `to: ${truncate(String(cfg.to ?? ""), 28)}`;
     case "condition":        return truncate(String(cfg.expression ?? ""), 32);
-    case "delay":            return `${cfg.seconds ?? 0}s`;
-    case "query_properties": return `properties · limit ${cfg.limit ?? 25}`;
-    case "query_listings":   return `listings · limit ${cfg.limit ?? 25}`;
-    case "query_offers":     return `offers · limit ${cfg.limit ?? 25}`;
-    case "lease_lookup":     return `leases · ${cfg.status ?? "completed"}`;
+    case "delay":            return `${cfg.seconds ?? 0}s pause`;
+    case "query_properties": return `limit ${cfg.limit ?? 25}`;
+    case "query_listings":   return `limit ${cfg.limit ?? 25}`;
+    case "query_offers":     return `limit ${cfg.limit ?? 25}`;
+    case "lease_lookup":     return String(cfg.status ?? "completed");
     case "web_search":       return truncate(String(cfg.query ?? ""), 32);
     case "archive_lookup":   return truncate(String(cfg.query ?? ""), 32);
     case "send_sms":         return cfg.to_phone ? `to: ${String(cfg.to_phone)}` : (cfg.to_role ? `role: ${String(cfg.to_role)}` : null);
@@ -173,14 +265,14 @@ function nodeSummary(step: WorkflowStep): string | null {
     case "integration_query": {
       const p = (cfg.provider as string) || "";
       const m = (cfg.method as string) || "GET";
-      return p ? `${p} · ${m}` : null;
+      return p ? `${p} / ${m}` : null;
     }
     case "due_diligence": {
       const addr = cfg.address as string;
       if (addr) return truncate(addr, 32);
       const sf = cfg.state_fips as string;
       const cf = cfg.county_fips as string;
-      if (sf && cf) return `FIPS: ${sf}-${cf}`;
+      if (sf && cf) return `FIPS ${sf}-${cf}`;
       const lat = cfg.latitude as number;
       const lng = cfg.longitude as number;
       return lat && lng ? `${lat.toFixed(2)}, ${lng.toFixed(2)}` : null;
@@ -197,7 +289,7 @@ function nodeSummary(step: WorkflowStep): string | null {
     case "switch":             return truncate(String(cfg.expression ?? ""), 28);
     case "sub_workflow":       return cfg.workflow_id ? `wf: ${truncate(String(cfg.workflow_id), 20)}` : null;
     case "approval":           return truncate(String(cfg.message ?? ""), 28);
-    case "trigger_lease_expiry": return `${cfg.days_before ?? 90}d before`;
+    case "trigger_lease_expiry": return `${cfg.days_before ?? 90}d before expiry`;
     case "trigger_deal_stage": {
       const from = (cfg.from_stage as string) || "any";
       const to = (cfg.to_stage as string) || "any";
@@ -208,5 +300,5 @@ function nodeSummary(step: WorkflowStep): string | null {
 }
 
 function truncate(s: string, n: number): string {
-  return s.length > n ? s.slice(0, n - 1) + "…" : s;
+  return s.length > n ? s.slice(0, n - 1) + "..." : s;
 }

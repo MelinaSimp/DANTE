@@ -119,15 +119,15 @@ function graphToFlow(graph: WorkflowGraph): { nodes: DanteRFNode[]; edges: RFEdg
     source: e.source,
     target: e.target,
     sourceHandle: e.sourceHandle,
-    // Use a labeled edge for condition branches so you can see which
-    // handle each edge came from at a glance.
+    // Use a labeled edge for condition branches.
     label: e.sourceHandle ? e.sourceHandle : undefined,
     labelStyle: e.sourceHandle === "true"
       ? { fill: "var(--verified)", fontSize: 10, fontFamily: "ui-monospace, monospace" }
       : e.sourceHandle === "false"
       ? { fill: "var(--danger)", fontSize: 10, fontFamily: "ui-monospace, monospace" }
       : undefined,
-    style: { stroke: "var(--ink-muted)", strokeWidth: 1.5 },
+    animated: true,
+    style: { stroke: "var(--ink-muted)", strokeWidth: 2 },
   }));
   return { nodes, edges };
 }
@@ -749,10 +749,11 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
                 fitView
                 fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
                 defaultEdgeOptions={{
-                  style: { stroke: "var(--ink-muted)", strokeWidth: 1.5 },
+                  animated: true,
+                  style: { stroke: "var(--ink-muted)", strokeWidth: 2 },
                 }}
               >
-                <Background color="var(--rule)" gap={16} size={1} />
+                <Background color="var(--rule)" gap={20} size={1} variant={"dots" as any} />
                 <Controls
                   showInteractive={false}
                   className="!bg-[var(--canvas)] !border-[var(--rule)] !rounded-[4px]"
@@ -1095,17 +1096,21 @@ function PaletteItem({
   onAdd: () => void;
 }) {
   const Icon = meta.icon;
+  const accentColor = meta.accent === "verified" ? "bg-[var(--verified-soft)] text-[var(--verified)]"
+    : meta.accent === "accent" ? "bg-[var(--accent-soft)] text-[var(--accent)]"
+    : meta.accent === "flag" ? "bg-[var(--flag-soft)] text-[var(--flag)]"
+    : "bg-[var(--canvas-subtle)] text-[var(--ink)]";
   return (
     <button
       onClick={onAdd}
-      className="w-full flex items-center gap-2 px-2.5 py-2 rounded-[4px] border border-[var(--rule)] hover:border-[var(--rule-strong)] hover:bg-[var(--canvas-subtle)] text-left transition group"
+      className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-[6px] hover:bg-[var(--canvas-subtle)] text-left transition group"
     >
-      <div className="border border-[var(--rule)] bg-[var(--canvas)] rounded-[4px] p-1 shrink-0">
-        <Icon className="w-3 h-3 text-[var(--ink)]" strokeWidth={1.5} />
+      <div className={`rounded-[5px] p-1.5 shrink-0 ${accentColor}`}>
+        <Icon className="w-3.5 h-3.5" strokeWidth={1.5} />
       </div>
       <div className="min-w-0 flex-1">
         <div className="text-xs font-medium text-[var(--ink)]">{meta.label}</div>
-        <div className="text-[10px] text-[var(--ink-subtle)] truncate">{meta.hint}</div>
+        <div className="text-[10px] text-[var(--ink-subtle)] truncate leading-tight">{meta.hint}</div>
       </div>
       <Plus className="w-3 h-3 text-[var(--ink-subtle)] shrink-0 opacity-0 group-hover:opacity-100 transition" strokeWidth={1.5} />
     </button>
