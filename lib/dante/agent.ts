@@ -1274,9 +1274,25 @@ async function dispatchTool(
         };
       }
 
+      // Check which integrations this workspace has connected so the
+      // generated workflow can include integration_query nodes for
+      // available providers and skip ones that aren't set up.
+      const { data: connections } = await supabaseAdmin
+        .from("integration_connections")
+        .select("provider, provider_kind, display_name")
+        .eq("workspace_id", ctx.workspaceId)
+        .eq("status", "connected");
+
       let generated;
       try {
-        generated = await generateWorkflow(intent);
+        generated = await generateWorkflow({
+          prompt: intent,
+          connectedIntegrations: (connections || []).map((c: { provider: string; provider_kind: string | null; display_name: string | null }) => ({
+            provider: c.provider,
+            provider_kind: c.provider_kind,
+            display_name: c.display_name,
+          })),
+        });
       } catch (err) {
         return {
           error: `workflow.propose: graph generation failed — ${

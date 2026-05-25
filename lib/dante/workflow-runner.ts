@@ -28,6 +28,7 @@ import type {
   GraphNode,
 } from "./workflow-types";
 import { loadWorkspaceSecrets, redactSecrets, type SecretMap } from "./secrets";
+import { TAGS as SOURCE_TAGS, type SourceTag } from "./source-tiers";
 import { searchArchive, formatHitsForPrompt } from "./archive/search";
 import { runAgent } from "./agent";
 import { complete as llmComplete } from "@/lib/llm/client";
@@ -551,6 +552,7 @@ async function runWebSearch(cfg: {
       results,
       count: results.length,
       query: cfg.query,
+      source_tier: SOURCE_TAGS.web_search,
     };
   }, `web_search "${cfg.query}"`);
 }
@@ -885,7 +887,13 @@ async function runIntegrationQuery(
       throw new Error(`${cfg.provider} ${res.status}: ${text.slice(0, 200)}`);
     }
     const body = await res.json().catch(() => res.text());
-    return { status: res.status, ok: res.ok, body, provider: cfg.provider };
+    return {
+      status: res.status,
+      ok: res.ok,
+      body,
+      provider: cfg.provider,
+      source_tier: { tier: 2 as const, source: `${cfg.provider} API` } satisfies SourceTag,
+    };
   }, `integration ${cfg.provider} ${method} ${cfg.endpoint}`);
 }
 
@@ -1061,6 +1069,16 @@ async function runDueDiligence(
     nearby_places: nearby,
     drive_times: driveTimes,
     errors,
+    source_tiers: {
+      census: SOURCE_TAGS.census,
+      employment: SOURCE_TAGS.bls,
+      flood_zone: SOURCE_TAGS.fema,
+      epa_toxics: SOURCE_TAGS.epa_tri,
+      epa_superfund: SOURCE_TAGS.epa_superfund,
+      nearby_places: SOURCE_TAGS.google_places,
+      drive_times: SOURCE_TAGS.google_distance,
+      geocoding: gmapsKey ? SOURCE_TAGS.google_places : SOURCE_TAGS.nominatim,
+    },
   };
 }
 

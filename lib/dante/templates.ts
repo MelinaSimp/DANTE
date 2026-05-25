@@ -15,6 +15,7 @@
 //   - reference prior step outputs via {{steps.<id>.<path>}} templates
 
 import type { WorkflowGraph } from "./workflow-types";
+import { formatTierGuidance } from "./source-tiers";
 
 export interface WorkflowTemplate {
   slug: string;
@@ -1648,14 +1649,17 @@ const zoningOpportunityGraph: WorkflowGraph = {
 // 28 - Property due diligence report (manual)
 // ══════════════════════════════════════════════════════════════
 
+const DD_TIER_GUIDANCE = `\n\nSOURCE RELIABILITY TIERS -- use appropriate confidence language:\n${formatTierGuidance()}\n\nWhen writing the report, use definitive language for Tier 1 (government data), sourced language for Tier 2 (commercial providers), and hedged language for Tier 3 (web search). If Tier 3 contradicts Tier 1, note the discrepancy and defer to the authoritative source.`;
+
 const propertyDueDiligenceGraph: WorkflowGraph = {
   nodes: [
     { id: "trigger", type: "trigger_manual", position: row(0), data: { step: { id: "trigger", type: "trigger_manual", name: "Manual trigger", config: { input_fields: [{ name: "address", label: "Property Address", type: "text" as const, required: true, placeholder: "1600 Euclid Ave, Cleveland, OH 44115" }] } } } },
-    { id: "dd", type: "due_diligence", position: row(1), data: { step: { id: "dd", type: "due_diligence", name: "Due diligence", config: { address: "{{steps.trigger.input.address}}" } } } },
-    { id: "analyze", type: "openai", position: row(2), data: { step: { id: "analyze", type: "openai", name: "Analyze results", config: { model: "gpt-4o-mini", system: "You are a CRE due diligence analyst. Summarize findings concisely, flag risks.", prompt: "Property at {{steps.trigger.input.address}}.\n\nCensus: {{steps.dd.census}}\nEmployment: {{steps.dd.employment}}\nFlood zone: {{steps.dd.flood_zone}}\nEPA: {{steps.dd.epa}}\n\nProvide a structured due diligence summary with risk flags.", max_tokens: 1200 } } } },
-    { id: "report", type: "generate_document", position: row(3), data: { step: { id: "report", type: "generate_document", name: "Generate report", config: { title: "Due Diligence Report", subtitle: "{{steps.trigger.input.address}}", sections: [{ heading: "Summary", body: "{{steps.analyze.text}}" }, { heading: "Flood Zone", body: "Zone: {{steps.dd.flood_zone.flood_zone}} -- {{steps.dd.flood_zone.zone_description}}. SFHA: {{steps.dd.flood_zone.sfha}}" }] } } } },
+    { id: "web_intel", type: "web_search", position: row(1), data: { step: { id: "web_intel", type: "web_search", name: "Recent news and market activity", config: { query: "{{steps.trigger.input.address}} commercial real estate news zoning development", max_results: 8, search_depth: "advanced" } } } },
+    { id: "dd", type: "due_diligence", position: row(2), data: { step: { id: "dd", type: "due_diligence", name: "Due diligence", config: { address: "{{steps.trigger.input.address}}" } } } },
+    { id: "analyze", type: "openai", position: row(3), data: { step: { id: "analyze", type: "openai", name: "Analyze results", config: { model: "gpt-4o-mini", system: "You are a CRE due diligence analyst. Summarize findings concisely, flag risks." + DD_TIER_GUIDANCE, prompt: "Property at {{steps.trigger.input.address}}.\n\nTIER 1 -- Government Data:\nCensus: {{steps.dd.census}}\nEmployment: {{steps.dd.employment}}\nFlood zone: {{steps.dd.flood_zone}}\nEPA: {{steps.dd.epa}}\n\nTIER 2 -- Commercial Data:\nNearby places: {{steps.dd.nearby_places}}\nDrive times: {{steps.dd.drive_times}}\n\nTIER 3 -- Web Intelligence:\n{{steps.web_intel.answer}}\nSources: {{steps.web_intel.results}}\n\nProvide a structured due diligence summary with risk flags. Label each data point with its source tier.", max_tokens: 4000 } } } },
+    { id: "report", type: "generate_document", position: row(4), data: { step: { id: "report", type: "generate_document", name: "Generate report", config: { title: "Due Diligence Report", subtitle: "{{steps.trigger.input.address}}", sections: [{ heading: "Executive Summary", body: "{{steps.analyze.text}}" }, { heading: "Market Intelligence", body: "{{steps.web_intel.answer}}" }, { heading: "Employment Data", body: "{{steps.dd.employment}}" }, { heading: "Environmental Assessment", body: "EPA: {{steps.dd.epa}}\nFlood Zone: {{steps.dd.flood_zone}}" }] } } } },
   ],
-  edges: [edge("trigger", "dd"), edge("dd", "analyze"), edge("analyze", "report")],
+  edges: [edge("trigger", "web_intel"), edge("web_intel", "dd"), edge("dd", "analyze"), edge("analyze", "report")],
 };
 
 // ══════════════════════════════════════════════════════════════

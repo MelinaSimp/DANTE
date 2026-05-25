@@ -134,10 +134,11 @@ RULES
      nodes are heavyweight (multi-step LLM loops) so use them only when
      the task genuinely requires tool use and autonomous reasoning.
 
-   - "web_search" (Tavily web search -> emits { answer, results, count, query }):
+   - "web_search" (Tavily web search -> emits { answer, results, count, query, source_tier }):
      config: { "query": "...", "max_results": 5, "search_depth": "basic"|"advanced",
        "include_domains": ["loopnet.com"], "exclude_domains": [] }
      Returns an AI-generated answer and individual result URLs with snippets.
+     source_tier is { tier: 3, source: "Web search (Tavily)" } -- Tier 3 (web/news).
      Use for market research, comp searches, zoning lookups, news monitoring,
      or any question that benefits from current web data. Supports templates
      in the query field. The agent node also has "web.search" as a tool.
@@ -164,12 +165,13 @@ RULES
    - "archive_lookup" (vector-search the firm's document archive -> emits { hits, context, citations }):
      config: { "query": "...", "k": 5, "kind": "lease"|"policy"|"memo"|"comp"|"inspection"|"disclosure"|"deed"|"insurance"|"regulation"|"other" }
 
-   - "integration_query" (query a connected integration -> emits { status, ok, body, provider }):
+   - "integration_query" (query a connected integration -> emits { status, ok, body, provider, source_tier }):
      config: { "provider": "costar", "endpoint": "https://api.costar.com/v1/...", "method": "GET"|"POST"|"PUT"|"DELETE",
                "params": {...}, "headers": {...} }
      Credentials (API key) are loaded automatically from Settings > Integrations.
+     source_tier is { tier: 2, source: "<provider> API" } -- Tier 2 (commercial data).
 
-   - "due_diligence" (Census + BLS + FEMA + EPA + Google Maps consolidated lookup -> emits { location, census, employment, flood_zone, epa, nearby_places, drive_times, errors }):
+   - "due_diligence" (Census + BLS + FEMA + EPA + Google Maps consolidated lookup -> emits { location, census, employment, flood_zone, epa, nearby_places, drive_times, source_tiers, errors }):
      config: { "address": "1600 Euclid Ave, Cleveland, OH 44115" }
      OR config: { "latitude": 41.4993, "longitude": -81.6944, "state_fips": "39", "county_fips": "049" }
      Accepts a street address (auto-geocoded via Google Maps if API key is connected) OR lat/lng coordinates.
@@ -178,6 +180,10 @@ RULES
      Optional: "drive_time_destinations": "Cleveland Hopkins Airport, Progressive Field" (comma-separated).
      Prefer address mode -- it auto-resolves FIPS codes, county name, and coordinates.
      Output includes location.formatted_address, flood_zone.sfha, nearby_places (sorted by distance).
+     source_tiers tags each data category: census/bls/fema/epa are Tier 1 (government primary),
+     google_places/google_distance are Tier 2 (commercial), nominatim is Tier 2.
+     When using DD output in a downstream openai node, instruct the LLM to cite sources
+     with appropriate confidence: definitive for Tier 1, sourced for Tier 2, hedged for Tier 3.
 
    - "generate_document" (branded PDF report -> emits { url, size_bytes, filename }):
      config: { "title": "...", "subtitle": "...", "sections": [{"heading": "...", "body": "..."}] }
@@ -377,6 +383,12 @@ function humanize(type: StepType): string {
  * advisor's data (e.g. segment size, existing workflows to avoid
  * duplicating).
  */
+export interface ConnectedIntegration {
+  provider: string;
+  provider_kind: string | null;
+  display_name: string | null;
+}
+
 export async function generateWorkflow(
   input:
     | string
@@ -384,6 +396,7 @@ export async function generateWorkflow(
         prompt: string;
         proposal?: WorkflowProposal;
         bookSummary?: BookSummary;
+        connectedIntegrations?: ConnectedIntegration[];
       }
 ): Promise<GeneratedWorkflow> {
   const prompt = (typeof input === "string" ? input : input.prompt).trim();
@@ -391,12 +404,14 @@ export async function generateWorkflow(
   const proposal = typeof input === "string" ? undefined : input.proposal;
   const bookSummary =
     typeof input === "string" ? undefined : input.bookSummary;
+  const connectedIntegrations =
+    typeof input === "string" ? undefined : input.connectedIntegrations;
 
   // Build the user message. If a proposal exists, the proposal's
   // enriched_prompt IS the spec we want the model to implement — the
   // raw advisor prompt is preserved for provenance but takes a back
   // seat.
-  const userMessage = buildUserMessage(prompt, proposal, bookSummary);
+  const userMessage = buildUserMessage(prompt, proposal, bookSummary, connectedIntegrations);
 
   const result = await llmComplete({
     // Sonnet for structured graph output — better instruction-following
@@ -423,13 +438,30 @@ export async function generateWorkflow(
 function buildUserMessage(
   prompt: string,
   proposal: WorkflowProposal | undefined,
-  bookSummary: BookSummary | undefined
+  bookSummary: BookSummary | undefined,
+  connectedIntegrations?: ConnectedIntegration[],
 ): string {
   const parts: string[] = [];
 
   if (bookSummary) {
     parts.push(
       `WORKSPACE CONTEXT\n${renderBookSummaryText(bookSummary)}\n\nUse this to pick realistic filter values and avoid duplicating any existing workflow listed above.`
+    );
+  }
+
+  // Integration awareness: tell the LLM which data providers are
+  // connected so it includes integration_query nodes where useful
+  // and skips providers the workspace doesn't have.
+  if (connectedIntegrations && connectedIntegrations.length > 0) {
+    const list = connectedIntegrations
+      .map((c) => `- ${c.display_name || c.provider} (${c.provider_kind || "general"})`)
+      .join("\n");
+    parts.push(
+      `CONNECTED INTEGRATIONS\nThe workspace has these active data provider connections:\n${list}\n\nInclude integration_query nodes for these providers where they add value to the workflow. Use the provider name as the "provider" field in the node config.`
+    );
+  } else {
+    parts.push(
+      `CONNECTED INTEGRATIONS\nThe workspace has no third-party integrations connected. Do NOT use integration_query nodes — they will fail without credentials.`
     );
   }
 
