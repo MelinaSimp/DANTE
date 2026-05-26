@@ -121,7 +121,12 @@ function createWindow() {
     },
   });
 
-  mainWindow.once("ready-to-show", () => mainWindow.show());
+  // Show as soon as the first paint lands OR after 2s, whichever is
+  // first. Prevents a blank desktop while the server/auth is cold.
+  let shown = false;
+  const showOnce = () => { if (!shown && mainWindow && !mainWindow.isDestroyed()) { shown = true; mainWindow.show(); } };
+  mainWindow.once("ready-to-show", showOnce);
+  setTimeout(showOnce, 2000);
 
   const loadOpts = {
     userAgent: `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36`,

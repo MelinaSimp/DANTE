@@ -34,27 +34,50 @@ interface Props {
 }
 
 interface Segment {
-  type: "text" | "table" | "reasoning";
+  type: "text" | "table" | "reasoning" | "heading" | "hr";
   content: string;
   /** Pre-parsed reasoning data when type === 'reasoning'. */
   reasoning?: ReasoningBlockData;
+  /** 1–3 when type === 'heading'. */
+  headingLevel?: 1 | 2 | 3;
 }
 
 export default function MarkdownRenderer({ content, trace, citationReport }: Props) {
   const segments = splitTablesOut(content);
 
+  // Track whether we've attached the citation report to a segment yet.
+  let reportAttached = false;
+
   return (
     <div className="space-y-5">
       {segments.map((seg, i) => {
+        if (seg.type === "heading") {
+          const cls =
+            seg.headingLevel === 1
+              ? "text-xl font-semibold text-[var(--ink)]"
+              : seg.headingLevel === 2
+                ? "text-base font-semibold text-[var(--ink)]"
+                : "text-sm font-semibold text-[var(--ink)]";
+          return (
+            <div key={i} className={cls}>
+              <CitationRenderer content={seg.content} trace={trace} />
+            </div>
+          );
+        }
+        if (seg.type === "hr") {
+          return <hr key={i} className="border-t border-[var(--rule)] my-2" />;
+        }
         if (seg.type === "text") {
+          // Attach the report to the first text segment so the
+          // overall summary line appears once, not per-segment.
+          const attachReport = !reportAttached;
+          reportAttached = true;
           return (
             <CitationRenderer
               key={i}
               content={seg.content}
               trace={trace}
-              // Only attach the report to the first text segment so
-              // the overall summary line appears once, not per-segment.
-              citationReport={i === 0 ? citationReport : null}
+              citationReport={attachReport ? citationReport : null}
             />
           );
         }
@@ -157,6 +180,25 @@ function splitTablesOut(content: string): Segment[] {
       const start = i;
       while (i < lines.length && /^\s*\|/.test(lines[i])) i++;
       segments.push({ type: "table", content: lines.slice(start, i).join("\n") });
+      continue;
+    }
+    // 3. Heading — # / ## / ###
+    const headingMatch = lines[i].match(/^(#{1,3})\s+(.+)/);
+    if (headingMatch) {
+      flushText();
+      segments.push({
+        type: "heading",
+        content: headingMatch[2].trim(),
+        headingLevel: headingMatch[1].length as 1 | 2 | 3,
+      });
+      i++;
+      continue;
+    }
+    // 4. Horizontal rule — three or more dashes on their own line
+    if (/^-{3,}\s*$/.test(lines[i].trim())) {
+      flushText();
+      segments.push({ type: "hr", content: "" });
+      i++;
       continue;
     }
     textBuf.push(lines[i]);

@@ -22,6 +22,7 @@
 // vault check, etc. Memory markers are keyed the same way.
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { BookOpen, ExternalLink, MapPin, Sparkles, ScrollText, X } from "lucide-react";
 import {
@@ -129,7 +130,7 @@ export default function CitationRenderer({ content, trace, citationReport }: Pro
     <>
       <div className="text-[var(--ink)] text-sm whitespace-pre-wrap leading-relaxed">
         {tokens.map((t, i) => {
-          if (t.kind === "text") return <span key={i}>{t.value}</span>;
+          if (t.kind === "text") return <InlineMarkdown key={i} text={t.value} />;
           const check = statusByOccurrence?.get(i);
           if (t.type === "vault") {
             const data = map.vault[t.key];
@@ -511,4 +512,44 @@ function CitationPopover({
       </div>
     </div>
   );
+}
+
+// ── Inline markdown (bold / italic) ─────────────────────────────
+//
+// Handles **bold** and *italic* within text tokens. Runs after
+// the citation tokenizer so [v1] chips are already extracted and
+// only plain-text segments reach this component.
+
+const INLINE_RE = /(\*\*(.+?)\*\*|\*(.+?)\*)/g;
+
+function InlineMarkdown({ text }: { text: string }) {
+  // Fast path — no markers at all.
+  if (!text.includes("*")) return <span>{text}</span>;
+
+  const parts: ReactNode[] = [];
+  let lastIndex = 0;
+  let m: RegExpExecArray | null;
+  let k = 0;
+
+  // Reset lastIndex for the shared regex.
+  INLINE_RE.lastIndex = 0;
+  while ((m = INLINE_RE.exec(text)) !== null) {
+    if (m.index > lastIndex) {
+      parts.push(<span key={k++}>{text.slice(lastIndex, m.index)}</span>);
+    }
+    if (m[2] != null) {
+      // **bold**
+      parts.push(<strong key={k++} className="font-semibold">{m[2]}</strong>);
+    } else if (m[3] != null) {
+      // *italic*
+      parts.push(<em key={k++}>{m[3]}</em>);
+    }
+    lastIndex = m.index + m[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(<span key={k++}>{text.slice(lastIndex)}</span>);
+  }
+
+  return <>{parts}</>;
 }

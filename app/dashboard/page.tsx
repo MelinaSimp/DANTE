@@ -49,6 +49,7 @@ export default function DashboardPage() {
   const { data, error, isLoading } = useQuery<DashboardData, Error>({
     queryKey: ["dashboard", "advisor"],
     queryFn: fetchAdvisorDashboard,
+    staleTime: 30_000,
     // Don't retry on auth failure — let the effect above redirect.
     retry: (failureCount, err) => {
       if ((err as { status?: number }).status === 401) return false;
