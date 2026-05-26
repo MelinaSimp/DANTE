@@ -36,6 +36,7 @@ import { validateCitations } from "@/lib/dante/citation-validator";
 import { rateLimit, rateLimitResponse } from "@/lib/rate-limit/limiter";
 import { getVerticalSpecLoose } from "@/lib/industry/vertical-spec";
 import { computeGroundingScore } from "@/lib/dante/grounding";
+import { logAuditEvent } from "@/lib/audit/log";
 import type { AgentStep, AgentToolEntry, StepLogEntry } from "@/lib/dante/workflow-types";
 
 // Hard emoji strip — the system prompt says "never use emojis" but
@@ -501,6 +502,26 @@ export async function POST(req: NextRequest) {
       if (persistErr) {
         console.error("[ask] assistant message persist failed:", persistErr.message);
       }
+
+      // Audit: log every Dante chat completion so it surfaces in /audit.
+      logAuditEvent({
+        workspaceId: profile.workspace_id!,
+        actorUserId: user.id,
+        actorKind: "user",
+        action: "dante.chat",
+        entityType: "dante_chat",
+        entityId: chatId,
+        metadata: {
+          deep,
+          grounding_score: grounding.score,
+          tools_used: (log as Array<{ step_name?: string }>)
+            .map((s) => s.step_name)
+            .filter(Boolean),
+          model: "claude-sonnet-4-6",
+          ...(runError ? { error: runError } : {}),
+        },
+        request: req,
+      });
 
       send({
         type: "final",

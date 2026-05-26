@@ -22,6 +22,7 @@ import { runWorkflow } from "@/lib/dante/workflow-runner";
 import { definitionFromRow } from "@/lib/dante/workflow-types";
 import { enqueueRun, kickQueueWorker, notifyRunFailure } from "@/lib/dante/run-executor";
 import { requireActiveBilling } from "@/lib/billing/gate";
+import { logAuditEvent } from "@/lib/audit/log";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60; // Vercel hobby limit
@@ -69,6 +70,18 @@ export async function POST(
     // and the worker drains in its own lambda invocation.
     const origin = new URL(request.url).origin;
     kickQueueWorker(origin);
+
+    logAuditEvent({
+      workspaceId: profile.workspace_id,
+      actorUserId: user.id,
+      actorKind: "user",
+      action: "workflow.queued",
+      entityType: "dante_workflow",
+      entityId: workflowId,
+      metadata: { run_id: result.run_id, workflow_name: wf.name },
+      request,
+    });
+
     return NextResponse.json({ run_id: result.run_id, status: "queued" });
   }
 
@@ -104,6 +117,22 @@ export async function POST(
       last_run_status: result.status,
     }).eq("id", workflowId);
 
+    logAuditEvent({
+      workspaceId: profile.workspace_id,
+      actorUserId: user.id,
+      actorKind: "user",
+      action: result.status === "error" ? "workflow.failed" : "workflow.completed",
+      entityType: "dante_workflow",
+      entityId: workflowId,
+      metadata: {
+        run_id: runId,
+        workflow_name: definition.name,
+        status: result.status,
+        ...(result.error ? { error: result.error.slice(0, 500) } : {}),
+      },
+      request,
+    });
+
     if (result.status === "error") {
       notifyRunFailure({
         workflowId,
@@ -122,6 +151,17 @@ export async function POST(
       error: msg,
       finished_at: new Date().toISOString(),
     }).eq("id", runId);
+
+    logAuditEvent({
+      workspaceId: profile.workspace_id,
+      actorUserId: user.id,
+      actorKind: "user",
+      action: "workflow.failed",
+      entityType: "dante_workflow",
+      entityId: workflowId,
+      metadata: { run_id: runId, workflow_name: wf.name, error: msg.slice(0, 500) },
+      request,
+    });
 
     notifyRunFailure({
       workflowId,

@@ -12,6 +12,7 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { runWorkflow } from "./workflow-runner";
 import { definitionFromRow } from "./workflow-types";
+import { logAuditEvent } from "@/lib/audit/log";
 
 // ── Failure notifications ────────────────────────────────────
 // Email + SMS the workspace owner when a workflow errors so cron
@@ -158,6 +159,16 @@ export async function executeClaimedRun(
         last_run_status: "waiting_approval",
       }).eq("id", run.workflow_id);
 
+      logAuditEvent({
+        workspaceId: definition.workspace_id,
+        actorKind: "agent",
+        actorLabel: definition.name,
+        action: "workflow.paused",
+        entityType: "dante_workflow",
+        entityId: run.workflow_id,
+        metadata: { run_id: run.id, workflow_name: definition.name, reason: "waiting_approval" },
+      });
+
       return { status: "waiting_approval" };
     }
 
@@ -173,6 +184,22 @@ export async function executeClaimedRun(
       last_run_at: new Date().toISOString(),
       last_run_status: result.status,
     }).eq("id", run.workflow_id);
+
+    // Audit: log workflow completion so it surfaces in /audit.
+    logAuditEvent({
+      workspaceId: definition.workspace_id,
+      actorKind: "agent",
+      actorLabel: definition.name,
+      action: result.status === "error" ? "workflow.failed" : "workflow.completed",
+      entityType: "dante_workflow",
+      entityId: run.workflow_id,
+      metadata: {
+        run_id: run.id,
+        workflow_name: definition.name,
+        status: result.status,
+        ...(result.error ? { error: result.error.slice(0, 500) } : {}),
+      },
+    });
 
     // Only notify on actual errors, not cancellations
     if (result.status === "error") {
@@ -204,6 +231,15 @@ export async function executeClaimedRun(
     })();
     const wsId = (workflow as { workspace_id?: string }).workspace_id;
     if (wsId) {
+      logAuditEvent({
+        workspaceId: wsId,
+        actorKind: "agent",
+        actorLabel: wfName,
+        action: "workflow.failed",
+        entityType: "dante_workflow",
+        entityId: run.workflow_id,
+        metadata: { run_id: run.id, workflow_name: wfName, error: msg.slice(0, 500) },
+      });
       notifyRunFailure({
         workflowId: run.workflow_id,
         workflowName: wfName,

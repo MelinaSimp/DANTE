@@ -25,6 +25,7 @@ import {
   ChevronsUpDown,
   User,
   Workflow,
+  X,
 } from "lucide-react";
 import { getIndustryConfig } from "@/lib/industry/config";
 import DanteGateLink from "@/components/dante/DanteGateLink";
@@ -312,18 +313,38 @@ export default function AppSidebar({
                   {recentChats.map((chat) => {
                     const chatActive = pathname === `/dante/chat/${chat.id}`;
                     return (
-                      <button
+                      <div
                         key={chat.id}
-                        onClick={() => router.push(`/dante/chat/${chat.id}`)}
-                        className={`w-full h-9 flex items-center px-2.5 rounded-lg text-sm truncate transition-colors ${
+                        className={`group relative w-full h-9 flex items-center rounded-lg text-sm transition-colors ${
                           chatActive
                             ? "bg-[var(--neu-active)] shadow-[var(--neu-shadow-pressed)] text-[var(--ink)] font-medium border border-white/30 border-t-white/50"
                             : "text-[var(--ink-muted)] hover:bg-[var(--neu-hover)] hover:text-[var(--ink)]"
                         }`}
-                        title={chat.title}
                       >
-                        {chat.title}
-                      </button>
+                        <button
+                          onClick={() => router.push(`/dante/chat/${chat.id}`)}
+                          className="flex-1 h-full flex items-center px-2.5 truncate text-left"
+                          title={chat.title}
+                        >
+                          {chat.title}
+                        </button>
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            try {
+                              const res = await fetch(`/api/dante/chats/${chat.id}`, { method: "DELETE" });
+                              if (res.ok) {
+                                setRecentChats((prev) => prev?.filter((c) => c.id !== chat.id) ?? []);
+                                if (chatActive) router.push("/dante");
+                              }
+                            } catch {}
+                          }}
+                          className="hidden group-hover:flex items-center justify-center w-7 h-7 mr-1 rounded-md text-[var(--ink-subtle)] hover:text-[var(--ink)] hover:bg-black/[0.06] transition-colors shrink-0"
+                          title="Delete chat"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     );
                   })}
                 </div>
