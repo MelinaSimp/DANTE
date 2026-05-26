@@ -375,7 +375,25 @@ export async function POST(req: NextRequest) {
   const nowIso = new Date().toISOString();
   const timeNote = `\n\n---\n\nCurrent UTC time: ${nowIso}\nUse this as your anchor for any "now"-relative or "in X minutes/hours/days" computation. Do not guess the time from your training data.`;
 
-  const systemPrompt = buildDanteSystemPrompt({ industry }) + timeNote;
+  // Fetch connected integrations so Dante knows what data sources
+  // are available. Without this, it says "I don't have a Google Maps
+  // integration" even when the key is stored and site_scan uses it.
+  let integrationsNote = "";
+  try {
+    const { data: connections } = await supabaseAdmin
+      .from("integration_connections")
+      .select("provider, display_name, provider_kind")
+      .eq("workspace_id", profile.workspace_id)
+      .eq("status", "connected");
+    if (connections && connections.length > 0) {
+      const names = connections.map((c) => `${c.display_name || c.provider} (${c.provider_kind || "data"})`);
+      integrationsNote = `\n\n---\n\nCONNECTED INTEGRATIONS: This workspace has the following data integrations active: ${names.join(", ")}. Your tools (site_scan, void analysis, parcel detail, etc.) automatically use these connected APIs when relevant. When a user asks whether you can use one of these services, confirm that it is connected and available through your tools.`;
+    }
+  } catch {
+    // Non-fatal — proceed without integration context
+  }
+
+  const systemPrompt = buildDanteSystemPrompt({ industry }) + timeNote + integrationsNote;
 
   // Per-vertical tool whitelist (Phase 3 W3.5). Defaults match
   // DEFAULT_TOOLS but the indirection is live so future vertical-
