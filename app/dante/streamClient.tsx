@@ -66,6 +66,19 @@ export interface GroundingState {
   summary: string;
 }
 
+/** Document artifact produced by the document.create or document.edit
+ *  tools. Extracted from tool_end events and rendered as cards below
+ *  the assistant message. */
+export interface DocumentArtifact {
+  vault_item_id: string;
+  url: string | null;
+  filename: string;
+  format: "pdf" | "docx";
+  size_bytes: number;
+  title: string;
+  section_count: number;
+}
+
 export interface StreamState {
   streaming: boolean;
   events: StreamEvent[];
@@ -79,6 +92,9 @@ export interface StreamState {
   citationReport?: CitationReportState | null;
   /** Grounding score, populated by the `grounding` SSE frame. */
   grounding?: GroundingState | null;
+  /** Documents generated during this turn. Extracted from tool_end
+   *  events for document_create and document_edit. */
+  documents: DocumentArtifact[];
   chatId?: string;
   messageId?: string;
   error?: string;
@@ -91,6 +107,7 @@ export function initialStreamState(): StreamState {
     finalContent: "",
     trace: [],
     followups: [],
+    documents: [],
   };
 }
 
@@ -245,6 +262,26 @@ function reduce(state: StreamState, raw: unknown): StreamState {
         error: ev.error as string | undefined,
         summary: summarizeToolEnd(ev.tool_name as string, ev.output),
       };
+      // Extract document artifacts from document tool completions
+      const tn = ev.tool_name as string;
+      const out = ev.output as Record<string, unknown> | undefined;
+      if (
+        (tn === "document_create" || tn === "document_edit") &&
+        out &&
+        typeof out.vault_item_id === "string" &&
+        ev.status === "success"
+      ) {
+        const doc: DocumentArtifact = {
+          vault_item_id: out.vault_item_id as string,
+          url: (out.url as string) || null,
+          filename: (out.filename as string) || "document",
+          format: (out.format as "pdf" | "docx") || "pdf",
+          size_bytes: (out.size_bytes as number) || 0,
+          title: (out.title as string) || "Document",
+          section_count: (out.section_count as number) || 0,
+        };
+        return { ...state, events: [...state.events, event], documents: [...state.documents, doc] };
+      }
       return { ...state, events: [...state.events, event] };
     }
 
@@ -318,6 +355,14 @@ function summarizeToolStart(
   if (toolName === "skill_run") {
     return typeof args.name === "string" ? args.name : undefined;
   }
+  if (toolName === "document_create") {
+    const title = typeof args.title === "string" ? args.title : undefined;
+    const fmt = typeof args.format === "string" ? args.format.toUpperCase() : "";
+    return title ? `${truncate(title, 40)} (${fmt})` : fmt || undefined;
+  }
+  if (toolName === "document_edit") {
+    return "Updating document";
+  }
   return undefined;
 }
 
@@ -336,6 +381,11 @@ function summarizeToolEnd(toolName: string, output: unknown): string | undefined
   if (toolName === "clients_query") {
     const c = o.contacts as unknown[] | undefined;
     if (Array.isArray(c)) return `${c.length} contact${c.length === 1 ? "" : "s"}`;
+  }
+  if (toolName === "document_create" || toolName === "document_edit") {
+    const title = o.title as string | undefined;
+    const fmt = o.format as string | undefined;
+    if (title) return `${title} (${fmt?.toUpperCase() || "PDF"})`;
   }
   return undefined;
 }

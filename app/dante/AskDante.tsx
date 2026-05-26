@@ -82,6 +82,7 @@ interface AssistantTurn {
   /** Captured from streamState.citationReport at turn finalization. */
   citationReport?: import("./streamClient").CitationReportState | null;
   grounding?: import("./streamClient").GroundingState | null;
+  documents?: import("./streamClient").DocumentArtifact[];
 }
 
 interface UserTurn {
@@ -520,6 +521,7 @@ export default function AskDante({
         followups: captured.followups || [],
         citationReport: captured.citationReport ?? null,
         grounding: captured.grounding ?? null,
+        documents: captured.documents.length > 0 ? captured.documents : undefined,
       };
       if (captured.chatId) setChatId(captured.chatId);
       setTurns((prev) => [...prev, assistantTurn]);
@@ -855,6 +857,7 @@ export default function AskDante({
                   followups={t.followups}
                   citationReport={t.citationReport ?? null}
                   grounding={t.grounding ?? null}
+                  documents={t.documents}
                   onOpenEditor={(c) => setEditorContent(c)}
                   onRewrite={(instruction) => onRewriteLast(instruction)}
                   onFollowup={(q) => useFollowup(q)}

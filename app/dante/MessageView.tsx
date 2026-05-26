@@ -31,10 +31,11 @@ import {
 } from "lucide-react";
 import MarkdownRenderer from "./MarkdownRenderer";
 import { looksLikeDraft, deriveFilenameStem } from "./DocumentPanel";
-import type { StreamState, CitationReportState } from "./streamClient";
+import type { StreamState, CitationReportState, DocumentArtifact } from "./streamClient";
 import { buildCitationMap } from "@/lib/dante/citations";
 import AgentPlan from "@/components/dante/AgentPlan";
 import ReasoningDisclosure from "@/components/dante/ReasoningDisclosure";
+import DocumentCard from "@/components/dante/DocumentCard";
 
 const REWRITE_PRESETS = [
   { label: "Shorter", instruction: "Make it shorter — half the length, same key facts." },
@@ -63,6 +64,7 @@ export function AssistantMessage({
   followups,
   citationReport,
   grounding,
+  documents,
   onOpenEditor,
   onRewrite,
   onFollowup,
@@ -80,6 +82,9 @@ export function AssistantMessage({
    *  below the response so users see "Strongly grounded" / "General
    *  knowledge" without clicking anything. */
   grounding?: { tier: "strong" | "partial" | "general" | "none"; score: number; summary: string } | null;
+  /** Documents generated during this turn by document.create or
+   *  document.edit tools. Rendered as inline cards below the message. */
+  documents?: DocumentArtifact[];
   onOpenEditor: (content: string) => void;
   onRewrite: (instruction: string) => void;
   onFollowup: (q: string) => void;
@@ -154,6 +159,14 @@ export function AssistantMessage({
       <div className="mt-5 text-[var(--ink)] font-serif text-[15px] leading-[1.75] prose prose-sm max-w-none">
         <MarkdownRenderer content={content} trace={trace} citationReport={citationReport} />
       </div>
+
+      {documents && documents.length > 0 && (
+        <div className="mt-4">
+          {documents.map((doc) => (
+            <DocumentCard key={doc.vault_item_id} doc={doc} />
+          ))}
+        </div>
+      )}
 
       {grounding && grounding.tier !== "none" && (
         <GroundingBadge grounding={grounding} />

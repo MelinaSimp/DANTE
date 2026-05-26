@@ -19,6 +19,7 @@ import {
   consumeAgentStream,
   initialStreamState,
   type StreamState,
+  type DocumentArtifact,
 } from "@/app/dante/streamClient";
 import {
   UserMessage,
@@ -44,6 +45,10 @@ interface Message {
   grounding?: import("@/app/dante/streamClient").GroundingState | null;
   grounding_score?: number | null;
   prompt_version?: string | null;
+  /** Documents generated during this turn by document.create or
+   *  document.edit. Captured from stream for live turns; extracted
+   *  from trace for persisted messages. */
+  documents?: DocumentArtifact[];
   created_at: string;
 }
 
@@ -104,6 +109,7 @@ export default function ChatThread({
         followups: captured.followups || [],
         citationReport: captured.citationReport ?? null,
         grounding: captured.grounding ?? null,
+        documents: captured.documents.length > 0 ? captured.documents : undefined,
         created_at: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, assistant]);
@@ -196,6 +202,7 @@ export default function ChatThread({
                   : null)
               }
               onOpenEditor={(c) => setEditorContent(c)}
+              documents={m.documents}
               onRewrite={(instruction) => onRewriteLast(instruction)}
               onFollowup={(q) => submit(q)}
               rewriting={refining}

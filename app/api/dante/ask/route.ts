@@ -83,6 +83,8 @@ const DEFAULT_TOOLS: AgentToolEntry[] = [
   "site_scan.search",
   "site_scan.detail",
   "site_scan.listings",
+  "document.create",
+  "document.edit",
 ];
 
 // System prompt is now built per-workspace inside POST() so realtor

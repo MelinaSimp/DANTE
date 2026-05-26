@@ -725,6 +725,77 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
       },
     },
   },
+  "document.create": {
+    type: "function",
+    function: {
+      name: "document_create",
+      description:
+        "Generate a branded PDF or DOCX document from structured sections and save it to the workspace vault. Use this when the user asks you to create a report, memo, letter, deal summary, lease abstract, market analysis, or any other professional document. The document will be branded with the workspace's logo and colors. Returns a vault item ID and download URL the user can access immediately.",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "Document title (appears in header)." },
+          subtitle: { type: "string", description: "Optional subtitle (appears below title)." },
+          sections: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                heading: { type: "string", description: "Section heading." },
+                body: { type: "string", description: "Section body text. Supports plain text with newlines for paragraph breaks." },
+              },
+              required: ["heading", "body"],
+            },
+            description: "Document sections in order. Each section has a heading and body.",
+          },
+          format: {
+            type: "string",
+            enum: ["pdf", "docx"],
+            description: "Output format. Use 'pdf' for final deliverables the broker will share with clients. Use 'docx' for editable drafts the broker can modify in Word.",
+          },
+        },
+        required: ["title", "sections", "format"],
+      },
+    },
+  },
+  "document.edit": {
+    type: "function",
+    function: {
+      name: "document_edit",
+      description:
+        "Modify an existing Dante-generated document by appending, replacing, or deleting sections, then re-render and save the updated version. Only works on documents that Dante originally created (they have section metadata stored). Use this when the user wants to revise, update, or add to a document you previously generated.",
+      parameters: {
+        type: "object",
+        properties: {
+          vault_item_id: {
+            type: "string",
+            description: "The vault item ID of the document to edit (returned by document.create).",
+          },
+          operations: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                type: {
+                  type: "string",
+                  enum: ["append_section", "replace_section", "delete_section", "set_title", "set_subtitle"],
+                  description: "Operation type.",
+                },
+                heading: { type: "string", description: "Section heading (for append_section and replace_section)." },
+                body: { type: "string", description: "Section body (for append_section and replace_section)." },
+                index: { type: "number", description: "Zero-based section index (for replace_section and delete_section)." },
+                title: { type: "string", description: "New title (for set_title)." },
+                subtitle: { type: "string", description: "New subtitle (for set_subtitle)." },
+              },
+              required: ["type"],
+            },
+            description: "Ordered list of edit operations to apply.",
+          },
+        },
+        required: ["vault_item_id", "operations"],
+      },
+    },
+  },
 };
 
 // Inverse map: function-name string → AgentToolName. The OpenAI API
@@ -756,6 +827,8 @@ const NAME_TO_TOOL: Record<string, AgentToolName> = {
   site_scan_void_analysis: "site_scan.void_analysis",
   web_search: "web.search",
   cre_calculate: "cre.calculate",
+  document_create: "document.create",
+  document_edit: "document.edit",
 };
 
 // ── Tool executor adapters ────────────────────────────────────
@@ -804,6 +877,8 @@ const PER_TOOL_BUDGET: Partial<Record<AgentToolName, number>> = {
   "site_scan.void_analysis": 3,
   "web.search": 10,
   "cre.calculate": 10, // cheap (pure math), but cap to prevent runaway loops
+  "document.create": 5,  // each creates a file in storage + vault row; 5 is generous
+  "document.edit": 5,    // re-renders + re-uploads; match create budget
 };
 
 /**
@@ -1895,6 +1970,62 @@ async function dispatchTool(
       const results = calculateCre(metrics, inputs);
       return { results, metrics_computed: results.filter((r) => !("error" in r)).length };
     }
+    case "document.create": {
+      if (ctx.simulate) {
+        return {
+          simulated: true,
+          would_have: { action: "document.create", title: args.title, format: args.format },
+        };
+      }
+      const { createDocument } = await import("@/lib/dante/tools/document");
+      const sections = Array.isArray(args.sections)
+        ? (args.sections as Array<{ heading?: string; body?: string }>).map((s) => ({
+            heading: String(s.heading || ""),
+            body: String(s.body || ""),
+          }))
+        : [];
+      const format = args.format === "docx" ? "docx" : "pdf";
+      const result = await createDocument({
+        workspaceId: ctx.workspaceId,
+        title: String(args.title || "Untitled Document"),
+        subtitle: args.subtitle ? String(args.subtitle) : undefined,
+        sections,
+        format,
+        projectId: ctx.projectId,
+      });
+      return {
+        ...result,
+        formatted: `Document created: "${result.title}" (${result.format.toUpperCase()}, ${result.section_count} sections, ${Math.round(result.size_bytes / 1024)}KB). Saved to vault as ${result.vault_item_id}. Download: ${result.url || "(generating link...)"}`,
+      };
+    }
+    case "document.edit": {
+      if (ctx.simulate) {
+        return {
+          simulated: true,
+          would_have: { action: "document.edit", vault_item_id: args.vault_item_id, operation_count: Array.isArray(args.operations) ? args.operations.length : 0 },
+        };
+      }
+      const { editDocument } = await import("@/lib/dante/tools/document");
+      const operations = Array.isArray(args.operations)
+        ? (args.operations as Array<Record<string, unknown>>).map((op) => ({
+            type: String(op.type || ""),
+            heading: op.heading ? String(op.heading) : undefined,
+            body: op.body ? String(op.body) : undefined,
+            index: typeof op.index === "number" ? op.index : undefined,
+            title: op.title ? String(op.title) : undefined,
+            subtitle: op.subtitle ? String(op.subtitle) : undefined,
+          }))
+        : [];
+      const result = await editDocument({
+        workspaceId: ctx.workspaceId,
+        vaultItemId: String(args.vault_item_id || ""),
+        operations: operations as import("@/lib/dante/tools/document").EditOperation[],
+      });
+      return {
+        ...result,
+        formatted: `Document updated: "${result.title}" (${result.format.toUpperCase()}, ${result.section_count} sections, ${Math.round(result.size_bytes / 1024)}KB). New vault item: ${result.vault_item_id}. Download: ${result.url || "(generating link...)"}`,
+      };
+    }
   }
 }
 
@@ -2157,6 +2288,8 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       "site_scan.void_analysis": 0,
       "web.search": 0,
       "cre.calculate": 0,
+      "document.create": 0,
+      "document.edit": 0,
     },
   };
 
