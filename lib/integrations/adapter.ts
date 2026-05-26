@@ -101,7 +101,7 @@ const ADAPTERS: Record<string, () => Promise<IntegrationAdapter>> = {
   auction_com: async () => (await import("./_api-key-stub")).makeApiKeyStub("auction_com"),
   ten_x: async () => (await import("./_api-key-stub")).makeApiKeyStub("ten_x"),
   regrid: async () => (await import("./_api-key-stub")).makeApiKeyStub("regrid"),
-  google_maps: async () => (await import("./_api-key-stub")).makeApiKeyStub("google_maps"),
+  google_maps: async () => (await import("./adapters/google-maps")).makeGoogleMapsAdapter(),
   opencorporates: async () => (await import("./_api-key-stub")).makeApiKeyStub("opencorporates"),
 };
 
