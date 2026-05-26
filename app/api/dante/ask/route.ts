@@ -130,12 +130,18 @@ export async function POST(req: NextRequest) {
      *  so bytes never leave the user's machine. The text gets
      *  inlined into the agent's objective and the whole turn is
      *  forced to local_only (Hermes), since by definition this
-     *  content didn't come through the cloud Vault pipeline. */
+     *  content didn't come through the cloud Vault pipeline.
+     *  Image attachments carry base64 data + media_type for
+     *  Claude vision — these stay on cloud (need the vision API). */
     attachments?: Array<{
       name: string;
       ext?: string;
       text: string;
       truncated?: boolean;
+      /** Base64 image data (no data-URL prefix). */
+      image_data?: string;
+      /** MIME type for images: image/png, image/jpeg, etc. */
+      media_type?: string;
     }>;
   };
   const message = (body.message || "").trim();
@@ -151,12 +157,23 @@ export async function POST(req: NextRequest) {
           ext: typeof a.ext === "string" ? a.ext.slice(0, 16) : "",
           text: String(a.text).slice(0, 200_000),
           truncated: a.truncated === true,
+          image_data: typeof a.image_data === "string" ? a.image_data : undefined,
+          media_type: typeof a.media_type === "string" ? a.media_type : undefined,
         }))
     : [];
   // Hard cap so the objective doesn't balloon past Hermes' context.
   const cappedAttachments = attachments.slice(0, 8);
+  // Split image vs text attachments — images need Claude vision (cloud),
+  // text-only attachments route through Hermes (local_only).
+  const imageAttachments = cappedAttachments.filter((a) => a.image_data && a.media_type);
+  const textAttachments = cappedAttachments.filter((a) => !a.image_data);
+  // If there are images, we need cloud (vision API). If text-only, local_only.
   const forcedProcessingMode: "cloud" | "local_only" | undefined =
-    cappedAttachments.length > 0 ? "local_only" : undefined;
+    imageAttachments.length > 0
+      ? "cloud"
+      : textAttachments.length > 0
+        ? "local_only"
+        : undefined;
 
   // Phase 2 W2.5 — workspace-scoped rate limit on the chat surface.
   // Deep-research turns are more expensive; charge them more tokens
@@ -315,13 +332,14 @@ export async function POST(req: NextRequest) {
     contextLine += `\n\nCONTEXT: this conversation is scoped to vault project (id: ${contextProjectId}). When calling archive.search or vault.cite, restrict retrieval to that project's documents unless the user explicitly asks to search across all projects.`;
   }
 
-  // Inline attachments into the objective as <attachment> blocks
+  // Inline text attachments into the objective as <attachment> blocks
   // so the agent sees them as first-class context. Truncation
   // marker tells it to ask for the rest of the file if needed.
+  // Image attachments are passed separately as vision content blocks.
   const attachmentBlock =
-    cappedAttachments.length > 0
+    textAttachments.length > 0
       ? "\n\nThe user attached the following files. Their full extracted text is below. Treat these as confidential local-machine content; cite filenames when referring to them.\n\n" +
-        cappedAttachments
+        textAttachments
           .map(
             (a) =>
               `<attachment name="${a.name}"${a.ext ? ` ext="${a.ext}"` : ""}${a.truncated ? ' truncated="true"' : ""}>\n${a.text}\n</attachment>`,
@@ -329,9 +347,17 @@ export async function POST(req: NextRequest) {
           .join("\n\n")
       : "";
 
+  // Image attachments — described in the objective text so the
+  // model knows files were attached, but the actual pixel data
+  // goes through Claude's vision API as content blocks.
+  const imageNote =
+    imageAttachments.length > 0
+      ? `\n\nThe user also attached ${imageAttachments.length} image${imageAttachments.length > 1 ? "s" : ""}: ${imageAttachments.map((a) => a.name).join(", ")}. The image data is included in the message for you to analyze visually.`
+      : "";
+
   const objective = priorTranscript
-    ? `Previous turns in this conversation:\n\n${priorTranscript}${contextLine}\n\n---\n\nLatest user message: ${message}${attachmentBlock}`
-    : `${message}${contextLine}${attachmentBlock}`;
+    ? `Previous turns in this conversation:\n\n${priorTranscript}${contextLine}\n\n---\n\nLatest user message: ${message}${attachmentBlock}${imageNote}`
+    : `${message}${contextLine}${attachmentBlock}${imageNote}`;
 
   // Deep research bumps the agent's tool-call budget and nudges the
   // system prompt toward iterative refinement — the model is told to
@@ -413,6 +439,15 @@ export async function POST(req: NextRequest) {
           projectId: contextProjectId,
           accessibleProjectIds: isUserAdmin ? null : userProjectIds,
           forcedProcessingMode,
+          imageBlocks: imageAttachments.length > 0
+            ? imageAttachments
+                .filter((a): a is typeof a & { image_data: string; media_type: string } =>
+                  Boolean(a.image_data && a.media_type))
+                .map((a) => ({
+                  data: a.image_data,
+                  media_type: a.media_type,
+                }))
+            : undefined,
           onEvent: (event: AgentEvent) => {
             // Strip emojis from any text the model produces mid-stream
             if ("summary" in event && event.summary) {

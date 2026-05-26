@@ -55,7 +55,7 @@ import {
   logResolution,
 } from "@/lib/llm/processing-mode";
 import { detectAutoLocalMode } from "@/lib/dante/auto-mode";
-import type { LlmMessage, LlmToolDef } from "@/lib/llm/types";
+import type { LlmMessage, LlmToolDef, LlmContentBlock } from "@/lib/llm/types";
 import type { MemoryKind } from "@/lib/dante/memory/types";
 import type {
   AgentStep,
@@ -2162,7 +2162,7 @@ async function dispatchTool(
 
 interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";
-  content: string | null;
+  content: string | null | LlmContentBlock[];
   tool_calls?: Array<{
     id: string;
     type: "function";
@@ -2236,6 +2236,11 @@ export interface AgentRunInput {
   projectId?: string | null;
   /** For non-admin users, restrict search to these project IDs. null = unrestricted. */
   accessibleProjectIds?: string[] | null;
+  /** Image attachments for Claude vision. Each entry is a base64-
+   *  encoded image + its MIME type. These get injected into the
+   *  first user message as content blocks alongside the text
+   *  objective, so the model can analyze them visually. */
+  imageBlocks?: Array<{ data: string; media_type: string }>;
 }
 
 export interface AgentRunResult {
@@ -2380,7 +2385,23 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
     .join("\n");
 
   messages.push({ role: "system", content: systemPrompt });
-  messages.push({ role: "user", content: cfg.objective });
+
+  // If the caller passed image blocks (vision), build a multi-modal
+  // user message with text + image content blocks. Otherwise, plain
+  // text as before.
+  if (input.imageBlocks && input.imageBlocks.length > 0) {
+    const contentBlocks: LlmContentBlock[] = [
+      { type: "text", text: cfg.objective },
+      ...input.imageBlocks.map((img) => ({
+        type: "image" as const,
+        data: img.data,
+        media_type: img.media_type,
+      })),
+    ];
+    messages.push({ role: "user", content: contentBlocks });
+  } else {
+    messages.push({ role: "user", content: cfg.objective });
+  }
 
   const ctx: AgentToolCtx = {
     workspaceId: input.workspaceId,
@@ -2460,9 +2481,10 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
     // tool calls, retry once. Transient API hiccups (empty response,
     // content-filter edge case, overloaded endpoint) occasionally
     // produce this; a single retry resolves it >90% of the time.
+    const assistantText = typeof assistantMsg.content === "string" ? assistantMsg.content : null;
     if (
       thisIteration === 0 &&
-      !assistantMsg.content?.trim() &&
+      !assistantText?.trim() &&
       (!assistantMsg.tool_calls || assistantMsg.tool_calls.length === 0)
     ) {
       console.warn(
@@ -2485,7 +2507,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
 
     // No tool calls → the model has produced a final answer. Done.
     if (!assistantMsg.tool_calls || assistantMsg.tool_calls.length === 0) {
-      finalText = (assistantMsg.content as string) || "";
+      finalText = (typeof assistantMsg.content === "string" ? assistantMsg.content : "") || "";
       break;
     }
 
@@ -2631,7 +2653,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
         workspaceId: input.workspaceId,
         processingMode,
       });
-      finalText = (wrap.message.content as string) || "";
+      finalText = wrap.message.content || "";
     } catch (err) {
       console.warn("[agent] truncated wrap-up failed:", err);
     }
@@ -2668,8 +2690,8 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
  * to a single sentence. Models occasionally write longer plans
  * ("First I'll search memory, then..."); we keep just the first.
  */
-function trimPreamble(content: string | null | undefined): string {
-  if (!content) return "";
+function trimPreamble(content: string | null | undefined | LlmContentBlock[]): string {
+  if (!content || Array.isArray(content)) return "";
   const cleaned = content
     .trim()
     .replace(/^[#*_>-]+\s*/, "")

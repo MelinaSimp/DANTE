@@ -279,7 +279,12 @@ export function AssistantMessage({
   );
 }
 
-// ── Sources block ───────────────────────────────────────────────
+// ── Sources block — compact Perplexity-style row ────────────────
+//
+// Shows a row of small source pills (first letter of each source)
+// with a total count. Clicking the count expands the full list.
+// Vault sources show the document icon; memory sources show a
+// brain-like dot. Compact by default, expandable on demand.
 
 export function SourcesBlock({ trace }: { trace: unknown }) {
   const [open, setOpen] = useState(false);
@@ -291,16 +296,44 @@ export function SourcesBlock({ trace }: { trace: unknown }) {
   const total = vault.length + memory.length;
   if (total === 0) return null;
 
+  // De-duplicate vault sources by document_id so each doc shows once
+  const uniqueVault = vault.filter(
+    (v, i, arr) =>
+      !v.document_id || arr.findIndex((x) => x.document_id === v.document_id) === i,
+  );
+
   return (
     <div className="mt-4">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-1.5 text-xs text-[var(--ink-subtle)] hover:text-[var(--ink-muted)]"
+        className="inline-flex items-center gap-2 rounded-full border border-[var(--rule)] px-3 py-1.5 hover:bg-[var(--canvas-subtle)] transition"
       >
-        {open ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-        <BookOpen className="w-3 h-3" strokeWidth={1.5} />
-        Sources · {total}
+        {/* Source avatar circles */}
+        <span className="flex -space-x-1.5">
+          {uniqueVault.slice(0, 4).map((v, i) => (
+            <span
+              key={`v${i}`}
+              className="w-5 h-5 rounded-full bg-amber-100 border-2 border-[var(--canvas)] flex items-center justify-center text-[9px] font-semibold text-amber-700"
+              title={v.source || "Vault"}
+            >
+              {(v.source || "V")[0].toUpperCase()}
+            </span>
+          ))}
+          {memory.length > 0 && uniqueVault.length < 4 && (
+            <span className="w-5 h-5 rounded-full bg-cyan-100 border-2 border-[var(--canvas)] flex items-center justify-center text-[9px] font-semibold text-cyan-700" title="Memory">
+              M
+            </span>
+          )}
+          {total > 5 && (
+            <span className="w-5 h-5 rounded-full bg-[var(--canvas-subtle)] border-2 border-[var(--canvas)] flex items-center justify-center text-[9px] font-medium text-[var(--ink-subtle)]">
+              +{total - 4}
+            </span>
+          )}
+        </span>
+        <span className="text-xs text-[var(--ink-muted)]">{total} source{total === 1 ? "" : "s"}</span>
+        {open ? <ChevronDown className="w-3 h-3 text-[var(--ink-subtle)]" /> : <ChevronRight className="w-3 h-3 text-[var(--ink-subtle)]" />}
       </button>
+
       {open && (
         <div className="mt-2 glass-card rounded-lg p-3 space-y-3">
           {vault.length > 0 && (
@@ -310,13 +343,13 @@ export function SourcesBlock({ trace }: { trace: unknown }) {
               </div>
               <div className="space-y-1">
                 {vault.map((c, i) => (
-                  <div key={i} className="text-xs">
-                    <span className="font-mono text-amber-700 mr-2">
-                      {c.marker}
+                  <div key={i} className="text-xs flex items-center gap-2">
+                    <span className="w-4 h-4 rounded-full bg-amber-100 flex items-center justify-center text-[8px] font-semibold text-amber-700 shrink-0">
+                      {(c.source || "V")[0].toUpperCase()}
                     </span>
-                    <span className="text-[var(--ink)] font-medium">{c.source}</span>
+                    <span className="text-[var(--ink)] font-medium truncate">{c.source}</span>
                     {c.page != null && (
-                      <span className="text-[var(--ink-subtle)]"> · p.{c.page}</span>
+                      <span className="text-[var(--ink-subtle)] shrink-0">p.{c.page}</span>
                     )}
                   </div>
                 ))}
@@ -330,9 +363,9 @@ export function SourcesBlock({ trace }: { trace: unknown }) {
               </div>
               <div className="space-y-1">
                 {memory.map((c, i) => (
-                  <div key={i} className="text-xs">
-                    <span className="font-mono text-cyan-700 mr-2">
-                      [mem:{c.short_id}]
+                  <div key={i} className="text-xs flex items-center gap-2">
+                    <span className="w-4 h-4 rounded-full bg-cyan-100 flex items-center justify-center text-[8px] font-semibold text-cyan-700 shrink-0">
+                      M
                     </span>
                     <span className="text-[var(--ink-subtle)]">{c.kind}</span>
                     {c.source_kind && (

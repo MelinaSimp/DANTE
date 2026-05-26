@@ -265,9 +265,12 @@ const REWRITE_PRESETS = [
 
 export default function AskDante({
   assistantName = "Dante",
+  userName = "",
 }: {
   /** Brand name of the assistant. */
   assistantName?: string;
+  /** First name of the signed-in user, for the landing greeting. */
+  userName?: string;
 }) {
   // Brand info (name + iconPath) flows from /dante/layout.tsx via the
   // AssistantNameProvider context. The prop above is a legacy override
@@ -305,6 +308,9 @@ export default function AskDante({
     ext?: string;
     text: string;
     truncated?: boolean;
+    /** Base64 data URL for image attachments (vision). */
+    image_data?: string;
+    media_type?: string;
   }>>([]);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -362,7 +368,9 @@ export default function AskDante({
   // Anything else gets a friendly placeholder so the model still
   // knows the user offered the file.
   const TEXT_EXTS = new Set(["txt", "md", "csv", "json", "log", "yaml", "yml", "tsv"]);
+  const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp"]);
   const MAX_TEXT_CHARS = 200_000; // ~50k tokens — preserves prompt budget
+  const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB per image
 
   async function extractPdfText(buffer: ArrayBuffer): Promise<string> {
     const pdfjs = (await import("pdfjs-dist")) as unknown as {
@@ -417,9 +425,37 @@ export default function AskDante({
     ext?: string;
     text: string;
     truncated?: boolean;
+    image_data?: string;
+    media_type?: string;
   } | null> {
     const ext = (file.name.split(".").pop() || "").toLowerCase();
     try {
+      // Image files — read as base64 for Claude vision
+      if (IMAGE_EXTS.has(ext)) {
+        if (file.size > MAX_IMAGE_BYTES) {
+          return {
+            name: file.name,
+            ext,
+            text: `(Image ${file.name} too large — ${Math.round(file.size / 1024 / 1024)}MB exceeds the 5MB limit.)`,
+          };
+        }
+        const buf = await file.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        let binary = "";
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        const b64 = btoa(binary);
+        const mediaType = ext === "png" ? "image/png"
+          : ext === "gif" ? "image/gif"
+          : ext === "webp" ? "image/webp"
+          : "image/jpeg";
+        return {
+          name: file.name,
+          ext,
+          text: `(Image: ${file.name})`,
+          image_data: b64,
+          media_type: mediaType,
+        };
+      }
       if (TEXT_EXTS.has(ext)) {
         const buf = await file.arrayBuffer();
         const raw = new TextDecoder("utf-8", { fatal: false }).decode(buf);
@@ -616,8 +652,20 @@ export default function AskDante({
       >
         <div className="flex-col items-center w-full max-w-4xl relative px-0 xl:px-8">
           <div className="mb-10 text-center">
+            <div className="label-section mb-3">
+              {new Date().toLocaleDateString("en-US", {
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              }).toUpperCase()}
+            </div>
             <h1 className="text-4xl font-serif font-light text-[var(--ink)]">
-              Hi, how can {brand.name} help?
+              {(() => {
+                const h = new Date().getHours();
+                const tod = h < 12 ? "Morning" : h < 17 ? "Afternoon" : "Evening";
+                return userName ? `${tod}, ${userName}.` : `Good ${tod.toLowerCase()}.`;
+              })()}
             </h1>
           </div>
 
@@ -714,7 +762,7 @@ export default function AskDante({
                 multiple
                 hidden
                 onChange={onFilesPicked}
-                accept=".txt,.md,.csv,.json,.log,.yaml,.yml,.tsv,.pdf,.docx,.doc"
+                accept=".txt,.md,.csv,.json,.log,.yaml,.yml,.tsv,.pdf,.docx,.doc,.png,.jpg,.jpeg,.gif,.webp"
               />
               <div className="text-center">
                 <p className="text-xs py-3 text-[var(--ink-subtle)]">
@@ -969,7 +1017,7 @@ interface InputBarProps {
   onOpenFilesAndSources?: () => void;
   /** Files the user has attached for the next message — rendered
    *  as small chips above the textarea. Empty array hides the row. */
-  attachments?: Array<{ name: string; ext?: string; truncated?: boolean }>;
+  attachments?: Array<{ name: string; ext?: string; truncated?: boolean; image_data?: string; media_type?: string }>;
   /** Remove the attachment at the given index. */
   onRemoveAttachment?: (idx: number) => void;
   /** When true, the toolbar (Prompts/Customize/Deep research) is
@@ -992,7 +1040,7 @@ function InputBar(p: InputBarProps) {
             value={p.input}
             onChange={(e) => p.setInput(e.target.value)}
             onKeyDown={p.onKeyDown}
-            placeholder={`Ask ${p.assistantName} anything…`}
+            placeholder="How can I help you today?"
             disabled={p.streaming}
             rows={p.rows}
             className="w-full resize-none text-sm overflow-hidden border-0 p-0 bg-transparent outline-none placeholder:text-[var(--ink-subtle)] text-[var(--ink)] leading-6 max-h-48"
@@ -1025,9 +1073,16 @@ function InputBar(p: InputBarProps) {
           {p.attachments.map((a, i) => (
             <span
               key={`${a.name}-${i}`}
-              className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full text-xs text-white shadow border border-white/20 bg-black"
+              className="inline-flex items-center gap-1.5 pl-1.5 pr-1 py-0.5 rounded-full text-xs text-white shadow border border-white/20 bg-black"
               title={a.truncated ? `${a.name} (truncated to fit)` : a.name}
             >
+              {a.image_data && a.media_type ? (
+                <img
+                  src={`data:${a.media_type};base64,${a.image_data}`}
+                  alt={a.name}
+                  className="w-5 h-5 rounded-sm object-cover"
+                />
+              ) : null}
               <span className="max-w-[140px] truncate">{a.name}</span>
               {p.onRemoveAttachment && (
                 <button
@@ -1051,7 +1106,7 @@ function InputBar(p: InputBarProps) {
           value={p.input}
           onChange={(e) => p.setInput(e.target.value)}
           onKeyDown={p.onKeyDown}
-          placeholder={`Ask ${p.assistantName} anything…`}
+          placeholder="How can I help you today?"
           disabled={p.streaming}
           rows={p.rows}
           className="w-full resize-none text-sm overflow-hidden border-0 p-0 bg-transparent outline-none placeholder:text-[var(--ink-subtle)] text-[var(--ink)] leading-6 max-h-48"

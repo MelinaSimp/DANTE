@@ -14,9 +14,27 @@ export interface LlmToolCall {
   function: { name: string; arguments: string };
 }
 
+/** Content block types for multi-modal messages (text + images). */
+export interface LlmTextBlock {
+  type: "text";
+  text: string;
+}
+
+export interface LlmImageBlock {
+  type: "image";
+  /** Base64-encoded image data (no data-URL prefix). */
+  data: string;
+  /** MIME type — "image/png", "image/jpeg", "image/gif", "image/webp". */
+  media_type: string;
+}
+
+export type LlmContentBlock = LlmTextBlock | LlmImageBlock;
+
 export interface LlmMessage {
   role: LlmRole;
-  content: string | null;
+  /** Plain string for text-only messages, or an array of content
+   *  blocks for multi-modal messages (e.g. text + images). */
+  content: string | null | LlmContentBlock[];
   tool_calls?: LlmToolCall[];
   tool_call_id?: string;
   name?: string;
@@ -62,12 +80,43 @@ export interface LlmUsage {
   totalTokens: number;
 }
 
+/** Response message — content is always a plain string or null.
+ *  Content block arrays only appear in *input* messages (user
+ *  messages with images), never in LLM responses. */
+export interface LlmResponseMessage {
+  role: LlmRole;
+  content: string | null;
+  tool_calls?: LlmToolCall[];
+  tool_call_id?: string;
+  name?: string;
+}
+
 export interface LlmCompleteResult {
-  message: LlmMessage;
+  message: LlmResponseMessage;
   finishReason: string;
   usage: LlmUsage;
   /** Raw provider response, kept for debugging / telemetry. */
   raw: unknown;
+}
+
+/**
+ * Safely extract the text content from an LlmMessage. Returns the
+ * string content if it's a plain string, concatenates text blocks if
+ * it's a content block array, or returns the fallback for null.
+ * Use this instead of casting `message.content` to string.
+ */
+export function llmContentText(
+  content: string | null | LlmContentBlock[],
+  fallback = "",
+): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .filter((b): b is LlmTextBlock => b.type === "text")
+      .map((b) => b.text)
+      .join("");
+  }
+  return fallback;
 }
 
 export interface LlmEmbedOptions {

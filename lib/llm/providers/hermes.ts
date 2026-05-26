@@ -63,7 +63,7 @@ function toOllamaMessages(messages: LlmMessage[]): Array<{
     .filter((m) => m.role !== "tool") // Ollama tool-use is non-standard; we don't expose it via Hermes today
     .map((m) => ({
       role: m.role,
-      content: m.content || "",
+      content: typeof m.content === "string" ? m.content : "",
     }));
 }
 

@@ -23,9 +23,11 @@ import Anthropic from "@anthropic-ai/sdk";
 import type {
   LlmCompleteOptions,
   LlmCompleteResult,
+  LlmContentBlock,
   LlmEmbedOptions,
   LlmMessage,
   LlmProvider,
+  LlmResponseMessage,
   LlmToolCall,
   LlmToolDef,
   LlmTranscribeOptions,
@@ -56,6 +58,14 @@ interface AnthropicTextBlock {
   text: string;
   cache_control?: { type: "ephemeral" };
 }
+interface AnthropicImageBlock {
+  type: "image";
+  source: {
+    type: "base64";
+    media_type: string;
+    data: string;
+  };
+}
 interface AnthropicToolUseBlock {
   type: "tool_use";
   id: string;
@@ -70,6 +80,7 @@ interface AnthropicToolResultBlock {
 }
 type AnthropicContentBlock =
   | AnthropicTextBlock
+  | AnthropicImageBlock
   | AnthropicToolUseBlock
   | AnthropicToolResultBlock;
 
@@ -93,23 +104,48 @@ function toAnthropicInput(messages: LlmMessage[]): {
 
   for (const m of messages) {
     if (m.role === "system") {
-      const text = m.content ?? "";
+      const text = typeof m.content === "string" ? m.content : "";
       if (text) systemBlocks.push({ type: "text", text });
       continue;
     }
 
     if (m.role === "user") {
-      const text = m.content ?? "";
-      if (text) {
-        out.push({ role: "user", content: [{ type: "text", text }] });
+      // Multi-modal content: content can be a string or an array of
+      // LlmContentBlock (text + image). Map each block to the
+      // Anthropic equivalent.
+      if (Array.isArray(m.content)) {
+        const blocks: AnthropicContentBlock[] = [];
+        for (const block of m.content as LlmContentBlock[]) {
+          if (block.type === "text") {
+            blocks.push({ type: "text", text: block.text });
+          } else if (block.type === "image") {
+            blocks.push({
+              type: "image",
+              source: {
+                type: "base64",
+                media_type: block.media_type,
+                data: block.data,
+              },
+            });
+          }
+        }
+        if (blocks.length > 0) {
+          out.push({ role: "user", content: blocks });
+        }
+      } else {
+        const text = typeof m.content === "string" ? m.content : "";
+        if (text) {
+          out.push({ role: "user", content: [{ type: "text", text }] });
+        }
       }
       continue;
     }
 
     if (m.role === "assistant") {
       const blocks: AnthropicContentBlock[] = [];
-      if (m.content) {
-        blocks.push({ type: "text", text: m.content });
+      const aText = typeof m.content === "string" ? m.content : null;
+      if (aText) {
+        blocks.push({ type: "text", text: aText });
       }
       for (const tc of m.tool_calls ?? []) {
         let parsedInput: Record<string, unknown> = {};
@@ -139,7 +175,7 @@ function toAnthropicInput(messages: LlmMessage[]): {
       const block: AnthropicToolResultBlock = {
         type: "tool_result",
         tool_use_id: m.tool_call_id ?? "",
-        content: m.content ?? "",
+        content: (typeof m.content === "string" ? m.content : "") ?? "",
       };
       const prev = out[out.length - 1];
       if (
@@ -224,7 +260,7 @@ function fromAnthropicResponse(resp: AnthropicResponseMessage): LlmCompleteResul
     }
   }
 
-  const message: LlmMessage = {
+  const message: LlmResponseMessage = {
     role: "assistant",
     content: text || null,
     ...(toolCalls.length > 0 ? { tool_calls: toolCalls } : {}),
