@@ -33,6 +33,9 @@ export interface CreateDocumentInput {
   format: "pdf" | "docx";
   /** If provided, the document is attached to this vault project. */
   projectId?: string;
+  /** If provided, pre-fills section headings from a saved template.
+   *  The agent still supplies the body content for each section. */
+  templateId?: string;
 }
 
 export interface EditDocumentInput {
@@ -172,7 +175,34 @@ async function renderDocx(
 // ── Create ───────────────────────────────────────────────────────
 
 export async function createDocument(input: CreateDocumentInput): Promise<DocumentResult> {
-  const { workspaceId, title, subtitle, sections, format, projectId } = input;
+  const { workspaceId, title, subtitle, format, projectId, templateId } = input;
+  let sections = input.sections;
+
+  // If a template is specified, merge: use template section headings
+  // as scaffolding and fill in agent-supplied bodies.
+  if (templateId) {
+    const { data: tmpl } = await supabaseAdmin
+      .from("document_templates")
+      .select("sections")
+      .eq("id", templateId)
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+    if (tmpl?.sections && Array.isArray(tmpl.sections)) {
+      const tmplSections = tmpl.sections as DocumentSection[];
+      // Agent may provide fewer sections than the template; use
+      // template headings and fill in bodies from the agent where
+      // available (by index). Extra agent sections are appended.
+      sections = tmplSections.map((ts, i) => ({
+        heading: ts.heading,
+        body: sections[i]?.body || ts.body || "",
+      }));
+      // Append any extra sections the agent provided beyond template
+      if (sections.length < input.sections.length) {
+        sections.push(...input.sections.slice(tmplSections.length));
+      }
+    }
+  }
+
   const slug = slugify(title);
   const ext = format === "docx" ? "docx" : "pdf";
   const filename = `${slug}.${ext}`;
@@ -341,4 +371,105 @@ export async function editDocument(input: EditDocumentInput): Promise<DocumentRe
     .eq("id", vaultItemId);
 
   return result;
+}
+
+// ── Templates ────────────────────────────────────────────────────
+
+export interface TemplateInfo {
+  id: string;
+  name: string;
+  description: string | null;
+  format: "pdf" | "docx";
+  section_headings: string[];
+  created_at: string;
+}
+
+/** List templates available to this workspace. */
+export async function listTemplates(workspaceId: string): Promise<TemplateInfo[]> {
+  const { data, error } = await supabaseAdmin
+    .from("document_templates")
+    .select("id, name, description, format, sections, created_at")
+    .eq("workspace_id", workspaceId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (error || !data) return [];
+
+  return data.map((row) => ({
+    id: row.id as string,
+    name: row.name as string,
+    description: (row.description as string | null) ?? null,
+    format: (row.format as "pdf" | "docx") || "pdf",
+    section_headings: Array.isArray(row.sections)
+      ? (row.sections as DocumentSection[]).map((s) => s.heading)
+      : [],
+    created_at: row.created_at as string,
+  }));
+}
+
+/** Save a document's section structure as a reusable template. */
+export async function saveTemplate(input: {
+  workspaceId: string;
+  userId: string;
+  name: string;
+  description?: string;
+  sections: DocumentSection[];
+  format: "pdf" | "docx";
+}): Promise<{ template_id: string; name: string }> {
+  const { data, error } = await supabaseAdmin
+    .from("document_templates")
+    .insert({
+      workspace_id: input.workspaceId,
+      name: input.name,
+      description: input.description || null,
+      sections: input.sections,
+      format: input.format,
+      created_by: input.userId,
+    })
+    .select("id, name")
+    .single();
+
+  if (error || !data) {
+    throw new Error(`Failed to save template: ${error?.message || "unknown"}`);
+  }
+
+  return { template_id: data.id, name: data.name };
+}
+
+/** Save a template from an existing Dante-generated vault item. */
+export async function saveTemplateFromDocument(input: {
+  workspaceId: string;
+  userId: string;
+  vaultItemId: string;
+  name: string;
+  description?: string;
+}): Promise<{ template_id: string; name: string; section_count: number }> {
+  const { data: item } = await supabaseAdmin
+    .from("vault_items")
+    .select("metadata, file_type")
+    .eq("id", input.vaultItemId)
+    .eq("workspace_id", input.workspaceId)
+    .maybeSingle();
+
+  const meta = item?.metadata as { generated?: boolean; format?: string; sections?: DocumentSection[] } | null;
+  if (!meta?.generated || !Array.isArray(meta.sections)) {
+    throw new Error("Only Dante-generated documents can be saved as templates.");
+  }
+
+  // Strip body content -- templates keep headings, clear bodies
+  const templateSections: DocumentSection[] = meta.sections.map((s) => ({
+    heading: s.heading,
+    body: "",
+  }));
+
+  const result = await saveTemplate({
+    workspaceId: input.workspaceId,
+    userId: input.userId,
+    name: input.name,
+    description: input.description,
+    sections: templateSections,
+    format: (meta.format === "docx" ? "docx" : "pdf") as "pdf" | "docx",
+  });
+
+  return { ...result, section_count: templateSections.length };
 }

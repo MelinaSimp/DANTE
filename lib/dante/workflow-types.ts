@@ -191,7 +191,9 @@ export type AgentToolName =
   | "web.search"             // Tavily web search for market intel, listings, news
   | "cre.calculate"          // deterministic CRE financial math (cap rate, NOI, DSCR, IRR, etc.)
   | "document.create"        // generate a branded PDF or DOCX from structured sections
-  | "document.edit";         // modify sections on a Dante-generated document and re-render
+  | "document.edit"          // modify sections on a Dante-generated document and re-render
+  | "document.list_templates"  // list saved document templates in the workspace
+  | "document.save_template";  // save a document's structure as a reusable template
 
 export type AgentToolEntry =
   | AgentToolName

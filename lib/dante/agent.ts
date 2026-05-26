@@ -753,6 +753,10 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
             enum: ["pdf", "docx"],
             description: "Output format. Use 'pdf' for final deliverables the broker will share with clients. Use 'docx' for editable drafts the broker can modify in Word.",
           },
+          template_id: {
+            type: "string",
+            description: "Optional template ID (from document.list_templates). Pre-fills section headings from the template; the agent supplies body content for each section.",
+          },
         },
         required: ["title", "sections", "format"],
       },
@@ -796,6 +800,55 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
       },
     },
   },
+  "document.list_templates": {
+    type: "function",
+    function: {
+      name: "document_list_templates",
+      description:
+        "List all saved document templates in the workspace. Use this when the user asks 'what templates do I have?', 'show me my document templates', or before creating a document when you want to check if a relevant template exists. Returns template names, descriptions, section headings, and preferred format.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
+  "document.save_template": {
+    type: "function",
+    function: {
+      name: "document_save_template",
+      description:
+        "Save a document's section structure as a reusable template. Use when the user says 'save this as a template', 'make this a template', or 'I want to reuse this format'. Two modes: (1) provide vault_item_id to extract the structure from an existing Dante-generated document, or (2) provide sections directly to define a new template from scratch. Templates store section headings only — body content is filled by the agent each time the template is used.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Template name (e.g. 'Void Analysis Report', 'Deal Memo')." },
+          description: { type: "string", description: "Brief description of when to use this template." },
+          vault_item_id: {
+            type: "string",
+            description: "Vault item ID of a Dante-generated document to extract the template from. Mutually exclusive with sections.",
+          },
+          sections: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                heading: { type: "string" },
+              },
+              required: ["heading"],
+            },
+            description: "Section headings for the template. Used when creating a template from scratch (no vault_item_id).",
+          },
+          format: {
+            type: "string",
+            enum: ["pdf", "docx"],
+            description: "Default output format for documents using this template.",
+          },
+        },
+        required: ["name"],
+      },
+    },
+  },
 };
 
 // Inverse map: function-name string → AgentToolName. The OpenAI API
@@ -829,6 +882,8 @@ const NAME_TO_TOOL: Record<string, AgentToolName> = {
   cre_calculate: "cre.calculate",
   document_create: "document.create",
   document_edit: "document.edit",
+  document_list_templates: "document.list_templates",
+  document_save_template: "document.save_template",
 };
 
 // ── Tool executor adapters ────────────────────────────────────
@@ -879,6 +934,8 @@ const PER_TOOL_BUDGET: Partial<Record<AgentToolName, number>> = {
   "cre.calculate": 10, // cheap (pure math), but cap to prevent runaway loops
   "document.create": 5,  // each creates a file in storage + vault row; 5 is generous
   "document.edit": 5,    // re-renders + re-uploads; match create budget
+  "document.list_templates": 3, // read-only; cheap
+  "document.save_template": 3,  // one save per request is typical
 };
 
 /**
@@ -1992,6 +2049,7 @@ async function dispatchTool(
         sections,
         format,
         projectId: ctx.projectId,
+        templateId: args.template_id ? String(args.template_id) : undefined,
       });
       return {
         ...result,
@@ -2024,6 +2082,77 @@ async function dispatchTool(
       return {
         ...result,
         formatted: `Document updated: "${result.title}" (${result.format.toUpperCase()}, ${result.section_count} sections, ${Math.round(result.size_bytes / 1024)}KB). New vault item: ${result.vault_item_id}. Download: ${result.url || "(generating link...)"}`,
+      };
+    }
+    case "document.list_templates": {
+      const { listTemplates } = await import("@/lib/dante/tools/document");
+      const templates = await listTemplates(ctx.workspaceId);
+      if (templates.length === 0) {
+        return {
+          templates: [],
+          formatted: "No document templates saved yet. The user can ask you to save a document as a template after creating one.",
+        };
+      }
+      const lines = templates.map((t, i) =>
+        `${i + 1}. "${t.name}" (${t.format.toUpperCase()}) — ${t.section_headings.length} sections: ${t.section_headings.join(", ")}${t.description ? ` — ${t.description}` : ""}`,
+      );
+      return {
+        templates,
+        formatted: `${templates.length} template${templates.length === 1 ? "" : "s"} available:\n${lines.join("\n")}`,
+      };
+    }
+    case "document.save_template": {
+      if (ctx.simulate) {
+        return {
+          simulated: true,
+          would_have: { action: "document.save_template", name: args.name },
+        };
+      }
+      if (!ctx.userId) {
+        return { error: "Cannot save templates without an authenticated user." };
+      }
+      const docTools = await import("@/lib/dante/tools/document");
+      const name = String(args.name || "Untitled Template");
+      const description = args.description ? String(args.description) : undefined;
+
+      // Mode 1: extract from existing vault item
+      if (args.vault_item_id) {
+        const result = await docTools.saveTemplateFromDocument({
+          workspaceId: ctx.workspaceId,
+          userId: ctx.userId,
+          vaultItemId: String(args.vault_item_id),
+          name,
+          description,
+        });
+        return {
+          ...result,
+          formatted: `Template "${result.name}" saved with ${result.section_count} sections. Use template_id "${result.template_id}" with document.create to generate documents using this structure.`,
+        };
+      }
+
+      // Mode 2: define sections from scratch
+      const sections = Array.isArray(args.sections)
+        ? (args.sections as Array<{ heading?: string }>).map((s) => ({
+            heading: String(s.heading || ""),
+            body: "",
+          }))
+        : [];
+      if (sections.length === 0) {
+        return { error: "Provide either vault_item_id or sections to create a template." };
+      }
+      const format = args.format === "docx" ? "docx" : "pdf";
+      const result = await docTools.saveTemplate({
+        workspaceId: ctx.workspaceId,
+        userId: ctx.userId,
+        name,
+        description,
+        sections,
+        format: format as "pdf" | "docx",
+      });
+      return {
+        ...result,
+        section_count: sections.length,
+        formatted: `Template "${result.name}" saved with ${sections.length} sections. Use template_id "${result.template_id}" with document.create to generate documents using this structure.`,
       };
     }
   }
@@ -2290,6 +2419,8 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       "cre.calculate": 0,
       "document.create": 0,
       "document.edit": 0,
+      "document.list_templates": 0,
+      "document.save_template": 0,
     },
   };
 
