@@ -500,6 +500,45 @@ export default function AskDante({
     setAttachments((prev) => [...prev, ...fresh]);
   }
 
+  // Drag-and-drop support — lets users drop files anywhere on the
+  // chat surface instead of having to click the + Files button.
+  const [dragOver, setDragOver] = useState(false);
+  const dragCounter = useRef(0);
+
+  const onDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current++;
+    if (e.dataTransfer.types.includes("Files")) setDragOver(true);
+  }, []);
+
+  const onDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current--;
+    if (dragCounter.current <= 0) {
+      dragCounter.current = 0;
+      setDragOver(false);
+    }
+  }, []);
+
+  const onDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const onDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current = 0;
+    setDragOver(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+    const extracted = await Promise.all(files.map(readFileForAttach));
+    const fresh = extracted.filter((x): x is NonNullable<typeof x> => Boolean(x));
+    setAttachments((prev) => [...prev, ...fresh]);
+  }, []);
+
   const submit = async (overrideInput?: string) => {
     const message = (overrideInput ?? input).trim();
     if (!message || streamState.streaming) return;
@@ -641,7 +680,22 @@ export default function AskDante({
   // ── Render ─────────────────────────────────────────────────────
 
   return (
-    <div className={`flex flex-col h-full w-full ${inExpandedMode ? "" : "px-6"}`}>
+    <div
+      className={`flex flex-col h-full w-full ${inExpandedMode ? "" : "px-6"} relative`}
+      onDragEnter={onDragEnter}
+      onDragLeave={onDragLeave}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+    >
+      {/* Drop overlay */}
+      {dragOver && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-[var(--canvas)]/80 backdrop-blur-sm border-2 border-dashed border-[var(--ink-subtle)] rounded-xl pointer-events-none">
+          <div className="text-center">
+            <p className="text-lg font-medium text-[var(--ink-muted)]">Drop files here</p>
+            <p className="text-sm text-[var(--ink-subtle)] mt-1">Images, PDFs, text files</p>
+          </div>
+        </div>
+      )}
       {/* Landing — Mike-style centered greeting with serif font */}
       <div
         className={`transition-all duration-500 ease-out ${
