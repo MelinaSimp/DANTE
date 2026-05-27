@@ -214,6 +214,115 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
       },
     },
   },
+  "properties.query": {
+    type: "function",
+    function: {
+      name: "properties_query",
+      description:
+        "Query the properties table. Returns id, address, city, state, zip, " +
+        "beds, baths, sqft, kind, list_price_cents, status, listed_at, " +
+        "sold_at, notes, description, year_built, lot_size_sqft, lease fields, " +
+        "transaction_stage, and linked clients. Use when the user references " +
+        "their properties, asks about a specific address, or before updating.",
+      parameters: {
+        type: "object",
+        properties: {
+          filter: {
+            type: "object",
+            description:
+              "Column=value equality filters. Common: {\"status\": \"active\"}, " +
+              "{\"kind\": \"commercial\"}, {\"city\": \"Willoughby\"}.",
+            additionalProperties: { type: "string" },
+          },
+          search: {
+            type: "string",
+            description:
+              "Free-text search against address_line1. Use when the user says " +
+              "'my Euclid Ave property' or references an address by name.",
+          },
+          limit: { type: "number", description: "1-100, default 25." },
+        },
+      },
+    },
+  },
+  "properties.create": {
+    type: "function",
+    function: {
+      name: "properties_create",
+      description:
+        "Create a new property record. At minimum, provide address_line1. " +
+        "Use this when you've extracted property data from files, lease " +
+        "abstractions, or user instructions and need to populate the " +
+        "Properties page. Currency fields are in cents (e.g. $500,000 = 50000000).",
+      parameters: {
+        type: "object",
+        properties: {
+          address_line1: { type: "string", description: "Street address (required)." },
+          address_line2: { type: "string", description: "Suite, unit, floor." },
+          city: { type: "string" },
+          state: { type: "string", description: "Two-letter abbreviation." },
+          zip: { type: "string" },
+          beds: { type: "number" },
+          baths: { type: "number" },
+          sqft: { type: "number" },
+          kind: {
+            type: "string",
+            enum: ["residential", "commercial", "rental", "land", "other"],
+          },
+          list_price_cents: { type: "number", description: "Price in cents." },
+          status: {
+            type: "string",
+            enum: ["active", "pending", "sold", "withdrawn", "off_market"],
+            description: "Default: active.",
+          },
+          notes: { type: "string" },
+          description: { type: "string" },
+          year_built: { type: "number" },
+          lot_size_sqft: { type: "number" },
+          lease_term_months: { type: "number" },
+          lease_start_date: { type: "string", description: "ISO date." },
+          lease_end_date: { type: "string", description: "ISO date." },
+          monthly_rent_cents: { type: "number", description: "Monthly rent in cents." },
+          interior_features: {
+            type: "array",
+            items: { type: "string" },
+            description: "E.g. ['hardwood floors', 'elevator', 'sprinklers'].",
+          },
+          exterior_features: {
+            type: "array",
+            items: { type: "string" },
+            description: "E.g. ['loading dock', 'fenced lot', 'corner lot'].",
+          },
+        },
+        required: ["address_line1"],
+      },
+    },
+  },
+  "properties.update": {
+    type: "function",
+    function: {
+      name: "properties_update",
+      description:
+        "Update an existing property record. Call properties.query first " +
+        "to get the property id. All fields from properties.create are " +
+        "patchable, plus transaction_stage and expected_close_date.",
+      parameters: {
+        type: "object",
+        properties: {
+          property_id: { type: "string", description: "Property UUID." },
+          patch: {
+            type: "object",
+            additionalProperties: true,
+            description:
+              "Fields to update. Same schema as properties.create, plus " +
+              "transaction_stage (listed|showing|offer|pending|closed|" +
+              "withdrawn|expired) and expected_close_date (ISO date).",
+          },
+        },
+        required: ["property_id", "patch"],
+      },
+    },
+  },
   "email.send": {
     type: "function",
     function: {
@@ -989,6 +1098,9 @@ const NAME_TO_TOOL: Record<string, AgentToolName> = {
   vault_cite: "vault.cite",
   clients_query: "clients.query",
   clients_update: "clients.update",
+  properties_query: "properties.query",
+  properties_create: "properties.create",
+  properties_update: "properties.update",
   email_send: "email.send",
   http_fetch: "http.fetch",
   skill_run: "skill.run",
@@ -1040,6 +1152,9 @@ interface AgentToolCtx {
 }
 
 const PER_TOOL_BUDGET: Partial<Record<AgentToolName, number>> = {
+  "properties.query": 10,    // read-only; cheap
+  "properties.create": 20,   // "fill out properties from my files" can create many
+  "properties.update": 20,   // bulk update scenario
   "email.send": 3,
   "http.fetch": 10,
   "memory.write": 20,
@@ -1296,6 +1411,139 @@ async function dispatchTool(
       if (error) return { error: error.message };
       return { contact: data, rejected_fields: rejected.length ? rejected : undefined };
     }
+    case "properties.query": {
+      const PROPERTY_COLS =
+        "id, address_line1, address_line2, city, state, zip, beds, baths, sqft, " +
+        "kind, list_price_cents, status, listed_at, sold_at, notes, description, " +
+        "year_built, lot_size_sqft, lease_term_months, lease_start_date, " +
+        "lease_end_date, monthly_rent_cents, transaction_stage, " +
+        "expected_close_date, updated_at";
+      let pq = supabaseAdmin
+        .from("properties")
+        .select(PROPERTY_COLS)
+        .eq("workspace_id", ctx.workspaceId)
+        .order("updated_at", { ascending: false });
+      const pFilter = (args.filter as Record<string, string>) || {};
+      for (const [k, v] of Object.entries(pFilter)) {
+        if (v == null || v === "") continue;
+        pq = pq.eq(k, v);
+      }
+      if (args.search && typeof args.search === "string") {
+        pq = pq.ilike("address_line1", `%${args.search}%`);
+      }
+      pq = pq.limit(Math.min(Math.max(Number(args.limit) || 25, 1), 100));
+      const { data: pData, error: pErr } = await pq;
+      if (pErr) return { error: pErr.message };
+      return { properties: pData || [], count: pData?.length ?? 0 };
+    }
+
+    case "properties.create": {
+      const addr = String(args.address_line1 || "").trim();
+      if (!addr) return { error: "properties.create: address_line1 is required." };
+
+      if (ctx.simulate) {
+        return { simulated: true, would_have: { action: "properties.create", address: addr } };
+      }
+
+      const VALID_STATUSES = ["active", "pending", "sold", "withdrawn", "off_market"];
+      const VALID_KINDS = ["residential", "commercial", "rental", "land", "other"];
+
+      const insert: Record<string, unknown> = {
+        workspace_id: ctx.workspaceId,
+        created_by: ctx.userId ?? null,
+        address_line1: addr,
+        address_line2: args.address_line2 ? String(args.address_line2).trim() : null,
+        city: args.city ? String(args.city).trim() : null,
+        state: args.state ? String(args.state).trim() : null,
+        zip: args.zip ? String(args.zip).trim() : null,
+        beds: typeof args.beds === "number" ? args.beds : null,
+        baths: typeof args.baths === "number" ? args.baths : null,
+        sqft: typeof args.sqft === "number" ? args.sqft : null,
+        kind: typeof args.kind === "string" && VALID_KINDS.includes(args.kind) ? args.kind : null,
+        list_price_cents: typeof args.list_price_cents === "number" ? args.list_price_cents : null,
+        status: typeof args.status === "string" && VALID_STATUSES.includes(args.status) ? args.status : "active",
+        notes: args.notes ? String(args.notes).trim() : null,
+        description: args.description ? String(args.description).trim() : null,
+        year_built: typeof args.year_built === "number" ? args.year_built : null,
+        lot_size_sqft: typeof args.lot_size_sqft === "number" ? args.lot_size_sqft : null,
+        lease_term_months: typeof args.lease_term_months === "number" ? args.lease_term_months : null,
+        lease_start_date: typeof args.lease_start_date === "string" ? args.lease_start_date : null,
+        lease_end_date: typeof args.lease_end_date === "string" ? args.lease_end_date : null,
+        monthly_rent_cents: typeof args.monthly_rent_cents === "number" ? args.monthly_rent_cents : null,
+      };
+      if (Array.isArray(args.interior_features)) {
+        insert.interior_features = (args.interior_features as string[]).map(String).filter(Boolean).slice(0, 40);
+      }
+      if (Array.isArray(args.exterior_features)) {
+        insert.exterior_features = (args.exterior_features as string[]).map(String).filter(Boolean).slice(0, 40);
+      }
+
+      const { data: created, error: createErr } = await supabaseAdmin
+        .from("properties")
+        .insert(insert)
+        .select("id, address_line1, city, state, kind, status")
+        .single();
+      if (createErr) return { error: `properties.create: ${createErr.message}` };
+      return {
+        ok: true,
+        property: created,
+        message: `Created property at ${addr}.`,
+      };
+    }
+
+    case "properties.update": {
+      const propId = String(args.property_id || "").trim();
+      if (!propId) return { error: "properties.update: property_id required. Call properties.query first." };
+
+      if (ctx.simulate) {
+        return { simulated: true, would_have: { action: "properties.update", property_id: propId, patch: args.patch } };
+      }
+
+      const ALLOWED_PROPERTY_FIELDS = new Set([
+        "address_line1", "address_line2", "city", "state", "zip",
+        "beds", "baths", "sqft", "kind", "list_price_cents", "status",
+        "notes", "description", "year_built", "lot_size_sqft",
+        "lease_term_months", "lease_start_date", "lease_end_date",
+        "monthly_rent_cents", "transaction_stage", "expected_close_date",
+        "interior_features", "exterior_features", "listed_at", "sold_at",
+      ]);
+      const rawPropPatch = (args.patch as Record<string, unknown>) || {};
+      const propPatch: Record<string, unknown> = {};
+      const propRejected: string[] = [];
+      for (const [k, v] of Object.entries(rawPropPatch)) {
+        if (ALLOWED_PROPERTY_FIELDS.has(k)) propPatch[k] = v;
+        else propRejected.push(k);
+      }
+      if (Object.keys(propPatch).length === 0) {
+        return {
+          error: `properties.update: no allowed fields (rejected: ${propRejected.join(", ") || "none"}). Allowed: ${[...ALLOWED_PROPERTY_FIELDS].join(", ")}.`,
+        };
+      }
+
+      // Auto-stamp lifecycle timestamps
+      if (propPatch.status === "sold" && !propPatch.sold_at) {
+        propPatch.sold_at = new Date().toISOString();
+      }
+      if (propPatch.transaction_stage) {
+        propPatch.stage_entered_at = new Date().toISOString();
+      }
+
+      const { data: updatedProp, error: updatePropErr } = await supabaseAdmin
+        .from("properties")
+        .update(propPatch)
+        .eq("id", propId)
+        .eq("workspace_id", ctx.workspaceId)
+        .select("id, address_line1, city, state, status, transaction_stage")
+        .single();
+      if (updatePropErr) return { error: `properties.update: ${updatePropErr.message}` };
+      return {
+        ok: true,
+        property: updatedProp,
+        updated_fields: Object.keys(propPatch),
+        rejected_fields: propRejected.length ? propRejected : undefined,
+      };
+    }
+
     case "email.send": {
       if (ctx.simulate) {
         return {
@@ -2708,6 +2956,9 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       "vault.cite": 0,
       "clients.query": 0,
       "clients.update": 0,
+      "properties.query": 0,
+      "properties.create": 0,
+      "properties.update": 0,
       "email.send": 0,
       "http.fetch": 0,
       "skill.run": 0,

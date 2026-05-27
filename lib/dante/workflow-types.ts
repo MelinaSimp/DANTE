@@ -171,6 +171,9 @@ export type AgentToolName =
   | "vault.cite"        // archive.search formatted for inline email citations
   | "clients.query"
   | "clients.update"
+  | "properties.query"    // list/search properties in the workspace
+  | "properties.create"   // create a new property record
+  | "properties.update"   // update an existing property record
   | "email.send"
   | "http.fetch"
   | "skill.run"         // invoke a named skill (Phase 3)
