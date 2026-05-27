@@ -45,6 +45,12 @@ import {
   Bell,
   FileText,
   Eye,
+  Activity,
+  Zap,
+  Mail,
+  MailOpen,
+  MessageSquare,
+  Send,
 } from "lucide-react";
 
 type Meeting = {
@@ -117,32 +123,32 @@ type NoticedItem = {
   citations?: NoticedCitation[];
 };
 
+type ActivityItem = {
+  id: string;
+  kind: "workflow" | "email_in" | "email_out" | "sms_in" | "sms_out";
+  headline: string;
+  detail: string | null;
+  status?: string | null;
+  timestamp: string;
+};
+
 type DashboardData = {
   advisorName: string;
   workspaceName: string;
-  // Vertical the workspace was set to on signup. Drives Dante↔Vergil
-  // label swap and per-vertical copy across the surface.
   industry?: string;
-  // Only true when the logged-in user is a platform superadmin
-  // (per hasSuperadminAccess). Used to reveal the Admin nav item.
   isSuperadmin?: boolean;
-  // Subset of FeatureId — what this workspace is entitled to. Links and
-  // sections missing from this list are hidden from the dashboard so the
-  // customer never sees something they can't actually use.
   features: string[];
   today: Meeting[];
   awaitingReview: number;
   recentCalls: CallNote[];
   flagged: Flag[];
+  recentActivity?: ActivityItem[];
   stats: {
     clients: number;
     calls7d: number;
     documents: number;
     verifiedPct: number | null;
   };
-  // What D/V noticed in the background — pending draft reminders +
-  // soon-to-expire property documents. Populated by the advisor
-  // dashboard endpoint, drives the "What I noticed today" panel.
   noticedToday?: {
     pendingDraftsCount: number;
     topDrafts: NoticedDraft[];
@@ -524,15 +530,70 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
                 </BentoCard>
               )}
 
+              {/* Recent activity — workflow runs, emails, SMS (3×2) */}
+              <BentoCard
+                label="Recent activity"
+                icon={<Activity className="w-3 h-3" />}
+                className="md:col-span-3 md:row-span-2"
+              >
+                {!data.recentActivity || data.recentActivity.length === 0 ? (
+                  <EmptyNote>
+                    Workflow results, emails, and messages will appear here as they come in.
+                  </EmptyNote>
+                ) : (
+                  <ul className="divide-y divide-[var(--rule)] border-t border-[var(--rule)]">
+                    {data.recentActivity.slice(0, 12).map((a) => (
+                      <li key={a.id} className="py-3">
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5 shrink-0">
+                            <ActivityIcon kind={a.kind} status={a.status} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-baseline gap-2 mb-0.5">
+                              <div className="text-[15px] font-medium truncate">
+                                {a.headline}
+                              </div>
+                              <div className="text-xs mono text-[var(--ink-subtle)] shrink-0">
+                                {formatRelativeDate(a.timestamp)}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-[var(--ink-muted)]">
+                              <ActivityLabel kind={a.kind} />
+                              {a.detail && (
+                                <>
+                                  <span className="text-[var(--ink-subtle)]">·</span>
+                                  <span className="truncate">{a.detail}</span>
+                                </>
+                              )}
+                              {a.kind === "workflow" && a.status && (
+                                <span
+                                  className={`mono uppercase tracking-wider text-[10px] ${
+                                    a.status === "completed"
+                                      ? "text-[var(--verified)]"
+                                      : a.status === "failed"
+                                        ? "text-[var(--danger)]"
+                                        : "text-[var(--accent)]"
+                                  }`}
+                                >
+                                  {a.status}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </BentoCard>
+
               {/* Recent calls — wide row (3×2) */}
+              {data.recentCalls.length > 0 && (
               <BentoCard
                 label="Recent calls"
                 icon={<FileCheck2 className="w-3 h-3" />}
                 className="md:col-span-3 md:row-span-2"
               >
-                {data.recentCalls.length === 0 ? (
-                  <EmptyNote>No call recordings yet.</EmptyNote>
-                ) : (
                   <ul className="divide-y divide-[var(--rule)] border-t border-[var(--rule)]">
                     {data.recentCalls.slice(0, 6).map((c) => (
                       <li key={c.id} className="py-3">
@@ -548,7 +609,7 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
                             </div>
                             <div className="text-sm text-[var(--ink-muted)] line-clamp-1">
                               {c.body
-                                .replace(/^📞 Call with [^\n]*\n?/, "")
+                                .replace(/^Call with [^\n]*\n?/, "")
                                 .slice(0, 180)}
                             </div>
                           </div>
@@ -565,8 +626,8 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
                       </li>
                     ))}
                   </ul>
-                )}
               </BentoCard>
+              )}
             </BentoGrid>
           );
         })()}
@@ -829,6 +890,52 @@ function AgentOutputsSection() {
         })}
       </ul>
     </section>
+  );
+}
+
+/* ---------------- Activity feed helpers ---------------- */
+
+function ActivityIcon({ kind, status }: { kind: ActivityItem["kind"]; status?: string | null }) {
+  const base = "w-4 h-4";
+  switch (kind) {
+    case "workflow":
+      return (
+        <Zap
+          className={`${base} ${
+            status === "failed"
+              ? "text-[var(--danger)]"
+              : status === "completed"
+                ? "text-[var(--verified)]"
+                : "text-[var(--accent)]"
+          }`}
+          strokeWidth={1.5}
+        />
+      );
+    case "email_in":
+      return <MailOpen className={`${base} text-[var(--accent)]`} strokeWidth={1.5} />;
+    case "email_out":
+      return <Send className={`${base} text-[var(--ink-muted)]`} strokeWidth={1.5} />;
+    case "sms_in":
+      return <MessageSquare className={`${base} text-[var(--accent)]`} strokeWidth={1.5} />;
+    case "sms_out":
+      return <MessageSquare className={`${base} text-[var(--ink-muted)]`} strokeWidth={1.5} />;
+    default:
+      return <Activity className={`${base} text-[var(--ink-subtle)]`} strokeWidth={1.5} />;
+  }
+}
+
+function ActivityLabel({ kind }: { kind: ActivityItem["kind"] }) {
+  const labels: Record<ActivityItem["kind"], string> = {
+    workflow: "Workflow",
+    email_in: "Received",
+    email_out: "Sent",
+    sms_in: "SMS received",
+    sms_out: "SMS sent",
+  };
+  return (
+    <span className="mono uppercase tracking-wider text-[10px] text-[var(--ink-subtle)]">
+      {labels[kind]}
+    </span>
   );
 }
 

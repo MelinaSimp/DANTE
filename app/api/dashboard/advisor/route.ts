@@ -81,6 +81,10 @@ export async function GET() {
     noticedResult,
     briefResult,
     proposalsResult,
+    workflowRunsResult,
+    inboundEmailsResult,
+    sentEmailsResult,
+    smsResult,
     featuresResult,
   ] = await Promise.all([
     wid
@@ -221,6 +225,43 @@ export async function GET() {
           .eq("proposal_state", "pending")
           .order("created_at", { ascending: false })
           .limit(6)
+      : noop,
+    // Workflow runs — last 10 completed/failed
+    wid
+      ? supabaseAdmin
+          .from("dante_workflow_runs")
+          .select("id, workflow_id, status, error, created_at, completed_at")
+          .eq("workspace_id", wid)
+          .in("status", ["completed", "failed", "running"])
+          .order("created_at", { ascending: false })
+          .limit(10)
+      : noop,
+    // Inbound emails
+    wid
+      ? supabaseAdmin
+          .from("customer_emails")
+          .select("id, from_address, subject, category, urgency, created_at")
+          .eq("workspace_id", wid)
+          .order("created_at", { ascending: false })
+          .limit(8)
+      : noop,
+    // Sent emails
+    wid
+      ? supabaseAdmin
+          .from("sent_emails")
+          .select("id, to_address, subject, created_at")
+          .eq("workspace_id", wid)
+          .order("created_at", { ascending: false })
+          .limit(8)
+      : noop,
+    // SMS messages
+    wid
+      ? supabaseAdmin
+          .from("sms_messages")
+          .select("id, direction, body, from_number, to_number, created_at")
+          .eq("workspace_id", wid)
+          .order("created_at", { ascending: false })
+          .limit(8)
       : noop,
     getWorkspaceFeatures(wid),
   ]);
@@ -451,6 +492,87 @@ export async function GET() {
     noticedItems = [...proposalItems, ...noticedItems];
   }
 
+  // ---- Recent activity feed: workflow runs + emails + SMS ----
+  // Merge into a single chronological stream so the dashboard always
+  // shows something when the workspace has had any activity at all.
+  type ActivityItem = {
+    id: string;
+    kind: "workflow" | "email_in" | "email_out" | "sms_in" | "sms_out";
+    headline: string;
+    detail: string | null;
+    status?: string | null;
+    timestamp: string;
+  };
+
+  const activityItems: ActivityItem[] = [];
+
+  // Workflow runs — enrich with workflow names
+  const wfRuns = empty<any>(workflowRunsResult.data);
+  if (wfRuns.length > 0) {
+    const wfIds = Array.from(new Set(wfRuns.map((r: any) => r.workflow_id).filter(Boolean))) as string[];
+    const { data: wfDefs } = wfIds.length > 0
+      ? await supabaseAdmin
+          .from("dante_workflows")
+          .select("id, name")
+          .in("id", wfIds)
+      : { data: [] };
+    const wfName = new Map((wfDefs || []).map((w: any) => [w.id, w.name]));
+
+    for (const r of wfRuns) {
+      activityItems.push({
+        id: `wf:${r.id}`,
+        kind: "workflow",
+        headline: (wfName.get(r.workflow_id) as string) || "Workflow",
+        detail: r.status === "failed" ? (r.error || "Failed") : null,
+        status: r.status,
+        timestamp: r.completed_at || r.created_at,
+      });
+    }
+  }
+
+  // Inbound emails
+  for (const e of empty<any>(inboundEmailsResult.data)) {
+    activityItems.push({
+      id: `ein:${e.id}`,
+      kind: "email_in",
+      headline: e.subject || "(no subject)",
+      detail: e.from_address || null,
+      status: e.urgency === "high" ? "urgent" : null,
+      timestamp: e.created_at,
+    });
+  }
+
+  // Sent emails
+  for (const e of empty<any>(sentEmailsResult.data)) {
+    activityItems.push({
+      id: `eout:${e.id}`,
+      kind: "email_out",
+      headline: e.subject || "(no subject)",
+      detail: e.to_address || null,
+      status: null,
+      timestamp: e.created_at,
+    });
+  }
+
+  // SMS
+  for (const s of empty<any>(smsResult.data)) {
+    const isInbound = s.direction === "inbound";
+    activityItems.push({
+      id: `sms:${s.id}`,
+      kind: isInbound ? "sms_in" : "sms_out",
+      headline: (s.body || "").slice(0, 120) || "(empty)",
+      detail: isInbound ? s.from_number : s.to_number,
+      status: null,
+      timestamp: s.created_at,
+    });
+  }
+
+  // Sort by timestamp descending, cap at 20
+  activityItems.sort(
+    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+  );
+  const recentActivity = activityItems.slice(0, 20);
+
   return NextResponse.json({
     advisorName: profile.full_name || user.email?.split("@")[0] || "there",
     workspaceName,
@@ -461,6 +583,7 @@ export async function GET() {
     awaitingReview,
     recentCalls,
     flagged,
+    recentActivity,
     stats: {
       clients: empty<any>(contacts).length,
       calls7d: (calls7dResult as any)?.count || 0,
