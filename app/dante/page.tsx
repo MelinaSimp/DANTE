@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import AskDante from "./AskDante";
+import SourceViewerLayout from "@/components/dante/source-viewer/SourceViewerLayout";
 import { getIndustryConfig } from "@/lib/industry/config";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +29,9 @@ export default async function DantePage() {
 
   return (
     <div className="h-full">
-      <AskDante assistantName={assistantName} userName={firstName} />
+      <SourceViewerLayout>
+        <AskDante assistantName={assistantName} userName={firstName} />
+      </SourceViewerLayout>
     </div>
   );
 }
