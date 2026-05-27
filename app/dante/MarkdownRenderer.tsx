@@ -66,6 +66,10 @@ export default function MarkdownRenderer({ content, trace, citationReport }: Pro
   // fallback where the model draws ASCII art instead.
   maybeInjectMap(segments);
 
+  // Convert "Sources" heading + numbered URL list into a
+  // WebSourcesBlock. Catches yet another model fallback format.
+  collapseSourcesList(segments);
+
   // Track whether we've attached the citation report to a segment yet.
   let reportAttached = false;
 
@@ -338,6 +342,85 @@ function parseMarkdownTable(markdown: string): { headers: string[]; rows: string
   }
   if (rows.length === 0) return null;
   return { headers, rows };
+}
+
+// ── Sources-list collapse ───────────────────────────────────────
+//
+// The model sometimes emits sources as a numbered text list under a
+// "SOURCES" heading:
+//   1. LoopNet — 38000 Euclid Ave: https://www.loopnet.com/...
+//   2. City-Data — Willoughby: https://www.city-data.com/...
+//
+// This post-pass detects that pattern and converts the heading +
+// text into a WebSourcesBlock.
+
+function collapseSourcesList(segments: Segment[]): void {
+  for (let i = 0; i < segments.length - 1; i++) {
+    const seg = segments[i];
+    if (seg.type !== "heading" || !/sources?/i.test(seg.content)) continue;
+
+    // Look at the next segment — it should be text containing
+    // numbered lines with URLs.
+    const next = segments[i + 1];
+    if (!next || next.type !== "text") continue;
+
+    const sources = tryParseNumberedSources(next.content);
+    if (!sources || sources.length < 2) continue;
+
+    // Replace the heading + text with a single sources segment.
+    segments.splice(i, 2, {
+      type: "sources",
+      content: next.content,
+      webSources: sources,
+    });
+    // Don't advance — the new segment is at position i and the
+    // loop will move past it on the next increment.
+  }
+}
+
+/** Parse a numbered list of sources from plain text.
+ *  Matches lines like:
+ *    1. Title: https://url
+ *    2. Title — Description: https://url
+ *    3. [Title](https://url)
+ */
+function tryParseNumberedSources(text: string): WebSource[] | null {
+  const lines = text.split("\n").filter((l) => l.trim());
+  const sources: WebSource[] = [];
+
+  for (const line of lines) {
+    // Match: N. ... https://...  or  N. ... http://...
+    const numMatch = line.match(/^\s*(\d+)\.\s+(.+)/);
+    if (!numMatch) continue;
+
+    const n = parseInt(numMatch[1], 10);
+    const rest = numMatch[2];
+
+    // Extract URL from the line
+    const url = extractUrl(rest);
+    if (!url) continue;
+
+    // Title is everything before the URL
+    let title = rest
+      .replace(/https?:\/\/[^\s)]+/g, "")  // strip URLs
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")  // markdown links -> text
+      .replace(/[:\s]+$/, "")  // trailing colon/space
+      .replace(/^\*\*|\*\*$/g, "")  // bold markers
+      .trim();
+
+    if (!title) title = url;
+
+    let domain: string;
+    try {
+      domain = new URL(url).hostname.replace(/^www\./, "");
+    } catch {
+      domain = url;
+    }
+
+    sources.push({ n, title, url, domain });
+  }
+
+  return sources.length >= 2 ? sources : null;
 }
 
 // ── ASCII diagram detection ─────────────────────────────────────
