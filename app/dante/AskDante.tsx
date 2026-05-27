@@ -701,10 +701,10 @@ export default function AskDante({
         className={`transition-all duration-500 ease-out ${
           inExpandedMode
             ? "opacity-0 -translate-y-4 max-h-0 overflow-hidden pointer-events-none"
-            : "flex-1 flex flex-col items-center justify-center px-6"
+            : "flex-1 flex flex-col items-center justify-center px-6 overflow-y-auto"
         }`}
       >
-        <div className="flex-col items-center w-full max-w-4xl relative px-0 xl:px-8">
+        <div className="flex-col items-center w-full max-w-4xl relative px-0 xl:px-8 py-12">
           <div className="mb-10 text-center">
             <div className="label-section mb-3">
               {new Date().toLocaleDateString("en-US", {
