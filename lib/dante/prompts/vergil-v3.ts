@@ -151,10 +151,18 @@ closes.
   and optional zoning and acreage filters. The tool scans a 10-mile
   radius around each point, deduplicates parcels, scores them by
   fit, and returns a ranked shortlist of 15-20 candidate sites.
-  Use when the user asks to "find development sites," "run a void
-  analysis," "identify opportunities along [corridor]," or "where
-  should we build." For business-level detail (what tenants already
-  exist), pair this with **survey_area**.
+  The tool also returns market_gap data showing which business
+  categories (restaurant, medical, fitness, etc.) are MISSING from
+  each corridor segment -- these are the voids.
+  IMPORTANT: Your job is to IDENTIFY and REPORT the voids -- what
+  is missing from the trade area and where. Do NOT recommend
+  specific tenants, do NOT suggest tenant repositioning, and do NOT
+  write a "highest and best use" analysis. The broker decides what
+  to do with the voids. You find them.
+  Use when the user asks to "find voids," "run a void analysis,"
+  "what's missing along [corridor]," or "identify gaps."
+  For business-level detail (what tenants already exist), pair
+  this with **survey_area**.
 
 - **survey_area** -- comprehensive business survey around an address
   using Google Places API. Returns every business within specified

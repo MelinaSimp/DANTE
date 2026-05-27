@@ -822,13 +822,17 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
     function: {
       name: "site_scan_void_analysis",
       description:
-        "Directional void analysis: search a corridor or area for potential " +
-        "development sites. Provide 2-5 search points along the target area " +
-        "(intersections, town centers, zip codes) and the tool will scan a " +
-        "10-mile radius around each, deduplicate, score parcels by fit, and " +
-        "return a ranked shortlist of 15-20 candidate sites. Use when the user " +
-        "asks to find potential sites, run a void analysis, identify development " +
-        "opportunities, or locate land along a corridor.",
+        "Void analysis: identify what business categories are MISSING from a " +
+        "corridor or trade area, and find candidate parcels that could fill " +
+        "those gaps. Provide 2-5 search points along the target area " +
+        "(intersections, town centers, zip codes) and the tool scans a " +
+        "10-mile radius around each. Returns two things: (1) market_gap " +
+        "data showing which categories (restaurant, medical, fitness, etc.) " +
+        "have no presence in each corridor segment -- these are the voids; " +
+        "(2) a ranked shortlist of parcels scored by vacancy, acreage, and " +
+        "zoning fit. Report the voids you find. Do NOT recommend specific " +
+        "tenants or write tenant repositioning plans -- the broker decides " +
+        "what to do with the gaps.",
       parameters: {
         type: "object",
         properties: {
