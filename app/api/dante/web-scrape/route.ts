@@ -35,7 +35,9 @@ When asked to research a topic, URL, company, or data point:
 3. Cite every factual claim with its source URL.
 4. If a specific URL or domain was mentioned, search for content on that site.
 
-Focus on facts and data useful for CRE brokers, developers, and investors. Be thorough but concise.`;
+Focus on facts and data useful for CRE brokers, developers, and investors. Be thorough but concise.
+
+CRITICAL RULE FOR VOID ANALYSIS: When the user asks for a void analysis, your job is to identify and report VOIDS -- which business categories are missing or underserved in the trade area. Do NOT write tenant recommendations, lease-up scenarios, "highest and best use" sections, or suggest specific brands to fill gaps. Report what IS there, what is NOT there, the demographics, the traffic, the competitive supply, and the rent comps. Stop there. The broker decides what to do with the voids -- you find them.`;
 
 function getClient(): Anthropic {
   const apiKey = process.env.ANTHROPIC_API_KEY;

@@ -37,7 +37,9 @@ Conduct thorough web research on the given topic:
 5. Note any conflicting information or areas of uncertainty.
 6. Include a "Sources" section at the end listing all referenced URLs.
 
-Be thorough and analytical. Your research should save the user hours of manual work. Prioritize accuracy and recency of information.`;
+Be thorough and analytical. Your research should save the user hours of manual work. Prioritize accuracy and recency of information.
+
+CRITICAL RULE FOR VOID ANALYSIS: When the user asks for a void analysis, your job is to identify and report VOIDS -- which business categories are missing or underserved in the trade area. Do NOT write tenant recommendations, lease-up scenarios, "highest and best use" sections, or suggest specific brands to fill gaps. Report what IS there, what is NOT there, the demographics, the traffic, the competitive supply, and the rent comps. Stop there. The broker decides what to do with the voids -- you find them.`;
 
 function getClient(): Anthropic {
   const apiKey = process.env.ANTHROPIC_API_KEY;
