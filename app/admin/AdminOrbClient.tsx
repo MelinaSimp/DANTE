@@ -18,6 +18,7 @@ const WorkspacesAPanel = lazy(() => import("@/components/panels/admin/Workspaces
 const BillingAPanel = lazy(() => import("@/components/panels/admin/BillingAPanel"));
 const InvitesAPanel = lazy(() => import("@/components/panels/admin/InvitesAPanel"));
 const AnalyticsAPanel = lazy(() => import("@/components/panels/admin/AnalyticsAPanel"));
+const UsageAPanel = lazy(() => import("@/components/panels/admin/UsageAPanel"));
 
 type PanelId = "features" | "workspaces" | "billing" | "invites" | "analytics" | "usage";
 
@@ -30,7 +31,7 @@ const PANEL_TITLES: Record<PanelId, string> = {
   usage: "Usage & Billing Meters",
 };
 
-const WIDE_PANELS: PanelId[] = ["workspaces", "features"];
+const WIDE_PANELS: PanelId[] = ["workspaces", "features", "usage"];
 
 interface NavItem {
   name: string;
@@ -63,7 +64,7 @@ const navItems: NavItem[] = [
     name: "Usage",
     description: "Per-workspace meters and quotas.",
     icon: Gauge,
-    href: "/admin/usage",
+    panelId: "usage",
   },
   {
     name: "Invites",
@@ -115,6 +116,8 @@ export default function AdminOrbClient({ userName }: { userName?: string }) {
         return <InvitesAPanel />;
       case "analytics":
         return <AnalyticsAPanel />;
+      case "usage":
+        return <UsageAPanel />;
       default:
         return null;
     }
