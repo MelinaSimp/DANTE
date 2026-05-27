@@ -400,6 +400,88 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
       },
     },
   },
+  "workflow.list": {
+    type: "function",
+    function: {
+      name: "workflow_list",
+      description:
+        "List all workflows in the user's workspace. Returns each workflow's " +
+        "id, name, description, enabled status, trigger type, and a summary " +
+        "of its nodes (step types and key config like email recipients, cron " +
+        "schedules, SMS numbers). Use when the user asks 'what workflows do " +
+        "I have?', 'show me my automations', 'which reminders are set up?', " +
+        "or before using workflow.update to find the workflow id.",
+      parameters: {
+        type: "object",
+        properties: {
+          include_disabled: {
+            type: "boolean",
+            description: "Include disabled workflows (default false).",
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  "workflow.update": {
+    type: "function",
+    function: {
+      name: "workflow_update",
+      description:
+        "Update an existing workflow's settings or node configuration. " +
+        "Use this to change email recipients, SMS numbers, cron schedules, " +
+        "enable/disable workflows, rename them, or edit any node's config. " +
+        "Call workflow.list first to get the workflow id and see its current " +
+        "structure. Provide node_updates to surgically edit specific nodes " +
+        "within the workflow graph.",
+      parameters: {
+        type: "object",
+        properties: {
+          workflow_id: {
+            type: "string",
+            description: "The workflow id to update (from workflow.list).",
+          },
+          name: {
+            type: "string",
+            description: "New workflow name (optional).",
+          },
+          description: {
+            type: "string",
+            description: "New description (optional).",
+          },
+          enabled: {
+            type: "boolean",
+            description: "Enable or disable the workflow (optional).",
+          },
+          node_updates: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                node_id: {
+                  type: "string",
+                  description: "The node/step id within the workflow graph.",
+                },
+                config_patch: {
+                  type: "object",
+                  description:
+                    "Key-value pairs to merge into the node's config. " +
+                    "For example, {\"to\": \"new@email.com\"} to change " +
+                    "an email recipient, or {\"body\": \"new text\"} to " +
+                    "change an SMS body.",
+                },
+              },
+              required: ["node_id", "config_patch"],
+            },
+            description:
+              "Surgical edits to specific nodes in the workflow graph. " +
+              "Each entry patches one node's config without touching others.",
+          },
+        },
+        required: ["workflow_id"],
+      },
+    },
+  },
   "file_index.search": {
     type: "function",
     function: {
@@ -915,6 +997,8 @@ const NAME_TO_TOOL: Record<string, AgentToolName> = {
   workflow_run: "workflow.run",
   workflow_list_templates: "workflow.list_templates",
   workflow_clone_template: "workflow.clone_template",
+  workflow_list: "workflow.list",
+  workflow_update: "workflow.update",
   file_index_search: "file_index.search",
   file_index_ingest: "file_index.ingest",
   file_index_list_folder: "file_index.list_folder",
@@ -968,6 +1052,8 @@ const PER_TOOL_BUDGET: Partial<Record<AgentToolName, number>> = {
   "workflow.run": 3,      // trigger existing workflows; 3 covers multi-step asks
   "workflow.list_templates": 3,
   "workflow.clone_template": 40, // cloning all 33 templates in one go is a valid ask
+  "workflow.list": 3,            // read-only; cheap
+  "workflow.update": 10,         // bulk email swap needs one per workflow
   "file_index.search": 5,
   "file_index.ingest": 3,
   "file_index.list_folder": 5,
@@ -1676,6 +1762,144 @@ async function dispatchTool(
         category: template.category,
         trigger: template.triggerLabel,
         message: `Cloned "${template.name}" into your workspace. It's enabled and ready to use.`,
+      };
+    }
+
+    case "workflow.list": {
+      const includeDisabled = Boolean(args.include_disabled);
+      let query = supabaseAdmin
+        .from("dante_workflows")
+        .select("id, name, description, enabled, trigger, graph, last_run_at, last_run_status, created_at, updated_at")
+        .eq("workspace_id", ctx.workspaceId)
+        .is("proposal_state", null)
+        .order("updated_at", { ascending: false });
+      if (!includeDisabled) {
+        query = query.eq("enabled", true);
+      }
+      const { data: workflows, error: listErr } = await query;
+      if (listErr) return { error: `workflow.list: ${listErr.message}` };
+      if (!workflows || workflows.length === 0) {
+        return { workflows: [], count: 0, message: "No workflows found in this workspace." };
+      }
+
+      // Summarize each workflow's nodes so the model can see what they do
+      const items = workflows.map((w: Record<string, unknown>) => {
+        const graph = w.graph as { nodes?: Array<{ id: string; type: string; data?: { step?: { name?: string; config?: Record<string, unknown> } } }> } | null;
+        const nodes = graph?.nodes || [];
+        const nodeSummary = nodes
+          .filter((n) => !n.type.startsWith("trigger_"))
+          .map((n) => {
+            const cfg = n.data?.step?.config || {};
+            const details: string[] = [];
+            // Extract key config values that help identify what the node does
+            if (cfg.to) details.push(`to: ${cfg.to}`);
+            if (cfg.to_phone) details.push(`phone: ${cfg.to_phone}`);
+            if (cfg.to_role) details.push(`role: ${cfg.to_role}`);
+            if (cfg.subject) details.push(`subject: ${String(cfg.subject).slice(0, 60)}`);
+            if (cfg.body) details.push(`body: ${String(cfg.body).slice(0, 80)}`);
+            if (cfg.cron) details.push(`cron: ${cfg.cron}`);
+            if (cfg.prompt) details.push(`prompt: ${String(cfg.prompt).slice(0, 60)}`);
+            if (cfg.objective) details.push(`objective: ${String(cfg.objective).slice(0, 60)}`);
+            return {
+              node_id: n.id,
+              type: n.type,
+              name: n.data?.step?.name || n.type,
+              config_summary: details.length > 0 ? details.join("; ") : undefined,
+            };
+          });
+
+        const triggerNode = nodes.find((n) => n.type.startsWith("trigger_"));
+        const triggerCfg = triggerNode?.data?.step?.config || {};
+
+        return {
+          id: w.id,
+          name: w.name,
+          description: w.description,
+          enabled: w.enabled,
+          trigger_type: (w.trigger as { type?: string })?.type || "manual",
+          trigger_config: Object.keys(triggerCfg).length > 0 ? triggerCfg : undefined,
+          last_run_at: w.last_run_at,
+          last_run_status: w.last_run_status,
+          nodes: nodeSummary,
+        };
+      });
+
+      return {
+        workflows: items,
+        count: items.length,
+      };
+    }
+
+    case "workflow.update": {
+      const workflowId = String(args.workflow_id || "").trim();
+      if (!workflowId) return { error: "workflow.update: 'workflow_id' required. Call workflow.list first." };
+
+      if (ctx.simulate) {
+        return { simulated: true, would_have: { action: "workflow.update", workflow_id: workflowId, args } };
+      }
+
+      // Fetch the workflow and verify ownership
+      const { data: wf, error: fetchErr } = await supabaseAdmin
+        .from("dante_workflows")
+        .select("id, workspace_id, graph, steps")
+        .eq("id", workflowId)
+        .eq("workspace_id", ctx.workspaceId)
+        .is("proposal_state", null)
+        .maybeSingle();
+
+      if (fetchErr) return { error: `workflow.update: ${fetchErr.message}` };
+      if (!wf) return { error: `workflow.update: workflow not found or not in this workspace.` };
+
+      // Build the patch
+      const patch: Record<string, unknown> = {};
+      if (args.name) patch.name = String(args.name).slice(0, 120);
+      if (args.description !== undefined) patch.description = String(args.description || "").slice(0, 500);
+      if (args.enabled !== undefined) patch.enabled = Boolean(args.enabled);
+
+      // Apply node-level config patches
+      const nodeUpdates = Array.isArray(args.node_updates) ? args.node_updates as Array<{ node_id: string; config_patch: Record<string, unknown> }> : [];
+      if (nodeUpdates.length > 0) {
+        const graph = (wf.graph as { nodes: Array<{ id: string; data: { step: { config: Record<string, unknown> } } }>; edges: unknown[]; viewport?: unknown }) || { nodes: [], edges: [] };
+        let patchedCount = 0;
+        for (const update of nodeUpdates) {
+          const node = graph.nodes.find((n) => n.id === update.node_id);
+          if (node && node.data?.step?.config) {
+            Object.assign(node.data.step.config, update.config_patch);
+            patchedCount++;
+          }
+        }
+        if (patchedCount === 0) {
+          return { error: `workflow.update: none of the specified node_ids were found in the workflow graph.` };
+        }
+        patch.graph = graph;
+        // Keep legacy steps array in sync
+        patch.steps = graph.nodes.map((n: { data: { step: unknown } }) => n.data.step);
+      }
+
+      if (Object.keys(patch).length === 0) {
+        return { error: "workflow.update: no changes specified. Provide name, description, enabled, or node_updates." };
+      }
+
+      patch.updated_at = new Date().toISOString();
+
+      const { error: updateErr } = await supabaseAdmin
+        .from("dante_workflows")
+        .update(patch)
+        .eq("id", workflowId);
+
+      if (updateErr) return { error: `workflow.update: ${updateErr.message}` };
+
+      const changes: string[] = [];
+      if (args.name) changes.push(`renamed to "${args.name}"`);
+      if (args.description !== undefined) changes.push("description updated");
+      if (args.enabled !== undefined) changes.push(args.enabled ? "enabled" : "disabled");
+      if (nodeUpdates.length > 0) changes.push(`${nodeUpdates.length} node(s) updated`);
+
+      return {
+        ok: true,
+        workflow_id: workflowId,
+        changes,
+        message: `Workflow updated: ${changes.join(", ")}.`,
       };
     }
 
@@ -2492,6 +2716,8 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       "workflow.run": 0,
       "workflow.list_templates": 0,
       "workflow.clone_template": 0,
+      "workflow.list": 0,
+      "workflow.update": 0,
       "file_index.search": 0,
       "file_index.ingest": 0,
       "file_index.list_folder": 0,

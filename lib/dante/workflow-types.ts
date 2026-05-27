@@ -181,6 +181,8 @@ export type AgentToolName =
   | "workflow.run"     // trigger an existing workflow by name with structured input
   | "workflow.list_templates" // list available pre-built workflow templates
   | "workflow.clone_template" // clone a template into the workspace
+  | "workflow.list"           // list the user's existing workflows
+  | "workflow.update"         // edit an existing workflow's config or metadata
   | "file_index.search"   // search the watched file index by filename/path
   | "file_index.ingest"   // trigger on-demand content retrieval for an indexed file
   | "file_index.list_folder" // list all files within a watched folder path

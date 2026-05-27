@@ -90,6 +90,8 @@ const REALTOR_SPEC: VerticalSpec = {
       "reminder.schedule",
       "workflow.propose",
       "workflow.run",
+      "workflow.list",
+      "workflow.update",
       "file_index.search",
       "file_index.ingest",
       "file_index.list_folder",
