@@ -112,6 +112,15 @@ export async function POST(req: NextRequest) {
     content: message,
   });
 
+  // Pull prior turns so multi-turn web research has context.
+  const { data: priorMessages } = await supabaseAdmin
+    .from("dante_chat_messages")
+    .select("role, content")
+    .eq("chat_id", chatId)
+    .order("created_at", { ascending: true })
+    .limit(20);
+  const priorTurns = (priorMessages || []).slice(0, -1);
+
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
@@ -139,11 +148,20 @@ export async function POST(req: NextRequest) {
         const client = getClient();
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // Build message history: prior turns + current user message
+        const apiMessages: Array<{ role: "user" | "assistant"; content: string }> = [];
+        for (const m of priorTurns) {
+          if (m.role === "user" || m.role === "assistant") {
+            apiMessages.push({ role: m.role, content: m.content });
+          }
+        }
+        apiMessages.push({ role: "user", content: message });
+
         const apiStream = client.messages.stream({
           model: MODEL,
           max_tokens: 16384,
           system: SYSTEM_PROMPT,
-          messages: [{ role: "user", content: message }],
+          messages: apiMessages,
           tools: [
             { type: "web_search_20250305", name: "web_search", max_uses: 5 },
           ],

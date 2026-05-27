@@ -242,13 +242,14 @@ export async function POST(req: NextRequest) {
     return jsonError(500, `save user message: ${userMsgErr.message}`);
   }
 
-  // Pull prior turns for context.
+  // Pull prior turns for context. 30 turns gives enough runway for
+  // involved multi-turn research without blowing the context budget.
   const { data: priorMessages } = await supabaseAdmin
     .from("dante_chat_messages")
     .select("role, content")
     .eq("chat_id", chatId)
     .order("created_at", { ascending: true })
-    .limit(10);
+    .limit(30);
 
   const priorTranscript = (priorMessages || [])
     .slice(0, -1)
@@ -399,7 +400,47 @@ export async function POST(req: NextRequest) {
     // Non-fatal — proceed without integration context
   }
 
-  const systemPrompt = buildDanteSystemPrompt({ industry }) + timeNote + integrationsNote;
+  // Pull recent chat summaries so Dante has continuity across
+  // conversations. We grab the last 5 chats (excluding the current
+  // one) with their most recent user+assistant exchange. This gives
+  // the model a lightweight "what we've discussed recently" context
+  // without burning excessive tokens.
+  let recentChatsNote = "";
+  try {
+    const { data: recentChats } = await supabaseAdmin
+      .from("dante_chats")
+      .select("id, title, updated_at")
+      .eq("workspace_id", profile.workspace_id)
+      .eq("user_id", user.id)
+      .is("deleted_at", null)
+      .neq("id", chatId)
+      .order("updated_at", { ascending: false })
+      .limit(5);
+
+    if (recentChats && recentChats.length > 0) {
+      // For each recent chat, grab the last user message as a summary
+      const chatSummaries: string[] = [];
+      for (const rc of recentChats) {
+        const { data: lastMsg } = await supabaseAdmin
+          .from("dante_chat_messages")
+          .select("role, content")
+          .eq("chat_id", rc.id)
+          .eq("role", "assistant")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const snippet = lastMsg?.content
+          ? lastMsg.content.slice(0, 150).replace(/\n/g, " ") + (lastMsg.content.length > 150 ? "..." : "")
+          : "";
+        chatSummaries.push(`- "${rc.title}"${snippet ? `: ${snippet}` : ""}`);
+      }
+      recentChatsNote = `\n\n---\n\nRECENT CONVERSATIONS (for continuity — the user may refer back to these):\n${chatSummaries.join("\n")}`;
+    }
+  } catch {
+    // Non-fatal — proceed without recent chat context
+  }
+
+  const systemPrompt = buildDanteSystemPrompt({ industry }) + timeNote + integrationsNote + recentChatsNote;
 
   // Per-vertical tool whitelist (Phase 3 W3.5). Defaults match
   // DEFAULT_TOOLS but the indirection is live so future vertical-
