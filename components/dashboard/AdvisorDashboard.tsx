@@ -123,6 +123,18 @@ type NoticedItem = {
   citations?: NoticedCitation[];
 };
 
+type WorkflowResult = {
+  id: string;
+  workflow_id: string;
+  workflow_name: string;
+  status: string;
+  error: string | null;
+  summary: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+};
+
 type ActivityItem = {
   id: string;
   kind: "workflow" | "email_in" | "email_out" | "sms_in" | "sms_out";
@@ -143,6 +155,7 @@ type DashboardData = {
   recentCalls: CallNote[];
   flagged: Flag[];
   recentActivity?: ActivityItem[];
+  workflowResults?: WorkflowResult[];
   stats: {
     clients: number;
     calls7d: number;
@@ -527,6 +540,71 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
                   )}
                 </div>
               </div>
+                </BentoCard>
+              )}
+
+              {/* Workflow results — dedicated output cards (3×2) */}
+              {data.workflowResults && data.workflowResults.length > 0 && (
+                <BentoCard
+                  label="Workflow results"
+                  icon={<Zap className="w-3 h-3" />}
+                  href="/workflows"
+                  className="md:col-span-3 md:row-span-2"
+                >
+                  <ul className="divide-y divide-[var(--rule)] border-t border-[var(--rule)]">
+                    {data.workflowResults.slice(0, 8).map((wr) => (
+                      <li key={wr.id} className="py-3">
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5 shrink-0">
+                            <Zap
+                              className={`w-4 h-4 ${
+                                wr.status === "failed"
+                                  ? "text-[var(--danger)]"
+                                  : wr.status === "completed"
+                                    ? "text-[var(--verified)]"
+                                    : "text-[var(--accent)]"
+                              }`}
+                              strokeWidth={1.5}
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-baseline gap-2 mb-0.5">
+                              <div className="text-[15px] font-medium truncate">
+                                {wr.workflow_name}
+                              </div>
+                              <span
+                                className={`mono uppercase tracking-wider text-[10px] shrink-0 ${
+                                  wr.status === "completed"
+                                    ? "text-[var(--verified)]"
+                                    : wr.status === "failed"
+                                      ? "text-[var(--danger)]"
+                                      : "text-[var(--accent)]"
+                                }`}
+                              >
+                                {wr.status}
+                              </span>
+                              <div className="text-xs mono text-[var(--ink-subtle)] shrink-0 ml-auto">
+                                {formatRelativeDate(wr.finished_at || wr.created_at)}
+                              </div>
+                            </div>
+                            {wr.summary ? (
+                              <div className="text-sm text-[var(--ink-muted)] leading-relaxed whitespace-pre-line line-clamp-3">
+                                {wr.summary}
+                              </div>
+                            ) : wr.error ? (
+                              <div className="text-sm text-[var(--danger)] line-clamp-2">
+                                {wr.error}
+                              </div>
+                            ) : (
+                              <div className="text-sm text-[var(--ink-subtle)] italic">
+                                No output recorded.
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
                 </BentoCard>
               )}
 

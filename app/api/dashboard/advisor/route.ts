@@ -226,15 +226,15 @@ export async function GET() {
           .order("created_at", { ascending: false })
           .limit(6)
       : noop,
-    // Workflow runs — last 10 completed/failed
+    // Workflow runs — last 12 completed/failed/running with full output
     wid
       ? supabaseAdmin
           .from("dante_workflow_runs")
-          .select("id, workflow_id, status, error, created_at, completed_at")
+          .select("id, workflow_id, status, error, output, created_at, completed_at, started_at, finished_at")
           .eq("workspace_id", wid)
           .in("status", ["completed", "failed", "running"])
           .order("created_at", { ascending: false })
-          .limit(10)
+          .limit(12)
       : noop,
     // Inbound emails
     wid
@@ -506,8 +506,46 @@ export async function GET() {
 
   const activityItems: ActivityItem[] = [];
 
-  // Workflow runs — enrich with workflow names
+  // Workflow runs — enrich with workflow names + extract output summary
   const wfRuns = empty<any>(workflowRunsResult.data);
+
+  // Helper: extract the last meaningful text from a workflow output.
+  // Each step can have a .text field; we want the final one (usually
+  // the format/digest/score step). Truncate to ~300 chars for the
+  // dashboard card and strip markdown headers for readability.
+  function extractOutputSummary(output: Record<string, any> | null): string | null {
+    if (!output || typeof output !== "object") return null;
+    let lastText: string | null = null;
+    for (const v of Object.values(output)) {
+      if (v && typeof v === "object" && typeof v.text === "string" && v.text.trim()) {
+        lastText = v.text;
+      }
+    }
+    if (!lastText) return null;
+    // Strip markdown headers and emoji for dashboard display
+    let clean = lastText
+      .replace(/^#{1,4}\s+/gm, "")
+      .replace(/[*_]{1,2}/g, "")
+      .replace(/---+/g, "")
+      .replace(/\n{2,}/g, "\n")
+      .trim();
+    if (clean.length > 300) clean = clean.slice(0, 297) + "...";
+    return clean;
+  }
+
+  type WorkflowResult = {
+    id: string;
+    workflow_id: string;
+    workflow_name: string;
+    status: string;
+    error: string | null;
+    summary: string | null;
+    started_at: string | null;
+    finished_at: string | null;
+    created_at: string;
+  };
+  const workflowResults: WorkflowResult[] = [];
+
   if (wfRuns.length > 0) {
     const wfIds = Array.from(new Set(wfRuns.map((r: any) => r.workflow_id).filter(Boolean))) as string[];
     const { data: wfDefs } = wfIds.length > 0
@@ -516,13 +554,28 @@ export async function GET() {
           .select("id, name")
           .in("id", wfIds)
       : { data: [] };
-    const wfName = new Map((wfDefs || []).map((w: any) => [w.id, w.name]));
+    const wfName = new Map((wfDefs || []).map((w: any) => [w.id, w.name as string]));
 
     for (const r of wfRuns) {
+      const name = wfName.get(r.workflow_id) || "Workflow";
+      const summary = extractOutputSummary(r.output);
+
+      workflowResults.push({
+        id: r.id,
+        workflow_id: r.workflow_id,
+        workflow_name: name,
+        status: r.status,
+        error: r.error || null,
+        summary,
+        started_at: r.started_at,
+        finished_at: r.finished_at || r.completed_at,
+        created_at: r.created_at,
+      });
+
       activityItems.push({
         id: `wf:${r.id}`,
         kind: "workflow",
-        headline: (wfName.get(r.workflow_id) as string) || "Workflow",
+        headline: name,
         detail: r.status === "failed" ? (r.error || "Failed") : null,
         status: r.status,
         timestamp: r.completed_at || r.created_at,
@@ -584,6 +637,7 @@ export async function GET() {
     recentCalls,
     flagged,
     recentActivity,
+    workflowResults,
     stats: {
       clients: empty<any>(contacts).length,
       calls7d: (calls7dResult as any)?.count || 0,
