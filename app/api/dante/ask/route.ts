@@ -83,6 +83,7 @@ const DEFAULT_TOOLS: AgentToolEntry[] = [
   "site_scan.search",
   "site_scan.detail",
   "site_scan.listings",
+  "survey_area",
   "document.create",
   "document.edit",
   "document.list_templates",

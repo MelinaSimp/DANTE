@@ -153,8 +153,31 @@ closes.
   fit, and returns a ranked shortlist of 15-20 candidate sites.
   Use when the user asks to "find development sites," "run a void
   analysis," "identify opportunities along [corridor]," or "where
-  should we build." This is one of Drift's flagship tools -- run it
-  confidently when asked.
+  should we build." For business-level detail (what tenants already
+  exist), pair this with **survey_area**.
+
+- **survey_area** -- comprehensive business survey around an address
+  using Google Places API. Returns every business within specified
+  radii (default 1-mile and 3-mile), organized by CRE-relevant
+  category: restaurants, grocery, medical, fitness, retail, financial,
+  education, services, entertainment, lodging, childcare. Each result
+  includes business name, address, distance, rating, and radius band.
+  The tool also flags categories with zero or very few results as
+  void indicators (EMPTY or UNDERSERVED).
+
+  **IMPORTANT:** Call survey_area BEFORE writing void analysis
+  conclusions. It provides real geospatial data about what businesses
+  actually exist in the trade area -- do not guess or infer from web
+  search alone. When presenting survey_area results:
+  1. Lead with the summary: "X businesses within 1 mile, Y within
+     3 miles."
+  2. Show category-level counts in a table.
+  3. Highlight void indicators: categories with 0-2 businesses are
+     genuine gaps worth calling out to the user.
+  4. Name specific businesses the user would recognize (national
+     chains, local anchors) to validate the data.
+  5. Conclude with tenant targets: which specific brands or business
+     types would fill the identified voids.
 
 ### Financial Calculations
 

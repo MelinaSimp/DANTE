@@ -267,3 +267,227 @@ function haversineMeters(
       Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
+
+// ── Area survey (comprehensive business scan) ───────────────
+//
+// Sweeps Google Places API across CRE-relevant business categories
+// at caller-specified radii. Returns every business found, organized
+// by category, with distance, rating, and radius-band tagging.
+// Used by the survey_area agent tool for void analysis grounding.
+
+export interface SurveyBusiness {
+  name: string;
+  place_id: string;
+  category: string;
+  google_type: string;
+  address: string;
+  distance_meters: number;
+  distance_miles: number;
+  radius_band: string;
+  rating: number | null;
+  total_ratings: number;
+  open_now: boolean | null;
+  price_level: number | null;
+}
+
+export interface SurveyResult {
+  businesses: SurveyBusiness[];
+  by_category: Record<string, SurveyBusiness[]>;
+  summary: {
+    total_unique: number;
+    by_radius: Record<string, number>;
+    by_category: Record<string, number>;
+  };
+  api_calls_made: number;
+}
+
+/** CRE void-analysis taxonomy: category name -> Google place types */
+const SURVEY_CATEGORIES: Record<string, string[]> = {
+  restaurants:    ["restaurant", "cafe", "bar", "bakery", "meal_delivery"],
+  grocery:        ["supermarket", "grocery_or_supermarket", "convenience_store"],
+  medical:        ["hospital", "doctor", "dentist", "pharmacy", "physiotherapist", "veterinary_care"],
+  fitness:        ["gym", "spa"],
+  retail:         ["shopping_mall", "clothing_store", "shoe_store", "furniture_store", "electronics_store", "book_store", "home_goods_store", "pet_store", "hardware_store"],
+  financial:      ["bank", "accounting", "insurance_agency"],
+  education:      ["school", "primary_school", "secondary_school", "university"],
+  services:       ["laundry", "hair_care", "beauty_salon", "car_wash", "car_repair", "gas_station", "post_office"],
+  entertainment:  ["movie_theater", "bowling_alley", "night_club"],
+  lodging:        ["lodging"],
+  childcare:      ["school", "primary_school"],
+};
+
+/** Simple in-memory cache for Places results. Key = lat,lng,radius,type */
+const placesCache = new Map<string, { data: unknown[]; ts: number }>();
+const CACHE_TTL = 60 * 60 * 1000; // 1 hour
+
+function getCachedPlaces(key: string): unknown[] | null {
+  const entry = placesCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > CACHE_TTL) {
+    placesCache.delete(key);
+    return null;
+  }
+  return entry.data;
+}
+
+function setCachedPlaces(key: string, data: unknown[]) {
+  // Evict oldest entries if cache gets too large
+  if (placesCache.size > 500) {
+    const oldest = placesCache.keys().next().value;
+    if (oldest) placesCache.delete(oldest);
+  }
+  placesCache.set(key, { data, ts: Date.now() });
+}
+
+/**
+ * Label a distance in meters with its radius band name.
+ * Radii are sorted ascending; the band is the smallest radius that contains the point.
+ */
+function radiusBandLabel(distMeters: number, radiiMeters: number[]): string {
+  for (const r of radiiMeters) {
+    if (distMeters <= r) {
+      const miles = Math.round(r / 1609.34);
+      return `${miles}_mile`;
+    }
+  }
+  const miles = Math.round(radiiMeters[radiiMeters.length - 1] / 1609.34);
+  return `${miles}_mile`;
+}
+
+export async function surveyNearbyBusinesses(
+  lat: number,
+  lng: number,
+  apiKey: string,
+  opts: {
+    radii: number[];
+    categories?: string[];
+    maxPerType?: number;
+  },
+): Promise<SurveyResult> {
+  const radii = [...opts.radii].sort((a, b) => a - b);
+  const outerRadius = radii[radii.length - 1];
+  const maxPerType = opts.maxPerType ?? 60; // up to 3 pages
+  const filterCategories = opts.categories?.length
+    ? opts.categories.map((c) => c.toLowerCase())
+    : null;
+
+  // Build the list of (category, googleType) pairs to query
+  const queries: Array<{ category: string; googleType: string }> = [];
+  for (const [cat, types] of Object.entries(SURVEY_CATEGORIES)) {
+    if (filterCategories && !filterCategories.includes(cat)) continue;
+    for (const t of types) {
+      queries.push({ category: cat, googleType: t });
+    }
+  }
+
+  // Deduplicate by place_id
+  const seen = new Map<string, SurveyBusiness>();
+  let apiCalls = 0;
+
+  // Batch queries: 8 concurrent requests to stay under 50 QPS
+  const BATCH_SIZE = 8;
+  for (let i = 0; i < queries.length; i += BATCH_SIZE) {
+    const batch = queries.slice(i, i + BATCH_SIZE);
+    const fetches = batch.map(async ({ category, googleType }) => {
+      const cacheKey = `${lat.toFixed(4)},${lng.toFixed(4)},${outerRadius},${googleType}`;
+      const cached = getCachedPlaces(cacheKey);
+      if (cached) return { category, googleType, results: cached };
+
+      const results: unknown[] = [];
+      let nextPageToken: string | null = null;
+      let pages = 0;
+
+      while (pages < 3) { // max 3 pages = 60 results per type
+        const params = new URLSearchParams({
+          location: `${lat},${lng}`,
+          radius: String(outerRadius),
+          type: googleType,
+          key: apiKey,
+        });
+        if (nextPageToken) params.set("pagetoken", nextPageToken);
+
+        try {
+          const res = await fetch(`${PLACES_BASE}?${params}`);
+          apiCalls++;
+          if (!res.ok) break;
+          const data = await res.json();
+          if (data.status !== "OK" && data.status !== "ZERO_RESULTS") break;
+          results.push(...(data.results || []));
+          nextPageToken = data.next_page_token || null;
+          pages++;
+          if (!nextPageToken || results.length >= maxPerType) break;
+          // Google requires a short delay before using next_page_token
+          await new Promise((r) => setTimeout(r, 250));
+        } catch {
+          break;
+        }
+      }
+
+      setCachedPlaces(cacheKey, results);
+      return { category, googleType, results };
+    });
+
+    const batchResults = await Promise.all(fetches);
+
+    for (const { category, googleType, results } of batchResults) {
+      for (const p of results as Array<Record<string, unknown>>) {
+        const placeId = String(p.place_id || "");
+        if (!placeId || seen.has(placeId)) continue;
+
+        const geo = p.geometry as
+          | { location: { lat: number; lng: number } }
+          | undefined;
+        if (!geo) continue;
+
+        const dist = haversineMeters(lat, lng, geo.location.lat, geo.location.lng);
+        if (dist > outerRadius) continue;
+
+        seen.set(placeId, {
+          name: String(p.name || ""),
+          place_id: placeId,
+          category,
+          google_type: googleType,
+          address: String(p.vicinity || ""),
+          distance_meters: Math.round(dist),
+          distance_miles: Math.round((dist / 1609.34) * 100) / 100,
+          radius_band: radiusBandLabel(dist, radii),
+          rating: typeof p.rating === "number" ? p.rating : null,
+          total_ratings: typeof p.user_ratings_total === "number" ? p.user_ratings_total : 0,
+          open_now: (p.opening_hours as { open_now?: boolean } | undefined)?.open_now ?? null,
+          price_level: typeof p.price_level === "number" ? p.price_level : null,
+        });
+      }
+    }
+
+    // Small delay between batches to be polite to the API
+    if (i + BATCH_SIZE < queries.length) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+
+  // Organize results
+  const businesses = Array.from(seen.values()).sort(
+    (a, b) => a.distance_meters - b.distance_meters,
+  );
+
+  const byCategory: Record<string, SurveyBusiness[]> = {};
+  const byRadius: Record<string, number> = {};
+  const byCategoryCounts: Record<string, number> = {};
+
+  for (const b of businesses) {
+    (byCategory[b.category] ??= []).push(b);
+    byRadius[b.radius_band] = (byRadius[b.radius_band] || 0) + 1;
+    byCategoryCounts[b.category] = (byCategoryCounts[b.category] || 0) + 1;
+  }
+
+  return {
+    businesses,
+    by_category: byCategory,
+    summary: {
+      total_unique: businesses.length,
+      by_radius: byRadius,
+      by_category: byCategoryCounts,
+    },
+    api_calls_made: apiCalls,
+  };
+}

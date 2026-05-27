@@ -15,7 +15,14 @@ import { upsertParcel, findParcel } from "./parcels";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { CountyAdapterConfig } from "./adapters/types";
 import { ArcGISError, CircuitOpenError } from "./adapters/resilience";
-import { nearbyPlaces, type NearbyPlace } from "@/lib/data-sources/google-maps";
+import {
+  nearbyPlaces,
+  type NearbyPlace,
+  surveyNearbyBusinesses,
+  type SurveyBusiness,
+  type SurveyResult,
+  geocodeAddress as gmapsGeocode,
+} from "@/lib/data-sources/google-maps";
 
 /**
  * Build a real URL to the ArcGIS REST HTML view for a specific parcel.
@@ -921,5 +928,181 @@ export async function handleSiteScanListings(
       crexi: `https://www.crexi.com/properties?location=${encodeURIComponent(args.location)}`,
       loopnet: `https://www.loopnet.com/search/${encodeURIComponent(args.location)}`,
     },
+  });
+}
+
+// ---- survey_area -----------------------------------------------
+//
+// Comprehensive business survey using Google Places API. Geocodes an
+// address, sweeps all CRE-relevant business categories across caller-
+// specified radii (default 1mi + 3mi), and returns structured per-
+// business data organized by category. The model uses this to produce
+// accurate void analysis grounded in real geospatial data.
+
+const MILES_TO_METERS = 1609.34;
+
+export async function handleSurveyArea(
+  args: {
+    address: string;
+    radii_miles?: number[];
+    categories?: string[];
+  },
+  workspaceId: string,
+): Promise<string> {
+  const address = (args.address || "").trim();
+  if (!address) {
+    return JSON.stringify({ error: "address is required" });
+  }
+
+  // Resolve API key
+  const gmapsKey = await resolveGmapsKey(workspaceId);
+  if (!gmapsKey) {
+    return JSON.stringify({
+      error:
+        "Google Maps API key not configured. Connect Google Maps in " +
+        "Settings > Integrations, or set GOOGLE_MAPS_API_KEY.",
+    });
+  }
+
+  // Geocode
+  const geo = await gmapsGeocode(address, gmapsKey);
+  if (!geo) {
+    // Fallback to Nominatim
+    const nomGeo = await geocodeAddress(address);
+    if (!nomGeo) {
+      return JSON.stringify({
+        error: "Could not geocode that address. Try a full street address with city and state.",
+      });
+    }
+    // Use Nominatim coords
+    return await runSurvey(nomGeo.lat, nomGeo.lng, nomGeo.matched_address, gmapsKey, args);
+  }
+
+  return await runSurvey(geo.latitude, geo.longitude, geo.formatted_address, gmapsKey, args);
+}
+
+async function runSurvey(
+  lat: number,
+  lng: number,
+  resolvedAddress: string,
+  gmapsKey: string,
+  args: { radii_miles?: number[]; categories?: string[] },
+): Promise<string> {
+  // Validate and cap radii
+  let radiiMiles = args.radii_miles?.length ? args.radii_miles : [1, 3];
+  radiiMiles = radiiMiles
+    .map((r) => Math.min(Math.max(r, 0.25), 5))
+    .slice(0, 3)
+    .sort((a, b) => a - b);
+  const radiiMeters = radiiMiles.map((r) => Math.round(r * MILES_TO_METERS));
+
+  let survey: SurveyResult;
+  try {
+    survey = await surveyNearbyBusinesses(lat, lng, gmapsKey, {
+      radii: radiiMeters,
+      categories: args.categories,
+    });
+  } catch (err) {
+    return JSON.stringify({
+      error: `Places API error: ${err instanceof Error ? err.message : String(err)}`,
+    });
+  }
+
+  // Build formatted text block for quick model scanning
+  const lines: string[] = [];
+  lines.push(`AREA SURVEY: ${resolvedAddress}`);
+  lines.push(`Center: ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+  lines.push(`Radii: ${radiiMiles.map((r) => `${r} mi`).join(", ")}`);
+  lines.push(`Total businesses found: ${survey.summary.total_unique}`);
+  lines.push("");
+
+  // Summary by radius
+  for (const [band, count] of Object.entries(survey.summary.by_radius)) {
+    lines.push(`  ${band.replace("_", " ")}: ${count} businesses`);
+  }
+  lines.push("");
+
+  // Identify void indicators (categories with 0-2 businesses)
+  const allCategories = [
+    "restaurants", "grocery", "medical", "fitness", "retail",
+    "financial", "education", "services", "entertainment", "lodging", "childcare",
+  ];
+  const filterCats = args.categories?.length
+    ? args.categories.map((c) => c.toLowerCase())
+    : null;
+  const relevantCategories = filterCats
+    ? allCategories.filter((c) => filterCats.includes(c))
+    : allCategories;
+
+  const voidIndicators: Array<{ category: string; count: number; level: string }> = [];
+  for (const cat of relevantCategories) {
+    const count = survey.summary.by_category[cat] || 0;
+    if (count <= 2) {
+      voidIndicators.push({
+        category: cat,
+        count,
+        level: count === 0 ? "EMPTY" : "UNDERSERVED",
+      });
+    }
+  }
+
+  // Category detail
+  for (const cat of relevantCategories) {
+    const businesses = survey.by_category[cat] || [];
+    const voidTag = voidIndicators.find((v) => v.category === cat);
+    const header = voidTag
+      ? `[${voidTag.level}] ${cat.toUpperCase()} (${businesses.length})`
+      : `${cat.toUpperCase()} (${businesses.length})`;
+    lines.push(header);
+
+    if (businesses.length === 0) {
+      lines.push("  (none found)");
+    } else {
+      // Show up to 15 businesses per category, sorted by distance
+      const shown = businesses
+        .sort((a, b) => a.distance_meters - b.distance_meters)
+        .slice(0, 15);
+      for (const b of shown) {
+        const rating = b.rating ? ` (${b.rating}/5, ${b.total_ratings} reviews)` : "";
+        lines.push(
+          `  ${b.distance_miles} mi | ${b.name} | ${b.address}${rating} [${b.radius_band.replace("_", " ")}]`,
+        );
+      }
+      if (businesses.length > 15) {
+        lines.push(`  ... and ${businesses.length - 15} more`);
+      }
+    }
+    lines.push("");
+  }
+
+  return JSON.stringify({
+    address_resolved: resolvedAddress,
+    survey_center: { lat, lng },
+    radii_surveyed: radiiMiles.map((r) => `${r} mi`),
+    summary: survey.summary,
+    void_indicators: voidIndicators,
+    by_category: Object.fromEntries(
+      relevantCategories.map((cat) => [
+        cat,
+        (survey.by_category[cat] || [])
+          .sort((a: SurveyBusiness, b: SurveyBusiness) => a.distance_meters - b.distance_meters)
+          .slice(0, 20)
+          .map((b: SurveyBusiness) => ({
+            name: b.name,
+            address: b.address,
+            distance_miles: b.distance_miles,
+            radius_band: b.radius_band,
+            rating: b.rating,
+            total_ratings: b.total_ratings,
+            google_type: b.google_type,
+          })),
+      ]),
+    ),
+    formatted: lines.join("\n"),
+    api_calls_made: survey.api_calls_made,
+    caveat:
+      "Point-in-time snapshot from Google Places API. Some businesses may be " +
+      "missing or recently closed. Verify with on-site visit and local " +
+      "business directories for critical decisions.",
   });
 }

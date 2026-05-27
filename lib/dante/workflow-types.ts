@@ -188,6 +188,7 @@ export type AgentToolName =
   | "site_scan.detail"    // full parcel intelligence (auditor, tax, demographics, EPA)
   | "site_scan.listings"  // search active commercial listings near a location
   | "site_scan.void_analysis" // multi-point corridor search, score + rank top sites
+  | "survey_area"            // comprehensive business survey via Google Places API
   | "web.search"             // Tavily web search for market intel, listings, news
   | "cre.calculate"          // deterministic CRE financial math (cap rate, NOI, DSCR, IRR, etc.)
   | "document.create"        // generate a branded PDF or DOCX from structured sections

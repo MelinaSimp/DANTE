@@ -97,6 +97,7 @@ const REALTOR_SPEC: VerticalSpec = {
       "site_scan.detail",
       "site_scan.listings",
       "site_scan.void_analysis",
+      "survey_area",
       "regulatory.search",
       "inconsistency.detect",
       "cre.calculate",

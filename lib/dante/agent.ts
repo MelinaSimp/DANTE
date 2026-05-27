@@ -46,6 +46,7 @@ import {
   handleSiteScanDetail,
   handleSiteScanListings,
   handleSiteScanVoidAnalysis,
+  handleSurveyArea,
 } from "@/lib/site-scan/tools";
 import { calculateCre, AVAILABLE_METRICS } from "@/lib/dante/calculators/cre";
 import { getWorkspaceModel } from "@/lib/dante/model";
@@ -682,6 +683,49 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
       },
     },
   },
+  "survey_area": {
+    type: "function",
+    function: {
+      name: "survey_area",
+      description:
+        "Survey all businesses near an address using Google Places API. " +
+        "Returns every business within specified radii (default 1 mile " +
+        "and 3 miles), organized by CRE-relevant category: restaurants, " +
+        "grocery, medical, fitness, retail, financial, education, services, " +
+        "entertainment, lodging, childcare. Each result includes name, " +
+        "address, distance, rating, and radius band. Use this BEFORE " +
+        "writing void analysis conclusions -- it replaces guesswork with " +
+        "real geospatial data. The tool also flags categories with zero " +
+        "or very few results as void indicators.",
+      parameters: {
+        type: "object",
+        properties: {
+          address: {
+            type: "string",
+            description:
+              "Street address, intersection, or location to survey " +
+              "(e.g. '38000 Euclid Ave, Willoughby OH')",
+          },
+          radii_miles: {
+            type: "array",
+            items: { type: "number" },
+            description:
+              "Search radii in miles (default [1, 3]). Max 3 radii, " +
+              "max 5 miles each. Example: [1, 3, 5]",
+          },
+          categories: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "Filter to specific categories: restaurants, grocery, " +
+              "medical, fitness, retail, financial, education, services, " +
+              "entertainment, lodging, childcare. Omit to survey all.",
+          },
+        },
+        required: ["address"],
+      },
+    },
+  },
   "cre.calculate": {
     type: "function",
     function: {
@@ -878,6 +922,7 @@ const NAME_TO_TOOL: Record<string, AgentToolName> = {
   site_scan_detail: "site_scan.detail",
   site_scan_listings: "site_scan.listings",
   site_scan_void_analysis: "site_scan.void_analysis",
+  survey_area: "survey_area",
   web_search: "web.search",
   cre_calculate: "cre.calculate",
   document_create: "document.create",
@@ -930,6 +975,7 @@ const PER_TOOL_BUDGET: Partial<Record<AgentToolName, number>> = {
   "site_scan.detail": 5,
   "site_scan.listings": 3,
   "site_scan.void_analysis": 3,
+  "survey_area": 3,
   "web.search": 10,
   "cre.calculate": 10, // cheap (pure math), but cap to prevent runaway loops
   "document.create": 5,  // each creates a file in storage + vault row; 5 is generous
@@ -1986,6 +2032,23 @@ async function dispatchTool(
       );
     }
 
+    case "survey_area": {
+      return JSON.parse(
+        await handleSurveyArea(
+          {
+            address: String(args.address || ""),
+            radii_miles: Array.isArray(args.radii_miles)
+              ? (args.radii_miles as number[])
+              : undefined,
+            categories: Array.isArray(args.categories)
+              ? (args.categories as string[])
+              : undefined,
+          },
+          ctx.workspaceId,
+        ),
+      );
+    }
+
     case "web.search": {
       const query = String(args.query || "");
       if (!query) return JSON.stringify({ error: "query is required" });
@@ -2436,6 +2499,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       "site_scan.detail": 0,
       "site_scan.listings": 0,
       "site_scan.void_analysis": 0,
+      "survey_area": 0,
       "web.search": 0,
       "cre.calculate": 0,
       "document.create": 0,
