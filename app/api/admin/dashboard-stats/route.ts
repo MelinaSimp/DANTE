@@ -3,6 +3,8 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { hasSuperadminAccess } from "@/lib/superadmin";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const supabase = await createServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
