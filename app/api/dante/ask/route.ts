@@ -671,7 +671,7 @@ async function generateFollowups(
     return parsed.questions
       .filter((q): q is string => typeof q === "string" && q.trim().length > 0)
       .slice(0, 4)
-      .map((q) => q.trim());
+      .map((q) => stripEmojis(q.trim()));
   } catch {
     return [];
   }

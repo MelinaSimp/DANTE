@@ -19,6 +19,11 @@ import { complete as llmComplete } from "@/lib/llm/client";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
+const EMOJI_RE = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu;
+function stripEmojis(text: string): string {
+  return text.replace(EMOJI_RE, "").replace(/  +/g, " ");
+}
+
 const PROMPT_SYSTEM = `You are a writing coach helping a CRE broker refine a query they're about to send to an AI assistant. Your job: take their draft prompt and rewrite it to be more specific, concrete, and likely to produce a useful answer. Keep the user's intent. Do not answer the question. Return ONLY the rewritten prompt, no preamble.
 
 If the user provides an instruction (e.g. "more specific"), apply it. Otherwise, default to: add specificity, name the contact if implied, request a particular output format (bullets, table, prose) when appropriate.`;
@@ -59,7 +64,7 @@ export async function POST(req: NextRequest) {
       maxTokens: 1500,
       feature: "refine.rewrite",
     });
-    const out = (typeof result.message.content === "string" ? result.message.content : "").trim();
+    const out = stripEmojis((typeof result.message.content === "string" ? result.message.content : "").trim());
     return NextResponse.json({ text: out });
   } catch (err) {
     return NextResponse.json(
