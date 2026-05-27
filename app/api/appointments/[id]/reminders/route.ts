@@ -29,10 +29,10 @@ export async function PATCH(
     const body = await req.json();
     const { reminderTiming = [], reminderChannels = { sms: true, email: false } } = body;
 
-    // Get workspace
+    // Get workspace + notification email fallback
     const { data: profile } = await supabase
       .from("profiles")
-      .select("workspace_id")
+      .select("workspace_id, notification_email")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -104,7 +104,7 @@ export async function PATCH(
     const contact = Array.isArray(appointment.contacts) ? appointment.contacts[0] : appointment.contacts;
     const effectiveName = contact?.name ?? (appointment as any).caller_name ?? "Customer";
     const effectivePhone: string | null = contact?.phone ?? (appointment as any).caller_phone ?? null;
-    const effectiveEmail: string | null = contact?.email ?? null;
+    const effectiveEmail: string | null = contact?.email ?? profile.notification_email ?? user.email ?? null;
     const aiMessage = await generateAppointmentReminderMessage({
       name: effectiveName,
       description: appointment.service_type,

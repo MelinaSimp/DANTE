@@ -21,6 +21,7 @@ import {
   ShieldCheck,
   HardDrive,
   FolderSync,
+  UserCircle,
 } from "lucide-react";
 
 const PhoneNumbersCard = lazy(() => import("./PhoneNumbersCard"));
@@ -31,11 +32,13 @@ const ModelCard = lazy(() => import("./ModelCard"));
 const AppearanceCard = lazy(() => import("./AppearanceCard"));
 const PrivacyModeCard = lazy(() => import("./PrivacyModeCard"));
 const LocalSetupCard = lazy(() => import("./LocalSetupCard"));
+const AccountCard = lazy(() => import("./AccountCard"));
 
 import BillingCard from "./BillingCard";
 import ExportDataCard from "./ExportDataCard";
 
 type PanelId =
+  | "account"
   | "phone_numbers"
   | "zoom"
   | "google"
@@ -49,6 +52,7 @@ type PanelId =
   | "local_setup";
 
 const PANEL_TITLES: Record<PanelId, string> = {
+  account: "Account",
   phone_numbers: "Phone numbers",
   zoom: "Zoom integration",
   google: "Google integration",
@@ -63,6 +67,8 @@ const PANEL_TITLES: Record<PanelId, string> = {
 };
 
 const PANEL_SUBTITLES: Record<PanelId, string> = {
+  account:
+    "Your name, email, and notification preferences.",
   phone_numbers:
     "Connect your Twilio account and route numbers to agents.",
   zoom:
@@ -97,6 +103,7 @@ interface NavItem {
 }
 
 const ALL_NAV_ITEMS: NavItem[] = [
+  { name: "Account", icon: UserCircle, panelId: "account", group: "Workspace" },
   { name: "Phone numbers", icon: Phone, panelId: "phone_numbers", feature: "ai_receptionist", adminOnly: true, group: "Workspace" },
   { name: "Zoom", icon: Video, panelId: "zoom", group: "Workspace" },
   { name: "Google", icon: Mail, panelId: "google", group: "Workspace" },
@@ -159,6 +166,8 @@ export default function SettingsOrbClient({
 
   const renderPanel = () => {
     switch (activePanel) {
+      case "account":
+        return <AccountCard />;
       case "phone_numbers":
         return <PhoneNumbersCard />;
       case "zoom":
