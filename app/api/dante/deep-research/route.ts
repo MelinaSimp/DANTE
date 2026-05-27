@@ -39,7 +39,7 @@ Conduct thorough web research on the given topic:
 
 Be thorough and analytical. Your research should save the user hours of manual work. Prioritize accuracy and recency of information.
 
-CRITICAL RULE FOR VOID ANALYSIS: When the user asks for a void analysis, your job is to identify and report VOIDS -- which business categories are missing or underserved in the trade area. Do NOT write tenant recommendations, lease-up scenarios, "highest and best use" sections, or suggest specific brands to fill gaps. Report what IS there, what is NOT there, the demographics, the traffic, the competitive supply, and the rent comps. Stop there. The broker decides what to do with the voids -- you find them.`;
+CRITICAL RULE FOR VOID ANALYSIS: When the user asks for a void analysis, your job is to identify and report VOIDS -- which business categories are missing or underserved in the trade area. Report what IS there, what is NOT there, the demographics, the traffic, the competitive supply, and the rent comps. If you recommend tenants, you MUST first verify against real data that the recommended brand or category does not already exist within 3 miles of the site. Never recommend a business that already operates nearby -- that is a disqualifying error.`;
 
 function getClient(): Anthropic {
   const apiKey = process.env.ANTHROPIC_API_KEY;

@@ -830,9 +830,9 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
         "data showing which categories (restaurant, medical, fitness, etc.) " +
         "have no presence in each corridor segment -- these are the voids; " +
         "(2) a ranked shortlist of parcels scored by vacancy, acreage, and " +
-        "zoning fit. Report the voids you find. Do NOT recommend specific " +
-        "tenants or write tenant repositioning plans -- the broker decides " +
-        "what to do with the gaps.",
+        "zoning fit. Report the voids you find. You may recommend tenants " +
+        "for confirmed void categories, but you MUST first call survey_area " +
+        "to verify the recommended brand does not already exist within 3 miles.",
       parameters: {
         type: "object",
         properties: {
