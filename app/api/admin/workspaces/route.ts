@@ -90,13 +90,120 @@ export async function DELETE(req: NextRequest) {
   const workspaceId = searchParams.get("id");
   if (!workspaceId) return NextResponse.json({ error: "id is required" }, { status: 400 });
 
-  // Remove profiles linked to this workspace
-  await supabaseAdmin.from("profiles").update({ workspace_id: null }).eq("workspace_id", workspaceId);
-  // Remove agents
-  await supabaseAdmin.from("agents").delete().eq("workspace_id", workspaceId);
-  // Remove the workspace
-  const { error } = await supabaseAdmin.from("workspaces").delete().eq("id", workspaceId);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  // ── Cascade-delete all workspace-scoped data ──────────────────
+  //
+  // The workspace row has 109 FK children (most CASCADE). Two
+  // problems prevent a simple `DELETE FROM workspaces`:
+  //
+  //   1. audit_logs has an append-only trigger that blocks
+  //      UPDATE cascades from other FKs (e.g. profiles → audit).
+  //   2. vault_item_chunks / watched_folder_files can be 100K+
+  //      rows, exceeding PostgREST's statement_timeout.
+  //   3. automation_events uses NO ACTION — explicit delete.
+  //
+  // Strategy: pre-delete the known-large and problematic tables
+  // explicitly, then let CASCADE handle the ~100 smaller ones.
+
+  const del = async (table: string) => {
+    const { error: e } = await supabaseAdmin
+      .from(table)
+      .delete()
+      .eq("workspace_id", workspaceId);
+    if (e) console.error(`Workspace cascade: ${table}:`, e.message);
+  };
+
+  // Vault chain (leaf → parent). watched_folder_files FK to
+  // vault_items uses SET NULL without an index — pre-null it.
+  const { data: vaultIds } = await supabaseAdmin
+    .from("vault_items")
+    .select("id")
+    .eq("workspace_id", workspaceId);
+  if (vaultIds && vaultIds.length > 0) {
+    const ids = vaultIds.map((v: { id: string }) => v.id);
+    // Batch in chunks of 500 to avoid URI-length limits.
+    for (let i = 0; i < ids.length; i += 500) {
+      const batch = ids.slice(i, i + 500);
+      await supabaseAdmin
+        .from("watched_folder_files")
+        .update({ vault_item_id: null })
+        .in("vault_item_id", batch);
+      await supabaseAdmin
+        .from("watched_file_index")
+        .update({ vault_item_id: null })
+        .in("vault_item_id", batch);
+      await supabaseAdmin
+        .from("lease_abstracts")
+        .update({ vault_item_id: null })
+        .in("vault_item_id", batch);
+    }
+  }
+  await del("vault_item_chunks");
+  await del("vault_ingest_queue");
+  await del("vault_items");
+  await del("vault_projects");
+
+  // Property join tables (no workspace_id column).
+  const { data: wsProps } = await supabaseAdmin
+    .from("properties")
+    .select("id")
+    .eq("workspace_id", workspaceId);
+  if (wsProps && wsProps.length > 0) {
+    const propIds = wsProps.map((p: { id: string }) => p.id);
+    await supabaseAdmin
+      .from("property_clients")
+      .delete()
+      .in("property_id", propIds);
+  }
+
+  // Explicit pre-deletes: append-only trigger tables, NO ACTION
+  // FKs, and high-volume tables that can exceed statement_timeout.
+  const predelete = [
+    "audit_logs",
+    "automation_events",
+    "watched_folder_files",
+    "watched_folders",
+    "watched_file_index",
+    "dante_memory",
+    "dante_chats",
+    "dante_usage_ledger",
+    "dante_workflow_runs",
+    "dante_workflows",
+    "usage_events",
+    "error_logs",
+    "sms_messages",
+    "compliance_flags",
+    "reminders",
+    "sales_records",
+    "integration_connections",
+    "conversations",
+    "documents",
+    "workspace_settings",
+    "properties",
+    "contacts",
+    "workflows",
+    "agents",
+  ];
+
+  for (const table of predelete) {
+    await del(table);
+  }
+
+  // Unlink profiles (don't delete — they're auth-linked).
+  await supabaseAdmin
+    .from("profiles")
+    .update({ workspace_id: null })
+    .eq("workspace_id", workspaceId);
+
+  // Finally remove the workspace row
+  const { error } = await supabaseAdmin
+    .from("workspaces")
+    .delete()
+    .eq("id", workspaceId);
+
+  if (error) {
+    console.error("Workspace delete failed:", error.message);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
   return NextResponse.json({ success: true });
 }
