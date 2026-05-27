@@ -58,8 +58,19 @@ interface Segment {
   webSources?: WebSource[];
 }
 
+// Hard emoji strip — defense in depth. The API route strips emojis
+// server-side, but persisted messages from before the fix (or edge
+// cases like ⭐ U+2B50 that slipped the old regex) still need
+// client-side cleanup.
+const CLIENT_EMOJI_RE =
+  /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu;
+
+function stripEmojis(text: string): string {
+  return text.replace(CLIENT_EMOJI_RE, "").replace(/  +/g, " ");
+}
+
 export default function MarkdownRenderer({ content, trace, citationReport }: Props) {
-  const segments = splitTablesOut(content);
+  const segments = splitTablesOut(stripEmojis(content));
 
   // Auto-insert a map block when the model mentions a specific street
   // address but didn't emit a ```map block. This catches the common
@@ -458,15 +469,17 @@ function looksLikeAsciiDiagram(body: string): boolean {
 // segments for a US street address pattern.
 
 const ADDRESS_RE =
-  /\b(\d{1,6}\s+[\w\s.'-]{2,40}(?:Ave(?:nue)?|St(?:reet)?|Rd|Road|Blvd|Boulevard|Dr(?:ive)?|Way|Ln|Lane|Ct|Court|Pl(?:ace)?|Pkwy|Hwy|Pike|Circle|Terrace|Trail)[.,]?\s+[\w\s.'-]+,\s*[A-Z]{2}\b(?:\s*\d{5})?)/i;
+  /(\d{1,6}\s+[\w\s.'-]{2,40}(?:Ave(?:nue)?|St(?:reet)?|Rd|Road|Blvd|Boulevard|Dr(?:ive)?|Way|Ln|Lane|Ct|Court|Pl(?:ace)?|Pkwy|Hwy|Pike|Circle|Terrace|Trail)\b[.,]?\s*[\w\s.'-]*,\s*[A-Z]{2}\b(?:\s*\d{5})?)/i;
 
 function maybeInjectMap(segments: Segment[]): void {
   // Already has a map — nothing to do.
   if (segments.some((s) => s.type === "map")) return;
 
-  // Scan the first 6 text/heading segments for a street address.
+  // Scan all text/heading segments (not just the first few) for a
+  // street address. The address might be deep into the response
+  // after many section headings.
   let address: string | null = null;
-  for (const seg of segments.slice(0, 8)) {
+  for (const seg of segments) {
     if (seg.type !== "text" && seg.type !== "heading") continue;
     const match = seg.content.match(ADDRESS_RE);
     if (match) {
