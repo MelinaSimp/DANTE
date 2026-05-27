@@ -146,7 +146,7 @@ const DEEP_PROMPTS_REALTOR: Array<{ label: string; description: string; prompt: 
     description: "Parcel data, demographics, tenant gaps, traffic, competitive supply, highest-and-best-use",
     prompt: `I'm looking at __________. Run a full void analysis on this property and its trade area.
 
-Start with the site — pull whatever you can on the parcel: zoning, lot size, assessed value, current use, and any recent tax or ownership history. If there's an existing structure, give me the building specs.
+Drop a map of the site first, then start with the parcel — pull whatever you can: zoning, lot size, assessed value, current use, and any recent tax or ownership history. If there's an existing structure, give me the building specs.
 
 Then analyze the trade area — 1-mile and 3-mile rings from this address:
 
@@ -160,7 +160,7 @@ Then analyze the trade area — 1-mile and 3-mile rings from this address:
 
 5. HIGHEST AND BEST USE: Given the zoning, parcel size, location along the corridor, and the void gaps you identified — what tenant mix would maximize rent per square foot while maintaining low turnover risk? Give me a realistic lease-up scenario.
 
-6. RENT COMPS: What are NNN asking rents for comparable retail/office space in this submarket? What spread should I expect between inline and endcap?
+6. RENT COMPS: What are NNN asking rents for comparable retail/office space in this submarket? What spread should I expect between inline and endcap? Use a chart for the rent comps.
 
 Tell me what this site wants to be.`,
   },

@@ -18,12 +18,20 @@
 // fenced code blocks. The agent emits these to render math /
 // step-by-step logic / scenario comparison as Drift's "graphic
 // organizer" — see ReasoningBlock.tsx for the schema and rendering.
+//
+// We also recognise ```map fenced blocks. The agent emits these to
+// embed an interactive Google Maps pane (grayscale, glass styling)
+// whenever a response references a specific property address.
 
 import CitationRenderer, { type CitationReport } from "./CitationRenderer";
 import ReasoningBlock, {
   parseReasoningBlock,
   type ReasoningBlockData,
 } from "./ReasoningBlock";
+import MapBlock, {
+  parseMapBlock,
+  type MapBlockData,
+} from "./MapBlock";
 
 interface Props {
   content: string;
@@ -34,12 +42,14 @@ interface Props {
 }
 
 interface Segment {
-  type: "text" | "table" | "reasoning" | "heading" | "hr";
+  type: "text" | "table" | "reasoning" | "heading" | "hr" | "map";
   content: string;
   /** Pre-parsed reasoning data when type === 'reasoning'. */
   reasoning?: ReasoningBlockData;
   /** 1–3 when type === 'heading'. */
   headingLevel?: 1 | 2 | 3;
+  /** Pre-parsed map data when type === 'map'. */
+  map?: MapBlockData;
 }
 
 export default function MarkdownRenderer({ content, trace, citationReport }: Props) {
@@ -83,6 +93,9 @@ export default function MarkdownRenderer({ content, trace, citationReport }: Pro
         }
         if (seg.type === "reasoning" && seg.reasoning) {
           return <ReasoningBlock key={i} data={seg.reasoning} />;
+        }
+        if (seg.type === "map" && seg.map) {
+          return <MapBlock key={i} data={seg.map} />;
         }
         return <TableSegment key={i} markdown={seg.content} trace={trace} />;
       })}
@@ -155,7 +168,7 @@ function splitTablesOut(content: string): Segment[] {
   };
 
   while (i < lines.length) {
-    // 1. Reasoning fenced block — ```reasoning ... ```
+    // 1a. Reasoning fenced block — ```reasoning ... ```
     if (/^\s*```\s*reasoning\s*$/i.test(lines[i])) {
       flushText();
       const start = i + 1;
@@ -172,6 +185,22 @@ function splitTablesOut(content: string): Segment[] {
         segments.push({ type: "text", content: "```\n" + body + "\n```" });
       }
       i = end + 1; // skip past the closing fence
+      continue;
+    }
+    // 1b. Map fenced block — ```map ... ```
+    if (/^\s*```\s*map\s*$/i.test(lines[i])) {
+      flushText();
+      const start = i + 1;
+      let end = start;
+      while (end < lines.length && !/^\s*```\s*$/.test(lines[end])) end++;
+      const body = lines.slice(start, end).join("\n").trim();
+      const parsed = parseMapBlock(body);
+      if (parsed) {
+        segments.push({ type: "map", content: body, map: parsed });
+      } else {
+        segments.push({ type: "text", content: "```\n" + body + "\n```" });
+      }
+      i = end + 1;
       continue;
     }
     // 2. Pipe table.
