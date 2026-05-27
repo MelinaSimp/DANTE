@@ -370,7 +370,7 @@ export default function UsageAPanel() {
                       ) : (
                         <button
                           onClick={() => startEdit(r)}
-                          className="text-xs text-[var(--accent)] hover:brightness-90"
+                          className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)]"
                         >
                           Edit quotas
                         </button>
