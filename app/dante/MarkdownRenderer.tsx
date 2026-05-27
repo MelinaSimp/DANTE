@@ -228,12 +228,32 @@ function splitTablesOut(content: string): Segment[] {
       i = end + 1;
       continue;
     }
-    // 2. Pipe table.
+    // 2. Pipe table — or a sources table masquerading as one.
     if (looksLikeTableStart(lines, i)) {
       flushText();
       const start = i;
       while (i < lines.length && /^\s*\|/.test(lines[i])) i++;
-      segments.push({ type: "table", content: lines.slice(start, i).join("\n") });
+      const tableContent = lines.slice(start, i).join("\n");
+
+      // Check if the preceding segment is a "Sources" heading. If
+      // the table also has a URL column, treat it as a web-sources
+      // block instead of a plain table. This catches the model's
+      // common fallback of dumping a markdown source table even
+      // when the prompt tells it to use ```sources.
+      const prev = segments[segments.length - 1];
+      const isSourcesHeading =
+        prev?.type === "heading" && /sources?/i.test(prev.content);
+      if (isSourcesHeading) {
+        const parsed = tryParseSourcesTable(tableContent);
+        if (parsed) {
+          // Remove the heading — the WebSourcesBlock has its own.
+          segments.pop();
+          segments.push({ type: "sources", content: tableContent, webSources: parsed });
+          continue;
+        }
+      }
+
+      segments.push({ type: "table", content: tableContent });
       continue;
     }
     // 3. Heading — # / ## / ###
@@ -295,4 +315,61 @@ function splitRow(line: string): string[] {
   // Strip leading/trailing pipes, split on unescaped `|`.
   const trimmed = line.trim().replace(/^\|/, "").replace(/\|$/, "");
   return trimmed.split("|").map((c) => c.trim());
+}
+
+// ── Sources-table fallback ─────────────────────────────────────
+//
+// The model sometimes ignores the ```sources instruction and dumps
+// a markdown table with columns like #, Source, URL. This helper
+// tries to parse that table into WebSource[] so the renderer can
+// display the Perplexity-style panel instead of a raw table.
+
+function tryParseSourcesTable(markdown: string): WebSource[] | null {
+  const parsed = parseMarkdownTable(markdown);
+  if (!parsed || parsed.rows.length === 0) return null;
+
+  // Identify column indices by header text.
+  const hLower = parsed.headers.map((h) => h.toLowerCase());
+  const urlCol = hLower.findIndex((h) => /url|link|href/.test(h));
+  const titleCol = hLower.findIndex((h) => /source|title|name/.test(h));
+
+  // Must have at least a URL column to qualify.
+  if (urlCol === -1) return null;
+
+  const sources: WebSource[] = [];
+  for (let r = 0; r < parsed.rows.length; r++) {
+    const row = parsed.rows[r];
+    const rawUrl = extractUrl(row[urlCol] || "");
+    if (!rawUrl) continue;
+
+    const title =
+      titleCol !== -1 ? (row[titleCol] || "").replace(/\*\*/g, "").trim() : rawUrl;
+
+    let domain: string;
+    try {
+      domain = new URL(rawUrl).hostname.replace(/^www\./, "");
+    } catch {
+      domain = rawUrl;
+    }
+
+    // Try to read a number from the first column; fall back to index.
+    const numCol = hLower.findIndex((h) => h === "#" || h === "no" || h === "n");
+    const n =
+      numCol !== -1 ? parseInt(row[numCol], 10) || sources.length + 1 : sources.length + 1;
+
+    sources.push({ n, title, url: rawUrl, domain });
+  }
+
+  return sources.length >= 2 ? sources : null;
+}
+
+/** Pull a bare URL or a markdown-link URL from a cell. */
+function extractUrl(cell: string): string | null {
+  // Markdown link: [text](url)
+  const mdMatch = cell.match(/\[.*?\]\((https?:\/\/[^\s)]+)\)/);
+  if (mdMatch) return mdMatch[1];
+  // Bare URL
+  const bareMatch = cell.match(/(https?:\/\/[^\s|)]+)/);
+  if (bareMatch) return bareMatch[1];
+  return null;
 }
