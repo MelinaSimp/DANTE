@@ -48,8 +48,8 @@ export default function AccountCard() {
       if (!res.ok) throw new Error("Failed to save");
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } catch {
-      reportError("AccountCard: save")();
+    } catch (err) {
+      reportError("AccountCard: save")(err);
     } finally {
       setSaving(false);
     }
