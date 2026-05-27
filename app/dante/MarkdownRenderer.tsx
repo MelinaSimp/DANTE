@@ -61,6 +61,11 @@ interface Segment {
 export default function MarkdownRenderer({ content, trace, citationReport }: Props) {
   const segments = splitTablesOut(content);
 
+  // Auto-insert a map block when the model mentions a specific street
+  // address but didn't emit a ```map block. This catches the common
+  // fallback where the model draws ASCII art instead.
+  maybeInjectMap(segments);
+
   // Track whether we've attached the citation report to a segment yet.
   let reportAttached = false;
 
@@ -309,6 +314,44 @@ function parseMarkdownTable(markdown: string): { headers: string[]; rows: string
   }
   if (rows.length === 0) return null;
   return { headers, rows };
+}
+
+// ── Map auto-injection ──────────────────────────────────────────
+//
+// When the model mentions a street address but didn't emit a ```map
+// block, insert one automatically so the user gets an interactive
+// map instead of ASCII art. We scan the first few text/heading
+// segments for a US street address pattern.
+
+const ADDRESS_RE =
+  /\b(\d{1,6}\s+[\w\s.'-]{2,40}(?:Ave(?:nue)?|St(?:reet)?|Rd|Road|Blvd|Boulevard|Dr(?:ive)?|Way|Ln|Lane|Ct|Court|Pl(?:ace)?|Pkwy|Hwy|Pike|Circle|Terrace|Trail)[.,]?\s+[\w\s.'-]+,\s*[A-Z]{2}\b(?:\s*\d{5})?)/i;
+
+function maybeInjectMap(segments: Segment[]): void {
+  // Already has a map — nothing to do.
+  if (segments.some((s) => s.type === "map")) return;
+
+  // Scan the first 6 text/heading segments for a street address.
+  let address: string | null = null;
+  for (const seg of segments.slice(0, 8)) {
+    if (seg.type !== "text" && seg.type !== "heading") continue;
+    const match = seg.content.match(ADDRESS_RE);
+    if (match) {
+      address = match[1].trim().replace(/[.,]+$/, "");
+      break;
+    }
+  }
+
+  if (!address) return;
+
+  // Insert after the first heading (or at position 0).
+  const firstHeadingIdx = segments.findIndex((s) => s.type === "heading");
+  const insertAt = firstHeadingIdx !== -1 ? firstHeadingIdx + 1 : 0;
+
+  segments.splice(insertAt, 0, {
+    type: "map",
+    content: JSON.stringify({ address, zoom: 15 }),
+    map: { address, zoom: 15 },
+  });
 }
 
 function splitRow(line: string): string[] {
