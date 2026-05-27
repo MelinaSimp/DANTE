@@ -228,7 +228,7 @@ export default function ChatThread({
       )}
 
       <div className="glass-composer-bg fixed bottom-0 left-0 right-0 pt-6 pb-4 z-30">
-        <div className="max-w-[900px] mx-auto px-6 md:px-8">
+        <div className="max-w-5xl mx-auto px-6 md:px-8">
           <div className="glass-panel relative rounded-[14px]">
             <textarea
               value={input}

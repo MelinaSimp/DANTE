@@ -906,7 +906,7 @@ export default function AskDante({
 
       {/* Expanded mode header — navigate back to landing */}
       {inExpandedMode && (
-        <div className="flex items-center justify-between px-6 md:px-8 py-2 max-w-4xl mx-auto w-full">
+        <div className="flex items-center justify-between px-6 md:px-8 py-2 max-w-5xl mx-auto w-full">
           <span className="text-sm font-medium text-[var(--ink-subtle)]">{brand.name}</span>
           <Link
             href="/dante"
@@ -922,7 +922,7 @@ export default function AskDante({
         <div className="flex-1 min-h-0 overflow-y-auto">
           {/* Compact context chips */}
           {(contextContact || contextProject) && (
-            <div className="mb-4 flex items-center gap-4 text-xs text-[var(--ink-subtle)] max-w-4xl mx-auto px-6 md:px-8 pt-4">
+            <div className="mb-4 flex items-center gap-4 text-xs text-[var(--ink-subtle)] max-w-5xl mx-auto px-6 md:px-8 pt-4">
               {contextProject && (
                 <span className="flex items-center gap-1.5">
                   <BookOpen className="w-3 h-3" strokeWidth={1.5} />
@@ -947,7 +947,7 @@ export default function AskDante({
           )}
 
           {/* Threaded messages */}
-          <div className="max-w-4xl mx-auto px-6 md:px-10 pt-6 md:pt-8 pb-32 space-y-10">
+          <div className="max-w-5xl mx-auto px-6 md:px-10 pt-6 md:pt-8 pb-32 space-y-10">
             {turns.map((t, i) =>
               t.role === "user" ? (
                 <UserMessage key={i} content={t.content} />
@@ -1000,7 +1000,7 @@ export default function AskDante({
           {/* Pinned input bar — sticky within the scroll container so it
               centres against the same width as the messages above. */}
           <div className="sticky bottom-0 z-30 bg-gradient-to-t from-[var(--canvas)] via-[var(--canvas)]/95 to-transparent pt-6 pb-4">
-            <div className="max-w-4xl mx-auto px-6 md:px-8">
+            <div className="max-w-5xl mx-auto px-6 md:px-8">
               <InputBar
                 compact
                 input={input}

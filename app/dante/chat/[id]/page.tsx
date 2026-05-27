@@ -87,7 +87,7 @@ export default async function ChatPage({
       </div>
 
       <SourceViewerLayout>
-        <div className="px-6 md:px-8 py-8 max-w-[900px] mx-auto">
+        <div className="px-6 md:px-8 py-8 max-w-5xl mx-auto">
           <ChatThread
             chatId={chat.id}
             initialMessages={
