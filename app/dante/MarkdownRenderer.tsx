@@ -32,6 +32,10 @@ import MapBlock, {
   parseMapBlock,
   type MapBlockData,
 } from "./MapBlock";
+import WebSourcesBlock, {
+  parseSourcesBlock,
+  type WebSource,
+} from "./WebSourcesBlock";
 
 interface Props {
   content: string;
@@ -42,7 +46,7 @@ interface Props {
 }
 
 interface Segment {
-  type: "text" | "table" | "reasoning" | "heading" | "hr" | "map";
+  type: "text" | "table" | "reasoning" | "heading" | "hr" | "map" | "sources";
   content: string;
   /** Pre-parsed reasoning data when type === 'reasoning'. */
   reasoning?: ReasoningBlockData;
@@ -50,6 +54,8 @@ interface Segment {
   headingLevel?: 1 | 2 | 3;
   /** Pre-parsed map data when type === 'map'. */
   map?: MapBlockData;
+  /** Pre-parsed web sources when type === 'sources'. */
+  webSources?: WebSource[];
 }
 
 export default function MarkdownRenderer({ content, trace, citationReport }: Props) {
@@ -96,6 +102,9 @@ export default function MarkdownRenderer({ content, trace, citationReport }: Pro
         }
         if (seg.type === "map" && seg.map) {
           return <MapBlock key={i} data={seg.map} />;
+        }
+        if (seg.type === "sources" && seg.webSources) {
+          return <WebSourcesBlock key={i} sources={seg.webSources} />;
         }
         return <TableSegment key={i} markdown={seg.content} trace={trace} />;
       })}
@@ -200,6 +209,22 @@ function splitTablesOut(content: string): Segment[] {
       } else {
         segments.push({ type: "text", content: "```\n" + body + "\n```" });
       }
+      i = end + 1;
+      continue;
+    }
+    // 1c. Sources fenced block — ```sources ... ```
+    if (/^\s*```\s*sources\s*$/i.test(lines[i])) {
+      flushText();
+      const start = i + 1;
+      let end = start;
+      while (end < lines.length && !/^\s*```\s*$/.test(lines[end])) end++;
+      const body = lines.slice(start, end).join("\n").trim();
+      const parsed = parseSourcesBlock(body);
+      if (parsed) {
+        segments.push({ type: "sources", content: body, webSources: parsed });
+      }
+      // If parsing fails, silently drop it — the raw JSON source
+      // list is never useful as visible text.
       i = end + 1;
       continue;
     }
