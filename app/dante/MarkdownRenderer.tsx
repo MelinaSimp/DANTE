@@ -233,6 +233,30 @@ function splitTablesOut(content: string): Segment[] {
       i = end + 1;
       continue;
     }
+    // 1d. Generic code fence — strip ASCII art diagrams. The model
+    //     sometimes wraps site maps, floor plans, and corridor
+    //     diagrams in bare ``` fences. These render as ugly mono-
+    //     spaced text and are redundant when a real map exists.
+    if (/^\s*```\s*$/.test(lines[i]) || /^\s*```\w*\s*$/.test(lines[i])) {
+      // Check it's not one of our special fences (already handled above).
+      if (!/^\s*```\s*(reasoning|map|sources)\s*$/i.test(lines[i])) {
+        flushText();
+        const start = i + 1;
+        let end = start;
+        while (end < lines.length && !/^\s*```\s*$/.test(lines[end])) end++;
+        const body = lines.slice(start, end).join("\n");
+        // If it looks like an ASCII diagram, drop it entirely.
+        if (looksLikeAsciiDiagram(body)) {
+          i = end + 1;
+          continue;
+        }
+        // Otherwise pass through as text (preserve code blocks the
+        // model might use for actual code snippets).
+        textBuf.push(...lines.slice(i, end + 1));
+        i = end + 1;
+        continue;
+      }
+    }
     // 2. Pipe table — or a sources table masquerading as one.
     if (looksLikeTableStart(lines, i)) {
       flushText();
@@ -314,6 +338,33 @@ function parseMarkdownTable(markdown: string): { headers: string[]; rows: string
   }
   if (rows.length === 0) return null;
   return { headers, rows };
+}
+
+// ── ASCII diagram detection ─────────────────────────────────────
+//
+// The model loves drawing site maps, floor plans, and corridor
+// diagrams with box-drawing characters. These are redundant when a
+// real Google Maps embed exists and render as ugly monospaced text.
+
+function looksLikeAsciiDiagram(body: string): boolean {
+  const lines = body.split("\n");
+  if (lines.length < 4) return false;
+
+  // Count lines containing box-drawing or diagram characters.
+  let diagramLines = 0;
+  for (const line of lines) {
+    if (
+      /[─│┌┐└┘╔╗╚╝╠╣╦╩╬║═┼├┤┬┴]/.test(line) ||
+      /[←→↑↓►◄▸▾▲▼]/.test(line) ||
+      // ASCII box-drawing: lines made mostly of |, -, +, =
+      /^[\s|+\-=╔╗╚╝║═─│*]+$/.test(line.trim())
+    ) {
+      diagramLines++;
+    }
+  }
+
+  // If more than 30% of lines are diagram-like, it's an ASCII drawing.
+  return diagramLines / lines.length > 0.3;
 }
 
 // ── Map auto-injection ──────────────────────────────────────────
