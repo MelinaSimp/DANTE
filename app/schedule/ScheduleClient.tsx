@@ -121,6 +121,8 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
   const [appointmentReminderChannels, setAppointmentReminderChannels] = useState<{ sms: boolean; email: boolean }>({ sms: true, email: false });
   const [loadingReminders, setLoadingReminders] = useState(false);
   const [savingReminders, setSavingReminders] = useState(false);
+  const [reminderEmailDraft, setReminderEmailDraft] = useState("");
+  const [savingReminderEmail, setSavingReminderEmail] = useState(false);
   const [editingAppointment, setEditingAppointment] = useState(false);
   const [editFields, setEditFields] = useState({ service_type: "", notes: "", scheduled_at: "", duration_minutes: 30 });
   const [savingAppointment, setSavingAppointment] = useState(false);
@@ -486,6 +488,38 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
       showToast(error.message || "Failed to update reminders", "error");
     } finally {
       setSavingReminders(false);
+    }
+  };
+
+  const handleSaveReminderEmail = async () => {
+    if (!selectedAppointment?.contacts?.id || !reminderEmailDraft.trim()) return;
+    setSavingReminderEmail(true);
+    try {
+      const res = await fetch(`/api/contacts/${selectedAppointment.contacts.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: reminderEmailDraft.trim() }),
+      });
+      if (!res.ok) throw new Error("Failed to save email");
+      // Update local appointment state so the checkbox enables immediately
+      setSelectedAppointment({
+        ...selectedAppointment,
+        contacts: { ...selectedAppointment.contacts, email: reminderEmailDraft.trim() },
+      });
+      // Also update in the master list
+      setAppointments((prev) =>
+        prev.map((a) =>
+          a.id === selectedAppointment.id
+            ? { ...a, contacts: a.contacts ? { ...a.contacts, email: reminderEmailDraft.trim() } : a.contacts }
+            : a,
+        ),
+      );
+      setReminderEmailDraft("");
+      showToast("Email saved to contact");
+    } catch (error: any) {
+      showToast(error.message || "Failed to save email", "error");
+    } finally {
+      setSavingReminderEmail(false);
     }
   };
 
@@ -1498,18 +1532,41 @@ export default function ScheduleClient({ initialAppointments, workspaceId, theme
               {/* Reminders */}
               <div className="border-t border-[var(--rule)] pt-4">
                 <label className="block label-section text-[var(--ink-muted)] mb-2">Email Reminder</label>
-                <label className="flex items-center gap-2 cursor-pointer mb-3">
-                  <input
-                    type="checkbox"
-                    checked={appointmentReminderChannels.email}
-                    onChange={(e) => setAppointmentReminderChannels({ ...appointmentReminderChannels, email: e.target.checked })}
-                    disabled={!selectedAppointment.contacts?.email}
-                    className="rounded border-[var(--rule-strong)] disabled:opacity-50"
-                  />
-                  <span className={`text-xs ${!selectedAppointment.contacts?.email ? "text-[var(--ink-subtle)]" : "text-[var(--ink-muted)]"}`}>
-                    Email {!selectedAppointment.contacts?.email && "(no email provided)"}
-                  </span>
-                </label>
+                {selectedAppointment.contacts?.email ? (
+                  <label className="flex items-center gap-2 cursor-pointer mb-3">
+                    <input
+                      type="checkbox"
+                      checked={appointmentReminderChannels.email}
+                      onChange={(e) => setAppointmentReminderChannels({ ...appointmentReminderChannels, email: e.target.checked })}
+                      className="rounded border-[var(--rule-strong)]"
+                    />
+                    <span className="text-xs text-[var(--ink-muted)]">
+                      Email ({selectedAppointment.contacts.email})
+                    </span>
+                  </label>
+                ) : selectedAppointment.contacts?.id ? (
+                  <div className="mb-3">
+                    <p className="text-xs text-[var(--ink-subtle)] mb-2">No email on file for this contact.</p>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="email"
+                        placeholder="Add email address"
+                        value={reminderEmailDraft}
+                        onChange={(e) => setReminderEmailDraft(e.target.value)}
+                        className="flex-1 px-2 py-1.5 rounded-[4px] border border-[var(--rule-strong)] bg-[var(--canvas)] text-xs text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:border-[var(--ink)] focus:outline-none"
+                      />
+                      <button
+                        onClick={handleSaveReminderEmail}
+                        disabled={savingReminderEmail || !reminderEmailDraft.trim()}
+                        className="px-3 py-1.5 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-xs font-medium hover:opacity-90 disabled:opacity-40 transition"
+                      >
+                        {savingReminderEmail ? "Saving..." : "Save"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-[var(--ink-subtle)] mb-3">No contact linked to this appointment.</p>
+                )}
                 <div className="flex flex-wrap gap-1.5 mb-3">
                   {[{ label: "Immediately", value: "immediate" }, { label: "1 Day Before", value: "1day" }, { label: "5 Hours Before", value: "5hours" }, { label: "1 Hour Before", value: "1hour" }].map((opt) => (
                     <button
