@@ -1163,12 +1163,35 @@ interface AgentToolCtx {
   surveyAreaCalled?: boolean;
   /** The raw survey_area result for post-validation of recommendations. */
   surveyAreaResult?: SurveyAreaResult | null;
+  /** The raw void_analysis result for dashboard construction. */
+  voidAnalysisResult?: VoidAnalysisResult | null;
 }
 
 /** Minimal shape of survey_area output needed for brand validation. */
 interface SurveyAreaResult {
-  by_category: Record<string, Array<{ name: string; distance_miles: number }>>;
+  address_resolved?: string;
+  survey_center?: { lat: number; lng: number };
+  summary?: { total_unique: number; by_radius: Record<string, number>; by_category: Record<string, number> };
+  by_category: Record<string, Array<{ name: string; distance_miles: number; address?: string; rating?: number; radius_band?: string }>>;
   void_indicators: Array<{ category: string; count: number; level: string }>;
+}
+
+/** Minimal shape of void_analysis output for dashboard construction. */
+interface VoidAnalysisResult {
+  search_points?: string[];
+  target_use?: string;
+  sites?: Array<{
+    address: string;
+    zoning?: string;
+    acreage?: number;
+    assessed_value?: number | null;
+    score?: number;
+  }>;
+  market_gap?: {
+    corridor_coverage?: unknown;
+    void_segments?: unknown;
+    market_density?: unknown;
+  };
 }
 
 const PER_TOOL_BUDGET: Partial<Record<AgentToolName, number>> = {
@@ -2811,6 +2834,119 @@ export interface AgentRunResult {
 
 const HARD_MAX_STEPS = 30;  // raised from 20: lease abstraction needs 19+ vault.cite passes
 
+// ── Void dashboard builder ──────────────────────────────────────
+//
+// Constructs the structured void_analysis JSON block from tool results.
+// This runs post-loop — the model never needs to emit the block itself.
+
+/** Demand thresholds: min households within 3mi for a category to be viable. */
+const DEMAND_THRESHOLDS: Record<string, number> = {
+  restaurants: 5000,
+  grocery: 8000,
+  medical: 8000,
+  fitness: 8000,
+  retail: 5000,
+  financial: 8000,
+  education: 5000,
+  services: 3000,
+  entertainment: 10000,
+  lodging: 15000,
+  childcare: 5000,
+};
+
+function buildVoidDashboard(ctx: AgentToolCtx): Record<string, unknown> | null {
+  const survey = ctx.surveyAreaResult;
+  if (!survey?.by_category) return null;
+
+  // Build site info from whatever we have
+  const site: Record<string, unknown> = {
+    address: survey.address_resolved || ctx.voidAnalysisAddress || "Unknown",
+  };
+  if (survey.survey_center) {
+    site.lat = survey.survey_center.lat;
+    site.lng = survey.survey_center.lng;
+  }
+  // Pull zoning/acreage from void_analysis top site if available
+  const topSite = ctx.voidAnalysisResult?.sites?.[0];
+  if (topSite) {
+    if (topSite.zoning) site.zoning = topSite.zoning;
+    if (topSite.acreage) site.acreage = topSite.acreage;
+    if (topSite.assessed_value) site.assessed_value = topSite.assessed_value;
+  }
+
+  // Build category density data
+  const allCategories = [
+    "restaurants", "grocery", "medical", "fitness", "retail",
+    "financial", "education", "services", "entertainment", "lodging", "childcare",
+  ];
+
+  const categories: Array<Record<string, unknown>> = [];
+  for (const cat of allCategories) {
+    const businesses = survey.by_category[cat] || [];
+    const count1mi = businesses.filter(
+      (b) => b.distance_miles <= 1,
+    ).length;
+    const count3mi = businesses.length;
+    const threshold = DEMAND_THRESHOLDS[cat] ? Math.ceil(DEMAND_THRESHOLDS[cat] / 3000) : 5;
+
+    let status: string;
+    if (count3mi <= 1) status = "void";
+    else if (count3mi <= 3) status = "underserved";
+    else if (count3mi >= threshold * 2) status = "saturated";
+    else status = "adequate";
+
+    // Capitalize category name
+    const displayName = cat.charAt(0).toUpperCase() + cat.slice(1);
+
+    categories.push({
+      name: displayName,
+      count_1mi: count1mi,
+      count_3mi: count3mi,
+      threshold,
+      status,
+    });
+  }
+
+  // Build voids from survey void indicators
+  const voids: Array<Record<string, unknown>> = [];
+  const voidIndicators = survey.void_indicators || [];
+  for (const vi of voidIndicators) {
+    const catBusinesses = survey.by_category[vi.category] || [];
+    const threshold = DEMAND_THRESHOLDS[vi.category] || 5000;
+
+    voids.push({
+      category: vi.category.charAt(0).toUpperCase() + vi.category.slice(1),
+      count_3mi: vi.count,
+      evidence:
+        vi.count === 0
+          ? `No ${vi.category} businesses found within 3 miles`
+          : `Only ${vi.count} ${vi.category} business(es) within 3 miles`,
+      opportunity_level: vi.count === 0 ? "HIGH" : "MEDIUM",
+      demand_met: true, // We don't have household count from tools; assume met
+    });
+  }
+
+  // Build competitive supply from void_analysis sites if available
+  const competitiveSupply: Array<Record<string, unknown>> = [];
+  if (ctx.voidAnalysisResult?.sites) {
+    for (const s of ctx.voidAnalysisResult.sites.slice(0, 5)) {
+      competitiveSupply.push({
+        name: s.address,
+        distance_mi: 0, // We don't have distance from the void_analysis result
+        sf_available: s.acreage ? Math.round(s.acreage * 43560 * 0.3) : undefined,
+        risk: (s.score ?? 0) >= 4 ? "high" : (s.score ?? 0) >= 2 ? "moderate" : "low",
+      });
+    }
+  }
+
+  return {
+    site,
+    categories,
+    voids,
+    ...(competitiveSupply.length > 0 && { competitive_supply: competitiveSupply }),
+  };
+}
+
 export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
   const cfg = input.step.config;
   const entries: AgentToolEntry[] = cfg.tools || [];
@@ -3230,8 +3366,17 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       if (!errored && toolName === "site_scan.void_analysis") {
         ctx.voidAnalysisCalled = true;
         // Extract an address from the args for auto-survey fallback
-        const locs = parsedArgs.locations as Array<{ query?: string }> | undefined;
-        if (locs?.[0]?.query) ctx.voidAnalysisAddress = locs[0].query;
+        const locs = parsedArgs.locations as Array<string | { query?: string }> | undefined;
+        if (locs?.[0]) {
+          ctx.voidAnalysisAddress = typeof locs[0] === "string" ? locs[0] : locs[0].query;
+        }
+        // Capture the result for dashboard construction
+        try {
+          const parsed = typeof toolOutput === "string" ? JSON.parse(toolOutput) : toolOutput;
+          if (parsed && !parsed.error) {
+            ctx.voidAnalysisResult = parsed as VoidAnalysisResult;
+          }
+        } catch { /* non-critical */ }
       }
       if (!errored && toolName === "survey_area") {
         ctx.surveyAreaCalled = true;
@@ -3300,52 +3445,61 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
     }
   }
 
-  // ── VOID ANALYSIS POST-VALIDATION ──
-  // If we have survey_area data and a void analysis was run,
-  // scan the final text for brand names that exist within 3 miles.
-  // Append a correction notice if any are found. This is the
-  // belt-and-suspenders layer — if the model still recommended
-  // businesses that exist nearby despite the enforcement prompt,
-  // we catch it here.
-  if (ctx.voidAnalysisCalled && ctx.surveyAreaResult?.by_category && finalText) {
-    const nearbyBrands: Array<{ name: string; distance: number; category: string }> = [];
-    for (const [cat, businesses] of Object.entries(ctx.surveyAreaResult.by_category)) {
-      for (const biz of businesses) {
-        if (biz.distance_miles <= 3) {
-          nearbyBrands.push({ name: biz.name, distance: biz.distance_miles, category: cat });
+  // ── VOID ANALYSIS POST-PROCESSING ──
+  // Two steps: (1) auto-construct the interactive dashboard block from
+  // tool data and prepend it; (2) scan for brand violations and flag them.
+  if (ctx.voidAnalysisCalled && finalText) {
+    // Step 1: Build the void_analysis dashboard block automatically.
+    // The model can't be trusted to emit structured JSON, so we
+    // construct it from the actual tool results.
+    if (ctx.surveyAreaResult?.by_category) {
+      const dashboard = buildVoidDashboard(ctx);
+      if (dashboard) {
+        const block = "```void_analysis\n" + JSON.stringify(dashboard) + "\n```\n\n";
+        // Strip any model-emitted void_analysis block (in case it tried and
+        // produced invalid JSON that would render as ugly text).
+        finalText = finalText.replace(/```void_analysis[\s\S]*?```/g, "").trim();
+        finalText = block + finalText;
+      }
+    }
+
+    // Step 2: Brand violation scan — flag businesses that exist within 3 miles
+    // but appear in the model's text recommendations.
+    if (ctx.surveyAreaResult?.by_category) {
+      const nearbyBrands: Array<{ name: string; distance: number; category: string }> = [];
+      for (const [cat, businesses] of Object.entries(ctx.surveyAreaResult.by_category)) {
+        for (const biz of businesses) {
+          if (biz.distance_miles <= 3) {
+            nearbyBrands.push({ name: biz.name, distance: biz.distance_miles, category: cat });
+          }
         }
       }
-    }
 
-    // Check if any nearby brand name appears in the recommendations
-    // Only flag if the brand name is specific enough (3+ words or well-known chain)
-    const violations: Array<{ name: string; distance: number }> = [];
-    const textLower = finalText.toLowerCase();
-    for (const brand of nearbyBrands) {
-      // Normalize: "Great Clips" → "great clips"
-      const brandLower = brand.name.toLowerCase().trim();
-      // Skip very generic names (e.g., "The Bar", "Salon") to avoid false positives
-      if (brandLower.length < 6) continue;
-      if (textLower.includes(brandLower)) {
-        violations.push({ name: brand.name, distance: brand.distance });
+      const violations: Array<{ name: string; distance: number }> = [];
+      const textLower = finalText.toLowerCase();
+      for (const brand of nearbyBrands) {
+        const brandLower = brand.name.toLowerCase().trim();
+        if (brandLower.length < 6) continue;
+        if (textLower.includes(brandLower)) {
+          violations.push({ name: brand.name, distance: brand.distance });
+        }
       }
-    }
 
-    if (violations.length > 0) {
-      const violationList = violations
-        .map((v) => `- ${v.name} (${v.distance.toFixed(1)} mi away)`)
-        .join("\n");
-      console.warn(
-        `[agent] void post-validation: ${violations.length} brand(s) in final text ` +
-        `that exist within 3 miles:\n${violationList}`,
-      );
-      // Append a visible correction to the output so the broker sees the flag
-      finalText +=
-        `\n\n---\n\n**Correction:** The following businesses were flagged in ` +
-        `recommendations but already operate within 3 miles of the site ` +
-        `(per Google Places data). They should NOT be considered as tenant targets:\n\n` +
-        violationList +
-        `\n\nPlease disregard any recommendation of these businesses above.`;
+      if (violations.length > 0) {
+        const violationList = violations
+          .map((v) => `- ${v.name} (${v.distance.toFixed(1)} mi away)`)
+          .join("\n");
+        console.warn(
+          `[agent] void post-validation: ${violations.length} brand(s) in final text ` +
+          `that exist within 3 miles:\n${violationList}`,
+        );
+        finalText +=
+          `\n\n---\n\n**Correction:** The following businesses were flagged in ` +
+          `recommendations but already operate within 3 miles of the site ` +
+          `(per Google Places data). They should NOT be considered as tenant targets:\n\n` +
+          violationList +
+          `\n\nPlease disregard any recommendation of these businesses above.`;
+      }
     }
   }
 
