@@ -94,19 +94,35 @@ export interface VoidAnalysisData {
 }
 
 export function parseVoidAnalysisBlock(raw: string): VoidAnalysisData | null {
+  // Try strict JSON first
+  let data: Record<string, unknown> | null = null;
   try {
-    const data = JSON.parse(raw);
-    // Minimal validation — must have site.address and categories array
-    if (
-      !data?.site?.address ||
-      !Array.isArray(data?.categories)
-    ) {
+    data = JSON.parse(raw);
+  } catch {
+    // Lenient parse: strip trailing commas, comments, and other
+    // JSON5-ish patterns that models commonly emit.
+    try {
+      const cleaned = raw
+        .replace(/,\s*([}\]])/g, "$1")         // trailing commas
+        .replace(/\/\/[^\n]*/g, "")             // single-line comments
+        .replace(/\/\*[\s\S]*?\*\//g, "")       // block comments
+        .replace(/\b(NaN|undefined)\b/g, "null") // invalid JS literals
+        .replace(/'/g, '"');                     // single quotes
+      data = JSON.parse(cleaned);
+    } catch {
       return null;
     }
-    return data as VoidAnalysisData;
-  } catch {
+  }
+
+  // Minimal validation — must have site.address and categories array
+  if (
+    !data?.site ||
+    !(data.site as Record<string, unknown>)?.address ||
+    !Array.isArray(data?.categories)
+  ) {
     return null;
   }
+  return data as unknown as VoidAnalysisData;
 }
 
 // ── Main component ──────────────────────────────────────────────
@@ -447,6 +463,15 @@ function VoidCard({ void_ }: { void_: VoidAnalysisData["voids"][0] }) {
     LOW: "text-gray-600 bg-gray-100",
   }[void_.opportunity_level] || "text-gray-600 bg-gray-100";
 
+  const hasTenants = void_.recommended_tenants && void_.recommended_tenants.length > 0;
+
+  // Opportunity description based on level + category
+  const opportunityDesc = {
+    HIGH: `This is a significant gap in the trade area. No or very few ${void_.category.toLowerCase()} options exist within the 3-mile ring, creating strong demand for new entrants. The absence of competition in this category typically signals unmet consumer demand.`,
+    MEDIUM: `Limited ${void_.category.toLowerCase()} supply exists in the trade area but falls short of typical market thresholds. Additional businesses in this category could serve the existing population without excessive competitive pressure.`,
+    LOW: `Some ${void_.category.toLowerCase()} supply exists but additional operators may be supportable depending on specific format and positioning. Market entry carries moderate risk.`,
+  }[void_.opportunity_level] || "";
+
   return (
     <div className="px-5 py-3">
       <button
@@ -485,41 +510,80 @@ function VoidCard({ void_ }: { void_: VoidAnalysisData["voids"][0] }) {
         )}
       </button>
 
-      {/* Expanded: recommended tenants */}
-      {expanded && void_.recommended_tenants && void_.recommended_tenants.length > 0 && (
-        <div className="mt-3 ml-6 space-y-2 animate-fade-in">
-          <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] mb-1.5">
-            Tenant Candidates (verified absent)
-          </div>
-          {void_.recommended_tenants.map((t, i) => (
-            <div
-              key={i}
-              className="flex items-start gap-3 px-3 py-2 rounded-md bg-[var(--canvas-subtle,rgba(0,0,0,0.02))] border border-[var(--rule)]/50"
-            >
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-[var(--ink)]">
-                    {t.brand}
-                  </span>
-                  {t.verified_absent && (
-                    <span className="text-[9px] text-green-700 bg-green-50 px-1 py-0.5 rounded">
-                      Verified absent
-                    </span>
-                  )}
-                </div>
-                {t.sf_requirement && (
-                  <span className="text-[11px] text-[var(--ink-muted)]">
-                    {t.sf_requirement} SF
-                  </span>
-                )}
-                {t.rationale && (
-                  <p className="text-[11px] text-[var(--ink-muted)] mt-0.5">
-                    {t.rationale}
-                  </p>
-                )}
-              </div>
+      {/* Expanded content — always shows opportunity context */}
+      {expanded && (
+        <div className="mt-3 ml-6 space-y-3">
+          {/* Opportunity context — always shown */}
+          <div className="px-3 py-2.5 rounded-md bg-[var(--canvas-subtle,rgba(0,0,0,0.02))] border border-[var(--rule)]/50">
+            <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] mb-1">
+              Opportunity Assessment
             </div>
-          ))}
+            <p className="text-[11px] text-[var(--ink-muted)] leading-relaxed">
+              {opportunityDesc}
+            </p>
+            <div className="mt-2 flex items-center gap-3 text-[10px] text-[var(--ink-subtle)]">
+              <span>Supply within 3mi: <span className="font-semibold text-[var(--ink)]">{void_.count_3mi}</span></span>
+              {void_.demand_met ? (
+                <span className="text-green-700">Demand threshold met</span>
+              ) : (
+                <span className="text-amber-600">Below demand threshold</span>
+              )}
+            </div>
+          </div>
+
+          {/* Recommended tenants — shown when available */}
+          {hasTenants && (
+            <div className="space-y-2">
+              <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] mb-1.5">
+                Tenant Candidates (verified absent from trade area)
+              </div>
+              {void_.recommended_tenants!.map((t, i) => (
+                <div
+                  key={i}
+                  className="flex items-start gap-3 px-3 py-2 rounded-md bg-[var(--canvas-subtle,rgba(0,0,0,0.02))] border border-[var(--rule)]/50"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-[var(--ink)]">
+                        {t.brand}
+                      </span>
+                      {t.verified_absent ? (
+                        <span className="text-[9px] text-green-700 bg-green-50 px-1 py-0.5 rounded">
+                          Verified absent
+                        </span>
+                      ) : (
+                        <span className="text-[9px] text-amber-600 bg-amber-50 px-1 py-0.5 rounded">
+                          Present nearby
+                        </span>
+                      )}
+                    </div>
+                    {t.sf_requirement && (
+                      <span className="text-[11px] text-[var(--ink-muted)]">
+                        Typical requirement: {t.sf_requirement} SF
+                      </span>
+                    )}
+                    {t.rationale && (
+                      <p className="text-[11px] text-[var(--ink-muted)] mt-0.5 leading-relaxed">
+                        {t.rationale}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* No tenants fallback — still shows useful guidance */}
+          {!hasTenants && (
+            <div className="px-3 py-2 rounded-md bg-[var(--canvas-subtle,rgba(0,0,0,0.02))] border border-[var(--rule)]/50">
+              <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] mb-1">
+                Next Steps
+              </div>
+              <p className="text-[11px] text-[var(--ink-muted)] leading-relaxed">
+                Specific tenant recommendations require additional market data including household income distribution, traffic counts, and competitive proximity analysis. The void identification above is based on existing business density within the trade area rings.
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>

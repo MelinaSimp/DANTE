@@ -1165,6 +1165,9 @@ interface AgentToolCtx {
   surveyAreaResult?: SurveyAreaResult | null;
   /** The raw void_analysis result for dashboard construction. */
   voidAnalysisResult?: VoidAnalysisResult | null;
+  /** Stashed copy of model finalText before dashboard rewrite, so
+   *  buildVoidDashboard can extract tenant names from the prose. */
+  _finalTextForTenantExtraction?: string;
 }
 
 /** Minimal shape of survey_area output needed for brand validation. */
@@ -2854,15 +2857,99 @@ const DEMAND_THRESHOLDS: Record<string, number> = {
   childcare: 5000,
 };
 
+/**
+ * Try to extract the model's own void_analysis JSON from the text so we
+ * can salvage demographics, tenant recommendations, and rent comps the
+ * model inferred even when buildVoidDashboard constructs the core data
+ * from real tool results.
+ */
+function extractModelVoidJson(text: string): Record<string, unknown> | null {
+  const m = text.match(/```void_analysis\s*\n([\s\S]*?)\n\s*```/);
+  if (!m) return null;
+  try {
+    // Lenient parse: strip trailing commas, single-line comments
+    const cleaned = m[1]
+      .replace(/,\s*([}\]])/g, "$1")        // trailing commas
+      .replace(/\/\/[^\n]*/g, "")            // single-line comments
+      .replace(/\/\*[\s\S]*?\*\//g, "");     // block comments
+    return JSON.parse(cleaned);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Extract tenant recommendation names from the model's prose text.
+ * Looks for patterns like "- **Brand Name** — ..." or "1. Brand Name:"
+ * within recommendation sections.
+ */
+function extractTenantsFromText(
+  text: string,
+  categoryName: string,
+  nearbyBrands: Set<string>,
+): Array<Record<string, unknown>> {
+  const tenants: Array<Record<string, unknown>> = [];
+  // Look for bold brand mentions near the category name
+  const catLower = categoryName.toLowerCase();
+  // Find the section of text relevant to this category
+  const lines = text.split("\n");
+  let inCategorySection = false;
+  for (const line of lines) {
+    if (line.toLowerCase().includes(catLower)) {
+      inCategorySection = true;
+    } else if (/^#{1,3}\s/.test(line) && !line.toLowerCase().includes(catLower)) {
+      // New heading that isn't our category — end the section
+      if (inCategorySection) break;
+    }
+    if (!inCategorySection) continue;
+
+    // Match "**Brand Name**" or "- Brand Name:" or "1. Brand Name"
+    const brandMatch = line.match(/\*\*([^*]+)\*\*/) ||
+      line.match(/^[-*]\s+([A-Z][^:—\-\n]{2,40})/) ||
+      line.match(/^\d+\.\s+([A-Z][^:—\-\n]{2,40})/);
+    if (!brandMatch) continue;
+
+    const brand = brandMatch[1].trim();
+    if (brand.length < 3 || brand.length > 50) continue;
+    // Skip generic phrases
+    if (/^(the|and|or|this|that|note|key|summary|see|per)\b/i.test(brand)) continue;
+
+    const brandLower = brand.toLowerCase();
+    const isVerifiedAbsent = !nearbyBrands.has(brandLower);
+
+    // Extract SF requirement if mentioned
+    const sfMatch = line.match(/(\d[\d,]*)\s*(?:SF|sq\s*ft|square\s*feet)/i);
+    // Extract rationale — text after the brand name
+    const afterBrand = line.slice(line.indexOf(brand) + brand.length);
+    const rationale = afterBrand
+      .replace(/^\s*[—\-:]+\s*/, "")
+      .replace(/\*\*/g, "")
+      .trim()
+      .slice(0, 200) || undefined;
+
+    tenants.push({
+      brand,
+      verified_absent: isVerifiedAbsent,
+      ...(sfMatch && { sf_requirement: sfMatch[1].replace(/,/g, "") }),
+      ...(rationale && rationale.length > 10 && { rationale }),
+    });
+  }
+
+  return tenants;
+}
+
 function buildVoidDashboard(ctx: AgentToolCtx): Record<string, unknown> | null {
   const survey = ctx.surveyAreaResult;
-  if (!survey?.by_category) return null;
+  const hasSurvey = !!survey?.by_category;
+
+  // Must have either survey data OR a void analysis address to build anything
+  if (!hasSurvey && !ctx.voidAnalysisAddress) return null;
 
   // Build site info from whatever we have
   const site: Record<string, unknown> = {
-    address: survey.address_resolved || ctx.voidAnalysisAddress || "Unknown",
+    address: survey?.address_resolved || ctx.voidAnalysisAddress || "Unknown",
   };
-  if (survey.survey_center) {
+  if (survey?.survey_center) {
     site.lat = survey.survey_center.lat;
     site.lng = survey.survey_center.lng;
   }
@@ -2880,9 +2967,21 @@ function buildVoidDashboard(ctx: AgentToolCtx): Record<string, unknown> | null {
     "financial", "education", "services", "entertainment", "lodging", "childcare",
   ];
 
+  // Collect all nearby brand names for verified_absent checking
+  const nearbyBrands = new Set<string>();
+  if (hasSurvey) {
+    for (const businesses of Object.values(survey!.by_category)) {
+      for (const biz of businesses) {
+        if (biz.distance_miles <= 3) {
+          nearbyBrands.add(biz.name.toLowerCase().trim());
+        }
+      }
+    }
+  }
+
   const categories: Array<Record<string, unknown>> = [];
   for (const cat of allCategories) {
-    const businesses = survey.by_category[cat] || [];
+    const businesses = hasSurvey ? (survey!.by_category[cat] || []) : [];
     const count1mi = businesses.filter(
       (b) => b.distance_miles <= 1,
     ).length;
@@ -2907,23 +3006,58 @@ function buildVoidDashboard(ctx: AgentToolCtx): Record<string, unknown> | null {
     });
   }
 
-  // Build voids from survey void indicators
+  // Build voids — from survey void_indicators if available, else from
+  // categories with status "void" or "underserved"
   const voids: Array<Record<string, unknown>> = [];
-  const voidIndicators = survey.void_indicators || [];
-  for (const vi of voidIndicators) {
-    const catBusinesses = survey.by_category[vi.category] || [];
-    const threshold = DEMAND_THRESHOLDS[vi.category] || 5000;
+  if (hasSurvey && survey!.void_indicators?.length) {
+    for (const vi of survey!.void_indicators) {
+      const displayCat = vi.category.charAt(0).toUpperCase() + vi.category.slice(1);
+      voids.push({
+        category: displayCat,
+        count_3mi: vi.count,
+        evidence:
+          vi.count === 0
+            ? `No ${vi.category} businesses found within 3 miles`
+            : `Only ${vi.count} ${vi.category} business(es) within 3 miles`,
+        opportunity_level: vi.count === 0 ? "HIGH" : "MEDIUM",
+        demand_met: true,
+        recommended_tenants: extractTenantsFromText(
+          ctx._finalTextForTenantExtraction || "",
+          vi.category,
+          nearbyBrands,
+        ),
+      });
+    }
+  } else {
+    // No void indicators — derive from category statuses
+    for (const c of categories) {
+      if (c.status === "void" || c.status === "underserved") {
+        voids.push({
+          category: c.name as string,
+          count_3mi: c.count_3mi as number,
+          evidence:
+            (c.count_3mi as number) === 0
+              ? `No ${(c.name as string).toLowerCase()} businesses found within 3 miles`
+              : `Only ${c.count_3mi} ${(c.name as string).toLowerCase()} business(es) within 3 miles`,
+          opportunity_level: (c.count_3mi as number) === 0 ? "HIGH" : "MEDIUM",
+          demand_met: true,
+          recommended_tenants: extractTenantsFromText(
+            ctx._finalTextForTenantExtraction || "",
+            (c.name as string).toLowerCase(),
+            nearbyBrands,
+          ),
+        });
+      }
+    }
+  }
 
-    voids.push({
-      category: vi.category.charAt(0).toUpperCase() + vi.category.slice(1),
-      count_3mi: vi.count,
-      evidence:
-        vi.count === 0
-          ? `No ${vi.category} businesses found within 3 miles`
-          : `Only ${vi.count} ${vi.category} business(es) within 3 miles`,
-      opportunity_level: vi.count === 0 ? "HIGH" : "MEDIUM",
-      demand_met: true, // We don't have household count from tools; assume met
-    });
+  // Strip voids with no recommended tenants from the extraction —
+  // keep them all but filter empty tenant arrays
+  for (const v of voids) {
+    const tenants = v.recommended_tenants as Array<Record<string, unknown>> | undefined;
+    if (!tenants || tenants.length === 0) {
+      delete v.recommended_tenants;
+    }
   }
 
   // Build competitive supply from void_analysis sites if available
@@ -2932,17 +3066,25 @@ function buildVoidDashboard(ctx: AgentToolCtx): Record<string, unknown> | null {
     for (const s of ctx.voidAnalysisResult.sites.slice(0, 5)) {
       competitiveSupply.push({
         name: s.address,
-        distance_mi: 0, // We don't have distance from the void_analysis result
+        distance_mi: 0,
         sf_available: s.acreage ? Math.round(s.acreage * 43560 * 0.3) : undefined,
         risk: (s.score ?? 0) >= 4 ? "high" : (s.score ?? 0) >= 2 ? "moderate" : "low",
       });
     }
   }
 
+  // Try to pull demographics and rent_comps from model's own JSON
+  // (we don't have demographic APIs, so the model's inference is best-effort)
+  const modelJson = extractModelVoidJson(ctx._finalTextForTenantExtraction || "");
+  const demographics = modelJson?.demographics || undefined;
+  const rentComps = modelJson?.rent_comps || undefined;
+
   return {
     site,
+    ...(demographics && { demographics }),
     categories,
     voids,
+    ...(rentComps && { rent_comps: rentComps }),
     ...(competitiveSupply.length > 0 && { competitive_supply: competitiveSupply }),
   };
 }
@@ -3446,25 +3588,31 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
   }
 
   // ── VOID ANALYSIS POST-PROCESSING ──
-  // Two steps: (1) auto-construct the interactive dashboard block from
-  // tool data and prepend it; (2) scan for brand violations and flag them.
+  // Three steps:
+  //   (1) ALWAYS strip model's void_analysis block (it's usually invalid JSON)
+  //   (2) Build the interactive dashboard from tool results + model prose
+  //   (3) Scan for brand violations
   if (ctx.voidAnalysisCalled && finalText) {
-    // Step 1: Build the void_analysis dashboard block automatically.
-    // The model can't be trusted to emit structured JSON, so we
-    // construct it from the actual tool results.
-    if (ctx.surveyAreaResult?.by_category) {
-      const dashboard = buildVoidDashboard(ctx);
-      if (dashboard) {
-        const block = "```void_analysis\n" + JSON.stringify(dashboard) + "\n```\n\n";
-        // Strip any model-emitted void_analysis block (in case it tried and
-        // produced invalid JSON that would render as ugly text).
-        finalText = finalText.replace(/```void_analysis[\s\S]*?```/g, "").trim();
-        finalText = block + finalText;
-      }
+    // Stash the original text so buildVoidDashboard can extract
+    // tenant recommendations and demographics from the model's prose.
+    ctx._finalTextForTenantExtraction = finalText;
+
+    // Step 1: ALWAYS strip any model-emitted void_analysis block.
+    // The model's JSON is unreliable (trailing commas, comments, etc.)
+    // and renders as ugly raw text if we leave it. We rebuild from code.
+    finalText = finalText.replace(/```void_analysis[\s\S]*?```/g, "").trim();
+
+    // Step 2: Build the dashboard from real data + model prose.
+    // Works with partial data — even without survey_area results,
+    // we can build a site header + void cards from the model's text.
+    const dashboard = buildVoidDashboard(ctx);
+    if (dashboard) {
+      const block = "```void_analysis\n" + JSON.stringify(dashboard) + "\n```\n\n";
+      finalText = block + finalText;
     }
 
-    // Step 2: Brand violation scan — flag businesses that exist within 3 miles
-    // but appear in the model's text recommendations.
+    // Step 3: Brand violation scan — flag businesses that exist within
+    // 3 miles but appear in the model's text recommendations.
     if (ctx.surveyAreaResult?.by_category) {
       const nearbyBrands: Array<{ name: string; distance: number; category: string }> = [];
       for (const [cat, businesses] of Object.entries(ctx.surveyAreaResult.by_category)) {

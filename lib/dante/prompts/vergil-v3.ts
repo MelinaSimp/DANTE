@@ -155,12 +155,14 @@ When available, incorporate traffic data:
   or operators that (a) are absent from the 3-mile ring,
   (b) are actively expanding in the region, and (c) match the
   demographics and rent structure of the trade area.
+- ALWAYS bold brand names in your text: **Brand Name** -- this
+  is critical for the dashboard to extract and display them.
 - State the rationale: "No urgent care within 3 miles. The trade
   area has 14,000 households and a median HHI of $72K. Candidates:
-  [Brand A] (expanding in [state], typical footprint 3,500 SF),
-  [Brand B] (franchise model, 2,000-4,000 SF)."
-- Include approximate SF requirements for each recommended tenant
-  so the broker can match them to available space.
+  **Brand A** (expanding in [state], typical footprint 3,500 SF),
+  **Brand B** (franchise model, 2,000-4,000 SF)."
+- Include approximate SF requirements (e.g. "3,000 SF") for each
+  recommended tenant so the broker can match them to available space.
 
 ### 7. Competitive context
 
@@ -173,12 +175,20 @@ For each void, briefly note the competitive landscape:
 
 ### 8. Output structure
 
-**CRITICAL: Emit a \`\`\`void_analysis fenced block.** The frontend
-renders this as an interactive dashboard with charts, maps, and
-expandable void cards. This is what makes Drift worth paying for --
-do NOT output a wall of markdown text.
+The frontend auto-constructs an interactive dashboard (charts, map,
+expandable void cards) from tool results. You do NOT need to emit
+the JSON block -- the system builds it for you.
 
-After your narrative text (site overview, methodology notes), emit:
+Your job: write a RICH narrative analysis. For each void category,
+use a heading, bold the brand names, include SF requirements, and
+explain the rationale. The dashboard appears above your text
+automatically.
+
+The system extracts tenant names from your bold text, so ALWAYS
+format as: **Brand Name** (3,000 SF) -- rationale.
+
+For reference, the dashboard JSON schema looks like this (you do
+NOT need to emit this -- it is built automatically):
 
 \`\`\`void_analysis
 {
@@ -223,21 +233,18 @@ After your narrative text (site overview, methodology notes), emit:
 }
 \`\`\`
 
-**Required fields:** site.address, categories (array), voids (array).
-All other fields are optional but strongly encouraged.
+Again: you do NOT need to emit this JSON block. The system builds
+the dashboard automatically from tool results. Focus your energy
+on rich narrative text:
+- Use ## headings for each void category
+- Bold all brand names: **Brand Name**
+- Include SF requirements: (3,000 SF)
+- Explain rationale for each recommendation
+- Add competitive context and risk factors
+- Use \`\`\`reasoning blocks for demographic analysis charts
 
-**Category status values:** "void" (0-1 businesses), "underserved"
-(2-3), "adequate", "saturated".
-
-**verified_absent:** Set to true ONLY if you confirmed via survey_area
-that the brand does not exist within 3 miles. Never set true if you
-did not verify.
-
-You may include additional prose AFTER the void_analysis block for
-narrative context, risk factors, or caveats. But the structured
-block is the primary deliverable -- it renders as an interactive
-dashboard with charts, expandable cards, and an animated trade area
-map.
+The interactive dashboard (map, bar chart, expandable void cards)
+appears above your text automatically.
 
 ## Tools available
 
