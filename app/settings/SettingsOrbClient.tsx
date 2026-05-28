@@ -22,6 +22,7 @@ import {
   HardDrive,
   FolderSync,
   UserCircle,
+  MapPin,
 } from "lucide-react";
 
 const PhoneNumbersCard = lazy(() => import("./PhoneNumbersCard"));
@@ -33,6 +34,7 @@ const AppearanceCard = lazy(() => import("./AppearanceCard"));
 const PrivacyModeCard = lazy(() => import("./PrivacyModeCard"));
 const LocalSetupCard = lazy(() => import("./LocalSetupCard"));
 const AccountCard = lazy(() => import("./AccountCard"));
+const MarketKnowledgeCard = lazy(() => import("./MarketKnowledgeCard"));
 
 import BillingCard from "./BillingCard";
 import ExportDataCard from "./ExportDataCard";
@@ -49,7 +51,8 @@ type PanelId =
   | "model"
   | "appearance"
   | "privacy_mode"
-  | "local_setup";
+  | "local_setup"
+  | "market_knowledge";
 
 const PANEL_TITLES: Record<PanelId, string> = {
   account: "Account",
@@ -64,6 +67,7 @@ const PANEL_TITLES: Record<PanelId, string> = {
   appearance: "Appearance",
   privacy_mode: "Privacy mode",
   local_setup: "Local setup",
+  market_knowledge: "Market knowledge",
 };
 
 const PANEL_SUBTITLES: Record<PanelId, string> = {
@@ -89,6 +93,8 @@ const PANEL_SUBTITLES: Record<PanelId, string> = {
     "Cloud vs. local-only processing. Local mode runs Hermes 3 on each user's machine via the Drift desktop app — content never leaves the laptop.",
   local_setup:
     "Install and manage local services — Ollama for on-device AI and the file watcher daemon for automatic document sync.",
+  market_knowledge:
+    "Local market intelligence that Dante uses during void analysis — rent ranges, competitors, demographics, and known gaps. Changes per customer.",
 };
 
 interface NavItem {
@@ -104,6 +110,7 @@ interface NavItem {
 
 const ALL_NAV_ITEMS: NavItem[] = [
   { name: "Account", icon: UserCircle, panelId: "account", group: "Workspace" },
+  { name: "Market knowledge", icon: MapPin, panelId: "market_knowledge", adminOnly: true, group: "Workspace" },
   { name: "Phone numbers", icon: Phone, panelId: "phone_numbers", feature: "ai_receptionist", adminOnly: true, group: "Workspace" },
   { name: "Zoom", icon: Video, panelId: "zoom", group: "Workspace" },
   { name: "Google", icon: Mail, panelId: "google", group: "Workspace" },
@@ -168,6 +175,8 @@ export default function SettingsOrbClient({
     switch (activePanel) {
       case "account":
         return <AccountCard />;
+      case "market_knowledge":
+        return <MarketKnowledgeCard />;
       case "phone_numbers":
         return <PhoneNumbersCard />;
       case "zoom":
