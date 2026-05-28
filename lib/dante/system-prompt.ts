@@ -113,20 +113,57 @@ export async function buildDanteSystemPromptWithFirm(
     }
 
     // Inject market knowledge — factual local data for CRE analysis.
-    // This is the analyst's ground truth: rent ranges, competitors,
-    // demographics, zoning nuances. It's separate from behavioral
-    // instructions because it's factual (not directives) and scoped
-    // to market analysis tasks.
+    // Two sources: (1) free-text notes from market_context column,
+    // (2) extracted text from uploaded market files (PDFs, docs, etc.)
+    // Both are analyst ground truth: rent ranges, competitors,
+    // demographics, zoning nuances.
+    const marketParts: string[] = [];
+
+    // Source 1: free-text notes
     const market = row?.market_context;
     if (market?.trim()) {
-      // Market context gets the same sanitization as custom_instructions
       const marketResult = sanitizeCustomInstructions(market);
       if (marketResult.ok && marketResult.text) {
-        prompt +=
-          "\n\n---\n\n## Local market intelligence\n\nThe workspace admin has provided the following local market knowledge. Use this as ground truth during void analysis, trade area assessment, and any CRE market analysis. Cross-reference these facts against tool data (survey_area, site_scan) — if they conflict, note the discrepancy but trust the tool data for real-time supply counts.\n\n<<<MARKET_INTEL\n" +
-          marketResult.text +
-          "\nMARKET_INTEL>>>";
+        marketParts.push("### Analyst notes\n\n" + marketResult.text);
       }
+    }
+
+    // Source 2: extracted text from uploaded market files
+    try {
+      const { data: marketFiles } = await supabaseAdmin
+        .from("workspace_market_files")
+        .select("filename, label, extracted_text")
+        .eq("workspace_id", input.workspaceId)
+        .order("uploaded_at", { ascending: true });
+
+      if (marketFiles?.length) {
+        for (const mf of marketFiles) {
+          const text = (mf as { extracted_text?: string }).extracted_text;
+          if (!text?.trim()) continue;
+          const name = (mf as { label?: string }).label ||
+            (mf as { filename?: string }).filename || "document";
+          // Cap each file to 12K chars to prevent prompt bloat
+          const capped = text.length > 12000
+            ? text.slice(0, 12000) + "\n[...truncated]"
+            : text;
+          marketParts.push(`### From file: ${name}\n\n${capped}`);
+        }
+      }
+    } catch (err) {
+      console.warn("[system-prompt] market-files load failed:", err);
+    }
+
+    if (marketParts.length > 0) {
+      // Cap total market intel to ~30K chars so it doesn't crowd
+      // the context window. Trim from the end (oldest files first).
+      let combined = marketParts.join("\n\n---\n\n");
+      if (combined.length > 30000) {
+        combined = combined.slice(0, 30000) + "\n\n[...market intel truncated for context budget]";
+      }
+      prompt +=
+        "\n\n---\n\n## Local market intelligence\n\nThe workspace admin has provided the following local market knowledge (analyst notes + uploaded research documents). Use this as ground truth during void analysis, trade area assessment, and any CRE market analysis. Cross-reference these facts against tool data (survey_area, site_scan) — if they conflict, note the discrepancy but trust the tool data for real-time supply counts.\n\n<<<MARKET_INTEL\n" +
+        combined +
+        "\nMARKET_INTEL>>>";
     }
 
     return prompt;

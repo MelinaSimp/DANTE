@@ -3,81 +3,118 @@
 // MarketKnowledgeCard — per-workspace market intelligence that feeds
 // into Dante's void analysis and CRE analysis.
 //
-// This is where the broker (or Drift onboarding) inputs local market
-// knowledge: rent ranges, known competitors, demographics, traffic
-// counts, zoning nuances, active developments. Dante uses this as
-// ground truth during analysis so it doesn't hallucinate or recommend
-// businesses that already exist in the trade area.
+// Two input modes:
+//   1. Text notes — structured free-form text (rent ranges, competitors,
+//      demographics, local nuances)
+//   2. File uploads — PDFs, DOCX, XLSX, CSV of market research reports,
+//      demographic studies, competitor analysis. Text is extracted
+//      server-side and injected into Dante alongside the notes.
 //
-// The content is injected into Dante's system prompt as factual
-// context — not behavioral directives.
+// All content feeds into Dante's system prompt during CRE analysis.
 
-import { useEffect, useState, useCallback } from "react";
-import { MapPin } from "lucide-react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import {
+  MapPin,
+  Upload,
+  FileText,
+  X,
+  Loader2,
+  AlertCircle,
+  FileSpreadsheet,
+  File as FileIcon,
+} from "lucide-react";
 import TetrisLoading from "@/components/ui/tetris-loader";
 
-const PLACEHOLDER = `Example market intelligence:
+// ── Types ────────────────────────────────────────────────────────
 
-Market: Northeast Ohio, Lake County corridor
-Primary trade areas: Willoughby, Mentor, Eastlake, Wickliffe
+interface MarketFile {
+  id: string;
+  filename: string;
+  file_size_bytes: number;
+  mime_type: string | null;
+  label: string | null;
+  uploaded_at: string;
+}
+
+// ── Constants ────────────────────────────────────────────────────
+
+const MAX_TEXT_LEN = 8000;
+const MAX_FILE_SIZE_MB = 20;
+const ACCEPTED_EXTENSIONS = ".pdf,.docx,.doc,.xlsx,.xls,.txt,.csv,.md";
+
+const TEXT_PLACEHOLDER = `Local market knowledge that Dante uses as ground truth:
 
 Rent ranges (NNN):
 - Inline retail: $12-16/SF
 - Restaurant/QSR: $14-18/SF
 - Medical office: $18-24/SF
-- Second-gen restaurant: $10-14/SF
 
-Key competitors within our coverage area:
-- Willoughby Commons (120K SF, mostly occupied, anchored by Giant Eagle)
-- Mentor Commons (85K SF, 15% vacancy, losing tenants to SOM Center corridor)
-- Great Lakes Mall site (under redevelopment, unclear timeline)
+Key competitors:
+- Willoughby Commons (120K SF, anchored by Giant Eagle)
+- Mentor Commons (85K SF, 15% vacancy)
 
-Demographics notes:
-- Lake County median HHI ~$78K, skews older (median age 45+)
-- Strong daytime population from manufacturing (Lincoln Electric, Lubrizol)
-- Population stable but aging — healthcare demand increasing
-- Owner-occupancy rate 62%+ (limits turnover but supports services)
+Demographics:
+- Median HHI ~$78K, skews older (median age 45+)
+- Strong daytime pop from manufacturing employers
+- Owner-occupancy 62%+
 
 Traffic:
-- Euclid Ave (US-20): 18,000-24,000 ADT depending on segment
-- SOM Center Rd: 12,000 ADT at Euclid intersection
-- RT-2 (Lakeland Fwy): 25,000 ADT but limited access points
+- Euclid Ave (US-20): 18,000-24,000 ADT
+- SOM Center Rd: 12,000 ADT
 
-Known gaps / local intel:
+Known gaps:
 - No urgent care east of SOM Center Road
-- Pet services severely underserved in Willoughby proper
-- Dental offices clustered on Mentor Ave — void in Willoughby Hills
-- Two restaurant closures on Euclid Ave in 2025 (Thai Garden, Arby's)
+- Pet services underserved in Willoughby
+- Two restaurant closures on Euclid Ave in 2025`;
 
-Zoning notes:
-- G-B (General Business) along Euclid Ave — permits most retail/medical
-- Willoughby Hills requires conditional use for drive-through
-- Eastlake has simplified permitting for medical office conversions`;
-
-const MAX_LEN = 8000;
+// ── Component ────────────────────────────────────────────────────
 
 export default function MarketKnowledgeCard() {
+  // Text state
   const [content, setContent] = useState("");
-  const [saved, setSaved] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
+  const [savedContent, setSavedContent] = useState("");
+  const [loadingText, setLoadingText] = useState(true);
+  const [savingText, setSavingText] = useState(false);
+  const [textStatus, setTextStatus] = useState<string | null>(null);
 
+  // File state
+  const [files, setFiles] = useState<MarketFile[]>([]);
+  const [loadingFiles, setLoadingFiles] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const [dragOver, setDragOver] = useState(false);
+
+  // Active tab
+  const [tab, setTab] = useState<"notes" | "files">("notes");
+
+  // Load text
   useEffect(() => {
     fetch("/api/workspace/market-context")
       .then((r) => r.json())
       .then((d) => {
         setContent(d.market_context || "");
-        setSaved(d.market_context || "");
+        setSavedContent(d.market_context || "");
       })
-      .finally(() => setLoading(false));
+      .finally(() => setLoadingText(false));
   }, []);
 
-  const isDirty = content !== saved;
+  // Load files
+  useEffect(() => {
+    fetch("/api/workspace/market-files")
+      .then((r) => r.json())
+      .then((d) => setFiles(d.files || []))
+      .finally(() => setLoadingFiles(false));
+  }, []);
 
-  const save = useCallback(async () => {
-    setSaving(true);
-    setStatus(null);
+  const isDirty = content !== savedContent;
+
+  // Save text
+  const saveText = useCallback(async () => {
+    setSavingText(true);
+    setTextStatus(null);
     try {
       const res = await fetch("/api/workspace/market-context", {
         method: "PATCH",
@@ -86,20 +123,80 @@ export default function MarketKnowledgeCard() {
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
-        setStatus(d.error || "Save failed");
+        setTextStatus(d.error || "Save failed");
       } else {
-        setSaved(content);
-        setStatus("Saved");
-        setTimeout(() => setStatus(null), 2000);
+        setSavedContent(content);
+        setTextStatus("Saved");
+        setTimeout(() => setTextStatus(null), 2000);
       }
     } catch (e: any) {
-      setStatus(e?.message || "Save failed");
+      setTextStatus(e?.message || "Save failed");
     } finally {
-      setSaving(false);
+      setSavingText(false);
     }
   }, [content]);
 
-  if (loading) {
+  // Upload file
+  const uploadFile = useCallback(async (file: File) => {
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/workspace/market-files", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setUploadError(data.error || "Upload failed");
+        return;
+      }
+      // Refresh file list
+      const listRes = await fetch("/api/workspace/market-files");
+      const listData = await listRes.json();
+      setFiles(listData.files || []);
+    } catch (e: any) {
+      setUploadError(e?.message || "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }, []);
+
+  // Delete file
+  const deleteFile = useCallback(async (id: string) => {
+    setDeletingId(id);
+    try {
+      await fetch("/api/workspace/market-files", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      setFiles((prev) => prev.filter((f) => f.id !== id));
+    } finally {
+      setDeletingId(null);
+    }
+  }, []);
+
+  // Drag and drop
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(true);
+  };
+  const handleDragLeave = () => setDragOver(false);
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const droppedFile = e.dataTransfer.files[0];
+    if (droppedFile) uploadFile(droppedFile);
+  };
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0];
+    if (selected) uploadFile(selected);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  if (loadingText && loadingFiles) {
     return (
       <div className="flex items-center justify-center py-8">
         <TetrisLoading size="sm" speed="fast" />
@@ -109,7 +206,7 @@ export default function MarketKnowledgeCard() {
 
   return (
     <div className="space-y-4">
-      {/* Explanation */}
+      {/* Header */}
       <div className="rounded-md border border-[var(--rule)] bg-[var(--canvas-subtle)] p-4">
         <div className="flex items-center gap-2 mb-2">
           <MapPin className="w-4 h-4 text-[var(--ink-muted)]" strokeWidth={1.5} />
@@ -119,110 +216,239 @@ export default function MarketKnowledgeCard() {
         </div>
         <div className="text-sm text-[var(--ink)] leading-relaxed">
           Local market knowledge that Dante uses as ground truth during void
-          analysis and CRE analysis. This is what an analyst would know about
-          your market — rent ranges, competitors, demographics, traffic counts,
-          zoning nuances, and known gaps. Different for every market.
-        </div>
-        <div className="text-xs text-[var(--ink-muted)] mt-2">
-          Dante cross-references this against real-time Google Places data
-          during every analysis. Having accurate local context here is the
-          difference between a credible report and an embarrassing one.
+          analysis and CRE analysis. Upload market research PDFs, demographic
+          studies, or type notes directly. Different for every customer.
         </div>
       </div>
 
-      {/* Editor */}
-      <div className="rounded-md border border-[var(--rule)] overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--rule)] bg-[var(--canvas-subtle)]">
-          <span className="text-xs text-[var(--ink-muted)]">
-            {content.length.toLocaleString()} / {MAX_LEN.toLocaleString()} characters
-          </span>
-          {isDirty && (
-            <span className="text-[10px] mono uppercase tracking-wider text-amber-600">
-              Unsaved changes
+      {/* Tabs */}
+      <div className="flex border-b border-[var(--rule)]">
+        <button
+          onClick={() => setTab("notes")}
+          className={`px-4 py-2 text-sm font-medium transition border-b-2 -mb-px ${
+            tab === "notes"
+              ? "border-[var(--accent)] text-[var(--accent)]"
+              : "border-transparent text-[var(--ink-muted)] hover:text-[var(--ink)]"
+          }`}
+        >
+          Notes
+        </button>
+        <button
+          onClick={() => setTab("files")}
+          className={`px-4 py-2 text-sm font-medium transition border-b-2 -mb-px flex items-center gap-1.5 ${
+            tab === "files"
+              ? "border-[var(--accent)] text-[var(--accent)]"
+              : "border-transparent text-[var(--ink-muted)] hover:text-[var(--ink)]"
+          }`}
+        >
+          Files
+          {files.length > 0 && (
+            <span className="text-[10px] bg-[var(--canvas-subtle)] text-[var(--ink-muted)] px-1.5 py-0.5 rounded-full">
+              {files.length}
             </span>
           )}
-        </div>
-        <textarea
-          value={content}
-          onChange={(e) => {
-            if (e.target.value.length <= MAX_LEN) {
-              setContent(e.target.value);
-            }
-          }}
-          placeholder={PLACEHOLDER}
-          rows={20}
-          className="w-full px-4 py-3 bg-[var(--canvas)] text-[var(--ink)] text-sm font-mono leading-relaxed resize-y focus:outline-none placeholder:text-[var(--ink-subtle)]/40"
-          spellCheck={false}
-        />
-      </div>
-
-      {/* Actions */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={save}
-          disabled={saving || !isDirty}
-          className="px-4 py-2 text-sm rounded-md bg-[var(--accent)] text-white hover:opacity-90 transition disabled:opacity-50"
-        >
-          {saving ? "Saving..." : "Save changes"}
         </button>
-        {isDirty && (
-          <button
-            onClick={() => setContent(saved)}
-            disabled={saving}
-            className="px-4 py-2 text-sm rounded-md border border-[var(--rule)] text-[var(--ink-muted)] hover:text-[var(--ink)] transition disabled:opacity-50"
-          >
-            Discard
-          </button>
-        )}
-        {status && (
-          <span className={`text-xs ${status === "Saved" ? "text-green-600" : "text-red-600"}`}>
-            {status}
-          </span>
-        )}
       </div>
 
-      {/* Guidance sections */}
-      <div className="grid grid-cols-2 gap-3 mt-2">
-        <GuidanceCard
-          title="Rent ranges"
-          items={[
-            "NNN asking rents by property type",
-            "CAM/taxes ranges if known",
-            "Recent lease deal comparables",
-            "Which areas are trending up/down",
-          ]}
-        />
-        <GuidanceCard
-          title="Competition"
-          items={[
-            "Major shopping centers + anchors",
-            "Vacancy rates by submarket",
-            "Active developments or redevelopments",
-            "Recent closures or openings",
-          ]}
-        />
-        <GuidanceCard
-          title="Demographics"
-          items={[
-            "Median household income range",
-            "Population trends (growing, stable, declining)",
-            "Daytime vs residential population",
-            "Age and income distribution skews",
-          ]}
-        />
-        <GuidanceCard
-          title="Local nuances"
-          items={[
-            "Zoning restrictions or conditional use rules",
-            "Traffic counts on key arterials",
-            "Known service gaps or unmet demand",
-            "Political/community factors affecting development",
-          ]}
-        />
-      </div>
+      {/* Notes tab */}
+      {tab === "notes" && (
+        <div className="space-y-4">
+          <div className="rounded-md border border-[var(--rule)] overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--rule)] bg-[var(--canvas-subtle)]">
+              <span className="text-xs text-[var(--ink-muted)]">
+                {content.length.toLocaleString()} / {MAX_TEXT_LEN.toLocaleString()} characters
+              </span>
+              {isDirty && (
+                <span className="text-[10px] mono uppercase tracking-wider text-amber-600">
+                  Unsaved changes
+                </span>
+              )}
+            </div>
+            <textarea
+              value={content}
+              onChange={(e) => {
+                if (e.target.value.length <= MAX_TEXT_LEN) {
+                  setContent(e.target.value);
+                }
+              }}
+              placeholder={TEXT_PLACEHOLDER}
+              rows={18}
+              className="w-full px-4 py-3 bg-[var(--canvas)] text-[var(--ink)] text-sm font-mono leading-relaxed resize-y focus:outline-none placeholder:text-[var(--ink-subtle)]/40"
+              spellCheck={false}
+            />
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={saveText}
+              disabled={savingText || !isDirty}
+              className="px-4 py-2 text-sm rounded-md bg-[var(--accent)] text-white hover:opacity-90 transition disabled:opacity-50"
+            >
+              {savingText ? "Saving..." : "Save changes"}
+            </button>
+            {isDirty && (
+              <button
+                onClick={() => setContent(savedContent)}
+                disabled={savingText}
+                className="px-4 py-2 text-sm rounded-md border border-[var(--rule)] text-[var(--ink-muted)] hover:text-[var(--ink)] transition disabled:opacity-50"
+              >
+                Discard
+              </button>
+            )}
+            {textStatus && (
+              <span className={`text-xs ${textStatus === "Saved" ? "text-green-600" : "text-red-600"}`}>
+                {textStatus}
+              </span>
+            )}
+          </div>
+
+          {/* Guidance */}
+          <div className="grid grid-cols-2 gap-3">
+            <GuidanceCard
+              title="Rent ranges"
+              items={[
+                "NNN asking rents by property type",
+                "Recent lease comparables",
+                "Which areas trending up/down",
+              ]}
+            />
+            <GuidanceCard
+              title="Competition"
+              items={[
+                "Major centers + anchors",
+                "Vacancy rates by submarket",
+                "Active developments",
+              ]}
+            />
+            <GuidanceCard
+              title="Demographics"
+              items={[
+                "Median household income",
+                "Population trends",
+                "Daytime vs residential pop",
+              ]}
+            />
+            <GuidanceCard
+              title="Local nuances"
+              items={[
+                "Zoning restrictions",
+                "Traffic counts on key roads",
+                "Known gaps / unmet demand",
+              ]}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Files tab */}
+      {tab === "files" && (
+        <div className="space-y-4">
+          {/* Drop zone */}
+          <div
+            ref={dropRef}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+            className={`relative rounded-lg border-2 border-dashed p-8 text-center cursor-pointer transition ${
+              dragOver
+                ? "border-[var(--accent)] bg-[var(--accent-soft)]"
+                : "border-[var(--rule)] hover:border-[var(--ink-muted)] hover:bg-[var(--canvas-subtle)]"
+            }`}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={ACCEPTED_EXTENSIONS}
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+            {uploading ? (
+              <div className="flex flex-col items-center gap-2">
+                <Loader2 className="w-6 h-6 text-[var(--accent)] animate-spin" />
+                <span className="text-sm text-[var(--ink-muted)]">
+                  Uploading and extracting text...
+                </span>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-2">
+                <Upload className="w-6 h-6 text-[var(--ink-muted)]" strokeWidth={1.5} />
+                <div className="text-sm text-[var(--ink)]">
+                  Drop files here or click to browse
+                </div>
+                <div className="text-xs text-[var(--ink-subtle)]">
+                  PDF, DOCX, XLSX, CSV, TXT -- up to {MAX_FILE_SIZE_MB}MB
+                </div>
+              </div>
+            )}
+          </div>
+
+          {uploadError && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-red-50 border border-red-200 text-sm text-red-700">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              {uploadError}
+              <button onClick={() => setUploadError(null)} className="ml-auto">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* File list */}
+          {files.length === 0 && !loadingFiles ? (
+            <div className="text-center py-8 text-sm text-[var(--ink-muted)]">
+              No files uploaded yet. Upload market research PDFs, demographic
+              reports, or competitor analysis documents.
+            </div>
+          ) : (
+            <div className="rounded-md border border-[var(--rule)] divide-y divide-[var(--rule)]">
+              {files.map((f) => (
+                <div
+                  key={f.id}
+                  className="flex items-center gap-3 px-4 py-3 hover:bg-[var(--canvas-subtle)] transition"
+                >
+                  <FileTypeIcon mime={f.mime_type} filename={f.filename} />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-[var(--ink)] truncate">
+                      {f.label || f.filename}
+                    </div>
+                    <div className="text-xs text-[var(--ink-muted)] flex items-center gap-2">
+                      {f.label && (
+                        <span className="truncate max-w-[200px]">{f.filename}</span>
+                      )}
+                      <span>{formatFileSize(f.file_size_bytes)}</span>
+                      <span>{formatDate(f.uploaded_at)}</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => deleteFile(f.id)}
+                    disabled={deletingId === f.id}
+                    className="p-1.5 rounded text-[var(--ink-subtle)] hover:text-red-600 hover:bg-red-50 transition disabled:opacity-50"
+                    title="Remove file"
+                  >
+                    {deletingId === f.id ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <X className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Info */}
+          <div className="text-xs text-[var(--ink-subtle)] leading-relaxed">
+            Text is automatically extracted from uploaded files and fed to Dante
+            during analysis. PDFs with scanned images may not extract well --
+            use text-based PDFs or DOCX for best results.
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+// ── Helpers ──────────────────────────────────────────────────────
 
 function GuidanceCard({ title, items }: { title: string; items: string[] }) {
   return (
@@ -237,4 +463,33 @@ function GuidanceCard({ title, items }: { title: string; items: string[] }) {
       </ul>
     </div>
   );
+}
+
+function FileTypeIcon({ mime, filename }: { mime: string | null; filename: string }) {
+  const ext = filename.split(".").pop()?.toLowerCase() || "";
+  if (mime === "application/pdf" || ext === "pdf") {
+    return <FileText className="w-5 h-5 text-red-500 flex-shrink-0" strokeWidth={1.5} />;
+  }
+  if (ext === "xlsx" || ext === "xls" || ext === "csv") {
+    return <FileSpreadsheet className="w-5 h-5 text-green-600 flex-shrink-0" strokeWidth={1.5} />;
+  }
+  return <FileIcon className="w-5 h-5 text-[var(--ink-muted)] flex-shrink-0" strokeWidth={1.5} />;
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  } catch {
+    return "";
+  }
 }
