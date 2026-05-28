@@ -235,16 +235,72 @@ NOT need to emit this -- it is built automatically):
 
 Again: you do NOT need to emit this JSON block. The system builds
 the dashboard automatically from tool results. Focus your energy
-on rich narrative text:
+on rich narrative text WITH visual elements:
+
+**Text structure:**
 - Use ## headings for each void category
 - Bold all brand names: **Brand Name**
 - Include SF requirements: (3,000 SF)
 - Explain rationale for each recommendation
 - Add competitive context and risk factors
-- Use \`\`\`reasoning blocks for demographic analysis charts
 
-The interactive dashboard (map, bar chart, expandable void cards)
-appears above your text automatically.
+**Visual elements — use MULTIPLE \`\`\`reasoning blocks:**
+The \`\`\`reasoning block renders interactive charts and graphic
+organizers. For a void analysis, you should include at LEAST 3
+of these throughout your text:
+
+1. Demographics chart (bar chart showing population, households,
+   income distribution):
+\`\`\`reasoning
+{"kind":"chart","title":"Trade Area Demographics","chartType":"bar",
+ "yAxisLabel":"Count","steps":[
+  {"label":"Population (1mi)","value":"12,400","numericValue":12400},
+  {"label":"Population (3mi)","value":"37,600","numericValue":37600},
+  {"label":"Households (3mi)","value":"15,000","numericValue":15000},
+  {"label":"Daytime Pop","value":"20,000","numericValue":20000}
+]}
+\`\`\`
+
+2. Demand threshold comparison (shows which categories meet demand):
+\`\`\`reasoning
+{"kind":"comparison","title":"Demand vs. Supply",
+ "steps":[
+  {"label":"Grocery","value":"Void - 0 within 3mi","column":"Supply"},
+  {"label":"Grocery","value":"8,000 HH threshold met (15,000 HH)","column":"Demand"},
+  {"label":"Medical","value":"Underserved - 2 within 3mi","column":"Supply"},
+  {"label":"Medical","value":"8,000 HH threshold met","column":"Demand"}
+]}
+\`\`\`
+
+3. Rent comp chart:
+\`\`\`reasoning
+{"kind":"chart","title":"Market Rent Ranges ($/SF/Year NNN)",
+ "chartType":"bar","yAxisLabel":"$/SF",
+ "steps":[
+  {"label":"Inline Retail","value":"$14","numericValue":14},
+  {"label":"Medical Office","value":"$20","numericValue":20},
+  {"label":"Restaurant","value":"$18","numericValue":18}
+]}
+\`\`\`
+
+4. Traffic / access analysis:
+\`\`\`reasoning
+{"kind":"calculation","title":"Traffic & Access Assessment",
+ "steps":[
+  {"label":"Primary arterial ADT","value":"24,000 VPD"},
+  {"label":"Secondary road ADT","value":"8,500 VPD"},
+  {"label":"Signalized intersection","value":"Yes - at main entrance"},
+  {"label":"Visibility score","value":"High - corner lot, dual frontage"}
+],
+"conclusion":"Strong traffic metrics support retail and QSR uses"}
+\`\`\`
+
+Use these visual blocks BETWEEN your narrative sections. Do NOT
+put all charts at the end -- interleave them with analysis text.
+Each chart should appear right after the section it illustrates.
+
+The interactive dashboard (map, density bar chart, expandable void
+cards) appears above your text automatically.
 
 ## Tools available
 

@@ -97,25 +97,36 @@ export interface ReasoningBlockData {
  * showing the JSON as a plain code block.
  */
 export function parseReasoningBlock(raw: string): ReasoningBlockData | null {
+  let obj: Record<string, unknown> | null = null;
   try {
-    const obj = JSON.parse(raw);
-    if (!obj || typeof obj !== "object") return null;
-    if (
-      obj.kind !== "calculation" &&
-      obj.kind !== "decision" &&
-      obj.kind !== "comparison" &&
-      obj.kind !== "allocation" &&
-      obj.kind !== "timeline" &&
-      obj.kind !== "chart"
-    ) {
+    obj = JSON.parse(raw);
+  } catch {
+    // Lenient parse: strip trailing commas, comments, single quotes
+    try {
+      const cleaned = raw
+        .replace(/,\s*([}\]])/g, "$1")
+        .replace(/\/\/[^\n]*/g, "")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/\b(NaN|undefined)\b/g, "null");
+      obj = JSON.parse(cleaned);
+    } catch {
       return null;
     }
-    if (typeof obj.title !== "string") return null;
-    if (!Array.isArray(obj.steps)) return null;
-    return obj as ReasoningBlockData;
-  } catch {
+  }
+  if (!obj || typeof obj !== "object") return null;
+  if (
+    obj.kind !== "calculation" &&
+    obj.kind !== "decision" &&
+    obj.kind !== "comparison" &&
+    obj.kind !== "allocation" &&
+    obj.kind !== "timeline" &&
+    obj.kind !== "chart"
+  ) {
     return null;
   }
+  if (typeof obj.title !== "string") return null;
+  if (!Array.isArray(obj.steps)) return null;
+  return obj as ReasoningBlockData;
 }
 
 export default function ReasoningBlock({ data }: { data: ReasoningBlockData }) {

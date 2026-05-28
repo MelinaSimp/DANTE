@@ -25,17 +25,26 @@ export interface MapBlockData {
 }
 
 export function parseMapBlock(raw: string): MapBlockData | null {
+  let data: Record<string, unknown> | null = null;
   try {
-    const data = JSON.parse(raw);
-    if (typeof data.address !== "string" || !data.address.trim()) return null;
-    return {
-      address: data.address.trim(),
-      zoom: typeof data.zoom === "number" ? data.zoom : 15,
-      label: typeof data.label === "string" ? data.label : undefined,
-    };
+    data = JSON.parse(raw);
   } catch {
-    return null;
+    try {
+      const cleaned = raw
+        .replace(/,\s*([}\]])/g, "$1")
+        .replace(/\/\/[^\n]*/g, "")
+        .replace(/'/g, '"');
+      data = JSON.parse(cleaned);
+    } catch {
+      return null;
+    }
   }
+  if (!data || typeof data.address !== "string" || !data.address.trim()) return null;
+  return {
+    address: data.address.trim(),
+    zoom: typeof data.zoom === "number" ? data.zoom : 15,
+    label: typeof data.label === "string" ? data.label : undefined,
+  };
 }
 
 export default function MapBlock({ data }: { data: MapBlockData }) {
