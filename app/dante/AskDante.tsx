@@ -563,12 +563,30 @@ export default function AskDante({
       // the consumer doesn't change. Contact/property scope is dropped
       // for managed-agent runs since those agents have no Drift vault
       // access — they read the open web.
-      const isManagedAgent = webScrape || deepResearch;
-      const endpoint = webScrape
-        ? "/api/dante/web-scrape"
-        : deepResearch
-          ? "/api/dante/deep-research"
-          : "/api/dante/ask";
+      //
+      // OVERRIDE: Void analysis requests MUST go through the agent
+      // route regardless of toggle state, because only the agent loop
+      // has survey_area, site_scan tools, accuracy enforcement, and
+      // auto-dashboard construction. Without this, void analyses
+      // produce a wall of unverified text.
+      const msgLower = message.toLowerCase();
+      const isVoidAnalysis =
+        msgLower.includes("void analysis") ||
+        msgLower.includes("void study") ||
+        msgLower.includes("trade area analysis") ||
+        msgLower.includes("find voids") ||
+        msgLower.includes("what's missing") ||
+        msgLower.includes("whats missing") ||
+        msgLower.includes("tenant mix") ||
+        msgLower.includes("gap analysis");
+      const isManagedAgent = !isVoidAnalysis && (webScrape || deepResearch);
+      const endpoint = isVoidAnalysis
+        ? "/api/dante/ask"
+        : webScrape
+          ? "/api/dante/web-scrape"
+          : deepResearch
+            ? "/api/dante/deep-research"
+            : "/api/dante/ask";
       await consumeAgentStream({
         endpoint,
         body: {
