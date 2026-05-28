@@ -1153,6 +1153,22 @@ interface AgentToolCtx {
   projectId?: string;
   /** For non-admin users, the project IDs they can access. null = unrestricted. */
   accessibleProjectIds?: string[] | null;
+
+  // ── Void analysis enforcement state ──
+  /** Set to true when site_scan.void_analysis is called during this run. */
+  voidAnalysisCalled?: boolean;
+  /** The address used in the void analysis (for auto-calling survey_area). */
+  voidAnalysisAddress?: string;
+  /** Set to true when survey_area is called during this run. */
+  surveyAreaCalled?: boolean;
+  /** The raw survey_area result for post-validation of recommendations. */
+  surveyAreaResult?: SurveyAreaResult | null;
+}
+
+/** Minimal shape of survey_area output needed for brand validation. */
+interface SurveyAreaResult {
+  by_category: Record<string, Array<{ name: string; distance_miles: number }>>;
+  void_indicators: Array<{ category: string; count: number; level: string }>;
 }
 
 const PER_TOOL_BUDGET: Partial<Record<AgentToolName, number>> = {
@@ -3053,6 +3069,69 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
     // No tool calls → the model has produced a final answer. Done.
     if (!assistantMsg.tool_calls || assistantMsg.tool_calls.length === 0) {
       finalText = (typeof assistantMsg.content === "string" ? assistantMsg.content : "") || "";
+
+      // ── VOID ANALYSIS ENFORCEMENT ──
+      // If the model ran void_analysis but never called survey_area,
+      // force a survey_area call and make the model rewrite with real data.
+      if (
+        ctx.voidAnalysisCalled &&
+        !ctx.surveyAreaCalled &&
+        ctx.voidAnalysisAddress &&
+        stepIdx < maxSteps - 1
+      ) {
+        console.log(
+          `[agent] void enforcement: void_analysis called without survey_area. ` +
+          `Forcing survey_area for "${ctx.voidAnalysisAddress}".`
+        );
+        // Auto-run survey_area with the void analysis address
+        let surveyOutput: unknown;
+        try {
+          const surveyJson = await handleSurveyArea(
+            { address: ctx.voidAnalysisAddress },
+            ctx.workspaceId,
+          );
+          surveyOutput = JSON.parse(surveyJson);
+          ctx.surveyAreaCalled = true;
+          if ((surveyOutput as any)?.by_category) {
+            ctx.surveyAreaResult = surveyOutput as SurveyAreaResult;
+          }
+        } catch (err) {
+          surveyOutput = { error: `survey_area auto-call failed: ${err}` };
+        }
+
+        // Inject the survey_area data and re-prompt
+        messages.push({
+          role: "user",
+          content:
+            `STOP. Your void analysis response is incomplete. You wrote tenant ` +
+            `recommendations WITHOUT first verifying them against real business ` +
+            `data. Here is the survey_area result for ${ctx.voidAnalysisAddress}:\n\n` +
+            JSON.stringify(surveyOutput).slice(0, 14000) +
+            `\n\nRewrite your response. For EVERY brand or business you recommend, ` +
+            `cross-check it against the survey_area data above. If a brand already ` +
+            `exists within 3 miles, REMOVE it from your recommendations. This is ` +
+            `mandatory — recommending a business that already exists nearby is a ` +
+            `disqualifying error that will lose the client.`,
+        });
+
+        // Let the model rewrite
+        try {
+          const rewrite = await llmComplete({
+            model,
+            messages: messages as LlmMessage[],
+            toolChoice: "none",
+            feature: "agent.loop.void_enforcement",
+            workspaceId: input.workspaceId,
+            processingMode,
+          });
+          finalText = rewrite.message.content || finalText;
+        } catch (err) {
+          console.warn("[agent] void enforcement rewrite failed:", err);
+          // Keep original finalText — still better than nothing
+        }
+        stepIdx += 1;
+      }
+
       break;
     }
 
@@ -3147,6 +3226,23 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
         errorMessage = `Tool not whitelisted: ${call.function.name}`;
       }
 
+      // ── Void analysis enforcement: track tool calls ──
+      if (!errored && toolName === "site_scan.void_analysis") {
+        ctx.voidAnalysisCalled = true;
+        // Extract an address from the args for auto-survey fallback
+        const locs = parsedArgs.locations as Array<{ query?: string }> | undefined;
+        if (locs?.[0]?.query) ctx.voidAnalysisAddress = locs[0].query;
+      }
+      if (!errored && toolName === "survey_area") {
+        ctx.surveyAreaCalled = true;
+        try {
+          const parsed = typeof toolOutput === "string" ? JSON.parse(toolOutput) : toolOutput;
+          if (parsed && parsed.by_category) {
+            ctx.surveyAreaResult = parsed as SurveyAreaResult;
+          }
+        } catch { /* non-critical — validation just won't strip brands */ }
+      }
+
       input.log.push({
         step_id: subId,
         step_type: "agent",
@@ -3201,6 +3297,55 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       finalText = wrap.message.content || "";
     } catch (err) {
       console.warn("[agent] truncated wrap-up failed:", err);
+    }
+  }
+
+  // ── VOID ANALYSIS POST-VALIDATION ──
+  // If we have survey_area data and a void analysis was run,
+  // scan the final text for brand names that exist within 3 miles.
+  // Append a correction notice if any are found. This is the
+  // belt-and-suspenders layer — if the model still recommended
+  // businesses that exist nearby despite the enforcement prompt,
+  // we catch it here.
+  if (ctx.voidAnalysisCalled && ctx.surveyAreaResult?.by_category && finalText) {
+    const nearbyBrands: Array<{ name: string; distance: number; category: string }> = [];
+    for (const [cat, businesses] of Object.entries(ctx.surveyAreaResult.by_category)) {
+      for (const biz of businesses) {
+        if (biz.distance_miles <= 3) {
+          nearbyBrands.push({ name: biz.name, distance: biz.distance_miles, category: cat });
+        }
+      }
+    }
+
+    // Check if any nearby brand name appears in the recommendations
+    // Only flag if the brand name is specific enough (3+ words or well-known chain)
+    const violations: Array<{ name: string; distance: number }> = [];
+    const textLower = finalText.toLowerCase();
+    for (const brand of nearbyBrands) {
+      // Normalize: "Great Clips" → "great clips"
+      const brandLower = brand.name.toLowerCase().trim();
+      // Skip very generic names (e.g., "The Bar", "Salon") to avoid false positives
+      if (brandLower.length < 6) continue;
+      if (textLower.includes(brandLower)) {
+        violations.push({ name: brand.name, distance: brand.distance });
+      }
+    }
+
+    if (violations.length > 0) {
+      const violationList = violations
+        .map((v) => `- ${v.name} (${v.distance.toFixed(1)} mi away)`)
+        .join("\n");
+      console.warn(
+        `[agent] void post-validation: ${violations.length} brand(s) in final text ` +
+        `that exist within 3 miles:\n${violationList}`,
+      );
+      // Append a visible correction to the output so the broker sees the flag
+      finalText +=
+        `\n\n---\n\n**Correction:** The following businesses were flagged in ` +
+        `recommendations but already operate within 3 miles of the site ` +
+        `(per Google Places data). They should NOT be considered as tenant targets:\n\n` +
+        violationList +
+        `\n\nPlease disregard any recommendation of these businesses above.`;
     }
   }
 
