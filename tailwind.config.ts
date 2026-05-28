@@ -113,12 +113,30 @@ const config: Config = {
           "0%": { opacity: "0" },
           "100%": { opacity: "1" },
         },
+        "ring-expand-1mi": {
+          "0%": { opacity: "0", transform: "scale(0)" },
+          "50%": { opacity: "0.7", transform: "scale(0.6)" },
+          "100%": { opacity: "1", transform: "scale(1)" },
+        },
+        "ring-expand-3mi": {
+          "0%": { opacity: "0", transform: "scale(0)" },
+          "40%": { opacity: "0", transform: "scale(0)" },
+          "70%": { opacity: "0.5", transform: "scale(0.6)" },
+          "100%": { opacity: "1", transform: "scale(1)" },
+        },
+        "pulse-slow": {
+          "0%, 100%": { opacity: "1", transform: "scale(1)" },
+          "50%": { opacity: "0.6", transform: "scale(1.3)" },
+        },
       },
       animation: {
         "fade-up": "fade-up 240ms cubic-bezier(0.22, 1, 0.36, 1) both",
         "fade-in": "fade-in 200ms ease-out both",
         "glow-pulse": "glow-pulse 1.6s ease-in-out infinite",
         shimmer: "shimmer 2.4s linear infinite",
+        "ring-expand-1mi": "ring-expand-1mi 1.2s cubic-bezier(0.22, 1, 0.36, 1) both",
+        "ring-expand-3mi": "ring-expand-3mi 1.8s cubic-bezier(0.22, 1, 0.36, 1) both",
+        "pulse-slow": "pulse-slow 2.5s ease-in-out infinite",
       },
       transitionTimingFunction: {
         "out-expo": "cubic-bezier(0.16, 1, 0.3, 1)",

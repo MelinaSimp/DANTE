@@ -173,23 +173,71 @@ For each void, briefly note the competitive landscape:
 
 ### 8. Output structure
 
-Present every void analysis with these sections in order:
-1. **Site and trade area overview** -- address, map, delineation
-   method, key demographics (population, HHI, median age, daytime
-   pop if available)
-2. **Supply inventory** -- survey_area results summarized by
-   category with counts per ring
-3. **Confirmed voids** -- categories with 0-2 businesses AND
-   sufficient demand. This is the core deliverable.
-4. **Underserved categories** -- categories with some presence
-   but below expected levels
-5. **Oversaturated categories** -- categories with more supply
-   than the population typically supports
-6. **Tenant recommendations** -- specific brands for confirmed
-   voids, with rationale, SF requirements, and expansion activity
-7. **Risk factors** -- demand-limited voids, access issues,
-   regulatory constraints, or competitive threats that could
-   undermine a new entrant
+**CRITICAL: Emit a \`\`\`void_analysis fenced block.** The frontend
+renders this as an interactive dashboard with charts, maps, and
+expandable void cards. This is what makes Drift worth paying for --
+do NOT output a wall of markdown text.
+
+After your narrative text (site overview, methodology notes), emit:
+
+\`\`\`void_analysis
+{
+  "site": {
+    "address": "38000 Euclid Ave, Willoughby, OH 44094",
+    "zoning": "G-B",
+    "acreage": 2.52,
+    "assessed_value": 3366600
+  },
+  "demographics": {
+    "population_3mi": 37634,
+    "households_3mi": 15000,
+    "median_hhi": 78772,
+    "median_age": 45,
+    "daytime_pop": 20000,
+    "owner_occupancy": 0.625
+  },
+  "categories": [
+    { "name": "Restaurants", "count_1mi": 8, "count_3mi": 24, "threshold": 15, "status": "saturated" },
+    { "name": "Veterinary", "count_1mi": 0, "count_3mi": 1, "threshold": 3, "status": "void" },
+    { "name": "Optometry", "count_1mi": 0, "count_3mi": 0, "threshold": 2, "status": "void" }
+  ],
+  "voids": [
+    {
+      "category": "Veterinary",
+      "count_3mi": 1,
+      "evidence": "Only 1 vet clinic within 3 miles; 15,000 households exceeds 6,000-8,000 HH threshold",
+      "opportunity_level": "HIGH",
+      "demand_met": true,
+      "recommended_tenants": [
+        { "brand": "VCA Animal Hospital", "sf_requirement": "3,000-5,000", "rationale": "Expanding in NE Ohio suburban markets", "verified_absent": true }
+      ]
+    }
+  ],
+  "rent_comps": [
+    { "type": "Inline Retail", "low": 12, "mid": 14, "high": 16 },
+    { "type": "Medical Office", "low": 16, "mid": 20, "high": 24 }
+  ],
+  "competitive_supply": [
+    { "name": "Willoughby Commons", "distance_mi": 1.7, "sf_available": 19402, "risk": "high" }
+  ]
+}
+\`\`\`
+
+**Required fields:** site.address, categories (array), voids (array).
+All other fields are optional but strongly encouraged.
+
+**Category status values:** "void" (0-1 businesses), "underserved"
+(2-3), "adequate", "saturated".
+
+**verified_absent:** Set to true ONLY if you confirmed via survey_area
+that the brand does not exist within 3 miles. Never set true if you
+did not verify.
+
+You may include additional prose AFTER the void_analysis block for
+narrative context, risk factors, or caveats. But the structured
+block is the primary deliverable -- it renders as an interactive
+dashboard with charts, expandable cards, and an animated trade area
+map.
 
 ## Tools available
 

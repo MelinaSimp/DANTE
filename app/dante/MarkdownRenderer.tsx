@@ -36,6 +36,10 @@ import WebSourcesBlock, {
   parseSourcesBlock,
   type WebSource,
 } from "./WebSourcesBlock";
+import VoidAnalysisBlock, {
+  parseVoidAnalysisBlock,
+  type VoidAnalysisData,
+} from "./VoidAnalysisBlock";
 
 interface Props {
   content: string;
@@ -46,7 +50,7 @@ interface Props {
 }
 
 interface Segment {
-  type: "text" | "table" | "reasoning" | "heading" | "hr" | "map" | "sources";
+  type: "text" | "table" | "reasoning" | "heading" | "hr" | "map" | "sources" | "void_analysis";
   content: string;
   /** Pre-parsed reasoning data when type === 'reasoning'. */
   reasoning?: ReasoningBlockData;
@@ -56,6 +60,8 @@ interface Segment {
   map?: MapBlockData;
   /** Pre-parsed web sources when type === 'sources'. */
   webSources?: WebSource[];
+  /** Pre-parsed void analysis data when type === 'void_analysis'. */
+  voidAnalysis?: VoidAnalysisData;
 }
 
 // Hard emoji strip — defense in depth. The API route strips emojis
@@ -125,6 +131,9 @@ export default function MarkdownRenderer({ content, trace, citationReport }: Pro
         }
         if (seg.type === "sources" && seg.webSources) {
           return <WebSourcesBlock key={i} sources={seg.webSources} />;
+        }
+        if (seg.type === "void_analysis" && seg.voidAnalysis) {
+          return <VoidAnalysisBlock key={i} data={seg.voidAnalysis} />;
         }
         return <TableSegment key={i} markdown={seg.content} trace={trace} />;
       })}
@@ -248,13 +257,30 @@ function splitTablesOut(content: string): Segment[] {
       i = end + 1;
       continue;
     }
+    // 1c2. Void analysis fenced block — ```void_analysis ... ```
+    if (/^\s*```\s*void_analysis\s*$/i.test(lines[i])) {
+      flushText();
+      const start = i + 1;
+      let end = start;
+      while (end < lines.length && !/^\s*```\s*$/.test(lines[end])) end++;
+      const body = lines.slice(start, end).join("\n").trim();
+      const parsed = parseVoidAnalysisBlock(body);
+      if (parsed) {
+        segments.push({ type: "void_analysis", content: body, voidAnalysis: parsed });
+      } else {
+        // If parsing fails, show as text so we can debug.
+        segments.push({ type: "text", content: body });
+      }
+      i = end + 1;
+      continue;
+    }
     // 1d. Generic code fence — strip ASCII art diagrams. The model
     //     sometimes wraps site maps, floor plans, and corridor
     //     diagrams in bare ``` fences. These render as ugly mono-
     //     spaced text and are redundant when a real map exists.
     if (/^\s*```\s*$/.test(lines[i]) || /^\s*```\w*\s*$/.test(lines[i])) {
       // Check it's not one of our special fences (already handled above).
-      if (!/^\s*```\s*(reasoning|map|sources)\s*$/i.test(lines[i])) {
+      if (!/^\s*```\s*(reasoning|map|sources|void_analysis)\s*$/i.test(lines[i])) {
         flushText();
         const start = i + 1;
         let end = start;
