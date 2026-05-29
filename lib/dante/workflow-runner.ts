@@ -284,11 +284,18 @@ async function runHttp(cfg: {
   }, `http ${cfg.method || "GET"} ${cfg.url}`);
 }
 
+// Hard rule appended to every LLM system prompt in workflow steps.
+// Prevents emojis from leaking into workflow-generated emails and reports.
+const NO_EMOJI_SUFFIX =
+  "\n\nNever use emojis in any output — not in headings, bullet points, " +
+  "tables, subject lines, or anywhere else. No unicode symbols like " +
+  "warning signs, checkmarks, or decorative characters. Plain text only.";
+
 async function runOpenAI(cfg: {
   model?: string; system?: string; prompt: string; max_tokens?: number;
 }) {
   const messages: Array<{ role: "system" | "user"; content: string }> = [];
-  if (cfg.system) messages.push({ role: "system", content: cfg.system });
+  if (cfg.system) messages.push({ role: "system", content: cfg.system + NO_EMOJI_SUFFIX });
   messages.push({ role: "user", content: cfg.prompt });
 
   // Resolve model with fallback: if the requested model's provider key
@@ -1628,6 +1635,10 @@ async function executeNode(
       // below) summarizes the final answer. Templates resolve against
       // the current step output already, so the resolved cfg is what
       // the loop sees as objective/system.
+      // Inject the no-emoji rule into the agent's system prompt.
+      if (typeof cfg.system === "string") {
+        cfg.system = cfg.system + NO_EMOJI_SUFFIX;
+      }
       const agentStep = { ...step, config: cfg } as Parameters<typeof runAgent>[0]["step"];
       const result = await runAgent({
         step: agentStep,

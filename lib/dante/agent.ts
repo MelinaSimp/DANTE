@@ -2098,6 +2098,32 @@ async function dispatchTool(
 
       const wfInput = (args.input as Record<string, unknown>) || {};
 
+      // Pre-flight: scan workflow graph for {{secrets.*}} references
+      // and check which ones are actually set. If any are missing,
+      // return the list so the agent can ask the user and set them
+      // via secrets.set before retrying.
+      const graphJson = JSON.stringify(match.graph || {});
+      const secretRefs = [...new Set(
+        Array.from(graphJson.matchAll(/\{\{\s*secrets\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g))
+          .map((m) => m[1]),
+      )];
+
+      if (secretRefs.length > 0) {
+        const { loadWorkspaceSecrets } = await import("@/lib/dante/secrets");
+        const currentSecrets = await loadWorkspaceSecrets(ctx.workspaceId);
+        const missing = secretRefs.filter((k) => !currentSecrets[k]);
+        if (missing.length > 0) {
+          return {
+            error: `workflow.run: workflow "${match.name}" requires ${missing.length} secret(s) ` +
+              `that are not configured: ${missing.join(", ")}. ` +
+              `Ask the user for these values and set them with secrets.set before running again.`,
+            missing_secrets: missing,
+            workflow_name: match.name,
+            workflow_id: match.id,
+          };
+        }
+      }
+
       const { enqueueRun, kickQueueWorker } = await import("@/lib/dante/run-executor");
       const result = await enqueueRun({
         workflow_id: match.id,
