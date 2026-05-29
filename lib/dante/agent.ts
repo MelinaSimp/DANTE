@@ -592,6 +592,55 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
       },
     },
   },
+  "secrets.set": {
+    type: "function",
+    function: {
+      name: "secrets_set",
+      description:
+        "Create or update a workspace secret used by workflow templates. " +
+        "Secrets are referenced in workflow configs as {{secrets.<key>}}. " +
+        "Common keys: broker_email (delivery address for workflow emails), " +
+        "corridor_anchors, target_use, target_zoning. Use this when the " +
+        "user asks you to change a workflow email recipient and the 'to' " +
+        "field uses a {{secrets.*}} template, or when setting up a new " +
+        "workflow that needs configuration values. Keys must be valid " +
+        "identifiers (letters, digits, underscore; no leading digit).",
+      parameters: {
+        type: "object",
+        properties: {
+          key: {
+            type: "string",
+            description: "The secret key (e.g. 'broker_email', 'corridor_anchors').",
+          },
+          value: {
+            type: "string",
+            description: "The secret value (e.g. 'john@example.com').",
+          },
+          description: {
+            type: "string",
+            description: "Optional human-readable description of what this secret is for.",
+          },
+        },
+        required: ["key", "value"],
+      },
+    },
+  },
+  "secrets.list": {
+    type: "function",
+    function: {
+      name: "secrets_list",
+      description:
+        "List all workspace secrets (keys and masked previews only -- " +
+        "raw values are never returned). Use this to check which secrets " +
+        "exist before deciding whether to set one, or to diagnose a " +
+        "workflow failure caused by a missing {{secrets.*}} reference.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    },
+  },
   "file_index.search": {
     type: "function",
     function: {
@@ -1192,6 +1241,8 @@ const NAME_TO_TOOL: Record<string, AgentToolName> = {
   workflow_clone_template: "workflow.clone_template",
   workflow_list: "workflow.list",
   workflow_update: "workflow.update",
+  secrets_set: "secrets.set",
+  secrets_list: "secrets.list",
   file_index_search: "file_index.search",
   file_index_ingest: "file_index.ingest",
   file_index_list_folder: "file_index.list_folder",
@@ -1293,6 +1344,8 @@ const PER_TOOL_BUDGET: Partial<Record<AgentToolName, number>> = {
   "workflow.clone_template": 40, // cloning all 33 templates in one go is a valid ask
   "workflow.list": 3,            // read-only; cheap
   "workflow.update": 10,         // bulk email swap needs one per workflow
+  "secrets.set": 10,            // setting up secrets for workflow configs
+  "secrets.list": 3,            // read-only; cheap
   "file_index.search": 5,
   "file_index.ingest": 3,
   "file_index.list_folder": 5,
@@ -2273,6 +2326,61 @@ async function dispatchTool(
         workflow_id: workflowId,
         changes,
         message: `Workflow updated: ${changes.join(", ")}.`,
+      };
+    }
+
+    case "secrets.set": {
+      const key = String(args.key || "").trim();
+      const value = String(args.value || "");
+      const desc = args.description ? String(args.description) : null;
+
+      if (!key) return { error: "secrets.set: 'key' required." };
+      if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) {
+        return { error: "secrets.set: key must be a valid identifier (letters, digits, underscore; no leading digit)." };
+      }
+      if (!value) return { error: "secrets.set: 'value' required." };
+
+      if (ctx.simulate) {
+        return { simulated: true, would_have: { action: "secrets.set", key, value_preview: value.slice(0, 4) + "..." } };
+      }
+
+      const { error: upsertErr } = await supabaseAdmin
+        .from("dante_secrets")
+        .upsert({
+          workspace_id: ctx.workspaceId,
+          key,
+          value,
+          description: desc,
+          created_by: ctx.userId,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "workspace_id,key" });
+
+      if (upsertErr) return { error: `secrets.set: ${upsertErr.message}` };
+
+      return {
+        ok: true,
+        key,
+        message: `Secret '${key}' saved. Workflows referencing {{secrets.${key}}} will now use this value.`,
+      };
+    }
+
+    case "secrets.list": {
+      const { data, error: listErr } = await supabaseAdmin
+        .from("dante_secrets")
+        .select("key, description, updated_at")
+        .eq("workspace_id", ctx.workspaceId)
+        .order("key", { ascending: true });
+
+      if (listErr) return { error: `secrets.list: ${listErr.message}` };
+
+      return {
+        secrets: (data || []).map((s) => ({
+          key: s.key,
+          description: s.description,
+          updated_at: s.updated_at,
+        })),
+        count: (data || []).length,
+        tip: "Use secrets.set to create or update a secret. Workflow templates reference them as {{secrets.<key>}}.",
       };
     }
 
@@ -3383,6 +3491,8 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       "workflow.clone_template": 0,
       "workflow.list": 0,
       "workflow.update": 0,
+      "secrets.set": 0,
+      "secrets.list": 0,
       "file_index.search": 0,
       "file_index.ingest": 0,
       "file_index.list_folder": 0,

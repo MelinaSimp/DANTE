@@ -1273,13 +1273,29 @@ async function runForEach(
     try {
       let result: unknown;
       switch (cfg.action_type) {
-        case "send_email":
+        case "send_email": {
+          // Pre-flight recipient validation (same as graph handler).
+          const batchTo = typeof resolvedConfig.to === "string" ? (resolvedConfig.to as string).trim() : "";
+          if (!batchTo) {
+            throw new Error(
+              "send_email: 'to' field is empty. A {{secrets.*}} template may not be configured.",
+            );
+          }
+          const batchEmailPart = batchTo.includes("<")
+            ? (batchTo.match(/<([^>]+)>/)?.[1] ?? "")
+            : batchTo;
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(batchEmailPart)) {
+            throw new Error(
+              `send_email: invalid recipient '${batchTo}'.`,
+            );
+          }
           if (ctx.simulate) {
             result = { simulated: true, would_have: { action: "send_email", to: resolvedConfig.to } };
           } else {
             result = await runSendEmail(resolvedConfig as Parameters<typeof runSendEmail>[0]);
           }
           break;
+        }
         case "update_contact":
           if (ctx.simulate) {
             result = { simulated: true, would_have: { action: "update_contact", contact_id: resolvedConfig.contact_id } };
@@ -1505,6 +1521,31 @@ async function executeNode(
     }
     case "send_email": {
       const emailCfg = cfg as Parameters<typeof runSendEmail>[0];
+
+      // Pre-flight: validate recipient before hitting the mail API.
+      // Common failure: {{secrets.broker_email}} resolves to "" when
+      // the secret hasn't been set, producing a confusing Resend error.
+      const toAddr = typeof emailCfg.to === "string" ? emailCfg.to.trim() : "";
+      if (!toAddr) {
+        throw new Error(
+          "send_email: 'to' field is empty. This usually means a " +
+          "{{secrets.*}} template (e.g. {{secrets.broker_email}}) has " +
+          "not been configured. Ask Dante to set the secret, or add it " +
+          "in Settings > Workflow Secrets.",
+        );
+      }
+      // Basic RFC 5322 check — must contain @ with text on both sides.
+      // Supports "Name <email>" format too.
+      const emailPart = toAddr.includes("<")
+        ? (toAddr.match(/<([^>]+)>/)?.[1] ?? "")
+        : toAddr;
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailPart)) {
+        throw new Error(
+          `send_email: invalid recipient '${toAddr}'. The email address ` +
+          "must follow the 'email@example.com' or 'Name <email@example.com>' format.",
+        );
+      }
+
       if (ctx.simulate) {
         return {
           simulated: true,
