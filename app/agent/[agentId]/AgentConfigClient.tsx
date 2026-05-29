@@ -376,6 +376,62 @@ export default function AgentConfigClient({
               </>
             ) : null}
           </p>
+
+          {/* Deployment strip — at-a-glance: status, what number it
+              answers on, voice provider. Phone number was the most
+              opaque field before this; deployed agents now show it
+              up top so "which number is this?" is one glance away. */}
+          {(agent.status || agent.phone_number || agent.voice_provider) && (
+            <div className="mt-4 flex flex-wrap items-center gap-2 text-[11px] mono">
+              {agent.status && (
+                <span
+                  className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-[4px] border ${
+                    agent.status === "deployed"
+                      ? "border-[var(--ok)] bg-[var(--ok-soft)] text-[var(--ok)]"
+                      : "border-[var(--rule)] bg-[var(--canvas-subtle)] text-[var(--ink-muted)]"
+                  }`}
+                  title="Agent lifecycle status"
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      agent.status === "deployed"
+                        ? "bg-[var(--ok)]"
+                        : "bg-[var(--ink-subtle)]"
+                    }`}
+                  />
+                  {agent.status.toUpperCase()}
+                </span>
+              )}
+              {agent.phone_number && (
+                <span
+                  className="inline-flex items-center gap-1.5 px-2 py-1 rounded-[4px] border border-[var(--rule)] bg-[var(--canvas-subtle)] text-[var(--ink)]"
+                  title="The phone number this agent answers calls on"
+                >
+                  <svg
+                    width="11"
+                    height="11"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z" />
+                  </svg>
+                  {agent.phone_number}
+                </span>
+              )}
+              {agent.voice_provider && agent.voice_provider !== "custom" && (
+                <span
+                  className="inline-flex items-center gap-1.5 px-2 py-1 rounded-[4px] border border-[var(--rule)] bg-[var(--canvas-subtle)] text-[var(--ink-muted)]"
+                  title="The voice-platform provider this agent uses"
+                >
+                  via {agent.voice_provider}
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Identity */}
