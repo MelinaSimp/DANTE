@@ -1269,7 +1269,7 @@ function InputBar(p: InputBarProps) {
           {p.streaming ? (
             <button
               onClick={p.onStop}
-              className="relative bg-gradient-to-b from-red-700 to-red-900 text-white rounded-[10px] h-8 w-8 flex items-center justify-center backdrop-blur-xl border border-white/30 active:scale-95 transition-all duration-150"
+              className="relative bg-gradient-to-b from-neutral-700 to-black text-white rounded-[10px] h-8 w-8 flex items-center justify-center backdrop-blur-xl border border-white/30 active:scale-95 transition-all duration-150"
               title="Stop generating"
             >
               <Square className="w-3 h-3" fill="currentColor" />
@@ -1386,7 +1386,7 @@ function InputBar(p: InputBarProps) {
         {p.streaming ? (
           <button
             onClick={p.onStop}
-            className="relative bg-gradient-to-b from-red-700 to-red-900 text-white rounded-[10px] h-8 w-8 flex items-center justify-center backdrop-blur-xl border border-white/30 active:scale-95 transition-all duration-150"
+            className="relative bg-gradient-to-b from-neutral-700 to-black text-white rounded-[10px] h-8 w-8 flex items-center justify-center backdrop-blur-xl border border-white/30 active:scale-95 transition-all duration-150"
             title="Stop generating"
           >
             <Square className="w-3 h-3" fill="currentColor" />
