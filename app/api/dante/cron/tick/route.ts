@@ -295,6 +295,106 @@ async function handle(request: Request) {
     }
   }
 
+  // ── Fifth pass: pending nudges ──────────────────────────────
+  // Nudges are written by the client when Dante needs input. After
+  // 5 minutes (fire_at elapses), we send SMS/email server-side so
+  // the nudge fires even if the user navigated away or closed the
+  // app. The old client-side setTimeout was unreliable for this.
+  {
+    const { data: dueNudges } = await supabaseAdmin
+      .from("dante_pending_nudges")
+      .select("*")
+      .eq("fired", false)
+      .lte("fire_at", nowIso)
+      .limit(10);
+
+    for (const nudge of dueNudges || []) {
+      // Check dedup — another path may have already sent this nudge
+      if (nudge.chat_id) {
+        const { data: already } = await supabaseAdmin
+          .from("dante_audit_log")
+          .select("id")
+          .eq("event_type", "nudge_sent")
+          .eq("metadata->>dedup_key", `nudge:${nudge.chat_id}`)
+          .limit(1)
+          .maybeSingle();
+        if (already) {
+          await supabaseAdmin.from("dante_pending_nudges")
+            .update({ fired: true }).eq("id", nudge.id);
+          continue;
+        }
+      }
+
+      // Look up user for SMS/email delivery
+      const { data: u } = await supabaseAdmin.auth.admin.getUserById(nudge.user_id);
+      const { data: prof } = await supabaseAdmin
+        .from("profiles")
+        .select("sms_phone, sms_verified_at")
+        .eq("id", nudge.user_id)
+        .maybeSingle();
+
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://driftai.studio";
+      const link = nudge.chat_id
+        ? `${appUrl}/dante/chat/${nudge.chat_id}`
+        : `${appUrl}/dante`;
+      const msg =
+        `Dante needs your input to configure "${nudge.workflow_name}". ` +
+        `Open Drift to continue: ${link}`;
+
+      let channel: "sms" | "email" | "none" = "none";
+
+      if (prof?.sms_phone && prof?.sms_verified_at) {
+        try {
+          const { sendMessage } = await import("@/lib/sms/sender");
+          await sendMessage(prof.sms_phone, msg);
+          channel = "sms";
+        } catch {
+          // fall through to email
+        }
+      }
+      if (channel === "none" && u?.user?.email) {
+        const apiKey = process.env.RESEND_API_KEY;
+        const from = process.env.RESEND_FROM_EMAIL || "Drift <noreply@driftai.studio>";
+        if (apiKey) {
+          try {
+            await fetch("https://api.resend.com/emails", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${apiKey}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                from,
+                to: u.user.email,
+                subject: `Dante needs your input -- ${nudge.workflow_name}`,
+                text: msg,
+              }),
+            });
+            channel = "email";
+          } catch { /* non-fatal */ }
+        }
+      }
+
+      // Mark fired + audit log
+      await supabaseAdmin.from("dante_pending_nudges")
+        .update({ fired: true }).eq("id", nudge.id);
+      if (nudge.chat_id && channel !== "none") {
+        try {
+          await supabaseAdmin.from("dante_audit_log").insert({
+            workspace_id: nudge.workspace_id,
+            user_id: nudge.user_id,
+            event_type: "nudge_sent",
+            metadata: {
+              dedup_key: `nudge:${nudge.chat_id}`,
+              channel,
+              workflow_name: nudge.workflow_name,
+            },
+          });
+        } catch { /* non-fatal */ }
+      }
+    }
+  }
+
   // If the batch is small (1-3 runs), execute inline instead of
   // relying on kickQueueWorker — the fire-and-forget fetch can
   // silently fail on Vercel, leaving runs stuck for hours until

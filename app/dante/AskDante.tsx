@@ -314,6 +314,21 @@ export default function AskDante({
     image_data?: string;
     media_type?: string;
   }>>([]);
+  // First-run secrets check — when broker_email isn't configured,
+  // show a setup prompt so the user doesn't discover the gap via a
+  // cryptic workflow failure.
+  const [secretsReady, setSecretsReady] = useState<boolean | null>(null);
+  // Workflow health — banner on landing when scheduled workflows are
+  // failing. Fetched once on mount so the broker sees it immediately
+  // without navigating to the Workflows page.
+  const [workflowHealth, setWorkflowHealth] = useState<{
+    ok: boolean;
+    failing: Array<{
+      workflow_name: string;
+      error: string;
+      consecutive_failures: number;
+    }>;
+  } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -337,6 +352,19 @@ export default function AskDante({
     fetch("/api/vault/projects")
       .then((r) => r.json())
       .then((d) => setVaultProjects(d.projects || []))
+      .catch(() => {});
+    fetch("/api/dante/workflows/health")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d && typeof d.ok === "boolean") setWorkflowHealth(d);
+      })
+      .catch(() => {});
+    fetch("/api/dante/secrets/check")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d && typeof d.has_broker_email === "boolean")
+          setSecretsReady(d.has_broker_email);
+      })
       .catch(() => {});
     return () => abortRef.current?.abort();
   }, [refreshRecent]);
@@ -376,20 +404,19 @@ export default function AskDante({
       new CustomEvent("drift:open-ask", { detail: { prompt: seed } }),
     );
 
-    // 5-minute idle nudge: if the user doesn't respond, SMS/email them.
-    const nudgeTimer = setTimeout(() => {
-      fetch("/api/dante/nudge", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          question: ni.question,
-          workflow_name: ni.workflow_name || "a workflow",
-          chat_id: chatId,
-        }),
-      }).catch(() => {});
-    }, 5 * 60 * 1000);
-
-    return () => clearTimeout(nudgeTimer);
+    // Schedule a server-side nudge in 5 minutes. Unlike the old
+    // client-side setTimeout, this survives page navigation and app
+    // close — the cron tick sweeps pending nudges and delivers them.
+    fetch("/api/dante/nudge", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        schedule: true,
+        question: ni.question,
+        workflow_name: ni.workflow_name || "a workflow",
+        chat_id: chatId,
+      }),
+    }).catch(() => {});
   }, [streamState.needsInput, chatId]);
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -679,7 +706,7 @@ export default function AskDante({
       if (prev.finalContent) {
         const truncatedTurn: AssistantTurn = {
           role: "assistant",
-          content: prev.finalContent + "\n\n[stopped]",
+          content: prev.finalContent + "\n\n[Generation stopped by user]",
           trace: prev.trace,
           followups: [],
           citationReport: null,
@@ -802,6 +829,74 @@ export default function AskDante({
               })()}
             </h1>
           </div>
+
+          {/* First-run setup prompt — shown until broker_email is
+              configured. Without it, every workflow that sends email
+              will fail silently. */}
+          {secretsReady === false && (
+            <div className="w-full max-w-2xl mx-auto mb-4">
+              <div className="rounded-lg border border-[var(--accent)]/20 bg-[var(--accent)]/[0.04] px-4 py-3">
+                <p className="text-sm font-medium text-[var(--ink)] mb-1">
+                  Set up your delivery email
+                </p>
+                <p className="text-xs text-[var(--ink-muted)] mb-2.5 leading-relaxed">
+                  Workflows need an email address to send you reports.
+                  Tell {brand.name} your email to get started, or configure
+                  it in settings.
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      window.dispatchEvent(
+                        new CustomEvent("drift:open-ask", {
+                          detail: { prompt: "Set my broker_email to " },
+                        }),
+                      );
+                    }}
+                    className="rounded-md bg-[var(--ink)] text-white px-3 py-1.5 text-xs font-medium hover:opacity-90 transition-opacity"
+                  >
+                    Configure now
+                  </button>
+                  <Link
+                    href="/dante/settings/secrets"
+                    className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] underline transition-colors"
+                  >
+                    Open settings
+                  </Link>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Workflow health banner — visible when scheduled
+              automations are failing so the broker knows immediately */}
+          {workflowHealth && !workflowHealth.ok && workflowHealth.failing.length > 0 && (
+            <div className="w-full max-w-2xl mx-auto mb-6">
+              <Link
+                href="/workflows"
+                className="block rounded-lg border border-[var(--rule)] bg-[var(--canvas-subtle)] px-4 py-3 hover:bg-[var(--neu-hover)] transition-colors"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 w-2 h-2 rounded-full bg-[var(--danger)] shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-[var(--ink)]">
+                      {workflowHealth.failing.length === 1
+                        ? `"${workflowHealth.failing[0].workflow_name}" is failing`
+                        : `${workflowHealth.failing.length} workflows are failing`}
+                    </p>
+                    <p className="text-xs text-[var(--ink-muted)] mt-0.5 line-clamp-2">
+                      {workflowHealth.failing.length === 1
+                        ? workflowHealth.failing[0].error
+                        : workflowHealth.failing.map((f) => f.workflow_name).join(", ")}
+                    </p>
+                    <p className="text-xs text-[var(--ink-subtle)] mt-1">
+                      View in Workflows to fix
+                    </p>
+                  </div>
+                </div>
+              </Link>
+            </div>
+          )}
 
           {/* Scope chips — thin affordance row */}
           <div className="flex items-center justify-center gap-4 mb-6">
@@ -1073,24 +1168,34 @@ export default function AskDante({
             )}
 
             {streamState.error && (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 flex items-center justify-between gap-3">
-                <span>Something went wrong. Please try again.</span>
-                <button
-                  onClick={() => {
-                    const msg = lastMessageRef.current;
-                    if (!msg) return;
-                    setStreamState(initialStreamState());
-                    setTurns((prev) => {
-                      const last = prev[prev.length - 1];
-                      if (last?.role === "user") return prev.slice(0, -1);
-                      return prev;
-                    });
-                    setTimeout(() => submit(msg), 0);
-                  }}
-                  className="shrink-0 rounded-md bg-red-100 px-3 py-1 text-xs font-medium text-red-800 hover:bg-red-200 transition-colors"
-                >
-                  Try again
-                </button>
+              <div className="rounded-lg border border-[var(--rule)] bg-[var(--canvas-subtle)] px-4 py-3 text-sm text-[var(--ink)]">
+                <p className="mb-2 leading-relaxed">{streamState.error}</p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      const msg = lastMessageRef.current;
+                      if (!msg) return;
+                      setStreamState(initialStreamState());
+                      setTurns((prev) => {
+                        const last = prev[prev.length - 1];
+                        if (last?.role === "user") return prev.slice(0, -1);
+                        return prev;
+                      });
+                      setTimeout(() => submit(msg), 0);
+                    }}
+                    className="shrink-0 rounded-md bg-[var(--ink)] text-white px-3 py-1 text-xs font-medium hover:opacity-90 transition-opacity"
+                  >
+                    Try again
+                  </button>
+                  {streamState.error.includes("secrets") && (
+                    <Link
+                      href="/dante/settings/secrets"
+                      className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] underline transition-colors"
+                    >
+                      Open Secrets settings
+                    </Link>
+                  )}
+                </div>
               </div>
             )}
 
