@@ -70,22 +70,67 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Code didn't match." }, { status: 400 });
   }
 
-  // Match — consume + verify. If another user previously held this
-  // number, unlink them first (verified SMS ownership = rightful owner).
+  // Match — consume + verify. Two storage targets:
+  //   • profile_sms_phones (new, multi-row) — append a row; if another
+  //     profile previously held this number, transfer ownership
+  //     (delete the old row first; verified SMS ownership = rightful
+  //     owner, last to verify wins).
+  //   • profiles.sms_phone (legacy, single-column) — synced to the
+  //     primary phone after the insert so existing outbound paths
+  //     don't need to query the new table yet.
   const now = new Date().toISOString();
   await supabaseAdmin
     .from("sms_phone_verifications")
     .update({ consumed_at: now })
     .eq("id", row.id);
+
+  // Transfer ownership: drop any row for this phone on other profiles.
+  await supabaseAdmin
+    .from("profile_sms_phones")
+    .delete()
+    .eq("phone", row.phone)
+    .neq("profile_id", user.id);
+
+  // Does the caller already have at least one verified phone? If not,
+  // this becomes their primary automatically.
+  const { count: existingCount } = await supabaseAdmin
+    .from("profile_sms_phones")
+    .select("*", { count: "exact", head: true })
+    .eq("profile_id", user.id);
+  const shouldBePrimary = (existingCount ?? 0) === 0;
+
+  await supabaseAdmin
+    .from("profile_sms_phones")
+    .upsert(
+      {
+        profile_id: user.id,
+        phone: row.phone,
+        is_primary: shouldBePrimary,
+        verified_at: now,
+      },
+      { onConflict: "phone" },
+    );
+
+  // Sync legacy single-column to the primary phone for this profile.
+  const { data: primary } = await supabaseAdmin
+    .from("profile_sms_phones")
+    .select("phone, verified_at")
+    .eq("profile_id", user.id)
+    .eq("is_primary", true)
+    .maybeSingle();
+  await supabaseAdmin
+    .from("profiles")
+    .update({
+      sms_phone: (primary as any)?.phone ?? row.phone,
+      sms_verified_at: (primary as any)?.verified_at ?? now,
+    })
+    .eq("id", user.id);
+  // Clear the legacy column on any other profile that had it.
   await supabaseAdmin
     .from("profiles")
     .update({ sms_phone: null, sms_verified_at: null })
     .eq("sms_phone", row.phone)
     .neq("id", user.id);
-  await supabaseAdmin
-    .from("profiles")
-    .update({ sms_phone: row.phone, sms_verified_at: now })
-    .eq("id", user.id);
 
   // Find workspace for audit log
   const { data: prof } = await supabase

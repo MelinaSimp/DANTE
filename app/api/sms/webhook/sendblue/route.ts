@@ -87,14 +87,41 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Resolve phone → user. Must be verified.
-  const { data: profile } = await supabaseAdmin
-    .from("profiles")
-    .select(
-      "id, workspace_id, full_name, sms_verified_at, sms_quiet_start, sms_quiet_end, sms_timezone",
-    )
-    .eq("sms_phone", incoming.phone)
+  // Resolve phone → user. First try the multi-phone table (any verified
+  // row whose phone matches), then fall back to the legacy single-column
+  // for profiles that haven't been migrated. Either path proves the
+  // phone is verified.
+  const { data: phoneRow } = await supabaseAdmin
+    .from("profile_sms_phones")
+    .select("profile_id")
+    .eq("phone", incoming.phone)
     .maybeSingle();
+
+  let profile: any = null;
+  if (phoneRow) {
+    const { data } = await supabaseAdmin
+      .from("profiles")
+      .select(
+        "id, workspace_id, full_name, sms_verified_at, sms_quiet_start, sms_quiet_end, sms_timezone",
+      )
+      .eq("id", (phoneRow as any).profile_id)
+      .maybeSingle();
+    profile = data;
+    // Treat the multi-phone match as already-verified — the row exists
+    // only because verify/confirm succeeded for that phone.
+    if (profile && !(profile as any).sms_verified_at) {
+      (profile as any).sms_verified_at = new Date(0).toISOString();
+    }
+  } else {
+    const { data } = await supabaseAdmin
+      .from("profiles")
+      .select(
+        "id, workspace_id, full_name, sms_verified_at, sms_quiet_start, sms_quiet_end, sms_timezone",
+      )
+      .eq("sms_phone", incoming.phone)
+      .maybeSingle();
+    profile = data;
+  }
 
   if (!profile || !(profile as any).sms_verified_at) {
     console.log(
