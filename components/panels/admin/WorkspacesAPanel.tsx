@@ -220,10 +220,10 @@ export default function WorkspacesAPanel() {
                       ) : (
                         <button onClick={() => {
                           setEditingBilling(ws.id);
-                          setBillingAmount(ws.billing_amount ? (ws.billing_amount / 100).toFixed(2) : "");
+                          setBillingAmount(ws.billing_amount != null ? (ws.billing_amount / 100).toFixed(2) : "");
                           setBillingCycle((ws.billing_cycle as "monthly" | "yearly") || "monthly");
                         }} className="text-xs text-[var(--ink-muted)] hover:text-[var(--accent)] transition">
-                          {ws.billing_amount ? `$${(ws.billing_amount / 100).toFixed(2)}/${ws.billing_cycle === "yearly" ? "yr" : "mo"}` : "Set pricing"}
+                          {ws.billing_amount != null && ws.billing_amount > 0 ? `$${(ws.billing_amount / 100).toFixed(2)}/${ws.billing_cycle === "yearly" ? "yr" : "mo"}` : "Set pricing"}
                         </button>
                       )}
                     </td>
