@@ -292,9 +292,16 @@ async function executeSendToVoicemail(call: any, params: any): Promise<string> {
       ? params.label.trim()
       : null;
   const smsTo = normalizeE164ListOrNull(params?.sms_to);
-  const emailTo =
+  // email_to is stored / passed as a comma-joined string; the dispatcher
+  // splits it back out. Keep the column shape as a single text field
+  // (no migration needed) — splitting happens at parse-and-send time.
+  const emailTo: string | null =
     typeof params?.email_to === "string" && params.email_to.includes("@")
-      ? params.email_to.trim()
+      ? (params.email_to as string)
+          .split(",")
+          .map((s: string) => s.trim())
+          .filter((s: string) => s.includes("@"))
+          .join(",") || null
       : null;
 
   // Per-step human-hours check. When the voicemail node has both an
@@ -1510,7 +1517,16 @@ async function notifyVoicemailIfPending(args: {
           .map((s) => s.trim())
           .filter(Boolean)
       : [];
-    const emailToOverride = pending.email_to ? String(pending.email_to) : null;
+    // email_to in storage is a comma-joined list of recipients. Split,
+    // dedupe, trim, and keep only properly formed addresses. The
+    // targetEmails set below merges these with the workspace-owner
+    // email so the transcript fans out to everyone configured.
+    const emailToList = pending.email_to
+      ? String(pending.email_to)
+          .split(",")
+          .map((s) => s.trim())
+          .filter((s) => s.includes("@"))
+      : [];
 
     // Resolve workspace name + owner email — owner is the fallback
     // email recipient when the voicemail step doesn't override it.
@@ -1563,7 +1579,7 @@ async function notifyVoicemailIfPending(args: {
     // legs run best-effort; failure on one shouldn't block the other.
     const targetEmails = Array.from(
       new Set(
-        [ownerEmail, emailToOverride]
+        [ownerEmail, ...emailToList]
           .filter((e): e is string => !!e && e.includes("@"))
           .map((e) => e.trim().toLowerCase()),
       ),

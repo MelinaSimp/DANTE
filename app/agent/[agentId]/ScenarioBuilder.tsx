@@ -486,16 +486,65 @@ export default function ScenarioBuilder({
                     <label className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] block mb-1">
                       Also send transcript to (optional)
                     </label>
-                    <input
-                      value={n.email_to ?? ""}
-                      onChange={(e) =>
-                        updateNode(n.id, { email_to: e.target.value } as Partial<VoicemailNode>)
-                      }
-                      placeholder="ops@example.com"
-                      className={inputClass}
-                    />
+                    {(() => {
+                      // Same pattern as sms_to: comma-joined storage,
+                      // blank rows preserved so "+ Add email" persists
+                      // across re-renders. Webhook filters blanks at
+                      // parse time.
+                      const emails = (n.email_to ?? "").split(",").map((s) => s.trim());
+                      const display =
+                        emails.length === 0 || (emails.length === 1 && !emails[0])
+                          ? [""]
+                          : emails;
+                      const writeBack = (next: string[]) => {
+                        updateNode(
+                          n.id,
+                          { email_to: next.map((s) => s.trim()).join(",") } as Partial<VoicemailNode>,
+                        );
+                      };
+                      return (
+                        <div className="space-y-1.5">
+                          {display.map((addr, i) => (
+                            <div key={i} className="flex items-center gap-2">
+                              <input
+                                value={addr}
+                                onChange={(e) => {
+                                  const copy = [...display];
+                                  copy[i] = e.target.value;
+                                  writeBack(copy);
+                                }}
+                                placeholder="ops@example.com"
+                                className={`${inputClass} flex-1`}
+                              />
+                              {display.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const copy = display.filter((_, j) => j !== i);
+                                    writeBack(copy.length === 0 ? [""] : copy);
+                                  }}
+                                  className="p-1.5 rounded-[4px] text-[var(--ink-subtle)] hover:text-[var(--danger)] hover:bg-[var(--danger-soft)] transition"
+                                  aria-label="Remove email"
+                                  title="Remove this email"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" strokeWidth={1.5} />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => writeBack([...display, ""])}
+                            className="inline-flex items-center gap-1 text-[11px] text-[var(--accent)] hover:underline"
+                          >
+                            <Plus className="w-3 h-3" strokeWidth={1.5} />
+                            Add email
+                          </button>
+                        </div>
+                      );
+                    })()}
                     <p className="text-[11px] text-[var(--ink-subtle)] mt-1.5">
-                      Sent in addition to the workspace owner. Leave blank to email the workspace owner only.
+                      Each address on the list receives the transcript, in addition to the workspace owner.
                     </p>
                   </div>
                 </div>
