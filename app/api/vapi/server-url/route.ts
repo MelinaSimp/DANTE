@@ -1528,18 +1528,14 @@ async function notifyVoicemailIfPending(args: {
           .filter((s) => s.includes("@"))
       : [];
 
-    // Resolve workspace name + owner email — owner is the fallback
-    // email recipient when the voicemail step doesn't override it.
+    // Workspace name — only used for the email subject / header.
+    // (No owner email lookup: recipients come from the step's email_to
+    // list only — see the targetEmails block below.)
     const { data: ws } = await supabaseAdmin
       .from("workspaces")
-      .select("name, owner_id")
+      .select("name")
       .eq("id", args.workspaceId)
       .maybeSingle();
-    let ownerEmail: string | null = null;
-    if (ws?.owner_id) {
-      const { data: ownerAuth } = await supabaseAdmin.auth.admin.getUserById(ws.owner_id);
-      ownerEmail = ownerAuth?.user?.email ?? null;
-    }
 
     const phoneLabel = args.callerPhone || "Unknown caller";
     const preview = (args.transcript || "").slice(0, 1500);
@@ -1573,13 +1569,15 @@ async function notifyVoicemailIfPending(args: {
       .filter((l): l is string => l !== null)
       .join("\n");
 
-    // Dispatch — SMS if configured, email always. email_to (when set
-    // on the voicemail node) is ADDITIVE: the transcript goes to both
-    // the workspace owner AND the configured address, deduped. Both
-    // legs run best-effort; failure on one shouldn't block the other.
+    // Dispatch — SMS if configured, email if configured. Recipients
+    // come strictly from the voicemail step's email_to list (deduped,
+    // case-folded). No workspace-owner fallback: if the step has no
+    // email addresses listed, no email goes out. This matches the
+    // "what you set is what gets sent" UX the customer asked for —
+    // explicit lists, no hidden CC.
     const targetEmails = Array.from(
       new Set(
-        [ownerEmail, ...emailToList]
+        emailToList
           .filter((e): e is string => !!e && e.includes("@"))
           .map((e) => e.trim().toLowerCase()),
       ),

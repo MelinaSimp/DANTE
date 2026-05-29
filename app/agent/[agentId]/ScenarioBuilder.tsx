@@ -484,7 +484,7 @@ export default function ScenarioBuilder({
                   </div>
                   <div className="md:col-span-2">
                     <label className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] block mb-1">
-                      Also send transcript to (optional)
+                      Send transcript to (email)
                     </label>
                     {(() => {
                       // Same pattern as sms_to: comma-joined storage,
@@ -544,7 +544,7 @@ export default function ScenarioBuilder({
                       );
                     })()}
                     <p className="text-[11px] text-[var(--ink-subtle)] mt-1.5">
-                      Each address on the list receives the transcript, in addition to the workspace owner.
+                      Each address on the list receives the transcript. Leave blank to skip email for this step.
                     </p>
                   </div>
                 </div>
