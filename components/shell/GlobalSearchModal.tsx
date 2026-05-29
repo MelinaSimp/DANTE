@@ -633,12 +633,16 @@ export default function GlobalSearchModal({
           </>
         ) : (
           <>
-            {/* Ask transcript — no empty-state hero; the textarea
-                placeholder is sufficient and the space is better used
-                for the input itself. */}
+            {/* Ask transcript — collapses when empty so the textarea
+                fills the dialog. Once a conversation starts, it grows
+                to take available space. */}
             <div
               ref={askScrollRef}
-              className="flex-1 overflow-y-auto px-5 py-4 space-y-5"
+              className={`overflow-y-auto px-5 space-y-5 ${
+                turns.length > 0 || stream.streaming
+                  ? "flex-1 py-4"
+                  : "h-0 py-0"
+              }`}
             >
               {turns.map((t, i) => (
                 <div key={i}>
@@ -702,8 +706,14 @@ export default function GlobalSearchModal({
               )}
             </div>
 
-            {/* Ask composer */}
-            <div className="border-t border-[var(--rule)] bg-[var(--canvas-subtle,rgba(0,0,0,0.02))] px-4 py-3">
+            {/* Ask composer — when no conversation exists, this is
+                flex-1 so the textarea fills the entire dialog. Once
+                turns appear, the transcript takes flex-1 instead. */}
+            <div className={`px-4 py-3 ${
+              turns.length > 0 || stream.streaming
+                ? "border-t border-[var(--rule)] bg-[var(--canvas-subtle,rgba(0,0,0,0.02))]"
+                : "flex-1 flex flex-col justify-center"
+            }`}>
               {attachments.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mb-2">
                   {attachments.map((a) => (
@@ -771,7 +781,7 @@ export default function GlobalSearchModal({
                         ask(askInput);
                       }
                     }}
-                    rows={turns.length === 0 && !stream.streaming ? 5 : 2}
+                    rows={turns.length === 0 && !stream.streaming ? 8 : 2}
                     placeholder={
                       pageContext?.entity
                         ? `Ask ${assistantName} about ${pageContext.entity.label}…`
