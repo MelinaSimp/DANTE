@@ -18,6 +18,7 @@ import { classifyCallSentiment } from "@/lib/calls/sentiment";
 import { analyzeEngagement } from "@/lib/calls/engagement";
 import { scanForCompliance } from "@/lib/compliance/scan";
 import { retrieveReferences, formatReferenceContext } from "@/lib/references/retrieve";
+import { getAppUrl } from "@/lib/app-url";
 import dayjs from "dayjs";
 
 export const dynamic = "force-dynamic";
@@ -1235,27 +1236,139 @@ async function handleStatusUpdate(message: any) {
 // ─── Assistant Request (dynamic routing) ─────────────────────
 
 async function handleAssistantRequest(message: any) {
-  // For now, the assistant is pre-configured on the phone number
-  // This handler is here for future dynamic routing
+  // Fires when a call comes in and the phone number's VAPI record is in
+  // "dynamic" mode (server.url set, no static assistantId). We look the
+  // agent up by phone, check its schedule, and return either:
+  //   • { assistantId: <regular> }  → normal scenario flow
+  //   • { assistant: <override> }   → after-hours transfer config
+  //
+  // If the agent has schedule_enabled=false, we short-circuit to the
+  // regular assistantId — same behavior as the static binding.
   const call = message.call;
   const phoneNumber = call?.phoneNumber?.number;
-
-  if (phoneNumber) {
-    // Look up agent by phone number
-    const { data: agent } = await supabaseAdmin
-      .from("agents")
-      .select("vapi_assistant_id")
-      .eq("phone_number", phoneNumber)
-      .eq("voice_provider", "vapi")
-      .eq("status", "deployed")
-      .single();
-
-    if (agent?.vapi_assistant_id) {
-      return NextResponse.json({ assistantId: agent.vapi_assistant_id });
-    }
+  if (!phoneNumber) {
+    return NextResponse.json({ error: "No phone number on call" }, { status: 400 });
   }
 
-  return NextResponse.json({ error: "No assistant configured for this number" });
+  const { data: agent } = await supabaseAdmin
+    .from("agents")
+    .select(
+      "vapi_assistant_id, name, schedule_enabled, schedule, after_hours_transfer_to, elevenlabs_voice_id"
+    )
+    .eq("phone_number", phoneNumber)
+    .eq("voice_provider", "vapi")
+    .eq("status", "deployed")
+    .single();
+
+  if (!agent?.vapi_assistant_id) {
+    return NextResponse.json({ error: "No assistant configured for this number" }, { status: 404 });
+  }
+
+  if (!agent.schedule_enabled) {
+    return NextResponse.json({ assistantId: agent.vapi_assistant_id });
+  }
+
+  const { evaluateSchedule, isValidSchedule } = await import("@/lib/voice/schedule");
+  const schedule = isValidSchedule(agent.schedule) ? agent.schedule : null;
+  const evaluation = evaluateSchedule(schedule);
+
+  console.log(
+    `[VAPI Assistant Request] ${agent.name} @ ${phoneNumber}: ` +
+      `open=${evaluation.open} tz=${evaluation.timezone} ` +
+      `now=${evaluation.now.day} ${evaluation.now.hh}:${String(evaluation.now.mm).padStart(2, "0")}`,
+  );
+
+  if (evaluation.open) {
+    return NextResponse.json({ assistantId: agent.vapi_assistant_id });
+  }
+
+  // After-hours. Two shapes:
+  //   transfer_to set    → spin up a tiny "transfer immediately" assistant
+  //   transfer_to unset  → polite "we're closed" + end call
+  const transferTo = agent.after_hours_transfer_to;
+  const serverUrl = `${getAppUrl()}/api/vapi/server-url`;
+  const voice = agent.elevenlabs_voice_id
+    ? { provider: "11labs" as const, voiceId: agent.elevenlabs_voice_id }
+    : undefined;
+
+  if (transferTo && /^\+\d{8,15}$/.test(transferTo)) {
+    return NextResponse.json({
+      assistant: {
+        name: `${agent.name} (after-hours transfer)`,
+        firstMessage:
+          "Thanks for calling. We're closed right now — connecting you to our after-hours line.",
+        model: {
+          provider: "openai",
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content:
+                `You are an after-hours receptionist for ${agent.name}. The office is closed. ` +
+                `IMMEDIATELY after speaking the firstMessage, you MUST call the transfer_call tool ` +
+                `with to_number="${transferTo}". Do not improvise, do not ask any questions, do ` +
+                `not offer voicemail. Speak the greeting, then call the tool.`,
+            },
+          ],
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: "transfer_call",
+                description: "Bridge the caller to the after-hours phone number.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    to_number: {
+                      type: "string",
+                      description: "E.164 number to transfer to.",
+                    },
+                  },
+                  required: ["to_number"],
+                },
+              },
+              server: { url: serverUrl },
+            },
+          ],
+          temperature: 0,
+          maxTokens: 80,
+        },
+        voice,
+        serverUrl,
+        serverMessages: ["end-of-call-report", "tool-calls"],
+        maxDurationSeconds: 300,
+        silenceTimeoutSeconds: 15,
+      },
+    });
+  }
+
+  // No transfer destination configured — say a closed message and end.
+  return NextResponse.json({
+    assistant: {
+      name: `${agent.name} (after-hours closed)`,
+      firstMessage:
+        "Thanks for calling. We're closed right now — please call back during business hours. Goodbye.",
+      model: {
+        provider: "openai",
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are an after-hours receptionist. After speaking the firstMessage, say nothing else and end the call.",
+          },
+        ],
+        temperature: 0,
+        maxTokens: 30,
+      },
+      voice,
+      serverUrl,
+      serverMessages: ["end-of-call-report"],
+      endCallMessage: "Goodbye.",
+      maxDurationSeconds: 60,
+      silenceTimeoutSeconds: 5,
+    },
+  });
 }
 
 /**

@@ -42,7 +42,7 @@ export default async function AgentConfigPage({
   const { data: agent } = await supabaseAdmin
     .from("agents")
     .select(
-      "id, name, description, llm_instructions, first_message, modality, status, voice_provider, vapi_assistant_id, elevenlabs_voice_id, phone_number, llm_model, mode, scenario"
+      "id, name, description, llm_instructions, first_message, modality, status, voice_provider, vapi_assistant_id, elevenlabs_voice_id, phone_number, llm_model, mode, scenario, schedule_enabled, schedule, after_hours_transfer_to"
     )
     .eq("id", agentId)
     .eq("workspace_id", profile!.workspace_id)

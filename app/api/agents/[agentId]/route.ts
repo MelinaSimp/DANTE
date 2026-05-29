@@ -95,6 +95,19 @@ export async function PUT(
   }
   if (body.vapi_assistant_id !== undefined) updates.vapi_assistant_id = body.vapi_assistant_id;
   if (body.vapi_phone_number_id !== undefined) updates.vapi_phone_number_id = body.vapi_phone_number_id;
+  // Business-hours schedule + after-hours transfer routing. Stored as
+  // opaque jsonb / text; the webhook (handleAssistantRequest) reads
+  // these on every inbound call to decide in-hours vs after-hours.
+  if (body.schedule_enabled !== undefined) updates.schedule_enabled = !!body.schedule_enabled;
+  if (body.schedule === null || (body.schedule && typeof body.schedule === "object")) {
+    updates.schedule = body.schedule;
+  }
+  if (body.after_hours_transfer_to !== undefined) {
+    const raw = typeof body.after_hours_transfer_to === "string"
+      ? body.after_hours_transfer_to.trim()
+      : null;
+    updates.after_hours_transfer_to = raw && raw.length > 0 ? raw : null;
+  }
 
   const { data, error } = await supabaseAdmin
     .from("agents")

@@ -40,6 +40,34 @@ import {
 } from "lucide-react";
 import ScenarioBuilder, { type Scenario } from "./ScenarioBuilder";
 
+// Mirror of lib/voice/schedule.ts shape — kept inline so the client
+// bundle doesn't pull in process.env from that module.
+interface ScheduleWindow {
+  start: string;
+  end: string;
+}
+type DayKey = "sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat";
+interface AgentSchedule {
+  timezone?: string;
+  windows: Partial<Record<DayKey, ScheduleWindow[]>>;
+}
+const SCHEDULE_DAYS: { key: DayKey; label: string }[] = [
+  { key: "mon", label: "Monday" },
+  { key: "tue", label: "Tuesday" },
+  { key: "wed", label: "Wednesday" },
+  { key: "thu", label: "Thursday" },
+  { key: "fri", label: "Friday" },
+  { key: "sat", label: "Saturday" },
+  { key: "sun", label: "Sunday" },
+];
+function defaultBusinessScheduleClient(): AgentSchedule {
+  const std: ScheduleWindow[] = [{ start: "09:00", end: "17:00" }];
+  return {
+    timezone: "America/New_York",
+    windows: { mon: std, tue: std, wed: std, thu: std, fri: std, sat: [], sun: [] },
+  };
+}
+
 interface Agent {
   id: string;
   name: string;
@@ -55,6 +83,9 @@ interface Agent {
   llm_model: string | null;
   mode?: "llm" | "scenario" | null;
   scenario?: any;
+  schedule_enabled?: boolean | null;
+  schedule?: any;
+  after_hours_transfer_to?: string | null;
 }
 
 const MODEL_OPTIONS: { id: string; label: string; hint: string }[] = [
@@ -111,6 +142,22 @@ export default function AgentConfigClient({
       ? (agent.scenario as Scenario)
       : { version: 1, entry: null, nodes: [] }
   );
+
+  // Business-hours schedule + after-hours transfer routing. When
+  // schedule_enabled=false the assistant-request webhook short-circuits
+  // to the regular assistantId, so toggling this off is the right way
+  // to disable scheduling without losing the configured hours.
+  const [scheduleEnabled, setScheduleEnabled] = useState<boolean>(
+    !!agent.schedule_enabled
+  );
+  const [schedule, setSchedule] = useState<AgentSchedule>(() =>
+    agent.schedule && typeof agent.schedule === "object" && (agent.schedule as any).windows
+      ? (agent.schedule as AgentSchedule)
+      : defaultBusinessScheduleClient()
+  );
+  const [afterHoursTransferTo, setAfterHoursTransferTo] = useState<string>(
+    agent.after_hours_transfer_to ?? ""
+  );
   const [savingAgent, setSavingAgent] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [syncState, setSyncState] = useState<"idle" | "syncing" | "synced" | "error">("idle");
@@ -162,7 +209,11 @@ export default function AgentConfigClient({
     llmModel !== (agent.llm_model ?? "gpt-4o-mini") ||
     mode !== (agent.mode === "scenario" ? "scenario" : "llm") ||
     JSON.stringify(scenario) !==
-      JSON.stringify(agent.scenario ?? { version: 1, entry: null, nodes: [] });
+      JSON.stringify(agent.scenario ?? { version: 1, entry: null, nodes: [] }) ||
+    scheduleEnabled !== !!agent.schedule_enabled ||
+    JSON.stringify(schedule) !==
+      JSON.stringify(agent.schedule ?? defaultBusinessScheduleClient()) ||
+    afterHoursTransferTo !== (agent.after_hours_transfer_to ?? "");
 
   const isDeployedVapi =
     agent.status === "deployed" && agent.voice_provider === "vapi";
@@ -213,6 +264,9 @@ export default function AgentConfigClient({
           llm_model: llmModel || "gpt-4o-mini",
           mode,
           scenario: mode === "scenario" ? scenario : null,
+          schedule_enabled: scheduleEnabled,
+          schedule,
+          after_hours_transfer_to: afterHoursTransferTo.trim() || null,
         }),
       });
       if (!r.ok) throw new Error((await r.json()).error || "Save failed");
@@ -244,7 +298,7 @@ export default function AgentConfigClient({
     } finally {
       setSavingAgent(false);
     }
-  }, [agent.id, agent.name, description, instructions, firstMessage, voiceId, llmModel, mode, scenario, isDeployedVapi, name]);
+  }, [agent.id, agent.name, description, instructions, firstMessage, voiceId, llmModel, mode, scenario, isDeployedVapi, name, scheduleEnabled, schedule, afterHoursTransferTo]);
 
   const addText = async () => {
     if (!textDraft.trim()) return;
@@ -581,6 +635,166 @@ export default function AgentConfigClient({
           <ScenarioBuilder value={scenario} onChange={setScenario} />
         </section>
         )}
+
+        {/* Schedule + after-hours transfer */}
+        <section className="card-flat p-6">
+          <div className="flex items-baseline justify-between mb-4 gap-4 flex-wrap">
+            <div>
+              <div className="label-section mb-1">Business hours</div>
+              <h2 className="text-base font-semibold text-[var(--ink)]">
+                When the agent answers
+              </h2>
+              <p className="text-xs text-[var(--ink-muted)] mt-1 max-w-xl">
+                Inside business hours the call runs normally. Outside
+                business hours the call bridges to the after-hours number
+                below — or, if no number is set, the agent says you're
+                closed and hangs up.
+              </p>
+            </div>
+            <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={scheduleEnabled}
+                onChange={(e) => setScheduleEnabled(e.target.checked)}
+                className="w-4 h-4 accent-[var(--ink)]"
+              />
+              <span className="text-sm font-medium text-[var(--ink)]">
+                {scheduleEnabled ? "Schedule on" : "Schedule off"}
+              </span>
+            </label>
+          </div>
+
+          {scheduleEnabled && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 flex-wrap">
+                <label className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)]">
+                  Timezone
+                </label>
+                <select
+                  value={schedule.timezone ?? "America/New_York"}
+                  onChange={(e) =>
+                    setSchedule({ ...schedule, timezone: e.target.value })
+                  }
+                  className={`${"w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none focus:border-[var(--rule-strong)]"} max-w-xs`}
+                >
+                  {[
+                    "America/New_York",
+                    "America/Chicago",
+                    "America/Denver",
+                    "America/Los_Angeles",
+                    "America/Phoenix",
+                    "America/Anchorage",
+                    "Pacific/Honolulu",
+                  ].map((tz) => (
+                    <option key={tz} value={tz}>
+                      {tz}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                {SCHEDULE_DAYS.map(({ key, label }) => {
+                  const windows = schedule.windows[key] ?? [];
+                  return (
+                    <div
+                      key={key}
+                      className="grid grid-cols-[110px_1fr_auto] gap-3 items-start py-2 border-b border-[var(--rule)] last:border-b-0"
+                    >
+                      <div className="text-sm font-medium text-[var(--ink)] pt-2">
+                        {label}
+                      </div>
+                      <div className="space-y-2">
+                        {windows.length === 0 && (
+                          <div className="text-xs text-[var(--ink-subtle)] italic pt-2">
+                            Closed
+                          </div>
+                        )}
+                        {windows.map((w, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <input
+                              type="time"
+                              value={w.start}
+                              onChange={(e) => {
+                                const next = [...windows];
+                                next[i] = { ...w, start: e.target.value };
+                                setSchedule({
+                                  ...schedule,
+                                  windows: { ...schedule.windows, [key]: next },
+                                });
+                              }}
+                              className={`${"w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none focus:border-[var(--rule-strong)]"} w-32 mono`}
+                            />
+                            <span className="text-xs text-[var(--ink-subtle)]">to</span>
+                            <input
+                              type="time"
+                              value={w.end}
+                              onChange={(e) => {
+                                const next = [...windows];
+                                next[i] = { ...w, end: e.target.value };
+                                setSchedule({
+                                  ...schedule,
+                                  windows: { ...schedule.windows, [key]: next },
+                                });
+                              }}
+                              className={`${"w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none focus:border-[var(--rule-strong)]"} w-32 mono`}
+                            />
+                            <button
+                              onClick={() => {
+                                const next = windows.filter((_, j) => j !== i);
+                                setSchedule({
+                                  ...schedule,
+                                  windows: { ...schedule.windows, [key]: next },
+                                });
+                              }}
+                              className="p-1.5 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--danger)] hover:bg-[var(--danger-soft)] transition"
+                              title="Remove window"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" strokeWidth={1.5} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => {
+                          const next: ScheduleWindow[] = [
+                            ...windows,
+                            { start: "09:00", end: "17:00" },
+                          ];
+                          setSchedule({
+                            ...schedule,
+                            windows: { ...schedule.windows, [key]: next },
+                          });
+                        }}
+                        className="inline-flex items-center gap-1 px-2 py-1.5 rounded-[4px] border border-[var(--rule)] hover:bg-[var(--canvas-subtle)] text-[11px] font-medium text-[var(--ink-muted)] transition mt-0.5"
+                        title="Add window"
+                      >
+                        <Plus className="w-3 h-3" strokeWidth={1.5} />
+                        Add window
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="pt-2 border-t border-[var(--rule)] space-y-2">
+                <label className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)]">
+                  After-hours transfer number
+                </label>
+                <input
+                  value={afterHoursTransferTo}
+                  onChange={(e) => setAfterHoursTransferTo(e.target.value)}
+                  placeholder="+15551234567"
+                  className={`${"w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none focus:border-[var(--rule-strong)]"} max-w-sm mono`}
+                />
+                <p className="text-[11px] text-[var(--ink-subtle)]">
+                  E.164 format. Leave blank to have the agent politely
+                  say you're closed and hang up.
+                </p>
+              </div>
+            </div>
+          )}
+        </section>
 
         {/* First message */}
         <section className="card-flat p-6">
