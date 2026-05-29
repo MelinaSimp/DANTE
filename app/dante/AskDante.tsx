@@ -353,6 +353,45 @@ export default function AskDante({
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [turns.length, streamState.streaming, streamState.events.length, streamState.followups.length]);
 
+  // Pop the Cmd+D dialog when Dante needs input from the user.
+  // The needs_input SSE event sets streamState.needsInput; we watch
+  // it and dispatch drift:open-ask to summon the small prompt box.
+  const needsInputFiredRef = useRef<string | null>(null);
+  useEffect(() => {
+    const ni = streamState.needsInput;
+    if (!ni) return;
+    // Dedup so we don't re-fire on every render
+    const key = ni.question;
+    if (needsInputFiredRef.current === key) return;
+    needsInputFiredRef.current = key;
+
+    // Build a concise seed prompt. The user edits or replaces this
+    // before hitting Enter, so keep it short and action-ready.
+    const fieldHints = ni.fields
+      .map((f) => `${f.label}: ${f.placeholder || ""}`)
+      .join(", ");
+    const seed = `Configure ${ni.workflow_name || "workflow"}: ${fieldHints}`;
+
+    window.dispatchEvent(
+      new CustomEvent("drift:open-ask", { detail: { prompt: seed } }),
+    );
+
+    // 5-minute idle nudge: if the user doesn't respond, SMS/email them.
+    const nudgeTimer = setTimeout(() => {
+      fetch("/api/dante/nudge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: ni.question,
+          workflow_name: ni.workflow_name || "a workflow",
+          chat_id: chatId,
+        }),
+      }).catch(() => {});
+    }, 5 * 60 * 1000);
+
+    return () => clearTimeout(nudgeTimer);
+  }, [streamState.needsInput, chatId]);
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
       e.preventDefault();
@@ -1012,25 +1051,6 @@ export default function AskDante({
 
             {streamState.streaming && (
               <LiveThinking state={streamState} deep={deepResearch} />
-            )}
-
-            {streamState.needsInput && !streamState.streaming && (
-              <NeedsInputCard
-                state={streamState.needsInput}
-                chatId={chatId}
-                onSubmit={(values) => {
-                  // Build a natural-language message that Dante can parse
-                  // to set secrets and re-run the workflow.
-                  const lines = Object.entries(values)
-                    .map(([k, v]) => `${k}: ${v}`)
-                    .join("\n");
-                  const msg = streamState.needsInput?.workflow_name
-                    ? `Set these values and run "${streamState.needsInput.workflow_name}":\n${lines}`
-                    : `Set these values:\n${lines}`;
-                  setStreamState((prev) => ({ ...prev, needsInput: null }));
-                  submit(msg);
-                }}
-              />
             )}
 
             {streamState.error && (
