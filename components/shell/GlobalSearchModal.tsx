@@ -633,26 +633,13 @@ export default function GlobalSearchModal({
           </>
         ) : (
           <>
-            {/* Ask transcript */}
+            {/* Ask transcript — no empty-state hero; the textarea
+                placeholder is sufficient and the space is better used
+                for the input itself. */}
             <div
               ref={askScrollRef}
-              className="flex-1 overflow-y-auto px-5 py-4 space-y-5 min-h-[200px]"
+              className="flex-1 overflow-y-auto px-5 py-4 space-y-5"
             >
-              {turns.length === 0 && !stream.streaming && (
-                <div className="flex flex-col items-center justify-center text-center py-8 px-4">
-                  <Sparkles
-                    className="w-6 h-6 text-[var(--ink-subtle)] mb-3"
-                    strokeWidth={1.5}
-                  />
-                  <p className="text-sm text-[var(--ink)] font-medium mb-1">
-                    Ask {assistantName} anything about your workspace
-                  </p>
-                  <p className="text-xs text-[var(--ink-muted)] max-w-md">
-                    Clients, properties, vault docs, regulatory updates —
-                    Dante grounds every reply in your actual data.
-                  </p>
-                </div>
-              )}
               {turns.map((t, i) => (
                 <div key={i}>
                   <div className="text-xs mono uppercase tracking-wider text-[var(--ink-subtle)] mb-1.5">
@@ -784,7 +771,7 @@ export default function GlobalSearchModal({
                         ask(askInput);
                       }
                     }}
-                    rows={2}
+                    rows={turns.length === 0 && !stream.streaming ? 5 : 2}
                     placeholder={
                       pageContext?.entity
                         ? `Ask ${assistantName} about ${pageContext.entity.label}…`
