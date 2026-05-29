@@ -147,6 +147,17 @@ export default function GlobalSearchModal({
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [attaching, setAttaching] = useState(false);
 
+  // Auto-resize the ask textarea to fit its content (up to the CSS
+  // max-h cap, after which it scrolls). Fires on every input change
+  // and when the modal opens with a seedPrompt so long configure-
+  // workflow prompts are visible in full without manual scrolling.
+  const autoResizeAsk = useCallback(() => {
+    const ta = askInputRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = `${ta.scrollHeight}px`;
+  }, []);
+
   // Reset on every fresh open. Honor the requested initial mode and
   // seed the Ask textarea if a seedPrompt was passed in.
   useEffect(() => {
@@ -167,12 +178,13 @@ export default function GlobalSearchModal({
           // Move cursor to end so the user can either edit or just
           // press Enter to submit the suggested prompt.
           if (seedPrompt) ta.setSelectionRange(seedPrompt.length, seedPrompt.length);
+          autoResizeAsk();
         }
       } else {
         inputRef.current?.focus();
       }
     }, 0);
-  }, [open, initialMode, seedPrompt]);
+  }, [open, initialMode, seedPrompt, autoResizeAsk]);
 
   // Refocus the right input when the user toggles modes.
   useEffect(() => {
@@ -449,7 +461,7 @@ export default function GlobalSearchModal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <CreativeCard className="w-full max-w-2xl">
+      <CreativeCard className="w-full max-w-3xl">
         <div className="flex flex-col max-h-[80vh] overflow-hidden">
         {/* Mode toggle row */}
         <div className="flex items-center gap-1 px-3 pt-2.5 border-b border-[var(--rule)]">
@@ -762,14 +774,17 @@ export default function GlobalSearchModal({
                   <textarea
                     ref={askInputRef}
                     value={askInput}
-                    onChange={(e) => setAskInput(e.target.value)}
+                    onChange={(e) => {
+                      setAskInput(e.target.value);
+                      autoResizeAsk();
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" && !e.shiftKey) {
                         e.preventDefault();
                         ask(askInput);
                       }
                     }}
-                    rows={1}
+                    rows={2}
                     placeholder={
                       pageContext?.entity
                         ? `Ask ${assistantName} about ${pageContext.entity.label}…`
@@ -777,7 +792,7 @@ export default function GlobalSearchModal({
                           ? `Ask ${assistantName} about ${pageContext.title}…`
                           : `Ask ${assistantName} anything…`
                     }
-                    className="flex-1 resize-none bg-transparent text-[15px] text-[var(--ink)] placeholder:text-[var(--ink-muted)] focus:outline-none max-h-40 leading-relaxed"
+                    className="flex-1 resize-none bg-transparent text-[15px] text-[var(--ink)] placeholder:text-[var(--ink-muted)] focus:outline-none max-h-48 leading-relaxed overflow-y-auto"
                   />
                 </div>
                 <button

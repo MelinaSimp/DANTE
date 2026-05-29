@@ -989,12 +989,31 @@ export default function AskDante({
       {inExpandedMode && (
         <div className="flex items-center justify-between px-6 md:px-8 py-2 max-w-5xl mx-auto w-full">
           <span className="text-sm font-medium text-[var(--ink-subtle)]">{brand.name}</span>
-          <Link
-            href="/dante"
+          <button
+            onClick={() => {
+              // Abort any in-flight stream, clear all conversation
+              // state, and navigate back to the Dante landing. A plain
+              // <Link> to /dante doesn't work when we're already on
+              // /dante because Next.js skips the re-mount.
+              abortRef.current?.abort();
+              abortRef.current = null;
+              setTurns([]);
+              setChatId(undefined);
+              setStreamState(initialStreamState());
+              setInput("");
+              setContextContact(null);
+              setContextProject(null);
+              setEditorContent(null);
+              setAttachments([]);
+              setDeepResearch(false);
+              setWebScrape(false);
+              setRefining(null);
+              router.push("/dante");
+            }}
             className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--ink-subtle)] hover:text-[var(--ink)] transition px-2.5 py-1.5 rounded-md hover:bg-[var(--neu-hover)]"
           >
             Home
-          </Link>
+          </button>
         </div>
       )}
 
