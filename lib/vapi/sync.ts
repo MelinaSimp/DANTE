@@ -102,15 +102,29 @@ async function buildAssistantConfig(agentId: string): Promise<VapiAssistantConfi
     if (isScenario(agent.scenario)) {
       const sc = agent.scenario as any;
       const entryNode = sc.nodes?.find((n: any) => n.id === sc.entry);
-      const hoistEntry =
+      // Two entry-hoist shapes:
+      //   say   → hoist text to firstMessage, SKIP the node from the
+      //           script (otherwise the LLM repeats it on turn 1).
+      //   branch → hoist the prompt to firstMessage, KEEP the branch in
+      //           the script (the routing rules are still needed) but
+      //           mark it as "already asked" so the LLM treats the
+      //           caller's first turn as the answer, not a fresh ask.
+      const isSayEntry =
         entryNode?.type === "say" &&
         typeof entryNode.text === "string" &&
         entryNode.text.trim().length > 0;
-      if (hoistEntry) {
+      const isBranchEntry =
+        entryNode?.type === "branch" &&
+        typeof entryNode.prompt === "string" &&
+        entryNode.prompt.trim().length > 0;
+      if (isSayEntry) {
         scenarioFirstMessage = entryNode.text.trim();
+      } else if (isBranchEntry) {
+        scenarioFirstMessage = entryNode.prompt.trim();
       }
       systemPrompt = scenarioToSystemPrompt(agent.scenario, agent.name, {
-        skipEntryNode: hoistEntry,
+        skipEntryNode: isSayEntry,
+        entryAlreadyAsked: isBranchEntry,
       });
     } else {
       systemPrompt = `You are ${agent.name}. The scenario data is malformed; ask the user to retry shortly.`;

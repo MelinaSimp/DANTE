@@ -74,6 +74,15 @@ export interface ScenarioPromptOptions {
    * greeting in the script and try to repeat it on its first turn.
    */
   skipEntryNode?: boolean;
+  /**
+   * When true, the entry node is a branch whose `prompt` has been
+   * hoisted to firstMessage. We KEEP the branch in the script (the
+   * routing rules are essential for the LLM's first decision) but
+   * render it as "the caller has just been asked …" so the LLM knows
+   * the question is already on the wire and the next turn is the
+   * caller's answer — not the LLM re-asking.
+   */
+  entryAlreadyAsked?: boolean;
 }
 
 export function scenarioToSystemPrompt(
@@ -117,7 +126,16 @@ export function scenarioToSystemPrompt(
         lines.push(`Step ${stepNo} (say): "${node.text}"`);
         break;
       case "branch":
-        lines.push(`Step ${stepNo} (ask): "${node.prompt}"`);
+        if (opts.entryAlreadyAsked && node.id === scenario.entry) {
+          // Entry-branch hoisting: VAPI plays the prompt as firstMessage,
+          // the caller is responding to it right now. The LLM's first
+          // turn is the routing decision, not re-asking the question.
+          lines.push(
+            `Step ${stepNo} — the caller has just been asked at call connect: "${node.prompt}". They are responding to that question now. Route based on what they say:`
+          );
+        } else {
+          lines.push(`Step ${stepNo} (ask): "${node.prompt}"`);
+        }
         for (const b of node.branches) {
           const synonyms = splitMatchSynonyms(b.match);
           if (synonyms.length === 0) continue;
