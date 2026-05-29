@@ -45,6 +45,7 @@ import {
   Globe,
   Plus,
   ArrowUpRight,
+  Square,
 } from "lucide-react";
 import { deriveFilenameStem } from "./DocumentPanel";
 import DraftEditor from "@/components/dante/DraftEditor";
@@ -629,6 +630,27 @@ export default function AskDante({
     }
   };
 
+  const handleStop = useCallback(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setStreamState((prev) => {
+      // If we already have partial content, preserve it as a truncated
+      // assistant turn so the user can still read what was generated.
+      if (prev.finalContent) {
+        const truncatedTurn: AssistantTurn = {
+          role: "assistant",
+          content: prev.finalContent + "\n\n[stopped]",
+          trace: prev.trace,
+          followups: [],
+          citationReport: null,
+          grounding: null,
+        };
+        setTurns((t) => [...t, truncatedTurn]);
+      }
+      return initialStreamState();
+    });
+  }, []);
+
   const onCustomize = async () => {
     const text = input.trim();
     if (!text || refining) return;
@@ -810,6 +832,7 @@ export default function AskDante({
                 setInput={setInput}
                 onKeyDown={onKeyDown}
                 submit={() => submit()}
+                onStop={handleStop}
                 streaming={streamState.streaming}
                 deepResearch={deepResearch}
                 setDeepResearch={setDeepResearch}
@@ -1025,6 +1048,7 @@ export default function AskDante({
                 setInput={setInput}
                 onKeyDown={onKeyDown}
                 submit={() => submit()}
+                onStop={handleStop}
                 streaming={streamState.streaming}
                 deepResearch={deepResearch}
                 setDeepResearch={setDeepResearch}
@@ -1071,6 +1095,7 @@ interface InputBarProps {
   setInput: (v: string) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   submit: () => void;
+  onStop?: () => void;
   streaming: boolean;
   deepResearch: boolean;
   setDeepResearch: (v: boolean | ((prev: boolean) => boolean)) => void;
@@ -1119,18 +1144,24 @@ function InputBar(p: InputBarProps) {
           />
         </div>
         <div className="flex items-center justify-end p-2.5">
-          <button
-            onClick={p.submit}
-            disabled={!p.input.trim() || p.streaming}
-            className="relative bg-gradient-to-b from-neutral-700 to-black text-white rounded-[10px] h-8 w-8 flex items-center justify-center disabled:from-neutral-600 disabled:to-black disabled:opacity-40 backdrop-blur-xl border border-white/30 active:enabled:scale-95 transition-all duration-150"
-            title="Send (Cmd+Enter)"
-          >
-            {p.streaming ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
+          {p.streaming ? (
+            <button
+              onClick={p.onStop}
+              className="relative bg-gradient-to-b from-red-700 to-red-900 text-white rounded-[10px] h-8 w-8 flex items-center justify-center backdrop-blur-xl border border-white/30 active:scale-95 transition-all duration-150"
+              title="Stop generating"
+            >
+              <Square className="w-3 h-3" fill="currentColor" />
+            </button>
+          ) : (
+            <button
+              onClick={p.submit}
+              disabled={!p.input.trim()}
+              className="relative bg-gradient-to-b from-neutral-700 to-black text-white rounded-[10px] h-8 w-8 flex items-center justify-center disabled:from-neutral-600 disabled:to-black disabled:opacity-40 backdrop-blur-xl border border-white/30 active:enabled:scale-95 transition-all duration-150"
+              title="Send (Cmd+Enter)"
+            >
               <Send className="w-3.5 h-3.5" strokeWidth={2} />
-            )}
-          </button>
+            </button>
+          )}
         </div>
       </div>
     );
@@ -1230,18 +1261,24 @@ function InputBar(p: InputBarProps) {
           />
         </div>
 
-        <button
-          onClick={p.submit}
-          disabled={!p.input.trim() || p.streaming}
-          className="relative bg-gradient-to-b from-neutral-700 to-black text-white rounded-[10px] h-8 w-8 flex items-center justify-center disabled:from-neutral-600 disabled:to-black disabled:opacity-40 backdrop-blur-xl border border-white/30 active:enabled:scale-95 transition-all duration-150"
-          title="Send (Cmd+Enter)"
-        >
-          {p.streaming ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
+        {p.streaming ? (
+          <button
+            onClick={p.onStop}
+            className="relative bg-gradient-to-b from-red-700 to-red-900 text-white rounded-[10px] h-8 w-8 flex items-center justify-center backdrop-blur-xl border border-white/30 active:scale-95 transition-all duration-150"
+            title="Stop generating"
+          >
+            <Square className="w-3 h-3" fill="currentColor" />
+          </button>
+        ) : (
+          <button
+            onClick={p.submit}
+            disabled={!p.input.trim()}
+            className="relative bg-gradient-to-b from-neutral-700 to-black text-white rounded-[10px] h-8 w-8 flex items-center justify-center disabled:from-neutral-600 disabled:to-black disabled:opacity-40 backdrop-blur-xl border border-white/30 active:enabled:scale-95 transition-all duration-150"
+            title="Send (Cmd+Enter)"
+          >
             <Send className="w-3.5 h-3.5" strokeWidth={2} />
-          )}
-        </button>
+          </button>
+        )}
       </div>
 
       {p.promptsOpen && (
