@@ -1017,6 +1017,7 @@ export default function AskDante({
             {streamState.needsInput && !streamState.streaming && (
               <NeedsInputCard
                 state={streamState.needsInput}
+                chatId={chatId}
                 onSubmit={(values) => {
                   // Build a natural-language message that Dante can parse
                   // to set secrets and re-run the workflow.
@@ -1115,16 +1116,40 @@ export default function AskDante({
 function NeedsInputCard({
   state,
   onSubmit,
+  chatId,
 }: {
   state: NeedsInputState;
   onSubmit: (values: Record<string, string>) => void;
+  chatId?: string;
 }) {
   const [values, setValues] = useState<Record<string, string>>({});
+  const [nudgeSent, setNudgeSent] = useState(false);
+  const submittedRef = useRef(false);
+
+  // 5-minute idle nudge: if the user doesn't fill the card in time,
+  // send them an SMS / email so they know Dante needs input.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (submittedRef.current || nudgeSent) return;
+      setNudgeSent(true);
+      fetch("/api/dante/nudge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: state.question,
+          workflow_name: state.workflow_name || "a workflow",
+          chat_id: chatId,
+        }),
+      }).catch(() => {});
+    }, 5 * 60 * 1000); // 5 minutes
+    return () => clearTimeout(timer);
+  }, [state.question, state.workflow_name, chatId, nudgeSent]);
 
   const allFilled = state.fields.every((f) => (values[f.key] || "").trim());
 
   const handleSubmit = () => {
     if (!allFilled) return;
+    submittedRef.current = true;
     onSubmit(values);
   };
 
