@@ -53,6 +53,7 @@ import { useAssistantBrand } from "@/components/dante/AssistantNameProvider";
 import {
   consumeAgentStream,
   type StreamState,
+  type NeedsInputState,
   initialStreamState,
 } from "./streamClient";
 import {
@@ -1013,6 +1014,24 @@ export default function AskDante({
               <LiveThinking state={streamState} deep={deepResearch} />
             )}
 
+            {streamState.needsInput && !streamState.streaming && (
+              <NeedsInputCard
+                state={streamState.needsInput}
+                onSubmit={(values) => {
+                  // Build a natural-language message that Dante can parse
+                  // to set secrets and re-run the workflow.
+                  const lines = Object.entries(values)
+                    .map(([k, v]) => `${k}: ${v}`)
+                    .join("\n");
+                  const msg = streamState.needsInput?.workflow_name
+                    ? `Set these values and run "${streamState.needsInput.workflow_name}":\n${lines}`
+                    : `Set these values:\n${lines}`;
+                  setStreamState((prev) => ({ ...prev, needsInput: null }));
+                  submit(msg);
+                }}
+              />
+            )}
+
             {streamState.error && (
               <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 flex items-center justify-between gap-3">
                 <span>Something went wrong. Please try again.</span>
@@ -1084,6 +1103,64 @@ export default function AskDante({
           onClose={() => setEditorContent(null)}
         />
       )}
+    </div>
+  );
+}
+
+// ── Needs-input card ────────────────────────────────────────────
+// Inline form card rendered when a tool (typically workflow.run)
+// needs configuration values from the user. Submits as a follow-up
+// chat message so Dante can call secrets.set for each field.
+
+function NeedsInputCard({
+  state,
+  onSubmit,
+}: {
+  state: NeedsInputState;
+  onSubmit: (values: Record<string, string>) => void;
+}) {
+  const [values, setValues] = useState<Record<string, string>>({});
+
+  const allFilled = state.fields.every((f) => (values[f.key] || "").trim());
+
+  const handleSubmit = () => {
+    if (!allFilled) return;
+    onSubmit(values);
+  };
+
+  return (
+    <div className="rounded-xl border border-[var(--rule)] bg-[var(--neu-card)] p-5 max-w-lg">
+      <p className="text-sm font-medium text-[var(--ink)] mb-4">
+        {state.question}
+      </p>
+      <div className="space-y-3">
+        {state.fields.map((f) => (
+          <div key={f.key}>
+            <label className="block text-xs font-medium text-[var(--ink-muted)] mb-1">
+              {f.label}
+            </label>
+            <input
+              type="text"
+              placeholder={f.placeholder || ""}
+              value={values[f.key] || ""}
+              onChange={(e) =>
+                setValues((prev) => ({ ...prev, [f.key]: e.target.value }))
+              }
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && allFilled) handleSubmit();
+              }}
+              className="w-full rounded-lg border border-[var(--rule)] bg-transparent px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] outline-none focus:border-[var(--ink-muted)] transition-colors"
+            />
+          </div>
+        ))}
+      </div>
+      <button
+        onClick={handleSubmit}
+        disabled={!allFilled}
+        className="mt-4 px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-b from-neutral-700 to-black text-white disabled:opacity-40 active:enabled:scale-[0.98] transition-all"
+      >
+        Configure and run
+      </button>
     </div>
   );
 }

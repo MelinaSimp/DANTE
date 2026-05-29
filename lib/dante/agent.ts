@@ -1297,6 +1297,9 @@ interface AgentToolCtx {
   /** Stashed copy of model finalText before dashboard rewrite, so
    *  buildVoidDashboard can extract tenant names from the prose. */
   _finalTextForTenantExtraction?: string;
+  /** Optional event emitter — tools can push SSE events to the client
+   *  (e.g. needs_input for configuration prompts). */
+  onEvent?: (event: Record<string, unknown>) => void | Promise<void>;
 }
 
 /** Minimal shape of survey_area output needed for brand validation. */
@@ -2113,6 +2116,32 @@ async function dispatchTool(
         const currentSecrets = await loadWorkspaceSecrets(ctx.workspaceId);
         const missing = secretRefs.filter((k) => !currentSecrets[k]);
         if (missing.length > 0) {
+          // Human-readable labels + placeholders for common secret keys
+          const SECRET_LABELS: Record<string, { label: string; placeholder: string }> = {
+            broker_email: { label: "Delivery email", placeholder: "you@company.com" },
+            corridor_anchors: { label: "Corridor anchor points", placeholder: "e.g. US-30 & Rte 42, Medina OH; I-71 & Rte 18" },
+            target_use: { label: "Target use", placeholder: "e.g. retail strip center, medical office, industrial" },
+            target_zoning: { label: "Target zoning", placeholder: "e.g. C-2, I-1, mixed-use" },
+            acreage_min: { label: "Minimum acreage", placeholder: "e.g. 1" },
+            acreage_max: { label: "Maximum acreage", placeholder: "e.g. 10" },
+          };
+          const fields = missing.map((k) => ({
+            key: k,
+            label: SECRET_LABELS[k]?.label || k.replace(/_/g, " "),
+            placeholder: SECRET_LABELS[k]?.placeholder || "",
+          }));
+
+          // Emit a needs_input event so the client renders an inline
+          // configuration card instead of just showing an error message.
+          if (ctx.onEvent) {
+            ctx.onEvent({
+              type: "needs_input",
+              question: `"${match.name}" needs ${missing.length} value${missing.length === 1 ? "" : "s"} before it can run.`,
+              fields,
+              workflow_name: match.name,
+            });
+          }
+
           return {
             error: `workflow.run: workflow "${match.name}" requires ${missing.length} secret(s) ` +
               `that are not configured: ${missing.join(", ")}. ` +
@@ -3535,6 +3564,9 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       "document.list_templates": 0,
       "document.save_template": 0,
     },
+    onEvent: input.onEvent ? async (event) => {
+      try { await input.onEvent!(event as any); } catch { /* non-fatal */ }
+    } : undefined,
   };
 
   let stepIdx = 0;

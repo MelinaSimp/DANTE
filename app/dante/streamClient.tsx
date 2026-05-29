@@ -79,6 +79,22 @@ export interface DocumentArtifact {
   section_count: number;
 }
 
+/** Structured input request — emitted when a workflow or tool needs
+ *  configuration values from the user before it can proceed. Rendered
+ *  as an inline form card in the chat. */
+export interface NeedsInputField {
+  key: string;
+  label: string;
+  placeholder?: string;
+}
+export interface NeedsInputState {
+  question: string;
+  fields: NeedsInputField[];
+  /** When set, the card's submit handler re-runs this workflow after
+   *  setting the secrets. */
+  workflow_name?: string;
+}
+
 export interface StreamState {
   streaming: boolean;
   events: StreamEvent[];
@@ -95,6 +111,8 @@ export interface StreamState {
   /** Documents generated during this turn. Extracted from tool_end
    *  events for document_create and document_edit. */
   documents: DocumentArtifact[];
+  /** Structured input request from a tool that needs configuration. */
+  needsInput?: NeedsInputState | null;
   chatId?: string;
   messageId?: string;
   error?: string;
@@ -322,6 +340,24 @@ function reduce(state: StreamState, raw: unknown): StreamState {
         return state;
       }
       return { ...state, grounding: g };
+    }
+
+    case "needs_input": {
+      const ni = ev as unknown as {
+        type: "needs_input";
+        question: string;
+        fields: NeedsInputField[];
+        workflow_name?: string;
+      };
+      if (!ni.question || !Array.isArray(ni.fields)) return state;
+      return {
+        ...state,
+        needsInput: {
+          question: ni.question,
+          fields: ni.fields,
+          workflow_name: ni.workflow_name,
+        },
+      };
     }
 
     case "error":
