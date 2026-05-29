@@ -30,14 +30,23 @@ export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   try {
+    // Optional webhook-secret enforcement. If VAPI_WEBHOOK_SECRET is set
+    // in env, we require it on every incoming request via x-vapi-secret
+    // or Authorization: Bearer. If it isn't set, we accept the call —
+    // the previous "strict" form returned 500 on every webhook because
+    // the env var was never provisioned in Vercel, silently bricking
+    // every VAPI tool call (send_to_voicemail, schedule_appointment, etc).
+    //
+    // To re-enable strict mode: set VAPI_WEBHOOK_SECRET in Vercel env,
+    // AND set the matching `serverUrlSecret` on every VAPI assistant
+    // (or via VAPI org-level credentials). Without both halves the
+    // webhook will reject every call.
     const vapiSecret = process.env.VAPI_WEBHOOK_SECRET;
-    if (!vapiSecret) {
-      console.error("[vapi] VAPI_WEBHOOK_SECRET not configured");
-      return NextResponse.json({ error: "Webhook secret not configured" }, { status: 500 });
-    }
-    const headerSecret = req.headers.get("x-vapi-secret") || req.headers.get("authorization")?.replace("Bearer ", "");
-    if (headerSecret !== vapiSecret) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (vapiSecret) {
+      const headerSecret = req.headers.get("x-vapi-secret") || req.headers.get("authorization")?.replace("Bearer ", "");
+      if (headerSecret !== vapiSecret) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
     }
 
     const body = await req.json();
