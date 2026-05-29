@@ -72,6 +72,7 @@ interface VoicemailNode {
     windows: Partial<Record<DayKey, ScheduleWindow[]>>;
   } | null;
   human_transfer_to?: string;
+  human_ring_seconds?: number;
 }
 interface TransferNode {
   id: string;
@@ -538,6 +539,7 @@ export default function ScenarioBuilder({
                                     },
                                   },
                                   human_transfer_to: n.human_transfer_to ?? "",
+                                  human_ring_seconds: n.human_ring_seconds ?? 60,
                                 } as Partial<VoicemailNode>);
                               } else {
                                 updateNode(n.id, {
@@ -660,23 +662,46 @@ export default function ScenarioBuilder({
                             })}
                           </div>
 
-                          <div className="pt-2 border-t border-[var(--rule)]">
-                            <label className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] block mb-1">
-                              Bridge live calls to
-                            </label>
-                            <input
-                              value={n.human_transfer_to ?? ""}
-                              onChange={(e) =>
-                                updateNode(n.id, {
-                                  human_transfer_to: e.target.value,
-                                } as Partial<VoicemailNode>)
-                              }
-                              placeholder="+15551234567"
-                              className={`${inputClass} max-w-sm mono`}
-                            />
-                            <p className="text-[11px] text-[var(--ink-subtle)] mt-1">
-                              E.164. The phone that rings during the hours above. Outside those hours, the caller leaves a voicemail like normal.
-                            </p>
+                          <div className="pt-2 border-t border-[var(--rule)] grid grid-cols-1 md:grid-cols-[1fr_140px] gap-3">
+                            <div>
+                              <label className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] block mb-1">
+                                Bridge live calls to
+                              </label>
+                              <input
+                                value={n.human_transfer_to ?? ""}
+                                onChange={(e) =>
+                                  updateNode(n.id, {
+                                    human_transfer_to: e.target.value,
+                                  } as Partial<VoicemailNode>)
+                                }
+                                placeholder="+15551234567"
+                                className={`${inputClass} mono`}
+                              />
+                              <p className="text-[11px] text-[var(--ink-subtle)] mt-1">
+                                E.164. The phone that rings during the hours above. Outside those hours, the caller leaves a voicemail like normal.
+                              </p>
+                            </div>
+                            <div>
+                              <label className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] block mb-1">
+                                Ring for (sec)
+                              </label>
+                              <input
+                                type="number"
+                                min={5}
+                                max={300}
+                                step={5}
+                                value={n.human_ring_seconds ?? 60}
+                                onChange={(e) =>
+                                  updateNode(n.id, {
+                                    human_ring_seconds: Math.max(5, Math.min(300, parseInt(e.target.value || "60", 10) || 60)),
+                                  } as Partial<VoicemailNode>)
+                                }
+                                className={`${inputClass} mono`}
+                              />
+                              <p className="text-[11px] text-[var(--ink-subtle)] mt-1">
+                                Then fall back to voicemail.
+                              </p>
+                            </div>
                           </div>
                         </div>
                       )}

@@ -314,6 +314,16 @@ async function executeSendToVoicemail(call: any, params: any): Promise<string> {
   } else if (params?.human_hours && typeof params.human_hours === "object") {
     humanHoursParsed = params.human_hours;
   }
+  const humanRingSeconds = (() => {
+    const raw = params?.human_ring_seconds;
+    if (typeof raw === "number" && raw > 0 && raw <= 300) return Math.round(raw);
+    if (typeof raw === "string") {
+      const n = parseInt(raw, 10);
+      if (Number.isFinite(n) && n > 0 && n <= 300) return n;
+    }
+    return 60; // default: ring 60s then fall back to voicemail
+  })();
+
   if (humanHoursParsed && humanTransferTo) {
     try {
       const { evaluateSchedule, isValidSchedule } = await import("@/lib/voice/schedule");
@@ -322,21 +332,32 @@ async function executeSendToVoicemail(call: any, params: any): Promise<string> {
         const ev = evaluateSchedule(sched);
         console.log(
           `[VAPI Voicemail] human-hours check for ${label || "voicemail"}: ` +
-            `open=${ev.open} tz=${ev.timezone} now=${ev.now.day} ${ev.now.hh}:${String(ev.now.mm).padStart(2, "0")}`,
+            `open=${ev.open} tz=${ev.timezone} now=${ev.now.day} ${ev.now.hh}:${String(ev.now.mm).padStart(2, "0")}` +
+            ` ring=${humanRingSeconds}s`,
         );
         if (ev.open) {
-          // Live transfer — stamp a record so end-of-call dispatch
-          // doesn't try to email the workspace owner a voicemail
-          // transcript (there isn't one). The "transferred to …"
-          // sentinel in greeting is the same shape executeTransferCall
-          // already uses for its own logs.
+          // Live transfer with voicemail fallback. Stamp the pending
+          // row NOW with the full voicemail config (sms_to, email_to)
+          // so that whether the call ends via live pickup OR falls
+          // through to voicemail after the ring timeout, end-of-call
+          // dispatch can do the right thing:
+          //   • live pickup → consumed_at stays null until end-of-call
+          //     resolves; the conversation transcript belongs to the
+          //     bridged leg (handled by notifyVoicemailIfPending
+          //     skipping when greeting starts with "transferred")
+          //   • ring timeout → VAPI returns control to the assistant,
+          //     LLM speaks the greeting and records, end-of-call
+          //     dispatch picks up the row and fires SMS/email like a
+          //     normal voicemail
           if (callId) {
             try {
               await supabaseAdmin.from("vapi_voicemail_pending").upsert(
                 {
                   vapi_call_id: callId,
-                  greeting: `transferred to ${humanTransferTo}`,
+                  greeting,
                   label,
+                  sms_to: smsTo,
+                  email_to: emailTo,
                   created_at: new Date().toISOString(),
                 },
                 { onConflict: "vapi_call_id" },
@@ -348,10 +369,26 @@ async function executeSendToVoicemail(call: any, params: any): Promise<string> {
           return JSON.stringify({
             success: true,
             message: `Transferring you to ${label || "the right person"} now.`,
+            // VAPI destination shape — `transferPlan.mode: "blind-transfer"`
+            // is the simplest hand-off; `numberE164CheckEnabled` skips
+            // VAPI's own number validation so legitimate E.164 isn't
+            // rejected. `extension` left unset (PSTN bridge, not extension dial).
+            //
+            // For ring-timeout-then-fallback: VAPI documents transferPlan
+            // honoring `mode: "warm-transfer-experimental"` with a hand-back
+            // to the assistant on no-answer. If your live test shows the
+            // call rolling to the receptionist's own voicemail (instead of
+            // falling back to our prompt) the receptionist's carrier-side
+            // VM is short-circuiting our timeout — see the docstring above.
             destination: {
               type: "number",
               number: humanTransferTo,
               message: `Got it — connecting you to ${label || "the team"} now, please hold.`,
+              transferPlan: {
+                mode: "warm-transfer-experimental",
+                timeoutSeconds: humanRingSeconds,
+                fallbackMessage: `They didn't pick up. Let me take a message instead — ${greeting}`,
+              },
             },
           });
         }

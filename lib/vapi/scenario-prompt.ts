@@ -49,6 +49,10 @@ export type ScenarioNode =
       /** E.164 number to bridge to during human_hours. Empty / missing
        *  means human_hours is ignored even if set. */
       human_transfer_to?: string;
+      /** Seconds the human's phone is allowed to ring before the call
+       *  falls back to voicemail recording (with the same sms_to /
+       *  email_to routing). Defaults to 60s. */
+      human_ring_seconds?: number;
     }
   | { id: string; type: "transfer"; to_number: string };
 
@@ -185,6 +189,9 @@ export function scenarioToSystemPrompt(
         if (node.human_hours && node.human_transfer_to) {
           args.push(`human_hours=${JSON.stringify(JSON.stringify(node.human_hours))}`);
           args.push(`human_transfer_to="${escapeForPrompt(node.human_transfer_to)}"`);
+          if (typeof node.human_ring_seconds === "number" && node.human_ring_seconds > 0) {
+            args.push(`human_ring_seconds=${node.human_ring_seconds}`);
+          }
         }
         // Tool-call FIRST, then the spoken greeting. gpt-4o-mini
         // sometimes skips a "say X, then call the tool" instruction —

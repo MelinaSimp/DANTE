@@ -254,6 +254,11 @@ Keep responses short and natural for voice (1-3 sentences).`;
               description:
                 "E.164 number to bridge to when the current time is inside human_hours. Pass through verbatim. Omit if the step doesn't specify human_transfer_to.",
             },
+            human_ring_seconds: {
+              type: "number",
+              description:
+                "Seconds the human's phone is allowed to ring before the call falls back to voicemail recording. Pass through verbatim from the voicemail step. Omit if not specified.",
+            },
           },
           required: ["greeting"],
         },
