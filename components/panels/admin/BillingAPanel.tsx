@@ -22,8 +22,8 @@ export default function BillingAPanel() {
   useEffect(() => {
     fetch("/api/admin/settings", { credentials: "include" }).then(r => r.ok ? r.json() : null).then(d => {
       if (d) {
-        setConnected(!!d.stripe_connected);
-        setMaskedKey(d.stripe_key_masked || "");
+        setConnected(!!d.stripe_secret_key?.is_set && !!d.stripe_webhook_secret?.is_set);
+        setMaskedKey(d.stripe_secret_key?.masked || "");
         if (d.backend_password?.is_set) setBackendPwSet(true);
       }
     }).catch(reportError("BillingAPanel: load")).finally(() => setLoading(false));
@@ -36,7 +36,7 @@ export default function BillingAPanel() {
       if (stripeKey.trim()) body.stripe_secret_key = stripeKey.trim();
       if (webhookSecret.trim()) body.stripe_webhook_secret = webhookSecret.trim();
       const r = await fetch("/api/admin/settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify(body) });
-      if (r.ok) { setSaved(true); setTimeout(() => setSaved(false), 2000); const r2 = await fetch("/api/admin/settings", { credentials: "include" }); if (r2.ok) { const d = await r2.json(); setConnected(!!d.stripe_connected); setMaskedKey(d.stripe_key_masked || ""); } setStripeKey(""); setWebhookSecret(""); }
+      if (r.ok) { setSaved(true); setTimeout(() => setSaved(false), 2000); const r2 = await fetch("/api/admin/settings", { credentials: "include" }); if (r2.ok) { const d = await r2.json(); setConnected(!!d.stripe_secret_key?.is_set && !!d.stripe_webhook_secret?.is_set); setMaskedKey(d.stripe_secret_key?.masked || ""); } setStripeKey(""); setWebhookSecret(""); }
     } catch {} finally { setSaving(false); }
   };
 
