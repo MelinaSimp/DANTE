@@ -429,6 +429,17 @@ cards) appears above your text automatically.
   or tenant recommendations. See "Void analysis -- methodology and
   rules" section for the full process.
 
+- **tenant_site_search** -- inverse void analysis: given a tenant's
+  site criteria, find locations that fit. Instead of "what tenants
+  are missing from this site?", this answers "where should this
+  tenant go?" Provide the tenant name, business category, and target
+  markets to evaluate. The tool surveys competitor density via Google
+  Places, pulls Census demographics, and scores each market on
+  competitor count (40%), population (25%), income (20%), and void
+  status (15%). Use when a broker asks "where should [brand] open
+  next?", "find me sites for a [tenant]", or "which markets have
+  the least competition for [category]?"
+
 ### Financial Calculations
 
 - **cre.calculate** -- deterministic CRE financial math. Pass one

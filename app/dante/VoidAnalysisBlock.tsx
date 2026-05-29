@@ -37,11 +37,15 @@ import {
   Users,
   DollarSign,
   Target,
+  Download,
+  Loader2,
+  CheckCircle2,
 } from "lucide-react";
 
 // ── Data schema ──────────────────────────────────────────────────
 
 export interface VoidAnalysisData {
+  accessed_at?: string; // ISO timestamp — when source data was fetched
   site: {
     address: string;
     lat?: number;
@@ -130,8 +134,8 @@ export function parseVoidAnalysisBlock(raw: string): VoidAnalysisData | null {
 export default function VoidAnalysisBlock({ data }: { data: VoidAnalysisData }) {
   return (
     <div className="my-6 space-y-4">
-      {/* Site header + map */}
-      <SiteHeader site={data.site} demographics={data.demographics} />
+      {/* Site header + map + export */}
+      <SiteHeader site={data.site} demographics={data.demographics} data={data} />
 
       {/* Category density chart */}
       {data.categories.length > 0 && (
@@ -152,6 +156,9 @@ export default function VoidAnalysisBlock({ data }: { data: VoidAnalysisData }) 
       {data.competitive_supply && data.competitive_supply.length > 0 && (
         <CompetitiveSupply supply={data.competitive_supply} />
       )}
+
+      {/* Data freshness footer */}
+      {data.accessed_at && <DataFreshnessFooter accessedAt={data.accessed_at} />}
     </div>
   );
 }
@@ -161,13 +168,50 @@ export default function VoidAnalysisBlock({ data }: { data: VoidAnalysisData }) 
 function SiteHeader({
   site,
   demographics,
+  data,
 }: {
   site: VoidAnalysisData["site"];
   demographics?: VoidAnalysisData["demographics"];
+  data: VoidAnalysisData;
 }) {
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
   const q = encodeURIComponent(site.address);
   const z = 14; // Trade area overview zoom
   const src = `https://www.google.com/maps?q=${q}&z=${z}&output=embed`;
+
+  const handleExport = async () => {
+    setExporting(true);
+    setExportError(null);
+    try {
+      const res = await fetch("/api/export/void-analysis", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data }),
+      });
+      if (!res.ok) {
+        throw new Error(`Export failed (${res.status})`);
+      }
+      const blob = await res.blob();
+      const slug = site.address
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "");
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `void-analysis-${slug}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setExportError(err?.message || "Export failed");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <div className="rounded-lg border border-[var(--rule)] overflow-hidden bg-[var(--surface,#fff)]">
@@ -205,12 +249,28 @@ function SiteHeader({
           <div className="absolute w-3 h-3 rounded-full bg-[var(--ink)] animate-pulse-slow" />
         </div>
 
-        {/* Address chip */}
-        <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-white/90 backdrop-blur-sm border border-black/[0.06] shadow-sm">
-          <MapPin className="w-3 h-3 text-[var(--ink-muted)]" strokeWidth={1.5} />
-          <span className="text-[11px] font-medium text-[var(--ink)] max-w-[280px] truncate">
-            {site.address}
-          </span>
+        {/* Address chip + export button */}
+        <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-white/90 backdrop-blur-sm border border-black/[0.06] shadow-sm">
+            <MapPin className="w-3 h-3 text-[var(--ink-muted)]" strokeWidth={1.5} />
+            <span className="text-[11px] font-medium text-[var(--ink)] max-w-[280px] truncate">
+              {site.address}
+            </span>
+          </div>
+          <button
+            onClick={handleExport}
+            disabled={exporting}
+            title={exportError || "Export to Excel"}
+            className="flex items-center justify-center w-7 h-7 rounded-md bg-white/90 backdrop-blur-sm border border-black/[0.06] shadow-sm hover:bg-white transition-colors disabled:opacity-60"
+          >
+            {exporting ? (
+              <Loader2 className="w-3.5 h-3.5 text-[var(--ink-muted)] animate-spin" strokeWidth={1.5} />
+            ) : exportError ? (
+              <Download className="w-3.5 h-3.5 text-red-500" strokeWidth={1.5} />
+            ) : (
+              <Download className="w-3.5 h-3.5 text-[var(--ink-muted)]" strokeWidth={1.5} />
+            )}
+          </button>
         </div>
 
         {/* Zoning + acreage chip */}
@@ -431,11 +491,26 @@ function CategoryDensityChart({
 // ── Void cards ──────────────────────────────────────────────────
 
 function VoidCardsSection({ voids }: { voids: VoidAnalysisData["voids"] }) {
+  // Aggregate tenant verification counts across all voids
+  const tenantStats = useMemo(() => {
+    let total = 0;
+    let verified = 0;
+    for (const v of voids) {
+      if (v.recommended_tenants) {
+        for (const t of v.recommended_tenants) {
+          total++;
+          if (t.verified_absent) verified++;
+        }
+      }
+    }
+    return { total, verified };
+  }, [voids]);
+
   return (
     <section className="rounded-lg border border-[var(--rule)] overflow-hidden bg-[var(--surface,#fff)]">
       <header className="flex items-center gap-2 px-5 py-3 border-b border-[var(--rule)] bg-[var(--canvas-subtle,rgba(0,0,0,0.025))]">
         <AlertTriangle className="w-4 h-4 text-[var(--ink-muted)]" strokeWidth={1.5} />
-        <div>
+        <div className="flex-1 min-w-0">
           <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)]">
             Confirmed Gaps
           </div>
@@ -443,6 +518,14 @@ function VoidCardsSection({ voids }: { voids: VoidAnalysisData["voids"] }) {
             {voids.length} Void{voids.length !== 1 ? "s" : ""} Identified
           </div>
         </div>
+        {tenantStats.total > 0 && (
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[var(--canvas-subtle,rgba(0,0,0,0.02))] border border-[var(--rule)]/50">
+            <CheckCircle2 className="w-3 h-3 text-[var(--ink-muted)]" strokeWidth={1.5} />
+            <span className="text-[10px] text-[var(--ink-muted)] whitespace-nowrap">
+              {tenantStats.verified} of {tenantStats.total} tenant candidate{tenantStats.total !== 1 ? "s" : ""} verified absent
+            </span>
+          </div>
+        )}
       </header>
 
       <div className="divide-y divide-[var(--rule)]">
@@ -464,6 +547,14 @@ function VoidCard({ void_ }: { void_: VoidAnalysisData["voids"][0] }) {
   }[void_.opportunity_level] || "text-gray-600 bg-gray-100";
 
   const hasTenants = void_.recommended_tenants && void_.recommended_tenants.length > 0;
+
+  // Per-card tenant verification summary
+  const cardVerification = useMemo(() => {
+    if (!hasTenants) return null;
+    const total = void_.recommended_tenants!.length;
+    const verified = void_.recommended_tenants!.filter((t) => t.verified_absent).length;
+    return { total, verified };
+  }, [void_.recommended_tenants, hasTenants]);
 
   // Opportunity description based on level + category
   const opportunityDesc = {
@@ -496,6 +587,12 @@ function VoidCard({ void_ }: { void_: VoidAnalysisData["voids"][0] }) {
             {void_.count_3mi != null && (
               <span className="text-[11px] text-[var(--ink-muted)]">
                 ({void_.count_3mi} within 3mi)
+              </span>
+            )}
+            {cardVerification && (
+              <span className="text-[10px] text-[var(--ink-muted)] flex items-center gap-1 ml-auto flex-shrink-0">
+                <CheckCircle2 className="w-3 h-3" strokeWidth={1.5} />
+                {cardVerification.verified}/{cardVerification.total} verified
               </span>
             )}
           </div>
@@ -671,6 +768,34 @@ function RentCompChart({ comps }: { comps: NonNullable<VoidAnalysisData["rent_co
         </ResponsiveContainer>
       </div>
     </section>
+  );
+}
+
+// ── Data freshness footer ──────────────────────────────────────
+
+function DataFreshnessFooter({ accessedAt }: { accessedAt: string }) {
+  const formatted = useMemo(() => {
+    try {
+      const d = new Date(accessedAt);
+      if (isNaN(d.getTime())) return null;
+      return d.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    } catch {
+      return null;
+    }
+  }, [accessedAt]);
+
+  if (!formatted) return null;
+
+  return (
+    <div className="px-4 py-2 rounded-md border border-[var(--rule)]/50 bg-[var(--canvas-subtle,rgba(0,0,0,0.015))]">
+      <span className="text-[10px] text-[var(--ink-subtle)]">
+        Data sourced {formatted} via Google Places API + county GIS
+      </span>
+    </div>
   );
 }
 

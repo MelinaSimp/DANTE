@@ -48,6 +48,7 @@ import {
   handleSiteScanVoidAnalysis,
   handleSurveyArea,
 } from "@/lib/site-scan/tools";
+import { handleTenantSiteSearch } from "@/lib/dante/tools/tenant-site-search";
 import { calculateCre, AVAILABLE_METRICS } from "@/lib/dante/calculators/cre";
 import { getWorkspaceModel } from "@/lib/dante/model";
 import { complete as llmComplete } from "@/lib/llm/client";
@@ -1088,6 +1089,82 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
       },
     },
   },
+  "tenant_site_search": {
+    type: "function",
+    function: {
+      name: "tenant_site_search",
+      description:
+        "Search for locations that match a tenant's site criteria. Inverse of " +
+        "void analysis -- instead of finding tenants for a site, finds sites " +
+        "for a tenant. Provide the tenant name, business category, and one or " +
+        "more target markets. The tool geocodes each market, surveys competitor " +
+        "density using Google Places API, pulls Census demographics, and scores " +
+        "each location against the criteria. Returns ranked matches with " +
+        "competitor counts, population estimates, median household income, and " +
+        "category status (void / underserved / adequate / saturated). Use this " +
+        "when a broker asks 'where should [tenant] open next?', 'find me sites " +
+        "for a Chipotle', or 'which of these markets has the least competition " +
+        "for [category]?'",
+      parameters: {
+        type: "object",
+        properties: {
+          tenant_name: {
+            type: "string",
+            description:
+              "Tenant or brand name (e.g. 'Chipotle', 'CVS Pharmacy', 'Planet Fitness').",
+          },
+          category: {
+            type: "string",
+            description:
+              "Business category (e.g. 'Fast Casual', 'Pharmacy', 'Coffee', " +
+              "'Grocery', 'Fitness', 'Medical', 'Retail').",
+          },
+          min_population_3mi: {
+            type: "number",
+            description:
+              "Minimum estimated population within 3 miles of the site.",
+          },
+          max_competitors_3mi: {
+            type: "number",
+            description:
+              "Maximum number of same-category businesses within 3 miles.",
+          },
+          min_median_hhi: {
+            type: "number",
+            description:
+              "Minimum median household income in the surrounding census tract.",
+          },
+          max_rent_psf: {
+            type: "number",
+            description:
+              "Maximum rent per square foot per year (for filtering; not scored).",
+          },
+          min_sf: {
+            type: "number",
+            description: "Minimum square footage the tenant needs.",
+          },
+          max_sf: {
+            type: "number",
+            description: "Maximum square footage the tenant needs.",
+          },
+          target_markets: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "Markets to evaluate (e.g. ['Austin, TX', 'Dallas, TX', " +
+              "'San Antonio, TX']). Max 10 per search.",
+          },
+          require_void: {
+            type: "boolean",
+            description:
+              "If true, only return locations where the category is a void " +
+              "or underserved (0-2 competitors within 3 miles).",
+          },
+        },
+        required: ["tenant_name", "category", "target_markets"],
+      },
+    },
+  },
 };
 
 // Inverse map: function-name string → AgentToolName. The OpenAI API
@@ -1123,6 +1200,7 @@ const NAME_TO_TOOL: Record<string, AgentToolName> = {
   site_scan_listings: "site_scan.listings",
   site_scan_void_analysis: "site_scan.void_analysis",
   survey_area: "survey_area",
+  tenant_site_search: "tenant_site_search",
   web_search: "web.search",
   cre_calculate: "cre.calculate",
   document_create: "document.create",
@@ -1223,6 +1301,7 @@ const PER_TOOL_BUDGET: Partial<Record<AgentToolName, number>> = {
   "site_scan.listings": 3,
   "site_scan.void_analysis": 3,
   "survey_area": 3,
+  "tenant_site_search": 3,
   "web.search": 10,
   "cre.calculate": 10, // cheap (pure math), but cap to prevent runaway loops
   "document.create": 5,  // each creates a file in storage + vault row; 5 is generous
@@ -2567,6 +2646,42 @@ async function dispatchTool(
       );
     }
 
+    case "tenant_site_search": {
+      return JSON.parse(
+        await handleTenantSiteSearch(
+          {
+            tenant_name: String(args.tenant_name || ""),
+            category: String(args.category || ""),
+            min_population_3mi: args.min_population_3mi
+              ? Number(args.min_population_3mi)
+              : undefined,
+            max_competitors_3mi: args.max_competitors_3mi != null
+              ? Number(args.max_competitors_3mi)
+              : undefined,
+            min_median_hhi: args.min_median_hhi
+              ? Number(args.min_median_hhi)
+              : undefined,
+            max_rent_psf: args.max_rent_psf
+              ? Number(args.max_rent_psf)
+              : undefined,
+            min_sf: args.min_sf
+              ? Number(args.min_sf)
+              : undefined,
+            max_sf: args.max_sf
+              ? Number(args.max_sf)
+              : undefined,
+            target_markets: Array.isArray(args.target_markets)
+              ? (args.target_markets as string[])
+              : undefined,
+            require_void: args.require_void != null
+              ? Boolean(args.require_void)
+              : undefined,
+          },
+          ctx.workspaceId,
+        ),
+      );
+    }
+
     case "web.search": {
       const query = String(args.query || "");
       if (!query) return JSON.stringify({ error: "query is required" });
@@ -3086,6 +3201,7 @@ function buildVoidDashboard(ctx: AgentToolCtx): Record<string, unknown> | null {
     voids,
     ...(rentComps && { rent_comps: rentComps }),
     ...(competitiveSupply.length > 0 && { competitive_supply: competitiveSupply }),
+    accessed_at: new Date().toISOString(),
   };
 }
 
@@ -3275,6 +3391,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       "site_scan.listings": 0,
       "site_scan.void_analysis": 0,
       "survey_area": 0,
+      "tenant_site_search": 0,
       "web.search": 0,
       "cre.calculate": 0,
       "document.create": 0,
