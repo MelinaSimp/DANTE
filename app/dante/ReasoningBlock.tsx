@@ -126,7 +126,11 @@ export function parseReasoningBlock(raw: string): ReasoningBlockData | null {
   }
   if (typeof obj.title !== "string") return null;
   if (!Array.isArray(obj.steps)) return null;
-  return obj as ReasoningBlockData;
+  // Runtime narrowing above (kind / title / steps checks) has confirmed
+  // the shape, but TS sees `obj` as Record<string, unknown> so the
+  // direct cast trips error TS2352. Route through `unknown` to assert
+  // the narrowed shape — this is the standard pattern.
+  return obj as unknown as ReasoningBlockData;
 }
 
 export default function ReasoningBlock({ data }: { data: ReasoningBlockData }) {
