@@ -23,6 +23,23 @@ import {
 
 type NodeType = "say" | "branch" | "voicemail" | "transfer";
 
+// Mirrors lib/voice/schedule.ts shape. Kept local so this client
+// component doesn't pull the server module (which reads process.env).
+type DayKey = "sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat";
+interface ScheduleWindow {
+  start: string;
+  end: string;
+}
+const SCENARIO_DAY_KEYS: { key: DayKey; label: string }[] = [
+  { key: "mon", label: "Mon" },
+  { key: "tue", label: "Tue" },
+  { key: "wed", label: "Wed" },
+  { key: "thu", label: "Thu" },
+  { key: "fri", label: "Fri" },
+  { key: "sat", label: "Sat" },
+  { key: "sun", label: "Sun" },
+];
+
 interface SayNode {
   id: string;
   type: "say";
@@ -46,6 +63,15 @@ interface VoicemailNode {
   label?: string;
   sms_to?: string;
   email_to?: string;
+  // Per-step "live transfer during these hours" — when configured,
+  // calls that reach this voicemail step inside any of the windows
+  // get bridged to human_transfer_to instead of recording. Outside
+  // the windows the step behaves like a normal voicemail.
+  human_hours?: {
+    timezone?: string;
+    windows: Partial<Record<DayKey, ScheduleWindow[]>>;
+  } | null;
+  human_transfer_to?: string;
 }
 interface TransferNode {
   id: string;
@@ -394,16 +420,20 @@ export default function ScenarioBuilder({
                       // Split here so the UI can manage N inputs; rejoin
                       // on every change. Empty array shows one blank row
                       // so the user always has somewhere to type.
-                      const numbers = (n.sms_to ?? "")
-                        .split(",")
-                        .map((s) => s.trim())
-                        .filter((_, i, arr) => arr.length === 1 || _.length > 0);
-                      const display = numbers.length === 0 ? [""] : numbers;
+                      // sms_to is stored comma-joined; we KEEP blank entries
+                      // in storage so the "+ Add number" button can add a
+                      // blank input that persists across renders. The webhook
+                      // filters blanks at parse time so empty rows don't
+                      // attempt sends.
+                      const numbers = (n.sms_to ?? "").split(",").map((s) => s.trim());
+                      const display =
+                        numbers.length === 0 || (numbers.length === 1 && !numbers[0])
+                          ? [""]
+                          : numbers;
                       const writeBack = (next: string[]) => {
-                        const cleaned = next.map((s) => s.trim()).filter(Boolean);
                         updateNode(
                           n.id,
-                          { sms_to: cleaned.join(",") } as Partial<VoicemailNode>,
+                          { sms_to: next.map((s) => s.trim()).join(",") } as Partial<VoicemailNode>,
                         );
                       };
                       return (
@@ -453,18 +483,206 @@ export default function ScenarioBuilder({
                   </div>
                   <div className="md:col-span-2">
                     <label className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] block mb-1">
-                      Override email recipient (optional)
+                      Also send transcript to (optional)
                     </label>
                     <input
                       value={n.email_to ?? ""}
                       onChange={(e) =>
                         updateNode(n.id, { email_to: e.target.value } as Partial<VoicemailNode>)
                       }
-                      placeholder="ops@example.com — leave blank to use workspace owner"
+                      placeholder="ops@example.com"
                       className={inputClass}
                     />
+                    <p className="text-[11px] text-[var(--ink-subtle)] mt-1.5">
+                      Sent in addition to the workspace owner. Leave blank to email the workspace owner only.
+                    </p>
                   </div>
                 </div>
+
+                {/* Per-step "live transfer during these hours" */}
+                {(() => {
+                  const hasHours = !!n.human_hours && !!n.human_transfer_to;
+                  const windows = n.human_hours?.windows ?? {};
+                  const tz = n.human_hours?.timezone ?? "America/New_York";
+                  const setHours = (next: NonNullable<VoicemailNode["human_hours"]>) => {
+                    updateNode(n.id, { human_hours: next } as Partial<VoicemailNode>);
+                  };
+                  return (
+                    <div className="mt-4 pt-4 border-t border-[var(--rule)]">
+                      <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+                        <div>
+                          <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] mb-0.5">
+                            Live transfer during certain hours
+                          </div>
+                          <p className="text-[11px] text-[var(--ink-subtle)] max-w-md">
+                            Optional. When the caller reaches this step during these hours, bridge the call to a person instead of recording voicemail.
+                          </p>
+                        </div>
+                        <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={hasHours}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                updateNode(n.id, {
+                                  human_hours: {
+                                    timezone: "America/New_York",
+                                    windows: {
+                                      mon: [{ start: "09:00", end: "17:00" }],
+                                      tue: [{ start: "09:00", end: "17:00" }],
+                                      wed: [{ start: "09:00", end: "17:00" }],
+                                      thu: [{ start: "09:00", end: "17:00" }],
+                                      fri: [{ start: "09:00", end: "17:00" }],
+                                      sat: [],
+                                      sun: [],
+                                    },
+                                  },
+                                  human_transfer_to: n.human_transfer_to ?? "",
+                                } as Partial<VoicemailNode>);
+                              } else {
+                                updateNode(n.id, {
+                                  human_hours: null,
+                                  human_transfer_to: "",
+                                } as Partial<VoicemailNode>);
+                              }
+                            }}
+                            className="w-4 h-4 accent-[var(--ink)]"
+                          />
+                          <span className="text-xs font-medium text-[var(--ink)]">
+                            {hasHours ? "On" : "Off"}
+                          </span>
+                        </label>
+                      </div>
+
+                      {hasHours && (
+                        <div className="space-y-3 mt-3">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <label className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)]">
+                              Timezone
+                            </label>
+                            <select
+                              value={tz}
+                              onChange={(e) =>
+                                setHours({
+                                  timezone: e.target.value,
+                                  windows,
+                                })
+                              }
+                              className={`${inputClass} max-w-xs`}
+                            >
+                              {[
+                                "America/New_York",
+                                "America/Chicago",
+                                "America/Denver",
+                                "America/Los_Angeles",
+                                "America/Phoenix",
+                                "America/Anchorage",
+                                "Pacific/Honolulu",
+                              ].map((t) => (
+                                <option key={t} value={t}>
+                                  {t}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="space-y-2">
+                            {SCENARIO_DAY_KEYS.map(({ key, label }) => {
+                              const dayWindows = windows[key] ?? [];
+                              return (
+                                <div
+                                  key={key}
+                                  className="grid grid-cols-[60px_1fr_auto] gap-2 items-start py-1.5"
+                                >
+                                  <div className="text-xs font-medium text-[var(--ink)] pt-2">
+                                    {label}
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    {dayWindows.length === 0 && (
+                                      <div className="text-[11px] text-[var(--ink-subtle)] italic pt-2">
+                                        No transfer
+                                      </div>
+                                    )}
+                                    {dayWindows.map((w, i) => (
+                                      <div key={i} className="flex items-center gap-1.5">
+                                        <input
+                                          type="time"
+                                          value={w.start}
+                                          onChange={(e) => {
+                                            const next = [...dayWindows];
+                                            next[i] = { ...w, start: e.target.value };
+                                            setHours({ timezone: tz, windows: { ...windows, [key]: next } });
+                                          }}
+                                          className={`${inputClass} w-28 mono`}
+                                        />
+                                        <span className="text-[11px] text-[var(--ink-subtle)]">to</span>
+                                        <input
+                                          type="time"
+                                          value={w.end}
+                                          onChange={(e) => {
+                                            const next = [...dayWindows];
+                                            next[i] = { ...w, end: e.target.value };
+                                            setHours({ timezone: tz, windows: { ...windows, [key]: next } });
+                                          }}
+                                          className={`${inputClass} w-28 mono`}
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const next = dayWindows.filter((_, j) => j !== i);
+                                            setHours({ timezone: tz, windows: { ...windows, [key]: next } });
+                                          }}
+                                          className="p-1 rounded-[4px] text-[var(--ink-subtle)] hover:text-[var(--danger)] transition"
+                                          title="Remove window"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" strokeWidth={1.5} />
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const next: ScheduleWindow[] = [
+                                        ...dayWindows,
+                                        { start: "09:00", end: "17:00" },
+                                      ];
+                                      setHours({ timezone: tz, windows: { ...windows, [key]: next } });
+                                    }}
+                                    className="inline-flex items-center gap-1 px-2 py-1 rounded-[4px] border border-[var(--rule)] hover:bg-[var(--canvas-subtle)] text-[10px] font-medium text-[var(--ink-muted)] transition mt-0.5"
+                                    title="Add window"
+                                  >
+                                    <Plus className="w-3 h-3" strokeWidth={1.5} />
+                                    Add
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          <div className="pt-2 border-t border-[var(--rule)]">
+                            <label className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] block mb-1">
+                              Bridge live calls to
+                            </label>
+                            <input
+                              value={n.human_transfer_to ?? ""}
+                              onChange={(e) =>
+                                updateNode(n.id, {
+                                  human_transfer_to: e.target.value,
+                                } as Partial<VoicemailNode>)
+                              }
+                              placeholder="+15551234567"
+                              className={`${inputClass} max-w-sm mono`}
+                            />
+                            <p className="text-[11px] text-[var(--ink-subtle)] mt-1">
+                              E.164. The phone that rings during the hours above. Outside those hours, the caller leaves a voicemail like normal.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             )}
 

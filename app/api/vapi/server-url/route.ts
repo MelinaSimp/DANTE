@@ -285,8 +285,8 @@ async function executeSendToVoicemail(call: any, params: any): Promise<string> {
       : "Please leave a message after the tone.";
 
   // Routing metadata from the voicemail node — surfaced in the
-  // notification, drives SMS dispatch when sms_to is set, overrides
-  // the default workspace-owner email when email_to is set.
+  // notification, drives SMS dispatch when sms_to is set, additive
+  // for email_to.
   const label =
     typeof params?.label === "string" && params.label.trim()
       ? params.label.trim()
@@ -296,6 +296,70 @@ async function executeSendToVoicemail(call: any, params: any): Promise<string> {
     typeof params?.email_to === "string" && params.email_to.includes("@")
       ? params.email_to.trim()
       : null;
+
+  // Per-step human-hours check. When the voicemail node has both an
+  // human_hours schedule and a human_transfer_to number, we check the
+  // current time against the schedule HERE — at tool-call time. If
+  // inside any window we return a transfer destination (VAPI bridges
+  // the call to the human) instead of arming voicemail. Outside the
+  // windows we fall through to the normal voicemail flow.
+  const humanTransferTo = normalizeE164OrNull(params?.human_transfer_to);
+  let humanHoursParsed: any = null;
+  if (typeof params?.human_hours === "string" && params.human_hours.trim()) {
+    try {
+      humanHoursParsed = JSON.parse(params.human_hours);
+    } catch (e) {
+      console.warn("[VAPI Voicemail] human_hours wasn't valid JSON:", params.human_hours);
+    }
+  } else if (params?.human_hours && typeof params.human_hours === "object") {
+    humanHoursParsed = params.human_hours;
+  }
+  if (humanHoursParsed && humanTransferTo) {
+    try {
+      const { evaluateSchedule, isValidSchedule } = await import("@/lib/voice/schedule");
+      const sched = isValidSchedule(humanHoursParsed) ? humanHoursParsed : null;
+      if (sched) {
+        const ev = evaluateSchedule(sched);
+        console.log(
+          `[VAPI Voicemail] human-hours check for ${label || "voicemail"}: ` +
+            `open=${ev.open} tz=${ev.timezone} now=${ev.now.day} ${ev.now.hh}:${String(ev.now.mm).padStart(2, "0")}`,
+        );
+        if (ev.open) {
+          // Live transfer — stamp a record so end-of-call dispatch
+          // doesn't try to email the workspace owner a voicemail
+          // transcript (there isn't one). The "transferred to …"
+          // sentinel in greeting is the same shape executeTransferCall
+          // already uses for its own logs.
+          if (callId) {
+            try {
+              await supabaseAdmin.from("vapi_voicemail_pending").upsert(
+                {
+                  vapi_call_id: callId,
+                  greeting: `transferred to ${humanTransferTo}`,
+                  label,
+                  created_at: new Date().toISOString(),
+                },
+                { onConflict: "vapi_call_id" },
+              );
+            } catch {
+              /* non-fatal */
+            }
+          }
+          return JSON.stringify({
+            success: true,
+            message: `Transferring you to ${label || "the right person"} now.`,
+            destination: {
+              type: "number",
+              number: humanTransferTo,
+              message: `Got it — connecting you to ${label || "the team"} now, please hold.`,
+            },
+          });
+        }
+      }
+    } catch (err) {
+      console.error("[VAPI Voicemail] human-hours check errored, falling through to voicemail:", err);
+    }
+  }
 
   // Stash the voicemail flag on the call's metadata via a small lookup
   // row keyed by the VAPI call id — the conversations row isn't
@@ -1456,10 +1520,17 @@ async function notifyVoicemailIfPending(args: {
       .filter((l): l is string => l !== null)
       .join("\n");
 
-    // Dispatch — SMS if configured, email always (to the override
-    // address if one was set, else the workspace owner). Both run
-    // best-effort; failure on one shouldn't block the other.
-    const targetEmail = emailToOverride || ownerEmail;
+    // Dispatch — SMS if configured, email always. email_to (when set
+    // on the voicemail node) is ADDITIVE: the transcript goes to both
+    // the workspace owner AND the configured address, deduped. Both
+    // legs run best-effort; failure on one shouldn't block the other.
+    const targetEmails = Array.from(
+      new Set(
+        [ownerEmail, emailToOverride]
+          .filter((e): e is string => !!e && e.includes("@"))
+          .map((e) => e.trim().toLowerCase()),
+      ),
+    );
 
     let smsOk = false;
     let emailOk = false;
@@ -1493,23 +1564,28 @@ async function notifyVoicemailIfPending(args: {
     }
 
     const apiKey = process.env.RESEND_API_KEY;
-    if (targetEmail && apiKey) {
+    if (targetEmails.length > 0 && apiKey) {
       try {
         const fromEmail = process.env.RESEND_FROM_EMAIL || "Drift <ops@driftai.studio>";
         const { Resend } = await import("resend");
         const resend = new Resend(apiKey);
+        // Resend's `to` accepts an array — single API call, one email
+        // with N recipients. Falls through to a per-address fan-out only
+        // if the workspace ever needs separate per-recipient links.
         await resend.emails.send({
           from: fromEmail,
-          to: targetEmail,
+          to: targetEmails,
           subject,
           text: emailBody,
         });
         emailOk = true;
-        console.log(`[VAPI Voicemail] Email sent to ${targetEmail} for ${label || "default"}`);
+        console.log(
+          `[VAPI Voicemail] Email sent to ${targetEmails.join(", ")} for ${label || "default"}`,
+        );
       } catch (emailErr) {
         console.error("[VAPI Voicemail] Email dispatch failed:", emailErr);
       }
-    } else if (!targetEmail) {
+    } else if (targetEmails.length === 0) {
       console.warn(`[VAPI Voicemail] No email recipient resolved for workspace ${args.workspaceId}`);
     } else if (!apiKey) {
       console.warn("[VAPI Voicemail] RESEND_API_KEY not set; skipping email");

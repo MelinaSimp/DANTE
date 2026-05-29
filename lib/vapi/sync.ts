@@ -242,7 +242,17 @@ Keep responses short and natural for voice (1-3 sentences).`;
             email_to: {
               type: "string",
               description:
-                "Email address that should receive the transcript. Pass through verbatim from the voicemail step. Omit if the step doesn't specify one (defaults to the workspace owner).",
+                "Additional email recipient (sent in addition to the workspace owner). Pass through verbatim from the voicemail step. Omit if the step doesn't specify one.",
+            },
+            human_hours: {
+              type: "string",
+              description:
+                "JSON-encoded schedule for 'live transfer during certain hours'. Pass through verbatim from the voicemail step exactly as shown. The webhook does the time check server-side. Omit if the step doesn't specify human_hours.",
+            },
+            human_transfer_to: {
+              type: "string",
+              description:
+                "E.164 number to bridge to when the current time is inside human_hours. Pass through verbatim. Omit if the step doesn't specify human_transfer_to.",
             },
           },
           required: ["greeting"],

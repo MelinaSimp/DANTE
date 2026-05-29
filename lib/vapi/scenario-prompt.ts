@@ -32,6 +32,23 @@ export type ScenarioNode =
       label?: string;
       sms_to?: string;
       email_to?: string;
+      /** Per-step "live transfer to a human" window. When the LLM
+       *  reaches this voicemail step AND current time is inside one of
+       *  these windows, the webhook returns a transfer destination
+       *  instead of arming voicemail recording. Outside the windows
+       *  (or when null), the step behaves like a regular voicemail. */
+      human_hours?: {
+        timezone?: string;
+        windows: Partial<
+          Record<
+            "sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat",
+            Array<{ start: string; end: string }>
+          >
+        >;
+      } | null;
+      /** E.164 number to bridge to during human_hours. Empty / missing
+       *  means human_hours is ignored even if set. */
+      human_transfer_to?: string;
     }
   | { id: string; type: "transfer"; to_number: string };
 
@@ -159,12 +176,22 @@ export function scenarioToSystemPrompt(
         if (node.label) args.push(`label="${escapeForPrompt(node.label)}"`);
         if (node.sms_to) args.push(`sms_to="${escapeForPrompt(node.sms_to)}"`);
         if (node.email_to) args.push(`email_to="${escapeForPrompt(node.email_to)}"`);
+        // Per-step "live transfer during certain hours" — when these
+        // are present, the webhook does a server-side time check at
+        // tool-call time and either returns a transfer destination
+        // (VAPI bridges the call to a human) or proceeds with normal
+        // voicemail recording. The LLM doesn't reason about time — it
+        // just passes the args through verbatim.
+        if (node.human_hours && node.human_transfer_to) {
+          args.push(`human_hours=${JSON.stringify(JSON.stringify(node.human_hours))}`);
+          args.push(`human_transfer_to="${escapeForPrompt(node.human_transfer_to)}"`);
+        }
         // Tool-call FIRST, then the spoken greeting. gpt-4o-mini
         // sometimes skips a "say X, then call the tool" instruction —
         // it speaks and forgets the tool. Putting the tool first is a
         // stronger forcing function: the model can't just talk past it.
         lines.push(
-          `Step ${stepNo} (voicemail): YOU MUST FIRST call the send_to_voicemail tool with ${args.join(", ")} — do not skip this step. ONLY AFTER the tool returns, say "${greeting}" and then stay quiet so the caller can record. After they hang up the call ends.`
+          `Step ${stepNo} (voicemail): YOU MUST FIRST call the send_to_voicemail tool with ${args.join(", ")} — do not skip this step. The tool's response will either confirm voicemail mode OR perform a live transfer (during human hours). If it confirms voicemail mode, say "${greeting}" and stay quiet so the caller can record. If it performs a transfer, the tool itself handles the bridge — say nothing further.`
         );
         break;
       }
