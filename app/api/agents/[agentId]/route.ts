@@ -133,6 +133,34 @@ export async function PUT(
         try {
           await importPhoneToVapi(agentId, data.phone_number, assistantId);
           console.log(`[Deploy] Imported phone number ${data.phone_number} into VAPI`);
+
+          // Schedule-aware wiring. When the agent has a schedule, switch
+          // the phone-number to dynamic mode so VAPI calls our
+          // assistant-request webhook on every inbound call (so the
+          // handler can do the in-hours / after-hours decision per-call).
+          // When schedule_enabled is false, leave the static binding
+          // importPhoneToVapi just created.
+          //
+          // VAPI's PATCH on /phone-number/{id} accepts both fields:
+          // clearing assistantId + setting server.url makes the next call
+          // hit the webhook instead of the static assistant.
+          if (data.schedule_enabled) {
+            const { updatePhoneNumber } = await import("@/lib/vapi/client");
+            const { getAppUrl } = await import("@/lib/app-url");
+            const serverUrl = `${getAppUrl()}/api/vapi/server-url`;
+            const { data: agentRow } = await supabaseAdmin
+              .from("agents")
+              .select("vapi_phone_number_id")
+              .eq("id", agentId)
+              .single();
+            if (agentRow?.vapi_phone_number_id) {
+              await updatePhoneNumber(agentRow.vapi_phone_number_id, {
+                assistantId: null,
+                server: { url: serverUrl },
+              });
+              console.log(`[Deploy] Switched phone to dynamic mode for scheduled agent ${agentId}`);
+            }
+          }
         } catch (phoneErr: any) {
           console.error(`[Deploy] Phone import failed (non-fatal):`, phoneErr.message);
         }
