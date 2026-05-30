@@ -215,6 +215,48 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
       },
     },
   },
+  "clients.create": {
+    type: "function",
+    function: {
+      name: "clients_create",
+      description:
+        "Create a new contact (client) record. At minimum, provide name. " +
+        "Use this when you've extracted contact data from files (lease " +
+        "abstractions, intake forms, tenant rosters, vendor lists) and " +
+        "need to populate the Clients page. Phone is unique within the " +
+        "workspace — duplicates will be rejected (use clients.query first " +
+        "if you suspect the contact already exists).",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Full name (required)." },
+          email: { type: "string", description: "Primary email address." },
+          phone: {
+            type: "string",
+            description:
+              "E.164 preferred (+15551234567). Unique within the workspace.",
+          },
+          stage: {
+            type: "string",
+            enum: ["lead", "prospect", "active", "inactive", "archived"],
+            description: "Pipeline stage. Default: lead.",
+          },
+          date_of_birth: { type: "string", description: "ISO date (YYYY-MM-DD)." },
+          spouse_date_of_birth: { type: "string", description: "ISO date (YYYY-MM-DD)." },
+          state_code: {
+            type: "string",
+            description: "Two-letter US state abbreviation (e.g. OH, CA).",
+          },
+          is_planning_subject: {
+            type: "boolean",
+            description:
+              "Whether this contact is a planning subject (default true).",
+          },
+        },
+        required: ["name"],
+      },
+    },
+  },
   "properties.query": {
     type: "function",
     function: {
@@ -1228,6 +1270,7 @@ const NAME_TO_TOOL: Record<string, AgentToolName> = {
   vault_cite: "vault.cite",
   clients_query: "clients.query",
   clients_update: "clients.update",
+  clients_create: "clients.create",
   properties_query: "properties.query",
   properties_create: "properties.create",
   properties_update: "properties.update",
@@ -1333,6 +1376,7 @@ const PER_TOOL_BUDGET: Partial<Record<AgentToolName, number>> = {
   "properties.query": 10,    // read-only; cheap
   "properties.create": 20,   // "fill out properties from my files" can create many
   "properties.update": 20,   // bulk update scenario
+  "clients.create": 20,      // bulk-populate contacts from intake forms / rosters
   "email.send": 3,
   "http.fetch": 10,
   "memory.write": 20,
@@ -1591,6 +1635,62 @@ async function dispatchTool(
         .single();
       if (error) return { error: error.message };
       return { contact: data, rejected_fields: rejected.length ? rejected : undefined };
+    }
+    case "clients.create": {
+      const name = String(args.name || "").trim();
+      if (!name) return { error: "clients.create: name is required." };
+
+      if (ctx.simulate) {
+        return { simulated: true, would_have: { action: "clients.create", name } };
+      }
+
+      const VALID_STAGES = ["lead", "prospect", "active", "inactive", "archived"];
+      const insert: Record<string, unknown> = {
+        workspace_id: ctx.workspaceId,
+        name,
+        email: args.email ? String(args.email).trim().toLowerCase() : null,
+        phone: args.phone ? String(args.phone).trim() : null,
+        stage:
+          typeof args.stage === "string" && VALID_STAGES.includes(args.stage)
+            ? args.stage
+            : "lead",
+        date_of_birth:
+          typeof args.date_of_birth === "string" ? args.date_of_birth : null,
+        spouse_date_of_birth:
+          typeof args.spouse_date_of_birth === "string" ? args.spouse_date_of_birth : null,
+        state_code:
+          typeof args.state_code === "string"
+            ? args.state_code.trim().toUpperCase().slice(0, 2) || null
+            : null,
+        is_planning_subject:
+          typeof args.is_planning_subject === "boolean"
+            ? args.is_planning_subject
+            : true,
+      };
+
+      const { data: created, error: createErr } = await supabaseAdmin
+        .from("contacts")
+        .insert(insert)
+        .select("id, name, email, phone, stage")
+        .single();
+      if (createErr) {
+        // Phone-uniqueness collisions are the common case — surface a
+        // clear message so the agent can fall back to clients.query +
+        // clients.update on the existing row.
+        if (createErr.code === "23505") {
+          return {
+            error:
+              `clients.create: a contact with this phone already exists in the workspace. ` +
+              `Use clients.query to find the existing contact then clients.update to patch it.`,
+          };
+        }
+        return { error: `clients.create: ${createErr.message}` };
+      }
+      return {
+        ok: true,
+        contact: created,
+        message: `Created contact ${name}.`,
+      };
     }
     case "properties.query": {
       const PROPERTY_COLS =
@@ -3533,6 +3633,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       "vault.cite": 0,
       "clients.query": 0,
       "clients.update": 0,
+      "clients.create": 0,
       "properties.query": 0,
       "properties.create": 0,
       "properties.update": 0,

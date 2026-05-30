@@ -33,15 +33,27 @@ export async function POST(
   }
 
   if (token) {
+    // Pull workspace_id on the token too so we can enforce that the
+    // token was minted for THIS run's workspace. Previously the lookup
+    // only joined token + run_id, which left a theoretical (UUID
+    // collision required, very low probability) cross-workspace
+    // approval leak. Now: token must match the URL's runId AND its
+    // workspace_id must match the run's workspace_id.
     const { data: tok } = await sb
       .from("dante_approval_tokens")
-      .select("id, action, expires_at, used_at")
+      .select("id, action, expires_at, used_at, workspace_id, run_id")
       .eq("token", token)
       .eq("run_id", runId)
       .single();
 
     if (!tok) {
       return NextResponse.json({ error: "Invalid token" }, { status: 403 });
+    }
+    if (tok.workspace_id !== run.workspace_id) {
+      // Defense in depth — should be impossible given the token was
+      // minted for this run_id, but if a future migration ever lets
+      // run_ids be reused or copied across workspaces this guards it.
+      return NextResponse.json({ error: "Token workspace mismatch" }, { status: 403 });
     }
     if (tok.used_at) {
       return NextResponse.json({ error: "Token already used" }, { status: 409 });
