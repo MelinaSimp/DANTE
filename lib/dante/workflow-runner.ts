@@ -1890,9 +1890,15 @@ export async function runWorkflow(
       ctx.steps[step.id] = { error: message };
     }
 
-    const nexts = errored
-      ? edges.filter((e) => e.source === id).map((e) => e.target)
-      : nextNodeIds(id, step.type, output, edges);
+    let nexts: string[];
+    if (errored) {
+      const errorEdges = edges.filter((e) => e.source === id && e.sourceHandle === "error");
+      nexts = errorEdges.length > 0
+        ? errorEdges.map((e) => e.target)
+        : edges.filter((e) => e.source === id).map((e) => e.target);
+    } else {
+      nexts = nextNodeIds(id, step.type, output, edges);
+    }
     for (const n of nexts) if (!fired.has(n)) queue.push(n);
   }
 

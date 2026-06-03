@@ -87,7 +87,7 @@ export default function SmoothEdge({
                 borderRadius: 3,
                 background: "var(--canvas)",
                 border: "1px solid var(--rule)",
-                color: label === "true" ? "var(--verified)" : label === "false" ? "var(--danger)" : "var(--ink-muted)",
+                color: label === "true" ? "var(--verified)" : label === "false" || label === "error" ? "var(--danger)" : "var(--ink-muted)",
               }}
             >
               {label as string}

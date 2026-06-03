@@ -18,7 +18,7 @@ import {
   ArrowLeft, Plus, Loader2, Play, Zap, AlertCircle,
   CheckCircle2, Circle, Trash2, ArrowRight,
   Clock, Webhook, MousePointerClick, Users, TrendingUp,
-  ChevronRight,
+  ChevronRight, Copy, Tag,
 } from "lucide-react";
 import { useAssistantBrand } from "@/components/dante/AssistantNameProvider";
 
@@ -30,6 +30,7 @@ interface WorkflowRow {
   last_run_at: string | null;
   last_run_status: string | null;
   updated_at: string;
+  tags?: string[];
 }
 
 // Proposal types mirror lib/dante/workflow-proposals.ts — kept local
@@ -75,6 +76,7 @@ export default function DanteWorkflowsClient() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Two-phase generator state.
@@ -194,6 +196,20 @@ export default function DanteWorkflowsClient() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Delete failed");
     } finally { setDeletingId(null); }
+  };
+
+  const duplicate = async (id: string) => {
+    setDuplicatingId(id);
+    try {
+      const res = await fetch(`/api/dante/workflows/${id}/duplicate`, {
+        method: "POST", credentials: "include",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const json = await res.json();
+      router.push(`/dante/workflows/${json.workflow.id}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Duplicate failed");
+    } finally { setDuplicatingId(null); }
   };
 
   return (
@@ -446,6 +462,16 @@ export default function DanteWorkflowsClient() {
                     )}
                   </div>
                   {r.description && <p className="text-xs text-[var(--ink-muted)] line-clamp-1">{r.description}</p>}
+                  {r.tags && r.tags.length > 0 && (
+                    <div className="flex items-center gap-1 mt-1">
+                      {r.tags.map((tag) => (
+                        <span key={tag} className="inline-flex items-center gap-0.5 text-[10px] font-medium text-[var(--ink-muted)] bg-[var(--canvas-subtle)] border border-[var(--rule)] rounded-full px-2 py-0.5">
+                          <Tag className="w-2.5 h-2.5" strokeWidth={1.5} />
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex items-center gap-3 mt-1 text-[11px] text-[var(--ink-subtle)]">
                     {r.last_run_at ? (
                       <span className="flex items-center gap-1">
@@ -467,7 +493,15 @@ export default function DanteWorkflowsClient() {
                   className="flex items-center gap-1.5 px-3 py-2 rounded-[4px] border border-[var(--rule)] text-[var(--ink)] hover:bg-[var(--canvas-subtle)] text-xs font-medium transition">
                   <Play className="w-3 h-3" strokeWidth={1.5} /> Open
                 </Link>
+                <button onClick={() => duplicate(r.id)} disabled={duplicatingId === r.id}
+                  title="Duplicate"
+                  className="p-2 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition disabled:opacity-50">
+                  {duplicatingId === r.id
+                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.5} />
+                    : <Copy className="w-3.5 h-3.5" strokeWidth={1.5} />}
+                </button>
                 <button onClick={() => remove(r.id)} disabled={deletingId === r.id}
+                  title="Delete"
                   className="p-2 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--danger)] hover:bg-[var(--danger-soft)] transition disabled:opacity-50">
                   {deletingId === r.id
                     ? <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.5} />

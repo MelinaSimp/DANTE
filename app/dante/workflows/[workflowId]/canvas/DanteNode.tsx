@@ -194,6 +194,17 @@ export default function DanteNode({ data, selected }: NodeProps) {
         </div>
       )}
 
+      {/* Error output handle (right side) */}
+      {!isTrigger && !isCondition && !isSwitch && (
+        <Handle
+          id="error"
+          type="source"
+          position={Position.Right}
+          className="!w-2 !h-2 !bg-[var(--danger)] !border-2 !border-[var(--canvas)] !-right-[4px] !rounded-full opacity-40 hover:opacity-100 !transition-opacity"
+          title="Error output"
+        />
+      )}
+
       {/* Source handles */}
       {isCondition ? (
         <>

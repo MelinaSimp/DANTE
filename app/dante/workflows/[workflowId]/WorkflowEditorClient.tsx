@@ -55,7 +55,8 @@ import {
   Undo2, Redo2, Search, ChevronRight, RotateCcw,
   EyeOff, Clipboard, AlignVerticalJustifyCenter, Pin, PinOff,
   Keyboard, Command, Download, Upload, Square, Palette, StickyNote,
-  Maximize, MapPin, StopCircle, RefreshCw,
+  Maximize, MapPin, StopCircle, RefreshCw, Tag, Key, GitBranch,
+  RotateCw, Eye,
 } from "lucide-react";
 
 import type {
@@ -166,9 +167,7 @@ function flowToGraph(
     id: e.id,
     source: e.source,
     target: e.target,
-    sourceHandle: (e.sourceHandle === "true" || e.sourceHandle === "false")
-      ? e.sourceHandle
-      : undefined,
+    sourceHandle: e.sourceHandle || undefined,
   }));
   return { nodes: gNodes, edges: gEdges };
 }
@@ -268,6 +267,22 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
   const [historyFilter, setHistoryFilter] = useState<"all" | "test" | "production">("all");
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const [paramSearch, setParamSearch] = useState("");
+
+  // Tags
+  const [tags, setTags] = useState<string[]>((workflow as unknown as { tags?: string[] }).tags ?? []);
+  const [tagInput, setTagInput] = useState("");
+
+  // Versioning
+  const [versions, setVersions] = useState<Array<{ id: string; version: number; name: string; created_at: string }> | null>(null);
+  const [versionsOpen, setVersionsOpen] = useState(false);
+  const [versionsLoading, setVersionsLoading] = useState(false);
+
+  // Credentials
+  const [secrets, setSecrets] = useState<Array<{ id: string; key: string; preview: string; updated_at: string }> | null>(null);
+  const [secretsOpen, setSecretsOpen] = useState(false);
+  const [secretsLoading, setSecretsLoading] = useState(false);
+  const [newSecretKey, setNewSecretKey] = useState("");
+  const [newSecretValue, setNewSecretValue] = useState("");
 
   const addToast = useCallback((message: string, type: "success" | "error" | "info" = "info") => {
     const id = Math.random().toString(36).slice(2, 8);
@@ -380,6 +395,79 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
   const setNodeNote = useCallback((nodeId: string, note: string) => {
     setNodeNotes((prev) => ({ ...prev, [nodeId]: note }));
   }, []);
+
+  // ── Tags ──────────────────────────────────────────────
+  const addTag = useCallback((t: string) => {
+    const trimmed = t.trim().toLowerCase();
+    if (!trimmed || tags.includes(trimmed)) return;
+    setTags((prev) => [...prev, trimmed]);
+  }, [tags]);
+
+  const removeTag = useCallback((t: string) => {
+    setTags((prev) => prev.filter((x) => x !== t));
+  }, []);
+
+  // ── Versions ─────────────────────────────────────────
+  const loadVersions = useCallback(async () => {
+    setVersionsLoading(true);
+    try {
+      const res = await fetch(`/api/dante/workflows/${workflow.id}/versions`, { credentials: "include" });
+      if (res.ok) { const j = await res.json(); setVersions(j.versions); }
+    } catch { /* ignore */ }
+    finally { setVersionsLoading(false); }
+  }, [workflow.id]);
+
+  const restoreVersion = useCallback(async (versionId: string) => {
+    try {
+      const res = await fetch(`/api/dante/workflows/${workflow.id}/versions/${versionId}`, {
+        method: "POST", credentials: "include",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      addToast("Version restored -- reloading...", "success");
+      setTimeout(() => window.location.reload(), 800);
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : "Restore failed", "error");
+    }
+  }, [workflow.id, addToast]);
+
+  // ── Credentials ──────────────────────────────────────
+  const loadSecrets = useCallback(async () => {
+    setSecretsLoading(true);
+    try {
+      const res = await fetch("/api/dante/secrets", { credentials: "include" });
+      if (res.ok) { const j = await res.json(); setSecrets(j.secrets); }
+    } catch { /* ignore */ }
+    finally { setSecretsLoading(false); }
+  }, []);
+
+  const saveSecret = useCallback(async () => {
+    if (!newSecretKey.trim() || !newSecretValue) return;
+    try {
+      const res = await fetch("/api/dante/secrets", {
+        method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: newSecretKey.trim(), value: newSecretValue }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setNewSecretKey(""); setNewSecretValue("");
+      addToast("Secret saved", "success");
+      loadSecrets();
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : "Save failed", "error");
+    }
+  }, [newSecretKey, newSecretValue, addToast, loadSecrets]);
+
+  const deleteSecret = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`/api/dante/secrets/${id}`, {
+        method: "DELETE", credentials: "include",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      loadSecrets();
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : "Delete failed", "error");
+    }
+  }, [addToast, loadSecrets]);
 
   // ── Connection validation (loop detection) ─────────────
   const wouldCreateLoop = useCallback((source: string, target: string): boolean => {
@@ -523,7 +611,7 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
         return;
       }
       pushUndo();
-      const handle = conn.sourceHandle === "true" || conn.sourceHandle === "false"
+      const handle = conn.sourceHandle === "true" || conn.sourceHandle === "false" || conn.sourceHandle === "error"
         ? conn.sourceHandle : undefined;
       setEdges((es) => addEdge({
         ...conn,
@@ -604,17 +692,20 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
         method: "PUT",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, description, enabled, trigger: triggerTag, graph }),
+        body: JSON.stringify({ name, description, enabled, trigger: triggerTag, graph, tags }),
       });
       if (!res.ok) throw new Error(await res.text());
       setSaveStatus("saved");
       addToast("Workflow saved", "success");
       setTimeout(() => setSaveStatus("idle"), 2000);
+      fetch(`/api/dante/workflows/${workflow.id}/versions`, {
+        method: "POST", credentials: "include",
+      }).catch(() => {});
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");
       setSaveStatus("error");
     } finally { setSaving(false); }
-  }, [workflow.id, name, description, enabled, nodes, edges]);
+  }, [workflow.id, name, description, enabled, nodes, edges, tags, nodeColors, nodeNotes, addToast]);
 
   // ── Keyboard shortcuts ───────────────────────────────────
 
@@ -1046,6 +1137,28 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
               <CheckCircle2 className="w-3 h-3" strokeWidth={1.5} /> Saved
             </span>
           )}
+          <div className="flex items-center gap-1 ml-1">
+            {tags.map((t) => (
+              <span key={t} className="inline-flex items-center gap-0.5 text-[9px] font-medium text-[var(--ink-muted)] bg-[var(--canvas-subtle)] border border-[var(--rule)] rounded-full px-1.5 py-0.5 group/tag">
+                {t}
+                <button onClick={() => removeTag(t)} className="opacity-0 group-hover/tag:opacity-100 transition ml-0.5">
+                  <X className="w-2 h-2" strokeWidth={2} />
+                </button>
+              </span>
+            ))}
+            <div className="relative">
+              <input
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && tagInput.trim()) { addTag(tagInput); setTagInput(""); }
+                  if (e.key === "Backspace" && !tagInput && tags.length > 0) removeTag(tags[tags.length - 1]);
+                }}
+                placeholder="+"
+                className="w-[28px] focus:w-[80px] text-[9px] text-[var(--ink-muted)] bg-transparent border-none focus:outline-none focus:bg-[var(--canvas-subtle)] rounded-[3px] px-1 py-0.5 transition-all"
+              />
+            </div>
+          </div>
         </div>
 
         {/* Center: editor tools */}
@@ -1109,6 +1222,16 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
             title="Import workflow"
             className="p-1.5 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition">
             <Upload className="w-4 h-4" strokeWidth={1.5} />
+          </button>
+          <button onClick={() => { setVersionsOpen(true); loadVersions(); }}
+            title="Version history"
+            className="p-1.5 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition">
+            <GitBranch className="w-4 h-4" strokeWidth={1.5} />
+          </button>
+          <button onClick={() => { setSecretsOpen(true); loadSecrets(); }}
+            title="Credentials"
+            className="p-1.5 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition">
+            <Key className="w-4 h-4" strokeWidth={1.5} />
           </button>
           <Link
             href={`/dante/workflows/${workflow.id}/impact`}
@@ -2124,6 +2247,134 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
                     Import
                   </button>
                 </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Version history modal */}
+      {versionsOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40" onClick={() => setVersionsOpen(false)}>
+          <div className="bg-[var(--canvas)] rounded-lg shadow-xl border border-[var(--rule)] w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-[var(--rule)] flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <GitBranch className="w-4 h-4 text-[var(--ink)]" strokeWidth={1.5} />
+                <h3 className="text-sm font-semibold text-[var(--ink)]">Version history</h3>
+              </div>
+              <button onClick={() => setVersionsOpen(false)} className="p-1 text-[var(--ink-muted)] hover:text-[var(--ink)]">
+                <X className="w-4 h-4" strokeWidth={1.5} />
+              </button>
+            </div>
+            <div className="max-h-[400px] overflow-y-auto">
+              {versionsLoading ? (
+                <div className="p-8 flex items-center justify-center">
+                  <Loader2 className="w-4 h-4 animate-spin text-[var(--ink-muted)]" strokeWidth={1.5} />
+                </div>
+              ) : !versions || versions.length === 0 ? (
+                <div className="p-8 text-center">
+                  <p className="text-xs text-[var(--ink-muted)]">No versions yet. Versions are created each time you save.</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-[var(--rule)]">
+                  {versions.map((v) => (
+                    <div key={v.id} className="px-6 py-3 flex items-center justify-between">
+                      <div>
+                        <div className="text-xs font-medium text-[var(--ink)]">
+                          v{v.version} -- {v.name}
+                        </div>
+                        <div className="text-[10px] text-[var(--ink-subtle)] mt-0.5">
+                          {new Date(v.created_at).toLocaleString(undefined, {
+                            month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+                          })}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => { if (confirm(`Restore version ${v.version}? Current unsaved changes will be lost.`)) restoreVersion(v.id); }}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-[4px] border border-[var(--rule)] text-[11px] font-medium text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition"
+                      >
+                        <RotateCw className="w-3 h-3" strokeWidth={1.5} />
+                        Restore
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Credentials modal */}
+      {secretsOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40" onClick={() => setSecretsOpen(false)}>
+          <div className="bg-[var(--canvas)] rounded-lg shadow-xl border border-[var(--rule)] w-full max-w-lg mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-[var(--rule)] flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Key className="w-4 h-4 text-[var(--ink)]" strokeWidth={1.5} />
+                <h3 className="text-sm font-semibold text-[var(--ink)]">Credentials</h3>
+              </div>
+              <button onClick={() => setSecretsOpen(false)} className="p-1 text-[var(--ink-muted)] hover:text-[var(--ink)]">
+                <X className="w-4 h-4" strokeWidth={1.5} />
+              </button>
+            </div>
+            <div className="px-6 py-4">
+              <p className="text-[10px] text-[var(--ink-muted)] mb-4">
+                Secrets are available in expressions as {`{{secrets.your_key}}`}. Values are encrypted and never shown in run logs.
+              </p>
+              {/* Add new */}
+              <div className="flex items-end gap-2 mb-4">
+                <div className="flex-1">
+                  <div className="text-[10px] text-[var(--ink-subtle)] mb-1">Key</div>
+                  <input
+                    value={newSecretKey}
+                    onChange={(e) => setNewSecretKey(e.target.value)}
+                    placeholder="api_key"
+                    className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-2.5 py-1.5 text-xs text-[var(--ink)] mono focus:outline-none focus:border-[var(--rule-strong)]"
+                  />
+                </div>
+                <div className="flex-1">
+                  <div className="text-[10px] text-[var(--ink-subtle)] mb-1">Value</div>
+                  <input
+                    type="password"
+                    value={newSecretValue}
+                    onChange={(e) => setNewSecretValue(e.target.value)}
+                    placeholder="sk-..."
+                    className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-2.5 py-1.5 text-xs text-[var(--ink)] mono focus:outline-none focus:border-[var(--rule-strong)]"
+                  />
+                </div>
+                <button
+                  onClick={saveSecret}
+                  disabled={!newSecretKey.trim() || !newSecretValue}
+                  className="px-3 py-1.5 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-xs font-medium hover:opacity-90 disabled:opacity-30 transition shrink-0"
+                >
+                  Save
+                </button>
+              </div>
+              {/* List */}
+              {secretsLoading ? (
+                <div className="py-4 flex items-center justify-center">
+                  <Loader2 className="w-4 h-4 animate-spin text-[var(--ink-muted)]" strokeWidth={1.5} />
+                </div>
+              ) : !secrets || secrets.length === 0 ? (
+                <p className="text-xs text-[var(--ink-subtle)] text-center py-4">No secrets stored yet.</p>
+              ) : (
+                <div className="border border-[var(--rule)] rounded-[4px] divide-y divide-[var(--rule)]">
+                  {secrets.map((s) => (
+                    <div key={s.id} className="flex items-center justify-between px-3 py-2.5">
+                      <div>
+                        <div className="text-xs font-medium text-[var(--ink)] mono">{s.key}</div>
+                        <div className="text-[10px] text-[var(--ink-subtle)] mono">{s.preview}</div>
+                      </div>
+                      <button
+                        onClick={() => deleteSecret(s.id)}
+                        className="p-1 text-[var(--ink-muted)] hover:text-[var(--danger)] transition"
+                      >
+                        <Trash2 className="w-3 h-3" strokeWidth={1.5} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </div>
