@@ -2,6 +2,12 @@
 
 import { getBezierPath, type EdgeProps } from "@xyflow/react";
 
+export interface SmoothEdgeData {
+  itemCount?: number | null;
+  isExecuting?: boolean;
+  [key: string]: unknown;
+}
+
 export default function SmoothEdge({
   id,
   sourceX,
@@ -14,7 +20,12 @@ export default function SmoothEdge({
   style,
   markerEnd,
   selected,
+  data,
 }: EdgeProps) {
+  const edgeData = (data ?? {}) as SmoothEdgeData;
+  const itemCount = edgeData.itemCount;
+  const isExecuting = edgeData.isExecuting;
+
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,
@@ -25,9 +36,15 @@ export default function SmoothEdge({
     curvature: 0.25,
   });
 
+  const strokeColor = selected
+    ? "var(--ink)"
+    : isExecuting
+      ? "var(--accent)"
+      : (style?.stroke as string) ?? "var(--rule-strong)";
+
   return (
     <>
-      {/* Wider invisible hit area for easier selection */}
+      {/* Wider invisible hit area */}
       <path
         d={edgePath}
         fill="none"
@@ -35,6 +52,7 @@ export default function SmoothEdge({
         stroke="transparent"
         className="react-flow__edge-interaction"
       />
+      {/* Visible edge */}
       <path
         id={id}
         d={edgePath}
@@ -43,10 +61,13 @@ export default function SmoothEdge({
         className="react-flow__edge-path"
         style={{
           ...style,
-          stroke: selected ? "var(--ink)" : (style?.stroke ?? "var(--rule-strong)"),
+          stroke: strokeColor,
+          strokeDasharray: isExecuting ? "6 4" : undefined,
+          animation: isExecuting ? "dash-flow 0.6s linear infinite" : undefined,
         }}
         markerEnd={markerEnd as string}
       />
+      {/* Branch label (true/false/case) */}
       {label && (
         <foreignObject
           width={60}
@@ -56,15 +77,7 @@ export default function SmoothEdge({
           requiredExtensions="http://www.w3.org/1999/xhtml"
           style={{ overflow: "visible", pointerEvents: "none" }}
         >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: "100%",
-              height: "100%",
-            }}
-          >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", height: "100%" }}>
             <span
               style={{
                 fontSize: 9,
@@ -81,6 +94,42 @@ export default function SmoothEdge({
             </span>
           </div>
         </foreignObject>
+      )}
+      {/* Item count badge after execution */}
+      {itemCount != null && !isExecuting && (
+        <foreignObject
+          width={50}
+          height={20}
+          x={labelX - 25}
+          y={label ? labelY + 8 : labelY - 10}
+          requiredExtensions="http://www.w3.org/1999/xhtml"
+          style={{ overflow: "visible", pointerEvents: "none" }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", height: "100%" }}>
+            <span
+              style={{
+                fontSize: 9,
+                fontFamily: "ui-monospace, monospace",
+                fontWeight: 600,
+                padding: "1px 5px",
+                borderRadius: 3,
+                background: "var(--canvas-subtle)",
+                border: "1px solid var(--rule)",
+                color: "var(--ink-muted)",
+              }}
+            >
+              {itemCount} item{itemCount !== 1 ? "s" : ""}
+            </span>
+          </div>
+        </foreignObject>
+      )}
+      {/* CSS animation for executing edges */}
+      {isExecuting && (
+        <style>{`
+          @keyframes dash-flow {
+            to { stroke-dashoffset: -20; }
+          }
+        `}</style>
       )}
     </>
   );

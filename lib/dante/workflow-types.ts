@@ -527,6 +527,8 @@ export interface GraphNode {
   position: { x: number; y: number };
   data: {
     step: WorkflowStep;
+    color?: string;
+    notes?: string;
   };
 }
 

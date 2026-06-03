@@ -1,12 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import {
-  CheckCircle2, AlertCircle, Loader2, Plus,
+  CheckCircle2, AlertCircle, Loader2, Plus, StickyNote, Ban,
 } from "lucide-react";
 import type { WorkflowStep } from "@/lib/dante/workflow-types";
 import { getMeta, isTriggerType, accentClasses } from "./nodeTypes";
+
+export const NODE_COLORS = [
+  { value: "", label: "Default" },
+  { value: "#3b82f6", label: "Blue" },
+  { value: "#8b5cf6", label: "Purple" },
+  { value: "#ec4899", label: "Pink" },
+  { value: "#f97316", label: "Orange" },
+  { value: "#eab308", label: "Yellow" },
+  { value: "#22c55e", label: "Green" },
+  { value: "#06b6d4", label: "Cyan" },
+] as const;
 
 export interface DanteNodeData {
   step: WorkflowStep;
@@ -15,6 +26,10 @@ export interface DanteNodeData {
   runOutput?: unknown;
   runError?: string | null;
   disabled?: boolean;
+  color?: string;
+  notes?: string;
+  itemCount?: number | null;
+  onRename?: (id: string, name: string) => void;
   [key: string]: unknown;
 }
 
@@ -22,6 +37,26 @@ export default function DanteNode({ data, selected }: NodeProps) {
   const d = data as DanteNodeData;
   const step = d.step;
   const [hovered, setHovered] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState(step.name);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editing]);
+
+  const commitRename = useCallback(() => {
+    setEditing(false);
+    const trimmed = (editName ?? "").trim();
+    if (trimmed && trimmed !== step.name && d.onRename) {
+      d.onRename(step.id, trimmed);
+    } else {
+      setEditName(step.name);
+    }
+  }, [editName, step.name, step.id, d]);
 
   if (step.type === "sticky_note") {
     return <StickyNoteCard data={d} selected={!!selected} />;
@@ -34,6 +69,7 @@ export default function DanteNode({ data, selected }: NodeProps) {
   const isCondition = step.type === "condition";
   const isSwitch = step.type === "switch";
   const isDisabled = !!d.disabled;
+  const nodeColor = d.color || "";
   const switchCases = isSwitch
     ? ((step.config as Record<string, unknown>).cases as Array<{ value: string; label?: string }>) || []
     : [];
@@ -50,18 +86,19 @@ export default function DanteNode({ data, selected }: NodeProps) {
         : null;
 
   const outputPreview = formatOutputPreview(d.runOutput, d.runError);
+  const itemCount = d.itemCount;
 
   return (
     <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       className={`
-        group relative rounded-[8px] transition-all duration-100 cursor-pointer
+        group relative rounded-[8px] transition-all duration-100 cursor-pointer overflow-hidden
         ${d.runStatus === "running" ? "ring-2 ring-[var(--accent)] shadow-md" : ""}
         ${d.runStatus !== "running" && selected
           ? `ring-2 ring-offset-1 ring-offset-[var(--canvas)] ${accent.selectedOutline} shadow-md`
           : d.runStatus !== "running" ? "shadow-sm hover:shadow-md" : ""}
-        ${isDisabled ? "opacity-40" : ""}
+        ${isDisabled ? "opacity-50 grayscale-[30%]" : ""}
       `}
       style={{
         background: "var(--canvas)",
@@ -70,6 +107,14 @@ export default function DanteNode({ data, selected }: NodeProps) {
         maxWidth: 260,
       }}
     >
+      {/* Color accent bar */}
+      {nodeColor && (
+        <div
+          className="absolute left-0 top-0 bottom-0 w-[3px]"
+          style={{ background: nodeColor }}
+        />
+      )}
+
       {/* Target handle */}
       {!isTrigger && (
         <Handle
@@ -79,11 +124,17 @@ export default function DanteNode({ data, selected }: NodeProps) {
         />
       )}
 
+      {/* Disabled overlay icon */}
+      {isDisabled && (
+        <div className="absolute top-1 right-1 z-10">
+          <Ban className="w-3 h-3 text-[var(--ink-subtle)]" strokeWidth={2} />
+        </div>
+      )}
+
       <div className="flex items-center gap-3 px-3 py-2.5">
         {/* Icon */}
         <div className={`relative rounded-lg p-2 shrink-0 ${accent.iconWrap}`}>
           {Icon && <Icon className="w-5 h-5" strokeWidth={1.5} />}
-          {/* Status overlay on icon */}
           {statusIcon && (
             <div className="absolute -bottom-1 -right-1 bg-[var(--canvas)] rounded-full p-[1px]">
               {statusIcon}
@@ -93,9 +144,27 @@ export default function DanteNode({ data, selected }: NodeProps) {
 
         {/* Name + subtitle */}
         <div className="flex-1 min-w-0">
-          <div className="text-[13px] font-semibold text-[var(--ink)] leading-tight truncate">
-            {displayName}
-          </div>
+          {editing ? (
+            <input
+              ref={inputRef}
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitRename();
+                if (e.key === "Escape") { setEditName(step.name); setEditing(false); }
+              }}
+              className="text-[13px] font-semibold text-[var(--ink)] bg-[var(--canvas-subtle)] border border-[var(--rule-strong)] rounded-[3px] px-1 py-0 w-full leading-tight focus:outline-none"
+              spellCheck={false}
+            />
+          ) : (
+            <div
+              onDoubleClick={() => { setEditName(step.name || displayName); setEditing(true); }}
+              className={`text-[13px] font-semibold leading-tight truncate ${isDisabled ? "text-[var(--ink-muted)] line-through" : "text-[var(--ink)]"}`}
+            >
+              {displayName}
+            </div>
+          )}
           {subtitle && (
             <div className="text-[10px] text-[var(--ink-muted)] leading-snug truncate mt-0.5 mono">
               {subtitle}
@@ -106,10 +175,22 @@ export default function DanteNode({ data, selected }: NodeProps) {
 
       {/* Execution data strip */}
       {outputPreview && d.runStatus && d.runStatus !== "running" && (
-        <div className={`border-t border-[var(--rule)] px-3 py-1.5 text-[10px] mono truncate ${
+        <div className={`border-t border-[var(--rule)] px-3 py-1.5 text-[10px] mono truncate flex items-center gap-1.5 ${
           d.runStatus === "error" ? "text-[var(--danger)] bg-[var(--danger-soft)]/30" : "text-[var(--ink-muted)] bg-[var(--canvas-subtle)]/50"
         }`}>
+          {itemCount != null && (
+            <span className="shrink-0 text-[9px] font-semibold px-1 py-0 rounded-[2px] bg-[var(--canvas)] border border-[var(--rule)]">
+              {itemCount}
+            </span>
+          )}
           {outputPreview}
+        </div>
+      )}
+
+      {/* Notes indicator */}
+      {d.notes && (
+        <div className="absolute top-1 right-1 z-10" title={d.notes}>
+          <StickyNote className="w-3 h-3 text-[var(--flag)]" strokeWidth={1.5} />
         </div>
       )}
 
@@ -200,6 +281,24 @@ function StickyNoteCard({ data, selected }: { data: DanteNodeData; selected: boo
       </div>
     </div>
   );
+}
+
+export function getItemCount(output: unknown): number | null {
+  if (output == null) return null;
+  if (Array.isArray(output)) return output.length;
+  if (typeof output === "object") {
+    const o = output as Record<string, unknown>;
+    if (typeof o.count === "number") return o.count;
+    if (Array.isArray(o.contacts)) return o.contacts.length;
+    if (Array.isArray(o.properties)) return o.properties.length;
+    if (Array.isArray(o.listings)) return o.listings.length;
+    if (Array.isArray(o.offers)) return o.offers.length;
+    if (Array.isArray(o.hits)) return o.hits.length;
+    if (Array.isArray(o.results)) return o.results.length;
+    if (Array.isArray(o.abstracts)) return o.abstracts.length;
+    return 1;
+  }
+  return 1;
 }
 
 function formatOutputPreview(output: unknown, error?: string | null): string | null {

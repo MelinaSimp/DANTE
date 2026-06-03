@@ -36,6 +36,7 @@ import {
   applyEdgeChanges,
   addEdge,
   ReactFlowProvider,
+  useReactFlow,
   type Node as RFNode,
   type Edge as RFEdge,
   type Connection,
@@ -53,6 +54,8 @@ import {
   Sparkles, History, Clock, FlaskConical, BarChart3,
   Undo2, Redo2, Search, ChevronRight, RotateCcw,
   EyeOff, Clipboard, AlignVerticalJustifyCenter, Pin, PinOff,
+  Keyboard, Command, Download, Upload, Square, Palette, StickyNote,
+  Maximize, MapPin, StopCircle, RefreshCw,
 } from "lucide-react";
 
 import type {
@@ -66,7 +69,7 @@ import type {
 } from "@/lib/dante/workflow-types";
 import { definitionFromRow } from "@/lib/dante/workflow-types";
 
-import DanteNode, { type DanteNodeData } from "./canvas/DanteNode";
+import DanteNode, { type DanteNodeData, getItemCount, NODE_COLORS } from "./canvas/DanteNode";
 import StepConfigForm, { type StepPatch } from "./canvas/StepConfigForm";
 import { NODE_TYPES, getMeta, isTriggerType, CATEGORY_LABELS, CATEGORY_ORDER, type NodeCategory } from "./canvas/nodeTypes";
 import SmoothEdge from "./canvas/SmoothEdge";
@@ -111,13 +114,24 @@ function newId(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function graphToFlow(graph: WorkflowGraph): { nodes: DanteRFNode[]; edges: RFEdge[] } {
-  const nodes: DanteRFNode[] = graph.nodes.map((n) => ({
-    id: n.id,
-    type: "dante",
-    position: n.position,
-    data: { step: n.data.step },
-  }));
+function graphToFlow(graph: WorkflowGraph): {
+  nodes: DanteRFNode[];
+  edges: RFEdge[];
+  colors: Record<string, string>;
+  notes: Record<string, string>;
+} {
+  const colors: Record<string, string> = {};
+  const notes: Record<string, string> = {};
+  const nodes: DanteRFNode[] = graph.nodes.map((n) => {
+    if (n.data.color) colors[n.id] = n.data.color;
+    if (n.data.notes) notes[n.id] = n.data.notes;
+    return {
+      id: n.id,
+      type: "dante",
+      position: n.position,
+      data: { step: n.data.step },
+    };
+  });
   const edges: RFEdge[] = graph.edges.map((e) => ({
     id: e.id,
     source: e.source,
@@ -125,23 +139,28 @@ function graphToFlow(graph: WorkflowGraph): { nodes: DanteRFNode[]; edges: RFEdg
     sourceHandle: e.sourceHandle,
     type: "smooth",
     label: e.sourceHandle ? e.sourceHandle : undefined,
-    labelStyle: e.sourceHandle === "true"
-      ? { fill: "var(--verified)", fontSize: 10, fontFamily: "ui-monospace, monospace" }
-      : e.sourceHandle === "false"
-      ? { fill: "var(--danger)", fontSize: 10, fontFamily: "ui-monospace, monospace" }
-      : undefined,
+    data: {},
     animated: false,
     style: { stroke: "var(--rule-strong)", strokeWidth: 1.5 },
   }));
-  return { nodes, edges };
+  return { nodes, edges, colors, notes };
 }
 
-function flowToGraph(nodes: DanteRFNode[], edges: RFEdge[]): WorkflowGraph {
+function flowToGraph(
+  nodes: DanteRFNode[],
+  edges: RFEdge[],
+  colors?: Record<string, string>,
+  notes?: Record<string, string>,
+): WorkflowGraph {
   const gNodes: GraphNode[] = nodes.map((n) => ({
     id: n.id,
     type: n.data.step.type,
     position: n.position,
-    data: { step: n.data.step },
+    data: {
+      step: n.data.step,
+      ...(colors?.[n.id] ? { color: colors[n.id] } : {}),
+      ...(notes?.[n.id] ? { notes: notes[n.id] } : {}),
+    },
   }));
   const gEdges: GraphEdge[] = edges.map((e) => ({
     id: e.id,
@@ -235,8 +254,28 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
   // Data view tab in drawer
   const [dataViewTab, setDataViewTab] = useState<"config" | "input" | "output">("config");
 
-  // Run history drawer state. Opens from the toolbar; rows show
-  // status + when, expand to load the full log.
+  // n8n-parity state
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [showNodeSearch, setShowNodeSearch] = useState(false);
+  const [nodeSearchQuery, setNodeSearchQuery] = useState("");
+  const [showImportExport, setShowImportExport] = useState<"import" | "export" | null>(null);
+  const [importJson, setImportJson] = useState("");
+  const [minimapVisible, setMinimapVisible] = useState(true);
+  const [nodeColors, setNodeColors] = useState<Record<string, string>>(initialFlow.colors);
+  const [nodeNotes, setNodeNotes] = useState<Record<string, string>>(initialFlow.notes);
+  const [toasts, setToasts] = useState<Array<{ id: string; message: string; type: "success" | "error" | "info" }>>([]);
+  const [historyFilter, setHistoryFilter] = useState<"all" | "test" | "production">("all");
+  const [currentRunId, setCurrentRunId] = useState<string | null>(null);
+  const [paramSearch, setParamSearch] = useState("");
+
+  const addToast = useCallback((message: string, type: "success" | "error" | "info" = "info") => {
+    const id = Math.random().toString(36).slice(2, 8);
+    setToasts((t) => [...t, { id, message, type }]);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3000);
+  }, []);
+
+  // Run history drawer state
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyRows, setHistoryRows] = useState<RunHistoryRow[] | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -325,6 +364,90 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
     setNodes((ns) => autoLayout(ns, edges));
   }, [edges, pushUndo]);
 
+  // ── Node rename (from inline edit on canvas) ────────────
+  const renameNode = useCallback((nodeId: string, newName: string) => {
+    setNodes((ns) => ns.map((n) =>
+      n.id === nodeId ? { ...n, data: { ...n.data, step: { ...n.data.step, name: newName } } } : n
+    ));
+  }, []);
+
+  // ── Node color ─────────────────────────────────────────
+  const setNodeColor = useCallback((nodeId: string, color: string) => {
+    setNodeColors((prev) => ({ ...prev, [nodeId]: color }));
+  }, []);
+
+  // ── Node notes ─────────────────────────────────────────
+  const setNodeNote = useCallback((nodeId: string, note: string) => {
+    setNodeNotes((prev) => ({ ...prev, [nodeId]: note }));
+  }, []);
+
+  // ── Connection validation (loop detection) ─────────────
+  const wouldCreateLoop = useCallback((source: string, target: string): boolean => {
+    const visited = new Set<string>();
+    const queue = [source];
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      if (current === target) continue;
+      if (visited.has(current)) continue;
+      visited.add(current);
+      for (const e of edges) {
+        if (e.target === current) {
+          if (e.source === target) return true;
+          queue.push(e.source);
+        }
+      }
+    }
+    return false;
+  }, [edges]);
+
+  // ── Cancel execution ──────────────────────────────────
+  const cancelExecution = useCallback(async () => {
+    if (!currentRunId) return;
+    try {
+      await fetch(`/api/dante/workflows/runs/${currentRunId}/cancel`, {
+        method: "POST", credentials: "include",
+      });
+      addToast("Execution cancelled", "info");
+    } catch {
+      addToast("Failed to cancel", "error");
+    }
+  }, [currentRunId, addToast]);
+
+  // ── Import / Export ───────────────────────────────────
+  const exportWorkflow = useCallback(() => {
+    const graph = flowToGraph(nodes, edges, nodeColors, nodeNotes);
+    const data = { name, description, enabled, graph };
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${name.replace(/\s+/g, "-").toLowerCase()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    addToast("Workflow exported", "success");
+  }, [nodes, edges, name, description, enabled, addToast]);
+
+  const importWorkflow = useCallback(() => {
+    try {
+      const data = JSON.parse(importJson);
+      if (!data.graph || !data.graph.nodes) throw new Error("Invalid workflow JSON");
+      pushUndo();
+      const flow = graphToFlow(data.graph);
+      setNodes(flow.nodes);
+      setEdges(flow.edges);
+      setNodeColors(flow.colors);
+      setNodeNotes(flow.notes);
+      if (data.name) setName(data.name);
+      if (data.description) setDesc(data.description);
+      setShowImportExport(null);
+      setImportJson("");
+      addToast("Workflow imported", "success");
+    } catch (e) {
+      addToast(e instanceof Error ? e.message : "Invalid JSON", "error");
+    }
+  }, [importJson, pushUndo, addToast]);
+
   // ── Pin data ────────────────────────────────────────────
 
   const togglePinData = useCallback((nodeId: string, data?: unknown) => {
@@ -395,6 +518,10 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
   );
   const onConnect = useCallback(
     (conn: Connection) => {
+      if (conn.source && conn.target && wouldCreateLoop(conn.source, conn.target)) {
+        addToast("Cannot connect: would create a loop", "error");
+        return;
+      }
       pushUndo();
       const handle = conn.sourceHandle === "true" || conn.sourceHandle === "false"
         ? conn.sourceHandle : undefined;
@@ -402,15 +529,11 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
         ...conn,
         id: `${conn.source}->${conn.target}${handle ? `:${handle}` : ""}_${Math.random().toString(36).slice(2,5)}`,
         label: handle,
-        labelStyle: handle === "true"
-          ? { fill: "var(--verified)", fontSize: 10, fontFamily: "ui-monospace, monospace" }
-          : handle === "false"
-          ? { fill: "var(--danger)", fontSize: 10, fontFamily: "ui-monospace, monospace" }
-          : undefined,
+        data: {},
         style: { stroke: "var(--rule-strong)", strokeWidth: 1.5 },
       }, es));
     },
-    [pushUndo],
+    [pushUndo, wouldCreateLoop, addToast],
   );
 
   // ── Node ops ──────────────────────────────────────────────
@@ -471,7 +594,7 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
   const save = useCallback(async () => {
     setSaving(true); setSaveStatus("idle"); setError(null);
     try {
-      const graph = flowToGraph(nodes, edges);
+      const graph = flowToGraph(nodes, edges, nodeColors, nodeNotes);
       // Derive the top-level trigger tag from the graph's trigger.
       const triggerNode = graph.nodes.find((n) => isTriggerType(n.type));
       const triggerTag = triggerNode?.type === "trigger_cron"    ? { type: "cron" }
@@ -485,6 +608,7 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
       });
       if (!res.ok) throw new Error(await res.text());
       setSaveStatus("saved");
+      addToast("Workflow saved", "success");
       setTimeout(() => setSaveStatus("idle"), 2000);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed");
@@ -538,11 +662,43 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
           pushUndo();
           deleteNode(selectedId);
         }
+        // Also delete selected edges
+        const selectedEdges = edges.filter((edge) => (edge as any).selected);
+        if (selectedEdges.length > 0) {
+          e.preventDefault();
+          pushUndo();
+          setEdges((es) => es.filter((edge) => !(edge as any).selected));
+        }
+      }
+      // Keyboard shortcut overlay
+      if (e.key === "?" && !isInput) {
+        e.preventDefault();
+        setShowShortcuts((v) => !v);
+        return;
+      }
+      // Command palette
+      if (mod && e.key === "k") {
+        e.preventDefault();
+        setShowCommandPalette((v) => !v);
+        return;
+      }
+      // Node search on canvas
+      if (mod && e.key === "f" && !isInput) {
+        e.preventDefault();
+        setShowNodeSearch(true);
+        setNodeSearchQuery("");
+        return;
+      }
+      // Select all
+      if (mod && e.key === "a" && !isInput) {
+        e.preventDefault();
+        setNodes((ns) => ns.map((n) => ({ ...n, selected: true })));
+        return;
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [save, undo, redo, duplicateSelected, copySelected, pasteClipboard, selectedId, nodes, pushUndo, deleteNode]);
+  }, [save, undo, redo, duplicateSelected, copySelected, pasteClipboard, selectedId, nodes, edges, pushUndo, deleteNode]);
 
   // Check if the trigger has input fields; if so, open the dialog
   // instead of running immediately.
@@ -562,12 +718,16 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
     }
   }, [nodes]);
 
+  const retryExecution = useCallback(() => {
+    handleRunClick();
+  }, [handleRunClick]);
+
   const run = useCallback(async (input: Record<string, unknown>) => {
     setRunInputOpen(false);
     setRunning(true); setError(null); setRunLog(null); setRunStatus(null);
     try {
       // Save first so the run uses the current canvas.
-      const graph = flowToGraph(nodes, edges);
+      const graph = flowToGraph(nodes, edges, nodeColors, nodeNotes);
       const triggerNode = graph.nodes.find((n) => isTriggerType(n.type));
       const triggerTag = triggerNode?.type === "trigger_cron"    ? { type: "cron" }
                        : triggerNode?.type === "trigger_webhook" ? { type: "webhook" }
@@ -590,6 +750,7 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
       if (!enqueueRes.ok) throw new Error(enqueueJson.error || "Enqueue failed");
 
       const runId: string = enqueueJson.run_id;
+      setCurrentRunId(runId);
       setLogOpen(true);
       setRunStatus("queued");
 
@@ -668,7 +829,7 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
     setRunStatus(null);
     setIsDryRun(true);
     try {
-      const graph = flowToGraph(nodes, edges);
+      const graph = flowToGraph(nodes, edges, nodeColors, nodeNotes);
       const triggerNode = graph.nodes.find((n) => isTriggerType(n.type));
       const triggerTag =
         triggerNode?.type === "trigger_cron"    ? { type: "cron" }
@@ -756,16 +917,17 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
     setHistoryRows(null);
   }, [runStatus]);
 
-  // Paint run status + output data on each node after a run finishes.
+  // Paint run status + output data on each node and item counts on edges after a run.
   useEffect(() => {
     if (!runLog) return;
     const byId = new Map(runLog.map((e) => [e.step_id, e]));
     setNodes((ns) => ns.map((n) => {
       const entry = byId.get(n.id);
-      if (!entry) return { ...n, data: { ...n.data, runStatus: null, runOutput: undefined, runError: null, runDuration: null } };
+      if (!entry) return { ...n, data: { ...n.data, runStatus: null, runOutput: undefined, runError: null, runDuration: null, itemCount: null } };
       const duration = entry.started_at && entry.finished_at
         ? Math.max(0, new Date(entry.finished_at).getTime() - new Date(entry.started_at).getTime())
         : null;
+      const count = getItemCount(entry.output);
       return {
         ...n,
         data: {
@@ -774,10 +936,25 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
           runOutput: entry.output,
           runError: entry.error || null,
           runDuration: duration,
+          itemCount: count,
         },
       };
     }));
-  }, [runLog]);
+    // Update edge data with item counts from source nodes
+    setEdges((es) => es.map((e) => {
+      const srcEntry = byId.get(e.source);
+      const isRunning = runStatus === "running" || runStatus === "queued";
+      return {
+        ...e,
+        animated: isRunning,
+        data: {
+          ...((e.data ?? {}) as Record<string, unknown>),
+          itemCount: srcEntry ? getItemCount(srcEntry.output) : null,
+          isExecuting: isRunning,
+        },
+      };
+    }));
+  }, [runLog, runStatus]);
 
   // ── Webhook token ─────────────────────────────────────────
   // Loaded lazily when a webhook trigger is selected. Mint on demand.
@@ -811,6 +988,20 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
 
   const nodeTypes: NodeTypes = useMemo(() => ({ dante: DanteNode }), []);
   const edgeTypes: EdgeTypes = useMemo(() => ({ smooth: SmoothEdge }), []);
+
+  // Enhance nodes with color, notes, and rename callback
+  const enhancedNodes = useMemo(() =>
+    nodes.map((n) => ({
+      ...n,
+      data: {
+        ...n.data,
+        color: nodeColors[n.id] || "",
+        notes: nodeNotes[n.id] || "",
+        onRename: renameNode,
+      },
+    })),
+    [nodes, nodeColors, nodeNotes, renameNode],
+  );
 
   // Categorized + filtered palette items
   const filteredByCategory = useMemo(() => {
@@ -878,6 +1069,13 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
           >
             <AlignVerticalJustifyCenter className="w-3.5 h-3.5" strokeWidth={1.5} />
           </button>
+          <button
+            onClick={() => setMinimapVisible((v) => !v)}
+            title="Toggle minimap"
+            className={`p-1.5 rounded-[4px] transition ${minimapVisible ? "text-[var(--ink)]" : "text-[var(--ink-subtle)]"} hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)]`}
+          >
+            <MapPin className="w-3.5 h-3.5" strokeWidth={1.5} />
+          </button>
         </div>
 
         {/* Right: actions */}
@@ -888,6 +1086,11 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
             Active
           </label>
           <div className="w-px h-4 bg-[var(--rule)]" />
+          <button onClick={() => setShowShortcuts(true)}
+            title="Keyboard shortcuts (?)"
+            className="p-1.5 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition">
+            <Keyboard className="w-4 h-4" strokeWidth={1.5} />
+          </button>
           <button onClick={toggleHistory}
             title="Execution history"
             className={`p-1.5 rounded-[4px] transition ${
@@ -896,6 +1099,16 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
                 : "text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
             }`}>
             <History className="w-4 h-4" strokeWidth={1.5} />
+          </button>
+          <button onClick={() => setShowImportExport("export")}
+            title="Export workflow"
+            className="p-1.5 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition">
+            <Download className="w-4 h-4" strokeWidth={1.5} />
+          </button>
+          <button onClick={() => setShowImportExport("import")}
+            title="Import workflow"
+            className="p-1.5 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition">
+            <Upload className="w-4 h-4" strokeWidth={1.5} />
           </button>
           <Link
             href={`/dante/workflows/${workflow.id}/impact`}
@@ -921,11 +1134,19 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
               : <FlaskConical className="w-3.5 h-3.5" strokeWidth={1.5} />}
             Test
           </button>
-          <button onClick={handleRunClick} disabled={running || dryRunning || nodes.length === 0}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] bg-[var(--ink)] hover:opacity-90 text-[var(--canvas)] text-xs font-semibold transition disabled:opacity-50">
-            {running ? <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.5} /> : <Play className="w-3.5 h-3.5" strokeWidth={1.5} />}
-            Execute
-          </button>
+          {running ? (
+            <button onClick={cancelExecution}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] bg-[var(--danger)] hover:opacity-90 text-[var(--canvas)] text-xs font-semibold transition">
+              <StopCircle className="w-3.5 h-3.5" strokeWidth={1.5} />
+              Stop
+            </button>
+          ) : (
+            <button onClick={handleRunClick} disabled={dryRunning || nodes.length === 0}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] bg-[var(--ink)] hover:opacity-90 text-[var(--canvas)] text-xs font-semibold transition disabled:opacity-50">
+              <Play className="w-3.5 h-3.5" strokeWidth={1.5} />
+              Execute
+            </button>
+          )}
         </div>
       </div>
 
@@ -1059,7 +1280,7 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
           <div className="flex-1 relative min-h-0">
             <ReactFlowProvider>
               <ReactFlow
-                nodes={nodes}
+                nodes={enhancedNodes}
                 edges={edges}
                 nodeTypes={nodeTypes}
                 edgeTypes={edgeTypes}
@@ -1074,15 +1295,19 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
                   setContextMenu({ x: e.clientX, y: e.clientY, nodeId: n.id });
                   setSelectedId(n.id);
                 }}
+                onEdgeClick={(_, e) => { setSelectedId(null); }}
                 selectionOnDrag
                 selectionMode={"partial" as any}
                 multiSelectionKeyCode="Shift"
+                snapToGrid
+                snapGrid={[16, 16]}
                 fitView
                 fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
                 deleteKeyCode={null}
                 defaultEdgeOptions={{
                   type: "smooth",
                   animated: false,
+                  data: {},
                   style: { stroke: "var(--rule-strong)", strokeWidth: 1.5 },
                 }}
               >
@@ -1091,12 +1316,14 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
                   showInteractive={false}
                   className="!bg-[var(--canvas)] !border-[var(--rule)] !rounded-[4px]"
                 />
-                <MiniMap
-                  className="!bg-[var(--canvas-subtle)] !border !border-[var(--rule)] !rounded-[4px]"
-                  nodeColor="var(--rule-strong)"
-                  maskColor="rgba(21,21,21,0.05)"
-                  pannable
-                />
+                {minimapVisible && (
+                  <MiniMap
+                    className="!bg-[var(--canvas-subtle)] !border !border-[var(--rule)] !rounded-[4px]"
+                    nodeColor="var(--rule-strong)"
+                    maskColor="rgba(21,21,21,0.05)"
+                    pannable
+                  />
+                )}
               </ReactFlow>
 
               {/* Context menu */}
@@ -1130,6 +1357,24 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
                       disabled={isTrigger}
                       onClick={() => { toggleDisabled(contextMenu.nodeId); setContextMenu(null); }}
                     />
+                    <div className="my-1 h-px bg-[var(--rule)]" />
+                    <div className="px-3 py-1.5">
+                      <div className="text-[10px] text-[var(--ink-subtle)] mb-1">Color</div>
+                      <div className="flex gap-1">
+                        {NODE_COLORS.map((c) => (
+                          <button
+                            key={c.value}
+                            onClick={() => { setNodeColor(contextMenu.nodeId, c.value); setContextMenu(null); }}
+                            className={`w-4 h-4 rounded-full border border-[var(--rule)] transition hover:scale-110 ${
+                              (nodeColors[contextMenu.nodeId] || "") === c.value ? "ring-2 ring-[var(--ink)] ring-offset-1 ring-offset-[var(--canvas)]" : ""
+                            }`}
+                            style={{ background: c.value || "var(--canvas-subtle)" }}
+                            title={c.label}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <div className="my-1 h-px bg-[var(--rule)]" />
                     <ContextMenuItem
                       icon={Trash2}
                       label="Delete"
@@ -1293,6 +1538,23 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
               </div>
             </div>
 
+            {/* Filter tabs */}
+            <div className="flex border-b border-[var(--rule)]">
+              {(["all", "production", "test"] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setHistoryFilter(f)}
+                  className={`flex-1 py-2 text-[10px] font-medium transition border-b-2 ${
+                    historyFilter === f
+                      ? "border-[var(--ink)] text-[var(--ink)]"
+                      : "border-transparent text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                  }`}
+                >
+                  {f === "all" ? "All" : f === "production" ? "Production" : "Test"}
+                </button>
+              ))}
+            </div>
+
             <div className="flex-1 overflow-y-auto">
               {historyLoading && !historyRows ? (
                 <div className="p-8 flex items-center justify-center text-[var(--ink-muted)]">
@@ -1350,22 +1612,33 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
                         </button>
                         {expanded && (
                           <div className="px-5 pb-4 bg-[var(--canvas-subtle)]">
-                            {/* Replay button */}
-                            {runDetail && runDetail.log && runDetail.log.length > 0 && (
-                              <button
-                                onClick={() => {
-                                  setRunLog(runDetail.log);
-                                  setRunStatus(runDetail.status as "success" | "error");
-                                  setIsDryRun(false);
-                                  setLogOpen(true);
-                                  setHistoryOpen(false);
-                                }}
-                                className="flex items-center gap-1.5 mb-3 px-3 py-1.5 rounded-[4px] border border-[var(--rule)] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas)] text-[11px] font-medium transition"
-                              >
-                                <RotateCcw className="w-3 h-3" strokeWidth={1.5} />
-                                Replay on canvas
-                              </button>
-                            )}
+                            {/* Replay + Retry buttons */}
+                            <div className="flex items-center gap-2 mb-3">
+                              {runDetail && runDetail.log && runDetail.log.length > 0 && (
+                                <button
+                                  onClick={() => {
+                                    setRunLog(runDetail.log);
+                                    setRunStatus(runDetail.status as "success" | "error");
+                                    setIsDryRun(false);
+                                    setLogOpen(true);
+                                    setHistoryOpen(false);
+                                  }}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] border border-[var(--rule)] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas)] text-[11px] font-medium transition"
+                                >
+                                  <RotateCcw className="w-3 h-3" strokeWidth={1.5} />
+                                  Replay on canvas
+                                </button>
+                              )}
+                              {row.status === "error" && (
+                                <button
+                                  onClick={() => { setHistoryOpen(false); retryExecution(); }}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] border border-[var(--rule)] text-[var(--danger)] hover:bg-[var(--danger-soft)] text-[11px] font-medium transition"
+                                >
+                                  <RefreshCw className="w-3 h-3" strokeWidth={1.5} />
+                                  Retry
+                                </button>
+                              )}
+                            </div>
                             {runDetailLoading ? (
                               <div className="py-4 flex items-center justify-center text-[var(--ink-muted)]">
                                 <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.5} />
@@ -1516,6 +1789,18 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
                     onChange={updateSelectedStep}
                   />
 
+                  {/* Node notes */}
+                  <div className="mt-5 pt-5 border-t border-[var(--rule)]">
+                    <div className="label-section mb-2">Notes</div>
+                    <textarea
+                      value={nodeNotes[selectedNode.id] || ""}
+                      onChange={(e) => setNodeNote(selectedNode.id, e.target.value)}
+                      placeholder="Add notes about this node..."
+                      rows={3}
+                      className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-3 py-2 text-[11px] text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)] placeholder:text-[var(--ink-subtle)] resize-y"
+                    />
+                  </div>
+
                   {/* Pin data editor */}
                   {isPinned && (
                     <div className="mt-5 pt-5 border-t border-[var(--rule)]">
@@ -1657,6 +1942,201 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
           );
         })()}
       </div>
+
+      {/* Toast notifications */}
+      {toasts.length > 0 && (
+        <div className="fixed bottom-6 right-6 z-[60] flex flex-col gap-2">
+          {toasts.map((t) => (
+            <div
+              key={t.id}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-[6px] shadow-lg text-xs font-medium animate-[slideUp_0.2s_ease-out] ${
+                t.type === "success" ? "bg-[var(--verified)] text-white"
+                : t.type === "error" ? "bg-[var(--danger)] text-white"
+                : "bg-[var(--ink)] text-[var(--canvas)]"
+              }`}
+            >
+              {t.type === "success" && <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={1.5} />}
+              {t.type === "error" && <AlertCircle className="w-3.5 h-3.5" strokeWidth={1.5} />}
+              {t.message}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Keyboard shortcuts overlay */}
+      {showShortcuts && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40" onClick={() => setShowShortcuts(false)}>
+          <div className="bg-[var(--canvas)] rounded-lg shadow-xl border border-[var(--rule)] w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-[var(--rule)] flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-[var(--ink)]">Keyboard shortcuts</h3>
+              <button onClick={() => setShowShortcuts(false)} className="p-1 text-[var(--ink-muted)] hover:text-[var(--ink)]">
+                <X className="w-4 h-4" strokeWidth={1.5} />
+              </button>
+            </div>
+            <div className="px-6 py-4 space-y-2">
+              {[
+                ["Cmd+S", "Save workflow"],
+                ["Cmd+Z", "Undo"],
+                ["Cmd+Shift+Z", "Redo"],
+                ["Cmd+C", "Copy node"],
+                ["Cmd+V", "Paste node"],
+                ["Cmd+D", "Duplicate node"],
+                ["Cmd+A", "Select all nodes"],
+                ["Cmd+K", "Command palette"],
+                ["Cmd+F", "Find node on canvas"],
+                ["Delete", "Delete selected"],
+                ["?", "Show this overlay"],
+                ["Double-click", "Rename node"],
+                ["Right-click", "Context menu"],
+              ].map(([key, desc]) => (
+                <div key={key} className="flex items-center justify-between">
+                  <span className="text-xs text-[var(--ink)]">{desc}</span>
+                  <kbd className="text-[10px] mono px-2 py-0.5 rounded-[3px] bg-[var(--canvas-subtle)] border border-[var(--rule)] text-[var(--ink-muted)]">{key}</kbd>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Command palette */}
+      {showCommandPalette && (
+        <div className="fixed inset-0 z-[60] flex items-start justify-center pt-[20vh] bg-black/40" onClick={() => setShowCommandPalette(false)}>
+          <div className="bg-[var(--canvas)] rounded-lg shadow-xl border border-[var(--rule)] w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+            <CommandPalette
+              onClose={() => setShowCommandPalette(false)}
+              actions={[
+                { label: "Save", hint: "Cmd+S", action: () => { save(); setShowCommandPalette(false); } },
+                { label: "Run workflow", hint: "Execute", action: () => { handleRunClick(); setShowCommandPalette(false); } },
+                { label: "Test run", hint: "Simulated", action: () => { dryRun(); setShowCommandPalette(false); } },
+                { label: "Undo", hint: "Cmd+Z", action: () => { undo(); setShowCommandPalette(false); } },
+                { label: "Redo", hint: "Cmd+Shift+Z", action: () => { redo(); setShowCommandPalette(false); } },
+                { label: "Auto-layout", hint: "Tidy", action: () => { tidyLayout(); setShowCommandPalette(false); } },
+                { label: "Export workflow", hint: "JSON", action: () => { exportWorkflow(); setShowCommandPalette(false); } },
+                { label: "Import workflow", hint: "JSON", action: () => { setShowImportExport("import"); setShowCommandPalette(false); } },
+                { label: "Toggle minimap", action: () => { setMinimapVisible((v) => !v); setShowCommandPalette(false); } },
+                { label: "Execution history", action: () => { toggleHistory(); setShowCommandPalette(false); } },
+                { label: "Keyboard shortcuts", hint: "?", action: () => { setShowShortcuts(true); setShowCommandPalette(false); } },
+                ...NODE_TYPES.map((t) => ({
+                  label: `Add: ${t.label}`,
+                  hint: t.category,
+                  action: () => { addNode(t.type); setShowCommandPalette(false); },
+                })),
+              ]}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Node search on canvas */}
+      {showNodeSearch && (
+        <div className="fixed top-[60px] left-1/2 -translate-x-1/2 z-[60] w-[320px]">
+          <div className="bg-[var(--canvas)] rounded-[8px] shadow-xl border border-[var(--rule)] overflow-hidden">
+            <div className="flex items-center gap-2 px-3">
+              <Search className="w-3.5 h-3.5 text-[var(--ink-subtle)]" strokeWidth={1.5} />
+              <input
+                autoFocus
+                value={nodeSearchQuery}
+                onChange={(e) => setNodeSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setShowNodeSearch(false);
+                  if (e.key === "Enter") {
+                    const q = nodeSearchQuery.toLowerCase();
+                    const found = nodes.find((n) => (n.data.step.name || "").toLowerCase().includes(q) || n.data.step.type.includes(q));
+                    if (found) { setSelectedId(found.id); setShowNodeSearch(false); }
+                  }
+                }}
+                placeholder="Find node..."
+                className="flex-1 py-2.5 bg-transparent border-none text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none"
+              />
+              <button onClick={() => setShowNodeSearch(false)} className="p-1 text-[var(--ink-muted)] hover:text-[var(--ink)]">
+                <X className="w-3.5 h-3.5" strokeWidth={1.5} />
+              </button>
+            </div>
+            {nodeSearchQuery && (
+              <div className="border-t border-[var(--rule)] max-h-[200px] overflow-y-auto">
+                {nodes.filter((n) => {
+                  const q = nodeSearchQuery.toLowerCase();
+                  return (n.data.step.name || "").toLowerCase().includes(q) || n.data.step.type.includes(q);
+                }).map((n) => {
+                  const meta = getMeta(n.data.step.type);
+                  const Icon = meta?.icon;
+                  return (
+                    <button
+                      key={n.id}
+                      onClick={() => { setSelectedId(n.id); setShowNodeSearch(false); }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[var(--canvas-subtle)] transition"
+                    >
+                      {Icon && <Icon className="w-3.5 h-3.5 text-[var(--ink-muted)]" strokeWidth={1.5} />}
+                      <span className="text-xs text-[var(--ink)]">{n.data.step.name || meta?.label || n.data.step.type}</span>
+                      <span className="text-[10px] text-[var(--ink-subtle)] mono ml-auto">{n.id}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Import/Export modal */}
+      {showImportExport && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40" onClick={() => setShowImportExport(null)}>
+          <div className="bg-[var(--canvas)] rounded-lg shadow-xl border border-[var(--rule)] w-full max-w-lg mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-[var(--rule)] flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-[var(--ink)]">
+                {showImportExport === "export" ? "Export workflow" : "Import workflow"}
+              </h3>
+              <button onClick={() => setShowImportExport(null)} className="p-1 text-[var(--ink-muted)] hover:text-[var(--ink)]">
+                <X className="w-4 h-4" strokeWidth={1.5} />
+              </button>
+            </div>
+            <div className="px-6 py-4">
+              {showImportExport === "export" ? (
+                <>
+                  <pre className="mono text-[10px] text-[var(--ink)] bg-[var(--canvas-subtle)] border border-[var(--rule)] rounded-[4px] p-3 whitespace-pre-wrap break-words max-h-64 overflow-auto mb-4">
+                    {JSON.stringify({ name, description, enabled, graph: flowToGraph(nodes, edges, nodeColors, nodeNotes) }, null, 2)}
+                  </pre>
+                  <button
+                    onClick={exportWorkflow}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-[6px] bg-[var(--ink)] text-[var(--canvas)] text-sm font-medium hover:opacity-90"
+                  >
+                    <Download className="w-4 h-4" strokeWidth={1.5} />
+                    Download JSON
+                  </button>
+                </>
+              ) : (
+                <>
+                  <textarea
+                    value={importJson}
+                    onChange={(e) => setImportJson(e.target.value)}
+                    placeholder="Paste workflow JSON here..."
+                    rows={10}
+                    spellCheck={false}
+                    className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-3 py-2 text-[11px] text-[var(--ink)] mono focus:outline-none focus:border-[var(--rule-strong)] resize-y mb-4"
+                  />
+                  <button
+                    onClick={importWorkflow}
+                    disabled={!importJson.trim()}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-[6px] bg-[var(--ink)] text-[var(--canvas)] text-sm font-medium hover:opacity-90 disabled:opacity-50"
+                  >
+                    <Upload className="w-4 h-4" strokeWidth={1.5} />
+                    Import
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Slide-up animation for toasts */}
+      <style>{`
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </div>
   );
 }
@@ -1712,6 +2192,72 @@ function ContextMenuItem({
         <span className="text-[10px] text-[var(--ink-subtle)] mono">{shortcut}</span>
       )}
     </button>
+  );
+}
+
+interface CommandPaletteAction {
+  label: string;
+  hint?: string;
+  action: () => void;
+}
+
+function CommandPalette({
+  onClose,
+  actions,
+}: {
+  onClose: () => void;
+  actions: CommandPaletteAction[];
+}) {
+  const [query, setQuery] = useState("");
+  const [idx, setIdx] = useState(0);
+  const filtered = useMemo(() => {
+    if (!query) return actions;
+    const q = query.toLowerCase();
+    return actions.filter(
+      (a) => a.label.toLowerCase().includes(q) || (a.hint ?? "").toLowerCase().includes(q),
+    );
+  }, [query, actions]);
+
+  useEffect(() => {
+    setIdx(0);
+  }, [query]);
+
+  return (
+    <>
+      <div className="flex items-center gap-2 px-4 border-b border-[var(--rule)]">
+        <Search className="w-4 h-4 text-[var(--ink-subtle)]" strokeWidth={1.5} />
+        <input
+          autoFocus
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowDown") { e.preventDefault(); setIdx((i) => Math.min(i + 1, filtered.length - 1)); }
+            if (e.key === "ArrowUp") { e.preventDefault(); setIdx((i) => Math.max(i - 1, 0)); }
+            if (e.key === "Enter" && filtered[idx]) { filtered[idx].action(); }
+            if (e.key === "Escape") onClose();
+          }}
+          placeholder="Type a command..."
+          className="flex-1 py-3 bg-transparent border-none text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none"
+        />
+      </div>
+      <div className="max-h-[300px] overflow-y-auto py-1">
+        {filtered.length === 0 && (
+          <div className="px-4 py-3 text-xs text-[var(--ink-muted)]">No matching commands</div>
+        )}
+        {filtered.map((a, i) => (
+          <button
+            key={a.label}
+            onClick={a.action}
+            className={`w-full flex items-center justify-between px-4 py-2 text-left text-xs transition ${
+              i === idx ? "bg-[var(--canvas-subtle)]" : "hover:bg-[var(--canvas-subtle)]"
+            }`}
+          >
+            <span className="text-[var(--ink)]">{a.label}</span>
+            {a.hint && <span className="text-[10px] text-[var(--ink-subtle)] mono">{a.hint}</span>}
+          </button>
+        ))}
+      </div>
+    </>
   );
 }
 

@@ -45,6 +45,17 @@ export function getDefaultOutputKeys(type: StepType | string): string[] {
   return OUTPUT_KEY_MAP[type] ?? DEFAULT_OUTPUT_KEYS;
 }
 
+// Built-in variables available in all expressions.
+const BUILTIN_VARIABLES = [
+  { id: "$now", label: "$now", hint: "Current ISO timestamp" },
+  { id: "$today", label: "$today", hint: "Today's date (YYYY-MM-DD)" },
+  { id: "$timestamp", label: "$timestamp", hint: "Unix timestamp (ms)" },
+  { id: "$workflow.id", label: "$workflow.id", hint: "Current workflow ID" },
+  { id: "$workflow.name", label: "$workflow.name", hint: "Current workflow name" },
+  { id: "$execution.id", label: "$execution.id", hint: "Current run ID" },
+  { id: "$random", label: "$random", hint: "Random number 0-1" },
+] as const;
+
 // ── Types ────────────────────────────────────────────────────────
 
 export interface AvailableStep {
@@ -109,7 +120,7 @@ export default function ExpressionInput({
   const items = useMemo(() => {
     if (dropdown.phase === "steps") {
       const f = dropdown.filter.toLowerCase();
-      return availableSteps
+      const stepItems = availableSteps
         .filter((s) => {
           const label = (s.name || s.id).toLowerCase();
           return label.includes(f) || s.type.toLowerCase().includes(f);
@@ -119,7 +130,18 @@ export default function ExpressionInput({
           primary: s.name || s.id,
           secondary: s.type,
           value: s.id,
+          isBuiltin: false,
         }));
+      const builtinItems = BUILTIN_VARIABLES
+        .filter((b) => b.label.toLowerCase().includes(f) || b.hint.toLowerCase().includes(f))
+        .map((b) => ({
+          id: b.id,
+          primary: b.label,
+          secondary: b.hint,
+          value: b.id,
+          isBuiltin: true,
+        }));
+      return [...stepItems, ...builtinItems];
     }
     if (dropdown.phase === "keys") {
       const step = availableSteps.find((s) => s.id === dropdown.stepId);
@@ -132,6 +154,7 @@ export default function ExpressionInput({
           primary: k,
           secondary: "",
           value: k,
+          isBuiltin: false,
         }));
     }
     return [];
@@ -268,17 +291,39 @@ export default function ExpressionInput({
     [value, onChange, dropdown],
   );
 
+  const insertBuiltin = useCallback(
+    (varName: string) => {
+      const start = tokenStartRef.current;
+      const cursor = cursorRef.current;
+      const before = value.slice(0, start);
+      const after = value.slice(cursor);
+      const inserted = `{{${varName}}}`;
+      const next = before + inserted + after;
+      onChange(next);
+      const newCursor = before.length + inserted.length;
+      cursorRef.current = newCursor;
+      setDropdown({ phase: "closed" });
+      requestAnimationFrame(() => {
+        const el = inputRef.current;
+        if (el) { el.focus(); el.setSelectionRange(newCursor, newCursor); }
+      });
+    },
+    [value, onChange],
+  );
+
   const selectItem = useCallback(
     (idx: number) => {
       const item = items[idx];
       if (!item) return;
-      if (dropdown.phase === "steps") {
+      if (item.isBuiltin) {
+        insertBuiltin(item.value);
+      } else if (dropdown.phase === "steps") {
         insertStep(item.value);
       } else if (dropdown.phase === "keys") {
         insertKey(item.value);
       }
     },
-    [items, dropdown.phase, insertStep, insertKey],
+    [items, dropdown.phase, insertStep, insertKey, insertBuiltin],
   );
 
   // ── Keyboard handler ─────────────────────────────────────────
@@ -357,6 +402,13 @@ export default function ExpressionInput({
         />
       )}
 
+      {/* Expression preview */}
+      {value.includes("{{") && !isOpen && (
+        <div className="mt-1 px-2 py-1 rounded-[3px] bg-[var(--canvas-subtle)] border border-[var(--rule)] text-[10px] mono text-[var(--ink-muted)] truncate">
+          {resolvePreview(value)}
+        </div>
+      )}
+
       {isOpen && (
         <div
           ref={dropdownRef}
@@ -398,4 +450,16 @@ export default function ExpressionInput({
       )}
     </div>
   );
+}
+
+function resolvePreview(expr: string): string {
+  return expr.replace(/\{\{([^}]+)\}\}/g, (_, ref: string) => {
+    const trimmed = ref.trim();
+    if (trimmed === "$now") return new Date().toISOString();
+    if (trimmed === "$today") return new Date().toISOString().slice(0, 10);
+    if (trimmed === "$timestamp") return String(Date.now());
+    if (trimmed === "$random") return (Math.random()).toFixed(4);
+    if (trimmed.startsWith("steps.")) return `[${trimmed}]`;
+    return `[${trimmed}]`;
+  });
 }
