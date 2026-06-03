@@ -768,6 +768,50 @@ function renderBody(
         </>
       );
 
+    case "code":
+      return (
+        <>
+          <Field label="Language">
+            <select
+              value={(cfg.language as string) || "javascript"}
+              onChange={(e) => setConfig("language", e.target.value)}
+              className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
+            >
+              <option value="javascript">JavaScript</option>
+            </select>
+          </Field>
+          <Field label="Code" hint="Access prior step outputs via the `steps` object. Return an object.">
+            <textarea
+              value={(cfg.code as string) || ""}
+              onChange={(e) => setConfig("code", e.target.value)}
+              rows={12}
+              placeholder={"// Access prior steps via steps object\n// Return an object with your output\nreturn { result: 'hello' };"}
+              className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-3 py-2 text-[12px] text-[var(--ink)] font-mono leading-relaxed focus:outline-none focus:border-[var(--rule-strong)] resize-y"
+              spellCheck={false}
+            />
+          </Field>
+          <Help>
+            Write JavaScript that runs server-side. Access prior step outputs
+            via the <code className="text-[var(--ink)]">steps</code> object
+            (e.g. <code className="text-[var(--ink)]">steps.query_abc123.contacts</code>).
+            Must return an object. Output is available as
+            <code className="mx-1 text-[var(--ink)]">{"{{steps.<id>.<field>}}"}</code>.
+          </Help>
+        </>
+      );
+
+    case "sticky_note":
+      return (
+        <Field label="Note content">
+          <Textarea
+            value={(cfg.content as string) || ""}
+            onChange={(v) => setConfig("content", v)}
+            rows={6}
+            placeholder="Add a note to this canvas..."
+          />
+        </Field>
+      );
+
     default:
       return null;
   }

@@ -1492,6 +1492,14 @@ async function executeNode(
     case "trigger_lease_expiry":
     case "trigger_deal_stage":
       return { input: ctx.input };
+    case "sticky_note":
+      return {};
+    case "code": {
+      const code = String(cfg.code ?? "");
+      const fn = new Function("steps", "input", code);
+      const result = fn(ctx.steps, ctx.input);
+      return typeof result === "object" && result !== null ? result : { result };
+    }
     case "http": {
       const httpCfg = cfg as Parameters<typeof runHttp>[0];
       // GETs are safe to run in simulate mode (read-only); other

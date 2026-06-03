@@ -24,6 +24,9 @@ export interface DanteNodeData {
   step: WorkflowStep;
   runStatus?: "success" | "error" | "running" | null;
   runDuration?: number | null;
+  runOutput?: unknown;
+  runError?: string | null;
+  disabled?: boolean;
   [key: string]: unknown;
 }
 
@@ -38,6 +41,11 @@ const DATA_TYPES = new Set([
 export default function DanteNode({ data, selected }: NodeProps) {
   const d = data as DanteNodeData;
   const step = d.step;
+
+  if (step.type === "sticky_note") {
+    return <StickyNoteCard data={d} selected={!!selected} />;
+  }
+
   const meta = getMeta(step.type);
   const Icon = meta?.icon;
   const accent = accentClasses(meta?.accent ?? "ink");
@@ -46,6 +54,7 @@ export default function DanteNode({ data, selected }: NodeProps) {
   const isSwitch = step.type === "switch";
   const isAI = AI_TYPES.has(step.type);
   const isData = DATA_TYPES.has(step.type);
+  const isDisabled = !!d.disabled;
   const switchCases = isSwitch
     ? ((step.config as Record<string, unknown>).cases as Array<{ value: string; label?: string }>) || []
     : [];
@@ -53,7 +62,6 @@ export default function DanteNode({ data, selected }: NodeProps) {
   const summary = nodeSummary(step);
   const typeLabel = meta?.label ?? step.type;
 
-  // Accent bar color
   const barColor = isTrigger
     ? "bg-[var(--verified)]"
     : isAI
@@ -62,13 +70,19 @@ export default function DanteNode({ data, selected }: NodeProps) {
         ? "bg-[var(--flag)]"
         : "bg-[var(--ink)]";
 
+  const runOutputPreview = formatOutputPreview(d.runOutput, d.runError);
+
   return (
     <div
       className={`
         group relative rounded-[8px] transition-all duration-150
-        ${selected
-          ? `ring-2 ring-offset-2 ring-offset-[var(--canvas)] ${accent.selectedOutline} shadow-lg`
-          : "shadow-sm hover:shadow-md"}
+        ${d.runStatus === "running" ? "ring-2 ring-[var(--accent)] ring-offset-2 ring-offset-[var(--canvas)] shadow-lg animate-pulse" : ""}
+        ${!d.runStatus || d.runStatus !== "running"
+          ? selected
+            ? `ring-2 ring-offset-2 ring-offset-[var(--canvas)] ${accent.selectedOutline} shadow-lg`
+            : "shadow-sm hover:shadow-md"
+          : ""}
+        ${isDisabled ? "opacity-40" : ""}
         min-w-[260px] max-w-[300px]
         overflow-hidden
       `}
@@ -77,10 +91,8 @@ export default function DanteNode({ data, selected }: NodeProps) {
         border: "1px solid var(--rule)",
       }}
     >
-      {/* Top accent bar */}
       <div className={`h-[3px] w-full ${barColor}`} />
 
-      {/* Input handle */}
       {!isTrigger && (
         <Handle
           type="target"
@@ -89,9 +101,7 @@ export default function DanteNode({ data, selected }: NodeProps) {
         />
       )}
 
-      {/* Main content */}
       <div className="px-4 pt-3 pb-3">
-        {/* Header row: icon + type + badges */}
         <div className="flex items-center gap-2.5 mb-2">
           <div className={`rounded-[6px] p-2 shrink-0 ${accent.iconWrap}`}>
             {Icon && <Icon className="w-4 h-4" strokeWidth={1.5} />}
@@ -116,38 +126,36 @@ export default function DanteNode({ data, selected }: NodeProps) {
             </div>
           </div>
 
-          {/* Run status badge */}
           {d.runStatus && (
             <div className={`shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] text-[10px] font-medium ${
               d.runStatus === "success"
                 ? "bg-[var(--verified-soft)] text-[var(--verified)]"
                 : d.runStatus === "error"
-                  ? "bg-red-50 text-[var(--danger)]"
+                  ? "bg-[var(--danger-soft)] text-[var(--danger)]"
                   : "bg-[var(--canvas-subtle)] text-[var(--ink-muted)]"
             }`}>
               {d.runStatus === "success" && <CheckCircle2 className="w-3 h-3" strokeWidth={2} />}
               {d.runStatus === "error"   && <AlertCircle  className="w-3 h-3" strokeWidth={2} />}
               {d.runStatus === "running" && <Loader2     className="w-3 h-3 animate-spin" strokeWidth={2} />}
-              <span className="hidden">
-                {d.runStatus === "success" ? "OK" : d.runStatus === "error" ? "Err" : "..."}
-              </span>
+              {d.runDuration != null && d.runStatus !== "running" && (
+                <span className="ml-0.5">
+                  {d.runDuration < 1000 ? `${d.runDuration}ms` : `${(d.runDuration / 1000).toFixed(1)}s`}
+                </span>
+              )}
             </div>
           )}
         </div>
 
-        {/* Step name */}
         <div className="text-[13px] font-semibold text-[var(--ink)] leading-tight mb-1 truncate">
           {step.name || typeLabel}
         </div>
 
-        {/* Config summary */}
         {summary && (
           <div className="text-[11px] text-[var(--ink-muted)] leading-snug truncate font-mono">
             {summary}
           </div>
         )}
 
-        {/* Data flow indicator for data/AI nodes */}
         {(isAI || isData) && (
           <div className="mt-2.5 pt-2 border-t border-[var(--rule)] flex items-center gap-1.5">
             {isAI ? (
@@ -172,9 +180,17 @@ export default function DanteNode({ data, selected }: NodeProps) {
             )}
           </div>
         )}
+
+        {/* In-canvas run data preview */}
+        {runOutputPreview && d.runStatus && d.runStatus !== "running" && (
+          <div className={`mt-2 pt-2 border-t border-[var(--rule)] text-[10px] font-mono leading-snug truncate ${
+            d.runStatus === "error" ? "text-[var(--danger)]" : "text-[var(--ink-muted)]"
+          }`}>
+            {runOutputPreview}
+          </div>
+        )}
       </div>
 
-      {/* Output handles */}
       {isCondition ? (
         <>
           <div className="flex justify-between px-4 pb-2 text-[9px] uppercase tracking-wider font-mono font-medium">
@@ -231,6 +247,51 @@ export default function DanteNode({ data, selected }: NodeProps) {
       )}
     </div>
   );
+}
+
+function StickyNoteCard({ data, selected }: { data: DanteNodeData; selected: boolean }) {
+  const content = (data.step.config as { content?: string })?.content || "";
+  return (
+    <div
+      className={`
+        rounded-[6px] min-w-[200px] max-w-[280px] shadow-sm
+        ${selected ? "ring-2 ring-offset-2 ring-offset-[var(--canvas)] ring-[var(--flag)] shadow-md" : ""}
+      `}
+      style={{
+        background: "var(--flag-soft)",
+        border: "1px solid var(--flag)",
+      }}
+    >
+      <div className="px-4 py-3">
+        <div className="text-[10px] uppercase tracking-[0.06em] text-[var(--flag)] font-medium mb-1.5">
+          Note
+        </div>
+        <div className="text-[12px] text-[var(--ink)] leading-relaxed whitespace-pre-wrap">
+          {content || "Click to add a note..."}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function formatOutputPreview(output: unknown, error?: string | null): string | null {
+  if (error) return error.slice(0, 80);
+  if (output == null) return null;
+  if (typeof output === "string") return output.slice(0, 80);
+  if (typeof output === "object") {
+    const o = output as Record<string, unknown>;
+    if (o.text && typeof o.text === "string") return o.text.slice(0, 80);
+    if (o.count != null) return `${o.count} result${o.count === 1 ? "" : "s"}`;
+    if (o.simulated) return "simulated";
+    if (o.email_id) return `sent: ${o.email_id}`;
+    if (o.delivery_channel) return `${o.delivery_channel}`;
+    if (o.passed != null) return o.passed ? "true" : "false";
+    if (o.waited_seconds != null) return `waited ${o.waited_seconds}s`;
+    if (o.url) return String(o.url).slice(0, 80);
+    const json = JSON.stringify(o);
+    return json.length > 80 ? json.slice(0, 77) + "..." : json;
+  }
+  return String(output).slice(0, 80);
 }
 
 // ── One-line node summary ────────────────────────────────────
@@ -295,6 +356,8 @@ function nodeSummary(step: WorkflowStep): string | null {
       const to = (cfg.to_stage as string) || "any";
       return `${from} -> ${to}`;
     }
+    case "code":             return truncate(String(cfg.code ?? ""), 32);
+    case "sticky_note":      return null;
     default:                 return null;
   }
 }

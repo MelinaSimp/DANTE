@@ -43,6 +43,8 @@ import {
   type NodeChange,
   type EdgeChange,
   type NodeTypes,
+  type EdgeTypes,
+  type OnConnectEnd,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
@@ -50,6 +52,9 @@ import {
   ArrowLeft, Save, Loader2, Play, Trash2, AlertCircle,
   CheckCircle2, Power, X, Plus, Copy, ChevronDown, ChevronUp,
   Sparkles, History, Clock, FlaskConical, BarChart3,
+  Undo2, Redo2, Search, ChevronRight, RotateCcw,
+  EyeOff, Clipboard, AlignVerticalJustifyCenter, Pin, PinOff,
+  Table, Braces, List,
 } from "lucide-react";
 
 import type {
@@ -65,7 +70,9 @@ import { definitionFromRow } from "@/lib/dante/workflow-types";
 
 import DanteNode, { type DanteNodeData } from "./canvas/DanteNode";
 import StepConfigForm, { type StepPatch } from "./canvas/StepConfigForm";
-import { NODE_TYPES, getMeta, isTriggerType } from "./canvas/nodeTypes";
+import { NODE_TYPES, getMeta, isTriggerType, CATEGORY_LABELS, CATEGORY_ORDER, type NodeCategory } from "./canvas/nodeTypes";
+import SmoothEdge from "./canvas/SmoothEdge";
+import { autoLayout } from "./canvas/autoLayout";
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -119,7 +126,7 @@ function graphToFlow(graph: WorkflowGraph): { nodes: DanteRFNode[]; edges: RFEdg
     source: e.source,
     target: e.target,
     sourceHandle: e.sourceHandle,
-    // Use a labeled edge for condition branches.
+    type: "smooth",
     label: e.sourceHandle ? e.sourceHandle : undefined,
     labelStyle: e.sourceHandle === "true"
       ? { fill: "var(--verified)", fontSize: 10, fontFamily: "ui-monospace, monospace" }
@@ -204,6 +211,33 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
   const [runInputOpen, setRunInputOpen] = useState(false);
   const [runInputValues, setRunInputValues] = useState<Record<string, string>>({});
 
+  // Palette search
+  const [paletteSearch, setPaletteSearch] = useState("");
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<NodeCategory>>(new Set());
+
+  // Undo/redo history
+  const [undoStack, setUndoStack] = useState<Array<{ nodes: DanteRFNode[]; edges: RFEdge[] }>>([]);
+  const [redoStack, setRedoStack] = useState<Array<{ nodes: DanteRFNode[]; edges: RFEdge[] }>>([]);
+  const pushUndo = useCallback(() => {
+    setUndoStack((s) => [...s.slice(-49), { nodes: structuredClone(nodes), edges: structuredClone(edges) }]);
+    setRedoStack([]);
+  }, [nodes, edges]);
+
+  // Clipboard for copy/paste
+  const [clipboard, setClipboard] = useState<DanteRFNode[] | null>(null);
+
+  // Context menu
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null);
+
+  // Drag-to-create node picker
+  const [nodePicker, setNodePicker] = useState<{ x: number; y: number; fromNodeId: string; fromHandle?: string } | null>(null);
+
+  // Pin data per node (keyed by node id)
+  const [pinnedData, setPinnedData] = useState<Record<string, unknown>>({});
+
+  // Data view tab in drawer
+  const [dataViewTab, setDataViewTab] = useState<"config" | "input" | "output">("config");
+
   // Run history drawer state. Opens from the toolbar; rows show
   // status + when, expand to load the full log.
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -212,6 +246,145 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
   const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
   const [runDetail, setRunDetail] = useState<RunDetail | null>(null);
   const [runDetailLoading, setRunDetailLoading] = useState(false);
+
+  // ── Undo / redo ───────────────────────────────────────────
+
+  const undo = useCallback(() => {
+    setUndoStack((stack) => {
+      if (stack.length === 0) return stack;
+      const prev = stack[stack.length - 1];
+      setRedoStack((rs) => [...rs, { nodes: structuredClone(nodes), edges: structuredClone(edges) }]);
+      setNodes(prev.nodes);
+      setEdges(prev.edges);
+      return stack.slice(0, -1);
+    });
+  }, [nodes, edges]);
+
+  const redo = useCallback(() => {
+    setRedoStack((stack) => {
+      if (stack.length === 0) return stack;
+      const next = stack[stack.length - 1];
+      setUndoStack((us) => [...us, { nodes: structuredClone(nodes), edges: structuredClone(edges) }]);
+      setNodes(next.nodes);
+      setEdges(next.edges);
+      return stack.slice(0, -1);
+    });
+  }, [nodes, edges]);
+
+  // ── Copy / paste / duplicate ─────────────────────────────
+
+  const copySelected = useCallback(() => {
+    if (!selectedId) return;
+    const node = nodes.find((n) => n.id === selectedId);
+    if (node) setClipboard([structuredClone(node)]);
+  }, [selectedId, nodes]);
+
+  const pasteClipboard = useCallback(() => {
+    if (!clipboard || clipboard.length === 0) return;
+    pushUndo();
+    const newNodes: DanteRFNode[] = clipboard.map((n) => {
+      const id = newId(n.data.step.type.split("_")[0]);
+      return {
+        ...n,
+        id,
+        position: { x: n.position.x + 40, y: n.position.y + 40 },
+        data: { ...n.data, step: { ...n.data.step, id } },
+      };
+    });
+    setNodes((ns) => [...ns, ...newNodes]);
+    if (newNodes.length === 1) setSelectedId(newNodes[0].id);
+  }, [clipboard, pushUndo]);
+
+  const duplicateSelected = useCallback(() => {
+    if (!selectedId) return;
+    const node = nodes.find((n) => n.id === selectedId);
+    if (!node || isTriggerType(node.data.step.type)) return;
+    pushUndo();
+    const id = newId(node.data.step.type.split("_")[0]);
+    const dup: DanteRFNode = {
+      ...structuredClone(node),
+      id,
+      position: { x: node.position.x + 40, y: node.position.y + 60 },
+      data: { ...structuredClone(node.data), step: { ...structuredClone(node.data.step), id } },
+    };
+    setNodes((ns) => [...ns, dup]);
+    setSelectedId(id);
+  }, [selectedId, nodes, pushUndo]);
+
+  // ── Toggle node disabled ─────────────────────────────────
+
+  const toggleDisabled = useCallback((nodeId: string) => {
+    setNodes((ns) => ns.map((n) =>
+      n.id === nodeId
+        ? { ...n, data: { ...n.data, disabled: !n.data.disabled } }
+        : n
+    ));
+  }, []);
+
+  // ── Auto-layout ─────────────────────────────────────────
+
+  const tidyLayout = useCallback(() => {
+    pushUndo();
+    setNodes((ns) => autoLayout(ns, edges));
+  }, [edges, pushUndo]);
+
+  // ── Pin data ────────────────────────────────────────────
+
+  const togglePinData = useCallback((nodeId: string, data?: unknown) => {
+    setPinnedData((prev) => {
+      const next = { ...prev };
+      if (next[nodeId] !== undefined && data === undefined) {
+        delete next[nodeId];
+      } else {
+        next[nodeId] = data ?? {};
+      }
+      return next;
+    });
+  }, []);
+
+  // ── Drag-to-create from handle ─────────────────────────
+
+  const onConnectEnd: OnConnectEnd = useCallback((event, connectionState) => {
+    if (!connectionState?.fromNode?.id) return;
+    const target = event.target as HTMLElement;
+    if (target.closest(".react-flow__node")) return;
+    const bounds = (target.closest(".react-flow") as HTMLElement)?.getBoundingClientRect();
+    if (!bounds) return;
+    const clientEvent = event instanceof MouseEvent ? event : (event as TouchEvent).changedTouches?.[0];
+    if (!clientEvent) return;
+    setNodePicker({
+      x: clientEvent.clientX - bounds.left,
+      y: clientEvent.clientY - bounds.top,
+      fromNodeId: connectionState.fromNode.id,
+      fromHandle: connectionState.fromHandle?.id ?? undefined,
+    });
+  }, []);
+
+  const addNodeFromPicker = useCallback((type: StepType) => {
+    if (!nodePicker) return;
+    const meta = getMeta(type);
+    if (!meta) return;
+    pushUndo();
+    const id = newId(type.split("_")[0]);
+    const step = meta.default(id);
+    const newNode: DanteRFNode = {
+      id,
+      type: "dante",
+      position: { x: nodePicker.x - 130, y: nodePicker.y },
+      data: { step },
+    };
+    setNodes((ns) => [...ns, newNode]);
+    const edgeId = `${nodePicker.fromNodeId}->${id}${nodePicker.fromHandle ? `:${nodePicker.fromHandle}` : ""}_${Math.random().toString(36).slice(2, 5)}`;
+    setEdges((es) => addEdge({
+      id: edgeId,
+      source: nodePicker.fromNodeId,
+      target: id,
+      sourceHandle: nodePicker.fromHandle,
+      style: { stroke: "var(--ink-muted)", strokeWidth: 2 },
+    }, es));
+    setSelectedId(id);
+    setNodePicker(null);
+  }, [nodePicker, pushUndo]);
 
   // ── React Flow callbacks ──────────────────────────────────
 
@@ -225,6 +398,7 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
   );
   const onConnect = useCallback(
     (conn: Connection) => {
+      pushUndo();
       const handle = conn.sourceHandle === "true" || conn.sourceHandle === "false"
         ? conn.sourceHandle : undefined;
       setEdges((es) => addEdge({
@@ -239,7 +413,7 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
         style: { stroke: "var(--ink-muted)", strokeWidth: 1.5 },
       }, es));
     },
-    [],
+    [pushUndo],
   );
 
   // ── Node ops ──────────────────────────────────────────────
@@ -248,8 +422,8 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
     const meta = getMeta(type);
     if (!meta) return;
 
-    // If this is a trigger and we already have one, don't stack them —
-    // swap it out so the user always has exactly one entry point.
+    pushUndo();
+
     if (isTriggerType(type)) {
       const existingTrigger = nodes.find((n) => isTriggerType(n.data.step.type));
       if (existingTrigger) {
@@ -262,8 +436,6 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
       }
     }
 
-    // Place the new node below the lowest existing node so they don't
-    // overlap on first drop.
     const maxY = nodes.reduce((m, n) => Math.max(m, n.position.y), 0);
     const pos = { x: 80 + Math.random() * 40, y: maxY + 160 };
 
@@ -277,13 +449,14 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
     };
     setNodes((ns) => [...ns, newNode]);
     setSelectedId(id);
-  }, [nodes]);
+  }, [nodes, pushUndo]);
 
   const deleteNode = useCallback((id: string) => {
+    pushUndo();
     setNodes((ns) => ns.filter((n) => n.id !== id));
     setEdges((es) => es.filter((e) => e.source !== id && e.target !== id));
     if (selectedId === id) setSelectedId(null);
-  }, [selectedId]);
+  }, [selectedId, pushUndo]);
 
   const updateSelectedStep = useCallback((patch: StepPatch) => {
     if (!selectedId) return;
@@ -321,6 +494,58 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
       setSaveStatus("error");
     } finally { setSaving(false); }
   }, [workflow.id, name, description, enabled, nodes, edges]);
+
+  // ── Keyboard shortcuts ───────────────────────────────────
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      const target = e.target as HTMLElement;
+      const isInput = target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable;
+
+      if (mod && e.key === "s") {
+        e.preventDefault();
+        save();
+        return;
+      }
+      if (mod && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+        return;
+      }
+      if (mod && e.key === "z" && e.shiftKey) {
+        e.preventDefault();
+        redo();
+        return;
+      }
+      if (isInput) return;
+      if (mod && e.key === "d") {
+        e.preventDefault();
+        duplicateSelected();
+        return;
+      }
+      if (mod && e.key === "c") {
+        e.preventDefault();
+        copySelected();
+        return;
+      }
+      if (mod && e.key === "v") {
+        e.preventDefault();
+        pasteClipboard();
+        return;
+      }
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedId) {
+        const node = nodes.find((n) => n.id === selectedId);
+        if (node && !isTriggerType(node.data.step.type)) {
+          e.preventDefault();
+          pushUndo();
+          deleteNode(selectedId);
+        }
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [save, undo, redo, duplicateSelected, copySelected, pasteClipboard, selectedId, nodes, pushUndo, deleteNode]);
 
   // Check if the trigger has input fields; if so, open the dialog
   // instead of running immediately.
@@ -396,9 +621,33 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
           if (rd.status === "error" && rd.error) setError(rd.error);
           terminal = true;
         } else {
-          // Keep showing the "queued"/"running" ghost state; rely on
-          // the next poll to update.
           setRunStatus(rd.status as "queued" | "running");
+          // Paint partial progress: mark completed nodes and highlight
+          // the currently-running one for real-time visualization.
+          if (rd.log && Array.isArray(rd.log) && rd.log.length > 0) {
+            const partialLog = rd.log as StepLogEntry[];
+            setRunLog(partialLog);
+            const completedIds = new Set(partialLog.map((e: StepLogEntry) => e.step_id));
+            setNodes((ns) => {
+              const currentEdges = edges;
+              return ns.map((n) => {
+                const entry = partialLog.find((e: StepLogEntry) => e.step_id === n.id);
+                if (entry) {
+                  const dur = entry.started_at && entry.finished_at
+                    ? Math.max(0, new Date(entry.finished_at).getTime() - new Date(entry.started_at).getTime())
+                    : null;
+                  return { ...n, data: { ...n.data, runStatus: entry.status as "success" | "error", runOutput: entry.output, runError: entry.error || null, runDuration: dur } };
+                }
+                const hasCompletedParent = currentEdges.some(
+                  (e) => e.target === n.id && completedIds.has(e.source),
+                );
+                if (hasCompletedParent) {
+                  return { ...n, data: { ...n.data, runStatus: "running" as const, runOutput: undefined, runError: null, runDuration: null } };
+                }
+                return { ...n, data: { ...n.data, runStatus: null, runOutput: undefined, runError: null, runDuration: null } };
+              });
+            });
+          }
         }
       }
       if (!terminal) {
@@ -510,17 +759,27 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
     setHistoryRows(null);
   }, [runStatus]);
 
-  // Paint run status on each node after a run finishes.
+  // Paint run status + output data on each node after a run finishes.
   useEffect(() => {
     if (!runLog) return;
-    const byId = new Map(runLog.map((e) => [e.step_id, e.status]));
-    setNodes((ns) => ns.map((n) => ({
-      ...n,
-      data: {
-        ...n.data,
-        runStatus: (byId.get(n.id) as "success" | "error" | undefined) ?? null,
-      },
-    })));
+    const byId = new Map(runLog.map((e) => [e.step_id, e]));
+    setNodes((ns) => ns.map((n) => {
+      const entry = byId.get(n.id);
+      if (!entry) return { ...n, data: { ...n.data, runStatus: null, runOutput: undefined, runError: null, runDuration: null } };
+      const duration = entry.started_at && entry.finished_at
+        ? Math.max(0, new Date(entry.finished_at).getTime() - new Date(entry.started_at).getTime())
+        : null;
+      return {
+        ...n,
+        data: {
+          ...n.data,
+          runStatus: entry.status as "success" | "error",
+          runOutput: entry.output,
+          runError: entry.error || null,
+          runDuration: duration,
+        },
+      };
+    }));
   }, [runLog]);
 
   // ── Webhook token ─────────────────────────────────────────
@@ -554,9 +813,29 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
   // ── Render ────────────────────────────────────────────────
 
   const nodeTypes: NodeTypes = useMemo(() => ({ dante: DanteNode }), []);
+  const edgeTypes: EdgeTypes = useMemo(() => ({ smooth: SmoothEdge }), []);
 
-  const triggers = NODE_TYPES.filter((t) => t.group === "trigger");
-  const actions  = NODE_TYPES.filter((t) => t.group === "action");
+  // Categorized + filtered palette items
+  const filteredByCategory = useMemo(() => {
+    const q = paletteSearch.toLowerCase().trim();
+    const filtered = q
+      ? NODE_TYPES.filter((t) => t.label.toLowerCase().includes(q) || t.hint.toLowerCase().includes(q) || t.type.includes(q))
+      : NODE_TYPES;
+    const groups: Partial<Record<NodeCategory, typeof NODE_TYPES>> = {};
+    for (const t of filtered) {
+      (groups[t.category] ??= []).push(t);
+    }
+    return groups;
+  }, [paletteSearch]);
+
+  const toggleCategory = useCallback((cat: NodeCategory) => {
+    setCollapsedCategories((s) => {
+      const next = new Set(s);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col bg-[var(--canvas)]">
@@ -589,6 +868,19 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
               <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={1.5} /> Saved
             </span>
           )}
+          <div className="flex items-center border border-[var(--rule)] rounded-[4px] overflow-hidden">
+            <button onClick={undo} disabled={undoStack.length === 0}
+              title="Undo (Cmd+Z)"
+              className="p-2 text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition disabled:opacity-30">
+              <Undo2 className="w-3.5 h-3.5" strokeWidth={1.5} />
+            </button>
+            <div className="w-px h-5 bg-[var(--rule)]" />
+            <button onClick={redo} disabled={redoStack.length === 0}
+              title="Redo (Cmd+Shift+Z)"
+              className="p-2 text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition disabled:opacity-30">
+              <Redo2 className="w-3.5 h-3.5" strokeWidth={1.5} />
+            </button>
+          </div>
           <button onClick={toggleHistory}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-[4px] border text-sm font-medium transition ${
               historyOpen
@@ -597,6 +889,14 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
             }`}>
             <History className="w-4 h-4" strokeWidth={1.5} />
             <span className="hidden sm:inline">History</span>
+          </button>
+          <button
+            onClick={tidyLayout}
+            title="Auto-layout (dagre)"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-[4px] border border-[var(--rule)] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] text-sm font-medium transition"
+          >
+            <AlignVerticalJustifyCenter className="w-4 h-4" strokeWidth={1.5} />
+            <span className="hidden sm:inline">Tidy</span>
           </button>
           <Link
             href={`/dante/workflows/${workflow.id}/impact`}
@@ -721,15 +1021,42 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
       <div className="flex-1 flex min-h-0">
         {/* Palette */}
         <aside className="w-[220px] shrink-0 border-r border-[var(--rule)] bg-[var(--canvas)] overflow-y-auto">
-          <div className="p-4">
-            <div className="label-section mb-3">Triggers</div>
-            <div className="space-y-1 mb-6">
-              {triggers.map((t) => <PaletteItem key={t.type} meta={t} onAdd={() => addNode(t.type)} />)}
+          <div className="p-3">
+            <div className="relative mb-3">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--ink-subtle)]" strokeWidth={1.5} />
+              <input
+                value={paletteSearch}
+                onChange={(e) => setPaletteSearch(e.target.value)}
+                placeholder="Search nodes..."
+                className="w-full pl-8 pr-3 py-2 bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] text-xs text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none focus:border-[var(--rule-strong)]"
+              />
+              {paletteSearch && (
+                <button onClick={() => setPaletteSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--ink-subtle)] hover:text-[var(--ink)]">
+                  <X className="w-3 h-3" strokeWidth={1.5} />
+                </button>
+              )}
             </div>
-            <div className="label-section mb-3">Actions</div>
-            <div className="space-y-1">
-              {actions.map((t) => <PaletteItem key={t.type} meta={t} onAdd={() => addNode(t.type)} />)}
-            </div>
+            {CATEGORY_ORDER.map((cat) => {
+              const items = filteredByCategory[cat];
+              if (!items || items.length === 0) return null;
+              const collapsed = collapsedCategories.has(cat) && !paletteSearch;
+              return (
+                <div key={cat} className="mb-2">
+                  <button
+                    onClick={() => toggleCategory(cat)}
+                    className="w-full flex items-center justify-between px-1 py-1.5 text-left group"
+                  >
+                    <span className="label-section">{CATEGORY_LABELS[cat]}</span>
+                    <ChevronRight className={`w-3 h-3 text-[var(--ink-subtle)] transition-transform ${collapsed ? "" : "rotate-90"}`} strokeWidth={1.5} />
+                  </button>
+                  {!collapsed && (
+                    <div className="space-y-0.5">
+                      {items.map((t) => <PaletteItem key={t.type} meta={t} onAdd={() => addNode(t.type)} />)}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </aside>
 
@@ -741,14 +1068,26 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
                 nodes={nodes}
                 edges={edges}
                 nodeTypes={nodeTypes}
+                edgeTypes={edgeTypes}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
-                onNodeClick={(_, n) => setSelectedId(n.id)}
-                onPaneClick={() => setSelectedId(null)}
+                onConnectEnd={onConnectEnd}
+                onNodeClick={(_, n) => { setSelectedId(n.id); setContextMenu(null); setNodePicker(null); setDataViewTab("config"); }}
+                onPaneClick={() => { setSelectedId(null); setContextMenu(null); setNodePicker(null); }}
+                onNodeContextMenu={(e, n) => {
+                  e.preventDefault();
+                  setContextMenu({ x: e.clientX, y: e.clientY, nodeId: n.id });
+                  setSelectedId(n.id);
+                }}
+                selectionOnDrag
+                selectionMode={"partial" as any}
+                multiSelectionKeyCode="Shift"
                 fitView
                 fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
+                deleteKeyCode={null}
                 defaultEdgeOptions={{
+                  type: "smooth",
                   animated: true,
                   style: { stroke: "var(--ink-muted)", strokeWidth: 2 },
                 }}
@@ -765,6 +1104,76 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
                   pannable
                 />
               </ReactFlow>
+
+              {/* Context menu */}
+              {contextMenu && (() => {
+                const ctxNode = nodes.find((n) => n.id === contextMenu.nodeId);
+                if (!ctxNode) return null;
+                const isTrigger = isTriggerType(ctxNode.data.step.type);
+                const isDisabled = !!ctxNode.data.disabled;
+                return (
+                  <div
+                    className="fixed z-50 bg-[var(--canvas)] border border-[var(--rule)] rounded-[6px] shadow-lg py-1 min-w-[160px]"
+                    style={{ left: contextMenu.x, top: contextMenu.y }}
+                  >
+                    <ContextMenuItem
+                      icon={Copy}
+                      label="Duplicate"
+                      shortcut="Cmd+D"
+                      disabled={isTrigger}
+                      onClick={() => { duplicateSelected(); setContextMenu(null); }}
+                    />
+                    <ContextMenuItem
+                      icon={Clipboard}
+                      label="Copy"
+                      shortcut="Cmd+C"
+                      onClick={() => { copySelected(); setContextMenu(null); }}
+                    />
+                    <div className="my-1 h-px bg-[var(--rule)]" />
+                    <ContextMenuItem
+                      icon={EyeOff}
+                      label={isDisabled ? "Enable" : "Disable"}
+                      disabled={isTrigger}
+                      onClick={() => { toggleDisabled(contextMenu.nodeId); setContextMenu(null); }}
+                    />
+                    <ContextMenuItem
+                      icon={Trash2}
+                      label="Delete"
+                      shortcut="Del"
+                      disabled={isTrigger}
+                      danger
+                      onClick={() => { deleteNode(contextMenu.nodeId); setContextMenu(null); }}
+                    />
+                  </div>
+                );
+              })()}
+
+              {/* Drag-to-create node picker */}
+              {nodePicker && (
+                <div
+                  className="absolute z-50 bg-[var(--canvas)] border border-[var(--rule)] rounded-[6px] shadow-xl w-[220px] max-h-[300px] overflow-y-auto"
+                  style={{ left: nodePicker.x, top: nodePicker.y }}
+                >
+                  <div className="px-3 py-2 border-b border-[var(--rule)]">
+                    <span className="text-[10px] uppercase tracking-wider text-[var(--ink-subtle)] font-medium">Add connected node</span>
+                  </div>
+                  <div className="py-1">
+                    {NODE_TYPES.filter((t) => t.group === "action").map((t) => {
+                      const Icon = t.icon;
+                      return (
+                        <button
+                          key={t.type}
+                          onClick={() => addNodeFromPicker(t.type)}
+                          className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-[var(--canvas-subtle)] transition"
+                        >
+                          <Icon className="w-3.5 h-3.5 text-[var(--ink-muted)]" strokeWidth={1.5} />
+                          <span className="text-[var(--ink)]">{t.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </ReactFlowProvider>
           </div>
 
@@ -932,6 +1341,22 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
                         </button>
                         {expanded && (
                           <div className="px-5 pb-4 bg-[var(--canvas-subtle)]">
+                            {/* Replay button */}
+                            {runDetail && runDetail.log && runDetail.log.length > 0 && (
+                              <button
+                                onClick={() => {
+                                  setRunLog(runDetail.log);
+                                  setRunStatus(runDetail.status as "success" | "error");
+                                  setIsDryRun(false);
+                                  setLogOpen(true);
+                                  setHistoryOpen(false);
+                                }}
+                                className="flex items-center gap-1.5 mb-3 px-3 py-1.5 rounded-[4px] border border-[var(--rule)] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas)] text-[11px] font-medium transition"
+                              >
+                                <RotateCcw className="w-3 h-3" strokeWidth={1.5} />
+                                Replay on canvas
+                              </button>
+                            )}
                             {runDetailLoading ? (
                               <div className="py-4 flex items-center justify-center text-[var(--ink-muted)]">
                                 <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.5} />
@@ -989,99 +1414,234 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
         )}
 
         {/* Right drawer */}
-        {selectedNode && !historyOpen && (
-          <aside className="w-[380px] shrink-0 border-l border-[var(--rule)] bg-[var(--canvas)] overflow-y-auto">
-            <div className="sticky top-0 bg-[var(--canvas)] border-b border-[var(--rule)] px-5 py-3 flex items-center justify-between">
-              <div className="min-w-0">
-                <div className="label-section">
-                  {getMeta(selectedNode.data.step.type)?.label ?? selectedNode.data.step.type}
+        {selectedNode && !historyOpen && (() => {
+          const hasRunData = selectedNode.data.runStatus && selectedNode.data.runStatus !== "running";
+          const isPinned = pinnedData[selectedNode.id] !== undefined;
+          const inputData = (() => {
+            const incomingEdgeIds = edges.filter((e) => e.target === selectedNode.id).map((e) => e.source);
+            const inputEntries: Array<{ id: string; name: string; output: unknown }> = [];
+            for (const srcId of incomingEdgeIds) {
+              const srcNode = nodes.find((n) => n.id === srcId);
+              if (srcNode?.data.runOutput !== undefined) {
+                inputEntries.push({ id: srcId, name: srcNode.data.step.name || srcId, output: srcNode.data.runOutput });
+              }
+            }
+            return inputEntries;
+          })();
+          return (
+          <aside className="w-[380px] shrink-0 border-l border-[var(--rule)] bg-[var(--canvas)] overflow-y-auto flex flex-col">
+            <div className="sticky top-0 z-10 bg-[var(--canvas)] border-b border-[var(--rule)]">
+              <div className="px-5 py-3 flex items-center justify-between">
+                <div className="min-w-0">
+                  <div className="label-section">
+                    {getMeta(selectedNode.data.step.type)?.label ?? selectedNode.data.step.type}
+                  </div>
+                  <div className="text-[11px] text-[var(--ink-subtle)] mono truncate">
+                    id: {selectedNode.id}
+                  </div>
                 </div>
-                <div className="text-[11px] text-[var(--ink-subtle)] mono truncate">
-                  id: {selectedNode.id}
+                <div className="flex items-center gap-1">
+                  {!isTriggerType(selectedNode.data.step.type) && (
+                    <button
+                      onClick={() => togglePinData(selectedNode.id, isPinned ? undefined : selectedNode.data.runOutput ?? {})}
+                      title={isPinned ? "Unpin test data" : "Pin test data"}
+                      className={`p-1.5 rounded-[4px] ${isPinned ? "text-[var(--accent)] bg-[var(--accent-soft)]" : "text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"}`}
+                    >
+                      {isPinned ? <PinOff className="w-3.5 h-3.5" strokeWidth={1.5} /> : <Pin className="w-3.5 h-3.5" strokeWidth={1.5} />}
+                    </button>
+                  )}
+                  {!isTriggerType(selectedNode.data.step.type) && (
+                    <button
+                      onClick={() => deleteNode(selectedNode.id)}
+                      className="p-1.5 text-[var(--ink-muted)] hover:text-[var(--danger)] hover:bg-[var(--danger-soft)] rounded-[4px]"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" strokeWidth={1.5} />
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setSelectedId(null)}
+                    className="p-1.5 text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] rounded-[4px]"
+                  >
+                    <X className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  </button>
                 </div>
               </div>
-              <div className="flex items-center gap-1">
-                {!isTriggerType(selectedNode.data.step.type) && (
+              {/* Tabs: Config / Input / Output */}
+              <div className="flex border-t border-[var(--rule)]">
+                {(["config", "input", "output"] as const).map((tab) => (
                   <button
-                    onClick={() => deleteNode(selectedNode.id)}
-                    className="p-1.5 text-[var(--ink-muted)] hover:text-[var(--danger)] hover:bg-[var(--danger-soft)] rounded-[4px]"
+                    key={tab}
+                    onClick={() => setDataViewTab(tab)}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[11px] font-medium uppercase tracking-wider transition border-b-2 ${
+                      dataViewTab === tab
+                        ? "border-[var(--ink)] text-[var(--ink)]"
+                        : "border-transparent text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                    }`}
                   >
-                    <Trash2 className="w-3.5 h-3.5" strokeWidth={1.5} />
+                    {tab === "config" && <List className="w-3 h-3" strokeWidth={1.5} />}
+                    {tab === "input" && <Table className="w-3 h-3" strokeWidth={1.5} />}
+                    {tab === "output" && <Braces className="w-3 h-3" strokeWidth={1.5} />}
+                    {tab}
+                    {tab === "output" && hasRunData && (
+                      <span className={`w-1.5 h-1.5 rounded-full ${
+                        selectedNode.data.runStatus === "success" ? "bg-[var(--verified)]" : "bg-[var(--danger)]"
+                      }`} />
+                    )}
                   </button>
-                )}
-                <button
-                  onClick={() => setSelectedId(null)}
-                  className="p-1.5 text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] rounded-[4px]"
-                >
-                  <X className="w-3.5 h-3.5" strokeWidth={1.5} />
-                </button>
+                ))}
               </div>
             </div>
 
-            <div className="p-5">
-              <StepConfigForm
-                key={selectedNode.id}
-                step={selectedNode.data.step}
-                onChange={updateSelectedStep}
-              />
+            <div className="flex-1 overflow-y-auto p-5">
+              {/* Config tab */}
+              {dataViewTab === "config" && (
+                <>
+                  <StepConfigForm
+                    key={selectedNode.id}
+                    step={selectedNode.data.step}
+                    onChange={updateSelectedStep}
+                  />
 
-              {/* Webhook token panel — only for trigger_webhook */}
-              {selectedNode.data.step.type === "trigger_webhook" && (
-                <div className="mt-5 pt-5 border-t border-[var(--rule)]">
-                  <div className="label-section mb-2">Webhook URL</div>
-                  {webhookToken ? (
-                    <>
-                      <div className="flex items-center gap-2 bg-[var(--canvas-subtle)] border border-[var(--rule)] rounded-[4px] px-2 py-1.5">
-                        <code className="mono text-[10px] text-[var(--ink)] truncate flex-1">
-                          {typeof window !== "undefined" ? window.location.origin : ""}/api/dante/hooks/{webhookToken}
-                        </code>
-                        <button
-                          onClick={() => {
-                            const url = `${window.location.origin}/api/dante/hooks/${webhookToken}`;
-                            navigator.clipboard.writeText(url).catch(() => {});
-                          }}
-                          className="p-1 text-[var(--ink-muted)] hover:text-[var(--ink)] shrink-0"
-                        >
-                          <Copy className="w-3 h-3" strokeWidth={1.5} />
-                        </button>
+                  {/* Pin data editor */}
+                  {isPinned && (
+                    <div className="mt-5 pt-5 border-t border-[var(--rule)]">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="label-section">Pinned test data</span>
+                        <Pin className="w-3 h-3 text-[var(--accent)]" strokeWidth={1.5} />
                       </div>
-                      <p className="text-[10px] text-[var(--ink-subtle)] mt-2">
-                        POST any JSON body here to fire the workflow. The payload
-                        is exposed at <code className="mono">{"{{steps."}{selectedNode.id}{".input.<field>}}"}</code>.
+                      <p className="text-[10px] text-[var(--ink-muted)] mb-2">
+                        Downstream nodes will use this data instead of running this step.
                       </p>
-                    </>
+                      <textarea
+                        defaultValue={JSON.stringify(pinnedData[selectedNode.id], null, 2)}
+                        onBlur={(e) => {
+                          try { togglePinData(selectedNode.id, JSON.parse(e.target.value)); } catch {}
+                        }}
+                        rows={6}
+                        spellCheck={false}
+                        className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-3 py-2 text-[11px] text-[var(--ink)] mono focus:outline-none focus:border-[var(--rule-strong)] resize-y"
+                      />
+                    </div>
+                  )}
+
+                  {/* Webhook token panel */}
+                  {selectedNode.data.step.type === "trigger_webhook" && (
+                    <div className="mt-5 pt-5 border-t border-[var(--rule)]">
+                      <div className="label-section mb-2">Webhook URL</div>
+                      {webhookToken ? (
+                        <>
+                          <div className="flex items-center gap-2 bg-[var(--canvas-subtle)] border border-[var(--rule)] rounded-[4px] px-2 py-1.5">
+                            <code className="mono text-[10px] text-[var(--ink)] truncate flex-1">
+                              {typeof window !== "undefined" ? window.location.origin : ""}/api/dante/hooks/{webhookToken}
+                            </code>
+                            <button
+                              onClick={() => {
+                                const url = `${window.location.origin}/api/dante/hooks/${webhookToken}`;
+                                navigator.clipboard.writeText(url).catch(() => {});
+                              }}
+                              className="p-1 text-[var(--ink-muted)] hover:text-[var(--ink)] shrink-0"
+                            >
+                              <Copy className="w-3 h-3" strokeWidth={1.5} />
+                            </button>
+                          </div>
+                          <p className="text-[10px] text-[var(--ink-subtle)] mt-2">
+                            POST any JSON body here to fire the workflow. The payload
+                            is exposed at <code className="mono">{"{{steps."}{selectedNode.id}{".input.<field>}}"}</code>.
+                          </p>
+                        </>
+                      ) : (
+                        <button
+                          onClick={mintWebhookToken}
+                          disabled={mintingToken}
+                          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-[4px] border border-[var(--rule)] text-[var(--ink)] hover:bg-[var(--canvas-subtle)] text-sm font-medium transition disabled:opacity-50"
+                        >
+                          {mintingToken
+                            ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.5} />
+                            : <Sparkles className="w-4 h-4" strokeWidth={1.5} />}
+                          Mint webhook URL
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Description for trigger node */}
+                  {isTriggerType(selectedNode.data.step.type) && (
+                    <div className="mt-5 pt-5 border-t border-[var(--rule)]">
+                      <div className="label-section mb-2">Workflow description</div>
+                      <textarea
+                        value={description}
+                        onChange={(e) => setDesc(e.target.value)}
+                        rows={3}
+                        placeholder="What does this workflow do?"
+                        className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)] resize-y"
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Input tab — data from upstream nodes */}
+              {dataViewTab === "input" && (
+                <div className="space-y-4">
+                  {inputData.length === 0 ? (
+                    <p className="text-xs text-[var(--ink-muted)] py-4 text-center">
+                      No input data. Run the workflow to see upstream outputs flowing into this node.
+                    </p>
                   ) : (
-                    <button
-                      onClick={mintWebhookToken}
-                      disabled={mintingToken}
-                      className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-[4px] border border-[var(--rule)] text-[var(--ink)] hover:bg-[var(--canvas-subtle)] text-sm font-medium transition disabled:opacity-50"
-                    >
-                      {mintingToken
-                        ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.5} />
-                        : <Sparkles className="w-4 h-4" strokeWidth={1.5} />}
-                      Mint webhook URL
-                    </button>
+                    inputData.map((src) => (
+                      <div key={src.id}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-[11px] font-medium text-[var(--ink)]">{src.name}</span>
+                          <span className="text-[9px] text-[var(--ink-subtle)] mono">{src.id}</span>
+                        </div>
+                        <DataView data={src.output} />
+                      </div>
+                    ))
                   )}
                 </div>
               )}
 
-              {/* Description field folded into the drawer for the trigger node
-                  since there's no dedicated "workflow settings" pane */}
-              {isTriggerType(selectedNode.data.step.type) && (
-                <div className="mt-5 pt-5 border-t border-[var(--rule)]">
-                  <div className="label-section mb-2">Workflow description</div>
-                  <textarea
-                    value={description}
-                    onChange={(e) => setDesc(e.target.value)}
-                    rows={3}
-                    placeholder="What does this workflow do?"
-                    className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)] resize-y"
-                  />
+              {/* Output tab — this node's run output */}
+              {dataViewTab === "output" && (
+                <div>
+                  {!hasRunData ? (
+                    <p className="text-xs text-[var(--ink-muted)] py-4 text-center">
+                      No output data. Run the workflow to see this node's output.
+                    </p>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-[3px] ${
+                          selectedNode.data.runStatus === "success"
+                            ? "text-[var(--verified)] bg-[var(--verified-soft)]"
+                            : "text-[var(--danger)] bg-[var(--danger-soft)]"
+                        }`}>
+                          {selectedNode.data.runStatus}
+                        </span>
+                        {selectedNode.data.runDuration != null && (
+                          <span className="text-[10px] text-[var(--ink-subtle)] mono">
+                            {(selectedNode.data.runDuration as number) < 1000
+                              ? `${selectedNode.data.runDuration}ms`
+                              : `${((selectedNode.data.runDuration as number) / 1000).toFixed(1)}s`}
+                          </span>
+                        )}
+                      </div>
+                      {selectedNode.data.runError && (
+                        <pre className="mono text-[10px] text-[var(--danger)] bg-[var(--danger-soft)] rounded-[4px] p-2.5 whitespace-pre-wrap break-words mb-3">
+                          {selectedNode.data.runError}
+                        </pre>
+                      )}
+                      {selectedNode.data.runOutput !== undefined && selectedNode.data.runOutput !== null && (
+                        <DataView data={selectedNode.data.runOutput} />
+                      )}
+                    </>
+                  )}
                 </div>
               )}
             </div>
           </aside>
-        )}
+          );
+        })()}
       </div>
     </div>
   );
@@ -1117,6 +1677,130 @@ function PaletteItem({
   );
 }
 
+function ContextMenuItem({
+  icon: Icon, label, shortcut, danger, disabled, onClick,
+}: {
+  icon: typeof Copy;
+  label: string;
+  shortcut?: string;
+  danger?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      className={`w-full flex items-center gap-2.5 px-3 py-1.5 text-left text-xs transition disabled:opacity-30 ${
+        danger
+          ? "text-[var(--danger)] hover:bg-[var(--danger-soft)]"
+          : "text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
+      }`}
+    >
+      <Icon className="w-3.5 h-3.5" strokeWidth={1.5} />
+      <span className="flex-1">{label}</span>
+      {shortcut && (
+        <span className="text-[10px] text-[var(--ink-subtle)] mono">{shortcut}</span>
+      )}
+    </button>
+  );
+}
+
 function durationMs(start: string, end: string): number {
   return Math.max(0, new Date(end).getTime() - new Date(start).getTime());
+}
+
+function DataView({ data }: { data: unknown }) {
+  const [viewMode, setViewMode] = useState<"table" | "json" | "schema">("json");
+
+  if (data == null) return null;
+
+  const isArray = Array.isArray(data);
+  const isObj = typeof data === "object" && !isArray;
+  const items = isArray ? data : isObj ? [data] : [{ value: data }];
+  const columns = isArray && items.length > 0 && typeof items[0] === "object" && items[0] !== null
+    ? Object.keys(items[0] as object)
+    : isObj ? Object.keys(data as object) : ["value"];
+  const schemaEntries = columns.map((k) => {
+    const sample = items[0] && typeof items[0] === "object" ? (items[0] as Record<string, unknown>)[k] : undefined;
+    return { key: k, type: sample === null ? "null" : Array.isArray(sample) ? "array" : typeof sample };
+  });
+
+  return (
+    <div>
+      <div className="flex items-center gap-1 mb-2">
+        {(["table", "json", "schema"] as const).map((m) => (
+          <button
+            key={m}
+            onClick={() => setViewMode(m)}
+            className={`px-2 py-1 text-[10px] rounded-[3px] font-medium transition ${
+              viewMode === m
+                ? "bg-[var(--canvas-subtle)] text-[var(--ink)] border border-[var(--rule)]"
+                : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
+            }`}
+          >
+            {m === "table" ? "Table" : m === "json" ? "JSON" : "Schema"}
+          </button>
+        ))}
+        {isArray && (
+          <span className="text-[9px] text-[var(--ink-subtle)] mono ml-auto">{items.length} item{items.length !== 1 ? "s" : ""}</span>
+        )}
+      </div>
+
+      {viewMode === "json" && (
+        <pre className="mono text-[10px] text-[var(--ink)] bg-[var(--canvas-subtle)] border border-[var(--rule)] rounded-[4px] p-2.5 whitespace-pre-wrap break-words max-h-64 overflow-auto">
+          {JSON.stringify(data, null, 2)}
+        </pre>
+      )}
+
+      {viewMode === "table" && (
+        <div className="border border-[var(--rule)] rounded-[4px] overflow-auto max-h-64">
+          <table className="w-full text-[10px] mono">
+            <thead>
+              <tr className="bg-[var(--canvas-subtle)]">
+                {columns.map((col) => (
+                  <th key={col} className="text-left px-2 py-1.5 text-[var(--ink-muted)] font-medium border-b border-[var(--rule)] whitespace-nowrap">
+                    {col}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {items.slice(0, 50).map((item, i) => (
+                <tr key={i} className="border-b border-[var(--rule)] last:border-0">
+                  {columns.map((col) => {
+                    const val = typeof item === "object" && item !== null ? (item as Record<string, unknown>)[col] : item;
+                    const display = val === null ? "null"
+                      : typeof val === "object" ? JSON.stringify(val).slice(0, 60)
+                      : String(val).slice(0, 60);
+                    return (
+                      <td key={col} className="px-2 py-1.5 text-[var(--ink)] whitespace-nowrap max-w-[200px] truncate">
+                        {display}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {items.length > 50 && (
+            <div className="px-2 py-1.5 text-[9px] text-[var(--ink-subtle)] text-center border-t border-[var(--rule)]">
+              Showing 50 of {items.length}
+            </div>
+          )}
+        </div>
+      )}
+
+      {viewMode === "schema" && (
+        <div className="border border-[var(--rule)] rounded-[4px] overflow-hidden">
+          {schemaEntries.map((e, i) => (
+            <div key={e.key} className={`flex items-center justify-between px-3 py-1.5 text-[10px] ${i > 0 ? "border-t border-[var(--rule)]" : ""}`}>
+              <span className="mono text-[var(--ink)] font-medium">{e.key}</span>
+              <span className="mono text-[var(--ink-subtle)]">{e.type}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }

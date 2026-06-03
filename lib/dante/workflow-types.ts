@@ -44,13 +44,16 @@ export type StepType =
   | "generate_document" // branded PDF generation via workspace branding
   | "for_each"          // iterate over array, apply action per item
   // Foundational primitives:
+  | "code"               // custom JavaScript logic
   | "transform"          // set / rename / map fields between steps
   | "switch"             // multi-branch (3+ outputs) on expression matching
   | "sub_workflow"       // call another workflow as a step
   // Stateful / trigger nodes (Phase B):
   | "approval"           // pause run, notify approver, resume on approve/reject
   | "trigger_lease_expiry" // fires when leases are within N days of expiration
-  | "trigger_deal_stage";  // fires when a property's pipeline stage changes
+  | "trigger_deal_stage"   // fires when a property's pipeline stage changes
+  // Canvas-only (not executed):
+  | "sticky_note";         // annotation on the canvas, ignored by runner
 
 export interface BaseStep {
   id: string;
@@ -350,6 +353,14 @@ export interface ForEachStep extends BaseStep {
 
 // ── Foundational primitive interfaces ─────────────────────────
 
+export interface CodeStep extends BaseStep {
+  type: "code";
+  config: {
+    language?: "javascript";
+    code: string;
+  };
+}
+
 export interface TransformStep extends BaseStep {
   type: "transform";
   config: {
@@ -465,6 +476,13 @@ export interface TriggerWebhookStep extends BaseStep {
   };
 }
 
+export interface StickyNoteStep extends BaseStep {
+  type: "sticky_note";
+  config: {
+    content?: string;
+  };
+}
+
 export type WorkflowStep =
   | TriggerManualStep
   | TriggerCronStep
@@ -489,12 +507,14 @@ export type WorkflowStep =
   | DueDiligenceStep
   | GenerateDocumentStep
   | ForEachStep
+  | CodeStep
   | TransformStep
   | SwitchStep
   | SubWorkflowStep
   | ApprovalStep
   | TriggerLeaseExpiryStep
-  | TriggerDealStageStep;
+  | TriggerDealStageStep
+  | StickyNoteStep;
 
 // ── Graph model ────────────────────────────────────────────────
 // React Flow speaks this shape natively. Each node carries its full
