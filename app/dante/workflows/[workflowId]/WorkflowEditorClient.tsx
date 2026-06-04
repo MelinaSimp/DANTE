@@ -1414,7 +1414,7 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
                   type: "smooth",
                   animated: false,
                   data: {},
-                  style: { stroke: "var(--rule-strong)", strokeWidth: 2 },
+                  style: { stroke: "var(--ink-subtle)", strokeWidth: 2 },
                 }}
               >
                 <Background color="var(--rule)" gap={20} size={1} variant={"dots" as any} />

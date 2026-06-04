@@ -40,7 +40,7 @@ export default function SmoothEdge({
     ? "var(--ink)"
     : isExecuting
       ? "var(--accent)"
-      : (style?.stroke as string) ?? "var(--rule-strong)";
+      : (style?.stroke as string) ?? "var(--ink-subtle)";
 
   return (
     <>

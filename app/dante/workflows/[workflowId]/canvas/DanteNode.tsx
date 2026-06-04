@@ -119,7 +119,7 @@ export default function DanteNode({ data, selected }: NodeProps) {
         <Handle
           type="target"
           position={Position.Top}
-          className="!w-3 !h-3 !bg-[var(--rule-strong)] !border-2 !border-[var(--canvas)] !-top-[6px] hover:!bg-[var(--ink)] !transition-colors !rounded-full"
+          className="!w-3 !h-3 !bg-[var(--ink)] !border-2 !border-[var(--canvas)] !-top-[6px] !transition-colors !rounded-full"
         />
       )}
 
@@ -251,7 +251,7 @@ export default function DanteNode({ data, selected }: NodeProps) {
           <Handle
             type="source"
             position={Position.Bottom}
-            className="!w-3 !h-3 !bg-[var(--rule-strong)] !border-2 !border-[var(--canvas)] !-bottom-[6px] hover:!bg-[var(--ink)] !transition-colors !rounded-full"
+            className="!w-3 !h-3 !bg-[var(--ink)] !border-2 !border-[var(--canvas)] !-bottom-[6px] !transition-colors !rounded-full"
           />
           {hovered && (
             <div
