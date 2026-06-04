@@ -72,7 +72,7 @@ import { definitionFromRow } from "@/lib/dante/workflow-types";
 
 import DanteNode, { type DanteNodeData, getItemCount, NODE_COLORS } from "./canvas/DanteNode";
 import StepConfigForm, { type StepPatch } from "./canvas/StepConfigForm";
-import { NODE_TYPES, getMeta, isTriggerType, CATEGORY_LABELS, CATEGORY_ORDER, accentClasses, type NodeCategory } from "./canvas/nodeTypes";
+import { NODE_TYPES, getMeta, isTriggerType, CATEGORY_LABELS, CATEGORY_ORDER, accentClasses, categoryColor, type NodeCategory } from "./canvas/nodeTypes";
 import SmoothEdge from "./canvas/SmoothEdge";
 import { autoLayout } from "./canvas/autoLayout";
 
@@ -1361,13 +1361,17 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
               const items = filteredByCategory[cat];
               if (!items || items.length === 0) return null;
               const collapsed = collapsedCategories.has(cat) && !paletteSearch;
+              const catCol = categoryColor(cat);
               return (
-                <div key={cat} className="mb-1">
+                <div key={cat} className="mb-1.5">
                   <button
                     onClick={() => toggleCategory(cat)}
-                    className="w-full flex items-center justify-between px-1.5 py-1 text-left group"
+                    className="w-full flex items-center justify-between px-1.5 py-1.5 text-left group"
                   >
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink-subtle)]">{CATEGORY_LABELS[cat]}</span>
+                    <span className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: catCol.bg }} />
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--ink-muted)]">{CATEGORY_LABELS[cat]}</span>
+                    </span>
                     <ChevronRight className={`w-3 h-3 text-[var(--ink-subtle)] transition-transform ${collapsed ? "" : "rotate-90"}`} strokeWidth={1.5} />
                   </button>
                   {!collapsed && (
@@ -1414,10 +1418,10 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
                   type: "smooth",
                   animated: false,
                   data: {},
-                  style: { stroke: "var(--rule-strong)", strokeWidth: 2 },
+                  style: { stroke: "var(--ink-subtle)", strokeWidth: 2 },
                 }}
               >
-                <Background color="var(--rule)" gap={20} size={1} variant={"dots" as any} />
+                <Background color="var(--rule)" gap={24} size={1.5} variant={"dots" as any} />
                 <Controls
                   showInteractive={false}
                   className="!bg-[var(--canvas)] !border-[var(--rule)] !rounded-[4px]"
@@ -2384,12 +2388,16 @@ function PaletteItem({
   onAdd: () => void;
 }) {
   const Icon = meta.icon;
+  const catCol = categoryColor(meta.category);
   return (
     <button
       onClick={onAdd}
       className="w-full flex items-center gap-3 px-2.5 py-2 rounded-[8px] hover:bg-[var(--canvas-subtle)] text-left transition group"
     >
-      <div className={`rounded-[8px] p-2 shrink-0 transition ${accentClasses(meta.accent).iconWrap}`}>
+      <div
+        className="rounded-[8px] p-2 shrink-0 transition"
+        style={{ background: catCol.bg + "18", color: catCol.bg }}
+      >
         <Icon className="w-4 h-4" strokeWidth={1.5} />
       </div>
       <div className="min-w-0 flex-1">

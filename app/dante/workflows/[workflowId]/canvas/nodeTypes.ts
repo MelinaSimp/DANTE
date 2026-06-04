@@ -274,3 +274,21 @@ export function accentClasses(accent: NodeTypeMeta["accent"]): {
                selectedOutline: "ring-[var(--ink)]" };
   }
 }
+
+/**
+ * Category → header color for DanteNode colored top band.
+ * Each category gets a bold, distinct color so workflows have visual personality.
+ */
+const CATEGORY_COLORS: Record<NodeCategory, { bg: string; fg: string }> = {
+  trigger:       { bg: "#059669", fg: "#ffffff" },   // emerald
+  data:          { bg: "#2563eb", fg: "#ffffff" },   // blue
+  ai:            { bg: "#7c3aed", fg: "#ffffff" },   // purple
+  communication: { bg: "#db2777", fg: "#ffffff" },   // pink
+  control:       { bg: "#d97706", fg: "#ffffff" },   // amber
+  cre:           { bg: "#0891b2", fg: "#ffffff" },   // cyan
+  utility:       { bg: "#64748b", fg: "#ffffff" },   // slate
+};
+
+export function categoryColor(cat: NodeCategory): { bg: string; fg: string } {
+  return CATEGORY_COLORS[cat] ?? CATEGORY_COLORS.data;
+}
