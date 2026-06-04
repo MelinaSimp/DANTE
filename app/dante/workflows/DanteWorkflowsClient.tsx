@@ -18,7 +18,7 @@ import {
   ArrowLeft, Plus, Loader2, Play, Zap, AlertCircle,
   CheckCircle2, Circle, Trash2, ArrowRight,
   Clock, Webhook, MousePointerClick, Users, TrendingUp,
-  ChevronRight, Copy, Tag,
+  ChevronRight, Copy, Tag, Activity,
 } from "lucide-react";
 import { useAssistantBrand } from "@/components/dante/AssistantNameProvider";
 
@@ -233,7 +233,14 @@ export default function DanteWorkflowsClient() {
       <div className="px-6 md:px-8 py-8 max-w-[1100px] mx-auto">
         <div className="mb-8">
           <div className="label-section mb-2">Dante · Workflows</div>
-          <h1 className="heading-display text-4xl text-[var(--ink)] mb-2">Workflows</h1>
+          <div className="flex items-center justify-between">
+            <h1 className="heading-display text-4xl text-[var(--ink)] mb-2">Workflows</h1>
+            <Link href="/dante/workflows/health"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] border border-[var(--rule)] text-xs font-medium text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition">
+              <Activity className="w-3.5 h-3.5" strokeWidth={1.5} />
+              Operations
+            </Link>
+          </div>
           <p className="text-sm text-[var(--ink-muted)] max-w-2xl">
             Chain HTTP calls, LLM prompts, and CRM actions into reusable
             automations. Triggered by schedule, webhook, or manual run.

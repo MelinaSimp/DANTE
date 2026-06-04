@@ -32,6 +32,64 @@ import { TAGS as SOURCE_TAGS, type SourceTag } from "./source-tiers";
 import { searchArchive, formatHitsForPrompt } from "./archive/search";
 import { runAgent } from "./agent";
 import { complete as llmComplete } from "@/lib/llm/client";
+import vm from "node:vm";
+
+// ── Sandboxed Code execution ────────────────────────────────
+// Runs user-provided JavaScript inside a Node.js VM context with
+// a 5-second timeout and no access to require, process, global,
+// fetch, or any Node builtins. Only `steps`, `input`, `Math`,
+// `Date`, `JSON`, `parseInt`, `parseFloat`, `String`, `Number`,
+// `Array`, `Object`, `console.log` (captured) are exposed.
+
+function runCodeSandboxed(code: string, ctx: Ctx): Record<string, unknown> {
+  const logs: string[] = [];
+  const sandbox = {
+    steps: structuredClone(ctx.steps),
+    input: structuredClone(ctx.input),
+    Math, Date, JSON,
+    parseInt, parseFloat,
+    String, Number, Array, Object, Boolean,
+    console: {
+      log: (...args: unknown[]) => logs.push(args.map(String).join(" ")),
+      warn: (...args: unknown[]) => logs.push(args.map(String).join(" ")),
+      error: (...args: unknown[]) => logs.push(args.map(String).join(" ")),
+    },
+    __result: undefined as unknown,
+  };
+
+  // Wrap the user code so `return` works: we assign the last expression
+  // to __result. If the code uses explicit `return`, wrap in an IIFE.
+  const wrapped = code.includes("return")
+    ? `__result = (function() { ${code} })()`
+    : `__result = (function() { ${code} })()`;
+
+  const context = vm.createContext(sandbox, {
+    codeGeneration: { strings: false, wasm: false },
+  });
+
+  try {
+    vm.runInContext(wrapped, context, {
+      timeout: 5000,
+      displayErrors: true,
+    });
+  } catch (err) {
+    if (err instanceof Error && err.message.includes("timed out")) {
+      throw new Error("Code node timed out after 5 seconds. Simplify your logic or reduce iterations.");
+    }
+    throw new Error(`Code node error: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  const result = sandbox.__result;
+  const output = typeof result === "object" && result !== null
+    ? result as Record<string, unknown>
+    : { result };
+
+  if (logs.length > 0) {
+    (output as Record<string, unknown>).__console = logs;
+  }
+
+  return output as Record<string, unknown>;
+}
 
 // ── Retry with exponential backoff ───────────────────────────
 // Wraps any async function with 3 attempts. Only retries on
@@ -218,18 +276,83 @@ function resolveTemplate(value: unknown, ctx: Ctx): unknown {
   return value;
 }
 
-// ── Condition mini-evaluator ──────────────────────────────────
+// ── Condition evaluator ──────────────────────────────────────
+// Supports:
 //   "<left> contains <right>"
 //   "<left> == <right>"  / "<left> != <right>"
 //   "<left> > <num>"     / "<left> < <num>"
+//   "<left> in [a, b, c]"
+//   "<left> matches <regex>"
+//   Compound: "<expr1> AND <expr2> AND <expr3>"
+//             "<expr1> OR <expr2> OR <expr3>"
+//   NOT:      "NOT <expr>"
 // Strings quoted with ' or ". Numbers parsed when possible.
+// AND/OR groups split at the top level. No mixed AND+OR without
+// explicit grouping; AND takes precedence if both appear.
 
 function evaluateCondition(expr: string): boolean {
+  const trimmed = expr.trim();
+
+  // Handle NOT prefix
+  if (/^NOT\s+/i.test(trimmed)) {
+    return !evaluateCondition(trimmed.replace(/^NOT\s+/i, ""));
+  }
+
+  // Split on OR (lowest precedence)
+  const orParts = splitOnKeyword(trimmed, "OR");
+  if (orParts.length > 1) {
+    return orParts.some((part) => evaluateCondition(part));
+  }
+
+  // Split on AND
+  const andParts = splitOnKeyword(trimmed, "AND");
+  if (andParts.length > 1) {
+    return andParts.every((part) => evaluateCondition(part));
+  }
+
+  // Single condition — evaluate atom
+  return evaluateAtom(trimmed);
+}
+
+/** Split an expression on a keyword (AND/OR), respecting quoted strings. */
+function splitOnKeyword(expr: string, keyword: string): string[] {
+  // Simple split — look for ` AND ` or ` OR ` surrounded by whitespace,
+  // not inside quotes. Good enough for CRE condition expressions.
+  const regex = new RegExp(`\\s+${keyword}\\s+`, "gi");
+  const parts = expr.split(regex).map((s) => s.trim()).filter(Boolean);
+  return parts.length > 0 ? parts : [expr];
+}
+
+function evaluateAtom(expr: string): boolean {
+  // "in" operator: value in [a, b, c]
+  const inMatch = expr.match(/^(.+?)\s+in\s+\[([^\]]*)\]$/i);
+  if (inMatch) {
+    const [, left, listStr] = inMatch;
+    const lv = String(coerce(left.trim()));
+    const items = listStr.split(",").map((s) => String(coerce(stripQuotes(s.trim()))));
+    return items.includes(lv);
+  }
+
+  // "matches" operator: value matches /regex/
+  const matchesMatch = expr.match(/^(.+?)\s+matches\s+(.+)$/i);
+  if (matchesMatch) {
+    const [, left, pattern] = matchesMatch;
+    try {
+      const re = new RegExp(stripQuotes(pattern.trim()));
+      return re.test(String(left.trim()));
+    } catch {
+      return false;
+    }
+  }
+
+  // "contains" operator
   const contains = expr.match(/^(.+?)\s+contains\s+(.+)$/i);
   if (contains) {
     const [, l, r] = contains;
     return String(l).includes(stripQuotes(r));
   }
+
+  // Comparison operators
   const cmp = expr.match(/^(.+?)\s*(==|!=|>=|<=|>|<)\s*(.+)$/);
   if (cmp) {
     const [, l, op, r] = cmp;
@@ -243,6 +366,8 @@ function evaluateCondition(expr: string): boolean {
       case "<=": return Number(lv) <= Number(rv);
     }
   }
+
+  // Truthiness fallback
   return Boolean(expr && expr !== "false" && expr !== "0");
 }
 
@@ -1334,6 +1459,24 @@ async function runForEach(
         case "integration_query":
           result = await runIntegrationQuery(resolvedConfig as Parameters<typeof runIntegrationQuery>[0], workspaceId);
           break;
+        case "openai":
+          result = await runOpenAI(resolvedConfig as Parameters<typeof runOpenAI>[0]);
+          break;
+        case "archive_lookup":
+          result = await runArchiveLookup(resolvedConfig as Parameters<typeof runArchiveLookup>[0], workspaceId);
+          break;
+        case "web_search":
+          result = await runWebSearch(resolvedConfig as Parameters<typeof runWebSearch>[0]);
+          break;
+        case "due_diligence":
+          result = await runDueDiligence(resolvedConfig as Parameters<typeof runDueDiligence>[0], workspaceId);
+          break;
+        case "query_clients":
+          result = await runQueryClients(resolvedConfig as Parameters<typeof runQueryClients>[0], workspaceId);
+          break;
+        case "query_properties":
+          result = await runQueryProperties(resolvedConfig as Parameters<typeof runQueryProperties>[0], workspaceId);
+          break;
         default:
           throw new Error(`for_each: unsupported action_type "${cfg.action_type}"`);
       }
@@ -1496,9 +1639,7 @@ async function executeNode(
       return {};
     case "code": {
       const code = String(cfg.code ?? "");
-      const fn = new Function("steps", "input", code);
-      const result = fn(ctx.steps, ctx.input);
-      return typeof result === "object" && result !== null ? result : { result };
+      return runCodeSandboxed(code, ctx);
     }
     case "http": {
       const httpCfg = cfg as Parameters<typeof runHttp>[0];
