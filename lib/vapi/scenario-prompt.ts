@@ -186,9 +186,21 @@ export function scenarioToSystemPrompt(
         // (VAPI bridges the call to a human) or proceeds with normal
         // voicemail recording. The LLM doesn't reason about time — it
         // just passes the args through verbatim.
-        if (node.human_hours && node.human_transfer_to) {
+        // Live transfer args. Both fields are required — if only one is
+        // present we drop the whole block (otherwise the LLM would call
+        // send_to_voicemail with a malformed schedule or a missing
+        // number). Log loudly when this happens so the misconfig is
+        // visible in sync logs instead of silently degrading.
+        const hasHours = !!node.human_hours;
+        const transferTo = (node.human_transfer_to ?? "").toString().trim();
+        if (hasHours && !transferTo) {
+          console.warn(
+            `[scenario-prompt] voicemail node "${node.id}" (label="${node.label ?? ""}") has human_hours set but human_transfer_to is empty — live transfer will NOT fire. Caller will hit voicemail instead. Set a number in the agent config to enable transfer.`,
+          );
+        }
+        if (hasHours && transferTo) {
           args.push(`human_hours=${JSON.stringify(JSON.stringify(node.human_hours))}`);
-          args.push(`human_transfer_to="${escapeForPrompt(node.human_transfer_to)}"`);
+          args.push(`human_transfer_to="${escapeForPrompt(transferTo)}"`);
           if (typeof node.human_ring_seconds === "number" && node.human_ring_seconds > 0) {
             args.push(`human_ring_seconds=${node.human_ring_seconds}`);
           }

@@ -591,9 +591,14 @@ export default function ScenarioBuilder({
                                   human_ring_seconds: n.human_ring_seconds ?? 60,
                                 } as Partial<VoicemailNode>);
                               } else {
+                                // Don't clear human_transfer_to on toggle-off — if
+                                // the user toggles back on later, the number is
+                                // still there. Otherwise it's a silent data-loss
+                                // bug: UI shows the number, DB has empty string,
+                                // and the prompt compiler drops the entire
+                                // transfer config (requires BOTH fields).
                                 updateNode(n.id, {
                                   human_hours: null,
-                                  human_transfer_to: "",
                                 } as Partial<VoicemailNode>);
                               }
                             }}
@@ -724,8 +729,18 @@ export default function ScenarioBuilder({
                                   } as Partial<VoicemailNode>)
                                 }
                                 placeholder="+15551234567"
-                                className={`${inputClass} mono`}
+                                className={`${inputClass} mono ${
+                                  hasHours && !(n.human_transfer_to ?? "").trim()
+                                    ? "border-[var(--danger)] focus:border-[var(--danger)]"
+                                    : ""
+                                }`}
                               />
+                              {hasHours && !(n.human_transfer_to ?? "").trim() && (
+                                <p className="text-[11px] text-[var(--danger)] mt-1 flex items-center gap-1">
+                                  <AlertCircle className="w-3 h-3" strokeWidth={1.5} />
+                                  Live transfer is on but no number is set — calls will go straight to voicemail.
+                                </p>
+                              )}
                               <p className="text-[11px] text-[var(--ink-subtle)] mt-1">
                                 E.164. The phone that rings during the hours above. Outside those hours, the caller leaves a voicemail like normal.
                               </p>
