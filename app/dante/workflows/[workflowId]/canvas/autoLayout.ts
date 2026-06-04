@@ -2,7 +2,7 @@ import Dagre from "@dagrejs/dagre";
 import type { Node as RFNode, Edge as RFEdge } from "@xyflow/react";
 
 const NODE_WIDTH = 280;
-const NODE_HEIGHT = 160;
+const NODE_HEIGHT = 140;
 
 export function autoLayout<T extends RFNode>(
   nodes: T[],

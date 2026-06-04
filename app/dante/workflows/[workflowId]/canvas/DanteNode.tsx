@@ -6,7 +6,7 @@ import {
   CheckCircle2, AlertCircle, Loader2, Plus, StickyNote, Ban,
 } from "lucide-react";
 import type { WorkflowStep } from "@/lib/dante/workflow-types";
-import { getMeta, isTriggerType, categoryColor } from "./nodeTypes";
+import { getMeta, isTriggerType, accentClasses } from "./nodeTypes";
 
 export const NODE_COLORS = [
   { value: "", label: "Default" },
@@ -64,212 +64,164 @@ export default function DanteNode({ data, selected }: NodeProps) {
 
   const meta = getMeta(step.type);
   const Icon = meta?.icon;
+  const accent = accentClasses(meta?.accent ?? "ink");
   const isTrigger = isTriggerType(step.type);
   const isCondition = step.type === "condition";
   const isSwitch = step.type === "switch";
   const isDisabled = !!d.disabled;
   const nodeColor = d.color || "";
-  const catColor = categoryColor(meta?.category ?? "data");
-  const headerBg = nodeColor || catColor.bg;
-  const headerFg = nodeColor ? "#fff" : catColor.fg;
-
   const switchCases = isSwitch
     ? ((step.config as Record<string, unknown>).cases as Array<{ value: string; label?: string }>) || []
     : [];
 
   const displayName = step.name || meta?.label || step.type;
   const subtitle = nodeSummary(step);
-  const typeLabel = meta?.label || step.type;
 
   const statusIcon = d.runStatus === "success"
-    ? <CheckCircle2 className="w-3.5 h-3.5 text-[var(--verified)]" strokeWidth={2.5} />
+    ? <CheckCircle2 className="w-3.5 h-3.5 text-[var(--verified)]" strokeWidth={2} />
     : d.runStatus === "error"
-      ? <AlertCircle className="w-3.5 h-3.5 text-[var(--danger)]" strokeWidth={2.5} />
+      ? <AlertCircle className="w-3.5 h-3.5 text-[var(--danger)]" strokeWidth={2} />
       : d.runStatus === "running"
-        ? <Loader2 className="w-3.5 h-3.5 text-white animate-spin" strokeWidth={2.5} />
+        ? <Loader2 className="w-3.5 h-3.5 text-[var(--accent)] animate-spin" strokeWidth={2} />
         : null;
 
   const outputPreview = formatOutputPreview(d.runOutput, d.runError);
   const itemCount = d.itemCount;
-
-  // Running state uses the accent color
-  const isRunning = d.runStatus === "running";
 
   return (
     <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       className={`
-        group relative transition-all duration-150 cursor-pointer overflow-hidden
-        ${isRunning ? "ring-2 ring-[var(--accent)] dante-node-pulse" : ""}
-        ${!isRunning && selected
-          ? "ring-2 ring-offset-2 ring-offset-[var(--canvas)] shadow-xl"
-          : !isRunning ? "hover:shadow-xl" : ""}
-        ${isDisabled ? "opacity-50 grayscale-[40%]" : ""}
+        group relative rounded-[10px] transition-all duration-100 cursor-pointer
+        ${d.runStatus === "running" ? "ring-2 ring-[var(--accent)] shadow-lg" : ""}
+        ${d.runStatus !== "running" && selected
+          ? `ring-2 ring-offset-2 ring-offset-[var(--canvas)] ${accent.selectedOutline} shadow-lg`
+          : d.runStatus !== "running" ? "shadow hover:shadow-lg" : ""}
+        ${isDisabled ? "opacity-50 grayscale-[30%]" : ""}
       `}
       style={{
-        width: 280,
-        borderRadius: 12,
-        background: "var(--neu-card)",
-        boxShadow: isRunning
-          ? undefined
-          : selected
-            ? "var(--neu-shadow-card-hover)"
-            : "var(--neu-shadow-card)",
-        border: `1px solid ${selected ? headerBg : "var(--rule)"}`,
-        ...(selected ? { ringColor: headerBg } : {}),
+        background: "var(--canvas)",
+        border: "1px solid var(--rule)",
+        width: 260,
       }}
     >
-      {/* ── Colored header band ── */}
-      <div
-        className="flex items-center gap-3 px-4"
-        style={{
-          background: headerBg,
-          color: headerFg,
-          height: 44,
-          borderRadius: "11px 11px 0 0",
-        }}
-      >
-        {/* Icon in a frosted circle */}
+      {/* Color accent bar */}
+      {nodeColor && (
         <div
-          className="shrink-0 flex items-center justify-center"
-          style={{
-            width: 30,
-            height: 30,
-            borderRadius: 8,
-            background: "rgba(255,255,255,0.2)",
-          }}
-        >
-          {Icon && <Icon className="w-[18px] h-[18px]" strokeWidth={1.8} />}
-        </div>
-
-        {/* Type label */}
-        <div className="flex-1 min-w-0">
-          <div
-            className="text-[11px] font-semibold leading-tight truncate"
-            style={{ opacity: 0.9 }}
-          >
-            {typeLabel}
-          </div>
-        </div>
-
-        {/* Status icon in header */}
-        {statusIcon && (
-          <div className="shrink-0">
-            {statusIcon}
-          </div>
-        )}
-
-        {/* Disabled icon */}
-        {isDisabled && (
-          <Ban className="w-3.5 h-3.5 shrink-0" style={{ opacity: 0.6 }} strokeWidth={2} />
-        )}
-      </div>
-
-      {/* ── Body ── */}
-      <div className="px-4 py-3">
-        {/* Editable name */}
-        {editing ? (
-          <input
-            ref={inputRef}
-            value={editName}
-            onChange={(e) => setEditName(e.target.value)}
-            onBlur={commitRename}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") commitRename();
-              if (e.key === "Escape") { setEditName(step.name); setEditing(false); }
-            }}
-            className="text-[13px] font-semibold text-[var(--ink)] bg-[var(--canvas-subtle)] border border-[var(--rule-strong)] rounded-[4px] px-1.5 py-0.5 w-full leading-tight focus:outline-none"
-            spellCheck={false}
-          />
-        ) : (
-          <div
-            onDoubleClick={() => { setEditName(step.name || displayName); setEditing(true); }}
-            className={`text-[13px] font-semibold leading-tight truncate ${isDisabled ? "text-[var(--ink-muted)] line-through" : "text-[var(--ink)]"}`}
-          >
-            {displayName}
-          </div>
-        )}
-        {subtitle && (
-          <div className="text-[11px] text-[var(--ink-muted)] leading-snug truncate mt-1 mono">
-            {subtitle}
-          </div>
-        )}
-
-        {/* Duration badge */}
-        {d.runDuration != null && d.runStatus && d.runStatus !== "running" && (
-          <div className="mt-1.5 text-[10px] text-[var(--ink-subtle)] mono">
-            {d.runDuration < 1000 ? `${d.runDuration}ms` : `${(d.runDuration / 1000).toFixed(1)}s`}
-          </div>
-        )}
-      </div>
-
-      {/* ── Execution data strip ── */}
-      {outputPreview && d.runStatus && d.runStatus !== "running" && (
-        <div className={`border-t px-4 py-2 text-[11px] mono truncate flex items-center gap-1.5 ${
-          d.runStatus === "error"
-            ? "text-[var(--danger)] bg-[var(--danger-soft)] border-[var(--danger-soft)]"
-            : "text-[var(--ink-muted)] bg-[var(--canvas-subtle)] border-[var(--rule)]"
-        }`}
-        style={{ borderBottomLeftRadius: 11, borderBottomRightRadius: 11 }}
-        >
-          {itemCount != null && (
-            <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-[3px] bg-[var(--canvas)] border border-[var(--rule)]"
-              style={{ minWidth: 20, textAlign: "center" }}
-            >
-              {itemCount}
-            </span>
-          )}
-          <span className="truncate">{outputPreview}</span>
-        </div>
+          className="absolute left-0 top-0 bottom-0 w-[4px] rounded-l-[10px]"
+          style={{ background: nodeColor }}
+        />
       )}
 
-      {/* ── Notes indicator ── */}
-      {d.notes && (
-        <div className="absolute top-[48px] right-2 z-10" title={d.notes}>
-          <StickyNote className="w-3 h-3 text-[var(--flag)]" strokeWidth={1.5} />
-        </div>
-      )}
-
-      {/* ── Target handle (top) ── */}
+      {/* Target handle */}
       {!isTrigger && (
         <Handle
           type="target"
           position={Position.Top}
-          className="!w-3.5 !h-3.5 !border-[3px] !border-[var(--canvas)] !-top-[7px] !transition-colors !rounded-full"
-          style={{ background: headerBg }}
+          className="!w-3 !h-3 !bg-[var(--rule-strong)] !border-2 !border-[var(--canvas)] !-top-[6px] hover:!bg-[var(--ink)] !transition-colors !rounded-full"
         />
       )}
 
-      {/* ── Error output handle (right side) ── */}
+      {/* Disabled overlay icon */}
+      {isDisabled && (
+        <div className="absolute top-1 right-1 z-10">
+          <Ban className="w-3 h-3 text-[var(--ink-subtle)]" strokeWidth={2} />
+        </div>
+      )}
+
+      <div className="flex items-center gap-3 px-4 py-3.5">
+        {/* Icon */}
+        <div className={`relative rounded-[10px] p-2.5 shrink-0 ${accent.iconWrap}`}>
+          {Icon && <Icon className="w-[22px] h-[22px]" strokeWidth={1.5} />}
+          {statusIcon && (
+            <div className="absolute -bottom-1 -right-1 bg-[var(--canvas)] rounded-full p-[1px]">
+              {statusIcon}
+            </div>
+          )}
+        </div>
+
+        {/* Name + subtitle */}
+        <div className="flex-1 min-w-0">
+          {editing ? (
+            <input
+              ref={inputRef}
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitRename();
+                if (e.key === "Escape") { setEditName(step.name); setEditing(false); }
+              }}
+              className="text-sm font-semibold text-[var(--ink)] bg-[var(--canvas-subtle)] border border-[var(--rule-strong)] rounded-[4px] px-1.5 py-0.5 w-full leading-tight focus:outline-none"
+              spellCheck={false}
+            />
+          ) : (
+            <div
+              onDoubleClick={() => { setEditName(step.name || displayName); setEditing(true); }}
+              className={`text-sm font-semibold leading-tight truncate ${isDisabled ? "text-[var(--ink-muted)] line-through" : "text-[var(--ink)]"}`}
+            >
+              {displayName}
+            </div>
+          )}
+          {subtitle && (
+            <div className="text-[11px] text-[var(--ink-muted)] leading-snug truncate mt-1 mono">
+              {subtitle}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Execution data strip */}
+      {outputPreview && d.runStatus && d.runStatus !== "running" && (
+        <div className={`border-t border-[var(--rule)] px-4 py-2 text-[11px] mono truncate flex items-center gap-1.5 ${
+          d.runStatus === "error" ? "text-[var(--danger)] bg-[var(--danger-soft)]/30" : "text-[var(--ink-muted)] bg-[var(--canvas-subtle)]/50"
+        }`}>
+          {itemCount != null && (
+            <span className="shrink-0 text-[9px] font-semibold px-1 py-0 rounded-[2px] bg-[var(--canvas)] border border-[var(--rule)]">
+              {itemCount}
+            </span>
+          )}
+          {outputPreview}
+        </div>
+      )}
+
+      {/* Notes indicator */}
+      {d.notes && (
+        <div className="absolute top-1 right-1 z-10" title={d.notes}>
+          <StickyNote className="w-3 h-3 text-[var(--flag)]" strokeWidth={1.5} />
+        </div>
+      )}
+
+      {/* Error output handle (right side) */}
       {!isTrigger && !isCondition && !isSwitch && (
         <Handle
           id="error"
           type="source"
           position={Position.Right}
-          className="!w-2.5 !h-2.5 !bg-[var(--danger)] !border-[2px] !border-[var(--canvas)] !-right-[5px] !rounded-full opacity-30 hover:opacity-100 !transition-opacity"
+          className="!w-2 !h-2 !bg-[var(--danger)] !border-2 !border-[var(--canvas)] !-right-[4px] !rounded-full opacity-40 hover:opacity-100 !transition-opacity"
           title="Error output"
         />
       )}
 
-      {/* ── Source handles (bottom) ── */}
+      {/* Source handles */}
       {isCondition ? (
         <>
           <Handle
             id="true"
             type="source"
             position={Position.Bottom}
-            style={{ left: "30%", background: "var(--verified)" }}
-            className="!w-3.5 !h-3.5 !border-[3px] !border-[var(--canvas)] !-bottom-[7px] !rounded-full"
+            style={{ left: "30%" }}
+            className="!w-3 !h-3 !bg-[var(--verified)] !border-2 !border-[var(--canvas)] !-bottom-[6px] !rounded-full"
           />
           <Handle
             id="false"
             type="source"
             position={Position.Bottom}
-            style={{ left: "70%", background: "var(--danger)" }}
-            className="!w-3.5 !h-3.5 !border-[3px] !border-[var(--canvas)] !-bottom-[7px] !rounded-full"
+            style={{ left: "70%" }}
+            className="!w-3 !h-3 !bg-[var(--danger)] !border-2 !border-[var(--canvas)] !-bottom-[6px] !rounded-full"
           />
-          <div className="flex justify-between px-4 pb-1 text-[9px] uppercase tracking-wider font-mono font-bold">
+          <div className="flex justify-between px-3 pb-1 text-[8px] uppercase tracking-wider font-mono font-semibold">
             <span className="text-[var(--verified)]">true</span>
             <span className="text-[var(--danger)]">false</span>
           </div>
@@ -282,8 +234,8 @@ export default function DanteNode({ data, selected }: NodeProps) {
               id={c.value}
               type="source"
               position={Position.Bottom}
-              style={{ left: `${((i + 1) / (switchCases.length + 2)) * 100}%`, background: headerBg }}
-              className="!w-3.5 !h-3.5 !border-[3px] !border-[var(--canvas)] !-bottom-[7px] !rounded-full"
+              style={{ left: `${((i + 1) / (switchCases.length + 2)) * 100}%` }}
+              className="!w-3 !h-3 !bg-[var(--accent)] !border-2 !border-[var(--canvas)] !-bottom-[6px] !rounded-full"
             />
           ))}
           <Handle
@@ -291,7 +243,7 @@ export default function DanteNode({ data, selected }: NodeProps) {
             type="source"
             position={Position.Bottom}
             style={{ left: `${((switchCases.length + 1) / (switchCases.length + 2)) * 100}%` }}
-            className="!w-3.5 !h-3.5 !bg-[var(--ink-muted)] !border-[3px] !border-[var(--canvas)] !-bottom-[7px] !rounded-full"
+            className="!w-3 !h-3 !bg-[var(--ink-muted)] !border-2 !border-[var(--canvas)] !-bottom-[6px] !rounded-full"
           />
         </>
       ) : (
@@ -299,32 +251,19 @@ export default function DanteNode({ data, selected }: NodeProps) {
           <Handle
             type="source"
             position={Position.Bottom}
-            className="!w-3.5 !h-3.5 !border-[3px] !border-[var(--canvas)] !-bottom-[7px] hover:!brightness-110 !transition-all !rounded-full"
-            style={{ background: headerBg }}
+            className="!w-3 !h-3 !bg-[var(--rule-strong)] !border-2 !border-[var(--canvas)] !-bottom-[6px] hover:!bg-[var(--ink)] !transition-colors !rounded-full"
           />
           {hovered && (
-            <div className="absolute left-1/2 -translate-x-1/2 -bottom-[26px] z-10 pointer-events-none">
-              <div
-                className="w-[24px] h-[24px] rounded-full flex items-center justify-center shadow-lg"
-                style={{ background: headerBg }}
-              >
-                <Plus className="w-3 h-3 text-white" strokeWidth={3} />
+            <div
+              className="absolute left-1/2 -translate-x-1/2 -bottom-[24px] z-10 pointer-events-none"
+            >
+              <div className="w-[22px] h-[22px] rounded-full bg-[var(--ink)] flex items-center justify-center shadow-md">
+                <Plus className="w-3 h-3 text-[var(--canvas)]" strokeWidth={2.5} />
               </div>
             </div>
           )}
         </div>
       )}
-
-      {/* CSS for running pulse */}
-      <style>{`
-        .dante-node-pulse {
-          animation: dante-pulse 1.5s ease-in-out infinite;
-        }
-        @keyframes dante-pulse {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(0,136,255,0.4); }
-          50% { box-shadow: 0 0 0 8px rgba(0,136,255,0); }
-        }
-      `}</style>
     </div>
   );
 }
@@ -334,23 +273,19 @@ function StickyNoteCard({ data, selected }: { data: DanteNodeData; selected: boo
   return (
     <div
       className={`
-        min-w-[200px] max-w-[280px]
-        ${selected ? "ring-2 ring-offset-2 ring-offset-[var(--canvas)] ring-[var(--flag)]" : ""}
+        rounded-[10px] min-w-[200px] max-w-[280px] shadow
+        ${selected ? "ring-2 ring-offset-1 ring-offset-[var(--canvas)] ring-[var(--flag)] shadow-md" : ""}
       `}
       style={{
         background: "var(--flag-soft)",
-        border: "1.5px solid var(--flag)",
-        borderRadius: 12,
-        boxShadow: "var(--neu-shadow-card)",
+        border: "1px solid var(--flag)",
       }}
     >
-      <div className="px-4 py-3">
-        <div className="text-[10px] uppercase tracking-[0.08em] font-bold mb-1.5"
-          style={{ color: "var(--flag)" }}
-        >
+      <div className="px-3 py-2.5">
+        <div className="text-[10px] uppercase tracking-[0.06em] text-[var(--flag)] font-semibold mb-1">
           Note
         </div>
-        <div className="text-[12px] text-[var(--ink)] leading-relaxed whitespace-pre-wrap">
+        <div className="text-[11px] text-[var(--ink)] leading-relaxed whitespace-pre-wrap">
           {content || "Click to add a note..."}
         </div>
       </div>
