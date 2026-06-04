@@ -2,7 +2,7 @@ import Dagre from "@dagrejs/dagre";
 import type { Node as RFNode, Edge as RFEdge } from "@xyflow/react";
 
 const NODE_WIDTH = 280;
-const NODE_HEIGHT = 120;
+const NODE_HEIGHT = 140;
 
 export function autoLayout<T extends RFNode>(
   nodes: T[],
@@ -10,7 +10,7 @@ export function autoLayout<T extends RFNode>(
   direction: "TB" | "LR" = "TB",
 ): T[] {
   const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: direction, nodesep: 60, ranksep: 100 });
+  g.setGraph({ rankdir: direction, nodesep: 80, ranksep: 120 });
 
   for (const node of nodes) {
     g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });

@@ -72,7 +72,7 @@ import { definitionFromRow } from "@/lib/dante/workflow-types";
 
 import DanteNode, { type DanteNodeData, getItemCount, NODE_COLORS } from "./canvas/DanteNode";
 import StepConfigForm, { type StepPatch } from "./canvas/StepConfigForm";
-import { NODE_TYPES, getMeta, isTriggerType, CATEGORY_LABELS, CATEGORY_ORDER, type NodeCategory } from "./canvas/nodeTypes";
+import { NODE_TYPES, getMeta, isTriggerType, CATEGORY_LABELS, CATEGORY_ORDER, accentClasses, type NodeCategory } from "./canvas/nodeTypes";
 import SmoothEdge from "./canvas/SmoothEdge";
 import { autoLayout } from "./canvas/autoLayout";
 
@@ -142,7 +142,7 @@ function graphToFlow(graph: WorkflowGraph): {
     label: e.sourceHandle ? e.sourceHandle : undefined,
     data: {},
     animated: false,
-    style: { stroke: "var(--rule-strong)", strokeWidth: 1.5 },
+    style: { stroke: "var(--rule-strong)", strokeWidth: 2 },
   }));
   return { nodes, edges, colors, notes };
 }
@@ -588,7 +588,7 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
       source: nodePicker.fromNodeId,
       target: id,
       sourceHandle: nodePicker.fromHandle,
-      style: { stroke: "var(--rule-strong)", strokeWidth: 1.5 },
+      style: { stroke: "var(--rule-strong)", strokeWidth: 2 },
     }, es));
     setSelectedId(id);
     setNodePicker(null);
@@ -618,7 +618,7 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
         id: `${conn.source}->${conn.target}${handle ? `:${handle}` : ""}_${Math.random().toString(36).slice(2,5)}`,
         label: handle,
         data: {},
-        style: { stroke: "var(--rule-strong)", strokeWidth: 1.5 },
+        style: { stroke: "var(--rule-strong)", strokeWidth: 2 },
       }, es));
     },
     [pushUndo, wouldCreateLoop, addToast],
@@ -1192,57 +1192,40 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
         </div>
 
         {/* Right: actions */}
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          <label className="flex items-center gap-1 text-[11px] text-[var(--ink-muted)] cursor-pointer px-2">
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <label className="flex items-center gap-1.5 text-[11px] text-[var(--ink-muted)] cursor-pointer px-2 py-1">
             <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)}
-              className="accent-[var(--ink)] w-3 h-3" />
+              className="accent-[var(--ink)] w-3.5 h-3.5" />
             Active
           </label>
-          <div className="w-px h-4 bg-[var(--rule)]" />
-          <button onClick={() => setShowShortcuts(true)}
-            title="Keyboard shortcuts (?)"
-            className="p-1.5 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition">
-            <Keyboard className="w-4 h-4" strokeWidth={1.5} />
-          </button>
-          <button onClick={toggleHistory}
-            title="Execution history"
-            className={`p-1.5 rounded-[4px] transition ${
-              historyOpen
-                ? "bg-[var(--canvas-subtle)] text-[var(--ink)]"
-                : "text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
-            }`}>
-            <History className="w-4 h-4" strokeWidth={1.5} />
-          </button>
-          <button onClick={() => setShowImportExport("export")}
-            title="Export workflow"
-            className="p-1.5 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition">
-            <Download className="w-4 h-4" strokeWidth={1.5} />
-          </button>
-          <button onClick={() => setShowImportExport("import")}
-            title="Import workflow"
-            className="p-1.5 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition">
-            <Upload className="w-4 h-4" strokeWidth={1.5} />
-          </button>
-          <button onClick={() => { setVersionsOpen(true); loadVersions(); }}
-            title="Version history"
-            className="p-1.5 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition">
-            <GitBranch className="w-4 h-4" strokeWidth={1.5} />
-          </button>
-          <button onClick={() => { setSecretsOpen(true); loadSecrets(); }}
-            title="Credentials"
-            className="p-1.5 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition">
-            <Key className="w-4 h-4" strokeWidth={1.5} />
-          </button>
-          <Link
-            href={`/dante/workflows/${workflow.id}/impact`}
-            title="Impact"
-            className="p-1.5 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition"
-          >
-            <BarChart3 className="w-4 h-4" strokeWidth={1.5} />
-          </Link>
-          <div className="w-px h-4 bg-[var(--rule)]" />
+          <div className="w-px h-5 bg-[var(--rule)] mx-1" />
+          {/* Grouped secondary tools */}
+          <div className="flex items-center bg-[var(--canvas-subtle)] rounded-[6px] p-0.5">
+            <button onClick={toggleHistory} title="Execution history"
+              className={`p-1.5 rounded-[4px] transition ${historyOpen ? "bg-[var(--canvas)] text-[var(--ink)] shadow-sm" : "text-[var(--ink-muted)] hover:text-[var(--ink)]"}`}>
+              <History className="w-3.5 h-3.5" strokeWidth={1.5} />
+            </button>
+            <button onClick={() => { setVersionsOpen(true); loadVersions(); }} title="Versions"
+              className="p-1.5 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] transition">
+              <GitBranch className="w-3.5 h-3.5" strokeWidth={1.5} />
+            </button>
+            <button onClick={() => { setSecretsOpen(true); loadSecrets(); }} title="Credentials"
+              className="p-1.5 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] transition">
+              <Key className="w-3.5 h-3.5" strokeWidth={1.5} />
+            </button>
+            <button onClick={() => setShowImportExport("export")} title="Export"
+              className="p-1.5 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] transition">
+              <Download className="w-3.5 h-3.5" strokeWidth={1.5} />
+            </button>
+            <button onClick={() => setShowShortcuts(true)} title="Keyboard shortcuts"
+              className="p-1.5 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] transition">
+              <Keyboard className="w-3.5 h-3.5" strokeWidth={1.5} />
+            </button>
+          </div>
+          <div className="w-px h-5 bg-[var(--rule)] mx-1" />
+          {/* Primary actions */}
           <button onClick={save} disabled={saving}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] border border-[var(--rule)] text-[var(--ink)] hover:bg-[var(--canvas-subtle)] text-xs font-medium transition disabled:opacity-50">
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-[6px] border border-[var(--rule)] text-[var(--ink)] hover:bg-[var(--canvas-subtle)] text-xs font-medium transition disabled:opacity-50">
             {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.5} /> : <Save className="w-3.5 h-3.5" strokeWidth={1.5} />}
             Save
           </button>
@@ -1250,7 +1233,7 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
             onClick={dryRun}
             disabled={dryRunning || running || nodes.length === 0}
             title="Test run (side effects mocked)"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] border border-[var(--rule)] text-[var(--ink)] hover:bg-[var(--canvas-subtle)] text-xs font-medium transition disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-[6px] border border-[var(--rule)] text-[var(--ink)] hover:bg-[var(--canvas-subtle)] text-xs font-medium transition disabled:opacity-50"
           >
             {dryRunning
               ? <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.5} />
@@ -1259,13 +1242,13 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
           </button>
           {running ? (
             <button onClick={cancelExecution}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] bg-[var(--danger)] hover:opacity-90 text-[var(--canvas)] text-xs font-semibold transition">
+              className="flex items-center gap-1.5 px-4 py-2 rounded-[6px] bg-[var(--danger)] hover:opacity-90 text-[var(--canvas)] text-xs font-semibold transition">
               <StopCircle className="w-3.5 h-3.5" strokeWidth={1.5} />
               Stop
             </button>
           ) : (
             <button onClick={handleRunClick} disabled={dryRunning || nodes.length === 0}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] bg-[var(--ink)] hover:opacity-90 text-[var(--canvas)] text-xs font-semibold transition disabled:opacity-50">
+              className="flex items-center gap-1.5 px-4 py-2 rounded-[6px] bg-[var(--ink)] hover:opacity-90 text-[var(--canvas)] text-xs font-semibold transition disabled:opacity-50">
               <Play className="w-3.5 h-3.5" strokeWidth={1.5} />
               Execute
             </button>
@@ -1431,10 +1414,10 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
                   type: "smooth",
                   animated: false,
                   data: {},
-                  style: { stroke: "var(--rule-strong)", strokeWidth: 1.5 },
+                  style: { stroke: "var(--rule-strong)", strokeWidth: 2 },
                 }}
               >
-                <Background color="var(--rule)" gap={24} size={1.5} variant={"dots" as any} />
+                <Background color="var(--rule)" gap={20} size={1} variant={"dots" as any} />
                 <Controls
                   showInteractive={false}
                   className="!bg-[var(--canvas)] !border-[var(--rule)] !rounded-[4px]"
@@ -2404,14 +2387,14 @@ function PaletteItem({
   return (
     <button
       onClick={onAdd}
-      className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-[6px] hover:bg-[var(--canvas-subtle)] text-left transition group"
+      className="w-full flex items-center gap-3 px-2.5 py-2 rounded-[8px] hover:bg-[var(--canvas-subtle)] text-left transition group"
     >
-      <div className="rounded-[6px] p-1.5 shrink-0 bg-[var(--canvas-subtle)] group-hover:bg-[var(--canvas)] text-[var(--ink-muted)] transition">
+      <div className={`rounded-[8px] p-2 shrink-0 transition ${accentClasses(meta.accent).iconWrap}`}>
         <Icon className="w-4 h-4" strokeWidth={1.5} />
       </div>
       <div className="min-w-0 flex-1">
         <div className="text-[12px] font-medium text-[var(--ink)] leading-tight">{meta.label}</div>
-        <div className="text-[10px] text-[var(--ink-subtle)] truncate leading-tight">{meta.hint}</div>
+        <div className="text-[10px] text-[var(--ink-subtle)] truncate leading-tight mt-0.5">{meta.hint}</div>
       </div>
     </button>
   );

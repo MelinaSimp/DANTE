@@ -93,24 +93,23 @@ export default function DanteNode({ data, selected }: NodeProps) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       className={`
-        group relative rounded-[8px] transition-all duration-100 cursor-pointer overflow-hidden
-        ${d.runStatus === "running" ? "ring-2 ring-[var(--accent)] shadow-md" : ""}
+        group relative rounded-[10px] transition-all duration-100 cursor-pointer
+        ${d.runStatus === "running" ? "ring-2 ring-[var(--accent)] shadow-lg" : ""}
         ${d.runStatus !== "running" && selected
-          ? `ring-2 ring-offset-1 ring-offset-[var(--canvas)] ${accent.selectedOutline} shadow-md`
-          : d.runStatus !== "running" ? "shadow-sm hover:shadow-md" : ""}
+          ? `ring-2 ring-offset-2 ring-offset-[var(--canvas)] ${accent.selectedOutline} shadow-lg`
+          : d.runStatus !== "running" ? "shadow hover:shadow-lg" : ""}
         ${isDisabled ? "opacity-50 grayscale-[30%]" : ""}
       `}
       style={{
         background: "var(--canvas)",
         border: "1px solid var(--rule)",
-        minWidth: 180,
-        maxWidth: 260,
+        width: 260,
       }}
     >
       {/* Color accent bar */}
       {nodeColor && (
         <div
-          className="absolute left-0 top-0 bottom-0 w-[3px]"
+          className="absolute left-0 top-0 bottom-0 w-[4px] rounded-l-[10px]"
           style={{ background: nodeColor }}
         />
       )}
@@ -120,7 +119,7 @@ export default function DanteNode({ data, selected }: NodeProps) {
         <Handle
           type="target"
           position={Position.Top}
-          className="!w-2.5 !h-2.5 !bg-[var(--rule-strong)] !border-2 !border-[var(--canvas)] !-top-[5px] hover:!bg-[var(--ink)] !transition-colors !rounded-full"
+          className="!w-3 !h-3 !bg-[var(--rule-strong)] !border-2 !border-[var(--canvas)] !-top-[6px] hover:!bg-[var(--ink)] !transition-colors !rounded-full"
         />
       )}
 
@@ -131,10 +130,10 @@ export default function DanteNode({ data, selected }: NodeProps) {
         </div>
       )}
 
-      <div className="flex items-center gap-3 px-3 py-2.5">
+      <div className="flex items-center gap-3 px-4 py-3.5">
         {/* Icon */}
-        <div className={`relative rounded-lg p-2 shrink-0 ${accent.iconWrap}`}>
-          {Icon && <Icon className="w-5 h-5" strokeWidth={1.5} />}
+        <div className={`relative rounded-[10px] p-2.5 shrink-0 ${accent.iconWrap}`}>
+          {Icon && <Icon className="w-[22px] h-[22px]" strokeWidth={1.5} />}
           {statusIcon && (
             <div className="absolute -bottom-1 -right-1 bg-[var(--canvas)] rounded-full p-[1px]">
               {statusIcon}
@@ -154,19 +153,19 @@ export default function DanteNode({ data, selected }: NodeProps) {
                 if (e.key === "Enter") commitRename();
                 if (e.key === "Escape") { setEditName(step.name); setEditing(false); }
               }}
-              className="text-[13px] font-semibold text-[var(--ink)] bg-[var(--canvas-subtle)] border border-[var(--rule-strong)] rounded-[3px] px-1 py-0 w-full leading-tight focus:outline-none"
+              className="text-sm font-semibold text-[var(--ink)] bg-[var(--canvas-subtle)] border border-[var(--rule-strong)] rounded-[4px] px-1.5 py-0.5 w-full leading-tight focus:outline-none"
               spellCheck={false}
             />
           ) : (
             <div
               onDoubleClick={() => { setEditName(step.name || displayName); setEditing(true); }}
-              className={`text-[13px] font-semibold leading-tight truncate ${isDisabled ? "text-[var(--ink-muted)] line-through" : "text-[var(--ink)]"}`}
+              className={`text-sm font-semibold leading-tight truncate ${isDisabled ? "text-[var(--ink-muted)] line-through" : "text-[var(--ink)]"}`}
             >
               {displayName}
             </div>
           )}
           {subtitle && (
-            <div className="text-[10px] text-[var(--ink-muted)] leading-snug truncate mt-0.5 mono">
+            <div className="text-[11px] text-[var(--ink-muted)] leading-snug truncate mt-1 mono">
               {subtitle}
             </div>
           )}
@@ -175,7 +174,7 @@ export default function DanteNode({ data, selected }: NodeProps) {
 
       {/* Execution data strip */}
       {outputPreview && d.runStatus && d.runStatus !== "running" && (
-        <div className={`border-t border-[var(--rule)] px-3 py-1.5 text-[10px] mono truncate flex items-center gap-1.5 ${
+        <div className={`border-t border-[var(--rule)] px-4 py-2 text-[11px] mono truncate flex items-center gap-1.5 ${
           d.runStatus === "error" ? "text-[var(--danger)] bg-[var(--danger-soft)]/30" : "text-[var(--ink-muted)] bg-[var(--canvas-subtle)]/50"
         }`}>
           {itemCount != null && (
@@ -213,14 +212,14 @@ export default function DanteNode({ data, selected }: NodeProps) {
             type="source"
             position={Position.Bottom}
             style={{ left: "30%" }}
-            className="!w-2.5 !h-2.5 !bg-[var(--verified)] !border-2 !border-[var(--canvas)] !-bottom-[5px] !rounded-full"
+            className="!w-3 !h-3 !bg-[var(--verified)] !border-2 !border-[var(--canvas)] !-bottom-[6px] !rounded-full"
           />
           <Handle
             id="false"
             type="source"
             position={Position.Bottom}
             style={{ left: "70%" }}
-            className="!w-2.5 !h-2.5 !bg-[var(--danger)] !border-2 !border-[var(--canvas)] !-bottom-[5px] !rounded-full"
+            className="!w-3 !h-3 !bg-[var(--danger)] !border-2 !border-[var(--canvas)] !-bottom-[6px] !rounded-full"
           />
           <div className="flex justify-between px-3 pb-1 text-[8px] uppercase tracking-wider font-mono font-semibold">
             <span className="text-[var(--verified)]">true</span>
@@ -236,7 +235,7 @@ export default function DanteNode({ data, selected }: NodeProps) {
               type="source"
               position={Position.Bottom}
               style={{ left: `${((i + 1) / (switchCases.length + 2)) * 100}%` }}
-              className="!w-2.5 !h-2.5 !bg-[var(--accent)] !border-2 !border-[var(--canvas)] !-bottom-[5px] !rounded-full"
+              className="!w-3 !h-3 !bg-[var(--accent)] !border-2 !border-[var(--canvas)] !-bottom-[6px] !rounded-full"
             />
           ))}
           <Handle
@@ -244,7 +243,7 @@ export default function DanteNode({ data, selected }: NodeProps) {
             type="source"
             position={Position.Bottom}
             style={{ left: `${((switchCases.length + 1) / (switchCases.length + 2)) * 100}%` }}
-            className="!w-2.5 !h-2.5 !bg-[var(--ink-muted)] !border-2 !border-[var(--canvas)] !-bottom-[5px] !rounded-full"
+            className="!w-3 !h-3 !bg-[var(--ink-muted)] !border-2 !border-[var(--canvas)] !-bottom-[6px] !rounded-full"
           />
         </>
       ) : (
@@ -252,14 +251,14 @@ export default function DanteNode({ data, selected }: NodeProps) {
           <Handle
             type="source"
             position={Position.Bottom}
-            className="!w-2.5 !h-2.5 !bg-[var(--rule-strong)] !border-2 !border-[var(--canvas)] !-bottom-[5px] hover:!bg-[var(--ink)] !transition-colors !rounded-full"
+            className="!w-3 !h-3 !bg-[var(--rule-strong)] !border-2 !border-[var(--canvas)] !-bottom-[6px] hover:!bg-[var(--ink)] !transition-colors !rounded-full"
           />
           {hovered && (
             <div
-              className="absolute left-1/2 -translate-x-1/2 -bottom-[22px] z-10 pointer-events-none"
+              className="absolute left-1/2 -translate-x-1/2 -bottom-[24px] z-10 pointer-events-none"
             >
-              <div className="w-[18px] h-[18px] rounded-full bg-[var(--ink)] flex items-center justify-center shadow-sm">
-                <Plus className="w-2.5 h-2.5 text-[var(--canvas)]" strokeWidth={2.5} />
+              <div className="w-[22px] h-[22px] rounded-full bg-[var(--ink)] flex items-center justify-center shadow-md">
+                <Plus className="w-3 h-3 text-[var(--canvas)]" strokeWidth={2.5} />
               </div>
             </div>
           )}
@@ -274,7 +273,7 @@ function StickyNoteCard({ data, selected }: { data: DanteNodeData; selected: boo
   return (
     <div
       className={`
-        rounded-md min-w-[180px] max-w-[260px] shadow-sm
+        rounded-[10px] min-w-[200px] max-w-[280px] shadow
         ${selected ? "ring-2 ring-offset-1 ring-offset-[var(--canvas)] ring-[var(--flag)] shadow-md" : ""}
       `}
       style={{

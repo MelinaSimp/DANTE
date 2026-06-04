@@ -57,7 +57,7 @@ export default function SmoothEdge({
         id={id}
         d={edgePath}
         fill="none"
-        strokeWidth={selected ? 2 : 1.5}
+        strokeWidth={selected ? 2.5 : 2}
         className="react-flow__edge-path"
         style={{
           ...style,
