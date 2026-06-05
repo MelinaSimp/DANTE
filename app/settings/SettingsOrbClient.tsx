@@ -24,6 +24,7 @@ import {
   UserCircle,
   MapPin,
   Upload,
+  BarChart3,
 } from "lucide-react";
 
 const PhoneNumbersCard = lazy(() => import("./PhoneNumbersCard"));
@@ -260,6 +261,14 @@ export default function SettingsOrbClient({
                     they behave like the rest of the app nav. */}
                 {group === "Workspace" && (
                   <>
+                    <Link
+                      href="/settings/analytics"
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-[4px] transition text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
+                    >
+                      <BarChart3 className="w-4 h-4" strokeWidth={1.5} />
+                      <span className="flex-1 text-left">Analytics</span>
+                      <ArrowUpRight className="w-3 h-3 text-[var(--ink-subtle)]" strokeWidth={1.5} />
+                    </Link>
                     <Link
                       href="/settings/integrations"
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-[4px] transition text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
