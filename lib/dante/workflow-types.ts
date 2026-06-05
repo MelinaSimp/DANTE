@@ -206,7 +206,8 @@ export type AgentToolName =
   | "document.create"        // generate a branded PDF or DOCX from structured sections
   | "document.edit"          // modify sections on a Dante-generated document and re-render
   | "document.list_templates"  // list saved document templates in the workspace
-  | "document.save_template";  // save a document's structure as a reusable template
+  | "document.save_template"   // save a document's structure as a reusable template
+  | "agent.delegate";          // spawn a focused sub-agent for a specific sub-task
 
 export type AgentToolEntry =
   | AgentToolName

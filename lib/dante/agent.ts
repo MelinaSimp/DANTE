@@ -1183,6 +1183,47 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
       },
     },
   },
+  "agent.delegate": {
+    type: "function",
+    function: {
+      name: "agent_delegate",
+      description:
+        "Spawn a focused sub-agent to handle a specific sub-task. The sub-agent " +
+        "runs with its own tool set and step budget, then returns its result to " +
+        "you. Use this when a task has clearly separable sub-problems — e.g. " +
+        "'research the market AND draft the memo' can be split into a research " +
+        "sub-agent and a drafting sub-agent. The sub-agent inherits your workspace " +
+        "context but has its own conversation history. Max 3 delegations per run.",
+      parameters: {
+        type: "object",
+        properties: {
+          objective: {
+            type: "string",
+            description: "Clear, specific objective for the sub-agent. Be precise about what output you need back.",
+          },
+          tools: {
+            type: "array",
+            items: { type: "string" },
+            description:
+              "Which tools the sub-agent can use. Pick only what it needs. " +
+              "Available: memory.search, memory.write, archive.search, vault.cite, " +
+              "clients.query, properties.query, site_scan.search, site_scan.detail, " +
+              "site_scan.void_analysis, survey_area, web.search, cre.calculate, " +
+              "file_index.search, regulatory.search.",
+          },
+          max_steps: {
+            type: "number",
+            description: "Maximum iterations for the sub-agent (1-10, default 5).",
+          },
+          context: {
+            type: "string",
+            description: "Additional context to pass to the sub-agent (e.g. prior findings, constraints).",
+          },
+        },
+        required: ["objective", "tools"],
+      },
+    },
+  },
   "tenant_site_search": {
     type: "function",
     function: {
@@ -1304,6 +1345,7 @@ const NAME_TO_TOOL: Record<string, AgentToolName> = {
   document_edit: "document.edit",
   document_list_templates: "document.list_templates",
   document_save_template: "document.save_template",
+  agent_delegate: "agent.delegate",
 };
 
 // ── Tool executor adapters ────────────────────────────────────
@@ -1411,6 +1453,7 @@ const PER_TOOL_BUDGET: Partial<Record<AgentToolName, number>> = {
   "document.edit": 5,    // re-renders + re-uploads; match create budget
   "document.list_templates": 3, // read-only; cheap
   "document.save_template": 3,  // one save per request is typical
+  "agent.delegate": 3,          // sub-agent spawns are expensive; 3 max per run
 };
 
 /**
@@ -1949,6 +1992,74 @@ async function dispatchTool(
         return result;
       } catch (err) {
         return { error: err instanceof Error ? err.message : "skill error" };
+      }
+    }
+    case "agent.delegate": {
+      // Spawn a focused sub-agent with a limited tool set and step
+      // budget. The sub-agent runs to completion and returns its
+      // final text. This enables multi-agent orchestration: the
+      // parent agent can break complex tasks into focused sub-tasks.
+      const subObjective = String(args.objective || "").trim();
+      if (!subObjective) return { error: "agent.delegate: 'objective' is required" };
+
+      const subToolNames = (args.tools as string[] || []).filter(
+        (t): t is AgentToolName =>
+          typeof t === "string" && t in TOOL_DEFS,
+      );
+      if (subToolNames.length === 0) {
+        return { error: "agent.delegate: at least one valid tool name is required in 'tools'" };
+      }
+
+      // Safety: sub-agents cannot delegate further (no recursion bomb)
+      const filteredTools = subToolNames.filter((t) => t !== "agent.delegate");
+
+      const subMaxSteps = Math.min(Math.max(Number(args.max_steps) || 5, 1), 10);
+      const subContext = args.context ? String(args.context) : "";
+
+      const subObjectiveFull = subContext
+        ? `Context from parent agent:\n${subContext}\n\nYour objective:\n${subObjective}`
+        : subObjective;
+
+      try {
+        agentLog.info("delegating to sub-agent", {
+          objective: subObjective.slice(0, 200),
+          tools: filteredTools,
+          maxSteps: subMaxSteps,
+        });
+
+        const subResult = await runAgent({
+          step: {
+            id: `${ctx.parentStepId}:delegate:${Date.now()}`,
+            type: "agent",
+            name: "sub-agent",
+            config: {
+              objective: subObjectiveFull,
+              tools: filteredTools,
+              max_steps: subMaxSteps,
+              model: undefined, // inherit workspace model
+            },
+          },
+          workspaceId: ctx.workspaceId,
+          userId: ctx.userId,
+          simulate: ctx.simulate,
+          runId: ctx.runId,
+          log: ctx.log,
+        });
+
+        const outputText = typeof subResult.output === "string"
+          ? subResult.output
+          : subResult.text || JSON.stringify(subResult.output);
+        return {
+          status: "completed",
+          output: outputText.slice(0, 8000) || "(no output)",
+          steps_used: subResult.steps_taken,
+          truncated: subResult.truncated,
+        };
+      } catch (err) {
+        agentLog.warn("sub-agent delegation failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return { error: `delegation failed: ${err instanceof Error ? err.message : String(err)}` };
       }
     }
     case "reminder.schedule": {
@@ -3667,6 +3778,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       "document.edit": 0,
       "document.list_templates": 0,
       "document.save_template": 0,
+      "agent.delegate": 0,
     },
     onEvent: input.onEvent ? async (event) => {
       try { await input.onEvent!(event as any); } catch { /* non-fatal */ }

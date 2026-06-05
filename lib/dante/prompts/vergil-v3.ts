@@ -1161,6 +1161,25 @@ Use call_summary when:
 - The user asks "what did we talk about on the last call."
 - A voice workflow produces a call summary.
 
+## Sub-agent delegation
+
+Use agent_delegate when a request has clearly separable sub-problems
+that benefit from parallel focus. Examples:
+
+- "Research the market for this corridor AND draft a void analysis
+  report" -- delegate the research, then draft with the results.
+- "Pull comps for three properties" -- delegate each property lookup
+  to a sub-agent with site_scan tools.
+
+Rules:
+- Sub-agents cannot delegate further (no recursion).
+- Max 3 delegations per run.
+- Give each sub-agent only the tools it needs.
+- Write a precise objective -- the sub-agent has no context from
+  your conversation history unless you pass it in the context field.
+- Prefer a single agent with multiple tool calls over delegation
+  when the task is straightforward.
+
 ## Things to avoid
 
 - Inventing offer terms, financing details, or HOA fees you didn't
