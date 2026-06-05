@@ -716,7 +716,7 @@ function RentCompChart({ comps }: { comps: NonNullable<VoidAnalysisData["rent_co
     <section className="rounded-lg border border-[var(--rule)] overflow-hidden bg-[var(--surface,#fff)]">
       <header className="flex items-center gap-2 px-5 py-3 border-b border-[var(--rule)] bg-[var(--canvas-subtle,rgba(0,0,0,0.025))]">
         <DollarSign className="w-4 h-4 text-[var(--ink-muted)]" strokeWidth={1.5} />
-        <div>
+        <div className="flex-1">
           <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)]">
             Market Rents
           </div>
@@ -724,6 +724,9 @@ function RentCompChart({ comps }: { comps: NonNullable<VoidAnalysisData["rent_co
             NNN Asking Rents ($/SF/Year)
           </div>
         </div>
+        <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-medium uppercase tracking-wider">
+          AI estimate
+        </span>
       </header>
 
       <div className="px-4 py-4" style={{ height: Math.max(200, comps.length * 40) }}>
@@ -793,7 +796,7 @@ function DataFreshnessFooter({ accessedAt }: { accessedAt: string }) {
   return (
     <div className="px-4 py-2 rounded-md border border-[var(--rule)]/50 bg-[var(--canvas-subtle,rgba(0,0,0,0.015))]">
       <span className="text-[10px] text-[var(--ink-subtle)]">
-        Data sourced {formatted} via Google Places API + county GIS
+        Business data sourced {formatted} via Google Places API + county GIS. Rent comp ranges are AI-estimated from market context, not API-sourced -- verify with local broker data before relying on them for underwriting.
       </span>
     </div>
   );

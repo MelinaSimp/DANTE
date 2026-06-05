@@ -131,7 +131,10 @@ export function AssistantMessage({
     }
   };
 
-  const onExport = () => {
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  const onExportMarkdown = () => {
     const stem = deriveFilenameStem(content)
       .replace(/[^a-z0-9_-]+/gi, "_")
       .toLowerCase();
@@ -144,6 +147,38 @@ export function AssistantMessage({
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    setExportOpen(false);
+  };
+
+  const onExportPdf = async () => {
+    if (!chatId || !messageId) {
+      // Fallback to markdown for ephemeral chats without IDs
+      onExportMarkdown();
+      return;
+    }
+    setExporting(true);
+    setExportOpen(false);
+    try {
+      const res = await fetch("/api/dante/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chatId, messageIds: [messageId] }),
+      });
+      if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `drift-export-${chatId.slice(0, 8)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("[pdf-export]", err);
+    } finally {
+      setExporting(false);
+    }
   };
 
   return (
@@ -176,10 +211,33 @@ export function AssistantMessage({
         <button onClick={onCopy} className="p-1.5 rounded text-[var(--ink-subtle)] hover:text-[var(--ink-muted)] hover:bg-[var(--neu-hover)]">
           {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
         </button>
-        <button onClick={onExport} className="inline-flex items-center gap-1 hover:text-[var(--ink-muted)]">
-          <Download className="w-3 h-3" />
-          Export
-        </button>
+        <div className="relative">
+          <button
+            onClick={() => setExportOpen((v) => !v)}
+            disabled={exporting}
+            className="inline-flex items-center gap-1 hover:text-[var(--ink-muted)] disabled:opacity-50"
+          >
+            {exporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+            Export
+            <ChevronDown className="w-3 h-3" />
+          </button>
+          {exportOpen && (
+            <div className="absolute left-0 top-full mt-1 z-10 glass-card rounded-lg p-1 min-w-[140px]">
+              <button
+                onClick={onExportPdf}
+                className="w-full px-3 py-1.5 text-left text-xs hover:bg-[var(--neu-hover)] rounded-md"
+              >
+                PDF (branded)
+              </button>
+              <button
+                onClick={onExportMarkdown}
+                className="w-full px-3 py-1.5 text-left text-xs hover:bg-[var(--neu-hover)] rounded-md"
+              >
+                Markdown
+              </button>
+            </div>
+          )}
+        </div>
         <div className="relative">
           <button
             onClick={() => setRewriteOpen((v) => !v)}
