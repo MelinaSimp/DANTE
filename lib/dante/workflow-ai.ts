@@ -33,6 +33,10 @@ export interface GeneratedWorkflow {
   name: string;
   description: string;
   graph: WorkflowGraph;
+  /** Quality warnings from post-generation checks.
+   *  Present only when the generator auto-fixed model mistakes
+   *  (dangling nodes, missing configs, unreachable subgraphs). */
+  _warnings?: string[];
 }
 
 // ── Prompt ────────────────────────────────────────────────────
@@ -356,10 +360,99 @@ function validate(raw: unknown): GeneratedWorkflow {
     nodes.forEach((n, i) => { n.position = { x: 80, y: 80 + i * 140 }; });
   }
 
+  // ── Post-generation quality checks ────────────────────────────
+  // These don't throw — they fix common model mistakes automatically.
+  const warnings: string[] = [];
+
+  // 1. Dangling nodes: any node not referenced by edges (except trigger)
+  const triggerNode = nodes.find((n) => n.type.startsWith("trigger_"));
+  const connectedIds = new Set<string>();
+  for (const e of edges) {
+    connectedIds.add(e.source);
+    connectedIds.add(e.target);
+  }
+  if (triggerNode) connectedIds.add(triggerNode.id);
+  const dangling = nodes.filter((n) => !connectedIds.has(n.id));
+  if (dangling.length > 0 && triggerNode) {
+    // Auto-wire dangling nodes to the end of the chain
+    const lastTarget = edges.length > 0
+      ? edges[edges.length - 1].target
+      : triggerNode.id;
+    for (const d of dangling) {
+      edges.push({
+        id: `${lastTarget}->${d.id}`,
+        source: lastTarget,
+        target: d.id,
+      });
+      warnings.push(`Auto-wired dangling node "${d.id}" after "${lastTarget}"`);
+    }
+  }
+
+  // 2. Missing required configs — agent nodes need an objective
+  for (const n of nodes) {
+    if (n.type === "agent") {
+      const cfg = n.data.step.config as Record<string, unknown>;
+      if (!cfg.objective && cfg.prompt) {
+        cfg.objective = cfg.prompt as string;
+        warnings.push(`Copied agent node "${n.id}" prompt to objective field`);
+      }
+    }
+    // openai nodes need a prompt
+    if (n.type === "openai") {
+      const cfg = n.data.step.config as Record<string, unknown>;
+      if (!cfg.prompt && cfg.objective) {
+        cfg.prompt = cfg.objective as string;
+        warnings.push(`Copied openai node "${n.id}" objective to prompt field`);
+      }
+    }
+    // send_email nodes need a "to" field
+    if (n.type === "send_email") {
+      const cfg = n.data.step.config as Record<string, unknown>;
+      if (!cfg.to) {
+        cfg.to = "{{owner_email}}";
+        warnings.push(`Set default recipient "{{owner_email}}" on send_email node "${n.id}"`);
+      }
+    }
+  }
+
+  // 3. Graph connectivity: BFS from trigger to ensure all non-trigger
+  //    nodes are reachable.
+  if (triggerNode) {
+    const adjacency = new Map<string, string[]>();
+    for (const e of edges) {
+      if (!adjacency.has(e.source)) adjacency.set(e.source, []);
+      adjacency.get(e.source)!.push(e.target);
+    }
+    const visited = new Set<string>();
+    const queue = [triggerNode.id];
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      if (visited.has(current)) continue;
+      visited.add(current);
+      const neighbors = adjacency.get(current) || [];
+      queue.push(...neighbors);
+    }
+    const unreachable = nodes.filter(
+      (n) => !visited.has(n.id) && !n.type.startsWith("trigger_"),
+    );
+    if (unreachable.length > 0) {
+      // Wire unreachable nodes to the trigger
+      for (const u of unreachable) {
+        edges.push({
+          id: `${triggerNode.id}->${u.id}`,
+          source: triggerNode.id,
+          target: u.id,
+        });
+        warnings.push(`Auto-wired unreachable node "${u.id}" to trigger`);
+      }
+    }
+  }
+
   return {
     name: name.slice(0, 80),
     description: description.slice(0, 240),
     graph: { nodes, edges },
+    _warnings: warnings.length > 0 ? warnings : undefined,
   };
 }
 
