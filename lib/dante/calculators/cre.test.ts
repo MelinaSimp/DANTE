@@ -20,6 +20,7 @@ import {
   calcDebtService,
   calcEquityMultiple,
   calcIRR,
+  calcDealScore,
   calculateCre,
   AVAILABLE_METRICS,
   type CreCalcResult,
@@ -422,15 +423,125 @@ describe("calcIRR", () => {
   });
 });
 
+// ── Deal Score ──────────────────────────────────────────────────
+
+describe("calcDealScore", () => {
+  const fullDeal = {
+    noi: 100_000,
+    purchase_price: 1_250_000,
+    annual_debt_service: 65_000,
+    total_cash_invested: 350_000,
+    loan_amount: 900_000,
+    operating_expenses: 50_000,
+    gross_potential_rent: 160_000,
+  };
+
+  it("scores a strong deal above 75", () => {
+    const r = calcDealScore(fullDeal);
+    expect(isResult(r)).toBe(true);
+    if (!isResult(r)) return;
+    expect(r.metric).toBe("deal_score");
+    expect(r.value).toBeGreaterThanOrEqual(75);
+    expect(r.value).toBeLessThanOrEqual(100);
+    expect(r.breakdown).toBeDefined();
+    expect(r.breakdown!.length).toBe(7); // all 7 dimensions
+    expect(r.interpretation).toContain("/100");
+  });
+
+  it("evaluates partial inputs (cap rate + DSCR only)", () => {
+    const r = calcDealScore({
+      noi: 80_000,
+      purchase_price: 1_000_000,
+      annual_debt_service: 60_000,
+    });
+    expect(isResult(r)).toBe(true);
+    if (!isResult(r)) return;
+    // Only cap rate and DSCR dimensions available
+    expect(r.breakdown!.length).toBe(2);
+    expect(r.value).toBeGreaterThanOrEqual(0);
+    expect(r.value).toBeLessThanOrEqual(100);
+  });
+
+  it("errors when no inputs provided", () => {
+    const r = calcDealScore({});
+    expect(isError(r)).toBe(true);
+    if (!isError(r)) return;
+    expect(r.metric).toBe("deal_score");
+    expect(r.missing_inputs).toContain("noi");
+  });
+
+  it("respects target_cap_rate override", () => {
+    // With a 10% target, a 8% cap rate should score lower
+    const low = calcDealScore({
+      noi: 80_000,
+      purchase_price: 1_000_000,
+      target_cap_rate: 0.10,
+      annual_debt_service: 50_000,
+    });
+    // With a 6% target, the same 8% cap rate should score higher
+    const high = calcDealScore({
+      noi: 80_000,
+      purchase_price: 1_000_000,
+      target_cap_rate: 0.06,
+      annual_debt_service: 50_000,
+    });
+    expect(isResult(low) && isResult(high)).toBe(true);
+    if (!isResult(low) || !isResult(high)) return;
+    expect(high.value).toBeGreaterThan(low.value);
+  });
+
+  it("scores a weak deal below 50", () => {
+    const r = calcDealScore({
+      noi: 40_000,
+      purchase_price: 1_000_000, // 4% cap
+      annual_debt_service: 80_000, // DSCR 0.5x
+      total_cash_invested: 200_000,
+      loan_amount: 800_000, // 80% LTV
+      operating_expenses: 70_000,
+      gross_potential_rent: 120_000,
+    });
+    expect(isResult(r)).toBe(true);
+    if (!isResult(r)) return;
+    expect(r.value).toBeLessThan(50);
+    expect(r.interpretation).toContain("Below threshold");
+  });
+
+  it("weights redistribute when fewer dimensions are available", () => {
+    // All 7 dimensions
+    const full = calcDealScore(fullDeal);
+    // Only cap rate (remove everything except noi + price)
+    const partial = calcDealScore({
+      noi: fullDeal.noi,
+      purchase_price: fullDeal.purchase_price,
+    });
+    expect(isResult(full) && isResult(partial)).toBe(true);
+    if (!isResult(full) || !isResult(partial)) return;
+    expect(full.breakdown!.length).toBe(7);
+    expect(partial.breakdown!.length).toBe(1);
+    // Both should still be 0-100 scale
+    expect(partial.value).toBeGreaterThanOrEqual(0);
+    expect(partial.value).toBeLessThanOrEqual(100);
+  });
+
+  it("is accessible via the dispatcher", () => {
+    const results = calculateCre(["deal_score"], fullDeal);
+    expect(results).toHaveLength(1);
+    expect(isResult(results[0])).toBe(true);
+    if (!isResult(results[0])) return;
+    expect(results[0].metric).toBe("deal_score");
+  });
+});
+
 // ── Dispatcher ───────────────────────────────────────────────────
 
 describe("calculateCre", () => {
-  it("lists all 14 metrics", () => {
-    expect(AVAILABLE_METRICS).toHaveLength(14);
+  it("lists all 15 metrics", () => {
+    expect(AVAILABLE_METRICS).toHaveLength(15);
     expect(AVAILABLE_METRICS).toContain("noi");
     expect(AVAILABLE_METRICS).toContain("irr");
     expect(AVAILABLE_METRICS).toContain("cap_rate");
     expect(AVAILABLE_METRICS).toContain("dscr");
+    expect(AVAILABLE_METRICS).toContain("deal_score");
   });
 
   it("computes multiple metrics in one call", () => {

@@ -431,6 +431,209 @@ export function calcIRR(inputs: Record<string, number>): CreCalcOutput {
   };
 }
 
+/**
+ * Deal Score — composite 0-100 score for a potential acquisition.
+ *
+ * Evaluates up to 7 dimensions, each weighted:
+ *   - Cap rate vs target (20%)
+ *   - DSCR (15%)
+ *   - Cash-on-cash return (15%)
+ *   - LTV (10%)
+ *   - Break-even occupancy (15%)
+ *   - Debt yield (10%)
+ *   - OpEx ratio (15%)
+ *
+ * Each dimension scores 0-100 based on where the value falls
+ * relative to good/acceptable/poor thresholds. Missing dimensions
+ * are excluded and weights are redistributed.
+ */
+export function calcDealScore(inputs: Record<string, number>): CreCalcOutput {
+  interface Dimension {
+    name: string;
+    weight: number;
+    value: number | null;
+    score: number;
+    grade: "A" | "B" | "C" | "D" | "F";
+    note: string;
+  }
+
+  const dimensions: Dimension[] = [];
+
+  // Helper to score a value on a scale
+  function grade(
+    val: number,
+    thresholds: { a: number; b: number; c: number; d: number },
+    higher_is_better: boolean,
+  ): { score: number; grade: "A" | "B" | "C" | "D" | "F" } {
+    const compare = higher_is_better
+      ? (v: number, t: number) => v >= t
+      : (v: number, t: number) => v <= t;
+    if (compare(val, thresholds.a)) return { score: 95, grade: "A" };
+    if (compare(val, thresholds.b)) return { score: 80, grade: "B" };
+    if (compare(val, thresholds.c)) return { score: 60, grade: "C" };
+    if (compare(val, thresholds.d)) return { score: 40, grade: "D" };
+    return { score: 20, grade: "F" };
+  }
+
+  // Cap rate
+  if (inputs.noi != null && (inputs.purchase_price ?? inputs.market_value) != null) {
+    const price = inputs.purchase_price ?? inputs.market_value;
+    const capRate = inputs.noi / price;
+    const targetCap = inputs.target_cap_rate ?? 0.07;
+    const diff = capRate - targetCap;
+    const g = grade(diff, { a: 0.01, b: 0, c: -0.01, d: -0.02 }, true);
+    dimensions.push({
+      name: "Cap rate",
+      weight: 20,
+      value: capRate,
+      score: g.score,
+      grade: g.grade,
+      note: `${(capRate * 100).toFixed(2)}% vs ${(targetCap * 100).toFixed(2)}% target`,
+    });
+  }
+
+  // DSCR
+  if (inputs.noi != null && inputs.annual_debt_service != null && inputs.annual_debt_service > 0) {
+    const dscr = inputs.noi / inputs.annual_debt_service;
+    const g = grade(dscr, { a: 1.50, b: 1.25, c: 1.10, d: 1.0 }, true);
+    dimensions.push({
+      name: "DSCR",
+      weight: 15,
+      value: dscr,
+      score: g.score,
+      grade: g.grade,
+      note: `${dscr.toFixed(2)}x coverage`,
+    });
+  }
+
+  // Cash-on-cash
+  if (
+    inputs.noi != null &&
+    (inputs.total_cash_invested ?? inputs.total_equity_invested) != null
+  ) {
+    const equity = inputs.total_cash_invested ?? inputs.total_equity_invested;
+    const ds = inputs.annual_debt_service ?? 0;
+    const coc = (inputs.noi - ds) / equity;
+    const g = grade(coc, { a: 0.12, b: 0.08, c: 0.05, d: 0.02 }, true);
+    dimensions.push({
+      name: "Cash-on-cash",
+      weight: 15,
+      value: coc,
+      score: g.score,
+      grade: g.grade,
+      note: `${(coc * 100).toFixed(2)}% return`,
+    });
+  }
+
+  // LTV
+  if (inputs.loan_amount != null && (inputs.purchase_price ?? inputs.market_value) != null) {
+    const value = inputs.appraised_value ?? inputs.purchase_price ?? inputs.market_value;
+    const ltv = inputs.loan_amount / value;
+    const g = grade(ltv, { a: 0.60, b: 0.70, c: 0.75, d: 0.80 }, false);
+    dimensions.push({
+      name: "LTV",
+      weight: 10,
+      value: ltv,
+      score: g.score,
+      grade: g.grade,
+      note: `${(ltv * 100).toFixed(1)}% leverage`,
+    });
+  }
+
+  // Break-even occupancy
+  if (inputs.operating_expenses != null && inputs.gross_potential_rent != null) {
+    const ds = inputs.annual_debt_service ?? 0;
+    const beo = (inputs.operating_expenses + ds) / inputs.gross_potential_rent;
+    const g = grade(beo, { a: 0.70, b: 0.80, c: 0.85, d: 0.90 }, false);
+    dimensions.push({
+      name: "Break-even",
+      weight: 15,
+      value: beo,
+      score: g.score,
+      grade: g.grade,
+      note: `${(beo * 100).toFixed(1)}% occupancy needed`,
+    });
+  }
+
+  // Debt yield
+  if (inputs.noi != null && inputs.loan_amount != null && inputs.loan_amount > 0) {
+    const dy = inputs.noi / inputs.loan_amount;
+    const g = grade(dy, { a: 0.12, b: 0.10, c: 0.08, d: 0.06 }, true);
+    dimensions.push({
+      name: "Debt yield",
+      weight: 10,
+      value: dy,
+      score: g.score,
+      grade: g.grade,
+      note: `${(dy * 100).toFixed(2)}%`,
+    });
+  }
+
+  // OpEx ratio
+  if (inputs.operating_expenses != null && inputs.gross_potential_rent != null) {
+    const vacancy = inputs.vacancy_rate ?? 0.05;
+    const egi = inputs.gross_potential_rent * (1 - vacancy) + (inputs.other_income ?? 0);
+    if (egi > 0) {
+      const ratio = inputs.operating_expenses / egi;
+      const g = grade(ratio, { a: 0.30, b: 0.40, c: 0.50, d: 0.60 }, false);
+      dimensions.push({
+        name: "OpEx ratio",
+        weight: 15,
+        value: ratio,
+        score: g.score,
+        grade: g.grade,
+        note: `${(ratio * 100).toFixed(1)}% of EGI`,
+      });
+    }
+  }
+
+  if (dimensions.length === 0) {
+    return {
+      error: "Not enough inputs to score. Provide at least noi and purchase_price.",
+      metric: "deal_score",
+      missing_inputs: ["noi", "purchase_price"],
+    };
+  }
+
+  // Redistribute weights across available dimensions
+  const totalWeight = dimensions.reduce((s, d) => s + d.weight, 0);
+  const compositeScore = Math.round(
+    dimensions.reduce((s, d) => s + (d.score * d.weight) / totalWeight, 0),
+  );
+
+  const overallGrade: "A" | "B" | "C" | "D" | "F" =
+    compositeScore >= 90 ? "A"
+    : compositeScore >= 75 ? "B"
+    : compositeScore >= 60 ? "C"
+    : compositeScore >= 40 ? "D"
+    : "F";
+
+  const breakdown = dimensions.map((d) => ({
+    dimension: d.name,
+    score: d.score,
+    grade: d.grade,
+    weight_pct: Math.round((d.weight / totalWeight) * 100),
+    note: d.note,
+  }));
+
+  return {
+    metric: "deal_score",
+    value: compositeScore,
+    formula: "Weighted composite of cap rate, DSCR, CoC, LTV, break-even, debt yield, OpEx ratio",
+    interpretation: `Deal scores ${compositeScore}/100 (${overallGrade}). ${
+      compositeScore >= 80
+        ? "Strong acquisition candidate."
+        : compositeScore >= 60
+          ? "Acceptable with caveats -- review weak dimensions."
+          : "Below threshold -- significant concerns in key metrics."
+    } Evaluated ${dimensions.length} of 7 dimensions.`,
+    inputs_used: Object.fromEntries(
+      Object.entries(inputs).filter(([, v]) => v != null),
+    ),
+    breakdown: breakdown as unknown as Record<string, number>[],
+  };
+}
+
 // ── Dispatcher ───────────────────────────────────────────────────
 
 const METRIC_MAP: Record<string, (inputs: Record<string, number>) => CreCalcOutput> = {
@@ -448,6 +651,7 @@ const METRIC_MAP: Record<string, (inputs: Record<string, number>) => CreCalcOutp
   debt_service: calcDebtService,
   equity_multiple: calcEquityMultiple,
   irr: calcIRR,
+  deal_score: calcDealScore,
 };
 
 export const AVAILABLE_METRICS = Object.keys(METRIC_MAP);
