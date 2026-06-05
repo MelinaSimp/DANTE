@@ -374,14 +374,14 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
     function: {
       name: "email_send",
       description:
-        "Send an email via Resend. Use sparingly — there's a 3-send budget per agent run.",
+        "Compose and queue an email. Self-sends (to the authenticated user's own email) are delivered immediately. Contact-facing emails are staged into the supervisor review queue and require approval before sending. After calling, tell the user the email is queued for review. Budget: 3 sends per agent run.",
       parameters: {
         type: "object",
         properties: {
-          to: { type: "string" },
-          subject: { type: "string" },
-          html: { type: "string" },
-          text: { type: "string" },
+          to: { type: "string", description: "Recipient email. Must be a known workspace contact or the authenticated user." },
+          subject: { type: "string", description: "Email subject line." },
+          html: { type: "string", description: "HTML body of the email." },
+          text: { type: "string", description: "Plain text body (fallback)." },
         },
         required: ["to", "subject"],
       },
@@ -441,7 +441,10 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
     function: {
       name: "reminder_schedule",
       description:
-        "Schedule a one-shot self-reminder for the user via SMS / iMessage. CALL THIS IMMEDIATELY when the user asks to be reminded at any time — do NOT ask the user to confirm time or content first. Resolve relative phrasings ('in 2 minutes', 'tomorrow at 3pm', 'end of day') against the current UTC time yourself, assuming the user's local timezone if relevant, and just fire the call. After the tool returns, summarize what you scheduled (e.g. 'Set — I'll text you at 2:56 PM ET'). Only ask the user to clarify if the time is genuinely ambiguous (e.g. 'remind me later' with no specific window). v1 supports recipient='self' only; for client-facing reminders refuse and explain that supervisor review wiring isn't built yet.",
+        "Schedule a one-shot reminder via SMS / iMessage. Two modes:\n\n" +
+        "1. recipient='self' — immediate delivery to the authenticated user's phone. No review required.\n" +
+        "2. recipient='contact' — client-facing message. Stages the SMS into the supervisor review queue; a workspace owner/supervisor must approve before it sends. Requires contact_id of a known workspace contact with a phone number on file.\n\n" +
+        "CALL THIS IMMEDIATELY when the user asks to be reminded or to text a contact — do NOT ask them to confirm time or content first. Resolve relative phrasings ('in 2 minutes', 'tomorrow at 3pm', 'end of day') against the current UTC time yourself, assuming the user's local timezone if relevant, and just fire the call. After the tool returns, summarize what you scheduled. When recipient='contact', tell the user it's queued for supervisor approval. Only ask the user to clarify if the time is genuinely ambiguous.",
       parameters: {
         type: "object",
         properties: {
@@ -453,19 +456,24 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
           body: {
             type: "string",
             description:
-              "The text the user will receive. First-person from the user's perspective, short, action-oriented ('Read rent rolls in Medina before first meeting').",
+              "The text to deliver. For self-reminders: first-person, action-oriented ('Read rent rolls in Medina before first meeting'). For contact messages: second-person from the workspace, professional.",
           },
           recipient: {
             type: "string",
-            enum: ["self"],
+            enum: ["self", "contact"],
             description:
-              "Always 'self' in v1. The reminder is delivered to the authenticated user's sms_phone on file.",
+              "'self' delivers to the authenticated user's sms_phone. 'contact' stages a client-facing SMS for supervisor review.",
+          },
+          contact_id: {
+            type: "string",
+            description:
+              "Required when recipient='contact'. The UUID of a workspace contact to message. Must have a phone number on file.",
           },
           channel: {
             type: "string",
             enum: ["sms"],
             description:
-              "Always 'sms' in v1. SendBlue handles iMessage/SMS routing automatically.",
+              "Always 'sms'. SendBlue handles iMessage/SMS routing automatically.",
           },
         },
         required: ["when", "body", "recipient"],
@@ -1493,6 +1501,25 @@ async function isAllowedEmailRecipient(
   return Boolean(contact);
 }
 
+/**
+ * Returns true if the email address belongs to the authenticated user
+ * (self-send). Used by email.send to decide whether to skip the
+ * supervisor review queue.
+ */
+async function isUserOwnEmail(
+  toLower: string,
+  ctx: AgentToolCtx,
+): Promise<boolean> {
+  if (!ctx.userId) return false;
+  try {
+    const { data } = await supabaseAdmin.auth.admin.getUserById(ctx.userId);
+    const userEmail = data.user?.email;
+    return Boolean(userEmail && userEmail.toLowerCase() === toLower);
+  } catch {
+    return false;
+  }
+}
+
 async function dispatchTool(
   toolName: AgentToolName,
   args: Record<string, unknown>,
@@ -1901,23 +1928,85 @@ async function dispatchTool(
             "email.send rejected: recipient is not a known contact in this workspace or the authenticated user. The agent may only email known recipients.",
         };
       }
-      const apiKey = process.env.RESEND_API_KEY;
-      if (!apiKey) return { error: "RESEND_API_KEY not configured" };
-      const from = process.env.RESEND_FROM_EMAIL || "noreply@driftai.studio";
-      const res = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          from,
+
+      // Route through the supervisor review queue. All agent-initiated
+      // emails go through review -- the supervisor's approval click is
+      // the compliance event. This is intentionally different from the
+      // old fire-and-forget path: even though the user typed the
+      // instruction in chat, the actual email content is model-generated
+      // and should be reviewed.
+      //
+      // Self-sends (user emailing themselves) bypass the queue -- there
+      // is no supervision concern when you email yourself.
+      const isSelfSend = await isUserOwnEmail(toRaw, ctx);
+      if (isSelfSend) {
+        // Direct send for self-emails (no review needed)
+        const apiKey = process.env.RESEND_API_KEY;
+        if (!apiKey) return { error: "RESEND_API_KEY not configured" };
+        const from = process.env.RESEND_FROM_EMAIL || "noreply@driftai.studio";
+        const res = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            from,
+            to: args.to,
+            subject: args.subject,
+            html: args.html,
+            text: args.text,
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok) return { error: json?.message || `Resend ${res.status}` };
+        return { email_id: json.id };
+      }
+
+      // Contact email: resolve the contact_id for the review queue
+      const { data: emailContact } = await supabaseAdmin
+        .from("contacts")
+        .select("id, full_name")
+        .eq("workspace_id", ctx.workspaceId)
+        .ilike("email", toRaw)
+        .maybeSingle();
+
+      const { stageForReview } = await import("@/lib/review-queue/stage");
+
+      const staged = await stageForReview({
+        workspaceId: ctx.workspaceId,
+        kind: "email",
+        payload: {
           to: args.to,
+          to_name: (emailContact as { full_name?: string } | null)?.full_name || args.to,
           subject: args.subject,
+          body: args.text || args.html || "",
           html: args.html,
           text: args.text,
-        }),
+        },
+        sourceKind: "agent",
+        sourceId: ctx.runId,
+        contactId: (emailContact as { id?: string } | null)?.id || undefined,
+        sendCallback: {
+          route: "/api/review/send-callback",
+          data: {
+            kind: "email",
+            to_email: args.to,
+            subject: args.subject,
+            html: args.html,
+            text: args.text,
+            workspace_id: ctx.workspaceId,
+            user_id: ctx.userId,
+          },
+        },
       });
-      const json = await res.json();
-      if (!res.ok) return { error: json?.message || `Resend ${res.status}` };
-      return { email_id: json.id };
+
+      return {
+        ok: true,
+        review_queue_id: staged.id,
+        delivery: "email_queued",
+        to: args.to,
+        subject: args.subject,
+        message:
+          "Email queued for supervisor review. A workspace owner or supervisor must approve before it sends. The user can check the review queue at /review.",
+      };
     }
     case "http.fetch": {
       const method = String(args.method || "GET").toUpperCase();
@@ -2067,29 +2156,21 @@ async function dispatchTool(
       }
     }
     case "reminder.schedule": {
-      // v1: self-reminders only. Creates a one-shot workflow with a
-      // trigger_at + send_sms pair, sets next_fire_at on the row so
-      // the cron tick picks it up at the scheduled moment.
+      // v2: self-reminders fire immediately via workflow; contact
+      // messages stage through the supervisor review queue.
       //
       // Refusal cases (return { error } so the model can recover):
-      //   - simulate mode: scheduling without committing is a no-op,
-      //     but report what we would have done so the trace is honest.
-      //   - missing userId: not invoked from a chat (e.g. workflow
-      //     run); we have no "self" to text. Refuse cleanly.
-      //   - recipient !== self: client-facing reminders need
-      //     supervisor-queue routing, not built yet.
-      //   - sms_phone missing: user hasn't enrolled their phone.
-      //   - when not a future ISO timestamp.
+      //   - missing userId: not invoked from a chat
+      //   - sms_phone missing (for self): user hasn't enrolled
+      //   - when not a future ISO timestamp
+      //   - contact_id invalid or no phone on file (for contact)
       const recipient = String(args.recipient || "self");
-      if (recipient !== "self") {
-        return {
-          error:
-            "reminder.schedule v1 supports recipient='self' only. Client-facing reminders need principal review wiring (not yet built). Tell the user this and offer to draft an email or memo instead.",
-        };
+      if (recipient !== "self" && recipient !== "contact") {
+        return { error: "reminder.schedule: recipient must be 'self' or 'contact'." };
       }
       const channel = String(args.channel || "sms");
       if (channel !== "sms") {
-        return { error: "reminder.schedule v1 supports channel='sms' only." };
+        return { error: "reminder.schedule: only channel='sms' is supported." };
       }
       const whenStr = String(args.when || "");
       const when = new Date(whenStr);
@@ -2108,12 +2189,83 @@ async function dispatchTool(
       if (!ctx.userId) {
         return {
           error:
-            "reminder.schedule: no authenticated user in this run, cannot schedule a self-reminder. Tell the user this needs to be requested from a Dante chat, not a workflow.",
+            "reminder.schedule: no authenticated user in this run, cannot schedule. Tell the user this needs to be requested from a Dante chat, not a workflow.",
         };
       }
 
+      // ── Contact path: stage for supervisor review ──────────────
+      if (recipient === "contact") {
+        const contactId = String(args.contact_id || "").trim();
+        if (!contactId) {
+          return {
+            error:
+              "reminder.schedule: contact_id is required when recipient='contact'. Look up the contact first with contacts.search.",
+          };
+        }
+
+        // Verify the contact belongs to this workspace and has a phone
+        const { data: contact } = await supabaseAdmin
+          .from("contacts")
+          .select("id, full_name, phone")
+          .eq("id", contactId)
+          .eq("workspace_id", ctx.workspaceId)
+          .maybeSingle();
+        if (!contact) {
+          return {
+            error:
+              "reminder.schedule: contact not found in this workspace. Verify the contact_id.",
+          };
+        }
+        const contactPhone = (contact as { phone?: string }).phone;
+        if (!contactPhone) {
+          return {
+            error: `reminder.schedule: ${(contact as { full_name?: string }).full_name || "this contact"} has no phone number on file. Ask the user to add one first.`,
+          };
+        }
+
+        // Import stageForReview dynamically to avoid circular deps
+        const { stageForReview } = await import("@/lib/review-queue/stage");
+
+        const staged = await stageForReview({
+          workspaceId: ctx.workspaceId,
+          kind: "sms",
+          payload: {
+            to: contactPhone,
+            to_name: (contact as { full_name?: string }).full_name || "Contact",
+            body,
+            scheduled_for: when.toISOString(),
+          },
+          sourceKind: "agent",
+          sourceId: ctx.runId,
+          contactId,
+          sendCallback: {
+            route: "/api/review/send-callback",
+            data: {
+              kind: "sms",
+              to_phone: contactPhone,
+              body,
+              workspace_id: ctx.workspaceId,
+              user_id: ctx.userId,
+              contact_id: contactId,
+            },
+          },
+        });
+
+        return {
+          ok: true,
+          review_queue_id: staged.id,
+          delivery: "contact_sms_queued",
+          contact_name: (contact as { full_name?: string }).full_name,
+          scheduled_for: when.toISOString(),
+          message:
+            "Queued for supervisor review. A workspace owner or supervisor must approve before the SMS is sent. The user can check the review queue at /review.",
+        };
+      }
+
+      // ── Self path: create workflow directly (no review needed) ──
+
       // Look up the user's enrolled phone. profiles.sms_phone is set
-      // via /settings → Phone enrollment + verification flow.
+      // via /settings -> Phone enrollment + verification flow.
       const { data: prof } = await supabaseAdmin
         .from("profiles")
         .select("sms_phone, full_name")
@@ -2123,7 +2275,7 @@ async function dispatchTool(
       if (!phone) {
         return {
           error:
-            "reminder.schedule: this user hasn't enrolled an SMS phone number. Tell them to set one up in Settings → SMS & iMessage, then ask again.",
+            "reminder.schedule: this user hasn't enrolled an SMS phone number. Tell them to set one up in Settings, then ask again.",
         };
       }
 
@@ -2131,16 +2283,16 @@ async function dispatchTool(
       // The chat route runs the agent with simulate=true so unsafe
       // tools (email.send, update_contact, memory.write) don't take
       // real action during a Q&A turn. reminder.schedule is the
-      // exception — it's a tool the user EXPLICITLY asked to fire
+      // exception -- it's a tool the user EXPLICITLY asked to fire
       // ("text me in 3 minutes"), and the action is internal-only
       // (a row in dante_workflows targeting the user's own phone).
-      // Its own guardrails — recipient must be "self", target time
-      // must be >= 30s future, sms_phone must be verified — already
+      // Its own guardrails -- recipient must be "self", target time
+      // must be >= 30s future, sms_phone must be verified -- already
       // make it safe to commit. Without this override, the agent
       // would always return simulated:true, the model would summarize
       // "Set!", and no workflow would be created.
 
-      // Build the workflow graph: trigger_at → send_sms.
+      // Build the workflow graph: trigger_at -> send_sms.
       const triggerId = `trig_${ctx.runId.slice(0, 6)}`;
       const sendId = `sms_${ctx.runId.slice(0, 6)}`;
       const graph = {
