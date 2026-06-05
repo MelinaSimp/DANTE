@@ -33,6 +33,12 @@ import { searchArchive, formatHitsForPrompt } from "./archive/search";
 import { runAgent } from "./agent";
 import { complete as llmComplete } from "@/lib/llm/client";
 import { log as rootLog } from "@/lib/logging";
+import {
+  getCachedResult,
+  setCachedResult,
+  getDefaultTTL,
+  isCacheableStep,
+} from "./workflow-cache";
 import vm from "node:vm";
 
 const wfLog = rootLog.child({ component: "workflow-runner" });
@@ -2195,6 +2201,45 @@ export async function runWorkflow(
         }
       }
 
+      // ── Cross-run cache ──────────────────────────────────────
+      // For cacheable, non-side-effect steps, check if an identical
+      // step (same workspace + type + config) was recently executed
+      // in a prior run. Skips re-execution for expensive LLM calls,
+      // queries, and external API lookups.
+      const stepConfig = (step.config ?? {}) as Record<string, unknown>;
+      if (
+        isRealRun &&
+        !options.simulate &&
+        isCacheableStep(step.type)
+      ) {
+        try {
+          const cached = await getCachedResult(
+            workflow.workspace_id,
+            step.type,
+            stepConfig,
+          );
+          if (cached !== null) {
+            output = cached;
+            ctx.steps[step.id] = output;
+            log.push({
+              step_id: step.id,
+              step_type: step.type,
+              step_name: step.name || step.type,
+              status: "success",
+              started_at,
+              finished_at: new Date().toISOString(),
+              output: { __cross_run_cache_hit: true, cached: redactSecrets(output, secrets) },
+            });
+            await saveCheckpoint(runId, step.id, step.type, output, "success");
+            const nexts = nextNodeIds(id, step.type, output, edges);
+            for (const n of nexts) if (!fired.has(n)) queue.push(n);
+            continue;
+          }
+        } catch {
+          // Cache read failed — fall through to normal execution
+        }
+      }
+
       output = await executeNode(step, ctx, workflow.workspace_id, log, runId);
       ctx.steps[step.id] = output;
       log.push({
@@ -2210,11 +2255,21 @@ export async function runWorkflow(
         output: redactSecrets(output, secrets),
       });
 
-      // Persist checkpoint + idempotency record
+      // Persist checkpoint + idempotency record + cross-run cache
       if (isRealRun) {
         await saveCheckpoint(runId, step.id, step.type, output, "success");
         if (isSideEffectNode(step.type, step.config as Record<string, unknown>) && !options.simulate) {
           await recordIdempotency(runId, step.id, output);
+        }
+        // Store in cross-run cache for future runs
+        if (isCacheableStep(step.type)) {
+          setCachedResult(
+            workflow.workspace_id,
+            step.type,
+            stepConfig,
+            output,
+            getDefaultTTL(step.type),
+          ).catch(() => {/* best-effort */});
         }
       }
 
