@@ -622,6 +622,16 @@ export default function LeaseAbstractorClient() {
                               <p className="mono text-[11px] text-[var(--ink-subtle)] mt-0.5">
                                 {formatSize(item.file_size)} · {formatDate(item.created_at)}
                               </p>
+                              {latest?.tenant_name && (
+                                <p className="text-xs text-[var(--ink-muted)] mt-0.5 truncate">
+                                  {latest.tenant_name}
+                                  {latest.expiration_date && (
+                                    <span className="text-[var(--ink-subtle)]">
+                                      {" "}· exp. {latest.expiration_date}
+                                    </span>
+                                  )}
+                                </p>
+                              )}
                             </div>
                           </div>
 
