@@ -124,8 +124,58 @@ export async function GET(req: NextRequest) {
     : 0;
   summary.parityDelta = Math.abs(advRate - reRate);
 
+  // ── Run Dante eval suites for the eval workspace ──────────────
+  // This picks up feedback-generated regression cases and built-in
+  // suites (lease abstraction, deal underwriting).
+  interface DanteSuiteResult { suite_id: string; name: string; score: number | null; passed: number; failed: number; total: number }
+  const danteResults: DanteSuiteResult[] = [];
+
+  try {
+    const { runEvalSuite } = await import("@/lib/dante/eval/runner");
+    const { supabaseAdmin: adminClient } = await import("@/lib/supabase/admin");
+
+    const { data: suites } = await adminClient
+      .from("dante_eval_suites")
+      .select("id, name")
+      .eq("workspace_id", workspaceId);
+
+    for (const suite of suites || []) {
+      try {
+        const result = await runEvalSuite({
+          suiteId: suite.id,
+          workspaceId,
+          model: "claude-sonnet-4-6",
+          notes: "Nightly cron run",
+          llmGrade: true,
+        });
+        danteResults.push({
+          suite_id: suite.id,
+          name: suite.name,
+          score: result.score,
+          passed: result.passed,
+          failed: result.failed,
+          total: result.total_cases,
+        });
+      } catch {
+        danteResults.push({
+          suite_id: suite.id,
+          name: suite.name,
+          score: null,
+          passed: 0,
+          failed: 0,
+          total: 0,
+        });
+      }
+    }
+  } catch {
+    /* eval suite runner import/execution error — log but don't crash */
+  }
+
   // Optional Slack/Discord webhook.
   if (process.env.EVAL_WEBHOOK_URL) {
+    const danteLine = danteResults.length > 0
+      ? `\nDante suites: ${danteResults.map((r) => `${r.name} ${r.passed}/${r.total}`).join(", ")}`
+      : "";
     try {
       await fetch(process.env.EVAL_WEBHOOK_URL, {
         method: "POST",
@@ -135,7 +185,8 @@ export async function GET(req: NextRequest) {
             `Drift nightly evals: ${summary.passed}/${summary.total} passed ` +
             `(advisor ${summary.byVertical.advisor.passed}/${summary.byVertical.advisor.total}, ` +
             `realtor ${summary.byVertical.realtor.passed}/${summary.byVertical.realtor.total}, ` +
-            `Δ ${summary.parityDelta.toFixed(0)}%)`,
+            `Δ ${summary.parityDelta.toFixed(0)}%)` +
+            danteLine,
         }),
       });
     } catch {
@@ -143,5 +194,5 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json(summary);
+  return NextResponse.json({ ...summary, dante_suites: danteResults });
 }
