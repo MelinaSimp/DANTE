@@ -62,14 +62,14 @@ export const metadata: Metadata = {
     description:
       "AI-powered lease abstraction, 50-state parcel analytics, and autonomous workflows for commercial real estate professionals.",
     url: "https://driftai.studio",
-    images: [{ url: "/brand/og-card.png", width: 1200, height: 630 }],
+    images: [{ url: "/brand/logo-circle.png", width: 512, height: 512 }],
   },
   twitter: {
-    card: "summary_large_image",
+    card: "summary",
     title: "Drift AI — CRE deal intelligence",
     description:
       "AI-powered lease abstraction, 50-state parcel analytics, and autonomous workflows for commercial real estate.",
-    images: ["/brand/og-card.png"],
+    images: ["/brand/logo-circle.png"],
   },
   robots: {
     index: true,
