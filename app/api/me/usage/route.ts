@@ -54,7 +54,7 @@ export async function GET(_req: NextRequest) {
   }
   const workspaceId = profile.workspace_id as string;
 
-  const [{ data: ws }, { data: thisMonthRaw }, { data: priorMonthRaw }] =
+  const [{ data: ws }, { data: thisMonthRaw }, { data: priorMonthRaw }, { data: workflowCosts }] =
     await Promise.all([
       supabaseAdmin
         .from("workspaces")
@@ -75,6 +75,14 @@ export async function GET(_req: NextRequest) {
         .gte("created_at", startOfPriorMonthISO())
         .lt("created_at", startOfMonthISO())
         .limit(20_000),
+      // Per-workflow cost breakdown from the LLM ledger
+      supabaseAdmin
+        .from("dante_usage_ledger")
+        .select("workflow_id, cost_cents, feature")
+        .eq("workspace_id", workspaceId)
+        .gte("created_at", startOfMonthISO())
+        .not("workflow_id", "is", null)
+        .limit(10_000),
     ]);
 
   const thisMonth = (thisMonthRaw || []) as UsageRow[];
@@ -117,6 +125,44 @@ export async function GET(_req: NextRequest) {
     if (r.kind === "llm_tokens_input") byModel[m].input_tokens += r.quantity;
     else byModel[m].output_tokens += r.quantity;
   }
+
+  // ── Per-workflow cost breakdown ───────────────────────────────
+  const byWorkflow: Record<
+    string,
+    { cost_cents: number; calls: number }
+  > = {};
+  for (const r of (workflowCosts || []) as Array<{ workflow_id: string; cost_cents: number; feature: string | null }>) {
+    const wfId = r.workflow_id;
+    if (!byWorkflow[wfId]) byWorkflow[wfId] = { cost_cents: 0, calls: 0 };
+    byWorkflow[wfId].cost_cents += r.cost_cents;
+    byWorkflow[wfId].calls += 1;
+  }
+
+  // Resolve workflow names for the top spenders
+  const topWorkflowIds = Object.entries(byWorkflow)
+    .sort((a, b) => b[1].cost_cents - a[1].cost_cents)
+    .slice(0, 20)
+    .map(([id]) => id);
+  let workflowNames: Record<string, string> = {};
+  if (topWorkflowIds.length > 0) {
+    const { data: wfRows } = await supabaseAdmin
+      .from("dante_workflows")
+      .select("id, name")
+      .in("id", topWorkflowIds);
+    for (const row of (wfRows || []) as Array<{ id: string; name: string }>) {
+      workflowNames[row.id] = row.name;
+    }
+  }
+
+  const byWorkflowNamed = Object.entries(byWorkflow)
+    .sort((a, b) => b[1].cost_cents - a[1].cost_cents)
+    .slice(0, 20)
+    .map(([id, data]) => ({
+      workflow_id: id,
+      name: workflowNames[id] || `Workflow ${id.slice(0, 8)}`,
+      cost_cents: data.cost_cents,
+      calls: data.calls,
+    }));
 
   // ── Daily timeseries (last 30 days, $0 for empty days) ──────
   const days: Record<string, number> = {};
@@ -173,6 +219,7 @@ export async function GET(_req: NextRequest) {
     by_kind: byKind,
     by_source: bySource,
     by_model: byModel,
+    by_workflow: byWorkflowNamed,
     daily: days,
   });
 }

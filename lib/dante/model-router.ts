@@ -175,13 +175,16 @@ export interface MeteredCallInput<T> {
   workspaceId: string;
   model: string;
   feature: string;
+  /** Optional workflow attribution for per-workflow cost reporting. */
+  workflowId?: string;
+  workflowRunId?: string;
   call: () => Promise<{ result: T; usage: UsageBreakdown }>;
 }
 
 export async function meterAndCall<T>(
   input: MeteredCallInput<T>,
 ): Promise<MeteredCallResult<T>> {
-  const { workspaceId, model, feature, call } = input;
+  const { workspaceId, model, feature, call, workflowId, workflowRunId } = input;
 
   const { result, usage } = await call();
   const cost_cents = computeCostCents(model, usage);
@@ -190,7 +193,7 @@ export async function meterAndCall<T>(
   // in logs, but failures don't propagate — chat keeps working
   // even if metering momentarily breaks.
   try {
-    const { error } = await supabaseAdmin.from("dante_usage_ledger").insert({
+    const row: Record<string, unknown> = {
       workspace_id: workspaceId,
       model,
       input_tokens: usage.inputTokens,
@@ -198,7 +201,10 @@ export async function meterAndCall<T>(
       output_tokens: usage.outputTokens,
       cost_cents,
       feature,
-    });
+    };
+    if (workflowId) row.workflow_id = workflowId;
+    if (workflowRunId) row.workflow_run_id = workflowRunId;
+    const { error } = await supabaseAdmin.from("dante_usage_ledger").insert(row);
     if (error) {
       console.error("[meterAndCall] ledger insert failed:", error.message);
     }

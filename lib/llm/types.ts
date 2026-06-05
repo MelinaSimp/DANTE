@@ -72,6 +72,9 @@ export interface LlmCompleteOptions {
    *  provider instead of the cloud default. Callers compute this
    *  via resolveProcessingMode() in lib/llm/processing-mode.ts. */
   processingMode?: "cloud" | "local_only";
+  /** Optional workflow attribution for per-workflow cost reporting. */
+  workflowId?: string;
+  workflowRunId?: string;
 }
 
 export interface LlmUsage {

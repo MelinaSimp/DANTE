@@ -42,6 +42,12 @@ interface UsageData {
     string,
     { input_tokens: number; output_tokens: number; cost_cents: number }
   >;
+  by_workflow?: Array<{
+    workflow_id: string;
+    name: string;
+    cost_cents: number;
+    calls: number;
+  }>;
   daily: Record<string, number>;
 }
 
@@ -417,12 +423,49 @@ export default function UsageClient() {
           </section>
         )}
 
+        {/* By workflow */}
+        {data.by_workflow && data.by_workflow.length > 0 && (
+          <section className="card-flat p-6">
+            <div className="label-section mb-3">Cost by workflow</div>
+            <div className="border border-[var(--rule)] rounded-[4px] overflow-hidden">
+              <table className="w-full text-xs">
+                <thead className="bg-[var(--canvas-subtle)] border-b border-[var(--rule)]">
+                  <tr>
+                    <th className="text-left px-3 py-2 label-section text-[var(--ink-muted)]">
+                      Workflow
+                    </th>
+                    <th className="text-right px-3 py-2 label-section text-[var(--ink-muted)]">
+                      LLM calls
+                    </th>
+                    <th className="text-right px-3 py-2 label-section text-[var(--ink-muted)]">
+                      Cost
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--rule)]">
+                  {data.by_workflow.map((wf) => (
+                    <tr key={wf.workflow_id}>
+                      <td className="px-3 py-2 text-[var(--ink)] truncate max-w-[240px]">{wf.name}</td>
+                      <td className="px-3 py-2 mono tabular-nums text-right text-[var(--ink-muted)]">
+                        {fmtNumber(wf.calls)}
+                      </td>
+                      <td className="px-3 py-2 mono tabular-nums text-right text-[var(--ink)]">
+                        {fmtCents(wf.cost_cents)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+
         {/* Footer note */}
         <p className="text-[11px] text-[var(--ink-subtle)] leading-relaxed max-w-prose">
-          Costs are computed at the time of each event using the model's
+          Costs are computed at the time of each event using the model&apos;s
           published pricing (lib/usage/pricing.ts). Voice minutes are
           billed at $0.15/min, SMS at $0.0079/segment, email at
-          $0.001/recipient. These are our wholesale costs — your plan
+          $0.001/recipient. These are our wholesale costs -- your plan
           price already includes a margin on top.
         </p>
       </div>

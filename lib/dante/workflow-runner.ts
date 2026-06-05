@@ -428,7 +428,7 @@ const NO_EMOJI_SUFFIX =
 
 async function runOpenAI(cfg: {
   model?: string; system?: string; prompt: string; max_tokens?: number;
-}) {
+}, wfCtx?: { workspaceId?: string; workflowId?: string; runId?: string }) {
   const messages: Array<{ role: "system" | "user"; content: string }> = [];
   if (cfg.system) messages.push({ role: "system", content: cfg.system + NO_EMOJI_SUFFIX });
   messages.push({ role: "user", content: cfg.prompt });
@@ -459,6 +459,9 @@ async function runOpenAI(cfg: {
     messages,
     maxTokens,
     feature: "workflow.openai_node",
+    workspaceId: wfCtx?.workspaceId ?? undefined,
+    workflowId: wfCtx?.workflowId,
+    workflowRunId: wfCtx?.runId,
   });
   return { text: result.message.content ?? "", raw: result.raw };
 }
@@ -1367,6 +1370,7 @@ async function runForEach(
   ctx: Ctx,
   workspaceId: string,
   runId: string,
+  workflowId?: string,
 ) {
   let items: unknown[];
   const raw = cfg.items;
@@ -1470,7 +1474,7 @@ async function runForEach(
           result = await runIntegrationQuery(resolvedConfig as Parameters<typeof runIntegrationQuery>[0], workspaceId);
           break;
         case "openai":
-          result = await runOpenAI(resolvedConfig as Parameters<typeof runOpenAI>[0]);
+          result = await runOpenAI(resolvedConfig as Parameters<typeof runOpenAI>[0], { workspaceId, workflowId, runId });
           break;
         case "archive_lookup":
           result = await runArchiveLookup(resolvedConfig as Parameters<typeof runArchiveLookup>[0], workspaceId);
@@ -1787,6 +1791,7 @@ async function executeNode(
   workspaceId: string,
   log: StepLogEntry[],
   runId: string,
+  workflowId?: string,
 ): Promise<unknown> {
   const cfg = resolveTemplate(step.config, ctx) as Record<string, unknown>;
 
@@ -1821,7 +1826,7 @@ async function executeNode(
       return runHttp(httpCfg);
     }
     case "openai":
-      return runOpenAI(cfg as Parameters<typeof runOpenAI>[0]);
+      return runOpenAI(cfg as Parameters<typeof runOpenAI>[0], { workspaceId, workflowId, runId });
     case "query_clients":
       return runQueryClients(cfg as Parameters<typeof runQueryClients>[0], workspaceId);
     case "update_contact": {
@@ -1995,7 +2000,7 @@ async function executeNode(
         const items = typeof cfg.items === "string" ? JSON.parse(cfg.items) : cfg.items;
         return { simulated: true, would_have: { action: "for_each", action_type: cfg.action_type, item_count: Array.isArray(items) ? items.length : "unknown" } };
       }
-      return runForEach(cfg as Parameters<typeof runForEach>[0], ctx, workspaceId, runId);
+      return runForEach(cfg as Parameters<typeof runForEach>[0], ctx, workspaceId, runId, workflowId);
     }
     case "approval": {
       if (ctx.simulate) {
@@ -2240,7 +2245,7 @@ export async function runWorkflow(
         }
       }
 
-      output = await executeNode(step, ctx, workflow.workspace_id, log, runId);
+      output = await executeNode(step, ctx, workflow.workspace_id, log, runId, workflow.id);
       ctx.steps[step.id] = output;
       log.push({
         step_id: step.id,
@@ -2401,7 +2406,7 @@ export async function resumeWorkflow(
     let errored = false;
 
     try {
-      output = await executeNode(step, ctx, workflow.workspace_id, log, runId);
+      output = await executeNode(step, ctx, workflow.workspace_id, log, runId, workflow.id);
       ctx.steps[step.id] = output;
       log.push({
         step_id: step.id,

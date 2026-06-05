@@ -136,17 +136,21 @@ export async function complete(
     outputTokens,
   });
 
+  const ledgerRow: Record<string, unknown> = {
+    workspace_id: opts.workspaceId,
+    model: opts.model,
+    input_tokens: inputTokens,
+    cached_input_tokens: cachedInputTokens,
+    output_tokens: outputTokens,
+    cost_cents,
+    feature: opts.feature ?? null,
+  };
+  if (opts.workflowId) ledgerRow.workflow_id = opts.workflowId;
+  if (opts.workflowRunId) ledgerRow.workflow_run_id = opts.workflowRunId;
+
   void supabaseAdmin
     .from("dante_usage_ledger")
-    .insert({
-      workspace_id: opts.workspaceId,
-      model: opts.model,
-      input_tokens: inputTokens,
-      cached_input_tokens: cachedInputTokens,
-      output_tokens: outputTokens,
-      cost_cents,
-      feature: opts.feature ?? null,
-    })
+    .insert(ledgerRow)
     .then((res) => {
       if (res.error) {
         console.error("[llm-meter] ledger insert failed:", res.error.message);
