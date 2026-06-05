@@ -8,7 +8,7 @@
 //   2. Preview parsed rows and column mapping
 //   3. Submit and show results
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import {
   Upload,
   FileText,
@@ -18,10 +18,17 @@ import {
   AlertCircle,
   Check,
   ChevronRight,
+  Info,
   ChevronLeft,
   Users,
   Building2,
 } from "lucide-react";
+
+import {
+  MIGRATION_TEMPLATES,
+  detectCRMSource,
+  type MigrationTemplate,
+} from "@/lib/import/migration-templates";
 
 type EntityType = "contacts" | "properties";
 type Step = "upload" | "preview" | "result";
@@ -46,7 +53,14 @@ export default function ImportWizardCard() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ImportResultData | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [detectedCRM, setDetectedCRM] = useState<MigrationTemplate | null>(null);
+  const [showTemplates, setShowTemplates] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const templates = useMemo(
+    () => MIGRATION_TEMPLATES.filter((t) => t.id !== "generic"),
+    [],
+  );
 
   // ── File handling ────────────────────────────────────────────
 
@@ -101,6 +115,9 @@ export default function ImportWizardCard() {
       }
       setHeaders(h);
       setPreview(rows);
+      // Auto-detect CRM source
+      const detected = detectCRMSource(h);
+      setDetectedCRM(detected);
       setStep("preview");
     } else {
       setError("Unsupported file type. Upload a .csv or .json file.");
@@ -167,6 +184,7 @@ export default function ImportWizardCard() {
     setHeaders([]);
     setError(null);
     setResult(null);
+    setDetectedCRM(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -262,12 +280,59 @@ export default function ImportWizardCard() {
               </p>
             )}
           </div>
+
+          {/* Migration templates */}
+          <div className="card-flat p-4">
+            <button
+              onClick={() => setShowTemplates(!showTemplates)}
+              className="flex items-center gap-2 w-full text-left"
+            >
+              <Info className="w-4 h-4 text-[var(--accent)]" strokeWidth={1.5} />
+              <span className="label-section text-[var(--ink)]">Migrating from another CRM?</span>
+              <ChevronRight
+                className={`w-3 h-3 text-[var(--ink-subtle)] ml-auto transition ${showTemplates ? "rotate-90" : ""}`}
+                strokeWidth={1.5}
+              />
+            </button>
+            {showTemplates && (
+              <div className="mt-3 space-y-3">
+                {templates.map((t) => (
+                  <div key={t.id} className="rounded-lg bg-[var(--canvas-subtle)] p-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-medium text-[var(--ink)]">{t.name}</span>
+                      <span className="text-[10px] text-[var(--ink-muted)] px-1.5 py-0.5 rounded bg-[var(--canvas)]">
+                        {t.entity}
+                      </span>
+                    </div>
+                    <p className="text-xs text-[var(--ink-muted)] mb-2">{t.description}</p>
+                    <ol className="list-decimal list-inside space-y-0.5">
+                      {t.exportInstructions.map((step, i) => (
+                        <li key={i} className="text-xs text-[var(--ink-muted)]">
+                          {step}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
       {/* ── Step 2: Preview ────────────────────────────────── */}
       {step === "preview" && (
         <div className="space-y-4">
+          {/* Detected CRM banner */}
+          {detectedCRM && (
+            <div className="flex items-start gap-2 px-4 py-3 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800">
+              <Info className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" strokeWidth={1.5} />
+              <span className="text-sm text-blue-700 dark:text-blue-400">
+                Detected <strong>{detectedCRM.name}</strong> export format. Column names will be mapped automatically.
+              </span>
+            </div>
+          )}
+
           <div className="flex items-center justify-between">
             <div>
               <div className="text-sm text-[var(--ink)]">
