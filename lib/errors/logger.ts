@@ -63,17 +63,23 @@ export async function logError(log: ErrorLog): Promise<void> {
  * Send alert for critical errors
  */
 async function sendAlert(log: ErrorLog): Promise<void> {
-  // TODO: Integrate with alerting service (PagerDuty, Slack, email, etc.)
   console.error("[CRITICAL] ERROR ALERT:", log);
-  
-  // Example: Send to webhook
-  // if (process.env.ALERT_WEBHOOK_URL) {
-  //   await fetch(process.env.ALERT_WEBHOOK_URL, {
-  //     method: "POST",
-  //     headers: { "Content-Type": "application/json" },
-  //     body: JSON.stringify(log)
-  //   });
-  // }
+
+  // Send to Slack/Discord webhook if configured
+  const webhookUrl = process.env.ALERT_WEBHOOK_URL;
+  if (webhookUrl) {
+    try {
+      await fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: `[CRITICAL] ${log.type} in ${log.source}: ${log.error?.message || String(log.error)}${log.workspaceId ? ` (ws: ${log.workspaceId.slice(0, 8)})` : ""}`,
+        }),
+      });
+    } catch {
+      /* alerting failure must not propagate */
+    }
+  }
 }
 
 /**
