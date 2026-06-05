@@ -5,24 +5,55 @@
 // rules. Shown to users who have an auth session but no workspace
 // yet — they redeem an invite code their admin shared.
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
-import { KeyRound, ArrowRight, Loader2, LogOut } from "lucide-react";
+import { KeyRound, ArrowRight, Loader2, LogOut, Sparkles } from "lucide-react";
 
 export default function JoinPage() {
   const router = useRouter();
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [trialLoading, setTrialLoading] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
+
+  const startTrial = useCallback(async () => {
+    setTrialLoading(true);
+    setError("");
+    try {
+      const r = await fetch("/api/workspace/trial", { method: "POST" });
+      const data = await r.json();
+      if (r.ok && data.success) {
+        setSuccess(data.workspace_name || "Trial workspace");
+        setTimeout(() => router.push("/onboarding"), 1200);
+      } else {
+        setError(data.error || "Failed to create trial workspace");
+        setTrialLoading(false);
+      }
+    } catch {
+      setError("Something went wrong. Please try again.");
+      setTrialLoading(false);
+    }
+  }, [router]);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) router.push("/auth");
+      if (!user) {
+        router.push("/auth");
+        return;
+      }
+      // If user signed up with pending_trial flag, auto-provision
+      if (user.user_metadata?.pending_trial) {
+        startTrial();
+        // Clear the flag so it doesn't fire again
+        supabase.auth.updateUser({
+          data: { pending_trial: null },
+        }).catch(() => {});
+      }
     });
-  }, [router]);
+  }, [router, startTrial]);
 
   useEffect(() => {
     const html = document.documentElement;
@@ -116,20 +147,19 @@ export default function JoinPage() {
             style={{ borderColor: "var(--rule)" }}
           >
             <div className="mb-6">
-              <div className="label-section mb-2">Join workspace</div>
+              <div className="label-section mb-2">Get started</div>
               <h1
                 className="heading-display text-3xl mb-1"
                 style={{ color: "var(--ink)" }}
               >
-                Enter your invite code
+                Join or start a workspace
               </h1>
               <p
                 className="text-sm"
                 style={{ color: "var(--ink-muted)" }}
               >
-                Your admin shared a code like{" "}
-                <span className="mono">DRIFT-XXXXXX</span>. Paste it
-                below to join their workspace.
+                Enter a workspace code to join your firm, or start a
+                free trial to explore on your own.
               </p>
             </div>
 
@@ -150,8 +180,15 @@ export default function JoinPage() {
                   className="text-xs mt-0.5"
                   style={{ color: "var(--verified)", opacity: 0.8 }}
                 >
-                  Redirecting to the dashboard…
+                  Redirecting…
                 </div>
+              </div>
+            ) : trialLoading ? (
+              <div className="flex items-center justify-center gap-3 py-8">
+                <Loader2 className="h-5 w-5 animate-spin" style={{ color: "var(--ink-muted)" }} />
+                <span className="text-sm" style={{ color: "var(--ink-muted)" }}>
+                  Setting up your trial workspace…
+                </span>
               </div>
             ) : (
               <div className="space-y-3">
@@ -217,6 +254,39 @@ export default function JoinPage() {
                     </>
                   )}
                 </button>
+
+                <div
+                  className="flex items-center gap-3 py-2"
+                  style={{ color: "var(--ink-subtle)" }}
+                >
+                  <div className="flex-1 h-px" style={{ background: "var(--rule)" }} />
+                  <span className="text-[11px]">or</span>
+                  <div className="flex-1 h-px" style={{ background: "var(--rule)" }} />
+                </div>
+
+                <button
+                  onClick={startTrial}
+                  disabled={trialLoading}
+                  className="w-full px-4 py-3 text-sm font-medium transition flex items-center justify-center gap-2"
+                  style={{
+                    background: "var(--canvas)",
+                    color: "var(--ink)",
+                    border: "1px solid var(--rule-strong)",
+                    borderRadius: "var(--r-input)",
+                    cursor: "pointer",
+                  }}
+                >
+                  <Sparkles className="h-4 w-4" />
+                  <span>Start 14-day free trial</span>
+                </button>
+
+                <p
+                  className="text-center text-[11px] leading-relaxed"
+                  style={{ color: "var(--ink-subtle)" }}
+                >
+                  Full Starter-tier access. No credit card required.
+                  Upgrade anytime to keep your data.
+                </p>
               </div>
             )}
           </div>

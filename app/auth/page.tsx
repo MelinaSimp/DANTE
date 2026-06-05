@@ -75,10 +75,18 @@ export default function AuthPage() {
           return;
         }
         const normalizedCode = workspaceCode.trim().toUpperCase();
-        if (!normalizedCode) {
-          setError("Workspace code is required. Ask your admin for the code.");
-          setLoading(false);
-          return;
+
+        const signupMeta: Record<string, unknown> = {
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          pending_industry: industry,
+        };
+
+        if (normalizedCode) {
+          signupMeta.pending_workspace_code = normalizedCode;
+        } else {
+          // No workspace code = start a free trial
+          signupMeta.pending_trial = true;
         }
 
         const { error: signUpError, data } = await supabase.auth.signUp({
@@ -86,12 +94,7 @@ export default function AuthPage() {
           password,
           options: {
             emailRedirectTo: `${window.location.origin}/auth/callback`,
-            data: {
-              first_name: firstName.trim(),
-              last_name: lastName.trim(),
-              pending_workspace_code: normalizedCode,
-              pending_industry: industry,
-            },
+            data: signupMeta,
           },
         });
 
@@ -279,8 +282,7 @@ export default function AuthPage() {
                     }
                     style={{ ...inputStyle, letterSpacing: "0.08em" }}
                     className="mono"
-                    placeholder="Workspace code (e.g. DRIFT-XXXXXX)"
-                    required={isSignUp}
+                    placeholder="Workspace code (optional)"
                     autoCapitalize="characters"
                     spellCheck={false}
                   />
@@ -288,9 +290,8 @@ export default function AuthPage() {
                     className="mt-1.5 text-[11px] leading-relaxed"
                     style={{ color: "var(--ink-subtle)" }}
                   >
-                    Ask your firm admin for the code — format{" "}
-                    <span className="mono">DRIFT-XXXXXX</span>. It drops
-                    you straight into the right workspace.
+                    Have a workspace code? Enter it to join your firm.
+                    Otherwise, leave blank to start a 14-day free trial.
                   </p>
                 </div>
               )}

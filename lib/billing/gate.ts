@@ -95,11 +95,27 @@ export async function requireActiveBilling(
 
   const { data: ws } = await supabaseAdmin
     .from("workspaces")
-    .select("plan_status")
+    .select("plan_status, trial_ends_at")
     .eq("id", workspaceId)
     .maybeSingle();
 
-  const planStatus = (ws?.plan_status ?? "inactive") as string;
+  let planStatus = (ws?.plan_status ?? "inactive") as string;
+
+  // Auto-expire trials that have passed their end date.
+  // Mark them inactive and update the DB in the background.
+  if (
+    planStatus === "trialing" &&
+    ws?.trial_ends_at &&
+    new Date(ws.trial_ends_at) < new Date()
+  ) {
+    planStatus = "inactive";
+    Promise.resolve(
+      supabaseAdmin
+        .from("workspaces")
+        .update({ plan_status: "inactive" })
+        .eq("id", workspaceId),
+    ).catch(() => {});
+  }
 
   if (!ALLOWED_STATUSES.has(planStatus)) {
     const reason: GateDenyReason =

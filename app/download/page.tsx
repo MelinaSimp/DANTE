@@ -62,9 +62,8 @@ export default function DownloadPage() {
             <span className="text-base font-medium text-[var(--ink)]">Drift</span>
           </Link>
           <nav className="flex items-center gap-5 text-sm text-[var(--ink-muted)]">
-            <Link href="/status" className="hover:text-[var(--ink)] transition">Status</Link>
-            <Link href="/terms" className="hover:text-[var(--ink)] transition">Terms</Link>
-            <Link href="/privacy" className="hover:text-[var(--ink)] transition">Privacy</Link>
+            <Link href="/features" className="hover:text-[var(--ink)] transition">Features</Link>
+            <Link href="/auth" className="hover:text-[var(--ink)] transition">Sign in</Link>
           </nav>
         </div>
       </div>

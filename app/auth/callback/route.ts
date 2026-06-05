@@ -107,12 +107,14 @@ async function ensureUserWorkspace(user: any, supabase: any): Promise<string | n
 
 // Decides where a just-authenticated user should land.
 //
-//   • no workspace yet  → /join (redeem a code)
+//   • no workspace yet  → /join (redeem a code or start trial)
 //   • workspace, not yet onboarded  → /onboarding (first-run wizard)
 //   • workspace, onboarded  → /dashboard
 //
-// Existing workspaces were grandfathered with a backfilled onboarded_at
-// so this only catches genuinely new signups.
+// The pending_trial flag in user_metadata indicates the user chose
+// "Start free trial" during signup instead of entering a workspace
+// code. The /join page detects this and auto-provisions a trial
+// workspace.
 async function resolveLandingRoute(workspaceId: string | null): Promise<string> {
   if (!workspaceId) return "/join";
   const { data: ws } = await supabaseAdmin
