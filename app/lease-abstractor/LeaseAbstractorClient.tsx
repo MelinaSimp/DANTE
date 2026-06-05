@@ -693,8 +693,139 @@ export default function LeaseAbstractorClient() {
                         <Download className="w-3 h-3" strokeWidth={1.5} />
                         CSV
                       </button>
+                      <button
+                        onClick={async () => {
+                          if (!selectedAbstract) return;
+                          try {
+                            const sections = (["deal_terms", "financial_terms", "key_clauses"] as const).map((cat) => {
+                              const fields = selectedAbstract.fields.filter((f) => f.category === cat);
+                              const body = fields
+                                .map((f) => `${f.name}: ${(f.value ?? "N/A").replace(/\[v\d+\]/g, "").trim()} (${f.confidence})`)
+                                .join("\n");
+                              return { heading: CATEGORY_LABELS[cat], body };
+                            });
+                            if (selectedAbstract.context_analysis) {
+                              const ca = selectedAbstract.context_analysis;
+                              let contextBody = `Tenant favorability: ${ca.tenant_favorable_assessment}`;
+                              if (ca.key_risks.length > 0) contextBody += `\n\nKey risks:\n${ca.key_risks.map((r) => `- ${r}`).join("\n")}`;
+                              if (ca.unusual_clauses.length > 0) contextBody += `\n\nUnusual clauses:\n${ca.unusual_clauses.map((c) => `- ${c}`).join("\n")}`;
+                              if (ca.cross_reference_issues.length > 0) contextBody += `\n\nCross-reference issues:\n${ca.cross_reference_issues.map((i) => `- ${i}`).join("\n")}`;
+                              sections.push({ heading: "Context Analysis", body: contextBody });
+                            }
+                            const res = await fetch("/api/lease-abstractor/export-pdf", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ abstractId: selectedAbstract.id, sections }),
+                            });
+                            if (!res.ok) throw new Error("PDF export failed");
+                            const blob = await res.blob();
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download = `lease-abstract-${selectedAbstract.id.slice(0, 8)}.pdf`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+                          } catch (e) {
+                            console.error("[pdf-export]", e);
+                          }
+                        }}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[var(--r-input)] border border-[var(--rule)] text-xs text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition"
+                      >
+                        <Download className="w-3 h-3" strokeWidth={1.5} />
+                        PDF
+                      </button>
                     </div>
                   </div>
+
+                  {/* Confidence summary + key metrics */}
+                  {(() => {
+                    const fields = selectedAbstract.fields;
+                    const high = fields.filter((f) => f.confidence === "high").length;
+                    const med = fields.filter((f) => f.confidence === "medium").length;
+                    const low = fields.filter((f) => f.confidence === "low").length;
+                    const notFound = fields.filter((f) => f.confidence === "not_found").length;
+                    const total = fields.length || 1;
+
+                    // Pull key deal metrics from fields
+                    const findField = (name: string) =>
+                      fields.find((f) => f.name.toLowerCase().includes(name.toLowerCase()))?.value ?? null;
+                    const tenant = findField("Tenant") || findField("tenant name");
+                    const landlord = findField("Landlord") || findField("landlord name");
+                    const premises = findField("Premises") || findField("property");
+                    const commenceDate = findField("Commencement") || findField("start date");
+                    const expiryDate = findField("Expiration") || findField("end date");
+                    const baseRent = findField("Base Rent") || findField("rent schedule");
+                    const leaseType = findField("Lease Type") || findField("type");
+
+                    return (
+                      <div className="px-5 pt-5 pb-3 space-y-4">
+                        {/* Confidence bar */}
+                        <div className="rounded-lg border border-[var(--rule)] p-3 bg-[var(--canvas-subtle,rgba(0,0,0,0.015))]">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[10px] uppercase tracking-wider font-medium text-[var(--ink-subtle)]">
+                              Extraction Confidence
+                            </span>
+                            <span className="text-xs text-[var(--ink-muted)]">
+                              {high} high, {med} medium, {low} low, {notFound} missing
+                            </span>
+                          </div>
+                          <div className="flex h-2 rounded-full overflow-hidden bg-[var(--rule)]">
+                            {high > 0 && (
+                              <div
+                                className="bg-emerald-500 transition-all"
+                                style={{ width: `${(high / total) * 100}%` }}
+                                title={`${high} high confidence`}
+                              />
+                            )}
+                            {med > 0 && (
+                              <div
+                                className="bg-amber-400 transition-all"
+                                style={{ width: `${(med / total) * 100}%` }}
+                                title={`${med} medium confidence`}
+                              />
+                            )}
+                            {low > 0 && (
+                              <div
+                                className="bg-red-400 transition-all"
+                                style={{ width: `${(low / total) * 100}%` }}
+                                title={`${low} low confidence`}
+                              />
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Key metrics strip */}
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                          {[
+                            { label: "Tenant", value: tenant },
+                            { label: "Landlord", value: landlord },
+                            { label: "Premises", value: premises },
+                            { label: "Lease Type", value: leaseType },
+                            { label: "Commencement", value: commenceDate },
+                            { label: "Expiration", value: expiryDate },
+                            { label: "Base Rent", value: baseRent },
+                          ]
+                            .filter((m) => m.value)
+                            .slice(0, 4)
+                            .map((m) => (
+                              <div
+                                key={m.label}
+                                className="rounded-lg border border-[var(--rule)] p-3 bg-[var(--surface,#fff)]"
+                              >
+                                <div className="text-[10px] uppercase tracking-wider font-medium text-[var(--ink-subtle)] mb-1">
+                                  {m.label}
+                                </div>
+                                <div className="text-sm font-medium text-[var(--ink)] truncate" title={m.value ?? ""}>
+                                  {(m.value ?? "").replace(/\[v\d+\]/g, "").trim() || "--"}
+                                </div>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Field table by category */}
                   <div className="px-5 py-5">
