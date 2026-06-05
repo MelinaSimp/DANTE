@@ -9,7 +9,12 @@ import {
   UserPlus,
   BarChart3,
   Gauge,
+  FlaskConical,
+  MessageSquareWarning,
   ArrowLeft,
+  Users,
+  Activity,
+  Bot,
 } from "lucide-react";
 import PanelShell from "@/components/panels/PanelShell";
 
@@ -78,6 +83,18 @@ const navItems: NavItem[] = [
     icon: BarChart3,
     panelId: "analytics",
   },
+  {
+    name: "Evals",
+    description: "FiduciaryBench runs, Dante eval suites, human grading.",
+    icon: FlaskConical,
+    href: "/admin/evals",
+  },
+  {
+    name: "Feedback",
+    description: "Triage chat feedback into eval cases.",
+    icon: MessageSquareWarning,
+    href: "/admin/feedback",
+  },
 ];
 
 function PanelLoader() {
@@ -88,8 +105,18 @@ function PanelLoader() {
   );
 }
 
+interface DashboardStats {
+  workspaces: number;
+  activeWorkspaces: number;
+  users: number;
+  deployedAgents: number;
+  totalAgents: number;
+  recentConversations: number;
+}
+
 export default function AdminOrbClient({ userName }: { userName?: string }) {
   const [activePanel, setActivePanel] = useState<PanelId | null>(null);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
 
   // Force Harvey canvas background (override any dark theme).
   useEffect(() => {
@@ -101,6 +128,13 @@ export default function AdminOrbClient({ userName }: { userName?: string }) {
       document.documentElement.style.background = prevHtml;
       document.body.style.background = prevBody;
     };
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/admin/dashboard-stats", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => data && setStats(data))
+      .catch(() => {});
   }, []);
 
   const renderPanel = () => {
@@ -151,6 +185,44 @@ export default function AdminOrbClient({ userName }: { userName?: string }) {
             <p className="text-sm text-[var(--ink-muted)]">Signed in as {userName}.</p>
           ) : null}
         </div>
+
+        {/* Platform health stats */}
+        {stats && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div className="card-flat p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Building2 className="w-3.5 h-3.5 text-[var(--ink-subtle)]" strokeWidth={1.5} />
+                <span className="label-section">Workspaces</span>
+              </div>
+              <div className="text-2xl font-semibold text-[var(--ink)]">{stats.activeWorkspaces}</div>
+              <div className="text-xs text-[var(--ink-muted)] mt-0.5">{stats.workspaces} total</div>
+            </div>
+            <div className="card-flat p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Users className="w-3.5 h-3.5 text-[var(--ink-subtle)]" strokeWidth={1.5} />
+                <span className="label-section">Users</span>
+              </div>
+              <div className="text-2xl font-semibold text-[var(--ink)]">{stats.users}</div>
+              <div className="text-xs text-[var(--ink-muted)] mt-0.5">All profiles</div>
+            </div>
+            <div className="card-flat p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Bot className="w-3.5 h-3.5 text-[var(--ink-subtle)]" strokeWidth={1.5} />
+                <span className="label-section">Agents</span>
+              </div>
+              <div className="text-2xl font-semibold text-[var(--ink)]">{stats.deployedAgents}</div>
+              <div className="text-xs text-[var(--ink-muted)] mt-0.5">{stats.totalAgents} total</div>
+            </div>
+            <div className="card-flat p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Activity className="w-3.5 h-3.5 text-[var(--ink-subtle)]" strokeWidth={1.5} />
+                <span className="label-section">7d Conversations</span>
+              </div>
+              <div className="text-2xl font-semibold text-[var(--ink)]">{stats.recentConversations}</div>
+              <div className="text-xs text-[var(--ink-muted)] mt-0.5">Last 7 days</div>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {navItems.map((item) => {
