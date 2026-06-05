@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   ArrowLeft, Activity, CheckCircle2, AlertTriangle, XCircle,
   Clock, Zap, TrendingUp, BarChart3, RefreshCw,
+  Lightbulb, ArrowRight, Gauge, ShieldAlert, Database, GitBranch,
 } from "lucide-react";
 
 interface Summary {
@@ -16,6 +17,25 @@ interface Summary {
   cancelled_runs: number;
   success_rate: number;
   avg_duration_ms: number;
+}
+
+interface OptimizationSuggestion {
+  type: "slow_step" | "high_failure" | "cache_candidate" | "unused_branch" | "constant_output";
+  severity: "info" | "warning" | "critical";
+  workflow_id: string;
+  workflow_name: string;
+  step_id?: string;
+  step_name?: string;
+  step_type?: string;
+  message: string;
+  detail: string;
+}
+
+interface OptimizationData {
+  suggestions: OptimizationSuggestion[];
+  analyzed: number;
+  workflows_analyzed: number;
+  period: string;
 }
 
 interface DailyCount {
@@ -68,6 +88,8 @@ function formatDate(iso: string | null): string {
 export default function HealthDashboard() {
   const [data, setData] = useState<StatsData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [optData, setOptData] = useState<OptimizationData | null>(null);
+  const [optLoading, setOptLoading] = useState(true);
 
   const load = async () => {
     setLoading(true);
@@ -79,7 +101,17 @@ export default function HealthDashboard() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  const loadOptimizations = async () => {
+    setOptLoading(true);
+    try {
+      const res = await fetch("/api/dante/workflows/optimize", { credentials: "include" });
+      if (res.ok) setOptData(await res.json());
+    } finally {
+      setOptLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); loadOptimizations(); }, []);
 
   if (loading && !data) {
     return (
@@ -225,6 +257,9 @@ export default function HealthDashboard() {
           </div>
         </div>
 
+        {/* Optimization suggestions */}
+        <OptimizationPanel data={optData} loading={optLoading} onRefresh={loadOptimizations} />
+
         {/* Per-workflow table */}
         <div className="bg-[var(--surface)] border border-[var(--rule)] rounded-[10px] overflow-hidden">
           <div className="px-5 py-3 border-b border-[var(--rule)]">
@@ -327,6 +362,154 @@ function StatCard({
       </div>
       <div className={`text-2xl font-bold tabular-nums ${colorClass}`}>{value}</div>
       <div className="text-[10px] text-[var(--ink-subtle)] mt-0.5">{sub}</div>
+    </div>
+  );
+}
+
+// ── Optimization panel ──────────────────────────────────────────
+
+const SUGGESTION_ICON: Record<string, React.ReactNode> = {
+  slow_step: <Gauge className="w-3.5 h-3.5" strokeWidth={1.5} />,
+  high_failure: <ShieldAlert className="w-3.5 h-3.5" strokeWidth={1.5} />,
+  cache_candidate: <Database className="w-3.5 h-3.5" strokeWidth={1.5} />,
+  unused_branch: <GitBranch className="w-3.5 h-3.5" strokeWidth={1.5} />,
+  constant_output: <Database className="w-3.5 h-3.5" strokeWidth={1.5} />,
+};
+
+const SEVERITY_STYLE: Record<string, { border: string; bg: string; badge: string; text: string }> = {
+  critical: {
+    border: "border-[var(--danger)]/30",
+    bg: "bg-[var(--danger-soft)]",
+    badge: "bg-[var(--danger)] text-white",
+    text: "text-[var(--danger)]",
+  },
+  warning: {
+    border: "border-[var(--flag)]/30",
+    bg: "bg-[var(--flag-soft)]",
+    badge: "bg-[var(--flag)] text-white",
+    text: "text-[var(--flag)]",
+  },
+  info: {
+    border: "border-[var(--accent)]/20",
+    bg: "bg-[var(--accent-soft)]",
+    badge: "bg-[var(--accent)] text-white",
+    text: "text-[var(--accent)]",
+  },
+};
+
+function OptimizationPanel({
+  data,
+  loading,
+  onRefresh,
+}: {
+  data: OptimizationData | null;
+  loading: boolean;
+  onRefresh: () => void;
+}) {
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+
+  const toggle = (idx: number) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  };
+
+  return (
+    <div className="bg-[var(--surface)] border border-[var(--rule)] rounded-[10px] overflow-hidden">
+      <div className="px-5 py-3 border-b border-[var(--rule)] flex items-center gap-2">
+        <Lightbulb className="w-4 h-4 text-[var(--ink-muted)]" strokeWidth={1.5} />
+        <h2 className="text-xs font-semibold text-[var(--ink-muted)] uppercase tracking-wider">
+          Optimization suggestions
+        </h2>
+        <span className="text-[10px] text-[var(--ink-subtle)] ml-1">Last 14 days</span>
+        <div className="flex-1" />
+        {data && (
+          <span className="text-[10px] text-[var(--ink-subtle)]">
+            {data.analyzed} runs across {data.workflows_analyzed} workflow{data.workflows_analyzed !== 1 ? "s" : ""}
+          </span>
+        )}
+        <button
+          onClick={onRefresh}
+          disabled={loading}
+          className="p-1 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition"
+        >
+          <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} strokeWidth={1.5} />
+        </button>
+      </div>
+
+      {loading && !data && (
+        <div className="px-5 py-8 flex items-center justify-center">
+          <RefreshCw className="w-4 h-4 text-[var(--ink-muted)] animate-spin" />
+        </div>
+      )}
+
+      {data && data.suggestions.length === 0 && (
+        <div className="px-5 py-8 text-center">
+          <CheckCircle2 className="w-5 h-5 text-[var(--verified)] mx-auto mb-2" strokeWidth={1.5} />
+          <p className="text-sm text-[var(--ink-muted)]">No optimization issues found.</p>
+          <p className="text-[10px] text-[var(--ink-subtle)] mt-1">
+            All workflows are running within normal parameters.
+          </p>
+        </div>
+      )}
+
+      {data && data.suggestions.length > 0 && (
+        <div className="divide-y divide-[var(--rule)]">
+          {data.suggestions.map((s, i) => {
+            const style = SEVERITY_STYLE[s.severity] || SEVERITY_STYLE.info;
+            const isOpen = expanded.has(i);
+            return (
+              <div key={i}>
+                <button
+                  onClick={() => toggle(i)}
+                  className="w-full flex items-center gap-3 px-5 py-3 text-left hover:bg-[var(--canvas-subtle)] transition"
+                >
+                  <span className={style.text}>
+                    {SUGGESTION_ICON[s.type] || <Lightbulb className="w-3.5 h-3.5" strokeWidth={1.5} />}
+                  </span>
+                  <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-[3px] shrink-0 ${style.badge}`}>
+                    {s.severity}
+                  </span>
+                  <span className="text-xs text-[var(--ink)] flex-1 truncate">{s.message}</span>
+                  <span className="text-[10px] text-[var(--ink-subtle)] shrink-0">{s.workflow_name}</span>
+                  <ArrowRight
+                    className={`w-3 h-3 text-[var(--ink-subtle)] transition-transform ${isOpen ? "rotate-90" : ""}`}
+                    strokeWidth={1.5}
+                  />
+                </button>
+                {isOpen && (
+                  <div className={`mx-5 mb-3 px-4 py-3 rounded-[6px] border ${style.border} ${style.bg}`}>
+                    <p className="text-xs text-[var(--ink)] leading-relaxed">{s.detail}</p>
+                    {s.step_name && (
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="text-[10px] text-[var(--ink-muted)]">
+                          Step: <span className="font-medium text-[var(--ink)]">{s.step_name}</span>
+                        </span>
+                        {s.step_type && (
+                          <span className="text-[9px] text-[var(--ink-subtle)] bg-[var(--canvas)] px-1.5 py-0.5 rounded-[3px] border border-[var(--rule)]">
+                            {s.step_type}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    <div className="mt-2">
+                      <Link
+                        href={`/dante/workflows/${s.workflow_id}`}
+                        className="inline-flex items-center gap-1 text-[10px] font-medium text-[var(--accent)] hover:underline"
+                      >
+                        Open workflow <ArrowRight className="w-2.5 h-2.5" strokeWidth={2} />
+                      </Link>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
