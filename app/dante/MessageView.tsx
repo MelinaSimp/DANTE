@@ -100,6 +100,7 @@ export function AssistantMessage({
   const [copied, setCopied] = useState(false);
   const [rewriteOpen, setRewriteOpen] = useState(false);
   const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
+  const [feedbackSent, setFeedbackSent] = useState(false);
   const [queueState, setQueueState] = useState<"idle" | "queueing" | "queued" | "error">("idle");
   const isDraft = looksLikeDraft(content);
 
@@ -295,14 +296,36 @@ export function AssistantMessage({
         </button>
         <div className="ml-auto flex items-center gap-2">
           <button
-            onClick={() => setFeedback(feedback === "up" ? null : "up")}
+            onClick={() => {
+              const next = feedback === "up" ? null : "up";
+              setFeedback(next);
+              if (next && messageId && !feedbackSent) {
+                setFeedbackSent(true);
+                fetch("/api/feedback/chat", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ message_id: messageId, vote: next }),
+                }).catch(() => setFeedbackSent(false));
+              }
+            }}
             className={`hover:text-[var(--ink-muted)] ${feedback === "up" ? "text-[var(--ink)]" : ""}`}
             title="Helpful"
           >
             <ThumbsUp className="w-3 h-3" />
           </button>
           <button
-            onClick={() => setFeedback(feedback === "down" ? null : "down")}
+            onClick={() => {
+              const next = feedback === "down" ? null : "down";
+              setFeedback(next);
+              if (next && messageId && !feedbackSent) {
+                setFeedbackSent(true);
+                fetch("/api/feedback/chat", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ message_id: messageId, vote: next }),
+                }).catch(() => setFeedbackSent(false));
+              }
+            }}
             className={`hover:text-[var(--ink-muted)] ${feedback === "down" ? "text-[var(--ink)]" : ""}`}
             title="Not helpful"
           >
