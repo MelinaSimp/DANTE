@@ -14,6 +14,7 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase/client";
 import AdvisorDashboard from "@/components/dashboard/AdvisorDashboard";
+import TrialBanner from "@/components/billing/TrialBanner";
 import TetrisLoading from "@/components/ui/tetris-loader";
 
 type DashboardData = React.ComponentProps<typeof AdvisorDashboard>["data"];
@@ -89,5 +90,10 @@ export default function DashboardPage() {
     );
   }
 
-  return <AdvisorDashboard data={data} />;
+  return (
+    <>
+      <TrialBanner />
+      <AdvisorDashboard data={data} />
+    </>
+  );
 }
