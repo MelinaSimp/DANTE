@@ -18,6 +18,14 @@ const COVERAGE: {
   { state: "Montana", abbr: "MT", level: "statewide" },
   { state: "New York", abbr: "NY", level: "statewide" },
   { state: "Arkansas", abbr: "AR", level: "statewide" },
+  { state: "Texas", abbr: "TX", level: "statewide" },
+  { state: "Florida", abbr: "FL", level: "statewide" },
+  { state: "Georgia", abbr: "GA", level: "statewide" },
+  { state: "North Carolina", abbr: "NC", level: "statewide" },
+  { state: "Virginia", abbr: "VA", level: "statewide" },
+  { state: "Tennessee", abbr: "TN", level: "statewide" },
+  { state: "Arizona", abbr: "AZ", level: "statewide" },
+  { state: "Illinois", abbr: "IL", level: "statewide" },
   {
     state: "Pennsylvania",
     abbr: "PA",
@@ -50,7 +58,7 @@ export default function CoverageCard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
         {COVERAGE.map((c) => (
           <div
             key={c.abbr}

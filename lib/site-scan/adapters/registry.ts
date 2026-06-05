@@ -2,8 +2,9 @@
 // Adapter resolution — given a state and optional county,
 // pick the most specific adapter available.
 //
-// Coverage (as of 2026-05):
-//   Statewide: OH, CO, WI, MT, NY, AR               (6 states)
+// Coverage (as of 2026-06):
+//   Statewide: OH, CO, WI, MT, NY, AR, TX, FL, GA,  (14 states)
+//              NC, VA, TN, AZ, IL
 //   County:    Cuyahoga OH, Allegheny PA, Westmoreland PA,
 //              Butler PA, Beaver PA                   (5 counties)
 //
@@ -22,6 +23,14 @@ import { STATEWIDE_WI } from "./configs/wisconsin";
 import { STATEWIDE_MT } from "./configs/montana";
 import { STATEWIDE_NY } from "./configs/new-york";
 import { STATEWIDE_AR } from "./configs/arkansas";
+import { STATEWIDE_TX } from "./configs/texas";
+import { STATEWIDE_FL } from "./configs/florida";
+import { STATEWIDE_GA } from "./configs/georgia";
+import { STATEWIDE_NC } from "./configs/north-carolina";
+import { STATEWIDE_VA } from "./configs/virginia";
+import { STATEWIDE_TN } from "./configs/tennessee";
+import { STATEWIDE_AZ } from "./configs/arizona";
+import { STATEWIDE_IL } from "./configs/illinois";
 import type { CountyAdapter, CountyAdapterConfig } from "./types";
 
 const COUNTY_CONFIGS: CountyAdapterConfig[] = [
@@ -39,6 +48,14 @@ const STATEWIDE_CONFIGS: Record<string, CountyAdapterConfig> = {
   MT: STATEWIDE_MT,
   NY: STATEWIDE_NY,
   AR: STATEWIDE_AR,
+  TX: STATEWIDE_TX,
+  FL: STATEWIDE_FL,
+  GA: STATEWIDE_GA,
+  NC: STATEWIDE_NC,
+  VA: STATEWIDE_VA,
+  TN: STATEWIDE_TN,
+  AZ: STATEWIDE_AZ,
+  IL: STATEWIDE_IL,
 };
 
 /** All states with at least statewide or county-level coverage. */
