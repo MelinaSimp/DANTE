@@ -65,6 +65,9 @@ import type {
   AgentToolEntry,
   StepLogEntry,
 } from "./workflow-types";
+import { log as rootLog } from "@/lib/logging";
+
+const agentLog = rootLog.child({ component: "agent" });
 
 // ── OpenAI tool definitions ───────────────────────────────────
 // Standard JSON-Schema specs the chat-completions API accepts.
@@ -3487,12 +3490,12 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
   const builtinDefs: ToolDef[] = builtinNames.map((t) => TOOL_DEFS[t]).filter(Boolean);
   const mcpDefs = await expandMcpTools(input.workspaceId, mcpServers);
   const tools: ToolDef[] = [...builtinDefs, ...mcpDefs];
-  console.log(`[agent] tools resolved in ${Date.now() - _agentT0}ms (${builtinDefs.length} builtin, ${mcpDefs.length} mcp)`);
+  agentLog.info("tools resolved", { durationMs: Date.now() - _agentT0, builtin: builtinDefs.length, mcp: mcpDefs.length });
 
   const maxSteps = Math.min(Math.max(Number(cfg.max_steps) || 8, 1), HARD_MAX_STEPS);
   const workspaceModel = await getWorkspaceModel(input.workspaceId);
   const model = workspaceModel || cfg.model || "claude-sonnet-4-6";
-  console.log(`[agent] model=${model} maxSteps=${maxSteps}`);
+  agentLog.info("run config", { model, maxSteps });
 
   // Resolve the binding processing mode for this run. Two
   // signals compose, most-restrictive wins:
@@ -3535,7 +3538,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
   } else {
     const _modeT0 = Date.now();
     staticMode = await resolveProcessingMode(modeCtx);
-    console.log(`[agent] staticMode=${staticMode.mode} in ${Date.now() - _modeT0}ms`);
+    agentLog.info("staticMode resolved", { mode: staticMode.mode, durationMs: Date.now() - _modeT0 });
 
     const lastUserMsg =
       typeof cfg.objective === "string" && cfg.objective.trim()
@@ -3548,9 +3551,9 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
           workspaceId: input.workspaceId,
           query: lastUserMsg,
         });
-        console.log(`[agent] autoMode=${autoMode.mode} (${autoMode.reason}) in ${Date.now() - _autoT0}ms`);
+        agentLog.info("autoMode resolved", { mode: autoMode.mode, reason: autoMode.reason, durationMs: Date.now() - _autoT0 });
       } catch (err) {
-        console.warn(`[agent] autoMode failed in ${Date.now() - _modeT0}ms:`, err);
+        agentLog.warn("autoMode detection failed", { durationMs: Date.now() - _modeT0, error: err instanceof Error ? err.message : String(err) });
       }
     }
 
@@ -3681,14 +3684,14 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
     try {
       await input.onEvent(event);
     } catch (err) {
-      console.warn("[agent] onEvent handler threw:", err);
+      agentLog.warn("onEvent handler threw", { error: err instanceof Error ? err.message : String(err) });
     }
   };
 
   while (stepIdx < maxSteps) {
     const thisIteration = iterationIdx++;
     const _llmT0 = Date.now();
-    console.log(`[agent] llmComplete iter=${thisIteration} starting (${messages.length} msgs, ${tools.length} tools)`);
+    agentLog.debug("llmComplete starting", { iteration: thisIteration, msgCount: messages.length, toolCount: tools.length });
     const completion = await llmComplete({
       model,
       messages: messages as LlmMessage[],
@@ -3698,7 +3701,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       workspaceId: input.workspaceId,
       processingMode,
     });
-    console.log(`[agent] llmComplete iter=${thisIteration} done in ${Date.now() - _llmT0}ms finish=${completion.finishReason}`);
+    agentLog.info("llmComplete done", { iteration: thisIteration, durationMs: Date.now() - _llmT0, finishReason: completion.finishReason });
 
     let assistantMsg = completion.message as ChatMessage;
 
@@ -3712,10 +3715,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       !assistantText?.trim() &&
       (!assistantMsg.tool_calls || assistantMsg.tool_calls.length === 0)
     ) {
-      console.warn(
-        `[agent] empty first response from ${model}; retrying once. ` +
-        `finishReason=${completion.finishReason} runId=${input.runId}`,
-      );
+      agentLog.warn("empty first response, retrying once", { model, finishReason: completion.finishReason, runId: input.runId });
       const retry = await llmComplete({
         model,
         messages: messages as LlmMessage[],
@@ -3743,10 +3743,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
         ctx.voidAnalysisAddress &&
         stepIdx < maxSteps - 1
       ) {
-        console.log(
-          `[agent] void enforcement: void_analysis called without survey_area. ` +
-          `Forcing survey_area for "${ctx.voidAnalysisAddress}".`
-        );
+        agentLog.info("void enforcement: forcing survey_area", { address: ctx.voidAnalysisAddress });
         // Auto-run survey_area with the void analysis address
         let surveyOutput: unknown;
         try {
@@ -3790,7 +3787,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
           });
           finalText = rewrite.message.content || finalText;
         } catch (err) {
-          console.warn("[agent] void enforcement rewrite failed:", err);
+          agentLog.warn("void enforcement rewrite failed", { error: err instanceof Error ? err.message : String(err) });
           // Keep original finalText — still better than nothing
         }
         stepIdx += 1;
@@ -3969,7 +3966,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       });
       finalText = wrap.message.content || "";
     } catch (err) {
-      console.warn("[agent] truncated wrap-up failed:", err);
+      agentLog.warn("truncated wrap-up failed", { error: err instanceof Error ? err.message : String(err) });
     }
   }
 
@@ -4023,10 +4020,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
         const violationList = violations
           .map((v) => `- ${v.name} (${v.distance.toFixed(1)} mi away)`)
           .join("\n");
-        console.warn(
-          `[agent] void post-validation: ${violations.length} brand(s) in final text ` +
-          `that exist within 3 miles:\n${violationList}`,
-        );
+        agentLog.warn("void post-validation: brands in final text already nearby", { violationCount: violations.length });
         finalText +=
           `\n\n---\n\n**Correction:** The following businesses were flagged in ` +
           `recommendations but already operate within 3 miles of the site ` +
@@ -4078,7 +4072,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
   } catch {
     // Best-effort — never fail on instrumentation
   }
-  console.log(`[agent] ${completionStatus} in ${durationMs}ms, ${stepIdx} steps, model=${model}`);
+  agentLog.info("run complete", { status: completionStatus, durationMs, steps: stepIdx, model });
 
   return {
     text: finalText,

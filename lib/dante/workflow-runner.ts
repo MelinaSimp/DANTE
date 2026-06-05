@@ -32,7 +32,10 @@ import { TAGS as SOURCE_TAGS, type SourceTag } from "./source-tiers";
 import { searchArchive, formatHitsForPrompt } from "./archive/search";
 import { runAgent } from "./agent";
 import { complete as llmComplete } from "@/lib/llm/client";
+import { log as rootLog } from "@/lib/logging";
 import vm from "node:vm";
+
+const wfLog = rootLog.child({ component: "workflow-runner" });
 
 // ── Sandboxed Code execution ────────────────────────────────
 // Runs user-provided JavaScript inside a Node.js VM context with
@@ -127,7 +130,7 @@ async function withRetry<T>(
       lastErr = err;
       if (attempt < MAX_RETRIES - 1 && isRetryable(err)) {
         const delay = RETRY_DELAYS[attempt] ?? 4000;
-        console.warn(`[workflow-runner] ${label} attempt ${attempt + 1} failed, retrying in ${delay}ms:`, err instanceof Error ? err.message : err);
+        wfLog.warn(`${label} attempt ${attempt + 1} failed, retrying in ${delay}ms`, { error: err instanceof Error ? err.message : String(err) });
         await new Promise((r) => setTimeout(r, delay));
       } else {
         throw err; // non-retryable or final attempt
@@ -164,7 +167,7 @@ async function checkRateLimit(
     // Fail closed: if the rate-limit RPC is unavailable, block the
     // send. This prevents runaway for_each loops from burning domain
     // reputation when the DB is degraded.
-    console.error("[rate-limit] RPC failed, blocking send (fail-closed):", error.message);
+    wfLog.error("rate-limit RPC failed, blocking send (fail-closed)", { error: error.message, channel, workspaceId });
     return { allowed: false, current: limit, limit };
   }
 
@@ -430,12 +433,12 @@ async function runOpenAI(cfg: {
   if (model.startsWith("claude-") && !process.env.ANTHROPIC_API_KEY) {
     if (process.env.OPENAI_API_KEY) {
       model = "gpt-4o-mini";
-      console.warn(`[workflow] ANTHROPIC_API_KEY missing, falling back to ${model}`);
+      wfLog.warn("ANTHROPIC_API_KEY missing, falling back", { model });
     }
   } else if (model.startsWith("gpt-") && !process.env.OPENAI_API_KEY) {
     if (process.env.ANTHROPIC_API_KEY) {
       model = "claude-sonnet-4-6";
-      console.warn(`[workflow] OPENAI_API_KEY missing, falling back to ${model}`);
+      wfLog.warn("OPENAI_API_KEY missing, falling back", { model });
     }
   }
 
@@ -906,7 +909,7 @@ async function runSendSms(
             member_name: rcpt.member_name,
           };
         } catch (err) {
-          console.error(`[workflow-runner] SMS to ${rcpt.phone} failed:`, err instanceof Error ? err.message : err);
+          wfLog.error("SMS send failed", { phone: rcpt.phone, error: err instanceof Error ? err.message : String(err) });
           return {
             to_phone: rcpt.phone,
             delivery_channel: "failed",
@@ -1375,7 +1378,7 @@ async function runForEach(
   // thousands of emails or hammering external APIs.
   const originalCount = items.length;
   if (items.length > FOR_EACH_MAX_ITEMS) {
-    console.warn(`[workflow-runner] for_each capped: ${items.length} items truncated to ${FOR_EACH_MAX_ITEMS}`);
+    wfLog.warn("for_each capped", { originalCount: items.length, cap: FOR_EACH_MAX_ITEMS });
     items = items.slice(0, FOR_EACH_MAX_ITEMS);
   }
 
@@ -1642,7 +1645,7 @@ async function saveCheckpoint(
       );
   } catch (err) {
     // Checkpoint write failure must not abort the run. Log and continue.
-    console.warn("[checkpoint] write failed:", err instanceof Error ? err.message : err);
+    wfLog.warn("checkpoint write failed", { runId, nodeId, error: err instanceof Error ? err.message : String(err) });
   }
 }
 
@@ -1731,7 +1734,7 @@ async function recordIdempotency(
         { onConflict: "idempotency_key" },
       );
   } catch (err) {
-    console.warn("[idempotency] record failed:", err instanceof Error ? err.message : err);
+    wfLog.warn("idempotency record failed", { runId, nodeId, error: err instanceof Error ? err.message : String(err) });
   }
 }
 
@@ -1762,7 +1765,7 @@ async function pushToDeadLetter(params: {
       status: "pending",
     });
   } catch (err) {
-    console.error("[dead-letter] push failed:", err instanceof Error ? err.message : err);
+    wfLog.error("dead-letter push failed", { runId: params.runId, nodeId: params.nodeId, error: err instanceof Error ? err.message : String(err) });
   }
 }
 
