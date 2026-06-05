@@ -18,6 +18,8 @@ import {
   Upload,
   Sparkles,
   AlertCircle,
+  LayoutList,
+  Columns3,
 } from "lucide-react";
 import { useIsRealtor } from "@/lib/industry/use-industry";
 import { RealtorListingsEmpty } from "@/components/empty-states/RealtorEmptyStates";
@@ -58,6 +60,9 @@ interface PropertyRow {
   listed_at: string | null;
   sold_at: string | null;
   updated_at: string;
+  transaction_stage: string | null;
+  expected_close_date: string | null;
+  name: string | null;
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -89,10 +94,19 @@ function formatDollars(cents: number | null): string {
   })}`;
 }
 
+const PIPELINE_STAGES = [
+  { key: "listed", label: "Listed", color: "var(--accent)" },
+  { key: "showing", label: "Showing", color: "var(--accent)" },
+  { key: "offer", label: "Offer", color: "var(--flag)" },
+  { key: "pending", label: "Pending", color: "var(--flag)" },
+  { key: "closed", label: "Closed", color: "var(--verified)" },
+] as const;
+
 export default function PropertiesClient() {
   const router = useRouter();
   const isRealtor = useIsRealtor();
   const [rows, setRows] = useState<PropertyRow[] | null>(null);
+  const [viewMode, setViewMode] = useState<"list" | "pipeline">("list");
 
   usePageContext({
     title: "Properties",
@@ -297,6 +311,23 @@ export default function PropertiesClient() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {/* View toggle */}
+            <div className="flex rounded-[4px] border border-[var(--rule)] overflow-hidden">
+              <button
+                onClick={() => setViewMode("list")}
+                className={`p-2 transition ${viewMode === "list" ? "bg-[var(--canvas-subtle)] text-[var(--ink)]" : "text-[var(--ink-subtle)] hover:text-[var(--ink)]"}`}
+                title="List view"
+              >
+                <LayoutList className="w-3.5 h-3.5" strokeWidth={1.5} />
+              </button>
+              <button
+                onClick={() => setViewMode("pipeline")}
+                className={`p-2 border-l border-[var(--rule)] transition ${viewMode === "pipeline" ? "bg-[var(--canvas-subtle)] text-[var(--ink)]" : "text-[var(--ink-subtle)] hover:text-[var(--ink)]"}`}
+                title="Pipeline view"
+              >
+                <Columns3 className="w-3.5 h-3.5" strokeWidth={1.5} />
+              </button>
+            </div>
             {isElectron && (
               <button
                 onClick={importFromDesktop}
@@ -455,7 +486,62 @@ export default function PropertiesClient() {
               )}
             </div>
           )
+        ) : viewMode === "pipeline" ? (
+          /* ── Pipeline / Kanban view ──────────────────────────── */
+          <div className="grid grid-cols-5 gap-3 min-h-[400px]">
+            {PIPELINE_STAGES.map((stage) => {
+              const items = rows.filter(
+                (p) => (p.transaction_stage || "listed") === stage.key,
+              );
+              return (
+                <div key={stage.key} className="flex flex-col">
+                  <div className="flex items-center gap-2 mb-2 px-2">
+                    <div
+                      className="w-2 h-2 rounded-full"
+                      style={{ backgroundColor: stage.color }}
+                    />
+                    <span className="label-section text-[10px]">{stage.label}</span>
+                    <span className="text-[10px] text-[var(--ink-subtle)]">
+                      {items.length}
+                    </span>
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    {items.map((p) => (
+                      <div
+                        key={p.id}
+                        onClick={() => router.push(`/properties/${p.id}`)}
+                        className="card-flat p-3 cursor-pointer hover:shadow-sm transition"
+                      >
+                        <div className="text-xs font-medium text-[var(--ink)] mb-1 truncate">
+                          {p.name || p.address_line1}
+                        </div>
+                        <div className="text-[10px] text-[var(--ink-subtle)] mb-2 truncate">
+                          {[p.city, p.state].filter(Boolean).join(", ") || "—"}
+                        </div>
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="text-[var(--ink-muted)] font-medium">
+                            {formatDollars(p.list_price_cents)}
+                          </span>
+                          {p.expected_close_date && (
+                            <span className="text-[var(--ink-subtle)]">
+                              Close: {new Date(p.expected_close_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {items.length === 0 && (
+                      <div className="p-4 text-center text-[10px] text-[var(--ink-subtle)] border border-dashed border-[var(--rule)] rounded-[4px]">
+                        No deals
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         ) : (
+          /* ── List / Table view ───────────────────────────────── */
           <div className="card-flat overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -463,6 +549,7 @@ export default function PropertiesClient() {
                   <tr>
                     <th className="label-section text-left py-4 px-6">Address</th>
                     <th className="label-section text-left py-4 px-4">Status</th>
+                    <th className="label-section text-left py-4 px-4">Stage</th>
                     <th className="label-section text-right py-4 px-4">Price</th>
                     <th className="label-section text-left py-4 px-4">Beds / Baths</th>
                     <th className="label-section text-right py-4 px-4">Sqft</th>
@@ -493,6 +580,15 @@ export default function PropertiesClient() {
                         >
                           {STATUS_LABEL[p.status] ?? p.status}
                         </span>
+                      </td>
+                      <td className="py-4 px-4">
+                        {p.transaction_stage ? (
+                          <span className="text-xs text-[var(--ink-muted)] capitalize">
+                            {p.transaction_stage}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-[var(--ink-subtle)]">--</span>
+                        )}
                       </td>
                       <td className="py-4 px-4 mono text-right text-[var(--ink)]">
                         {formatDollars(p.list_price_cents)}

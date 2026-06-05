@@ -33,7 +33,7 @@ export async function GET(request: Request) {
   let query = supabase
     .from("properties")
     .select(
-      "id, address_line1, address_line2, city, state, zip, beds, baths, sqft, kind, list_price_cents, status, listed_at, sold_at, updated_at"
+      "id, address_line1, address_line2, city, state, zip, beds, baths, sqft, kind, list_price_cents, status, listed_at, sold_at, updated_at, transaction_stage, expected_close_date, name"
     )
     .eq("workspace_id", profile.workspace_id)
     .order("updated_at", { ascending: false });
