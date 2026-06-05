@@ -301,6 +301,14 @@ export default function WorkflowsPageClient({ vaultReady, canManageVault }: Prop
               <strong className="font-semibold text-[var(--ink)]">{vaultAwareCount}</strong> vault-aware
             </span>
           )}
+          <Link
+            href="/dante/workflows/health"
+            className="inline-flex items-center gap-1.5 text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
+          >
+            <TrendingUp className="w-3.5 h-3.5" strokeWidth={1.5} />
+            Run health
+            <ArrowUpRight className="w-3 h-3" />
+          </Link>
         </div>
       </div>
 

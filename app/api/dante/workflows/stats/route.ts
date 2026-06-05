@@ -114,6 +114,19 @@ export async function GET() {
   // Workflows needing attention (3+ consecutive failures)
   const needsAttention = perWorkflow.filter((w) => w.consecutive_failures >= 3);
 
+  // Dead-letter queue count
+  let deadLetterCount = 0;
+  try {
+    const { count } = await supabaseAdmin
+      .from("dante_workflow_dead_letters")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId)
+      .eq("status", "pending");
+    deadLetterCount = count ?? 0;
+  } catch {
+    // Table may not exist yet — ignore
+  }
+
   return NextResponse.json({
     summary: {
       total_workflows: workflows.length,
@@ -128,5 +141,6 @@ export async function GET() {
     daily: dailyCounts,
     workflows: perWorkflow,
     needs_attention: needsAttention,
+    dead_letter_count: deadLetterCount,
   });
 }
