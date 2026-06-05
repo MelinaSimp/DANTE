@@ -1737,6 +1737,105 @@ const environmentalRiskScreenGraph: WorkflowGraph = {
 };
 
 // ══════════════════════════════════════════════════════════════
+// 31 - Deal score underwriting (manual)
+// ══════════════════════════════════════════════════════════════
+
+const dealScoreUnderwritingGraph: WorkflowGraph = {
+  nodes: [
+    {
+      id: "trigger", type: "trigger_manual", position: row(0),
+      data: { step: {
+        id: "trigger", type: "trigger_manual", name: "Start underwriting",
+        config: {
+          input_fields: [
+            { name: "property_address", type: "text", label: "Property address", required: true },
+            { name: "asking_price", type: "number", label: "Asking price ($)", required: true },
+            { name: "gross_rent", type: "number", label: "Gross annual rent ($)", required: true },
+            { name: "operating_expenses", type: "number", label: "Operating expenses ($)", required: true },
+            { name: "vacancy_rate", type: "number", label: "Vacancy rate (decimal, e.g. 0.05)", required: false },
+            { name: "loan_amount", type: "number", label: "Loan amount ($)", required: false },
+            { name: "interest_rate", type: "number", label: "Interest rate (decimal)", required: false },
+            { name: "amortization_years", type: "number", label: "Amortization (years)", required: false },
+            { name: "equity", type: "number", label: "Total cash invested ($)", required: false },
+          ],
+        },
+      } },
+    },
+    {
+      id: "calc_noi", type: "code", position: row(1),
+      data: { step: {
+        id: "calc_noi", type: "code", name: "Build calculator inputs",
+        config: {
+          language: "javascript",
+          code: [
+            "const inp = steps.trigger.input;",
+            "const vacancy = inp.vacancy_rate || 0.05;",
+            "const inputs = {",
+            "  gross_potential_rent: inp.gross_rent,",
+            "  vacancy_rate: vacancy,",
+            "  operating_expenses: inp.operating_expenses,",
+            "  purchase_price: inp.asking_price,",
+            "  noi: inp.gross_rent * (1 - vacancy) - inp.operating_expenses,",
+            "};",
+            "if (inp.loan_amount) inputs.loan_amount = inp.loan_amount;",
+            "if (inp.interest_rate) inputs.interest_rate = inp.interest_rate;",
+            "if (inp.amortization_years) inputs.amortization_years = inp.amortization_years;",
+            "if (inp.equity) inputs.total_cash_invested = inp.equity;",
+            "if (inp.loan_amount && inp.interest_rate && inp.amortization_years) {",
+            "  const r = inp.interest_rate / 12;",
+            "  const n = inp.amortization_years * 12;",
+            "  const pmt = inp.loan_amount * (r * Math.pow(1+r, n)) / (Math.pow(1+r, n) - 1);",
+            "  inputs.annual_debt_service = Math.round(pmt * 12);",
+            "}",
+            "return { inputs, address: inp.property_address };",
+          ].join("\n"),
+        },
+      } },
+    },
+    {
+      id: "run_calc", type: "agent", position: row(2),
+      data: { step: {
+        id: "run_calc", type: "agent", name: "Run underwriting battery",
+        config: {
+          model: "claude-sonnet-4-6",
+          system:
+            "You are a CRE underwriting analyst. Use the cre.calculate tool to run a complete " +
+            "financial analysis. Request all applicable metrics in a single call: noi, cap_rate, " +
+            "cash_on_cash, dscr, ltv, debt_yield, opex_ratio, break_even_occupancy, price_per_sf, " +
+            "debt_service, deal_score. Interpret every result with context. Flag any concerning metrics.",
+          objective:
+            "Use the numeric inputs from the previous step to run a full CRE underwriting battery. " +
+            "Call the cre_calculate tool with all applicable metrics. Then interpret each result, " +
+            "noting whether values are strong, acceptable, or concerning for a typical CRE acquisition. " +
+            "Pay special attention to the deal_score composite and flag any dimension that grades D or F.",
+          tools: ["cre.calculate"],
+          max_steps: 4,
+        },
+      } },
+    },
+    {
+      id: "report", type: "generate_document", position: row(3),
+      data: { step: {
+        id: "report", type: "generate_document", name: "Generate underwriting report",
+        config: {
+          title: "Deal Underwriting Report",
+          subtitle: "{{steps.calc_noi.output.address}}",
+          sections: [
+            { heading: "Executive Summary", body: "{{steps.run_calc.output}}" },
+            { heading: "Financial Inputs", body: "{{steps.calc_noi.output}}" },
+          ],
+        },
+      } },
+    },
+  ],
+  edges: [
+    edge("trigger", "calc_noi"),
+    edge("calc_noi", "run_calc"),
+    edge("run_calc", "report"),
+  ],
+};
+
+// ══════════════════════════════════════════════════════════════
 // Registry
 // ══════════════════════════════════════════════════════════════
 
@@ -2054,6 +2153,16 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     accent: "flag",
     triggerLabel: "Manual",
     graph: environmentalRiskScreenGraph,
+  },
+  {
+    slug: "deal-score-underwriting",
+    name: "Deal score underwriting",
+    description: "Run a full due diligence battery on a deal -- NOI, cap rate, DSCR, cash-on-cash, LTV, and composite deal score. Generates a branded PDF report.",
+    category: "Due diligence",
+    icon: "Target",
+    accent: "accent",
+    triggerLabel: "Manual",
+    graph: dealScoreUnderwritingGraph,
   },
 ];
 
