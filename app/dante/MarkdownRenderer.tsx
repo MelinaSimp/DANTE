@@ -40,6 +40,10 @@ import VoidAnalysisBlock, {
   parseVoidAnalysisBlock,
   type VoidAnalysisData,
 } from "./VoidAnalysisBlock";
+import DDChecklistBlock, {
+  parseDDChecklistBlock,
+  type DDChecklistData,
+} from "./DDChecklistBlock";
 
 interface Props {
   content: string;
@@ -50,7 +54,7 @@ interface Props {
 }
 
 interface Segment {
-  type: "text" | "table" | "reasoning" | "heading" | "hr" | "map" | "sources" | "void_analysis";
+  type: "text" | "table" | "reasoning" | "heading" | "hr" | "map" | "sources" | "void_analysis" | "dd_checklist";
   content: string;
   /** Pre-parsed reasoning data when type === 'reasoning'. */
   reasoning?: ReasoningBlockData;
@@ -62,6 +66,8 @@ interface Segment {
   webSources?: WebSource[];
   /** Pre-parsed void analysis data when type === 'void_analysis'. */
   voidAnalysis?: VoidAnalysisData;
+  /** Pre-parsed DD checklist data when type === 'dd_checklist'. */
+  ddChecklist?: DDChecklistData;
 }
 
 // Hard emoji strip — defense in depth. The API route strips emojis
@@ -134,6 +140,9 @@ export default function MarkdownRenderer({ content, trace, citationReport }: Pro
         }
         if (seg.type === "void_analysis" && seg.voidAnalysis) {
           return <VoidAnalysisBlock key={i} data={seg.voidAnalysis} />;
+        }
+        if (seg.type === "dd_checklist" && seg.ddChecklist) {
+          return <DDChecklistBlock key={i} data={seg.ddChecklist} />;
         }
         return <TableSegment key={i} markdown={seg.content} trace={trace} />;
       })}
@@ -274,13 +283,29 @@ function splitTablesOut(content: string): Segment[] {
       i = end + 1;
       continue;
     }
+    // 1c3. DD checklist fenced block — ```dd_checklist ... ```
+    if (/^\s*```\s*dd_checklist\s*$/i.test(lines[i])) {
+      flushText();
+      const start = i + 1;
+      let end = start;
+      while (end < lines.length && !/^\s*```\s*$/.test(lines[end])) end++;
+      const body = lines.slice(start, end).join("\n").trim();
+      const parsed = parseDDChecklistBlock(body);
+      if (parsed) {
+        segments.push({ type: "dd_checklist", content: body, ddChecklist: parsed });
+      } else {
+        segments.push({ type: "text", content: body });
+      }
+      i = end + 1;
+      continue;
+    }
     // 1d. Generic code fence — strip ASCII art diagrams. The model
     //     sometimes wraps site maps, floor plans, and corridor
     //     diagrams in bare ``` fences. These render as ugly mono-
     //     spaced text and are redundant when a real map exists.
     if (/^\s*```\s*$/.test(lines[i]) || /^\s*```\w*\s*$/.test(lines[i])) {
       // Check it's not one of our special fences (already handled above).
-      if (!/^\s*```\s*(reasoning|map|sources|void_analysis)\s*$/i.test(lines[i])) {
+      if (!/^\s*```\s*(reasoning|map|sources|void_analysis|dd_checklist)\s*$/i.test(lines[i])) {
         flushText();
         const start = i + 1;
         let end = start;
