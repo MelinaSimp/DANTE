@@ -13,6 +13,7 @@ const COVERAGE: {
   counties?: string[];
 }[] = [
   { state: "Alabama", abbr: "AL", level: "statewide" },
+  { state: "Alaska", abbr: "AK", level: "statewide" },
   { state: "Arizona", abbr: "AZ", level: "statewide" },
   { state: "Arkansas", abbr: "AR", level: "statewide" },
   { state: "California", abbr: "CA", level: "statewide" },
@@ -21,6 +22,7 @@ const COVERAGE: {
   { state: "Delaware", abbr: "DE", level: "statewide" },
   { state: "Florida", abbr: "FL", level: "statewide" },
   { state: "Georgia", abbr: "GA", level: "statewide" },
+  { state: "Hawaii", abbr: "HI", level: "statewide" },
   { state: "Idaho", abbr: "ID", level: "statewide" },
   { state: "Illinois", abbr: "IL", level: "statewide" },
   { state: "Indiana", abbr: "IN", level: "statewide" },
@@ -28,6 +30,7 @@ const COVERAGE: {
   { state: "Kansas", abbr: "KS", level: "statewide" },
   { state: "Kentucky", abbr: "KY", level: "statewide" },
   { state: "Louisiana", abbr: "LA", level: "statewide" },
+  { state: "Maine", abbr: "ME", level: "statewide" },
   { state: "Maryland", abbr: "MD", level: "statewide" },
   { state: "Massachusetts", abbr: "MA", level: "statewide" },
   { state: "Michigan", abbr: "MI", level: "statewide" },
@@ -47,7 +50,9 @@ const COVERAGE: {
   { state: "Oklahoma", abbr: "OK", level: "statewide" },
   { state: "Oregon", abbr: "OR", level: "statewide" },
   { state: "Pennsylvania", abbr: "PA", level: "statewide" },
+  { state: "Rhode Island", abbr: "RI", level: "statewide" },
   { state: "South Carolina", abbr: "SC", level: "statewide" },
+  { state: "South Dakota", abbr: "SD", level: "statewide" },
   { state: "Tennessee", abbr: "TN", level: "statewide" },
   { state: "Texas", abbr: "TX", level: "statewide" },
   { state: "Utah", abbr: "UT", level: "statewide" },
