@@ -161,10 +161,11 @@ async function checkRateLimit(
   });
 
   if (error) {
-    // If the RPC doesn't exist yet (migration not run), allow through
-    // but log. Don't block workflows on a missing rate-limit table.
-    console.warn("[rate-limit] RPC failed, allowing through:", error.message);
-    return { allowed: true, current: 0, limit };
+    // Fail closed: if the rate-limit RPC is unavailable, block the
+    // send. This prevents runaway for_each loops from burning domain
+    // reputation when the DB is degraded.
+    console.error("[rate-limit] RPC failed, blocking send (fail-closed):", error.message);
+    return { allowed: false, current: limit, limit };
   }
 
   const current = typeof data === "number" ? data : (data?.[0]?.send_count ?? count);
@@ -1612,6 +1613,159 @@ async function runSubWorkflow(
   };
 }
 
+// ── Step-level checkpointing ────────────────────────────────
+// Persists each node's output after execution so a crash mid-run
+// can resume from the last checkpoint instead of re-running
+// everything. The checkpoint row doubles as an audit trail of
+// exactly which nodes fired and in what order.
+
+async function saveCheckpoint(
+  runId: string,
+  nodeId: string,
+  nodeType: string,
+  output: unknown,
+  status: "success" | "error" = "success",
+): Promise<void> {
+  try {
+    await supabaseAdmin
+      .from("dante_workflow_run_checkpoints")
+      .upsert(
+        {
+          run_id: runId,
+          node_id: nodeId,
+          node_type: nodeType,
+          output: output as Record<string, unknown>,
+          status,
+          fired_at: new Date().toISOString(),
+        },
+        { onConflict: "run_id,node_id" },
+      );
+  } catch (err) {
+    // Checkpoint write failure must not abort the run. Log and continue.
+    console.warn("[checkpoint] write failed:", err instanceof Error ? err.message : err);
+  }
+}
+
+async function loadCheckpoints(
+  runId: string,
+): Promise<Map<string, { output: unknown; status: string }>> {
+  const map = new Map<string, { output: unknown; status: string }>();
+  try {
+    const { data } = await supabaseAdmin
+      .from("dante_workflow_run_checkpoints")
+      .select("node_id, output, status")
+      .eq("run_id", runId);
+    if (data) {
+      for (const row of data) {
+        map.set(row.node_id, { output: row.output, status: row.status });
+      }
+    }
+  } catch {
+    // If we can't load checkpoints, start fresh.
+  }
+  return map;
+}
+
+// ── Idempotency on side-effects ─────────────────────────────
+// For nodes that produce external side-effects (send_email,
+// send_sms, update_contact, http non-GET, generate_document),
+// we hash (runId + nodeId) into an idempotency key and check
+// the table before executing. If the key exists, return the
+// cached output — this prevents duplicate emails on crash-resume.
+
+const SIDE_EFFECT_NODE_TYPES = new Set([
+  "send_email",
+  "send_sms",
+  "update_contact",
+  "generate_document",
+]);
+
+function isSideEffectNode(stepType: string, config?: Record<string, unknown>): boolean {
+  if (SIDE_EFFECT_NODE_TYPES.has(stepType)) return true;
+  // HTTP nodes are side-effects only for non-GET methods
+  if (stepType === "http") {
+    const method = ((config?.method as string) || "GET").toUpperCase();
+    return method !== "GET";
+  }
+  return false;
+}
+
+function makeIdempotencyKey(runId: string, nodeId: string): string {
+  return `wf:${runId}:${nodeId}`;
+}
+
+async function checkIdempotency(
+  runId: string,
+  nodeId: string,
+): Promise<{ hit: boolean; output?: unknown }> {
+  try {
+    const key = makeIdempotencyKey(runId, nodeId);
+    const { data } = await supabaseAdmin
+      .from("dante_workflow_idempotency")
+      .select("output")
+      .eq("idempotency_key", key)
+      .maybeSingle();
+    if (data) return { hit: true, output: data.output };
+  } catch {
+    // If we can't check, assume no hit — execute normally.
+  }
+  return { hit: false };
+}
+
+async function recordIdempotency(
+  runId: string,
+  nodeId: string,
+  output: unknown,
+): Promise<void> {
+  try {
+    const key = makeIdempotencyKey(runId, nodeId);
+    await supabaseAdmin
+      .from("dante_workflow_idempotency")
+      .upsert(
+        {
+          idempotency_key: key,
+          run_id: runId,
+          node_id: nodeId,
+          output: output as Record<string, unknown>,
+        },
+        { onConflict: "idempotency_key" },
+      );
+  } catch (err) {
+    console.warn("[idempotency] record failed:", err instanceof Error ? err.message : err);
+  }
+}
+
+// ── Dead-letter queue ───────────────────────────────────────
+// When a run fails fatally, push it to the dead-letter table
+// for manual inspection or replay via the admin panel.
+
+async function pushToDeadLetter(params: {
+  runId: string;
+  workflowId: string;
+  workspaceId: string;
+  nodeId?: string;
+  nodeType?: string;
+  errorMessage: string;
+  errorContext?: unknown;
+  input?: unknown;
+}): Promise<void> {
+  try {
+    await supabaseAdmin.from("dante_workflow_dead_letters").insert({
+      run_id: params.runId,
+      workflow_id: params.workflowId,
+      workspace_id: params.workspaceId,
+      node_id: params.nodeId,
+      node_type: params.nodeType,
+      error_message: params.errorMessage,
+      error_context: params.errorContext as Record<string, unknown>,
+      input: params.input as Record<string, unknown>,
+      status: "pending",
+    });
+  } catch (err) {
+    console.error("[dead-letter] push failed:", err instanceof Error ? err.message : err);
+  }
+}
+
 // ── Graph walk ────────────────────────────────────────────────
 
 /**
@@ -1908,7 +2062,7 @@ function findTrigger(nodes: GraphNode[]): GraphNode | null {
 export async function runWorkflow(
   workflow: WorkflowDefinition,
   input: Record<string, unknown> = {},
-  options: { simulate?: boolean; runId?: string } = {}
+  options: { simulate?: boolean; runId?: string; resume?: boolean } = {}
 ): Promise<WorkflowRunResult> {
   // Synthesize a run id if the caller didn't supply one. The agent
   // node uses this as the source_id when it writes to dante_memory
@@ -1935,6 +2089,19 @@ export async function runWorkflow(
       output: {},
       error: "No trigger node in graph. Add a trigger to start the workflow.",
     };
+  }
+
+  // ── Checkpoint-aware resume ──────────────────────────────────
+  // If resuming after a crash, load checkpoints to skip nodes that
+  // already completed. Their cached outputs are restored into ctx.steps
+  // so downstream template resolution works correctly.
+  const checkpoints = options.resume ? await loadCheckpoints(runId) : new Map();
+  if (checkpoints.size > 0) {
+    for (const [nodeId, cp] of checkpoints) {
+      if (cp.status === "success") {
+        ctx.steps[nodeId] = cp.output;
+      }
+    }
   }
 
   // Fire-once BFS from the trigger. Each node runs the first time
@@ -1977,7 +2144,54 @@ export async function runWorkflow(
     let output: unknown;
     let errored = false;
 
+    // ── Checkpoint skip ────────────────────────────────────────
+    // If this node already completed in a previous attempt (crash
+    // resume), skip re-execution and use the cached output.
+    const existingCheckpoint = checkpoints.get(step.id);
+    if (existingCheckpoint?.status === "success") {
+      fired.add(id);
+      output = existingCheckpoint.output;
+      ctx.steps[step.id] = output;
+      log.push({
+        step_id: step.id,
+        step_type: step.type,
+        step_name: step.name || step.type,
+        status: "success",
+        started_at,
+        finished_at: started_at,
+        output: { __resumed_from_checkpoint: true },
+      });
+      // Still need to walk children
+      const nexts = nextNodeIds(id, step.type, output, edges);
+      for (const n of nexts) if (!fired.has(n)) queue.push(n);
+      continue;
+    }
+
     try {
+      // ── Idempotency guard ──────────────────────────────────
+      // For side-effect nodes, check if this (runId, nodeId) combo
+      // already executed — prevents duplicate emails on crash-resume.
+      if (isRealRun && isSideEffectNode(step.type, step.config as Record<string, unknown>) && !options.simulate) {
+        const idem = await checkIdempotency(runId, step.id);
+        if (idem.hit) {
+          output = idem.output;
+          ctx.steps[step.id] = output;
+          log.push({
+            step_id: step.id,
+            step_type: step.type,
+            step_name: step.name || step.type,
+            status: "success",
+            started_at,
+            finished_at: new Date().toISOString(),
+            output: { __idempotent_replay: true, cached: redactSecrets(output, secrets) },
+          });
+          await saveCheckpoint(runId, step.id, step.type, output, "success");
+          const nexts = nextNodeIds(id, step.type, output, edges);
+          for (const n of nexts) if (!fired.has(n)) queue.push(n);
+          continue;
+        }
+      }
+
       output = await executeNode(step, ctx, workflow.workspace_id, log, runId);
       ctx.steps[step.id] = output;
       log.push({
@@ -1992,6 +2206,14 @@ export async function runWorkflow(
         // can still reference it.
         output: redactSecrets(output, secrets),
       });
+
+      // Persist checkpoint + idempotency record
+      if (isRealRun) {
+        await saveCheckpoint(runId, step.id, step.type, output, "success");
+        if (isSideEffectNode(step.type, step.config as Record<string, unknown>) && !options.simulate) {
+          await recordIdempotency(runId, step.id, output);
+        }
+      }
 
       if (
         output &&
@@ -2018,7 +2240,26 @@ export async function runWorkflow(
         finished_at: new Date().toISOString(),
         error: redactSecrets(message, secrets),
       });
+
+      // Persist error checkpoint
+      if (isRealRun) {
+        await saveCheckpoint(runId, step.id, step.type, { error: message }, "error");
+      }
+
       if (step.on_error !== "continue") {
+        // Push to dead-letter queue for inspection/replay
+        if (isRealRun) {
+          await pushToDeadLetter({
+            runId,
+            workflowId: workflow.id,
+            workspaceId: workflow.workspace_id,
+            nodeId: step.id,
+            nodeType: step.type,
+            errorMessage: message,
+            errorContext: { log: log.slice(-3) },
+            input,
+          });
+        }
         return {
           status: "error",
           log,
