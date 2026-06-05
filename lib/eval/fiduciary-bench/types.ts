@@ -10,7 +10,9 @@ export type RubricScore = {
 
 export type EvalTaskCategory =
   | "fair_housing_review"
-  | "marketing_review";
+  | "marketing_review"
+  | "zoning_compliance"
+  | "lease_review";
 
 export type EvalGraderKind = "auto" | "human";
 

@@ -13,9 +13,13 @@
 
 import type { EvalTask } from "./types";
 import { FAIR_HOUSING_MARKETING } from "./tasks/fair-housing-marketing";
+import { ZONING_COMPLIANCE } from "./tasks/zoning-compliance";
+import { LEASE_REVIEW } from "./tasks/lease-review";
 
 export const TASKS: EvalTask[] = [
   FAIR_HOUSING_MARKETING,
+  ZONING_COMPLIANCE,
+  LEASE_REVIEW,
 ];
 
 export function getTask(slug: string): EvalTask | undefined {
