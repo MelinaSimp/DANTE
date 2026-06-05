@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
     const content = (msg as { content?: string }).content ?? "";
     // Strip fenced blocks that are visual-only
     const cleaned = content
-      .replace(/```(?:reasoning|map|void_analysis|sources|dd_checklist|portfolio)[\s\S]*?```/g, "")
+      .replace(/```(?:reasoning|map|void_analysis|sources|dd_checklist|portfolio|call_summary)[\s\S]*?```/g, "")
       .replace(/\[\[cite:.*?\]\]/g, "")
       .trim();
 

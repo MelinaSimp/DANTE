@@ -48,6 +48,10 @@ import PortfolioBlock, {
   parsePortfolioBlock,
   type PortfolioData,
 } from "./PortfolioBlock";
+import CallSummaryBlock, {
+  parseCallSummaryBlock,
+  type CallSummaryData,
+} from "./CallSummaryBlock";
 
 interface Props {
   content: string;
@@ -58,7 +62,7 @@ interface Props {
 }
 
 interface Segment {
-  type: "text" | "table" | "reasoning" | "heading" | "hr" | "map" | "sources" | "void_analysis" | "dd_checklist" | "portfolio";
+  type: "text" | "table" | "reasoning" | "heading" | "hr" | "map" | "sources" | "void_analysis" | "dd_checklist" | "portfolio" | "call_summary";
   content: string;
   /** Pre-parsed reasoning data when type === 'reasoning'. */
   reasoning?: ReasoningBlockData;
@@ -74,6 +78,8 @@ interface Segment {
   ddChecklist?: DDChecklistData;
   /** Pre-parsed portfolio data when type === 'portfolio'. */
   portfolio?: PortfolioData;
+  /** Pre-parsed call summary when type === 'call_summary'. */
+  callSummary?: CallSummaryData;
 }
 
 // Hard emoji strip — defense in depth. The API route strips emojis
@@ -152,6 +158,9 @@ export default function MarkdownRenderer({ content, trace, citationReport }: Pro
         }
         if (seg.type === "portfolio" && seg.portfolio) {
           return <PortfolioBlock key={i} data={seg.portfolio} />;
+        }
+        if (seg.type === "call_summary" && seg.callSummary) {
+          return <CallSummaryBlock key={i} data={seg.callSummary} />;
         }
         return <TableSegment key={i} markdown={seg.content} trace={trace} />;
       })}
@@ -324,13 +333,29 @@ function splitTablesOut(content: string): Segment[] {
       i = end + 1;
       continue;
     }
+    // 1c5. Call summary fenced block — ```call_summary ... ```
+    if (/^\s*```\s*call_summary\s*$/i.test(lines[i])) {
+      flushText();
+      const start = i + 1;
+      let end = start;
+      while (end < lines.length && !/^\s*```\s*$/.test(lines[end])) end++;
+      const body = lines.slice(start, end).join("\n").trim();
+      const parsed = parseCallSummaryBlock(body);
+      if (parsed) {
+        segments.push({ type: "call_summary", content: body, callSummary: parsed });
+      } else {
+        segments.push({ type: "text", content: body });
+      }
+      i = end + 1;
+      continue;
+    }
     // 1d. Generic code fence — strip ASCII art diagrams. The model
     //     sometimes wraps site maps, floor plans, and corridor
     //     diagrams in bare ``` fences. These render as ugly mono-
     //     spaced text and are redundant when a real map exists.
     if (/^\s*```\s*$/.test(lines[i]) || /^\s*```\w*\s*$/.test(lines[i])) {
       // Check it's not one of our special fences (already handled above).
-      if (!/^\s*```\s*(reasoning|map|sources|void_analysis|dd_checklist|portfolio)\s*$/i.test(lines[i])) {
+      if (!/^\s*```\s*(reasoning|map|sources|void_analysis|dd_checklist|portfolio|call_summary)\s*$/i.test(lines[i])) {
         flushText();
         const start = i + 1;
         let end = start;

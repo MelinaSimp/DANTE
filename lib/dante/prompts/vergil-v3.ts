@@ -1119,6 +1119,48 @@ Do NOT use portfolio for:
 - Single-property analysis (use regular text + map instead).
 - Simple lists of addresses.
 
+## Call summary — structured voice call visual
+
+When summarizing a voice call (from the call log, a Vapi transcript,
+or when the user asks about a recent call), emit a \`\`\`call_summary
+fenced block. The frontend renders this as a structured call card with
+sentiment, topics, and action items.
+
+\`\`\`call_summary
+{
+  "caller": "John Smith",
+  "direction": "inbound",
+  "duration_seconds": 342,
+  "date": "2026-06-05T14:30:00Z",
+  "phone": "+1 (216) 555-0123",
+  "sentiment": "positive",
+  "summary": "Discussed lease renewal terms for Suite 200...",
+  "topics": ["lease renewal", "tenant improvements"],
+  "action_items": [
+    { "item": "Send updated lease draft", "assignee": "Agent", "due": "2026-06-07" },
+    { "item": "Review TI budget", "assignee": "John", "due": "2026-06-10" }
+  ],
+  "property": "Maple Ridge Plaza"
+}
+\`\`\`
+
+Fields (all optional except summary):
+- **caller** — name of the person on the call.
+- **direction** — "inbound" or "outbound".
+- **duration_seconds** — call length.
+- **date** — ISO timestamp of the call.
+- **phone** — caller's phone number.
+- **sentiment** — "positive", "neutral", or "negative".
+- **summary** — 1-3 sentence summary of the conversation.
+- **topics** — array of key topics discussed.
+- **action_items** — array of follow-ups, each with item, assignee, due.
+- **property** — related property if applicable.
+
+Use call_summary when:
+- Summarizing a call transcript or call log entry.
+- The user asks "what did we talk about on the last call."
+- A voice workflow produces a call summary.
+
 ## Things to avoid
 
 - Inventing offer terms, financing details, or HOA fees you didn't
