@@ -34,6 +34,8 @@ const STATIC_COMMANDS: CommandItem[] = [
   { id: "nav.contacts", label: "Go to Contacts", group: "Navigate", href: "/contacts" },
   { id: "nav.vault", label: "Go to Vault", group: "Navigate", href: "/vault" },
   { id: "nav.appointments", label: "Go to Appointments", group: "Navigate", href: "/appointments" },
+  { id: "nav.workflows", label: "Go to Workflows", group: "Navigate", href: "/dante/workflows" },
+  { id: "nav.review", label: "Go to Review Queue", group: "Navigate", href: "/review" },
   { id: "nav.billing", label: "Billing & Plan", group: "Settings", href: "/settings/billing" },
   { id: "nav.help", label: "Help & Documentation", group: "Settings", href: "/help" },
 ];
@@ -48,6 +50,9 @@ const REALTOR_COMMANDS: CommandItem[] = [
   { id: "rec.tour-prep", label: "Prep for next showing", group: "Suggested", href: "/dante?prompt=Prep+me+for+my+next+showing" },
   { id: "rec.followup", label: "Draft follow-up to recent buyer", group: "Suggested", href: "/dante?prompt=Draft+a+follow-up+to+my+most+recent+buyer" },
   { id: "rec.stale", label: "List buyers I haven't contacted in 30 days", group: "Suggested", href: "/dante?prompt=Which+buyers+haven't+heard+from+me+in+30+days" },
+  { id: "rec.deal-score", label: "Score a deal", group: "Suggested", href: "/dante?prompt=Run+a+deal+score+on+my+latest+acquisition+candidate" },
+  { id: "rec.void", label: "Run void analysis", group: "Suggested", href: "/dante?prompt=Run+a+void+analysis+for+retail+gaps+in+my+trade+area" },
+  { id: "rec.lease-abstract", label: "Abstract a lease", group: "Suggested", href: "/dante?prompt=Abstract+the+key+terms+from+the+lease+I+just+uploaded" },
 ];
 
 export default function CommandPalette() {

@@ -19,6 +19,7 @@ import {
   Workflow,
   MapPin,
   X,
+  ClipboardCheck,
 } from "lucide-react";
 import { getIndustryConfig } from "@/lib/industry/config";
 import DanteGateLink from "@/components/dante/DanteGateLink";
@@ -102,6 +103,7 @@ export default function AppSidebar({
         { href: "/vault", label: "Vault", icon: FolderClosed },
         { href: "/agent", label: "Voice", icon: Mic },
         { href: "/site-scan", label: "Site Scan", icon: MapPin },
+        { href: "/review", label: "Review Queue", icon: ClipboardCheck },
       ],
     },
     {
