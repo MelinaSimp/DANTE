@@ -37,6 +37,15 @@ export interface ToolWhitelist {
   builtin: string[];
   /** Vertical-specific named skills the chat surface promotes. */
   promoted_skills: string[];
+  /**
+   * MCP server names exposed to the chat agent. Each entry is
+   * expanded by lib/mcp/registry.ts into one tool def per published
+   * tool, namespaced as `mcp__<server>__<tool>`. If a workspace
+   * hasn't connected the server (or it's not yet approved), the
+   * registry returns an empty catalog — entries here are safe to
+   * list for every workspace in the vertical.
+   */
+  mcp_servers: string[];
 }
 
 // ── Compliance flag taxonomies ───────────────────────────────────
@@ -117,6 +126,11 @@ const REALTOR_SPEC: VerticalSpec = {
       // "comp_lookup",
       // "price_reduction_recommendation",
     ],
+    // External MCP catalogs surfaced in chat. n8n lets Dante build
+    // and publish workflows directly in the user's connected n8n
+    // instance — the user's complaint that "Dante just describes
+    // the workflow but doesn't build it" lives or dies here.
+    mcp_servers: ["n8n"],
   },
   memoryCategories: REALTOR_MEMORY_CATEGORIES,
   complianceFlags: [

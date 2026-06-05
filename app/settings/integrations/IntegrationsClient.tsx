@@ -16,6 +16,7 @@ import {
   KeyRound,
   Building2,
 } from "lucide-react";
+import McpServersCard from "./McpServersCard";
 
 interface ProviderRow {
   id: string;
@@ -302,6 +303,7 @@ export default function IntegrationsClient() {
                 onDisconnect={disconnect}
               />
             )}
+            <McpServersCard />
           </>
         )}
 

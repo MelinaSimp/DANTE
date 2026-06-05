@@ -447,8 +447,18 @@ export async function POST(req: NextRequest) {
   // DEFAULT_TOOLS but the indirection is live so future vertical-
   // specific tools (mls.search for realtor; portfolio.summarize
   // for advisor) drop in here without route surgery.
+  //
+  // MCP servers from the vertical spec are merged in as `{ mcp: name }`
+  // entries — the agent loop expands them into one tool def per
+  // published tool. Workspaces that haven't approved a given server
+  // get an empty catalog from the registry, so this is safe to list
+  // unconditionally.
   const verticalSpec = getVerticalSpecLoose(industry);
-  const tools = verticalSpec.toolWhitelist.builtin as AgentToolEntry[];
+  const builtinTools = verticalSpec.toolWhitelist.builtin as AgentToolEntry[];
+  const mcpTools: AgentToolEntry[] = (verticalSpec.toolWhitelist.mcp_servers || []).map(
+    (name) => ({ mcp: name }),
+  );
+  const tools: AgentToolEntry[] = [...builtinTools, ...mcpTools];
 
   const step: AgentStep = {
     id: `chat:${chatId}`,
@@ -476,7 +486,7 @@ export async function POST(req: NextRequest) {
       };
 
       send({ type: "chat_started", chat_id: chatId });
-      console.log(`[ask] stream opened; runId=${runId} chatId=${chatId} model=${verticalSpec.toolWhitelist.builtin.length} tools`);
+      console.log(`[ask] stream opened; runId=${runId} chatId=${chatId} tools=${builtinTools.length}+${mcpTools.length}mcp`);
 
       let assistantContent = "";
       let runError: string | null = null;
