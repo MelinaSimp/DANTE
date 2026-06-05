@@ -157,6 +157,25 @@ function parseJSON(raw: string): unknown {
   return JSON.parse(jsonStr);
 }
 
+/**
+ * Parse a date string extracted by the LLM into ISO YYYY-MM-DD for
+ * the denormalized expiration_date column. The model typically returns
+ * ISO-ish formats ("2028-12-31") but can also return natural language
+ * ("December 31, 2028"). Returns null for unparseable values.
+ */
+function parseLeaseDate(raw: string | null): string | null {
+  if (!raw) return null;
+  // Try ISO first
+  const isoMatch = raw.match(/(\d{4}-\d{2}-\d{2})/);
+  if (isoMatch) return isoMatch[1];
+  // Try natural language
+  const d = new Date(raw);
+  if (!Number.isNaN(d.getTime()) && d.getFullYear() >= 2000 && d.getFullYear() <= 2100) {
+    return d.toISOString().slice(0, 10);
+  }
+  return null;
+}
+
 // ── Pass 1: Structural analysis ────────────────────────────────
 
 async function pass1Structure(
@@ -612,6 +631,17 @@ export async function abstractLease(
 
     const elapsedSeconds = (Date.now() - startTime) / 1000;
 
+    // Denormalize tenant_name and expiration_date for efficient
+    // querying by the lease expiry cron trigger.
+    const tenantField = extractedFields.find(
+      (f) => f.name === "Tenant Name" && f.value,
+    );
+    const expirationField = extractedFields.find(
+      (f) => f.name === "Expiration Date" && f.value,
+    );
+    const denormTenantName = tenantField?.value?.slice(0, 500) ?? null;
+    const denormExpDate = parseLeaseDate(expirationField?.value ?? null);
+
     await supabaseAdmin
       .from("lease_abstracts")
       .update({
@@ -622,6 +652,8 @@ export async function abstractLease(
         input_tokens: totalInput,
         output_tokens: totalOutput,
         extraction_seconds: elapsedSeconds,
+        tenant_name: denormTenantName,
+        expiration_date: denormExpDate,
         updated_at: new Date().toISOString(),
       })
       .eq("id", abstractId);

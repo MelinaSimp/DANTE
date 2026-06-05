@@ -299,18 +299,30 @@ export default function LeaseAbstractorClient() {
     setEditValue(currentValue || "");
   };
 
-  const saveFieldEdit = () => {
+  const saveFieldEdit = async () => {
     if (!selectedAbstract || !editingField) return;
+    const updatedFields = selectedAbstract.fields.map((f) =>
+      f.name === editingField
+        ? { ...f, value: editValue || null, confidence: "high" as const }
+        : f,
+    );
     setSelectedAbstract({
       ...selectedAbstract,
-      fields: selectedAbstract.fields.map((f) =>
-        f.name === editingField
-          ? { ...f, value: editValue || null, confidence: "high" as const }
-          : f,
-      ),
+      fields: updatedFields,
     });
     setEditingField(null);
     setEditValue("");
+    // Persist to DB
+    try {
+      await fetch("/api/lease-abstractor", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ id: selectedAbstract.id, fields: updatedFields }),
+      });
+    } catch {
+      // Silent fail -- local state is already updated
+    }
   };
 
   const cancelEdit = () => {
