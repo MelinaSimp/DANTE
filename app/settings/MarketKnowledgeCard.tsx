@@ -24,6 +24,7 @@ import {
   File as FileIcon,
 } from "lucide-react";
 import TetrisLoading from "@/components/ui/tetris-loader";
+import CoverageCard from "./CoverageCard";
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -444,6 +445,9 @@ export default function MarketKnowledgeCard() {
           </div>
         </div>
       )}
+
+      {/* GIS coverage */}
+      <CoverageCard />
     </div>
   );
 }
