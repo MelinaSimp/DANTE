@@ -11,6 +11,7 @@ import {
   BarChart3,
   CreditCard,
   Gauge,
+  FlaskConical,
   ArrowLeft,
   Menu,
   X,
@@ -22,6 +23,7 @@ const adminNav = [
   { name: "Workspaces", href: "/admin/workspaces", icon: Building2 },
   { name: "Billing", href: "/admin/billing", icon: CreditCard },
   { name: "Usage", href: "/admin/usage", icon: Gauge },
+  { name: "Evals", href: "/admin/evals", icon: FlaskConical },
   { name: "Invites", href: "/admin/invites", icon: UserPlus },
   { name: "Analytics", href: "/admin/analytics", icon: BarChart3 },
 ];
