@@ -13,6 +13,9 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { runWorkflow } from "./workflow-runner";
 import { definitionFromRow } from "./workflow-types";
 import { logAuditEvent } from "@/lib/audit/log";
+import { log as rootLog } from "@/lib/logging";
+
+const execLog = rootLog.child({ component: "run-executor" });
 
 // ── Failure notifications ────────────────────────────────────
 // Email + SMS the workspace owner when a workflow errors so cron
@@ -65,7 +68,7 @@ export async function notifyRunFailure(opts: {
             });
           }
         } catch (e) {
-          console.warn("[run-notify] email failed:", e);
+          execLog.warn("notification email failed", { error: e instanceof Error ? e.message : String(e) });
         }
       }
 
@@ -79,12 +82,112 @@ export async function notifyRunFailure(opts: {
             `Workflow failed: ${opts.workflowName}\n${errorSnippet}`,
           );
         } catch (e) {
-          console.warn("[run-notify] sms failed:", e);
+          execLog.warn("notification SMS failed", { error: e instanceof Error ? e.message : String(e) });
         }
       }
     }
   } catch (e) {
-    console.warn("[run-notify] notification failed:", e);
+    execLog.warn("notification failed", { error: e instanceof Error ? e.message : String(e) });
+  }
+}
+
+// ── Consecutive-failure escalation ──────────────────────────
+// When a workflow fails 3+ times in a row, send a stronger alert
+// to both the workspace owner and ops. This is deduped: we only
+// alert once per (workflow, streak threshold) until the workflow
+// succeeds again and resets the streak.
+
+const STREAK_THRESHOLD = 3;
+const OPS_EMAIL = "driftaillc@gmail.com";
+
+export async function checkConsecutiveFailures(opts: {
+  workflowId: string;
+  workflowName: string;
+  workspaceId: string;
+}): Promise<void> {
+  try {
+    // Count consecutive errors from most recent
+    const { data: recentRuns } = await supabaseAdmin
+      .from("dante_workflow_runs")
+      .select("status")
+      .eq("workflow_id", opts.workflowId)
+      .order("started_at", { ascending: false })
+      .limit(STREAK_THRESHOLD + 1);
+
+    if (!recentRuns) return;
+
+    let streak = 0;
+    for (const r of recentRuns) {
+      if (r.status === "error") streak++;
+      else break;
+    }
+
+    if (streak < STREAK_THRESHOLD) return;
+
+    // Exact-threshold alert: only fire at 3, not at 4, 5, ...
+    // For streak === 3 we alert. For higher we skip (already alerted).
+    if (streak > STREAK_THRESHOLD) return;
+
+    execLog.warn("consecutive failure threshold reached", {
+      workflowId: opts.workflowId,
+      workflowName: opts.workflowName,
+      streak,
+    });
+
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) return;
+
+    const from = process.env.RESEND_FROM_EMAIL || "Drift <ops@driftai.studio>";
+    const subject = `[Alert] "${opts.workflowName}" has failed ${streak} times in a row`;
+    const body = [
+      `Workflow "${opts.workflowName}" has failed ${streak} consecutive times.`,
+      ``,
+      `This usually means something is structurally wrong — a missing API key,`,
+      `a bad URL, or a downstream service that's offline.`,
+      ``,
+      `Review the run history: https://driftai.studio/dante/workflows/${opts.workflowId}`,
+      ``,
+      `The workflow will continue to run on its schedule. If the problem persists,`,
+      `consider disabling it until the root cause is fixed.`,
+    ].join("\n");
+
+    // Send to ops
+    try {
+      await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ from, to: OPS_EMAIL, subject, text: body }),
+      });
+    } catch {
+      // Best effort
+    }
+
+    // Also send to workspace owners
+    const { data: owners } = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .eq("workspace_id", opts.workspaceId)
+      .eq("role", "owner");
+
+    if (owners?.length) {
+      for (const owner of owners) {
+        try {
+          const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(owner.id);
+          const email = authUser.user?.email;
+          if (email && email !== OPS_EMAIL) {
+            await fetch("https://api.resend.com/emails", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ from, to: email, subject, text: body }),
+            });
+          }
+        } catch {
+          // Best effort
+        }
+      }
+    }
+  } catch (e) {
+    execLog.warn("consecutive failure check failed", { error: e instanceof Error ? e.message : String(e) });
   }
 }
 
@@ -210,6 +313,11 @@ export async function executeClaimedRun(
         runId: run.id,
         error: result.error || "Unknown error",
       }).catch(() => {});
+      checkConsecutiveFailures({
+        workflowId: run.workflow_id,
+        workflowName: definition.name,
+        workspaceId: definition.workspace_id,
+      }).catch(() => {});
     }
 
     return { status: result.status };
@@ -246,6 +354,11 @@ export async function executeClaimedRun(
         workspaceId: wsId,
         runId: run.id,
         error: msg,
+      }).catch(() => {});
+      checkConsecutiveFailures({
+        workflowId: run.workflow_id,
+        workflowName: wfName,
+        workspaceId: wsId,
       }).catch(() => {});
     }
 
