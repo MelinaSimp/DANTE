@@ -4,7 +4,14 @@ import { Apple, Monitor, Info, Check } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Download Drift AI Desktop App",
-  description: "Download the native desktop app for macOS and Windows",
+  description:
+    "Download the native Drift AI desktop app for macOS. CRE deal intelligence, lease abstraction, and 50-state parcel analytics.",
+  openGraph: {
+    title: "Download Drift AI Desktop App",
+    description:
+      "Native macOS app for commercial real estate deal intelligence.",
+    url: "https://driftai.studio/download",
+  },
 };
 
 const RELEASE_BASE = "/api/desktop-download";

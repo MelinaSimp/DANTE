@@ -20,7 +20,13 @@ import {
 export const metadata: Metadata = {
   title: "Features & Pricing - Drift AI",
   description:
-    "AI-powered deal intelligence for commercial real estate. Lease abstraction, parcel analytics, autonomous workflows, and citation-grounded search.",
+    "AI-powered deal intelligence for commercial real estate. Lease abstraction, 50-state parcel analytics, autonomous workflows, and citation-grounded search.",
+  openGraph: {
+    title: "Features & Pricing - Drift AI",
+    description:
+      "Lease abstraction, 50-state parcel analytics, deal scoring, and autonomous workflows for CRE brokers and developers.",
+    url: "https://driftai.studio/features",
+  },
 };
 
 const CAPABILITIES = [
@@ -149,9 +155,56 @@ const TIERS = [
   },
 ];
 
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "Drift AI",
+  applicationCategory: "BusinessApplication",
+  operatingSystem: "macOS",
+  description:
+    "AI-powered deal intelligence platform for commercial real estate. Lease abstraction, 50-state parcel analytics, deal scoring, and autonomous workflows.",
+  url: "https://driftai.studio",
+  offers: [
+    {
+      "@type": "Offer",
+      name: "Starter",
+      price: "300",
+      priceCurrency: "USD",
+      description: "For solo brokers and agents. Chat, memory, vault, lease abstraction.",
+    },
+    {
+      "@type": "Offer",
+      name: "Pro",
+      price: "800",
+      priceCurrency: "USD",
+      description: "For small firms. Full workflows, autonomous agents, up to 5 seats.",
+    },
+    {
+      "@type": "Offer",
+      name: "Enterprise",
+      price: "1500",
+      priceCurrency: "USD",
+      description: "For brokerages. SSO, BYOK encryption, dedicated CSM, SLA.",
+    },
+  ],
+  featureList: [
+    "Lease abstraction from PDF",
+    "50-state parcel analytics",
+    "Deal scoring (0-100 composite)",
+    "Autonomous workflow engine",
+    "Citation-grounded search",
+    "Voice AI for tenant calls",
+    "Comparable rent and sale analysis",
+  ],
+};
+
 export default function FeaturesPage() {
   return (
     <div className="min-h-screen bg-[var(--canvas)] text-[var(--ink)]">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* Nav */}
       <div className="border-b border-[var(--rule)]">
         <div className="max-w-6xl mx-auto px-6 py-5 flex items-center justify-between">

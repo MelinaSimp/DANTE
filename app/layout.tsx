@@ -41,9 +41,9 @@ const fontMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Drift — CRE deal intelligence",
+  title: "Drift AI — CRE deal intelligence",
   description:
-    "AI for commercial real estate. Lease abstraction, parcel intelligence, underwriting math, citation-grounded search.",
+    "AI for commercial real estate. Lease abstraction, parcel intelligence, underwriting math, citation-grounded search across 50 states.",
   manifest: "/manifest.json",
   icons: {
     icon: "/brand/logo-circle.png",
@@ -52,7 +52,28 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Drift",
+    title: "Drift AI",
+  },
+  metadataBase: new URL("https://driftai.studio"),
+  openGraph: {
+    type: "website",
+    siteName: "Drift AI",
+    title: "Drift AI — CRE deal intelligence",
+    description:
+      "AI-powered lease abstraction, 50-state parcel analytics, and autonomous workflows for commercial real estate professionals.",
+    url: "https://driftai.studio",
+    images: [{ url: "/brand/og-card.png", width: 1200, height: 630 }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Drift AI — CRE deal intelligence",
+    description:
+      "AI-powered lease abstraction, 50-state parcel analytics, and autonomous workflows for commercial real estate.",
+    images: ["/brand/og-card.png"],
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
 
