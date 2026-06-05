@@ -83,6 +83,10 @@
       "schedule": "0 10 * * *"
     },
     {
+      "path": "/api/cron/trial-expire",
+      "schedule": "0 2 * * *"
+    },
+    {
       "path": "/api/cron/ingest-worker",
       "schedule": "* * * * *"
     },
