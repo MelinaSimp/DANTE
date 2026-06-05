@@ -2124,10 +2124,10 @@ export async function runWorkflow(
     const node = nodeById.get(id);
     if (!node) continue;
 
-    // Check for mid-execution cancellation every 3 nodes.
-    // One extra DB query per 3 nodes is negligible vs node execution
-    // time, and lets cancel take effect within seconds.
-    if (isRealRun && fired.size > 0 && fired.size % 3 === 0) {
+    // Check for mid-execution cancellation on every node.
+    // One lightweight DB query per node is negligible vs node execution
+    // time, and lets cancel take effect immediately.
+    if (isRealRun && fired.size > 0) {
       try {
         if (await isRunCancelled(runId)) {
           return {
