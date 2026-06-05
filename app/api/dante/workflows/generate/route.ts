@@ -14,7 +14,7 @@ import { generateWorkflow } from "@/lib/dante/workflow-ai";
 import { requireActiveBilling } from "@/lib/billing/gate";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 export async function POST(request: Request) {
   const supabase = await createServerSupabase();

@@ -31,7 +31,7 @@ import { remember } from "@/lib/dante/memory/write";
 import { complete as llmComplete } from "@/lib/llm/client";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 const ROLLUP_LOOKBACK_DAYS = 7;
 const MIN_EPISODES = 3;

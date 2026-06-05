@@ -23,7 +23,7 @@ import { runNoticerAgent } from "@/lib/dante/noticed/agent";
 import type { Industry } from "@/lib/industry/config";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 interface WorkspaceRow {
   id: string;

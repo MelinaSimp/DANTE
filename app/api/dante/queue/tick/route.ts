@@ -22,11 +22,11 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { claimQueuedRun, executeClaimedRun, notifyRunFailure } from "@/lib/dante/run-executor";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
-// Don't try to drain more than this in one tick — keep us under the
-// Hobby plan's 60s route budget even if each run takes 10s.
-const BATCH_LIMIT = 4;
+// Drain up to 10 runs per tick — Vercel Pro gives us 300s, so even
+// runs averaging 20-25s each fit comfortably.
+const BATCH_LIMIT = 10;
 
 async function handle(request: Request) {
   // Header-only cron auth. The `?key=` fallback was removed because

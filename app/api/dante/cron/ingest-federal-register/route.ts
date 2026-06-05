@@ -27,7 +27,7 @@ import { chunkPages } from "@/lib/dante/archive/chunk";
 import { embedTexts, toPgVector } from "@/lib/dante/archive/embed";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 const API_BASE = "https://www.federalregister.gov/api/v1/articles";
 const PER_AGENCY = 10; // Pull this many recent articles per agency per run.
@@ -227,7 +227,7 @@ async function handle(request: Request) {
     totals: { fetched: 0, inserted: 0, skipped_duplicate: 0 },
   };
 
-  // Sequential per-agency to keep us well under the 60s maxDuration
+  // Sequential per-agency to keep us well under the 120s maxDuration
   // cap and to be polite to the Federal Register API.
   for (const ag of AGENCIES) {
     const result = await ingestAgency(ag);

@@ -4,12 +4,12 @@
 //
 // Two modes:
 //   • mode: "sync" (default, back-compat) — executes inline and returns
-//     the full log + output. Capped by the 60s route budget.
+//     the full log + output. Capped by the 300s Pro route budget.
 //   • mode: "queue" — inserts a queued row, fires a best-effort kick
 //     to /api/dante/queue/tick so a worker starts immediately, and
 //     returns { run_id, status: "queued" }. The caller polls the run
-//     detail endpoint. Required for workflows that legitimately take
-//     longer than 60s.
+//     detail endpoint. Better for very long workflows (>60s) since
+//     the UI can show intermediate state.
 //
 // The editor's Run button uses "queue" so it can poll and render
 // intermediate state; external callers default to "sync" to keep
@@ -25,7 +25,7 @@ import { requireActiveBilling } from "@/lib/billing/gate";
 import { logAuditEvent } from "@/lib/audit/log";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60; // Vercel hobby limit
+export const maxDuration = 300; // Vercel Pro
 
 export async function POST(
   request: Request,

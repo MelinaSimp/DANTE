@@ -26,7 +26,7 @@ import {
 } from "@/lib/dante/regulatory/brief";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 const MAX_WORKSPACES_PER_RUN = 25;
 const ACTIVE_WORKSPACE_DAYS = 14;

@@ -13,9 +13,8 @@
 //     Vercel Cron / cron-job.org config so nobody can stampede.
 //   • Per-workflow de-dupe: if `last_run_at` is within the last 50s we
 //     skip, so a double-hit inside the same minute can't fire twice.
-//   • Each workflow runs sequentially here — the Hobby plan caps route
-//     execution at 60s so don't wire up anything slow. A phase-3 upgrade
-//     is to enqueue rather than run inline.
+//   • Each workflow runs sequentially here — the Pro plan gives 300s
+//     route budget. Large batches still enqueue via the queue worker.
 //
 // Add to vercel.json:
 //   { "crons": [{ "path": "/api/dante/cron/tick", "schedule": "* * * * *" }] }
@@ -26,7 +25,7 @@ import { definitionFromRow, type WorkflowGraph, type GraphNode } from "@/lib/dan
 import { enqueueRun, claimQueuedRun, executeClaimedRun, kickQueueWorker } from "@/lib/dante/run-executor";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 // ── Cron field matcher ────────────────────────────────────────
 // Handles: *, */n, a, a-b, a-b/n, and comma lists of any of the above.

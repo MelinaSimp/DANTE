@@ -22,7 +22,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { enqueueRun, kickQueueWorker } from "@/lib/dante/run-executor";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 export async function POST(
   request: Request,
