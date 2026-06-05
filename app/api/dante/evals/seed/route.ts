@@ -1,13 +1,14 @@
 // POST /api/dante/evals/seed — seed built-in eval suites for the workspace.
 //
-// Creates the lease abstraction eval suite with 5 test cases. Idempotent
-// — skips if the suite already exists in the workspace.
+// Creates the lease abstraction and deal underwriting eval suites.
+// Idempotent — skips suites that already exist in the workspace.
 
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { isOwner } from "@/lib/rbac";
 import { LEASE_ABSTRACTION_SUITE } from "@/lib/dante/eval/lease-abstraction-suite";
+import { DEAL_UNDERWRITING_SUITE } from "@/lib/dante/eval/deal-underwriting-suite";
 
 export const dynamic = "force-dynamic";
 
@@ -32,63 +33,71 @@ export async function POST() {
 
   const workspaceId = profile.workspace_id;
 
-  // Check if already seeded
-  const { count } = await supabaseAdmin
-    .from("dante_eval_suites")
-    .select("id", { count: "exact", head: true })
-    .eq("workspace_id", workspaceId)
-    .eq("name", LEASE_ABSTRACTION_SUITE.name);
+  const BUILTIN_SUITES = [LEASE_ABSTRACTION_SUITE, DEAL_UNDERWRITING_SUITE];
+  const results: { name: string; status: string; suite_id?: string; case_count?: number }[] = [];
 
-  if (count && count > 0) {
-    return NextResponse.json({ status: "already_seeded" });
-  }
+  for (const suiteDef of BUILTIN_SUITES) {
+    // Check if already seeded
+    const { count } = await supabaseAdmin
+      .from("dante_eval_suites")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspaceId)
+      .eq("name", suiteDef.name);
 
-  // Create suite
-  const { data: suite, error: suiteErr } = await supabaseAdmin
-    .from("dante_eval_suites")
-    .insert({
-      workspace_id: workspaceId,
-      name: LEASE_ABSTRACTION_SUITE.name,
-      description: LEASE_ABSTRACTION_SUITE.description,
-      eval_type: LEASE_ABSTRACTION_SUITE.eval_type,
-      tags: LEASE_ABSTRACTION_SUITE.tags,
-      created_by: user.id,
-    })
-    .select("id")
-    .single();
+    if (count && count > 0) {
+      results.push({ name: suiteDef.name, status: "already_exists" });
+      continue;
+    }
 
-  if (suiteErr || !suite) {
-    return NextResponse.json(
-      { error: suiteErr?.message || "Failed to create suite" },
-      { status: 500 },
-    );
-  }
+    // Create suite
+    const { data: suite, error: suiteErr } = await supabaseAdmin
+      .from("dante_eval_suites")
+      .insert({
+        workspace_id: workspaceId,
+        name: suiteDef.name,
+        description: suiteDef.description,
+        eval_type: suiteDef.eval_type,
+        tags: suiteDef.tags,
+        created_by: user.id,
+      })
+      .select("id")
+      .single();
 
-  // Insert cases
-  const caseRows = LEASE_ABSTRACTION_SUITE.cases.map((c) => ({
-    suite_id: suite.id,
-    name: c.name,
-    input: c.input,
-    expected: c.expected || null,
-    assertions: c.assertions,
-    weight: c.weight,
-    tags: [],
-  }));
+    if (suiteErr || !suite) {
+      results.push({ name: suiteDef.name, status: "error" });
+      continue;
+    }
 
-  const { error: casesErr } = await supabaseAdmin
-    .from("dante_eval_cases")
-    .insert(caseRows);
+    // Insert cases
+    const caseRows = suiteDef.cases.map((c) => ({
+      suite_id: suite.id,
+      name: c.name,
+      input: c.input,
+      expected: (c as { expected?: unknown }).expected || null,
+      assertions: c.assertions,
+      weight: c.weight,
+      tags: [],
+    }));
 
-  if (casesErr) {
-    return NextResponse.json(
-      { error: casesErr.message },
-      { status: 500 },
-    );
+    const { error: casesErr } = await supabaseAdmin
+      .from("dante_eval_cases")
+      .insert(caseRows);
+
+    if (casesErr) {
+      results.push({ name: suiteDef.name, status: "error" });
+      continue;
+    }
+
+    results.push({
+      name: suiteDef.name,
+      status: "seeded",
+      suite_id: suite.id,
+      case_count: caseRows.length,
+    });
   }
 
   return NextResponse.json({
-    status: "seeded",
-    suite_id: suite.id,
-    case_count: caseRows.length,
+    status: results.every((r) => r.status === "already_exists") ? "already_seeded" : "seeded",
+    suites: results,
   });
 }

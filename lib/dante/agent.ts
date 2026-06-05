@@ -1027,8 +1027,12 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
         "underwriting, deal screening, and investment analysis.\n\n" +
         "Available metrics: noi, cap_rate, cash_on_cash, dscr, grm, price_per_sf, " +
         "rent_per_sf, ltv, debt_yield, opex_ratio, break_even_occupancy, debt_service, " +
-        "equity_multiple, irr.\n\n" +
-        "You can request multiple metrics in one call (e.g. [\"noi\", \"cap_rate\", \"dscr\"]) " +
+        "equity_multiple, irr, deal_score.\n\n" +
+        "deal_score computes a composite 0-100 score across 7 dimensions (cap rate vs " +
+        "target, DSCR, cash-on-cash, LTV, break-even occupancy, debt yield, OpEx ratio) " +
+        "with A-F grades. Provide as many inputs as available -- it redistributes weights " +
+        "across available dimensions. Optional: target_cap_rate (default 0.07).\n\n" +
+        "You can request multiple metrics in one call (e.g. [\"noi\", \"cap_rate\", \"deal_score\"]) " +
         "and they all compute against the same inputs. For IRR, pass cash flows as " +
         "cash_flow_0 (negative initial investment), cash_flow_1, cash_flow_2, etc.\n\n" +
         "Common input keys: gross_potential_rent, vacancy_rate, other_income, " +
@@ -1044,7 +1048,7 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
             description:
               "Which metrics to compute. One or more of: noi, cap_rate, cash_on_cash, " +
               "dscr, grm, price_per_sf, rent_per_sf, ltv, debt_yield, opex_ratio, " +
-              "break_even_occupancy, debt_service, equity_multiple, irr.",
+              "break_even_occupancy, debt_service, equity_multiple, irr, deal_score.",
           },
           inputs: {
             type: "object",
