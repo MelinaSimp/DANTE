@@ -49,7 +49,7 @@ const CAPABILITIES = [
   {
     icon: MapPin,
     title: "Parcel analytics",
-    body: "39-state GIS coverage for parcel-level zoning, assessed value, ownership, tax, and acreage. Void analysis finds gaps in a trade area.",
+    body: "45-state GIS coverage for parcel-level zoning, assessed value, ownership, tax, and acreage. Void analysis finds gaps in a trade area.",
     bullets: [
       "Zoning class, land use, and overlay districts",
       "Assessed and market value lookups",
@@ -104,7 +104,7 @@ const TIERS = [
       "Vault document storage and search",
       "Contact and property CRM",
       "Basic workflow automations",
-      "39-state parcel lookups",
+      "45-state parcel lookups",
       "Email and chat support",
       "1 seat included",
     ],
@@ -301,7 +301,7 @@ export default function FeaturesPage() {
       <div className="max-w-6xl mx-auto px-6 py-16">
         <p className="label-section text-[var(--ink-subtle)] text-center">Coverage</p>
         <h2 className="heading-display text-3xl md:text-4xl mt-3 text-center">
-          39-state parcel data
+          45-state parcel data
         </h2>
         <p className="mt-4 text-sm text-[var(--ink-muted)] text-center max-w-xl mx-auto">
           GIS-level parcel data for zoning, assessed value, ownership, and tax lookups.
@@ -310,10 +310,11 @@ export default function FeaturesPage() {
         <div className="card-flat p-6 mt-8">
           <div className="flex flex-wrap gap-2 justify-center">
             {[
-              "AL", "AR", "AZ", "CA", "CO", "CT", "FL", "GA", "IA", "IL",
-              "IN", "KS", "KY", "LA", "MA", "MD", "MI", "MN", "MO", "MS",
-              "MT", "NC", "NE", "NH", "NJ", "NM", "NV", "NY", "OH", "OK",
-              "OR", "PA", "SC", "TN", "TX", "UT", "VA", "WA", "WI",
+              "AL", "AR", "AZ", "CA", "CO", "CT", "DE", "FL", "GA", "ID",
+              "IA", "IL", "IN", "KS", "KY", "LA", "MA", "MD", "MI", "MN",
+              "MO", "MS", "MT", "NC", "ND", "NE", "NH", "NJ", "NM", "NV",
+              "NY", "OH", "OK", "OR", "PA", "SC", "TN", "TX", "UT", "VA",
+              "VT", "WA", "WI", "WV", "WY",
             ].map((st) => (
               <span
                 key={st}

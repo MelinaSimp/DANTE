@@ -18,8 +18,10 @@ const COVERAGE: {
   { state: "California", abbr: "CA", level: "statewide" },
   { state: "Colorado", abbr: "CO", level: "statewide" },
   { state: "Connecticut", abbr: "CT", level: "statewide" },
+  { state: "Delaware", abbr: "DE", level: "statewide" },
   { state: "Florida", abbr: "FL", level: "statewide" },
   { state: "Georgia", abbr: "GA", level: "statewide" },
+  { state: "Idaho", abbr: "ID", level: "statewide" },
   { state: "Illinois", abbr: "IL", level: "statewide" },
   { state: "Indiana", abbr: "IN", level: "statewide" },
   { state: "Iowa", abbr: "IA", level: "statewide" },
@@ -40,6 +42,7 @@ const COVERAGE: {
   { state: "New Mexico", abbr: "NM", level: "statewide" },
   { state: "New York", abbr: "NY", level: "statewide" },
   { state: "North Carolina", abbr: "NC", level: "statewide" },
+  { state: "North Dakota", abbr: "ND", level: "statewide" },
   { state: "Ohio", abbr: "OH", level: "statewide" },
   { state: "Oklahoma", abbr: "OK", level: "statewide" },
   { state: "Oregon", abbr: "OR", level: "statewide" },
@@ -48,9 +51,12 @@ const COVERAGE: {
   { state: "Tennessee", abbr: "TN", level: "statewide" },
   { state: "Texas", abbr: "TX", level: "statewide" },
   { state: "Utah", abbr: "UT", level: "statewide" },
+  { state: "Vermont", abbr: "VT", level: "statewide" },
   { state: "Virginia", abbr: "VA", level: "statewide" },
   { state: "Washington", abbr: "WA", level: "statewide" },
+  { state: "West Virginia", abbr: "WV", level: "statewide" },
   { state: "Wisconsin", abbr: "WI", level: "statewide" },
+  { state: "Wyoming", abbr: "WY", level: "statewide" },
 ];
 
 const STATEWIDE_COUNT = COVERAGE.filter((c) => c.level === "statewide").length;

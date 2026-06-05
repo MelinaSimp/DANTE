@@ -3,11 +3,11 @@
 // pick the most specific adapter available.
 //
 // Coverage (as of 2026-06):
-//   Statewide: AL, AR, AZ, CA, CO, CT, FL, GA, IA,  (40 states)
-//              IL, IN, KS, KY, LA, MA, MD, MI, MN,
-//              MO, MS, MT, NC, NE, NH, NJ, NM, NV,
-//              NY, OH, OK, OR, PA, SC, TN, TX, UT,
-//              VA, WA, WI
+//   Statewide: AL, AR, AZ, CA, CO, CT, DE, FL, GA,  (45 states)
+//              IA, ID, IL, IN, KS, KY, LA, MA, MD,
+//              MI, MN, MO, MS, MT, NC, ND, NE, NH,
+//              NJ, NM, NV, NY, OH, OK, OR, PA, SC,
+//              TN, TX, UT, VA, VT, WA, WI, WV, WY
 //   County:    Cuyahoga OH, Allegheny PA, Westmoreland PA,
 //              Butler PA, Beaver PA, El Paso CO       (6 counties)
 //
@@ -59,6 +59,12 @@ import { STATEWIDE_OK } from "./configs/oklahoma";
 import { STATEWIDE_AL } from "./configs/alabama";
 import { STATEWIDE_MS } from "./configs/mississippi";
 import { STATEWIDE_NM } from "./configs/new-mexico";
+import { STATEWIDE_ID } from "./configs/idaho";
+import { STATEWIDE_VT } from "./configs/vermont";
+import { STATEWIDE_WY } from "./configs/wyoming";
+import { STATEWIDE_WV } from "./configs/west-virginia";
+import { STATEWIDE_DE } from "./configs/delaware";
+import { STATEWIDE_ND } from "./configs/north-dakota";
 import { ELPASO_CO } from "./configs/colorado-springs";
 import type { CountyAdapter, CountyAdapterConfig } from "./types";
 
@@ -111,6 +117,12 @@ const STATEWIDE_CONFIGS: Record<string, CountyAdapterConfig> = {
   AL: STATEWIDE_AL,
   MS: STATEWIDE_MS,
   NM: STATEWIDE_NM,
+  ID: STATEWIDE_ID,
+  VT: STATEWIDE_VT,
+  WY: STATEWIDE_WY,
+  WV: STATEWIDE_WV,
+  DE: STATEWIDE_DE,
+  ND: STATEWIDE_ND,
 };
 
 /** All states with at least statewide or county-level coverage. */
