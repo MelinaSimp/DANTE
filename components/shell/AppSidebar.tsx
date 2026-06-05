@@ -6,25 +6,18 @@ import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import {
   PanelLeft,
-  Users,
-  Calendar as CalendarIcon,
-  Mail,
   Mic,
   FolderClosed,
-  BookOpen,
-  Bell,
-  Home,
-  Table2,
   Settings,
   LogOut,
   ShieldCheck,
   LayoutDashboard,
   ScrollText,
-  FolderSync,
   ChevronDown,
   ChevronsUpDown,
   User,
   Workflow,
+  MapPin,
   X,
 } from "lucide-react";
 import { getIndustryConfig } from "@/lib/industry/config";
@@ -91,6 +84,11 @@ export default function AppSidebar({
 
   const assistantConfig = getIndustryConfig(industry);
 
+  // Collapsed nav — 8 core entries. CRM-era destinations (Clients,
+  // Calendar, Email, Reminders, Library, Watched Folders, Properties,
+  // Review Tables, Audit) are removed; those routes now 301 to
+  // /dashboard. The product surface is: Dashboard, Dante (AI), Workflows,
+  // Lease Abstractor, Vault, Voice, Site Scan, Settings.
   const sections: { label?: string; items: NavItem[] }[] = [
     {
       items: [
@@ -98,30 +96,17 @@ export default function AppSidebar({
       ],
     },
     {
-      label: "Workspace",
       items: [
-        { href: "/client-details-overview", label: "Clients", icon: Users },
-        { href: "/calendar", label: "Calendar", icon: CalendarIcon },
-        { href: "/inbox", label: "Email", icon: Mail },
-        { href: "/reminders", label: "Reminders", icon: Bell },
-      ],
-    },
-    {
-      label: "Documents",
-      items: [
+        { href: "/workflows", label: "Workflows", icon: Workflow },
+        { href: "/lease-abstractor", label: "Lease Abstractor", icon: ScrollText },
         { href: "/vault", label: "Vault", icon: FolderClosed },
-        { href: "/watched-folders", label: "Watched Folders", icon: FolderSync },
-        { href: "/library", label: "Library", icon: BookOpen },
+        { href: "/agent", label: "Voice", icon: Mic },
+        { href: "/site-scan", label: "Site Scan", icon: MapPin },
       ],
     },
     {
-      label: "Tools",
       items: [
-        { href: "/agent", label: "Agent", icon: Mic },
-        { href: "/workflows", label: "Workflows", icon: Workflow, feature: "dante" },
-        { href: "/properties", label: "Properties", icon: Home, industry: "real_estate" },
-        { href: "/review-tables", label: "Review tables", icon: Table2 },
-        { href: "/audit", label: "Audit log", icon: ScrollText },
+        { href: "/settings", label: "Settings", icon: Settings },
       ],
     },
   ];

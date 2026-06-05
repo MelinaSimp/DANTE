@@ -98,7 +98,7 @@ export async function middleware(req: NextRequest) {
   // redirect target already does. /gigaai has no page.tsx; its
   // components are imported by /app backend panels but the URL itself
   // 404s, so no auth gate needed.
-  const protectedRoutes = ["/app", "/admin", "/frontend", "/home", "/select", "/superadmin", "/schedule", "/client-details-overview", "/dashboard", "/settings", "/contacts", "/appointments"];
+  const protectedRoutes = ["/app", "/admin", "/frontend", "/home", "/select", "/superadmin", "/dashboard", "/settings", "/dante", "/workflows", "/lease-abstractor", "/vault", "/agent", "/site-scan"];
   const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
 
   // Check authentication for protected routes.

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide explains how chat systems are handled in the Drift CRM application, covering architecture, implementation, and best practices.
+This guide explains how chat systems are handled in the Drift AI application, covering architecture, implementation, and best practices.
 
 ## Current Architecture
 

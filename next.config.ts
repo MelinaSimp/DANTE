@@ -25,6 +25,23 @@ const nextConfig: NextConfig = {
       destination: "/api/dante/:path*",
       permanent: false, // 307 — preserve method
     },
+
+    // Phase 1 surface reduction — CRM-era routes removed from nav.
+    // 301 redirects keep bookmarks and Electron deep-links alive.
+    { source: "/client-details-overview", destination: "/dashboard", permanent: true },
+    { source: "/contacts", destination: "/dashboard", permanent: true },
+    { source: "/calendar", destination: "/dashboard", permanent: true },
+    { source: "/appointments", destination: "/dashboard", permanent: true },
+    { source: "/schedule", destination: "/dashboard", permanent: true },
+    { source: "/inbox", destination: "/dashboard", permanent: true },
+    { source: "/email", destination: "/dashboard", permanent: true },
+    { source: "/reminders", destination: "/dashboard", permanent: true },
+    { source: "/properties", destination: "/dashboard", permanent: true },
+    { source: "/review-tables", destination: "/dashboard", permanent: true },
+    { source: "/audit", destination: "/dashboard", permanent: true },
+    { source: "/library", destination: "/dashboard", permanent: true },
+    { source: "/watched-folders", destination: "/dashboard", permanent: true },
+    { source: "/fiduciary-bench", destination: "/dashboard", permanent: true },
   ],
   headers: async () => [
     {

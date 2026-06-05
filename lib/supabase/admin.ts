@@ -14,7 +14,7 @@ if (!serviceRole) throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
 export const supabaseAdmin: SupabaseClient = createClient(url, serviceRole, {
   auth: { persistSession: false, autoRefreshToken: false },
   global: { 
-    headers: { "X-Client-Info": "drift-crm-server" },
+    headers: { "X-Client-Info": "drift-ai-server" },
     fetch: (url, options = {}) => {
       return fetch(url, {
         ...options,
@@ -33,7 +33,7 @@ export function adminClient(timeoutMs = 30_000): SupabaseClient {
   return createClient(url, serviceRole, {
     auth: { persistSession: false, autoRefreshToken: false },
     global: {
-      headers: { "X-Client-Info": "drift-crm-server" },
+      headers: { "X-Client-Info": "drift-ai-server" },
       fetch: (url, options = {}) => {
         return fetch(url, {
           ...options,

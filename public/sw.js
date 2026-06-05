@@ -1,5 +1,5 @@
 // public/sw.js
-const CACHE_NAME = 'drift-crm-v2'; // Increment version to clear old cache
+const CACHE_NAME = 'drift-ai-v3'; // Increment version to clear old cache
 const urlsToCache = [
   '/manifest.json',
   '/brand/logo-circle.png',
