@@ -57,6 +57,9 @@ interface AbstractSummary {
   id: string;
   vault_item_id: string;
   status: "pending" | "processing" | "completed" | "failed";
+  tenant_name?: string | null;
+  expiration_date?: string | null;
+  property_id?: string | null;
   extraction_seconds: number | null;
   created_at: string;
 }
@@ -68,6 +71,12 @@ interface AbstractDetail extends AbstractSummary {
   model: string;
   input_tokens: number;
   output_tokens: number;
+}
+
+interface PropertyOption {
+  id: string;
+  name: string;
+  address?: string;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -150,15 +159,18 @@ export default function LeaseAbstractorClient() {
   const [showCustomize, setShowCustomize] = useState(false);
   const [refinePrompt, setRefinePrompt] = useState(false);
   const [webSearch, setWebSearch] = useState(false);
+  const [properties, setProperties] = useState<PropertyOption[]>([]);
+  const [linkingProperty, setLinkingProperty] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [itemsRes, abstractsRes] = await Promise.all([
+      const [itemsRes, abstractsRes, propsRes] = await Promise.all([
         fetch("/api/vault?kind=document", { credentials: "include" }),
         fetch("/api/lease-abstractor", { credentials: "include" }),
+        fetch("/api/properties", { credentials: "include" }).catch(() => null),
       ]);
       if (!itemsRes.ok) throw new Error("Failed to load vault items");
       const items = await itemsRes.json();
@@ -167,6 +179,15 @@ export default function LeaseAbstractorClient() {
         setAbstracts(await abstractsRes.json());
       } else {
         setAbstracts([]);
+      }
+      if (propsRes?.ok) {
+        const propsData = await propsRes.json();
+        const rawProps = Array.isArray(propsData) ? propsData : propsData.properties || [];
+        setProperties(rawProps.map((p: Record<string, unknown>) => ({
+          id: p.id as string,
+          name: [p.address_line1, p.city, p.state].filter(Boolean).join(", ") || String(p.id).slice(0, 8),
+          address: p.address_line1 as string | undefined,
+        })));
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
@@ -328,6 +349,26 @@ export default function LeaseAbstractorClient() {
   const cancelEdit = () => {
     setEditingField(null);
     setEditValue("");
+  };
+
+  const linkProperty = async (propertyId: string | null) => {
+    if (!selectedAbstract) return;
+    setLinkingProperty(true);
+    try {
+      const res = await fetch("/api/lease-abstractor", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ id: selectedAbstract.id, property_id: propertyId }),
+      });
+      if (res.ok) {
+        setSelectedAbstract({ ...selectedAbstract, property_id: propertyId });
+      }
+    } catch {
+      // Silent fail
+    } finally {
+      setLinkingProperty(false);
+    }
   };
 
   const toggleCategory = (cat: string) => {
@@ -835,6 +876,36 @@ export default function LeaseAbstractorClient() {
                               </div>
                             ))}
                         </div>
+
+                        {/* Property linking */}
+                        {properties.length > 0 && (
+                          <div className="rounded-lg border border-[var(--rule)] p-3 bg-[var(--canvas-subtle,rgba(0,0,0,0.015))]">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] uppercase tracking-wider font-medium text-[var(--ink-subtle)]">
+                                Linked Property
+                              </span>
+                              {linkingProperty && <Loader2 className="w-3 h-3 animate-spin text-[var(--ink-subtle)]" />}
+                            </div>
+                            <select
+                              value={selectedAbstract.property_id || ""}
+                              onChange={(e) => linkProperty(e.target.value || null)}
+                              disabled={linkingProperty}
+                              className="mt-1.5 w-full rounded-[var(--r-input)] border border-[var(--rule)] bg-[var(--canvas)] px-2.5 py-1.5 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)] disabled:opacity-50"
+                            >
+                              <option value="">-- Not linked --</option>
+                              {properties.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.name || p.address || p.id.slice(0, 8)}
+                                </option>
+                              ))}
+                            </select>
+                            {selectedAbstract.property_id && (
+                              <div className="mt-1 text-[10px] text-[var(--ink-subtle)]">
+                                Lease expiry notifications will use this property link.
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
