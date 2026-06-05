@@ -4053,6 +4053,33 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
     output = { text: finalText };
   }
 
+  // ── Completion rate instrumentation ────────────────────────
+  // Track every agent run (completed, truncated, errored) so we
+  // can surface success rates on the ops dashboard. Writes are
+  // fire-and-forget — they must never block the response.
+  const durationMs = Date.now() - _agentT0;
+  const completionStatus = truncated ? "truncated" : "completed";
+  try {
+    const { supabaseAdmin: adminClient } = await import("@/lib/supabase/admin");
+    adminClient.from("dante_workflow_run_checkpoints").insert({
+      run_id: input.runId || `agent_${Date.now().toString(36)}`,
+      node_id: `agent:${input.step.id}`,
+      node_type: "agent",
+      output: {
+        status: completionStatus,
+        steps_taken: stepIdx,
+        duration_ms: durationMs,
+        model,
+        tools_used: stepIdx,
+        truncated,
+      },
+      status: "success",
+    }).then(() => {}, () => {});
+  } catch {
+    // Best-effort — never fail on instrumentation
+  }
+  console.log(`[agent] ${completionStatus} in ${durationMs}ms, ${stepIdx} steps, model=${model}`);
+
   return {
     text: finalText,
     output,
