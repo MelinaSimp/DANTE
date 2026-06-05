@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { Gauge, Loader2, AlertTriangle, Save, X, Check } from "lucide-react";
+import { Gauge, Loader2, AlertTriangle, Save, X, Check, Download } from "lucide-react";
 import { reportError } from "@/lib/report-error";
 
 interface UsageSummary {
@@ -153,6 +153,29 @@ export default function AdminUsagePage() {
     );
   }
 
+  const exportCsv = () => {
+    if (!rows) return;
+    const headers = ["Workspace","Plan","LLM Tokens","Emails","SMS","Voice Min","Cost ($)","Overage ($)"];
+    const csvRows = rows.map((r) => [
+      r.usage.workspace_name,
+      r.quota.plan_name,
+      r.usage.llm_tokens,
+      r.usage.emails_sent,
+      r.usage.sms_sent,
+      r.usage.voice_minutes,
+      (r.usage.total_cost_cents / 100).toFixed(2),
+      (r.overage.overage_cents / 100).toFixed(2),
+    ].join(","));
+    const csv = [headers.join(","), ...csvRows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `drift-usage-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (!rows) {
     return <div className="p-8 text-[var(--ink-muted)]">Failed to load usage data.</div>;
   }
@@ -164,7 +187,14 @@ export default function AdminUsagePage() {
           <div className="border border-[var(--rule)] bg-[var(--canvas)] rounded-[4px] p-2">
             <Gauge className="h-5 w-5 text-[var(--ink)]" strokeWidth={1.5} />
           </div>
-          <h1 className="heading-display text-4xl text-[var(--ink)]">Usage &amp; billing meters</h1>
+          <h1 className="heading-display text-4xl text-[var(--ink)] flex-1">Usage &amp; billing meters</h1>
+          <button
+            onClick={exportCsv}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded border border-[var(--rule)] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:border-[var(--accent)] transition"
+          >
+            <Download className="w-3.5 h-3.5" strokeWidth={1.5} />
+            Export CSV
+          </button>
         </div>
         <p className="text-sm text-[var(--ink-muted)] ml-[52px]">
           Per-workspace usage for the current calendar month.
