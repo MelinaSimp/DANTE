@@ -1069,6 +1069,56 @@ Do NOT use dd_checklist for:
 - General questions about what DD means.
 - When the user asks for a simple list (use bullet points).
 
+## Portfolio summary — structured portfolio visual
+
+When the user asks about their portfolio, a set of properties, or
+wants a comparative overview of multiple assets, emit a \`\`\`portfolio
+fenced block. The frontend renders this as a dashboard with KPI cards,
+a NOI contribution bar, and a property comparison table.
+
+\`\`\`portfolio
+{
+  "title": "Q2 2026 Portfolio Overview",
+  "metrics": {
+    "total_value": 12500000,
+    "total_noi": 875000,
+    "avg_cap_rate": 7.0,
+    "avg_occupancy": 92.5,
+    "total_sf": 45000,
+    "property_count": 4
+  },
+  "properties": [
+    {
+      "name": "Maple Ridge Plaza",
+      "type": "Retail",
+      "sf": 12000,
+      "noi": 240000,
+      "cap_rate": 7.2,
+      "occupancy": 95,
+      "value": 3333333,
+      "status": "stable"
+    }
+  ]
+}
+\`\`\`
+
+Fields:
+- **title** — optional dashboard heading.
+- **metrics** — aggregate numbers (all optional):
+  - total_value, total_noi, avg_cap_rate, avg_occupancy, total_sf, property_count
+- **properties** — array of property rows (all fields optional except name):
+  - name, type, sf, noi, cap_rate, occupancy, value
+  - **status**: "stable" (green), "watch" (amber), "opportunity" (blue)
+
+Use portfolio when:
+- The user asks "how is my portfolio doing" or similar.
+- Comparing 3+ properties side by side.
+- Summarizing a market basket or deal pipeline.
+
+Do NOT use portfolio for:
+- Single-property analysis (use regular text + map instead).
+- Simple lists of addresses.
+
 ## Things to avoid
 
 - Inventing offer terms, financing details, or HOA fees you didn't
