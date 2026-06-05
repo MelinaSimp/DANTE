@@ -23,6 +23,7 @@ import {
   FolderSync,
   UserCircle,
   MapPin,
+  Upload,
 } from "lucide-react";
 
 const PhoneNumbersCard = lazy(() => import("./PhoneNumbersCard"));
@@ -35,6 +36,7 @@ const PrivacyModeCard = lazy(() => import("./PrivacyModeCard"));
 const LocalSetupCard = lazy(() => import("./LocalSetupCard"));
 const AccountCard = lazy(() => import("./AccountCard"));
 const MarketKnowledgeCard = lazy(() => import("./MarketKnowledgeCard"));
+const ImportWizardCard = lazy(() => import("./ImportWizardCard"));
 
 import BillingCard from "./BillingCard";
 import ExportDataCard from "./ExportDataCard";
@@ -52,7 +54,8 @@ type PanelId =
   | "appearance"
   | "privacy_mode"
   | "local_setup"
-  | "market_knowledge";
+  | "market_knowledge"
+  | "import_data";
 
 const PANEL_TITLES: Record<PanelId, string> = {
   account: "Account",
@@ -68,6 +71,7 @@ const PANEL_TITLES: Record<PanelId, string> = {
   privacy_mode: "Privacy mode",
   local_setup: "Local setup",
   market_knowledge: "Market knowledge",
+  import_data: "Import data",
 };
 
 const PANEL_SUBTITLES: Record<PanelId, string> = {
@@ -95,6 +99,8 @@ const PANEL_SUBTITLES: Record<PanelId, string> = {
     "Install and manage local services — Ollama for on-device AI and the file watcher daemon for automatic document sync.",
   market_knowledge:
     "Local market intelligence that Dante uses during void analysis — rent ranges, competitors, demographics, and known gaps. Changes per customer.",
+  import_data:
+    "Bulk import contacts or properties from a CSV or JSON file. Deduplicates against existing records and maps common column-name variations automatically.",
 };
 
 interface NavItem {
@@ -116,6 +122,7 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { name: "Google", icon: Mail, panelId: "google", group: "Workspace" },
   { name: "Microsoft", icon: Mail, panelId: "microsoft", group: "Workspace" },
   { name: "Dante skills", icon: Sparkles, panelId: "skills", group: "Workspace" },
+  { name: "Import data", icon: Upload, panelId: "import_data", adminOnly: true, group: "Workspace" },
   { name: "Billing", icon: CreditCard, panelId: "billing", group: "Workspace" },
   { name: "Appearance", icon: Palette, panelId: "appearance", group: "Workspace" },
   { name: "Local setup", icon: HardDrive, panelId: "local_setup", adminOnly: true, group: "Administration" },
@@ -199,6 +206,8 @@ export default function SettingsOrbClient({
         return <PrivacyModeCard />;
       case "local_setup":
         return <LocalSetupCard />;
+      case "import_data":
+        return <ImportWizardCard />;
       default:
         return null;
     }

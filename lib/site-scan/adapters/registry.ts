@@ -3,8 +3,10 @@
 // pick the most specific adapter available.
 //
 // Coverage (as of 2026-06):
-//   Statewide: OH, CO, WI, MT, NY, AR, TX, FL, GA,  (14 states)
-//              NC, VA, TN, AZ, IL
+//   Statewide: OH, CO, WI, MT, NY, AR, TX, FL, GA,  (30 states)
+//              NC, VA, TN, AZ, IL, CA, NJ, MA, MD,
+//              WA, OR, MN, MO, IN, MI, SC, LA, NV,
+//              CT, UT, KY
 //   County:    Cuyahoga OH, Allegheny PA, Westmoreland PA,
 //              Butler PA, Beaver PA                   (5 counties)
 //
@@ -31,6 +33,22 @@ import { STATEWIDE_VA } from "./configs/virginia";
 import { STATEWIDE_TN } from "./configs/tennessee";
 import { STATEWIDE_AZ } from "./configs/arizona";
 import { STATEWIDE_IL } from "./configs/illinois";
+import { STATEWIDE_CA } from "./configs/california";
+import { STATEWIDE_NJ } from "./configs/new-jersey";
+import { STATEWIDE_MA } from "./configs/massachusetts";
+import { STATEWIDE_MD } from "./configs/maryland";
+import { STATEWIDE_WA } from "./configs/washington";
+import { STATEWIDE_OR } from "./configs/oregon";
+import { STATEWIDE_MN } from "./configs/minnesota";
+import { STATEWIDE_MO } from "./configs/missouri";
+import { STATEWIDE_IN } from "./configs/indiana";
+import { STATEWIDE_MI } from "./configs/michigan";
+import { STATEWIDE_SC } from "./configs/south-carolina";
+import { STATEWIDE_LA } from "./configs/louisiana";
+import { STATEWIDE_NV } from "./configs/nevada";
+import { STATEWIDE_CT } from "./configs/connecticut";
+import { STATEWIDE_UT } from "./configs/utah";
+import { STATEWIDE_KY } from "./configs/kentucky";
 import type { CountyAdapter, CountyAdapterConfig } from "./types";
 
 const COUNTY_CONFIGS: CountyAdapterConfig[] = [
@@ -56,6 +74,22 @@ const STATEWIDE_CONFIGS: Record<string, CountyAdapterConfig> = {
   TN: STATEWIDE_TN,
   AZ: STATEWIDE_AZ,
   IL: STATEWIDE_IL,
+  CA: STATEWIDE_CA,
+  NJ: STATEWIDE_NJ,
+  MA: STATEWIDE_MA,
+  MD: STATEWIDE_MD,
+  WA: STATEWIDE_WA,
+  OR: STATEWIDE_OR,
+  MN: STATEWIDE_MN,
+  MO: STATEWIDE_MO,
+  IN: STATEWIDE_IN,
+  MI: STATEWIDE_MI,
+  SC: STATEWIDE_SC,
+  LA: STATEWIDE_LA,
+  NV: STATEWIDE_NV,
+  CT: STATEWIDE_CT,
+  UT: STATEWIDE_UT,
+  KY: STATEWIDE_KY,
 };
 
 /** All states with at least statewide or county-level coverage. */

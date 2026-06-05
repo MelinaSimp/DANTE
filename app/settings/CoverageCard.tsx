@@ -12,20 +12,36 @@ const COVERAGE: {
   level: "statewide" | "county";
   counties?: string[];
 }[] = [
-  { state: "Ohio", abbr: "OH", level: "statewide" },
-  { state: "Colorado", abbr: "CO", level: "statewide" },
-  { state: "Wisconsin", abbr: "WI", level: "statewide" },
-  { state: "Montana", abbr: "MT", level: "statewide" },
-  { state: "New York", abbr: "NY", level: "statewide" },
+  { state: "Arizona", abbr: "AZ", level: "statewide" },
   { state: "Arkansas", abbr: "AR", level: "statewide" },
-  { state: "Texas", abbr: "TX", level: "statewide" },
+  { state: "California", abbr: "CA", level: "statewide" },
+  { state: "Colorado", abbr: "CO", level: "statewide" },
+  { state: "Connecticut", abbr: "CT", level: "statewide" },
   { state: "Florida", abbr: "FL", level: "statewide" },
   { state: "Georgia", abbr: "GA", level: "statewide" },
-  { state: "North Carolina", abbr: "NC", level: "statewide" },
-  { state: "Virginia", abbr: "VA", level: "statewide" },
-  { state: "Tennessee", abbr: "TN", level: "statewide" },
-  { state: "Arizona", abbr: "AZ", level: "statewide" },
   { state: "Illinois", abbr: "IL", level: "statewide" },
+  { state: "Indiana", abbr: "IN", level: "statewide" },
+  { state: "Kentucky", abbr: "KY", level: "statewide" },
+  { state: "Louisiana", abbr: "LA", level: "statewide" },
+  { state: "Maryland", abbr: "MD", level: "statewide" },
+  { state: "Massachusetts", abbr: "MA", level: "statewide" },
+  { state: "Michigan", abbr: "MI", level: "statewide" },
+  { state: "Minnesota", abbr: "MN", level: "statewide" },
+  { state: "Missouri", abbr: "MO", level: "statewide" },
+  { state: "Montana", abbr: "MT", level: "statewide" },
+  { state: "Nevada", abbr: "NV", level: "statewide" },
+  { state: "New Jersey", abbr: "NJ", level: "statewide" },
+  { state: "New York", abbr: "NY", level: "statewide" },
+  { state: "North Carolina", abbr: "NC", level: "statewide" },
+  { state: "Ohio", abbr: "OH", level: "statewide" },
+  { state: "Oregon", abbr: "OR", level: "statewide" },
+  { state: "South Carolina", abbr: "SC", level: "statewide" },
+  { state: "Tennessee", abbr: "TN", level: "statewide" },
+  { state: "Texas", abbr: "TX", level: "statewide" },
+  { state: "Utah", abbr: "UT", level: "statewide" },
+  { state: "Virginia", abbr: "VA", level: "statewide" },
+  { state: "Washington", abbr: "WA", level: "statewide" },
+  { state: "Wisconsin", abbr: "WI", level: "statewide" },
   {
     state: "Pennsylvania",
     abbr: "PA",
@@ -58,7 +74,7 @@ export default function CoverageCard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
         {COVERAGE.map((c) => (
           <div
             key={c.abbr}
