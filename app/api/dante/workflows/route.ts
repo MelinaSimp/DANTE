@@ -25,7 +25,7 @@ export async function GET() {
 
   const { data, error } = await supabaseAdmin
     .from("dante_workflows")
-    .select("id, name, description, enabled, trigger, last_run_at, last_run_status, created_at, updated_at, proposal_state, tags")
+    .select("id, name, description, enabled, trigger, last_run_at, last_run_status, created_at, updated_at, proposal_state, tags, n8n_workflow_id")
     .eq("workspace_id", ctx.workspaceId)
     .order("updated_at", { ascending: false });
 

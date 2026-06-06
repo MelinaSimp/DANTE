@@ -191,6 +191,7 @@ export type AgentToolName =
   | "workflow.list"           // list the user's existing workflows
   | "workflow.update"         // edit an existing workflow's config or metadata
   | "workflow.execution_status" // check execution status and per-node traces
+  | "workflow.migrate"        // migrate legacy workflows to n8n engine
   | "secrets.set"             // create or update a workspace secret
   | "secrets.list"            // list workspace secret keys (masked values)
   | "file_index.search"   // search the watched file index by filename/path

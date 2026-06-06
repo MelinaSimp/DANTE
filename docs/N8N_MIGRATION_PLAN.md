@@ -1,8 +1,30 @@
 # Drift Workflow Engine: n8n Backend Migration Plan
 
-**Status**: Approved by advisory board (2026-06-06)
+**Status**: Phase 2 in progress (2026-06-06)
 **Owner**: Drift AI engineering
 **Timeline**: 8 weeks (padded from 6 per board recommendation)
+
+### Progress
+
+- **Phase 0** (Infrastructure): COMPLETE
+  - n8n bridge, types, callback endpoint, database migration, 3 initial custom nodes
+- **Phase 1** (Dante Bridge + Observability): COMPLETE
+  - n8n workflow AI generator, agent tool updates (propose/run/status/update/clone),
+    5 templates converted, per-node execution traces in frontend, API routing,
+    health check endpoint, parallel operation with legacy engine
+- **Phase 2** (Full Migration): IN PROGRESS
+  - [x] All 12 custom CRE nodes complete
+  - [x] Auto-converter (n8n-converter.ts) for legacy templates
+  - [x] Auto-converter integrated into clone_template flow
+  - [x] Migration utility (n8n-migration.ts) with validation gate
+  - [x] Migration API endpoint (POST /api/dante/n8n/migrate)
+  - [x] workflow.migrate agent tool (owner-only, dry-run support)
+  - [x] Frontend migration panel with dry-run/migrate controls
+  - [x] Engine badge (n8n/legacy) on workflow rows
+  - [x] Cron tick skips n8n-migrated workflows (no duplicate scheduling)
+  - [x] Queue tick skips n8n-owned runs
+  - [ ] End-to-end validation with live n8n instance
+  - [ ] Migration reports sent to workspace admins
 
 ---
 

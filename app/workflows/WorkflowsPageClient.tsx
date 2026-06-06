@@ -48,6 +48,27 @@ interface WorkflowRow {
   last_run_status: string | null;
   updated_at: string;
   proposal_state?: string | null;
+  n8n_workflow_id?: string | null;
+}
+
+interface MigrationResultItem {
+  name: string;
+  status: "migrated" | "skipped" | "failed" | "dry_run_failed";
+  n8n_id: string | null;
+  warnings?: string[];
+  error: string | null;
+  nodes?: number;
+  connections?: number;
+  trigger?: string;
+}
+
+interface MigrationReport {
+  total: number;
+  migrated: number;
+  skipped: number;
+  failed: number;
+  dry_run_failed: number;
+  results: MigrationResultItem[];
 }
 
 interface StepLogEntry {
@@ -139,6 +160,20 @@ export default function WorkflowsPageClient({ vaultReady, canManageVault }: Prop
   const [proposalPrompt, setProposalPrompt] = useState<string>("");
   const [materializingId, setMaterializingId] = useState<string | null>(null);
 
+  // Migration state
+  const [migrating, setMigrating] = useState(false);
+  const [migrationReport, setMigrationReport] = useState<MigrationReport | null>(null);
+  const [migrationError, setMigrationError] = useState<string | null>(null);
+
+  const legacyCount = useMemo(
+    () => rows.filter((r) => !r.n8n_workflow_id && r.proposal_state !== "pending").length,
+    [rows],
+  );
+  const n8nCount = useMemo(
+    () => rows.filter((r) => !!r.n8n_workflow_id).length,
+    [rows],
+  );
+
   const grouped = useMemo(() => {
     const map = new Map<WorkflowTemplate["category"], WorkflowTemplate[]>();
     for (const t of WORKFLOW_TEMPLATES) {
@@ -163,6 +198,31 @@ export default function WorkflowsPageClient({ vaultReady, canManageVault }: Prop
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const runMigration = useCallback(async (dryRun: boolean) => {
+    setMigrating(true);
+    setMigrationError(null);
+    setMigrationReport(null);
+    try {
+      const res = await fetch(`/api/dante/n8n/migrate?dry_run=${dryRun}`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `Migration failed (${res.status})`);
+      }
+      const report = await res.json() as MigrationReport;
+      setMigrationReport(report);
+      if (!dryRun) {
+        load();
+      }
+    } catch (e) {
+      setMigrationError(e instanceof Error ? e.message : "Migration failed");
+    } finally {
+      setMigrating(false);
+    }
+  }, [load]);
 
   const loadRunFeed = useCallback(async () => {
     try {
@@ -712,6 +772,13 @@ export default function WorkflowsPageClient({ vaultReady, canManageVault }: Prop
                       <span className="w-1.5 h-1.5 rounded-full bg-[var(--ink-subtle)]" /> Disabled
                     </span>
                   )}
+                  <span className={`inline-flex items-center gap-1 text-[10px] font-medium rounded-full px-1.5 py-0.5 border border-[var(--rule)] ${
+                    r.n8n_workflow_id
+                      ? "text-[var(--accent)] bg-[var(--accent-soft)]"
+                      : "text-[var(--ink-subtle)] bg-[var(--canvas-subtle)]"
+                  }`}>
+                    {r.n8n_workflow_id ? "n8n" : "legacy"}
+                  </span>
                 </div>
                 {r.description && <p className="text-xs text-[var(--ink-muted)] line-clamp-1">{r.description}</p>}
                 <div className="flex items-center gap-3 mt-1 text-[11px] text-[var(--ink-subtle)]">
@@ -770,6 +837,108 @@ export default function WorkflowsPageClient({ vaultReady, canManageVault }: Prop
             )}
           </div>
         </div>
+      )}
+
+      {/* Migration panel -- shown only when there are legacy workflows */}
+      {legacyCount > 0 && (
+        <section className="card-flat p-5 mb-8">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="border border-[var(--rule)] bg-[var(--accent-soft)] rounded-[4px] p-2 shrink-0">
+              <RefreshCw className="w-4 h-4 text-[var(--accent)]" strokeWidth={1.5} />
+            </div>
+            <div className="flex-1">
+              <div className="text-sm font-semibold text-[var(--ink)]">
+                Engine migration available
+              </div>
+              <p className="text-[11px] text-[var(--ink-muted)] mt-0.5 leading-relaxed">
+                {legacyCount} workflow{legacyCount === 1 ? " is" : "s are"} still
+                on the legacy engine.{" "}
+                {n8nCount > 0 && (
+                  <>{n8nCount} already migrated. </>
+                )}
+                Run a dry-run first to preview, then migrate.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => runMigration(true)}
+                disabled={migrating}
+                className="btn btn-sm btn-ghost"
+              >
+                {migrating ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.5} />
+                ) : (
+                  <Eye className="w-3.5 h-3.5" strokeWidth={1.5} />
+                )}
+                Dry run
+              </button>
+              <button
+                onClick={() => runMigration(false)}
+                disabled={migrating}
+                className="btn btn-sm btn-primary"
+              >
+                {migrating ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.5} />
+                ) : (
+                  <ArrowRight className="w-3.5 h-3.5" strokeWidth={1.5} />
+                )}
+                Migrate all
+              </button>
+            </div>
+          </div>
+
+          {migrationError && (
+            <div className="text-sm text-[var(--danger)] flex items-start gap-2 mt-2">
+              <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" strokeWidth={1.5} />
+              {migrationError}
+            </div>
+          )}
+
+          {migrationReport && (
+            <div className="mt-3 border-t border-[var(--rule)] pt-3">
+              <div className="flex items-center gap-4 text-xs text-[var(--ink-muted)] mb-3">
+                <span className="flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-[var(--verified)]" strokeWidth={1.5} />
+                  {migrationReport.migrated} migrated
+                </span>
+                <span className="flex items-center gap-1">
+                  <Circle className="w-3 h-3" strokeWidth={1.5} />
+                  {migrationReport.skipped} skipped
+                </span>
+                {migrationReport.failed + migrationReport.dry_run_failed > 0 && (
+                  <span className="flex items-center gap-1 text-[var(--danger)]">
+                    <AlertCircle className="w-3 h-3" strokeWidth={1.5} />
+                    {migrationReport.failed + migrationReport.dry_run_failed} failed
+                  </span>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                {migrationReport.results.map((r, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-2 text-xs px-2 py-1.5 rounded-[4px] bg-[var(--canvas-subtle)]"
+                  >
+                    {r.status === "migrated" ? (
+                      <CheckCircle2 className="w-3 h-3 text-[var(--verified)] shrink-0" strokeWidth={1.5} />
+                    ) : r.status === "skipped" ? (
+                      <Circle className="w-3 h-3 text-[var(--ink-subtle)] shrink-0" strokeWidth={1.5} />
+                    ) : (
+                      <AlertCircle className="w-3 h-3 text-[var(--danger)] shrink-0" strokeWidth={1.5} />
+                    )}
+                    <span className="font-medium text-[var(--ink)] truncate flex-1">{r.name}</span>
+                    <span className="text-[var(--ink-muted)] shrink-0">
+                      {r.status === "migrated" && r.nodes && `${r.nodes} nodes`}
+                      {r.status === "skipped" && "already on n8n"}
+                      {(r.status === "failed" || r.status === "dry_run_failed") && (
+                        <span className="text-[var(--danger)]">{r.error}</span>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
       )}
 
       {/* Template gallery */}

@@ -674,6 +674,28 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
       },
     },
   },
+  "workflow.migrate": {
+    type: "function",
+    function: {
+      name: "workflow_migrate",
+      description:
+        "Migrate all legacy workflows in this workspace to the n8n engine. " +
+        "Converts each workflow from the old Drift format to n8n, validates " +
+        "the conversion, and pushes to n8n. Returns a per-workflow report. " +
+        "Use dry_run=true first to preview what would happen without making " +
+        "changes. Owner-only operation.",
+      parameters: {
+        type: "object",
+        properties: {
+          dry_run: {
+            type: "boolean",
+            description: "If true, validate only without pushing to n8n. Default false.",
+          },
+        },
+        required: [],
+      },
+    },
+  },
   "secrets.set": {
     type: "function",
     function: {
@@ -1370,6 +1392,7 @@ const NAME_TO_TOOL: Record<string, AgentToolName> = {
   workflow_list: "workflow.list",
   workflow_update: "workflow.update",
   workflow_execution_status: "workflow.execution_status",
+  workflow_migrate: "workflow.migrate",
   secrets_set: "secrets.set",
   secrets_list: "secrets.list",
   file_index_search: "file_index.search",
@@ -1479,6 +1502,7 @@ const PER_TOOL_BUDGET: Partial<Record<AgentToolName, number>> = {
   "workflow.list": 3,            // read-only; cheap
   "workflow.update": 10,         // bulk email swap needs one per workflow
   "workflow.execution_status": 5, // status checks; read-only
+  "workflow.migrate": 2,        // migration is heavy; once dry-run + once real
   "secrets.set": 10,            // setting up secrets for workflow configs
   "secrets.list": 3,            // read-only; cheap
   "file_index.search": 5,
@@ -2780,16 +2804,42 @@ async function dispatchTool(
         };
       }
 
-      // Fall back to legacy Drift-format template
+      // Fall back to legacy Drift-format template — auto-convert to n8n
       const { getTemplate } = await import("@/lib/dante/templates");
       const template = getTemplate(slug);
       if (!template) {
         return { error: `workflow.clone_template: unknown template "${slug}". Call workflow.list_templates to see available slugs.` };
       }
 
-      const graph = structuredClone(template.graph);
-      const triggerNode = graph.nodes.find((n: { type: string }) => n.type.startsWith("trigger_"));
-      const triggerType = triggerNode?.type.replace("trigger_", "") || "manual";
+      // Auto-convert legacy template to n8n format
+      const { convertDriftToN8n } = await import("@/lib/dante/n8n-converter");
+      const conversion = convertDriftToN8n(template.graph, template.name);
+      const workflowJson = conversion.workflow;
+
+      // Determine trigger type from converted nodes
+      const cvtTriggerNode = workflowJson.nodes.find(
+        (n) => n.type.includes("Trigger") || n.type.includes("trigger") || n.type.includes("webhook"),
+      );
+      const triggerType = cvtTriggerNode
+        ? cvtTriggerNode.type.includes("scheduleTrigger") ? "cron"
+          : cvtTriggerNode.type.includes("webhook") ? "webhook"
+          : "manual"
+        : "manual";
+
+      // Push to n8n
+      let n8nWorkflowId: string | undefined;
+      try {
+        n8nWorkflowId = await n8nBridge.createWorkspaceWorkflow(
+          ctx.workspaceId,
+          { ...workflowJson, active: true },
+        );
+      } catch (err) {
+        agentLog.warn("workflow.clone_template: n8n push failed (auto-converted)", {
+          err: err instanceof Error ? err.message : String(err),
+          slug,
+          unmapped: conversion.unmappedTypes,
+        });
+      }
 
       const { data: wf, error: insertErr } = await supabaseAdmin
         .from("dante_workflows")
@@ -2799,9 +2849,15 @@ async function dispatchTool(
           name: template.name,
           description: template.description,
           trigger: { type: triggerType },
-          steps: [],
-          graph,
+          steps: workflowJson.nodes.map((n) => ({
+            id: n.id,
+            type: n.type,
+            name: n.name,
+            parameters: n.parameters,
+          })),
+          graph: workflowJson,
           enabled: true,
+          n8n_workflow_id: n8nWorkflowId || null,
         })
         .select("id")
         .single();
@@ -2816,8 +2872,11 @@ async function dispatchTool(
         name: template.name,
         category: template.category,
         trigger: template.triggerLabel,
-        engine: "legacy",
-        message: `Cloned "${template.name}" into your workspace. It's enabled and ready to use.`,
+        engine: "n8n",
+        auto_converted: true,
+        n8n_synced: !!n8nWorkflowId,
+        warnings: conversion.warnings.length > 0 ? conversion.warnings : undefined,
+        message: `Cloned "${template.name}" into your workspace (auto-converted to n8n). ${n8nWorkflowId ? "Synced and active." : "Saved locally; n8n sync pending."}`,
       };
     }
 
@@ -3100,6 +3159,51 @@ async function dispatchTool(
         finished_at: latestRun.finished_at,
         result: latestRun.result,
         engine: n8nExecId ? "n8n" : "legacy",
+      };
+    }
+
+    case "workflow.migrate": {
+      if (ctx.simulate) {
+        return { simulated: true, would_have: { action: "workflow.migrate", dry_run: Boolean(args.dry_run) } };
+      }
+
+      // Owner-only operation
+      const { data: migProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("role")
+        .eq("id", ctx.userId)
+        .maybeSingle();
+
+      const migRole = (migProfile as { role?: string } | null)?.role || "advisor";
+      if (migRole !== "owner") {
+        return { error: "workflow.migrate: only workspace owners can run migrations." };
+      }
+
+      const dryRun = Boolean(args.dry_run);
+      const { migrateWorkspace } = await import("@/lib/dante/n8n-migration");
+      const report = await migrateWorkspace(ctx.workspaceId, dryRun);
+
+      return {
+        ok: true,
+        dry_run: dryRun,
+        total: report.total,
+        migrated: report.migrated,
+        skipped: report.skipped,
+        failed: report.failed,
+        dry_run_failed: report.dryRunFailed,
+        results: report.results.map((r) => ({
+          name: r.workflowName,
+          status: r.status,
+          n8n_id: r.n8nWorkflowId || null,
+          warnings: r.warnings,
+          error: r.error || null,
+          nodes: r.dryRunResult?.nodeCount,
+          connections: r.dryRunResult?.connectionCount,
+          trigger: r.dryRunResult?.triggerType,
+        })),
+        message: dryRun
+          ? `Dry run complete: ${report.migrated} would migrate, ${report.skipped} already on n8n, ${report.failed + report.dryRunFailed} would fail.`
+          : `Migration complete: ${report.migrated} migrated to n8n, ${report.skipped} already migrated, ${report.failed} failed.`,
       };
     }
 
@@ -4320,6 +4424,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       "workflow.list": 0,
       "workflow.update": 0,
       "workflow.execution_status": 0,
+      "workflow.migrate": 0,
       "secrets.set": 0,
       "secrets.list": 0,
       "file_index.search": 0,

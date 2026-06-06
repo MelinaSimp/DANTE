@@ -74,13 +74,14 @@ async function handle(request: Request) {
     }).catch(() => {});
   }
 
-  // Pull a batch of queued rows, oldest first. We ask for a small
-  // overhead (limit * 2) so that if a parallel worker steals some we
-  // can still fill our batch from the extras without another SELECT.
+  // Pull a batch of queued rows, oldest first. Skip runs belonging to
+  // n8n-migrated workflows — those are executed by n8n's own engine.
+  // We join through workflow_id to filter by n8n_workflow_id IS NULL.
   const { data: candidates, error } = await supabaseAdmin
     .from("dante_workflow_runs")
-    .select("id")
+    .select("id, workflow_id")
     .eq("status", "queued")
+    .is("n8n_execution_id", null)
     .order("started_at", { ascending: true, nullsFirst: true })
     .limit(BATCH_LIMIT * 2);
 

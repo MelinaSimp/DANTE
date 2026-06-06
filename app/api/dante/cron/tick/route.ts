@@ -96,13 +96,13 @@ async function handle(request: Request) {
   const cutoff = new Date(now.getTime() - 50_000).toISOString();
 
   // Pull every enabled workflow in the system that has a cron trigger.
-  // We filter by the graph containing a trigger_cron node to avoid
-  // loading non-cron workflows. Workspace scoping happens inside
-  // runWorkflow() via workflow.workspace_id.
+  // Skip n8n-migrated workflows — n8n handles its own cron scheduling
+  // via the scheduleTrigger node, so firing them here would duplicate.
   const { data: workflows, error } = await supabaseAdmin
     .from("dante_workflows")
     .select("*")
     .eq("enabled", true)
+    .is("n8n_workflow_id", null)
     .or("trigger->>type.eq.cron,next_fire_at.not.is.null");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -159,6 +159,7 @@ async function handle(request: Request) {
     .from("dante_workflows")
     .select("*")
     .eq("enabled", true)
+    .is("n8n_workflow_id", null)
     .not("next_fire_at", "is", null)
     .lte("next_fire_at", nowIso);
 
@@ -213,11 +214,13 @@ async function handle(request: Request) {
   }
 
   // ── Third pass: trigger_lease_expiry ──────────────────────────
+  // Skip n8n-migrated — they use the DriftLeaseLookup node natively.
   {
     const { data: allWfs } = await supabaseAdmin
       .from("dante_workflows")
       .select("*")
-      .eq("enabled", true);
+      .eq("enabled", true)
+      .is("n8n_workflow_id", null);
 
     for (const wf of allWfs || []) {
       const def = definitionFromRow(wf);
