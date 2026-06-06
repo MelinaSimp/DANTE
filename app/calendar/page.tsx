@@ -74,7 +74,7 @@ export default async function CalendarPage() {
             <div className="label-section mb-2">Workspace</div>
             <h1 className="heading-display text-4xl md:text-5xl text-[var(--ink)]">Calendar</h1>
             <p className="prose-body text-[var(--ink-muted)] mt-2">
-              Appointments, client meetings, and tasks on a single timeline.
+              Appointments, meetings, and tasks on a single timeline.
             </p>
           </div>
           <ScheduleClient
