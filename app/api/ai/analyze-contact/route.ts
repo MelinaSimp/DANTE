@@ -115,7 +115,7 @@ export async function POST(req: NextRequest) {
       .join("\n");
 
     const prompt = [
-      "You are an AI receptionist assistant analyzing customer interaction data for a specific company.",
+      "You are a CRE AI assistant analyzing contact interaction data for a commercial real-estate brokerage.",
       "Use the company knowledge base below to provide contextually relevant analysis.",
       "",
       ...(companyContext.length > 0 ? ["COMPANY KNOWLEDGE BASE:", ...companyContext, ""] : []),
@@ -144,7 +144,7 @@ export async function POST(req: NextRequest) {
       const result = await llmComplete({
         model: "claude-haiku-4-5-20251001",
         messages: [
-          { role: "system", content: "You are an AI receptionist assistant for service-based businesses. Focus on scheduling, callbacks, and customer service needs." },
+          { role: "system", content: "You are Dante, an AI assistant for commercial real-estate brokerages. Focus on deal follow-ups, property tours, lease negotiations, and broker communication needs." },
           { role: "user", content: prompt },
         ],
         temperature: 0.2,

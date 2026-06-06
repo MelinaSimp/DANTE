@@ -99,7 +99,7 @@ export default function ZoomCard({ isAdmin, workspaceId }: Props) {
     const ok = await confirmDialog({
       title: "Disconnect Zoom?",
       message:
-        "New client meetings won't be able to launch Zoom calls. Your past recordings stay intact.",
+        "New meetings won't be able to launch Zoom calls. Your past recordings stay intact.",
       confirmText: "Disconnect",
     });
     if (!ok) return;

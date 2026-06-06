@@ -62,7 +62,7 @@ export default async function EmailPage() {
               one yet.
             </p>
             <Link
-              href="/dashboard/agents"
+              href="/agent"
               className="inline-flex items-center gap-2 rounded-[4px] bg-[var(--ink)] px-4 py-2 text-sm font-medium text-[var(--canvas)] hover:bg-[var(--ink)]/90 transition"
             >
               <Mail className="w-4 h-4" strokeWidth={1.5} />

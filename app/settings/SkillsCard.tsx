@@ -349,7 +349,7 @@ function EditSkillModal({
             type="text"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Draft a follow-up email recapping a client review meeting."
+            placeholder="Draft a follow-up email recapping a deal review meeting."
             className="w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas-subtle)] px-2 py-1.5 text-sm text-[var(--ink)]"
           />
         </Field>

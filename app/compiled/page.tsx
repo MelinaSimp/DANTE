@@ -18,7 +18,7 @@ export default function CompiledPage() {
             How It Works
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            See how our AI receptionist seamlessly handles your calls and manages customer interactions.
+            See how Dante AI seamlessly handles your calls and manages deal interactions.
           </p>
         </div>
 
@@ -30,7 +30,7 @@ export default function CompiledPage() {
             </div>
             <h3 className="text-xl font-semibold mb-3">1. Call Comes In</h3>
             <p className="text-gray-600">
-              Your business phone rings, and our AI receptionist answers professionally with your custom greeting.
+              Your business phone rings, and Dante answers professionally with your custom greeting.
             </p>
           </div>
 
@@ -84,7 +84,7 @@ export default function CompiledPage() {
         <div className="text-center">
           <h2 className="text-3xl font-bold mb-4">Ready to Get Started?</h2>
           <p className="text-xl text-gray-600 mb-8">
-            Join hundreds of businesses already using AI receptionists to never miss a call.
+            Join CRE brokerages already using Drift AI to streamline every deal.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link

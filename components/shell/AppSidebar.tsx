@@ -87,14 +87,12 @@ export default function AppSidebar({
   const assistantConfig = getIndustryConfig(industry);
 
   // Collapsed nav — 8 core entries. CRM-era destinations (Clients,
-  // Calendar, Email, Reminders, Library, Watched Folders, Properties,
-  // Review Tables, Audit) are removed; those routes now 301 to
-  // /dashboard. The product surface is: Dashboard, Dante (AI), Workflows,
-  // Lease Abstractor, Vault, Voice, Site Scan, Settings.
+  // The product surface is: Home, Dante (AI), Properties, Workflows,
+  // Lease Abstractor, Vault, Voice, Site Scan, Review Queue, Settings.
   const sections: { label?: string; items: NavItem[] }[] = [
     {
       items: [
-        { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+        { href: "/home", label: "Home", icon: LayoutDashboard },
       ],
     },
     {
@@ -116,7 +114,7 @@ export default function AppSidebar({
   ];
 
   const isActive = (href: string): boolean => {
-    if (href === "/dashboard") return pathname === "/dashboard";
+    if (href === "/home") return pathname === "/home";
     return !!(pathname && pathname.startsWith(href));
   };
 
@@ -140,7 +138,7 @@ export default function AppSidebar({
         {isOpen && (
           <div className="px-1">
             <Link
-              href="/dashboard"
+              href="/home"
               className="flex items-center gap-2 hover:opacity-80 transition-opacity"
             >
               <div className="w-[22px] h-[22px] rounded-[5px] bg-[var(--ink)] text-white flex items-center justify-center text-[9px] font-semibold">

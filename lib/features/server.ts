@@ -38,9 +38,9 @@ export async function hasWorkspaceFeature(
 
 /**
  * Enforce access to a feature from a server component. If the
- * workspace isn't entitled, redirect to /dashboard with a `?gated=<id>`
- * marker so the dashboard can (eventually) flash a "this feature isn't
- * part of your plan" banner.
+ * workspace isn't entitled, redirect to /home with a `?gated=<id>`
+ * marker so the home page can flash a "this feature isn't part of
+ * your plan" banner.
  *
  * Never throws; uses Next's redirect() which unwinds rendering.
  */
@@ -49,5 +49,5 @@ export async function requireFeature(
   feature: FeatureId
 ): Promise<void> {
   const ok = await hasWorkspaceFeature(workspaceId, feature);
-  if (!ok) redirect(`/dashboard?gated=${feature}`);
+  if (!ok) redirect(`/home?gated=${feature}`);
 }

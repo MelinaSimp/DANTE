@@ -94,7 +94,7 @@ export default async function SummaryTemplateSettingsPage() {
           </h1>
           <p className="text-sm text-[var(--ink-muted)] max-w-2xl">
             Pick a document whose annotations define which pages and sections
-            the AI uses when generating one-page summaries for client documents.
+            the AI uses when generating one-page summaries for workspace documents.
           </p>
         </div>
 
