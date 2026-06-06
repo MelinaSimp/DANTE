@@ -13,6 +13,8 @@ import {
   Gauge,
   FlaskConical,
   MessageSquareWarning,
+  Users,
+  ShieldCheck,
   ArrowLeft,
   Menu,
   X,
@@ -20,10 +22,12 @@ import {
 
 const adminNav = [
   { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
-  { name: "Features", href: "/admin/features", icon: Shield },
+  { name: "Customers", href: "/admin/customers", icon: Users },
   { name: "Workspaces", href: "/admin/workspaces", icon: Building2 },
+  { name: "Features", href: "/admin/features", icon: Shield },
   { name: "Billing", href: "/admin/billing", icon: CreditCard },
   { name: "Usage", href: "/admin/usage", icon: Gauge },
+  { name: "Compliance", href: "/admin/compliance", icon: ShieldCheck },
   { name: "Evals", href: "/admin/evals", icon: FlaskConical },
   { name: "Feedback", href: "/admin/feedback", icon: MessageSquareWarning },
   { name: "Invites", href: "/admin/invites", icon: UserPlus },
@@ -108,7 +112,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="hidden md:flex flex-col w-60 border-r border-[var(--rule)] bg-[var(--canvas)] shrink-0">
         <div className="p-5 border-b border-[var(--rule)]">
           <Link
-            href="/dashboard"
+            href="/home"
             className="flex items-center gap-2 text-[var(--ink-subtle)] hover:text-[var(--ink)] transition-colors mb-3 text-xs"
           >
             <ArrowLeft className="w-3.5 h-3.5" strokeWidth={1.5} />
