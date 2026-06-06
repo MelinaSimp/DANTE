@@ -81,11 +81,11 @@ const PANEL_SUBTITLES: Record<PanelId, string> = {
   phone_numbers:
     "Connect your Twilio account and route numbers to agents.",
   zoom:
-    "Launch cloud-recorded client meetings that auto-transcribe into the client's timeline.",
+    "Launch cloud-recorded meetings that auto-transcribe into the contact timeline.",
   google:
-    "Connect Gmail and Google Calendar so Dante has context on client conversations and meetings.",
+    "Connect Gmail and Google Calendar so Dante has context on conversations and meetings.",
   microsoft:
-    "Connect Outlook and Microsoft Calendar so Dante has context on client conversations and meetings.",
+    "Connect Outlook and Microsoft Calendar so Dante has context on conversations and meetings.",
   skills:
     "Reusable agent recipes Dante can invoke. Each skill is a named prompt + tool whitelist that workflows and the in-app assistant can call.",
   billing: "Manage subscription, payment methods, and invoices.",

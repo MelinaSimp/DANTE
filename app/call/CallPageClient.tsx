@@ -45,12 +45,12 @@ export default function CallPageClient({
           <div>
             <p className="label-section">New call recording</p>
             <h1 className="heading-display mt-1 text-4xl text-[var(--ink)]">
-              {picked ? picked.name : "Pick a client"}
+              {picked ? picked.name : "Pick a contact"}
             </h1>
             <p className="mt-1 text-sm text-[var(--ink-muted)]">
               {picked
                 ? "Record the call — we'll transcribe and summarize into their notes."
-                : "Search your clients, then start recording."}
+                : "Search your contacts, then start recording."}
             </p>
           </div>
           <Link
@@ -64,7 +64,7 @@ export default function CallPageClient({
             className="inline-flex items-center gap-1.5 rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] px-4 py-2 text-sm font-medium text-[var(--ink)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
           >
             <ArrowLeft className="h-4 w-4" strokeWidth={1.5} />
-            {picked ? "Back to clients" : "Dashboard"}
+            {picked ? "Back to contacts" : "Home"}
           </Link>
         </div>
 
@@ -79,7 +79,7 @@ export default function CallPageClient({
                 autoFocus
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search clients by name, email, or phone…"
+                placeholder="Search contacts by name, email, or phone..."
                 className="w-full rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] py-3 pl-11 pr-4 text-sm text-[var(--ink)] outline-none transition focus:border-[var(--accent)]"
               />
             </div>
@@ -87,8 +87,8 @@ export default function CallPageClient({
             {filtered.length === 0 ? (
               <div className="card-flat p-12 text-center text-sm text-[var(--ink-muted)]">
                 {contacts.length === 0
-                  ? "No clients in your workspace yet. Add one from the Contacts page."
-                  : "No clients match that search."}
+                  ? "No contacts in your workspace yet. Add one from the Contacts page."
+                  : "No contacts match that search."}
               </div>
             ) : (
               <ul className="card-flat divide-y divide-[var(--rule)] overflow-hidden p-0">
