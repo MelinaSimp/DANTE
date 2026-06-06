@@ -13,7 +13,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { isOwner } from "@/lib/rbac";
-import { migrateWorkspace } from "@/lib/dante/n8n-migration";
+import { migrateWorkspace, sendMigrationReport } from "@/lib/dante/n8n-migration";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120; // migrations can take a while
@@ -53,6 +53,11 @@ export async function POST(req: NextRequest) {
   const dryRun = req.nextUrl.searchParams.get("dry_run") === "true";
 
   const report = await migrateWorkspace(profile.workspace_id, dryRun);
+
+  // Send email report to workspace owners (non-blocking, real migrations only)
+  if (!dryRun && report.migrated > 0) {
+    sendMigrationReport(report).catch(() => {});
+  }
 
   return NextResponse.json(report);
 }

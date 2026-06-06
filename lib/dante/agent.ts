@@ -3180,8 +3180,13 @@ async function dispatchTool(
       }
 
       const dryRun = Boolean(args.dry_run);
-      const { migrateWorkspace } = await import("@/lib/dante/n8n-migration");
+      const { migrateWorkspace, sendMigrationReport } = await import("@/lib/dante/n8n-migration");
       const report = await migrateWorkspace(ctx.workspaceId, dryRun);
+
+      // Send email report (non-blocking, real migrations only)
+      if (!dryRun && report.migrated > 0) {
+        sendMigrationReport(report).catch(() => {});
+      }
 
       return {
         ok: true,

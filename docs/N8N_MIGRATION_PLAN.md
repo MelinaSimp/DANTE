@@ -23,8 +23,8 @@
   - [x] Engine badge (n8n/legacy) on workflow rows
   - [x] Cron tick skips n8n-migrated workflows (no duplicate scheduling)
   - [x] Queue tick skips n8n-owned runs
+  - [x] Migration reports sent to workspace admins via Resend
   - [ ] End-to-end validation with live n8n instance
-  - [ ] Migration reports sent to workspace admins
 
 ---
 

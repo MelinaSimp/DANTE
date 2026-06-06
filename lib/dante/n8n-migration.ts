@@ -404,3 +404,87 @@ export async function migrateAllWorkspaces(
 
   return { reports, summary };
 }
+
+// ── Migration Report Email ──────────────────────────────────────
+
+/**
+ * Send a migration report email to workspace owner(s).
+ * Non-fatal -- logs and returns silently on failure.
+ */
+export async function sendMigrationReport(report: MigrationReport): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    migLog.warn("RESEND_API_KEY not set, skipping migration report email");
+    return;
+  }
+
+  // Find workspace owner emails
+  const { data: owners } = await supabaseAdmin
+    .from("profiles")
+    .select("id")
+    .eq("workspace_id", report.workspaceId)
+    .eq("role", "owner");
+
+  if (!owners?.length) return;
+
+  const emails: string[] = [];
+  for (const o of owners) {
+    const { data: u } = await supabaseAdmin.auth.admin.getUserById(o.id);
+    if (u?.user?.email) emails.push(u.user.email);
+  }
+
+  if (emails.length === 0) return;
+
+  const from = process.env.RESEND_FROM_EMAIL || "Drift <noreply@driftai.studio>";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://driftai.studio";
+
+  const migratedList = report.results
+    .filter((r) => r.status === "migrated")
+    .map((r) => `  - ${r.workflowName} (${r.dryRunResult?.nodeCount ?? "?"} nodes)`)
+    .join("\n");
+
+  const failedList = report.results
+    .filter((r) => r.status === "failed" || r.status === "dry_run_failed")
+    .map((r) => `  - ${r.workflowName}: ${r.error}`)
+    .join("\n");
+
+  const body = [
+    `Workflow engine migration complete for your workspace.`,
+    ``,
+    `Summary:`,
+    `  Migrated: ${report.migrated}`,
+    `  Already on n8n: ${report.skipped}`,
+    `  Failed: ${report.failed + report.dryRunFailed}`,
+    ``,
+    report.migrated > 0 ? `Migrated workflows:\n${migratedList}` : null,
+    (report.failed + report.dryRunFailed) > 0 ? `\nFailed workflows:\n${failedList}` : null,
+    ``,
+    `Your workflows now run on the n8n engine with better reliability,`,
+    `retry handling, and execution observability. No action needed.`,
+    ``,
+    `View your workflows: ${appUrl}/workflows`,
+  ].filter(Boolean).join("\n");
+
+  for (const email of emails) {
+    try {
+      await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from,
+          to: email,
+          subject: `Drift: workflow engine migration complete (${report.migrated} migrated)`,
+          text: body,
+        }),
+      });
+    } catch (err) {
+      migLog.warn("failed to send migration report email", {
+        email,
+        err: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+}

@@ -12,6 +12,9 @@ import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getTemplate } from "@/lib/dante/templates";
+import { getN8nTemplate } from "@/lib/dante/n8n-templates";
+import { convertDriftToN8n } from "@/lib/dante/n8n-converter";
+import * as n8nBridge from "@/lib/dante/n8n-bridge";
 import type { StepType, WorkflowGraph } from "@/lib/dante/workflow-types";
 
 export const dynamic = "force-dynamic";
@@ -41,34 +44,70 @@ export async function POST(
     return NextResponse.json({ error: "No workspace" }, { status: 400 });
   }
 
-  const template = getTemplate(slug);
-  if (!template) {
+  // Check for hand-crafted n8n template first (Phase 1 — top 5)
+  const n8nTemplate = getN8nTemplate(slug);
+
+  // Fall back to legacy template
+  const template = n8nTemplate ? null : getTemplate(slug);
+  if (!n8nTemplate && !template) {
     return NextResponse.json({ error: `Unknown template: ${slug}` }, { status: 404 });
   }
 
-  // Deep clone the graph so each workspace gets its own independent
-  // copy. structuredClone is available everywhere the Next.js server
-  // runs (node >= 17).
-  const graph: WorkflowGraph = structuredClone(template.graph);
-  const triggerNode = graph.nodes.find((n) =>
-    n.type === "trigger_manual" || n.type === "trigger_cron" || n.type === "trigger_webhook"
+  // Get the n8n workflow JSON -- either from hand-crafted template or auto-conversion
+  let workflowJson;
+  let name: string;
+  let description: string;
+
+  if (n8nTemplate) {
+    workflowJson = structuredClone(n8nTemplate.workflow);
+    name = n8nTemplate.name;
+    description = n8nTemplate.description;
+  } else {
+    // Auto-convert the legacy template to n8n format
+    const conversion = convertDriftToN8n(template!.graph, template!.name);
+    workflowJson = conversion.workflow;
+    name = template!.name;
+    description = template!.description;
+  }
+
+  // Determine trigger type from n8n nodes
+  const triggerNode = workflowJson.nodes.find(
+    (n) => n.type.includes("Trigger") || n.type.includes("trigger") || n.type.includes("webhook"),
   );
-  const trigger = triggerNode ? triggerFromNode(triggerNode.type) : { type: "manual" as const };
+  const trigger = triggerNode
+    ? triggerNode.type.includes("scheduleTrigger") ? { type: "cron" as const }
+      : triggerNode.type.includes("webhook") ? { type: "webhook" as const }
+      : { type: "manual" as const }
+    : { type: "manual" as const };
+
+  // Push to n8n (best-effort)
+  let n8nWorkflowId: string | null = null;
+  try {
+    n8nWorkflowId = await n8nBridge.createWorkspaceWorkflow(
+      profile.workspace_id,
+      { ...workflowJson, active: true },
+    );
+  } catch {
+    // Non-fatal -- workflow still gets saved in Drift DB
+  }
 
   const { data, error } = await supabaseAdmin
     .from("dante_workflows")
     .insert({
       workspace_id: profile.workspace_id,
       created_by: user.id,
-      name: template.name,
-      description: template.description,
+      name,
+      description,
       trigger,
-      // Keep the legacy steps[] column empty — the runner reads from
-      // `graph` when it's populated (see definitionFromRow in
-      // workflow-types.ts).
-      steps: [],
-      graph,
+      steps: workflowJson.nodes.map((n) => ({
+        id: n.id,
+        type: n.type,
+        name: n.name,
+        parameters: n.parameters,
+      })),
+      graph: workflowJson,
       enabled: true,
+      n8n_workflow_id: n8nWorkflowId,
     })
     .select()
     .single();
@@ -77,5 +116,10 @@ export async function POST(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ workflow: data, template_slug: slug });
+  return NextResponse.json({
+    workflow: data,
+    template_slug: slug,
+    engine: "n8n",
+    n8n_synced: !!n8nWorkflowId,
+  });
 }
