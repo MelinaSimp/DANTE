@@ -37,6 +37,13 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# playwright MCP artifacts
+.playwright-mcp/
+
+# test artifacts
+workflow-canvas-test/
+dante-auth-redirect.png
+
 # electron
 /dist-electron
 # Allow downloads in public folder for website distribution
