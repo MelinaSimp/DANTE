@@ -92,7 +92,7 @@ export default function AppSidebar({
   const sections: { label?: string; items: NavItem[] }[] = [
     {
       items: [
-        { href: "/home", label: "Home", icon: LayoutDashboard },
+        { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
       ],
     },
     {
@@ -114,7 +114,7 @@ export default function AppSidebar({
   ];
 
   const isActive = (href: string): boolean => {
-    if (href === "/home") return pathname === "/home";
+    if (href === "/dashboard") return pathname === "/dashboard";
     return !!(pathname && pathname.startsWith(href));
   };
 
@@ -138,7 +138,7 @@ export default function AppSidebar({
         {isOpen && (
           <div className="px-1">
             <Link
-              href="/home"
+              href="/dashboard"
               className="flex items-center gap-2 hover:opacity-80 transition-opacity"
             >
               <div className="w-[22px] h-[22px] rounded-[5px] bg-[var(--ink)] text-white flex items-center justify-center text-[9px] font-semibold">

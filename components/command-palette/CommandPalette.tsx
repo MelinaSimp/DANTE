@@ -29,7 +29,7 @@ interface CommandItem {
 }
 
 const STATIC_COMMANDS: CommandItem[] = [
-  { id: "nav.home", label: "Go to Home", group: "Navigate", href: "/home" },
+  { id: "nav.home", label: "Go to Dashboard", group: "Navigate", href: "/dashboard" },
   { id: "nav.dante", label: "Go to Dante AI", group: "Navigate", href: "/dante" },
   { id: "nav.properties", label: "Go to Properties", group: "Navigate", href: "/properties" },
   { id: "nav.lease", label: "Go to Lease Abstractor", group: "Navigate", href: "/lease-abstractor" },

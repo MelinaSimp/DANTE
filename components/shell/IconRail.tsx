@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 
 const NAV_ITEMS = [
-  { href: "/home", icon: Home, label: "Home" },
+  { href: "/dashboard", icon: Home, label: "Dashboard" },
   { href: "/properties", icon: Building2, label: "Properties" },
   { href: "/lease-abstractor", icon: ScrollText, label: "Lease Abstractor" },
   { href: "/workflows", icon: Workflow, label: "Workflows" },
@@ -29,7 +29,7 @@ export default function IconRail({ initials }: IconRailProps) {
   const pathname = usePathname();
 
   const isActive = (href: string): boolean => {
-    if (href === "/home") return pathname === "/home";
+    if (href === "/dashboard") return pathname === "/dashboard";
     return !!(pathname && pathname.startsWith(href));
   };
 

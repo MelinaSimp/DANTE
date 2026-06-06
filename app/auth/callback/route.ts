@@ -122,7 +122,7 @@ async function resolveLandingRoute(workspaceId: string | null): Promise<string> 
     .select("onboarded_at")
     .eq("id", workspaceId)
     .maybeSingle();
-  return ws?.onboarded_at ? "/home" : "/onboarding";
+  return ws?.onboarded_at ? "/dashboard" : "/onboarding";
 }
 
 export async function GET(req: Request) {
