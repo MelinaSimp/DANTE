@@ -381,6 +381,34 @@ export default function FeaturesPage() {
         </div>
       </div>
 
+      {/* Trust signals */}
+      <div className="max-w-6xl mx-auto px-6 py-16">
+        <p className="label-section text-[var(--ink-subtle)] text-center">Security</p>
+        <h2 className="heading-display text-3xl md:text-4xl mt-3 text-center">
+          Your data stays yours
+        </h2>
+        <p className="mt-4 text-sm text-[var(--ink-muted)] text-center max-w-xl mx-auto">
+          Drift never trains models on your data. Documents live in your
+          workspace, isolated by row-level security, encrypted at rest.
+        </p>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
+          {[
+            { label: "SOC 2 Type II", detail: "Compliance tracked via EasyAudit" },
+            { label: "Row-level isolation", detail: "Every query scoped to your workspace" },
+            { label: "Encrypted at rest", detail: "AES-256 for documents and embeddings" },
+            { label: "No model training", detail: "Your leases and deals are never used to train AI" },
+          ].map((item) => (
+            <div key={item.label} className="card-flat p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <Shield className="w-4 h-4 text-[var(--verified)]" strokeWidth={1.5} />
+                <span className="text-sm font-medium text-[var(--ink)]">{item.label}</span>
+              </div>
+              <p className="text-xs text-[var(--ink-muted)]">{item.detail}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* CTA */}
       <div className="max-w-6xl mx-auto px-6 py-16 text-center">
         <Building2 className="w-10 h-10 text-[var(--ink-subtle)] mx-auto mb-4" strokeWidth={1} />
@@ -414,6 +442,7 @@ export default function FeaturesPage() {
           <nav className="flex items-center gap-4">
             <Link href="/terms" className="hover:text-[var(--ink)] transition">Terms</Link>
             <Link href="/privacy" className="hover:text-[var(--ink)] transition">Privacy</Link>
+            <Link href="/security" className="hover:text-[var(--ink)] transition">Security</Link>
             <Link href="/status" className="hover:text-[var(--ink)] transition">Status</Link>
           </nav>
         </div>
