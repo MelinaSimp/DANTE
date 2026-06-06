@@ -2711,6 +2711,76 @@ async function dispatchTool(
         return { simulated: true, would_have: { action: "workflow.clone_template", slug } };
       }
 
+      // Check for n8n version first (Phase 1 — top 5 templates converted)
+      const { getN8nTemplate } = await import("@/lib/dante/n8n-templates");
+      const n8nTemplate = getN8nTemplate(slug);
+
+      if (n8nTemplate) {
+        // Clone via n8n: push to n8n, save reference in Drift DB
+        const workflowJson = structuredClone(n8nTemplate.workflow);
+
+        // Determine trigger type from n8n node types
+        const triggerNode = workflowJson.nodes.find(
+          (n) => n.type.includes("Trigger") || n.type.includes("trigger") || n.type.includes("webhook"),
+        );
+        const triggerType = triggerNode
+          ? triggerNode.type.includes("scheduleTrigger") ? "cron"
+            : triggerNode.type.includes("webhook") ? "webhook"
+            : "manual"
+          : "manual";
+
+        // Push to n8n (active — template clones are ready to use)
+        let n8nWorkflowId: string | undefined;
+        try {
+          n8nWorkflowId = await n8nBridge.createWorkspaceWorkflow(
+            ctx.workspaceId,
+            { ...workflowJson, active: true },
+          );
+        } catch (err) {
+          agentLog.warn("workflow.clone_template: n8n push failed", {
+            err: err instanceof Error ? err.message : String(err),
+            slug,
+          });
+        }
+
+        const { data: wf, error: insertErr } = await supabaseAdmin
+          .from("dante_workflows")
+          .insert({
+            workspace_id: ctx.workspaceId,
+            created_by: ctx.userId ?? null,
+            name: n8nTemplate.name,
+            description: n8nTemplate.description,
+            trigger: { type: triggerType },
+            steps: workflowJson.nodes.map((n) => ({
+              id: n.id,
+              type: n.type,
+              name: n.name,
+              parameters: n.parameters,
+            })),
+            graph: workflowJson,
+            enabled: true,
+            n8n_workflow_id: n8nWorkflowId || null,
+          })
+          .select("id")
+          .single();
+
+        if (insertErr) {
+          return { error: `workflow.clone_template: ${insertErr.message}` };
+        }
+
+        return {
+          ok: true,
+          workflow_id: (wf as { id: string }).id,
+          name: n8nTemplate.name,
+          category: n8nTemplate.category,
+          trigger: n8nTemplate.triggerLabel,
+          engine: "n8n",
+          n8n_synced: !!n8nWorkflowId,
+          message: `Cloned "${n8nTemplate.name}" into your workspace. It's enabled and ready to use.`,
+        };
+      }
+
+      // Fall back to legacy Drift-format template
       const { getTemplate } = await import("@/lib/dante/templates");
       const template = getTemplate(slug);
       if (!template) {
@@ -2746,6 +2816,7 @@ async function dispatchTool(
         name: template.name,
         category: template.category,
         trigger: template.triggerLabel,
+        engine: "legacy",
         message: `Cloned "${template.name}" into your workspace. It's enabled and ready to use.`,
       };
     }
