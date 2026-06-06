@@ -24,7 +24,7 @@ export default async function WorkflowEditorPage({
   const { data: profile } = await supabase
     .from("profiles")
     .select("workspace_id").eq("id", user.id).maybeSingle();
-  if (!profile?.workspace_id) redirect("/dashboard");
+  if (!profile?.workspace_id) redirect("/home");
 
   const { data: workflow } = await supabaseAdmin
     .from("dante_workflows")

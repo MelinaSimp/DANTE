@@ -60,7 +60,7 @@ export default async function DanteLayout({ children }: { children: React.ReactN
     .eq("id", user.id)
     .maybeSingle();
 
-  if (!profile?.workspace_id) redirect("/dashboard");
+  if (!profile?.workspace_id) redirect("/home");
 
   await requireFeature(profile.workspace_id, "dante");
 

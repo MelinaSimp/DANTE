@@ -14,7 +14,7 @@ export default async function FileIndexPage() {
     .select("workspace_id")
     .eq("id", user.id)
     .maybeSingle();
-  if (!profile?.workspace_id) redirect("/dashboard");
+  if (!profile?.workspace_id) redirect("/home");
 
   return <FileIndexClient />;
 }

@@ -1,8 +1,14 @@
+import { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import AskDante from "./AskDante";
 import SourceViewerLayout from "@/components/dante/source-viewer/SourceViewerLayout";
 import { getIndustryConfig } from "@/lib/industry/config";
+
+export const metadata: Metadata = {
+  title: "Dante AI — Drift",
+  description: "AI assistant for commercial real estate. Ask about deals, leases, compliance, and property data.",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +23,7 @@ export default async function DantePage() {
     .select("workspace_id, full_name")
     .eq("id", user.id)
     .maybeSingle();
-  if (!profile?.workspace_id) redirect("/dashboard");
+  if (!profile?.workspace_id) redirect("/home");
 
   const { data: workspace } = await supabase
     .from("workspaces")

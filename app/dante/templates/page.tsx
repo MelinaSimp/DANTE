@@ -20,7 +20,7 @@ export default async function DanteTemplatesPage() {
 
   const { data: profile } = await supabase.from("profiles")
     .select("workspace_id, role, is_superadmin").eq("id", user.id).maybeSingle();
-  if (!profile?.workspace_id) redirect("/dashboard");
+  if (!profile?.workspace_id) redirect("/home");
 
   const vaultCountResp = await supabaseAdmin
     .from("vault_items").select("id", { count: "exact", head: true })

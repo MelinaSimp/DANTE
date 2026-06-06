@@ -1,3 +1,4 @@
+import { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -6,6 +7,11 @@ import { hasSuperadminAccess } from "@/lib/superadmin";
 import { getShellContext } from "@/lib/shell/workspace-context";
 import AppShell from "@/components/shell/AppShell";
 import WorkflowsPageClient from "./WorkflowsPageClient";
+
+export const metadata: Metadata = {
+  title: "Workflows — Drift AI",
+  description: "Automate CRE operations with AI-powered workflows. Build, run, and monitor deal processes.",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +26,7 @@ export default async function WorkflowsPage() {
 
   const { data: profile } = await supabase.from("profiles")
     .select("workspace_id, role, is_superadmin").eq("id", user.id).maybeSingle();
-  if (!profile?.workspace_id) redirect("/dashboard");
+  if (!profile?.workspace_id) redirect("/home");
 
   const vaultCountResp = await supabaseAdmin
     .from("vault_items").select("id", { count: "exact", head: true })

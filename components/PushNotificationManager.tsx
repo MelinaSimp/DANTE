@@ -13,13 +13,13 @@ export default function PushNotificationManager() {
         try {
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
-          console.log('Push notifications enabled');
+          // push notifications enabled
           
           // Subscribe to push notifications
           try {
               const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
               if (!vapidKey) {
-                console.log('VAPID key not configured, skipping push subscription');
+                // VAPID key not configured
                 return;
               }
             const registration = await navigator.serviceWorker.ready;

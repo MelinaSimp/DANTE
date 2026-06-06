@@ -147,7 +147,7 @@ export default function WatchedFoldersClient() {
       setFolders(data.folders || []);
 
       // Sync watchers (starts chokidar for any new folders)
-      console.log("[WatchedFolders] syncing", active.length, "folders");
+      // Sync watchers (starts chokidar for any new folders)
       await api.watched.sync(active);
 
       // Tell WatcherBridge to refresh its folder list
@@ -160,9 +160,7 @@ export default function WatchedFoldersClient() {
       // periodically so the user sees progress.
       for (const folder of active) {
         if (api.watched.rescan) {
-          console.log("[WatchedFolders] starting background rescan:", folder.folder_label);
-          api.watched.rescan(folder).then((result: { ok: boolean; scanned?: number; queued?: number }) => {
-            console.log("[WatchedFolders] rescan complete:", folder.folder_label, result);
+          api.watched.rescan(folder).then((_result: { ok: boolean; scanned?: number; queued?: number }) => {
             fetchFolders();
           });
         }

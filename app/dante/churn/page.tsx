@@ -22,7 +22,7 @@ export default async function DanteChurnPage() {
     .select("workspace_id")
     .eq("id", user.id)
     .maybeSingle();
-  if (!profile?.workspace_id) redirect("/dashboard");
+  if (!profile?.workspace_id) redirect("/home");
 
   return <DanteChurnClient />;
 }

@@ -41,7 +41,7 @@ export default async function OnboardingWizardPage() {
 
   // Already onboarded? Skip to dashboard.
   if (workspace && (workspace as { onboarded_at?: string }).onboarded_at) {
-    redirect("/dashboard");
+    redirect("/home");
   }
 
   // Compute initial step state — vault count, contact count, etc.

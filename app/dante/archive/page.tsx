@@ -15,7 +15,7 @@ export default async function DanteArchivePage() {
   const supabase = await createServerSupabase();
   const access = await resolveArchiveAccess(supabase);
   if (access.reason === "unauthenticated") redirect("/auth");
-  if (access.reason === "no_workspace") redirect("/dashboard");
+  if (access.reason === "no_workspace") redirect("/home");
   // Archive holds legal + compliance documents — write access would
   // let a member silently swap in a wrong policy and pollute every
   // workflow that cites it. Bounce anyone who isn't the workspace

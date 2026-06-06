@@ -17,7 +17,7 @@ export default async function DanteWorkflowsPage() {
 
   const { data: profile } = await supabase.from("profiles")
     .select("workspace_id").eq("id", user.id).maybeSingle();
-  if (!profile?.workspace_id) redirect("/dashboard");
+  if (!profile?.workspace_id) redirect("/home");
 
   return <DanteWorkflowsClient />;
 }

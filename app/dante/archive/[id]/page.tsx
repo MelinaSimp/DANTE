@@ -18,7 +18,7 @@ export default async function Page(
   const supabase = await createServerSupabase();
   const access = await resolveArchiveAccess(supabase);
   if (access.reason === "unauthenticated") redirect("/auth");
-  if (access.reason === "no_workspace") redirect("/dashboard");
+  if (access.reason === "no_workspace") redirect("/home");
   // Owner-only — see the main archive page for the rationale.
   if (!access.allowed) redirect("/dante");
 

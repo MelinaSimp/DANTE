@@ -40,7 +40,7 @@ export default async function OnboardingPage() {
     .eq("id", profile.workspace_id)
     .maybeSingle();
 
-  if (workspace?.onboarded_at) redirect("/dashboard");
+  if (workspace?.onboarded_at) redirect("/home");
 
   const firstName =
     profile.first_name?.trim() ||

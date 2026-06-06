@@ -21,7 +21,7 @@ export default async function WatchedFoldersPage() {
     .select("workspace_id")
     .eq("id", user.id)
     .maybeSingle();
-  if (!profile?.workspace_id) redirect("/dashboard");
+  if (!profile?.workspace_id) redirect("/home");
 
   return (
     <AppShell {...ctx}>

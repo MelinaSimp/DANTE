@@ -45,7 +45,7 @@ export default function WatcherBridge() {
   useEffect(() => {
     const api = window.electronAPI;
     if (!api?.watched) {
-      console.log("[WatcherBridge] not in Electron, skipping");
+      // Not in Electron — no-op.
       return;
     }
 
@@ -114,9 +114,7 @@ export default function WatcherBridge() {
               );
               throw new Error(`notify-batch ${res.status}`);
             }
-            console.log(
-              `[WatcherBridge] batch notify ${events.length} files -> ${folderId}: ${res.status}`,
-            );
+            // batch notify success
           })
           .catch((err) => {
             console.error("[WatcherBridge] batch notify failed:", err);
@@ -155,14 +153,14 @@ export default function WatcherBridge() {
         flushTimerRef.current = setInterval(flushQueue, FLUSH_INTERVAL_MS);
       }
 
-      console.log("[WatcherBridge] subscribed to file events (batched)");
+      // subscribed to file events
     };
 
     // ── Boot (retryable) ────────────────────────────────────────
     const boot = async () => {
       if (bootedRef.current) return;
 
-      console.log("[WatcherBridge] booting...");
+      // boot watcher bridge
 
       try {
         const res = await fetch("/api/electron/watched-folders");
@@ -175,14 +173,14 @@ export default function WatcherBridge() {
           (f: { status: string }) => f.status === "active",
         );
         foldersRef.current = active;
-        console.log(`[WatcherBridge] ${active.length} active folder(s)`);
+        // folders loaded
 
         await api.watched!.sync(active);
-        console.log("[WatcherBridge] sync complete");
+        // sync complete
 
         ensureSubscribed();
         bootedRef.current = true;
-        console.log("[WatcherBridge] boot complete");
+        // boot complete
       } catch (err) {
         console.error("[WatcherBridge] boot failed:", err);
         // Don't set bootedRef -- allow retry
@@ -220,7 +218,7 @@ export default function WatcherBridge() {
 
           // Re-sync watchers with latest folder list
           await api.watched!.sync(active);
-          console.log(`[WatcherBridge] re-synced ${active.length} folder(s)`);
+          // re-synced watchers
         }
       } catch {
         // Ignore

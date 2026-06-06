@@ -1,7 +1,13 @@
+import { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import QuickActions from "@/components/home/QuickActions";
 import AskDrift from "@/components/home/AskDrift";
+
+export const metadata: Metadata = {
+  title: "Home — Drift AI",
+  description: "CRE deal intelligence hub. Ask Dante about your deals, leases, and properties.",
+};
 
 function firstNameFrom(user: any): string | null {
   const meta = user?.user_metadata || {};
