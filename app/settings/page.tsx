@@ -1,3 +1,4 @@
+import { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { isWorkspaceAdmin } from "@/lib/rbac";
@@ -5,6 +6,11 @@ import { getWorkspaceFeatures } from "@/lib/features/server";
 import { getShellContext } from "@/lib/shell/workspace-context";
 import AppShell from "@/components/shell/AppShell";
 import SettingsOrbClient from "./SettingsOrbClient";
+
+export const metadata: Metadata = {
+  title: "Settings — Drift AI",
+  description: "Workspace settings, integrations, billing, and team management.",
+};
 
 export const dynamic = "force-dynamic";
 

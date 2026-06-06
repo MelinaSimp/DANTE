@@ -20,9 +20,8 @@ import WatcherBridge from "@/components/shell/WatcherBridge";
 import { ThemeProvider, ThemeScript } from "@/components/theme/ThemeProvider";
 import { DensityProvider, DensityScript } from "@/components/theme/DensityProvider";
 // FloatingDashboardButton was removed in the IA sweep — every workspace
-// page now has an inline "← Dashboard" link at the top, so the floating
-// chip was a duplicate affordance. If you need one-off back-chip for a
-// specific route, add it in that route, not globally.
+// page now has an inline back-link at the top, so the floating chip was
+// a duplicate affordance.
 
 const fontUi = Inter({
   subsets: ["latin"],

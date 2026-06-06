@@ -2,8 +2,8 @@
 
 // Sign-in / sign-up page, Harvey-ized.
 // Pure white canvas, editorial serif heading, 1px rules, no glass, no
-// GLSL hills. The page that sets the tone for a CCO's first 30 seconds
-// with the product.
+// GLSL hills. The page that sets the tone for a broker's first
+// 30 seconds with the product.
 
 import { useState, useEffect } from "react";
 import Link from "next/link";

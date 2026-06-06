@@ -1,12 +1,10 @@
 // /dante is feature-gated. A workspace without the `dante` entitlement
-// gets bounced to /dashboard (with ?gated=dante so the dashboard can
-// surface a "not part of your plan" nudge later). This check runs once
-// per request thanks to the layout; children can assume access.
+// gets bounced to /home. This check runs once per request thanks to
+// the layout; children can assume access.
 //
 // Metadata on this layout also swaps the browser-tab favicon to the
-// double-gate mark for every /dante/* route, so an advisor with
-// multiple tabs open can tell at a glance which one is Dante without
-// reading the titles.
+// double-gate mark for every /dante/* route, so a user with multiple
+// tabs open can tell at a glance which one is Dante.
 
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";

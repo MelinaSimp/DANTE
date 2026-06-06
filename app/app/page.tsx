@@ -1,7 +1,5 @@
-// /app was the "backend" orb — a parallel dashboard hub. The real
-// dashboard at /dashboard now owns navigation, so this redirects out.
-// Kept as a redirect rather than deleted so any lingering bookmarks or
-// internal links don't 404.
+// /app was the "backend" orb — a parallel hub. Redirects to /home so
+// bookmarks and internal links don't 404.
 
 import { redirect } from "next/navigation";
 

@@ -109,7 +109,7 @@ async function ensureUserWorkspace(user: any, supabase: any): Promise<string | n
 //
 //   • no workspace yet  → /join (redeem a code or start trial)
 //   • workspace, not yet onboarded  → /onboarding (first-run wizard)
-//   • workspace, onboarded  → /dashboard
+//   • workspace, onboarded  → /home
 //
 // The pending_trial flag in user_metadata indicates the user chose
 // "Start free trial" during signup instead of entering a workspace
