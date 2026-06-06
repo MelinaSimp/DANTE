@@ -11,10 +11,10 @@ export default function NotFound() {
         </p>
         <div className="flex gap-3 justify-center">
           <Link
-            href="/dashboard"
+            href="/home"
             className="px-4 py-2 rounded-[4px] bg-[var(--ink)] hover:bg-[var(--ink)]/90 text-[var(--canvas)] text-sm font-medium transition"
           >
-            Go to dashboard
+            Go home
           </Link>
           <Link
             href="/"

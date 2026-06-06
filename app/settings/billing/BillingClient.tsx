@@ -209,7 +209,7 @@ export default function BillingClient({
 
         {!hasPrice && (
           <a
-            href="mailto:sales@driftai.studio"
+            href="mailto:driftaillc@gmail.com"
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-sm font-semibold hover:opacity-90 transition"
           >
             <Mail className="w-4 h-4" strokeWidth={1.5} />

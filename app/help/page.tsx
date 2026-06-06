@@ -211,7 +211,7 @@ export default function HelpIndex() {
             within one business day.
           </p>
           <a
-            href="mailto:support@driftai.studio"
+            href="mailto:driftaillc@gmail.com"
             className="inline-block text-xs font-medium text-[var(--accent)] hover:underline"
           >
             Email support

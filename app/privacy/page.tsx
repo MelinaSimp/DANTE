@@ -97,7 +97,7 @@ export default function PrivacyPage() {
       <p>
         Each subprocessor is bound by a data processing agreement. A current
         list of subprocessors is available on request at{" "}
-        <a href="mailto:privacy@driftai.studio">privacy@driftai.studio</a>.
+        <a href="mailto:driftaillc@gmail.com">driftaillc@gmail.com</a>.
       </p>
 
       <h2>4. Data Retention</h2>
@@ -127,7 +127,7 @@ export default function PrivacyPage() {
       </ul>
       <p>
         To exercise any of these rights, email{" "}
-        <a href="mailto:privacy@driftai.studio">privacy@driftai.studio</a>.
+        <a href="mailto:driftaillc@gmail.com">driftaillc@gmail.com</a>.
       </p>
 
       <h2>6. International Transfers</h2>
@@ -155,7 +155,7 @@ export default function PrivacyPage() {
       <h2>9. Contact</h2>
       <p>
         Questions about this Privacy Policy or your data? Email{" "}
-        <a href="mailto:privacy@driftai.studio">privacy@driftai.studio</a>.
+        <a href="mailto:driftaillc@gmail.com">driftaillc@gmail.com</a>.
       </p>
     </LegalLayout>
   );

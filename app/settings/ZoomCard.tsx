@@ -202,9 +202,9 @@ export default function ZoomCard({ isAdmin, workspaceId }: Props) {
           <Video className="w-5 h-5 text-[var(--ink-muted)] mt-0.5" strokeWidth={1.5} />
           <div className="text-sm text-[var(--ink-muted)]">
             <p>
-              Connect a <span className="font-medium text-[var(--ink)]">Zoom Pro</span> (or higher) account so advisors can
-              launch cloud-recorded client meetings directly from Drift. Recordings
-              auto-transcribe into the client's timeline once the meeting ends.
+              Connect a <span className="font-medium text-[var(--ink)]">Zoom Pro</span> (or higher) account to
+              launch cloud-recorded meetings directly from Drift. Recordings
+              auto-transcribe into the contact timeline once the meeting ends.
             </p>
             <p className="mt-2">
               You'll need to create a{" "}

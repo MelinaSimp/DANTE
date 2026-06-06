@@ -179,10 +179,10 @@ export default async function StatusPage() {
           Checked live when you loaded this page. For persistent incidents or
           historical uptime, email{" "}
           <a
-            href="mailto:support@driftai.studio"
+            href="mailto:driftaillc@gmail.com"
             className="text-[var(--accent)] underline underline-offset-2"
           >
-            support@driftai.studio
+            driftaillc@gmail.com
           </a>
           .
         </p>

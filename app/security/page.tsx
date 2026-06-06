@@ -14,7 +14,7 @@ export default function SecurityPage() {
         This page summarizes the controls we have in place today. For
         enterprise security reviews, DPAs, penetration-test reports, or our
         SOC 2 readiness status, contact{" "}
-        <a href="mailto:security@driftai.studio">security@driftai.studio</a>.
+        <a href="mailto:driftaillc@gmail.com">driftaillc@gmail.com</a>.
       </p>
 
       <h2>Infrastructure</h2>
@@ -132,13 +132,13 @@ export default function SecurityPage() {
         Standard Contractual Clauses for EU/UK transfers. Enterprise customers
         can request the current compliance package, vendor security
         questionnaire responses, and subprocessor list at{" "}
-        <a href="mailto:security@driftai.studio">security@driftai.studio</a>.
+        <a href="mailto:driftaillc@gmail.com">driftaillc@gmail.com</a>.
       </p>
 
       <h2>Reporting a vulnerability</h2>
       <p>
         Security researchers: please report suspected vulnerabilities to{" "}
-        <a href="mailto:security@driftai.studio">security@driftai.studio</a>.
+        <a href="mailto:driftaillc@gmail.com">driftaillc@gmail.com</a>.
         We commit to acknowledging reports within 2 business days and will not
         pursue legal action against good-faith research that follows
         responsible disclosure.
