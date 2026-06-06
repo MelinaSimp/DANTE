@@ -218,14 +218,14 @@ export default function RemindersClient() {
       <div className="sticky top-0 z-10 border-b border-[var(--rule)] bg-[var(--canvas)]/95 backdrop-blur">
         <div className="max-w-6xl mx-auto px-6 md:px-10 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 text-sm text-[var(--ink-muted)]">
-            <Link href="/dashboard" className="hover:text-[var(--ink)] transition">
+            <Link href="/home" className="hover:text-[var(--ink)] transition">
               Drift
             </Link>
             <span className="text-[var(--ink-subtle)]">/</span>
             <span className="text-[var(--ink)]">Reminders</span>
           </div>
           <Link
-            href="/dashboard"
+            href="/home"
             className="inline-flex items-center gap-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
           >
             <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />

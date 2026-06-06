@@ -719,7 +719,7 @@ export default function ClientDetailsOverviewClient({
               their own navigation. */}
           {!panelMode && (
             <Link
-              href="/dashboard"
+              href="/home"
               className="mb-6 inline-flex items-center gap-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
             >
               <ArrowLeft className="h-4 w-4" strokeWidth={1.5} />
@@ -1050,7 +1050,7 @@ export default function ClientDetailsOverviewClient({
           <div className="flex items-center gap-3 min-w-0">
             {!panelMode && (
               <Link
-                href="/dashboard"
+                href="/home"
                 className="inline-flex items-center gap-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition shrink-0"
               >
                 <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />

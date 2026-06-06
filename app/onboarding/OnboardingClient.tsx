@@ -153,7 +153,7 @@ function seedsFor(category: Category, firmName: string): SeedEntry[] {
       id: "about",
       category: "Company Info",
       title: `About ${nm}`,
-      content: `One paragraph about what ${nm} does, who you serve, and what makes you different. The AI receptionist uses this to frame calls.`,
+      content: `One paragraph about what ${nm} does, who you serve, and what makes you different. Dante uses this to contextualize answers.`,
       included: true,
     },
     {
@@ -263,7 +263,7 @@ export default function OnboardingClient({
         const j = await res.json().catch(() => ({}));
         throw new Error(j.error || "Something went wrong.");
       }
-      router.push("/dashboard");
+      router.push("/home");
     } catch (e: any) {
       setError(e?.message || "Something went wrong.");
       setSubmitting(false);

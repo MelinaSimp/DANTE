@@ -55,7 +55,7 @@ export async function middleware(req: NextRequest) {
     const hasCookie = req.cookies.get(LABS_COOKIE)?.value === "1";
     if (!hasCookie && labsParam !== "1") {
       const url = req.nextUrl.clone();
-      url.pathname = "/dashboard";
+      url.pathname = "/home";
       url.search = "";
       return NextResponse.redirect(url);
     }

@@ -303,7 +303,7 @@ export default function EmailClient({ agentId }: { agentId: string }) {
       <div className="sticky top-0 z-10 border-b border-[var(--rule)] bg-[var(--canvas)]">
         <div className="max-w-6xl mx-auto px-6 md:px-10 py-4 flex items-center gap-3">
           <Link
-            href="/dashboard"
+            href="/home"
             className="inline-flex items-center gap-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
           >
             <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />

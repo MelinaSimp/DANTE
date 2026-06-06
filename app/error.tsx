@@ -50,10 +50,10 @@ export default function RouteError({
             Try again
           </button>
           <Link
-            href="/dashboard"
+            href="/home"
             className="px-4 py-2 rounded-[4px] border border-[var(--rule)] hover:bg-[var(--canvas-subtle)] text-[var(--ink)] text-sm font-medium transition"
           >
-            Go to dashboard
+            Go home
           </Link>
         </div>
       </div>

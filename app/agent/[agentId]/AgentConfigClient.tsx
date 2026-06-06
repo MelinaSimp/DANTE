@@ -110,7 +110,7 @@ interface DataSource {
   created_at: string;
 }
 
-const PERSONA_TEMPLATE = `You are the AI receptionist for {{Company Name}}, a {{one-line description of what you do}}.
+const PERSONA_TEMPLATE = `You are the AI voice agent for {{Company Name}}, a {{one-line description of what you do}}.
 
 Your job is to:
 - Greet callers warmly and ask how you can help.
@@ -391,7 +391,7 @@ export default function AgentConfigClient({
         <div className="max-w-5xl mx-auto px-6 md:px-10 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 text-sm text-[var(--ink-muted)]">
             <Link
-              href="/dashboard"
+              href="/home"
               className="hover:text-[var(--ink)] transition"
             >
               Drift

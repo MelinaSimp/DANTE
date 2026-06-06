@@ -224,7 +224,7 @@ function FolderList({
     <div className="max-w-4xl mx-auto px-6 py-8">
       <div className="mb-8">
         <Link
-          href="/dashboard"
+          href="/home"
           className="inline-flex items-center gap-1.5 text-sm text-[var(--ink-subtle)] hover:text-[var(--ink-muted)] mb-3 transition"
         >
           <ArrowLeft className="w-3.5 h-3.5" />

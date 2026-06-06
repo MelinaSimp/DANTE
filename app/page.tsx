@@ -31,5 +31,5 @@ export default async function Home() {
     .eq("id", profile.workspace_id)
     .maybeSingle();
 
-  redirect(ws?.onboarded_at ? "/dashboard" : "/onboarding");
+  redirect(ws?.onboarded_at ? "/home" : "/onboarding");
 }

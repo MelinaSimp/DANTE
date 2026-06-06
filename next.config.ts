@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
     // Harvey-styled /dashboard now covers the same ground; this 301
     // keeps any lingering external bookmarks alive while we kill the
     // dual-implementation surface for good. (Phase 0, W0.2.)
-    { source: "/dashboard/legacy", destination: "/dashboard", permanent: true },
+    { source: "/dashboard/legacy", destination: "/home", permanent: true },
 
     // Phase 3+ panel fix #12 — soft-rename `/api/dante/*` →
     // `/api/assistant/*`. We keep the old paths working as 308
@@ -26,22 +26,21 @@ const nextConfig: NextConfig = {
       permanent: false, // 307 — preserve method
     },
 
-    // Phase 1 surface reduction — CRM-era routes removed from nav.
-    // 301 redirects keep bookmarks and Electron deep-links alive.
-    { source: "/client-details-overview", destination: "/dashboard", permanent: true },
-    { source: "/contacts", destination: "/dashboard", permanent: true },
-    { source: "/calendar", destination: "/dashboard", permanent: true },
-    { source: "/appointments", destination: "/dashboard", permanent: true },
-    { source: "/schedule", destination: "/dashboard", permanent: true },
-    { source: "/inbox", destination: "/dashboard", permanent: true },
-    { source: "/email", destination: "/dashboard", permanent: true },
-    { source: "/reminders", destination: "/dashboard", permanent: true },
-    { source: "/properties", destination: "/dashboard", permanent: true },
-    { source: "/review-tables", destination: "/dashboard", permanent: true },
-    { source: "/audit", destination: "/dashboard", permanent: true },
-    { source: "/library", destination: "/dashboard", permanent: true },
-    { source: "/watched-folders", destination: "/dashboard", permanent: true },
-    { source: "/fiduciary-bench", destination: "/dashboard", permanent: true },
+    // Retired CRM-era routes — 301 to /home so bookmarks and
+    // Electron deep-links don't 404. /contacts, /properties, and
+    // /fiduciary-bench are now live routes and NOT redirected.
+    { source: "/client-details-overview", destination: "/home", permanent: true },
+    { source: "/calendar", destination: "/home", permanent: true },
+    { source: "/appointments", destination: "/home", permanent: true },
+    { source: "/schedule", destination: "/home", permanent: true },
+    { source: "/inbox", destination: "/home", permanent: true },
+    { source: "/email", destination: "/home", permanent: true },
+    { source: "/reminders", destination: "/home", permanent: true },
+    { source: "/review-tables", destination: "/home", permanent: true },
+    { source: "/audit", destination: "/home", permanent: true },
+    { source: "/library", destination: "/home", permanent: true },
+    { source: "/watched-folders", destination: "/home", permanent: true },
+    { source: "/resources", destination: "/features", permanent: true },
   ],
   headers: async () => [
     {

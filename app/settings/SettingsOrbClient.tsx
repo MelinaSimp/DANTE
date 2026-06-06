@@ -223,7 +223,7 @@ export default function SettingsOrbClient({
           <span className="label-section text-[var(--ink-muted)]">Settings</span>
         </div>
         <Link
-          href="/dashboard"
+          href="/home"
           className="inline-flex items-center gap-1.5 text-sm text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
         >
           <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />

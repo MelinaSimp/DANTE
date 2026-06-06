@@ -113,7 +113,7 @@ export default function ReviewQueuePage() {
       {/* Header */}
       <div className="sticky top-0 z-20 flex items-center h-[50px] px-6 bg-[var(--canvas)] border-b border-[var(--rule)]">
         <Link
-          href="/dashboard"
+          href="/home"
           className="p-1.5 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition mr-3"
         >
           <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />

@@ -284,7 +284,7 @@ export default function AnalyticsClient() {
             <div className="card-flat p-5">
               <p className="label-section text-[var(--ink-subtle)] mb-3">Quick actions</p>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-                <QuickLink href="/dashboard/clients" icon={Users} label="View contacts" />
+                <QuickLink href="/contacts" icon={Users} label="View contacts" />
                 <QuickLink href="/dante" icon={MessageSquare} label="Open Dante" />
                 <QuickLink href="/settings/usage" icon={Activity} label="Cost breakdown" />
                 <QuickLink href="/settings" icon={Workflow} label="Settings" />

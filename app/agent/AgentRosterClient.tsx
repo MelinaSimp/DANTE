@@ -422,7 +422,7 @@ export default function AgentsPage() {
           <img src="/brand/logo-circle.png" alt="Drift" className="w-6 h-6 rounded-full object-cover" />
           <span className="text-sm font-semibold text-[var(--ink)]">Drift</span>
           <span className="text-xs text-[var(--ink-subtle)]">/</span>
-          <Link href="/dashboard" className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] transition">Dashboard</Link>
+          <Link href="/home" className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] transition">Home</Link>
           <span className="text-xs text-[var(--ink-subtle)]">/</span>
           <span className="label-section text-xs">Workspace</span>
           <span className="text-xs text-[var(--ink-subtle)]">/</span>
@@ -434,7 +434,7 @@ export default function AgentsPage() {
             <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} strokeWidth={1.5} />
             <span className="hidden sm:inline">Refresh</span>
           </button>
-          <Link href="/dashboard" className="flex items-center gap-1.5 px-3 py-2 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition text-sm font-medium">
+          <Link href="/home" className="flex items-center gap-1.5 px-3 py-2 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition text-sm font-medium">
             <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
             <span className="hidden sm:inline">Dashboard</span>
           </Link>

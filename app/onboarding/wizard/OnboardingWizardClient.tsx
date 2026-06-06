@@ -189,7 +189,7 @@ export default function OnboardingWizardClient({
               All set. {assistantName} is ready.
             </p>
             <Link
-              href="/dashboard"
+              href="/home"
               className="inline-block px-4 py-2 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-sm font-semibold hover:opacity-90 transition"
             >
               Go to dashboard

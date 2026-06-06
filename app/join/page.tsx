@@ -92,8 +92,7 @@ export default function JoinPage() {
       const data = await r.json();
       if (r.ok && data.success) {
         setSuccess(data.workspace_name || "Workspace");
-        // Land on the dashboard, not the orb hub.
-        setTimeout(() => router.push("/dashboard"), 1200);
+        setTimeout(() => router.push("/home"), 1200);
       } else {
         setError(data.error || "Invalid invite code");
       }
