@@ -58,6 +58,15 @@ interface StepLogEntry {
   error?: string;
 }
 
+interface NodeTrace {
+  node: string;
+  status: string;
+  duration_ms?: number;
+  items?: number;
+  error?: string;
+  output_preview?: unknown;
+}
+
 interface RunFeedItem {
   id: string;
   workflow_id: string;
@@ -67,6 +76,9 @@ interface RunFeedItem {
   error: string | null;
   output: unknown;
   log: StepLogEntry[] | null;
+  n8n_execution_id?: string | null;
+  result?: unknown;
+  node_traces?: NodeTrace[];
 }
 
 interface WorkflowProposal {
@@ -117,6 +129,8 @@ export default function WorkflowsPageClient({ vaultReady, canManageVault }: Prop
   const [runFeed, setRunFeed] = useState<RunFeedItem[]>([]);
   const [runFeedLoading, setRunFeedLoading] = useState(true);
   const [runFeedError, setRunFeedError] = useState<string | null>(null);
+  const [expandedRunId, setExpandedRunId] = useState<string | null>(null);
+  const [loadingTraces, setLoadingTraces] = useState<string | null>(null);
 
   const [prompt, setPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
@@ -163,6 +177,39 @@ export default function WorkflowsPageClient({ vaultReady, canManageVault }: Prop
   }, []);
 
   useEffect(() => { loadRunFeed(); }, [loadRunFeed]);
+
+  const toggleRunTraces = useCallback(async (run: RunFeedItem) => {
+    const runKey = run.n8n_execution_id || run.id;
+    if (expandedRunId === runKey) {
+      setExpandedRunId(null);
+      return;
+    }
+    // If we already have traces, just expand
+    if (run.node_traces && run.node_traces.length > 0) {
+      setExpandedRunId(runKey);
+      return;
+    }
+    // Fetch traces from the detail endpoint
+    if (!run.n8n_execution_id) {
+      setExpandedRunId(runKey);
+      return;
+    }
+    setLoadingTraces(runKey);
+    try {
+      const res = await fetch(`/api/dante/workflows/runs/${run.n8n_execution_id || run.id}`, { credentials: "include" });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.node_traces) {
+          // Update the run in the feed with traces
+          setRunFeed((prev) => prev.map((r) =>
+            (r.id === run.id) ? { ...r, node_traces: json.node_traces, status: json.run?.status || r.status } : r
+          ));
+        }
+      }
+    } catch { /* silent */ }
+    setLoadingTraces(null);
+    setExpandedRunId(runKey);
+  }, [expandedRunId]);
 
   const pendingProposals = rows.filter((r) => r.proposal_state === "pending");
   const activeWorkflows = rows.filter((r) => r.proposal_state !== "pending");
@@ -514,13 +561,20 @@ export default function WorkflowsPageClient({ vaultReady, canManageVault }: Prop
           <div className="space-y-2">
             {runFeed.slice(0, 8).map((run) => {
               const wf = rows.find((r) => r.id === run.workflow_id);
-              const isSuccess = run.status === "success";
+              const isSuccess = run.status === "success" || run.status === "completed";
+              const isRunning = run.status === "running";
+              const isFailed = run.status === "error" || run.status === "failed";
               const summary = extractRunSummary(run);
+              const runKey = run.n8n_execution_id || run.id;
+              const isExpanded = expandedRunId === runKey;
+              const isN8n = !!run.n8n_execution_id;
               return (
                 <div key={run.id} className="card-flat px-5 py-4">
                   <div className="flex items-start gap-3">
                     <div className="shrink-0 mt-0.5">
-                      {isSuccess
+                      {isRunning
+                        ? <Loader2 className="w-4 h-4 text-[var(--accent)] animate-spin" strokeWidth={1.5} />
+                        : isSuccess
                         ? <CheckCircle2 className="w-4 h-4 text-[var(--verified)]" strokeWidth={1.5} />
                         : <AlertCircle className="w-4 h-4 text-[var(--danger)]" strokeWidth={1.5} />}
                     </div>
@@ -530,7 +584,7 @@ export default function WorkflowsPageClient({ vaultReady, canManageVault }: Prop
                           {wf?.name || "Workflow"}
                         </span>
                         <span className="text-[11px] text-[var(--ink-subtle)]">
-                          {run.finished_at ? timeAgo(run.finished_at) : ""}
+                          {run.finished_at ? timeAgo(run.finished_at) : isRunning ? "running" : ""}
                         </span>
                       </div>
                       {run.error ? (
@@ -538,6 +592,7 @@ export default function WorkflowsPageClient({ vaultReady, canManageVault }: Prop
                       ) : summary ? (
                         <p className="text-xs text-[var(--ink-muted)] leading-relaxed line-clamp-3">{summary}</p>
                       ) : null}
+                      {/* Legacy step log pills */}
                       {run.log && run.log.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-2">
                           {run.log.map((entry, i) => (
@@ -551,13 +606,72 @@ export default function WorkflowsPageClient({ vaultReady, canManageVault }: Prop
                           ))}
                         </div>
                       )}
+                      {/* n8n node trace pills (inline summary) */}
+                      {isN8n && run.node_traces && run.node_traces.length > 0 && !isExpanded && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {run.node_traces.filter((t) => t.node !== "Report to Drift").map((trace, i) => (
+                            <span key={i} className={`text-[10px] mono rounded-full px-2 py-0.5 border border-[var(--rule)] ${
+                              trace.status === "success" ? "text-[var(--verified)] bg-[var(--verified-soft)]"
+                                : trace.status === "error" ? "text-[var(--danger)] bg-[var(--danger-soft)]"
+                                : "text-[var(--ink-subtle)] bg-[var(--canvas-subtle)]"
+                            }`}>
+                              {trace.node}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {/* Expanded n8n execution traces */}
+                      {isN8n && isExpanded && run.node_traces && run.node_traces.length > 0 && (
+                        <div className="mt-3 space-y-2">
+                          {run.node_traces.filter((t) => t.node !== "Report to Drift").map((trace, i) => (
+                            <div key={i} className="rounded-lg border border-[var(--rule)] bg-[var(--canvas-subtle)] px-3 py-2">
+                              <div className="flex items-center gap-2 mb-1">
+                                {trace.status === "success"
+                                  ? <CheckCircle2 className="w-3 h-3 text-[var(--verified)]" strokeWidth={1.5} />
+                                  : trace.status === "error"
+                                  ? <AlertCircle className="w-3 h-3 text-[var(--danger)]" strokeWidth={1.5} />
+                                  : <Circle className="w-3 h-3 text-[var(--ink-subtle)]" strokeWidth={1.5} />}
+                                <span className="text-xs font-semibold text-[var(--ink)]">{trace.node}</span>
+                                {trace.duration_ms !== undefined && (
+                                  <span className="text-[10px] text-[var(--ink-subtle)] mono">{trace.duration_ms}ms</span>
+                                )}
+                                {trace.items !== undefined && (
+                                  <span className="text-[10px] text-[var(--ink-subtle)]">{trace.items} item{trace.items !== 1 ? "s" : ""}</span>
+                                )}
+                              </div>
+                              {trace.error && (
+                                <p className="text-[11px] text-[var(--danger)] mono mt-1">{trace.error}</p>
+                              )}
+                              {trace.output_preview != null && (
+                                <pre className="text-[10px] text-[var(--ink-muted)] mono mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-all">
+                                  {String(typeof trace.output_preview === "string"
+                                    ? trace.output_preview
+                                    : JSON.stringify(trace.output_preview, null, 2)).slice(0, 500)}
+                                </pre>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    {wf && (
-                      <Link href={`/dante/workflows/${wf.id}`}
-                        className="shrink-0 text-[11px] text-[var(--ink-muted)] hover:text-[var(--ink)] underline underline-offset-2">
-                        Details
-                      </Link>
-                    )}
+                    <div className="shrink-0 flex items-center gap-2">
+                      {isN8n && (
+                        <button
+                          onClick={() => toggleRunTraces(run)}
+                          className="text-[11px] text-[var(--ink-muted)] hover:text-[var(--ink)] underline underline-offset-2"
+                        >
+                          {loadingTraces === runKey ? (
+                            <Loader2 className="w-3 h-3 animate-spin" strokeWidth={1.5} />
+                          ) : isExpanded ? "Collapse" : "Traces"}
+                        </button>
+                      )}
+                      {wf && (
+                        <Link href={`/dante/workflows/${wf.id}`}
+                          className="text-[11px] text-[var(--ink-muted)] hover:text-[var(--ink)] underline underline-offset-2">
+                          Details
+                        </Link>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -752,6 +866,24 @@ function extractRunSummary(run: RunFeedItem): string | null {
     const out = run.output as Record<string, unknown>;
     const t = extractOutputText(out);
     if (t) return t;
+  }
+  // Check n8n result data
+  if (run.result && typeof run.result === "object") {
+    const res = run.result as Record<string, unknown>;
+    if (typeof res.output === "string" && res.output.trim()) return res.output.trim().slice(0, 300);
+    if (typeof res.error === "string" && res.error.trim()) return res.error.trim().slice(0, 300);
+    if (res.status === "success" && !res.output) return "Completed successfully";
+  }
+  // Check n8n node traces for output
+  if (run.node_traces && run.node_traces.length > 0) {
+    for (let i = run.node_traces.length - 1; i >= 0; i--) {
+      const trace = run.node_traces[i];
+      if (trace.node === "Report to Drift") continue;
+      if (trace.status === "success" && trace.output_preview && typeof trace.output_preview === "object") {
+        const t = extractOutputText(trace.output_preview as Record<string, unknown>);
+        if (t) return t;
+      }
+    }
   }
   if (run.log && run.log.length > 0) {
     for (let i = run.log.length - 1; i >= 0; i--) {
