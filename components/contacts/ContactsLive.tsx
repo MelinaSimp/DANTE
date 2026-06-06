@@ -22,7 +22,6 @@ export default function ContactsLive({ workspaceId }: Props) {
           ...(workspaceId ? { filter: `workspace_id=eq.${workspaceId}` } : {}),
         },
         (event) => {
-          console.log("contacts realtime event", event);
           router.refresh();
         }
       )

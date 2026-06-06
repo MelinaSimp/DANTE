@@ -68,10 +68,7 @@ export async function POST(req: NextRequest) {
   }
 
   const incoming = parseIncoming(payload);
-  console.log("[sms.webhook.debug] payload=", JSON.stringify(payload));
-  console.log("[sms.webhook.debug] parsed=", JSON.stringify(incoming));
   if (incoming.is_from_me || !incoming.phone || !incoming.content) {
-    console.log("[sms.webhook.debug] short-circuit ignored");
     return NextResponse.json({ ok: true, ignored: true });
   }
 
@@ -124,21 +121,11 @@ export async function POST(req: NextRequest) {
   }
 
   if (!profile || !(profile as any).sms_verified_at) {
-    console.log(
-      "[sms.webhook.debug] unauthenticated phone=",
-      incoming.phone,
-      "profile_found=",
-      !!profile,
-      "verified_at=",
-      profile ? (profile as any).sms_verified_at : null,
-    );
-    // Unknown / unverified number — short reply, log nothing.
+    // Unknown / unverified number -- short reply.
     await sendMessage(
       incoming.phone,
       "This number isn't connected to a Drift account yet. Add and verify your number in Drift → Settings → SMS.",
-    ).catch((e) =>
-      console.log("[sms.webhook.debug] unauth-reply send failed:", e?.message),
-    );
+    ).catch(() => {});
     return NextResponse.json({ ok: true, unauthenticated: true });
   }
 

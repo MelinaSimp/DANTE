@@ -13,11 +13,11 @@ interface HeaderClientProps {
 }
 
 const navLinks = [
-  { href: "/agents", label: "Agents" },
+  { href: "/dante", label: "Dante AI" },
+  { href: "/properties", label: "Properties" },
+  { href: "/lease-abstractor", label: "Lease Abstractor" },
+  { href: "/workflows", label: "Workflows" },
   { href: "/contacts", label: "Contacts" },
-  { href: "/client-details-overview", label: "Clients" },
-  { href: "/appointments", label: "Appointments" },
-  { href: "/schedule", label: "Schedule" },
   { href: "/settings", label: "Settings" },
 ];
 

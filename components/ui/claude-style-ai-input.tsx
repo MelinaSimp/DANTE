@@ -789,9 +789,8 @@ export const Component = () => {
     files: FileWithPreview[],
     pastedContent: PastedContent[]
   ) => {
-    console.log("Message:", message);
-    console.log("Files:", files);
-    console.log("Pasted Content:", pastedContent);
+    // demo handler — wire to actual send logic
+    void message; void files; void pastedContent;
   };
 
   return (

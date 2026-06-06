@@ -610,19 +610,9 @@ export async function sendAppointmentEmail(
   },
   workspaceId: string
 ): Promise<void> {
-  // Debug logging
-  console.log("[sendAppointmentEmail] Environment check:");
-  console.log("- RESEND_API_KEY exists:", !!process.env.RESEND_API_KEY);
-  console.log("- RESEND_API_KEY length:", process.env.RESEND_API_KEY?.length || 0);
-  console.log("- RESEND_API_KEY starts with 're_':", process.env.RESEND_API_KEY?.startsWith('re_') || false);
-  console.log("- All env vars with 'RESEND':", Object.keys(process.env).filter(k => k.toUpperCase().includes('RESEND')));
-  
   const resendApiKey = process.env.RESEND_API_KEY;
-  
   if (!resendApiKey) {
-    console.error("[sendAppointmentEmail] RESEND_API_KEY is not set in environment variables");
-    console.error("[sendAppointmentEmail] Available env vars:", Object.keys(process.env).filter(k => k.includes('RESEND') || k.includes('API')));
-    throw new Error("Resend API key not found. Make sure RESEND_API_KEY is set in Vercel environment variables and the deployment was restarted.");
+    throw new Error("RESEND_API_KEY not configured");
   }
 
   const resend = new Resend(resendApiKey);
@@ -641,8 +631,6 @@ export async function sendAppointmentEmail(
     ? rawFrom
     : `${workspace?.name || "Drift AI"} <${rawFrom}>`;
 
-  console.log("[sendAppointmentEmail] Sending to:", toEmail, "from:", fromField);
-
   const result = await resend.emails.send({
     from: fromField,
     to: [toEmail],
@@ -659,10 +647,6 @@ export async function sendAppointmentEmail(
     throw new Error("Resend email ID not returned - email may not have been sent");
   }
 
-  console.log(`[sendAppointmentEmail] Email sent:`, {
-    id: result.data.id,
-    to: toEmail,
-    subject: `Appointment Reminder: ${appointmentData.description}`,
-  });
+  // email sent successfully
 }
 

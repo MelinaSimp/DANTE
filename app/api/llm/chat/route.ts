@@ -36,8 +36,6 @@ export async function POST(req: NextRequest) {
       recipientEmail,
     } = await req.json();
 
-    console.log("[LLM Chat] Request:", { templateName, templateDocumentId, imagesCount: images?.length, hasExtractedText: !!extractedTextFromPages, messagePreview: (message || "").substring(0, 100) });
-
     if (!message || typeof message !== "string" || message.trim().length === 0) {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
     }
@@ -302,13 +300,9 @@ You CAN generate PDFs - when users ask for a PDF, provide the content in a well-
             .eq("document_id", templateDocumentId)
             .order("page_number");
 
-          console.log("[LLM Chat] Template annotations for doc", templateDocumentId, ":", templateAnnotations?.length ?? 0, "error:", annError?.message ?? "none");
-
           if (templateAnnotations && templateAnnotations.length > 0) {
             const tableRegions: string[] = [];
             const paragraphRegions: string[] = [];
-            // Log all annotations for debugging
-            console.log("[LLM Chat] All template annotations:", JSON.stringify(templateAnnotations.map(a => ({ page: a.page_number, type: a.type, content: (a.content || "").substring(0, 80) }))));
             for (const ann of templateAnnotations) {
               const page = ann.page_number;
               const rawContent = (ann.content || "").trim();
@@ -387,7 +381,7 @@ You MUST generate at least one chart when the document contains numerical data.`
     }
     if (extractedTextFromPages && typeof extractedTextFromPages === "string" && extractedTextFromPages.trim()) {
       systemContent += `\n\nEXTRACTED TEXT FROM THE DOCUMENT TO ANALYZE:\n${extractedTextFromPages.substring(0, 15000)}`;
-      console.log("[LLM Chat] Extracted text length:", extractedTextFromPages.length, "first 300 chars:", extractedTextFromPages.substring(0, 300));
+      // extracted text injected into system prompt
     }
 
     // Meeting Planner mode: when user uploads PDFs (meeting notes/transcripts) or mentions meetings
@@ -563,8 +557,6 @@ Be specific about WHO needs to do WHAT and by WHEN. Reference client data and gu
         : templateName && requiredChartCount > 0
           ? "claude-sonnet-4-6"
           : "claude-haiku-4-5-20251001";
-    console.log("[LLM Chat] Provider:", provider, "Model:", model, "requiredChartCount:", requiredChartCount, "chartRequirements:", chartRequirementsList);
-
     let assistantMessage = "";
     let inputTokens = 0;
     let outputTokens = 0;
@@ -703,9 +695,8 @@ Be specific about WHO needs to do WHAT and by WHEN. Reference client data and gu
     }
 
     const chartBlockCount = (assistantMessage.match(/<!--\s*CHART_DATA\s*-->/gi) || []).length;
-    console.log("[LLM Chat] Response length:", assistantMessage.length, "finish_reason:", finishReason, "chart blocks found:", chartBlockCount, "required:", requiredChartCount);
     if (requiredChartCount > 0 && chartBlockCount < requiredChartCount) {
-      console.warn(`[LLM Chat] WARNING: LLM generated ${chartBlockCount} charts but ${requiredChartCount} were required!`);
+      console.warn(`[LLM Chat] Generated ${chartBlockCount}/${requiredChartCount} charts`);
     }
 
     return NextResponse.json({
