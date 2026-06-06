@@ -10,7 +10,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
-  Home,
   Loader2,
   Plus,
   X,
@@ -21,7 +20,7 @@ import {
   LayoutList,
   Columns3,
 } from "lucide-react";
-import { useIsRealtor } from "@/lib/industry/use-industry";
+// CRE-only vertical — no industry branch needed
 import { RealtorListingsEmpty } from "@/components/empty-states/RealtorEmptyStates";
 import { usePageContext } from "@/components/dante/PageContext";
 
@@ -104,7 +103,6 @@ const PIPELINE_STAGES = [
 
 export default function PropertiesClient() {
   const router = useRouter();
-  const isRealtor = useIsRealtor();
   const [rows, setRows] = useState<PropertyRow[] | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "pipeline">("list");
 
@@ -463,29 +461,9 @@ export default function PropertiesClient() {
             />
           </div>
         ) : rows.length === 0 ? (
-          isRealtor ? (
-            <div className="card-flat">
-              <RealtorListingsEmpty />
-            </div>
-          ) : (
-            <div className="card-flat py-16 text-center">
-              <Home
-                className="w-8 h-8 text-[var(--ink-subtle)] mx-auto mb-3"
-                strokeWidth={1.5}
-              />
-              <p className="text-sm text-[var(--ink-muted)] mb-4">
-                No properties yet — add your first listing.
-              </p>
-              {!showCreate && (
-                <button
-                  onClick={() => setShowCreate(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-sm font-semibold hover:opacity-90 transition"
-                >
-                  <Plus className="w-4 h-4" strokeWidth={1.5} /> New property
-                </button>
-              )}
-            </div>
-          )
+          <div className="card-flat">
+            <RealtorListingsEmpty />
+          </div>
         ) : viewMode === "pipeline" ? (
           /* ── Pipeline / Kanban view ──────────────────────────── */
           <div className="grid grid-cols-5 gap-3 min-h-[400px]">
