@@ -16,6 +16,10 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { log as rootLog } from "@/lib/logging";
+import * as n8nBridge from "@/lib/dante/n8n-bridge";
+
+const proposalLog = rootLog.child({ component: "workflow-proposal" });
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +50,7 @@ export async function POST(
 
   const { data: wf } = await supabaseAdmin
     .from("dante_workflows")
-    .select("id, workspace_id, proposal_state, enabled")
+    .select("id, workspace_id, proposal_state, enabled, n8n_workflow_id")
     .eq("id", workflowId)
     .maybeSingle();
 
@@ -72,10 +76,39 @@ export async function POST(
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    // Activate the n8n workflow so its triggers fire
+    const n8nId = (wf as any).n8n_workflow_id as string | null;
+    if (n8nId) {
+      try {
+        await n8nBridge.activateWorkflow(n8nId);
+      } catch (err) {
+        proposalLog.warn("failed to activate n8n workflow on accept", {
+          n8nId,
+          err: err instanceof Error ? err.message : String(err),
+        });
+        // Non-fatal — the Drift record is already accepted
+      }
+    }
+
     return NextResponse.json({ ok: true, action: "accepted" });
   }
 
   if (action === "decline") {
+    // Delete n8n workflow first (best-effort)
+    const n8nId = (wf as any).n8n_workflow_id as string | null;
+    if (n8nId) {
+      try {
+        await n8nBridge.deleteWorkflow(n8nId);
+      } catch (err) {
+        proposalLog.warn("failed to delete n8n workflow on decline", {
+          n8nId,
+          err: err instanceof Error ? err.message : String(err),
+        });
+        // Non-fatal — continue with Drift-side deletion
+      }
+    }
+
     const { error } = await supabaseAdmin
       .from("dante_workflows")
       .delete()

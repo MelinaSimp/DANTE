@@ -190,6 +190,7 @@ export type AgentToolName =
   | "workflow.clone_template" // clone a template into the workspace
   | "workflow.list"           // list the user's existing workflows
   | "workflow.update"         // edit an existing workflow's config or metadata
+  | "workflow.execution_status" // check execution status and per-node traces
   | "secrets.set"             // create or update a workspace secret
   | "secrets.list"            // list workspace secret keys (masked values)
   | "file_index.search"   // search the watched file index by filename/path

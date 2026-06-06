@@ -41,6 +41,8 @@ import {
 import { expandMcpTools, callMcpTool, parseMcpToolName } from "@/lib/mcp/registry";
 import { runSkill } from "@/lib/dante/skills";
 import { generateWorkflow } from "@/lib/dante/workflow-ai";
+import { generateN8nWorkflow } from "@/lib/dante/n8n-workflow-ai";
+import * as n8nBridge from "@/lib/dante/n8n-bridge";
 import {
   handleSiteScanSearch,
   handleSiteScanDetail,
@@ -642,6 +644,33 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
           },
         },
         required: ["workflow_id"],
+      },
+    },
+  },
+  "workflow.execution_status": {
+    type: "function",
+    function: {
+      name: "workflow_execution_status",
+      description:
+        "Check the execution status of a workflow run. Returns the current " +
+        "status (running, completed, failed) and per-node execution traces " +
+        "showing what each node produced. Use when the user asks 'did my " +
+        "workflow finish?', 'what happened with that run?', or 'show me " +
+        "the execution results'. Provide either a run_id (from workflow.run) " +
+        "or a workflow_name to get the most recent execution.",
+      parameters: {
+        type: "object",
+        properties: {
+          run_id: {
+            type: "string",
+            description: "The execution/run ID returned by workflow.run.",
+          },
+          workflow_name: {
+            type: "string",
+            description: "Workflow name to get the most recent execution for.",
+          },
+        },
+        required: [],
       },
     },
   },
@@ -1340,6 +1369,7 @@ const NAME_TO_TOOL: Record<string, AgentToolName> = {
   workflow_clone_template: "workflow.clone_template",
   workflow_list: "workflow.list",
   workflow_update: "workflow.update",
+  workflow_execution_status: "workflow.execution_status",
   secrets_set: "secrets.set",
   secrets_list: "secrets.list",
   file_index_search: "file_index.search",
@@ -1448,6 +1478,7 @@ const PER_TOOL_BUDGET: Partial<Record<AgentToolName, number>> = {
   "workflow.clone_template": 40, // cloning all 33 templates in one go is a valid ask
   "workflow.list": 3,            // read-only; cheap
   "workflow.update": 10,         // bulk email swap needs one per workflow
+  "workflow.execution_status": 5, // status checks; read-only
   "secrets.set": 10,            // setting up secrets for workflow configs
   "secrets.list": 3,            // read-only; cheap
   "file_index.search": 5,
@@ -2357,12 +2388,11 @@ async function dispatchTool(
       };
     }
     case "workflow.propose": {
-      // Materializes a persistent workflow proposal. The graph is
-      // generated from the model's natural-language `intent`, then
-      // inserted with enabled=false + proposal_state='pending' so
-      // cron/tick will NOT fire it until the user accepts. The
-      // dashboard / /reminders UI shows pending proposals with
-      // Accept and Decline buttons.
+      // Materializes a persistent workflow proposal. The n8n workflow
+      // JSON is generated from the model's natural-language `intent`,
+      // pushed to n8n (inactive), and inserted into dante_workflows
+      // with enabled=false + proposal_state='pending' so the UI can
+      // show Accept / Decline buttons.
       const intent = String(args.intent || "").trim();
       const summary = String(args.summary || "").trim();
       if (!intent) return { error: "workflow.propose: 'intent' required." };
@@ -2386,7 +2416,7 @@ async function dispatchTool(
 
       let generated;
       try {
-        generated = await generateWorkflow({
+        generated = await generateN8nWorkflow({
           prompt: intent,
           connectedIntegrations: (connections || []).map((c: { provider: string; provider_kind: string | null; display_name: string | null }) => ({
             provider: c.provider,
@@ -2402,16 +2432,31 @@ async function dispatchTool(
         };
       }
 
-      const triggerNode = generated.graph.nodes.find((n) =>
-        n.type.startsWith("trigger_"),
+      // Determine trigger type from the n8n workflow nodes
+      const triggerNode = generated.workflow.nodes.find((n) =>
+        n.type.includes("Trigger") || n.type.includes("trigger") || n.type.includes("webhook"),
       );
       const triggerType = triggerNode
-        ? (triggerNode.type as "trigger_manual" | "trigger_cron" | "trigger_at" | "trigger_webhook")
-        : "trigger_manual";
+        ? triggerNode.type.includes("scheduleTrigger") ? "cron"
+          : triggerNode.type.includes("webhook") ? "webhook"
+          : "manual"
+        : "manual";
 
-      // trigger_at workflows store next_fire_at on the row so the
-      // tick can pick them up — but for proposals we leave it null
-      // until accept flips proposal_state to NULL and computes it.
+      // Push to n8n (inactive — proposal not yet accepted)
+      let n8nWorkflowId: string | undefined;
+      try {
+        n8nWorkflowId = await n8nBridge.createWorkspaceWorkflow(
+          ctx.workspaceId,
+          { ...generated.workflow, active: false },
+        );
+      } catch (err) {
+        // n8n push failed — still save the proposal locally so the user
+        // can accept it later and we retry the push.
+        agentLog.warn("workflow.propose: n8n push failed, saving locally", {
+          err: err instanceof Error ? err.message : String(err),
+        });
+      }
+
       const insertPayload: Record<string, unknown> = {
         workspace_id: ctx.workspaceId,
         created_by: ctx.userId ?? null,
@@ -2419,9 +2464,15 @@ async function dispatchTool(
         description: generated.description || intent.slice(0, 280),
         enabled: false,
         proposal_state: "pending",
-        trigger: { type: triggerType.replace("trigger_", "") },
-        steps: generated.graph.nodes.map((n) => n.data.step),
-        graph: generated.graph,
+        trigger: { type: triggerType },
+        steps: generated.workflow.nodes.map((n) => ({
+          id: n.id,
+          type: n.type,
+          name: n.name,
+          parameters: n.parameters,
+        })),
+        graph: generated.workflow,
+        n8n_workflow_id: n8nWorkflowId || null,
       };
 
       const { data: wf, error: insertErr } = await supabaseAdmin
@@ -2438,6 +2489,7 @@ async function dispatchTool(
         proposal_id: (wf as { id: string }).id,
         title: insertPayload.name,
         trigger_type: triggerType,
+        n8n_synced: !!n8nWorkflowId,
         message:
           "Drafted as a pending proposal. The user can Accept or Decline from /reminders or the dashboard.",
       };
@@ -2447,9 +2499,10 @@ async function dispatchTool(
       const nameQuery = String(args.workflow_name || "").trim();
       if (!nameQuery) return { error: "workflow.run: 'workflow_name' required." };
 
+      // Fetch workflows including n8n_workflow_id for the bridge
       const { data: workflows } = await supabaseAdmin
         .from("dante_workflows")
-        .select("id, name, graph, enabled")
+        .select("id, name, graph, enabled, n8n_workflow_id")
         .eq("workspace_id", ctx.workspaceId)
         .is("proposal_state", null)
         .order("updated_at", { ascending: false });
@@ -2522,6 +2575,87 @@ async function dispatchTool(
         }
       }
 
+      // ── n8n execution path ──────────────────────────────────
+      // If this workflow has an n8n_workflow_id, execute via n8n.
+      // Otherwise fall back to the legacy Drift runner (Phase 1
+      // parallel operation — both engines coexist).
+      if ((match as any).n8n_workflow_id) {
+        const n8nId = (match as any).n8n_workflow_id as string;
+        const syncMode = !!args.wait_for_result;
+
+        // Extract webhook path from graph if the trigger is a webhook node
+        const graphNodes = Array.isArray((match.graph as any)?.nodes)
+          ? (match.graph as any).nodes as Array<{ type: string; parameters?: { path?: string } }>
+          : [];
+        const webhookTrigger = graphNodes.find(
+          (n) => n.type === "n8n-nodes-base.webhook" && n.parameters?.path,
+        );
+        const webhookPath = webhookTrigger?.parameters?.path as string | undefined;
+
+        try {
+          // Ensure the workflow is active in n8n before executing
+          await n8nBridge.activateWorkflow(n8nId);
+
+          let executionId: string;
+          let executionResult: unknown = undefined;
+
+          if (syncMode) {
+            // Sync: use webhook if available, else API execution
+            if (webhookPath) {
+              const execResult = await n8nBridge.executeSync(webhookPath, wfInput);
+              executionId = execResult.id;
+              executionResult = execResult.data;
+            } else {
+              executionId = await n8nBridge.executeWorkflowById(n8nId, wfInput);
+              // Fetch result since we used API execution
+              const exec = await n8nBridge.getExecution(executionId, true);
+              executionResult = exec.data;
+            }
+          } else {
+            // Async: prefer webhook trigger, fall back to API execution
+            if (webhookPath) {
+              executionId = await n8nBridge.executeAsync(webhookPath, wfInput);
+            } else {
+              executionId = await n8nBridge.executeWorkflowById(n8nId, wfInput);
+            }
+          }
+
+          // Record the run in dante_workflow_runs
+          await supabaseAdmin.from("dante_workflow_runs").insert({
+            workflow_id: match.id,
+            workspace_id: ctx.workspaceId,
+            status: "running",
+            started_at: new Date().toISOString(),
+            n8n_execution_id: executionId,
+            result: { triggered_by: ctx.userId || null, input: wfInput },
+          });
+
+          return {
+            ok: true,
+            run_id: executionId,
+            workflow_name: match.name,
+            workflow_id: match.id,
+            engine: "n8n",
+            input_provided: wfInput,
+            ...(executionResult ? { result: executionResult } : {}),
+            message: syncMode
+              ? `Workflow "${match.name}" completed.`
+              : `Workflow "${match.name}" has been triggered via n8n. Results will be pushed back when complete.`,
+          };
+        } catch (err) {
+          agentLog.error("workflow.run: n8n execution failed", {
+            err: err instanceof Error ? err.message : String(err),
+            n8nId,
+          });
+          return {
+            error: `workflow.run: n8n execution failed — ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          };
+        }
+      }
+
+      // ── Legacy Drift runner (no n8n_workflow_id) ────────────
       const { enqueueRun, kickQueueWorker } = await import("@/lib/dante/run-executor");
       const result = await enqueueRun({
         workflow_id: match.id,
@@ -2544,6 +2678,7 @@ async function dispatchTool(
         run_id: result.run_id,
         workflow_name: match.name,
         workflow_id: match.id,
+        engine: "legacy",
         input_provided: wfInput,
         message: `Workflow "${match.name}" has been triggered. It's now running in the background.`,
       };
@@ -2619,7 +2754,7 @@ async function dispatchTool(
       const includeDisabled = Boolean(args.include_disabled);
       let query = supabaseAdmin
         .from("dante_workflows")
-        .select("id, name, description, enabled, trigger, graph, last_run_at, last_run_status, created_at, updated_at")
+        .select("id, name, description, enabled, trigger, graph, last_run_at, last_run_status, created_at, updated_at, n8n_workflow_id")
         .eq("workspace_id", ctx.workspaceId)
         .is("proposal_state", null)
         .order("updated_at", { ascending: false });
@@ -2666,6 +2801,7 @@ async function dispatchTool(
           name: w.name,
           description: w.description,
           enabled: w.enabled,
+          engine: w.n8n_workflow_id ? "n8n" : "legacy",
           trigger_type: (w.trigger as { type?: string })?.type || "manual",
           trigger_config: Object.keys(triggerCfg).length > 0 ? triggerCfg : undefined,
           last_run_at: w.last_run_at,
@@ -2691,7 +2827,7 @@ async function dispatchTool(
       // Fetch the workflow and verify ownership
       const { data: wf, error: fetchErr } = await supabaseAdmin
         .from("dante_workflows")
-        .select("id, workspace_id, graph, steps")
+        .select("id, workspace_id, graph, steps, n8n_workflow_id")
         .eq("id", workflowId)
         .eq("workspace_id", ctx.workspaceId)
         .is("proposal_state", null)
@@ -2739,6 +2875,23 @@ async function dispatchTool(
 
       if (updateErr) return { error: `workflow.update: ${updateErr.message}` };
 
+      // Sync enable/disable state to n8n if this workflow has an n8n ID
+      const n8nWfId = (wf as any).n8n_workflow_id as string | null;
+      if (n8nWfId && args.enabled !== undefined) {
+        try {
+          if (args.enabled) {
+            await n8nBridge.activateWorkflow(n8nWfId);
+          } else {
+            await n8nBridge.deactivateWorkflow(n8nWfId);
+          }
+        } catch (syncErr) {
+          agentLog.warn("workflow.update: n8n sync failed", {
+            err: syncErr instanceof Error ? syncErr.message : String(syncErr),
+            n8nWfId,
+          });
+        }
+      }
+
       const changes: string[] = [];
       if (args.name) changes.push(`renamed to "${args.name}"`);
       if (args.description !== undefined) changes.push("description updated");
@@ -2750,6 +2903,132 @@ async function dispatchTool(
         workflow_id: workflowId,
         changes,
         message: `Workflow updated: ${changes.join(", ")}.`,
+      };
+    }
+
+    case "workflow.execution_status": {
+      const runId = String(args.run_id || "").trim();
+      const wfNameQuery = String(args.workflow_name || "").trim();
+
+      if (!runId && !wfNameQuery) {
+        return { error: "workflow.execution_status: provide either 'run_id' or 'workflow_name'." };
+      }
+
+      // If we have a run_id, look it up directly
+      if (runId) {
+        // Check local DB first (covers both n8n and legacy runs)
+        const { data: run } = await supabaseAdmin
+          .from("dante_workflow_runs")
+          .select("id, workflow_id, status, started_at, finished_at, result, n8n_execution_id")
+          .or(`id.eq.${runId},n8n_execution_id.eq.${runId}`)
+          .eq("workspace_id", ctx.workspaceId)
+          .maybeSingle();
+
+        if (run) {
+          // If this is an n8n execution and it's still running, fetch live status
+          const n8nExecId = (run as any).n8n_execution_id as string | null;
+          if (n8nExecId && run.status === "running") {
+            try {
+              const liveExec = await n8nBridge.getExecution(n8nExecId, true);
+              return {
+                ok: true,
+                run_id: runId,
+                status: liveExec.status,
+                started_at: liveExec.startedAt,
+                finished_at: liveExec.stoppedAt || null,
+                engine: "n8n",
+                node_traces: formatNodeTraces(liveExec),
+              };
+            } catch {
+              // Fall through to DB record
+            }
+          }
+
+          return {
+            ok: true,
+            run_id: run.id,
+            status: run.status,
+            started_at: run.started_at,
+            finished_at: run.finished_at,
+            result: run.result,
+            engine: n8nExecId ? "n8n" : "legacy",
+          };
+        }
+
+        // Not in DB — try n8n directly (for runs that haven't called back yet)
+        try {
+          const exec = await n8nBridge.getExecution(runId, true);
+          return {
+            ok: true,
+            run_id: runId,
+            status: exec.status,
+            started_at: exec.startedAt,
+            finished_at: exec.stoppedAt || null,
+            engine: "n8n",
+            node_traces: formatNodeTraces(exec),
+          };
+        } catch {
+          return { error: `workflow.execution_status: run "${runId}" not found.` };
+        }
+      }
+
+      // Look up by workflow name — get most recent run
+      const { data: wfs } = await supabaseAdmin
+        .from("dante_workflows")
+        .select("id, name")
+        .eq("workspace_id", ctx.workspaceId)
+        .ilike("name", `%${wfNameQuery}%`)
+        .limit(1);
+
+      if (!wfs || wfs.length === 0) {
+        return { error: `workflow.execution_status: no workflow matching "${wfNameQuery}".` };
+      }
+
+      const { data: latestRun } = await supabaseAdmin
+        .from("dante_workflow_runs")
+        .select("id, status, started_at, finished_at, result, n8n_execution_id")
+        .eq("workflow_id", (wfs[0] as any).id)
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!latestRun) {
+        return {
+          ok: true,
+          workflow_name: (wfs[0] as any).name,
+          message: "No executions found for this workflow.",
+        };
+      }
+
+      // If n8n execution, fetch live trace data
+      const n8nExecId = (latestRun as any).n8n_execution_id as string | null;
+      if (n8nExecId) {
+        try {
+          const exec = await n8nBridge.getExecution(n8nExecId, true);
+          return {
+            ok: true,
+            workflow_name: (wfs[0] as any).name,
+            run_id: n8nExecId,
+            status: exec.status,
+            started_at: exec.startedAt,
+            finished_at: exec.stoppedAt || null,
+            engine: "n8n",
+            node_traces: formatNodeTraces(exec),
+          };
+        } catch {
+          // Fall through
+        }
+      }
+
+      return {
+        ok: true,
+        workflow_name: (wfs[0] as any).name,
+        run_id: latestRun.id,
+        status: latestRun.status,
+        started_at: latestRun.started_at,
+        finished_at: latestRun.finished_at,
+        result: latestRun.result,
+        engine: n8nExecId ? "n8n" : "legacy",
       };
     }
 
@@ -3510,6 +3789,59 @@ const DEMAND_THRESHOLDS: Record<string, number> = {
  * model inferred even when buildVoidDashboard constructs the core data
  * from real tool results.
  */
+/**
+ * Extract per-node execution traces from an n8n execution response.
+ * Returns a compact summary suitable for the agent to relay to the user.
+ */
+function formatNodeTraces(exec: import("@/lib/dante/n8n-types").N8nExecution): Array<{
+  node: string;
+  status: string;
+  items?: number;
+  duration_ms?: number;
+  error?: string;
+  output_preview?: unknown;
+}> {
+  const runData = exec.data?.resultData?.runData;
+  if (!runData || typeof runData !== "object") return [];
+
+  const traces: Array<{
+    node: string;
+    status: string;
+    items?: number;
+    duration_ms?: number;
+    error?: string;
+    output_preview?: unknown;
+  }> = [];
+
+  for (const [nodeName, runs] of Object.entries(runData)) {
+    if (!Array.isArray(runs)) continue;
+    for (const run of runs) {
+      const trace: typeof traces[0] = {
+        node: nodeName,
+        status: run.executionStatus || "unknown",
+      };
+      if (run.executionTime !== undefined) trace.duration_ms = run.executionTime;
+      if (run.error) trace.error = typeof run.error === "string" ? run.error : (run.error as any)?.message || String(run.error);
+
+      // Extract output preview (first item, limited)
+      const mainOutput = run.data?.main?.[0];
+      if (Array.isArray(mainOutput) && mainOutput.length > 0) {
+        trace.items = mainOutput.length;
+        // Preview first item's json, truncated
+        const firstJson = mainOutput[0]?.json;
+        if (firstJson) {
+          const preview = JSON.stringify(firstJson);
+          trace.output_preview = preview.length > 500 ? JSON.parse(preview.slice(0, 500) + '..."') : firstJson;
+        }
+      }
+
+      traces.push(trace);
+    }
+  }
+
+  return traces;
+}
+
 function extractModelVoidJson(text: string): Record<string, unknown> | null {
   const m = text.match(/```void_analysis\s*\n([\s\S]*?)\n\s*```/);
   if (!m) return null;
@@ -3916,6 +4248,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
       "workflow.clone_template": 0,
       "workflow.list": 0,
       "workflow.update": 0,
+      "workflow.execution_status": 0,
       "secrets.set": 0,
       "secrets.list": 0,
       "file_index.search": 0,

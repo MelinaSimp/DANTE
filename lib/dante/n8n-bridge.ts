@@ -293,6 +293,31 @@ export async function executeSync(
   }
 }
 
+/**
+ * Execute a workflow via the n8n REST API (not via webhook).
+ * Use for workflows that have manualTrigger or scheduleTrigger.
+ * Calls POST /workflows/{id}/run which triggers an immediate execution.
+ *
+ * Returns the execution ID. The "Report to Drift" final node pushes
+ * results back via the callback endpoint.
+ */
+export async function executeWorkflowById(
+  workflowId: string,
+  data?: Record<string, unknown>,
+): Promise<string> {
+  const result = await n8nFetchWithRetry<{ data: { executionId: string } }>(
+    `/workflows/${workflowId}/run`,
+    {
+      method: "POST",
+      body: data ? { data } : undefined,
+      timeoutMs: SYNC_EXEC_TIMEOUT,
+    },
+  );
+  const executionId = result?.data?.executionId || "unknown";
+  n8nLog.info("triggered API execution", { workflowId, executionId });
+  return String(executionId);
+}
+
 // ── Execution Queries ────────────────────────────────────────
 
 /**
