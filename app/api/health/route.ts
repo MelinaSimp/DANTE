@@ -47,21 +47,12 @@ export async function GET() {
     }
   }
 
-  // 2. OpenAI API key present (don't call the API -- just verify the key exists)
-  const openaiKey = process.env.OPENAI_API_KEY;
-  checks.push({
-    name: "openai_key",
-    ok: !!openaiKey && openaiKey.length > 10,
-    ...((!openaiKey || openaiKey.length <= 10) && { error: "missing or invalid" }),
-  });
-
-  // 3. Anthropic API key present
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
-  checks.push({
-    name: "anthropic_key",
-    ok: !!anthropicKey && anthropicKey.length > 10,
-    ...((!anthropicKey || anthropicKey.length <= 10) && { error: "missing or invalid" }),
-  });
+  // 2. LLM providers configured (boolean only — never expose key
+  //    presence/absence details on a public endpoint)
+  const llmOk =
+    !!(process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.length > 10) &&
+    !!(process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY.length > 10);
+  checks.push({ name: "llm", ok: llmOk });
 
   const allOk = checks.every((c) => c.ok);
 

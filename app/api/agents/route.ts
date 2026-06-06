@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { createPremadeScenarios } from "@/lib/agents/premade-scenarios";
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 async function getWorkspace(req: NextRequest) {
   const supabase = await createServerSupabase();
@@ -24,6 +25,9 @@ export async function GET(req: NextRequest) {
   if (!workspaceId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const rl = await rateLimit(`agents:${workspaceId}`, 60);
+  if (!rl.allowed) return rateLimitResponse();
 
   const { data, error } = await supabaseAdmin
     .from("agents")

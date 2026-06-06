@@ -8,6 +8,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,9 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const wid = ctx.profile.workspace_id;
+
+  const rl = await rateLimit(`members:${wid}`, 30);
+  if (!rl.allowed) return rateLimitResponse();
 
   // Pull members and outstanding invites in parallel. The members
   // list also surfaces phone-enrolled state — auth.users carries the

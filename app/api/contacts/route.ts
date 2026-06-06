@@ -3,6 +3,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { validateContact, sanitizeInput } from "@/lib/validation";
 import { emitEvent } from "@/lib/automations";
+import { rateLimit, rateLimitResponse } from "@/lib/rate-limit";
 
 export async function GET() {
   try {
@@ -11,6 +12,9 @@ export async function GET() {
     if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const rl = await rateLimit(`contacts:${user.id}`, 60);
+    if (!rl.allowed) return rateLimitResponse();
 
     const { data: profile } = await supabase
       .from("profiles")
