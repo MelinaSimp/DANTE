@@ -2,41 +2,47 @@
 
 import React from "react";
 import Link from "next/link";
-import { Building2, FileSearch, Workflow, ChevronRight, MessageSquare } from "lucide-react";
+import {
+  Building2,
+  FileSearch,
+  Workflow,
+  ChevronRight,
+  MessageSquare,
+} from "lucide-react";
 
-interface QuickAction {
-  href: string;
-  title: string;
-  description: string;
-  icon: React.ElementType;
-}
-
-const quickActions: QuickAction[] = [
+const quickActions = [
   {
     href: "/dante",
     title: "Ask Dante AI",
     description: "Search deals, leases, and market data",
-    icon: MessageSquare,
+    iconName: "MessageSquare" as const,
   },
   {
     href: "/properties",
     title: "View deal pipeline",
     description: "Track properties and transaction stages",
-    icon: Building2,
+    iconName: "Building2" as const,
   },
   {
     href: "/lease-abstractor",
     title: "Abstract a lease",
     description: "Upload and extract key lease terms",
-    icon: FileSearch,
+    iconName: "FileSearch" as const,
   },
   {
     href: "/workflows",
     title: "Run a workflow",
     description: "Automate CRE tasks and reports",
-    icon: Workflow,
+    iconName: "Workflow" as const,
   },
 ];
+
+const ICONS = {
+  MessageSquare,
+  Building2,
+  FileSearch,
+  Workflow,
+} as const;
 
 export default function QuickActions() {
   return (
@@ -44,9 +50,8 @@ export default function QuickActions() {
       <p className="text-xs uppercase tracking-[0.3em] text-[var(--ink-muted)]">QUICK ACTIONS</p>
       <h2 className="mt-2 text-lg font-semibold text-[var(--ink)]">Jump back into work</h2>
       <div className="mt-5 space-y-3">
-        {quickActions.map(({ href, title, description, icon: IconComponent }) => {
-          // Ensure IconComponent is a valid React component
-          const Icon = typeof IconComponent === 'function' ? IconComponent : null;
+        {quickActions.map(({ href, title, description, iconName }) => {
+          const Icon = ICONS[iconName];
           return (
             <Link
               key={href}
@@ -55,7 +60,7 @@ export default function QuickActions() {
             >
               <div className="flex items-center gap-3">
                 <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--rule)] bg-[var(--canvas-muted)] text-[var(--accent)]">
-                  {Icon ? <Icon size={20} /> : <span className="w-5 h-5" />}
+                  <Icon size={20} strokeWidth={1.5} />
                 </span>
                 <div className="text-left">
                   <p className="text-sm font-semibold text-[var(--ink)] whitespace-nowrap">{title}</p>
@@ -70,4 +75,3 @@ export default function QuickActions() {
     </aside>
   );
 }
-
