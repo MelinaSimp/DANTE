@@ -9,7 +9,7 @@ export default function CompiledPage() {
         <div className="text-center mb-12">
           <Image
             src="/brand/logo.png"
-            alt="Drift AI Receptionist"
+            alt="Drift AI"
             width={200}
             height={200}
             className="mx-auto mb-8"

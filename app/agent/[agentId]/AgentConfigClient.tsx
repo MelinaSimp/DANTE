@@ -812,7 +812,7 @@ export default function AgentConfigClient({
             value={firstMessage}
             onChange={(e) => setFirstMessage(e.target.value)}
             rows={2}
-            placeholder={`Hi, this is ${agent.name} at Acme Wealth. How can I help?`}
+            placeholder={`Hi, this is ${agent.name} at Acme Realty. How can I help?`}
             className="w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none focus:border-[var(--rule-strong)] resize-y"
           />
         </section>
