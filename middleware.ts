@@ -8,7 +8,7 @@ import { createServerClient } from "@supabase/ssr";
 // by appending `?labs=1` to any URL (sets cookie, enables Labs routes)
 // or `?labs=0` to opt out. Without the cookie these paths redirect to
 // `/dashboard`.
-const LABS_ROUTES = ["/home", "/compiled"];
+const LABS_ROUTES = ["/compiled"];
 const LABS_COOKIE = "drift_labs";
 
 export async function middleware(req: NextRequest) {
@@ -98,7 +98,7 @@ export async function middleware(req: NextRequest) {
   // redirect target already does. /gigaai has no page.tsx; its
   // components are imported by /app backend panels but the URL itself
   // 404s, so no auth gate needed.
-  const protectedRoutes = ["/app", "/admin", "/frontend", "/home", "/select", "/superadmin", "/dashboard", "/settings", "/dante", "/workflows", "/lease-abstractor", "/vault", "/agent", "/site-scan"];
+  const protectedRoutes = ["/app", "/admin", "/frontend", "/home", "/select", "/superadmin", "/dashboard", "/settings", "/dante", "/workflows", "/lease-abstractor", "/vault", "/agent", "/site-scan", "/properties", "/contacts", "/review"];
   const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
 
   // Check authentication for protected routes.
