@@ -54,7 +54,7 @@ export default function CallPageClient({
             </p>
           </div>
           <Link
-            href={picked ? "/call" : "/dashboard"}
+            href={picked ? "/call" : "/home"}
             onClick={(e) => {
               if (picked) {
                 e.preventDefault();

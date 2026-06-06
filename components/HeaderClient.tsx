@@ -81,7 +81,7 @@ export default function HeaderClient({
       >
             <img
               src="/brand/logo-new.png"
-              alt="Drift AI Receptionist"
+              alt="Drift AI"
               className="h-8 w-8 object-contain sm:h-9 sm:w-9"
               draggable={false}
             />

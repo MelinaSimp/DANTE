@@ -592,7 +592,7 @@ export default function AgentsPage() {
               <input
                 value={createDescription}
                 onChange={(e) => setCreateDescription(e.target.value)}
-                placeholder="Receptionist for Acme Wealth"
+                placeholder="Voice agent for Acme Realty"
                 className="w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
               />
             </label>
