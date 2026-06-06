@@ -38,6 +38,7 @@
   ],
   "exclude": [
     "node_modules",
-    "scripts"
+    "scripts",
+    "n8n-nodes-drift-cre"
   ]
 }
