@@ -15,10 +15,10 @@ export async function GET() {
 
   const { data, error } = await supabaseAdmin
     .from("dante_workflow_runs")
-    .select("id, workflow_id, status, started_at, finished_at, error, output, log")
+    .select("id, workflow_id, status, started_at, finished_at, error, output, log, n8n_execution_id, result")
     .eq("workspace_id", profile.workspace_id)
-    .in("status", ["success", "error"])
-    .order("finished_at", { ascending: false })
+    .in("status", ["success", "error", "completed", "failed", "running"])
+    .order("finished_at", { ascending: false, nullsFirst: false })
     .limit(20);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

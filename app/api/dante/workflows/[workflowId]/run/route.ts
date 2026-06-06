@@ -55,7 +55,65 @@ export async function POST(
   const input = (body.input && typeof body.input === "object") ? body.input : {};
   const mode = body.mode === "queue" ? "queue" : "sync";
 
-  // ── Queue mode ────────────────────────────────────────────
+  // ── n8n execution path ─────────────────────────────────────
+  // If this workflow has an n8n_workflow_id, execute via the n8n bridge
+  // regardless of mode. Results come back via the callback endpoint.
+  const n8nId = (wf as any).n8n_workflow_id as string | null;
+  if (n8nId) {
+    try {
+      const n8nBridge = await import("@/lib/dante/n8n-bridge");
+
+      // Ensure workflow is active
+      await n8nBridge.activateWorkflow(n8nId);
+
+      // Execute via API (non-webhook -- the webhook path requires
+      // knowing the path from the workflow definition)
+      const executionId = await n8nBridge.executeWorkflowById(n8nId, input);
+
+      // Record the run
+      const { data: runRow } = await supabaseAdmin
+        .from("dante_workflow_runs")
+        .insert({
+          workflow_id: workflowId,
+          workspace_id: profile.workspace_id,
+          triggered_by: user.id,
+          status: "running",
+          input,
+          n8n_execution_id: executionId,
+          started_at: new Date().toISOString(),
+        })
+        .select("id")
+        .single();
+
+      logAuditEvent({
+        workspaceId: profile.workspace_id,
+        actorUserId: user.id,
+        actorKind: "user",
+        action: "workflow.queued",
+        entityType: "dante_workflow",
+        entityId: workflowId,
+        metadata: {
+          run_id: runRow?.id,
+          n8n_execution_id: executionId,
+          workflow_name: wf.name,
+          engine: "n8n",
+        },
+        request,
+      });
+
+      return NextResponse.json({
+        run_id: runRow?.id || executionId,
+        n8n_execution_id: executionId,
+        status: "running",
+        engine: "n8n",
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "n8n execution failed";
+      return NextResponse.json({ error: msg, engine: "n8n" }, { status: 500 });
+    }
+  }
+
+  // ── Queue mode (legacy) ──────────────────────────────────
   if (mode === "queue") {
     const result = await enqueueRun({
       workflow_id: workflowId,
