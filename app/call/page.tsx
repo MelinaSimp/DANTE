@@ -1,10 +1,16 @@
-// Entry point for recording a call. Shows a searchable client list; once
-// the user picks a client, we mount the CallRecorder. If ?contactId=X is
-// present we skip the picker.
+// Entry point for recording a call. Shows a searchable contact list;
+// once the user picks a contact, we mount the CallRecorder. If
+// ?contactId=X is present we skip the picker.
 
+import { Metadata } from "next";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import CallPageClient from "./CallPageClient";
+
+export const metadata: Metadata = {
+  title: "Call Recording — Drift AI",
+  description: "Record and transcribe calls. Notes are automatically added to the contact timeline.",
+};
 
 export const dynamic = "force-dynamic";
 
