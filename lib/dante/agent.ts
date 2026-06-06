@@ -115,7 +115,7 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
     function: {
       name: "memory_write",
       description:
-        "Save a new fact, summary, or episode to memory. Only use when you've LEARNED something durable (e.g. user mentions wife's name; advisor confirms a preference). Don't write speculation.",
+        "Save a new fact, summary, or episode to memory. Only use when you've LEARNED something durable (e.g. a tenant's move-out date; broker confirms a preference). Don't write speculation.",
       parameters: {
         type: "object",
         properties: {
@@ -149,7 +149,7 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
     function: {
       name: "regulatory_search",
       description:
-        "Vector-search Drift's workspace-shared regulatory corpus — SEC litigation releases, IRS rulings, DOL ERISA opinions, HUD fair-housing enforcement, etc. Use this when the user asks 'what does the SEC say about X', 'has anyone been charged for Y', 'is Z compliant', or anytime your answer would benefit from a primary-source regulatory citation. Cite results inline as [reg:N] and let the user click through to the canonical source URL. Industry filtering is automatic based on the workspace vertical (financial advisor sees SEC/IRS/DOL/FINRA; realtor sees HUD/state RE plus shared SEC/FTC). Set `agentic: true` for hard or open-ended questions where the first query might not surface everything — the search will iterate (up to 4 rounds), refining the query against gaps in the results before returning. Costs slightly more but typically lifts recall noticeably; use it for the harder questions, not every lookup.",
+        "Vector-search Drift's workspace-shared regulatory corpus — HUD fair-housing enforcement, state real-estate commission rulings, SEC/FTC releases relevant to CRE, etc. Use this when the user asks 'what does HUD say about X', 'has anyone been charged for Y', 'is Z compliant', or anytime your answer would benefit from a primary-source regulatory citation. Cite results inline as [reg:N] and let the user click through to the canonical source URL. Set `agentic: true` for hard or open-ended questions where the first query might not surface everything — the search will iterate (up to 4 rounds), refining the query against gaps in the results before returning. Costs slightly more but typically lifts recall noticeably; use it for the harder questions, not every lookup.",
       parameters: {
         type: "object",
         properties: {
@@ -1587,10 +1587,9 @@ async function dispatchTool(
       return { hits, formatted: formatHitsForPrompt(hits) + note };
     }
     case "regulatory.search": {
-      // Industry filter so a realtor workspace doesn't get FINRA OBA
-      // guidance and an advisor workspace doesn't get HUD fair-
-      // housing case law. One small lookup per call, bounded by the
-      // tool budget (8) so cost is negligible.
+      // Industry filter scopes regulatory results to CRE-relevant
+      // bodies (HUD, state RE commissions, SEC/FTC). One small lookup
+      // per call, bounded by the tool budget (8) so cost is negligible.
       const { data: ws } = await supabaseAdmin
         .from("workspaces")
         .select("industry")
@@ -3850,7 +3849,7 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
 
   const messages: ChatMessage[] = [];
   const systemPrompt = [
-    cfg.system?.trim() || "You are Dante, an AI assistant for a financial advisor.",
+    cfg.system?.trim() || "You are Dante, an AI assistant for a commercial real-estate brokerage.",
     "",
     "You operate inside a workflow as an agent loop. You can call the listed tools to gather information or take actions. When you have enough to answer the objective, return a plain assistant message with the final answer — do NOT call further tools at that point.",
     "",
