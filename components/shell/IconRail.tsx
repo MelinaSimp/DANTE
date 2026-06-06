@@ -4,21 +4,21 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Home,
-  Users,
-  Calendar as CalendarIcon,
-  Mail,
+  Building2,
+  ScrollText,
   FolderClosed,
+  Workflow,
   Mic,
   Settings,
 } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/dashboard", icon: Home, label: "Dashboard" },
-  { href: "/client-details-overview", icon: Users, label: "Clients" },
-  { href: "/calendar", icon: CalendarIcon, label: "Calendar" },
-  { href: "/inbox", icon: Mail, label: "Email" },
+  { href: "/properties", icon: Building2, label: "Properties" },
+  { href: "/lease-abstractor", icon: ScrollText, label: "Lease Abstractor" },
+  { href: "/workflows", icon: Workflow, label: "Workflows" },
   { href: "/vault", icon: FolderClosed, label: "Vault" },
-  { href: "/agent", icon: Mic, label: "Agent" },
+  { href: "/agent", icon: Mic, label: "Voice" },
 ] as const;
 
 interface IconRailProps {

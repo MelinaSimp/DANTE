@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   LayoutDashboard,
   ScrollText,
+  Building2,
   ChevronDown,
   ChevronsUpDown,
   User,
@@ -98,6 +99,7 @@ export default function AppSidebar({
     },
     {
       items: [
+        { href: "/properties", label: "Properties", icon: Building2 },
         { href: "/workflows", label: "Workflows", icon: Workflow },
         { href: "/lease-abstractor", label: "Lease Abstractor", icon: ScrollText },
         { href: "/vault", label: "Vault", icon: FolderClosed },
