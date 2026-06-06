@@ -1,11 +1,11 @@
 {
-  "name": "Drift AI Receptionist",
+  "name": "Drift AI",
   "short_name": "Drift AI",
-  "description": "AI-powered receptionist for service-based companies",
+  "description": "AI-powered deal intelligence for commercial real estate",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#229CF3",
+  "theme_color": "#151515",
   "orientation": "portrait-primary",
   "scope": "/",
   "icons": [
@@ -24,25 +24,22 @@
   ],
   "shortcuts": [
     {
-      "name": "Calls",
-      "short_name": "Calls",
-      "description": "View call logs",
-      "url": "/calls",
-      "icons": [{ "src": "/icons/phone.png", "sizes": "96x96" }]
+      "name": "Dante AI",
+      "short_name": "Dante",
+      "description": "Ask Dante about deals and leases",
+      "url": "/dante"
     },
     {
-      "name": "Contacts",
-      "short_name": "Contacts",
-      "description": "Manage contacts",
-      "url": "/contacts",
-      "icons": [{ "src": "/icons/brain.png", "sizes": "96x96" }]
+      "name": "Properties",
+      "short_name": "Properties",
+      "description": "View deal pipeline",
+      "url": "/properties"
     },
     {
-      "name": "Schedule",
-      "short_name": "Schedule",
-      "description": "View schedule",
-      "url": "/schedule",
-      "icons": [{ "src": "/icons/calendar.png", "sizes": "96x96" }]
+      "name": "Lease Abstractor",
+      "short_name": "Leases",
+      "description": "Abstract lease terms from PDFs",
+      "url": "/lease-abstractor"
     }
   ]
 }
