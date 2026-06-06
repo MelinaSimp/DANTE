@@ -15,6 +15,7 @@ import {
   Phone,
   Building2,
   ArrowRight,
+  Layers,
 } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -30,6 +31,17 @@ export const metadata: Metadata = {
 };
 
 const CAPABILITIES = [
+  {
+    icon: Layers,
+    title: "Data aggregation",
+    body: "One place to ask questions across all your data -- internal files, web sources, and third-party feeds. Dante searches everything and cites every answer back to its source.",
+    bullets: [
+      "Drag-and-drop document ingestion into the vault",
+      "Watched folders for automatic file sync",
+      "Web search and public-record lookups built in",
+      "Provenance tagging on every answer",
+    ],
+  },
   {
     icon: FileText,
     title: "Lease abstraction",
@@ -188,12 +200,12 @@ const jsonLd = {
     },
   ],
   featureList: [
+    "Unified data aggregation across files, web, and APIs",
     "Lease abstraction from PDF",
     "50-state parcel analytics",
-    "Deal scoring (0-100 composite)",
     "Autonomous workflow engine",
     "Citation-grounded search",
-    "Voice AI for tenant calls",
+    "Voice AI for inbound calls",
     "Comparable rent and sale analysis",
   ],
 };
