@@ -132,7 +132,7 @@ export default function DownloadPage() {
             </li>
             <li className="flex items-start gap-2">
               <Check className="w-4 h-4 text-[var(--accent)] mt-0.5 shrink-0" strokeWidth={1.5} />
-              <span>Automatic updates — the app checks on launch and every 4 hours</span>
+              <span>White-glove setup available -- email driftaillc@gmail.com for onboarding</span>
             </li>
           </ul>
         </div>
