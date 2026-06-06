@@ -1,6 +1,6 @@
 // app/dante/archive/page.tsx
 //
-// Dante · Archive — Harvey-style Vault for financial-advisor firms.
+// Dante · Archive — Harvey-style document vault for CRE firms.
 // Server shell that checks auth + workspace; the real UI (upload,
 // search, list, doc detail links) lives in DanteArchiveClient.
 

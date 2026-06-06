@@ -464,7 +464,7 @@ function ConnectedView({
 // spoken at the very start of the call so the caller has knowledge
 // of the capture before they say anything. Two-party-consent states
 // (CA, FL, IL, MD, MA, MT, NV, NH, PA, WA, CT) require this, and
-// broker-dealer / financial-advisor compliance desks typically have
+// brokerage compliance desks typically have
 // approved wording they prefer. We default to a safe generic line
 // and let workspaces override.
 // ──────────────────────────────────────────────────────────────
