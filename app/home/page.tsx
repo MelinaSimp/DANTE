@@ -44,15 +44,15 @@ export default async function HomeLanding() {
               </p>
               <h1 className="text-4xl font-semibold md:text-5xl text-[var(--ink)]">Where should we begin?</h1>
               <p className="text-sm text-[var(--ink-muted)] md:text-base">
-                Ask Drift anything about your calls, contacts, or upcoming work.
+                Ask Drift anything about your deals, leases, or properties.
               </p>
             </div>
 
             <AskDrift
               suggestions={[
-                "Summarize this morning's calls",
-                "What follow-ups are overdue?",
-                "Show me upcoming appointments for today",
+                "What deals are closing this month?",
+                "Summarize my active lease abstractions",
+                "Show properties in the pipeline",
               ]}
             />
           </div>

@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, ArrowRight, X } from "lucide-react";
-import { useIsRealtor } from "@/lib/industry/use-industry";
+// CRE-only product — no vertical branch needed
 
 interface CommandItem {
   id: string;
@@ -29,35 +29,28 @@ interface CommandItem {
 }
 
 const STATIC_COMMANDS: CommandItem[] = [
-  { id: "nav.dashboard", label: "Go to Dashboard", group: "Navigate", href: "/dashboard" },
-  { id: "nav.dante", label: "Go to Chat", group: "Navigate", href: "/dante" },
+  { id: "nav.home", label: "Go to Home", group: "Navigate", href: "/home" },
+  { id: "nav.dante", label: "Go to Dante AI", group: "Navigate", href: "/dante" },
+  { id: "nav.properties", label: "Go to Properties", group: "Navigate", href: "/properties" },
+  { id: "nav.lease", label: "Go to Lease Abstractor", group: "Navigate", href: "/lease-abstractor" },
+  { id: "nav.workflows", label: "Go to Workflows", group: "Navigate", href: "/workflows" },
   { id: "nav.contacts", label: "Go to Contacts", group: "Navigate", href: "/contacts" },
   { id: "nav.vault", label: "Go to Vault", group: "Navigate", href: "/vault" },
-  { id: "nav.appointments", label: "Go to Appointments", group: "Navigate", href: "/appointments" },
-  { id: "nav.workflows", label: "Go to Workflows", group: "Navigate", href: "/dante/workflows" },
-  { id: "nav.review", label: "Go to Review Queue", group: "Navigate", href: "/review" },
   { id: "nav.billing", label: "Billing & Plan", group: "Settings", href: "/settings/billing" },
   { id: "nav.help", label: "Help & Documentation", group: "Settings", href: "/help" },
 ];
 
-const ADVISOR_COMMANDS: CommandItem[] = [
-  { id: "rec.review-prep", label: "Prep for next review meeting", group: "Suggested", href: "/dante?prompt=Prep+me+for+my+next+review+meeting" },
-  { id: "rec.rmd-check", label: "Check upcoming RMD obligations", group: "Suggested", href: "/dante?prompt=Any+clients+with+RMD+obligations+coming+up" },
-  { id: "rec.stale", label: "List clients I haven't contacted in 30 days", group: "Suggested", href: "/dante?prompt=Which+clients+haven't+heard+from+me+in+30+days" },
-];
-
-const REALTOR_COMMANDS: CommandItem[] = [
-  { id: "rec.tour-prep", label: "Prep for next showing", group: "Suggested", href: "/dante?prompt=Prep+me+for+my+next+showing" },
-  { id: "rec.followup", label: "Draft follow-up to recent buyer", group: "Suggested", href: "/dante?prompt=Draft+a+follow-up+to+my+most+recent+buyer" },
-  { id: "rec.stale", label: "List buyers I haven't contacted in 30 days", group: "Suggested", href: "/dante?prompt=Which+buyers+haven't+heard+from+me+in+30+days" },
+const CRE_COMMANDS: CommandItem[] = [
   { id: "rec.deal-score", label: "Score a deal", group: "Suggested", href: "/dante?prompt=Run+a+deal+score+on+my+latest+acquisition+candidate" },
   { id: "rec.void", label: "Run void analysis", group: "Suggested", href: "/dante?prompt=Run+a+void+analysis+for+retail+gaps+in+my+trade+area" },
-  { id: "rec.lease-abstract", label: "Abstract a lease", group: "Suggested", href: "/dante?prompt=Abstract+the+key+terms+from+the+lease+I+just+uploaded" },
+  { id: "rec.lease-abstract", label: "Abstract a lease", group: "Suggested", href: "/lease-abstractor" },
+  { id: "rec.pipeline", label: "View deal pipeline", group: "Suggested", href: "/properties" },
+  { id: "rec.closing", label: "Deals closing this month", group: "Suggested", href: "/dante?prompt=What+deals+are+closing+this+month" },
+  { id: "rec.stale", label: "Contacts I haven't reached in 30 days", group: "Suggested", href: "/dante?prompt=Which+contacts+haven't+heard+from+me+in+30+days" },
 ];
 
 export default function CommandPalette() {
   const router = useRouter();
-  const isRealtor = useIsRealtor();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -77,14 +70,11 @@ export default function CommandPalette() {
   }, []);
 
   const items = useMemo<CommandItem[]>(() => {
-    const base = [
-      ...STATIC_COMMANDS,
-      ...(isRealtor ? REALTOR_COMMANDS : ADVISOR_COMMANDS),
-    ];
+    const base = [...STATIC_COMMANDS, ...CRE_COMMANDS];
     if (!query.trim()) return base;
     const q = query.toLowerCase();
     return base.filter((c) => c.label.toLowerCase().includes(q));
-  }, [query, isRealtor]);
+  }, [query]);
 
   // Group items by group label, preserving insertion order.
   const grouped = useMemo(() => {

@@ -2,8 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { CalendarCheck, UserRound, ClipboardList, ChevronRight, FileText } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { Building2, FileSearch, Workflow, ChevronRight, MessageSquare } from "lucide-react";
 
 interface QuickAction {
   href: string;
@@ -14,28 +13,28 @@ interface QuickAction {
 
 const quickActions: QuickAction[] = [
   {
-    href: "/appointments",
-    title: "Check upcoming schedule",
-    description: "Manage bookings and confirmations",
-    icon: CalendarCheck,
+    href: "/dante",
+    title: "Ask Dante AI",
+    description: "Search deals, leases, and market data",
+    icon: MessageSquare,
   },
   {
-    href: "/contacts",
-    title: "Update a contact",
-    description: "Edit notes and interaction history",
-    icon: UserRound,
+    href: "/properties",
+    title: "View deal pipeline",
+    description: "Track properties and transaction stages",
+    icon: Building2,
   },
   {
-    href: "/schedule",
-    title: "Review tasks",
-    description: "Stay on top of follow-ups",
-    icon: ClipboardList,
+    href: "/lease-abstractor",
+    title: "Abstract a lease",
+    description: "Upload and extract key lease terms",
+    icon: FileSearch,
   },
   {
-    href: "/client-details-overview",
-    title: "Client Details and Overview",
-    description: "Prepare reports for household or client",
-    icon: FileText,
+    href: "/workflows",
+    title: "Run a workflow",
+    description: "Automate CRE tasks and reports",
+    icon: Workflow,
   },
 ];
 
