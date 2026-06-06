@@ -294,7 +294,7 @@ function renderDigest(args: RenderArgs): { html: string; text: string } {
       textLines.push(`   Do: ${b.recommended_action}`);
     }
     textLines.push(
-      `   Open: ${appUrl}/client-details-overview?contactId=${b.contact_id}`
+      `   Open: ${appUrl}/contacts?contactId=${b.contact_id}`
     );
     textLines.push("");
   });
@@ -316,7 +316,7 @@ function renderDigest(args: RenderArgs): { html: string; text: string } {
       const action = b.recommended_action
         ? `<div style="color:#111827;font-size:13px;margin-top:8px"><strong>Do:</strong> ${escapeHtml(b.recommended_action)}</div>`
         : "";
-      const href = `${appUrl}/client-details-overview?contactId=${b.contact_id}`;
+      const href = `${appUrl}/contacts?contactId=${b.contact_id}`;
       return `
 <tr><td style="padding:16px 0;border-bottom:1px solid #e5e7eb">
   <div style="display:flex;align-items:center;gap:8px">

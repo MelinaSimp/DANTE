@@ -29,7 +29,7 @@ const nextConfig: NextConfig = {
     // Retired CRM-era routes — 301 to /home so bookmarks and
     // Electron deep-links don't 404. /contacts, /properties, and
     // /fiduciary-bench are now live routes and NOT redirected.
-    { source: "/client-details-overview", destination: "/home", permanent: true },
+    { source: "/client-details-overview", destination: "/contacts", permanent: true },
     { source: "/calendar", destination: "/home", permanent: true },
     { source: "/appointments", destination: "/home", permanent: true },
     { source: "/schedule", destination: "/home", permanent: true },

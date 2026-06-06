@@ -154,7 +154,7 @@ export async function GET(request: Request) {
       kind: "contact",
       title: c.name || c.email || "(no name)",
       subtitle: c.email || c.phone || undefined,
-      href: `/client-details-overview?contactId=${c.id}`,
+      href: `/contacts?contactId=${c.id}`,
     });
   }
   for (const p of properties) {

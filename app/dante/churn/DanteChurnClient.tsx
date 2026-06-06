@@ -408,10 +408,10 @@ export default function DanteChurnClient() {
                       <div className="flex items-center justify-between pt-4 border-t border-[var(--rule)] text-xs text-[var(--ink-subtle)]">
                         <div className="flex items-center gap-3">
                           <Link
-                            href={`/client-details-overview?contactId=${row.contact_id}`}
+                            href={`/contacts?contactId=${row.contact_id}`}
                             className="font-medium text-[var(--ink-muted)] hover:text-[var(--ink)] underline underline-offset-2"
                           >
-                            Open client record →
+                            Open contact record →
                           </Link>
                           <span>·</span>
                           <span>confidence {Math.round(row.confidence * 100)}%</span>

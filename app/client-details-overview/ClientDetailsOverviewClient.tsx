@@ -1093,7 +1093,7 @@ export default function ClientDetailsOverviewClient({
                   <button
                     onClick={() => {
                       if (selected?.type === "client" && typeof navigator !== "undefined") {
-                        navigator.clipboard.writeText(`${window.location.origin}/client-details-overview?client=${selected.id}`);
+                        navigator.clipboard.writeText(`${window.location.origin}/contacts?contactId=${selected.id}`);
                       }
                       setActionsOpen(false);
                     }}
@@ -1109,13 +1109,13 @@ export default function ClientDetailsOverviewClient({
                 type="button"
                 onClick={handleGoBack}
                 className="rounded-[4px] p-2 text-[var(--ink-muted)] hover:bg-[var(--canvas-subtle)] hover:text-[var(--ink)]"
-                aria-label="Back to clients"
+                aria-label="Back to contacts"
               >
                 <ArrowLeft className="h-5 w-5" />
               </button>
             ) : (
               <Link
-                href="/client-details-overview"
+                href="/contacts"
                 className="rounded-[4px] p-2 text-[var(--ink-muted)] hover:bg-[var(--canvas-subtle)] hover:text-[var(--ink)]"
                 aria-label="Close"
               >

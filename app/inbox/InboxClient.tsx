@@ -554,7 +554,7 @@ export default function InboxClient() {
                       label={selected.contact.name || selected.contact.email || "Contact"}
                     >
                       <Link
-                        href={`/client-details-overview${
+                        href={`/contacts${
                           selected.contact.name
                             ? `?contact=${encodeURIComponent(selected.contact.name)}`
                             : ""

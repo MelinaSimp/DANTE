@@ -322,7 +322,7 @@ export async function GET() {
       kind: "reviews_due",
       title: "Households due for review",
       count: reviewsDue.count ?? 0,
-      href: "/client-details-overview",
+      href: "/contacts",
       items: (reviewsDue.data || []).map((r) => {
         const row = r as {
           id: string;
