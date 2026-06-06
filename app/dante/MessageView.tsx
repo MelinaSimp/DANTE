@@ -40,7 +40,7 @@ import DocumentCard from "@/components/dante/DocumentCard";
 const REWRITE_PRESETS = [
   { label: "Shorter", instruction: "Make it shorter — half the length, same key facts." },
   { label: "Bullets", instruction: "Rewrite as a bulleted list." },
-  { label: "More formal", instruction: "Rewrite in a more formal, client-facing tone." },
+  { label: "More formal", instruction: "Rewrite in a more formal, professional tone." },
   { label: "Add example", instruction: "Add a concrete example illustrating the main point." },
 ] as const;
 

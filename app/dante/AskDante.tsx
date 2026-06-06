@@ -99,24 +99,24 @@ type Turn = UserTurn | AssistantTurn;
 
 const QUICK_PROMPTS_ADVISOR: Array<{ label: string; prompt: string }> = [
   {
-    label: "Brief me on a client",
+    label: "Brief me on a contact",
     prompt:
-      "Brief me on [client name] — pull recent context from memory and surface anything I previously promised them, recent concerns from email, and one personal detail to open with.",
+      "Brief me on [contact name] — pull recent context from memory and surface anything I previously committed to, recent concerns from email, and any deal context to lead with.",
   },
   {
     label: "Summarize recent emails",
     prompt:
-      "Summarize the last 14 days of emails with [client name]. Focus on concerns raised, commitments either side made, and anything still open.",
+      "Summarize the last 14 days of emails with [contact name]. Focus on concerns raised, commitments either side made, and anything still open.",
   },
   {
     label: "Prep for a meeting",
     prompt:
-      "I have a meeting with [client name] in 30 minutes. What should I know going in?",
+      "I have a meeting with [contact name] in 30 minutes. What should I know going in?",
   },
   {
-    label: "Find at-risk clients",
+    label: "Find stale contacts",
     prompt:
-      "Which clients have I not contacted in over 60 days? Pull the list and flag anyone with negative recent signal.",
+      "Which contacts have I not reached out to in over 60 days? Pull the list and flag anyone with an active deal or upcoming lease event.",
   },
 ];
 
@@ -957,7 +957,7 @@ MARKETING TIMELINE
 const KNOWLEDGE_SOURCES = [
   { label: "Memory", icon: Database, href: "/dante/archive" },
   { label: "Vault", icon: BookOpen, href: "/vault" },
-  { label: "Contacts", icon: Users, href: "/client-details-overview" },
+  { label: "Contacts", icon: Users, href: "/contacts" },
   { label: "Calendar", icon: CalendarDays, href: "/calendar" },
 ] as const;
 
@@ -967,13 +967,13 @@ const KNOWLEDGE_SOURCES = [
 // (a) the bundle size for the gallery's full registry is wasted on
 // a 4-card preview and (b) the order matters for the buyer
 // demographic — meeting prep + post-meeting + QBR + life event
-// reads as the day-job of an advisor; the niche templates can wait
+// reads as the day-job of a CRE broker; niche templates can wait
 // for the /dante/workflows page proper.
 const RECOMMENDED_WORKFLOWS_ADVISOR = [
   { slug: "meeting-prep-packet", name: "Draft a meeting prep packet", kindLabel: "Draft", steps: 5 },
   { slug: "post-meeting-followup", name: "Generate post-meeting follow-up", kindLabel: "Output", steps: 4 },
   { slug: "qbr-reminder", name: "Quarterly review reminders", kindLabel: "Output", steps: 4 },
-  { slug: "life-event-detector", name: "Surface client life events", kindLabel: "Review", steps: 5 },
+  { slug: "life-event-detector", name: "Surface contact deal events", kindLabel: "Review", steps: 5 },
 ] as const;
 
 const RECOMMENDED_WORKFLOWS_REALTOR = [
@@ -986,7 +986,7 @@ const RECOMMENDED_WORKFLOWS_REALTOR = [
 const REWRITE_PRESETS = [
   { label: "Shorter", instruction: "Make it shorter — half the length, same key facts." },
   { label: "Bullets", instruction: "Rewrite as a bulleted list." },
-  { label: "More formal", instruction: "Rewrite in a more formal, client-facing tone." },
+  { label: "More formal", instruction: "Rewrite in a more formal, professional tone." },
   { label: "Add example", instruction: "Add a concrete example illustrating the main point." },
 ] as const;
 
@@ -1682,7 +1682,7 @@ export default function AskDante({
                 className="inline-flex items-center gap-1.5 text-xs text-[var(--ink-subtle)] hover:text-[var(--ink-muted)] transition"
               >
                 <Users className="w-3.5 h-3.5" strokeWidth={1.5} />
-                Set client context
+                Set contact context
               </button>
             )}
           </div>
