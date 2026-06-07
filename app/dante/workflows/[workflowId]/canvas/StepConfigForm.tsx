@@ -144,8 +144,8 @@ function renderBody(
             />
           </Field>
           <Help>
-            The scheduler tick runs every minute from <code className="mono">/api/dante/cron/tick</code>.
-            Runs use UTC.
+            Schedules run on the n8n engine.
+            Uses UTC timezone.
           </Help>
         </>
       );

@@ -19,14 +19,6 @@
       "schedule": "0 6 * * *"
     },
     {
-      "path": "/api/dante/cron/tick",
-      "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/dante/queue/tick",
-      "schedule": "*/5 * * * *"
-    },
-    {
       "path": "/api/dante/cron/digest",
       "schedule": "0 13 * * 1"
     },
