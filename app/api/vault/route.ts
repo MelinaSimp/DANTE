@@ -30,6 +30,10 @@ export async function GET(request: Request) {
   const propertyId = searchParams.get("property_id");
   const contactId = searchParams.get("contact_id");
   const search = searchParams.get("q")?.trim();
+  const limitParam = parseInt(searchParams.get("limit") || "500", 10);
+  const offsetParam = parseInt(searchParams.get("offset") || "0", 10);
+  const limit = Math.min(Math.max(limitParam, 1), 2000);
+  const offset = Math.max(offsetParam, 0);
 
   // Contact filter: resolve to vault_item_ids first, then filter the
   // main fetch by id. Two queries, but keeps the main query simple.
@@ -73,6 +77,8 @@ export async function GET(request: Request) {
       );
     }
   }
+
+  query = query.range(offset, offset + limit - 1);
 
   const { data, error } = await query;
   if (error) {

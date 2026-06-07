@@ -166,11 +166,13 @@ export default function LeaseAbstractorClient() {
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
+    const ac = new AbortController();
+    const timeout = setTimeout(() => ac.abort(), 15_000);
     try {
       const [itemsRes, abstractsRes, propsRes] = await Promise.all([
-        fetch("/api/vault?kind=document", { credentials: "include" }),
-        fetch("/api/lease-abstractor", { credentials: "include" }),
-        fetch("/api/properties", { credentials: "include" }).catch(() => null),
+        fetch("/api/vault?kind=document&limit=500", { credentials: "include", signal: ac.signal }),
+        fetch("/api/lease-abstractor", { credentials: "include", signal: ac.signal }),
+        fetch("/api/properties", { credentials: "include", signal: ac.signal }).catch(() => null),
       ]);
       if (!itemsRes.ok) throw new Error("Failed to load vault items");
       const items = await itemsRes.json();
@@ -190,8 +192,13 @@ export default function LeaseAbstractorClient() {
         })));
       }
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (e instanceof DOMException && e.name === "AbortError") {
+        setError("Request timed out. Please try again.");
+      } else {
+        setError(e instanceof Error ? e.message : String(e));
+      }
     } finally {
+      clearTimeout(timeout);
       setLoading(false);
     }
   }, []);
