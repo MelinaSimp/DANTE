@@ -1,17 +1,8 @@
 // app/api/dante/hooks/[token]/route.ts
 //
 // Public webhook receiver for workflows with a trigger_webhook node.
-// Any POST to this URL enqueues a run of the owning workflow. The
-// request body is passed as the run `input`, so downstream nodes
-// can reference {{steps.<trigger_id>.input.<field>}}.
-//
-// We intentionally enqueue instead of running inline so:
-//   1. The caller isn't kept on the wire for potentially minute-long
-//      workflows (integrations like Stripe webhooks will retry if you
-//      go past a few seconds).
-//   2. A burst of webhooks (e.g. form-submission storm) gets flattened
-//      by the queue worker instead of fanning out to N parallel
-//      runner lambdas that all do OpenAI calls at once.
+// Looks up the workflow's n8n_workflow_id and triggers execution via
+// the n8n bridge. The request body is passed as workflow input.
 //
 // Auth: the token itself is the secret. We look up dante_webhook_tokens
 // via the service-role client so workspaces are still scoped without
@@ -19,7 +10,6 @@
 
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { enqueueRun, kickQueueWorker } from "@/lib/dante/run-executor";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -39,28 +29,49 @@ export async function POST(
 
   const { data: wf } = await supabaseAdmin
     .from("dante_workflows")
-    .select("id, workspace_id, enabled")
+    .select("id, workspace_id, enabled, n8n_workflow_id")
     .eq("id", tokenRow.workflow_id)
     .maybeSingle();
   if (!wf || !wf.enabled) {
     return NextResponse.json({ error: "Workflow disabled" }, { status: 403 });
   }
 
-  const input = await request.json().catch(() => ({}));
-
-  const result = await enqueueRun({
-    workflow_id: wf.id,
-    workspace_id: wf.workspace_id,
-    triggered_by: null,
-    payload: { ...input, _trigger: "webhook" },
-  });
-  if ("error" in result) {
-    return NextResponse.json({ error: result.error }, { status: 500 });
+  const n8nId = wf.n8n_workflow_id as string | null;
+  if (!n8nId) {
+    return NextResponse.json({ error: "Workflow not migrated to n8n" }, { status: 400 });
   }
 
-  // Eager kick so the queue worker picks this up immediately instead
-  // of waiting for the next cron minute.
-  kickQueueWorker(new URL(request.url).origin);
+  const input = await request.json().catch(() => ({}));
 
-  return NextResponse.json({ run_id: result.run_id, status: "queued" });
+  try {
+    const n8nBridge = await import("@/lib/dante/n8n-bridge");
+    const executionId = await n8nBridge.executeWorkflowById(n8nId, {
+      ...input,
+      _trigger: "webhook",
+    });
+
+    // Record the run
+    const { data: runRow } = await supabaseAdmin
+      .from("dante_workflow_runs")
+      .insert({
+        workflow_id: wf.id,
+        workspace_id: wf.workspace_id,
+        triggered_by: null,
+        status: "running",
+        input: { ...input, _trigger: "webhook" },
+        n8n_execution_id: executionId,
+        started_at: new Date().toISOString(),
+      })
+      .select("id")
+      .single();
+
+    return NextResponse.json({
+      run_id: runRow?.id || executionId,
+      n8n_execution_id: executionId,
+      status: "running",
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Execution failed";
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }

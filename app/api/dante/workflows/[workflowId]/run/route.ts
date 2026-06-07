@@ -1,28 +1,15 @@
 // app/api/dante/workflows/[workflowId]/run/route.ts
 //
-// POST → kick off a run of this workflow.
+// POST -> kick off a run of this workflow via n8n.
 //
-// Two modes:
-//   • mode: "sync" (default, back-compat) — executes inline and returns
-//     the full log + output. Capped by the 300s Pro route budget.
-//   • mode: "queue" — inserts a queued row, fires a best-effort kick
-//     to /api/dante/queue/tick so a worker starts immediately, and
-//     returns { run_id, status: "queued" }. The caller polls the run
-//     detail endpoint. Better for very long workflows (>60s) since
-//     the UI can show intermediate state.
-//
-// The editor's Run button uses "queue" so it can poll and render
-// intermediate state; external callers default to "sync" to keep
-// the one-shot behavior they're wired for.
+// All workflows execute through the n8n engine. Results come back
+// via the callback endpoint (POST /api/dante/n8n/execution-callback).
 
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { runWorkflow } from "@/lib/dante/workflow-runner";
-import { definitionFromRow } from "@/lib/dante/workflow-types";
-import { enqueueRun, kickQueueWorker, notifyRunFailure } from "@/lib/dante/run-executor";
-import { requireActiveBilling } from "@/lib/billing/gate";
 import { logAuditEvent } from "@/lib/audit/log";
+import { requireActiveBilling } from "@/lib/billing/gate";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // Vercel Pro
@@ -53,81 +40,43 @@ export async function POST(
 
   const body = await request.json().catch(() => ({}));
   const input = (body.input && typeof body.input === "object") ? body.input : {};
-  const mode = body.mode === "queue" ? "queue" : "sync";
 
-  // ── n8n execution path ─────────────────────────────────────
-  // If this workflow has an n8n_workflow_id, execute via the n8n bridge
-  // regardless of mode. Results come back via the callback endpoint.
-  const n8nId = (wf as any).n8n_workflow_id as string | null;
-  if (n8nId) {
-    try {
-      const n8nBridge = await import("@/lib/dante/n8n-bridge");
-
-      // Ensure workflow is active
-      await n8nBridge.activateWorkflow(n8nId);
-
-      // Execute via API (non-webhook -- the webhook path requires
-      // knowing the path from the workflow definition)
-      const executionId = await n8nBridge.executeWorkflowById(n8nId, input);
-
-      // Record the run
-      const { data: runRow } = await supabaseAdmin
-        .from("dante_workflow_runs")
-        .insert({
-          workflow_id: workflowId,
-          workspace_id: profile.workspace_id,
-          triggered_by: user.id,
-          status: "running",
-          input,
-          n8n_execution_id: executionId,
-          started_at: new Date().toISOString(),
-        })
-        .select("id")
-        .single();
-
-      logAuditEvent({
-        workspaceId: profile.workspace_id,
-        actorUserId: user.id,
-        actorKind: "user",
-        action: "workflow.queued",
-        entityType: "dante_workflow",
-        entityId: workflowId,
-        metadata: {
-          run_id: runRow?.id,
-          n8n_execution_id: executionId,
-          workflow_name: wf.name,
-          engine: "n8n",
-        },
-        request,
-      });
-
-      return NextResponse.json({
-        run_id: runRow?.id || executionId,
-        n8n_execution_id: executionId,
-        status: "running",
-        engine: "n8n",
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "n8n execution failed";
-      return NextResponse.json({ error: msg, engine: "n8n" }, { status: 500 });
-    }
+  const n8nId = (wf as Record<string, unknown>).n8n_workflow_id as string | null;
+  if (!n8nId) {
+    return NextResponse.json(
+      { error: "Workflow has no n8n engine ID. Please re-create this workflow." },
+      { status: 400 },
+    );
   }
 
-  // ── Queue mode (legacy) ──────────────────────────────────
-  if (mode === "queue") {
-    const result = await enqueueRun({
-      workflow_id: workflowId,
-      workspace_id: profile.workspace_id,
-      triggered_by: user.id,
-      payload: input,
-    });
-    if ("error" in result) {
-      return NextResponse.json({ error: result.error }, { status: 500 });
+  try {
+    const n8nBridge = await import("@/lib/dante/n8n-bridge");
+
+    // Ensure workflow is active on n8n (non-fatal if activation fails
+    // due to custom node types not being installed yet)
+    try {
+      await n8nBridge.activateWorkflow(n8nId);
+    } catch {
+      // Activation may fail for workflows with custom nodes -- proceed anyway
     }
-    // Eager kick — don't block the response on this; it returns fast
-    // and the worker drains in its own lambda invocation.
-    const origin = new URL(request.url).origin;
-    kickQueueWorker(origin);
+
+    // Execute via API
+    const executionId = await n8nBridge.executeWorkflowById(n8nId, input);
+
+    // Record the run
+    const { data: runRow } = await supabaseAdmin
+      .from("dante_workflow_runs")
+      .insert({
+        workflow_id: workflowId,
+        workspace_id: profile.workspace_id,
+        triggered_by: user.id,
+        status: "running",
+        input,
+        n8n_execution_id: executionId,
+        started_at: new Date().toISOString(),
+      })
+      .select("id")
+      .single();
 
     logAuditEvent({
       workspaceId: profile.workspace_id,
@@ -136,99 +85,23 @@ export async function POST(
       action: "workflow.queued",
       entityType: "dante_workflow",
       entityId: workflowId,
-      metadata: { run_id: result.run_id, workflow_name: wf.name },
-      request,
-    });
-
-    return NextResponse.json({ run_id: result.run_id, status: "queued" });
-  }
-
-  // ── Sync mode (legacy path) ───────────────────────────────
-  const { data: run } = await supabaseAdmin
-    .from("dante_workflow_runs")
-    .insert({
-      workflow_id: workflowId,
-      workspace_id: profile.workspace_id,
-      triggered_by: user.id,
-      status: "running",
-      input,
-    })
-    .select()
-    .single();
-
-  const runId = run?.id;
-
-  try {
-    const definition = definitionFromRow(wf);
-    const result = await runWorkflow(definition, input);
-
-    await supabaseAdmin.from("dante_workflow_runs").update({
-      status: result.status,
-      log: result.log,
-      output: result.output,
-      error: result.error ?? null,
-      finished_at: new Date().toISOString(),
-    }).eq("id", runId);
-
-    await supabaseAdmin.from("dante_workflows").update({
-      last_run_at: new Date().toISOString(),
-      last_run_status: result.status,
-    }).eq("id", workflowId);
-
-    logAuditEvent({
-      workspaceId: profile.workspace_id,
-      actorUserId: user.id,
-      actorKind: "user",
-      action: result.status === "error" ? "workflow.failed" : "workflow.completed",
-      entityType: "dante_workflow",
-      entityId: workflowId,
       metadata: {
-        run_id: runId,
-        workflow_name: definition.name,
-        status: result.status,
-        ...(result.error ? { error: result.error.slice(0, 500) } : {}),
+        run_id: runRow?.id,
+        n8n_execution_id: executionId,
+        workflow_name: wf.name,
+        engine: "n8n",
       },
       request,
     });
 
-    if (result.status === "error") {
-      notifyRunFailure({
-        workflowId,
-        workflowName: definition.name,
-        workspaceId: profile.workspace_id,
-        runId: runId!,
-        error: result.error || "Unknown error",
-      }).catch(() => {});
-    }
-
-    return NextResponse.json({ run_id: runId, ...result });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "Run failed";
-    await supabaseAdmin.from("dante_workflow_runs").update({
-      status: "error",
-      error: msg,
-      finished_at: new Date().toISOString(),
-    }).eq("id", runId);
-
-    logAuditEvent({
-      workspaceId: profile.workspace_id,
-      actorUserId: user.id,
-      actorKind: "user",
-      action: "workflow.failed",
-      entityType: "dante_workflow",
-      entityId: workflowId,
-      metadata: { run_id: runId, workflow_name: wf.name, error: msg.slice(0, 500) },
-      request,
+    return NextResponse.json({
+      run_id: runRow?.id || executionId,
+      n8n_execution_id: executionId,
+      status: "running",
+      engine: "n8n",
     });
-
-    notifyRunFailure({
-      workflowId,
-      workflowName: wf.name,
-      workspaceId: profile.workspace_id,
-      runId: runId!,
-      error: msg,
-    }).catch(() => {});
-
-    return NextResponse.json({ error: msg }, { status: 500 });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "n8n execution failed";
+    return NextResponse.json({ error: msg, engine: "n8n" }, { status: 500 });
   }
 }

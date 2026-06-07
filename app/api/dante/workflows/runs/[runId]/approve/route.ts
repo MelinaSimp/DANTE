@@ -1,7 +1,13 @@
+// app/api/dante/workflows/runs/[runId]/approve/route.ts
+//
+// POST -> approve or reject a paused workflow run.
+//
+// With n8n, approval-gated workflows use the DriftApprovalGate node
+// which pauses execution using n8n's "Wait" mechanism. When approved,
+// we resume the n8n execution via its webhook-waiting endpoint.
+
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { resumeWorkflow } from "@/lib/dante/workflow-runner";
-import { definitionFromRow } from "@/lib/dante/workflow-types";
 
 export async function POST(
   req: NextRequest,
@@ -21,7 +27,7 @@ export async function POST(
 
   const { data: run } = await sb
     .from("dante_workflow_runs")
-    .select("id, workspace_id, workflow_id, status, paused_at_node, approval_context")
+    .select("id, workspace_id, workflow_id, status, n8n_execution_id, paused_at_node, approval_context")
     .eq("id", runId)
     .single();
 
@@ -32,13 +38,8 @@ export async function POST(
     return NextResponse.json({ error: "Run is not waiting for approval" }, { status: 409 });
   }
 
+  // Validate approval token if provided
   if (token) {
-    // Pull workspace_id on the token too so we can enforce that the
-    // token was minted for THIS run's workspace. Previously the lookup
-    // only joined token + run_id, which left a theoretical (UUID
-    // collision required, very low probability) cross-workspace
-    // approval leak. Now: token must match the URL's runId AND its
-    // workspace_id must match the run's workspace_id.
     const { data: tok } = await sb
       .from("dante_approval_tokens")
       .select("id, action, expires_at, used_at, workspace_id, run_id")
@@ -50,9 +51,6 @@ export async function POST(
       return NextResponse.json({ error: "Invalid token" }, { status: 403 });
     }
     if (tok.workspace_id !== run.workspace_id) {
-      // Defense in depth — should be impossible given the token was
-      // minted for this run_id, but if a future migration ever lets
-      // run_ids be reused or copied across workspaces this guards it.
       return NextResponse.json({ error: "Token workspace mismatch" }, { status: 403 });
     }
     if (tok.used_at) {
@@ -68,40 +66,35 @@ export async function POST(
       .eq("id", tok.id);
   }
 
-  const { data: wfRow } = await sb
-    .from("dante_workflows")
-    .select("*")
-    .eq("id", run.workflow_id)
-    .single();
-
-  if (!wfRow) {
-    return NextResponse.json({ error: "Workflow not found" }, { status: 404 });
+  // Resume the n8n execution if we have an execution ID
+  const n8nExecutionId = run.n8n_execution_id as string | null;
+  if (n8nExecutionId) {
+    try {
+      const n8nBaseUrl = process.env.DRIFT_N8N_BASE_URL?.replace(/\/$/, "");
+      if (n8nBaseUrl) {
+        // Resume the waiting webhook in n8n
+        const webhookUrl = `${n8nBaseUrl}/webhook-waiting/approval/${n8nExecutionId}`;
+        await fetch(webhookUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action, reason }),
+        });
+      }
+    } catch {
+      // Non-fatal -- update local state regardless
+    }
   }
 
-  const workflow = definitionFromRow(wfRow);
-
-  const result = await resumeWorkflow(
-    workflow,
-    run.paused_at_node,
-    run.approval_context ?? {},
-    { action, reason },
-    { runId: run.id },
-  );
-
-  const finalStatus = result.status === "waiting_approval" ? "waiting_approval"
-    : result.status === "error" ? "error"
-    : "completed";
-
+  // Update local run state
+  const finalStatus = action === "approve" ? "running" : "rejected";
   await sb
     .from("dante_workflow_runs")
     .update({
       status: finalStatus,
-      result,
-      paused_at_node: result.paused_at_node ?? null,
-      approval_context: result.approval_context ?? null,
-      finished_at: finalStatus !== "waiting_approval" ? new Date().toISOString() : null,
+      approval_context: { action, reason, approved_at: new Date().toISOString() },
+      finished_at: action === "reject" ? new Date().toISOString() : null,
     })
     .eq("id", run.id);
 
-  return NextResponse.json({ ok: true, status: finalStatus, result });
+  return NextResponse.json({ ok: true, status: finalStatus });
 }

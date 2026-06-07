@@ -1,29 +1,21 @@
 // app/api/dante/workflows/[workflowId]/dry-run/route.ts
 //
-// POST → execute the workflow with simulate=true: read-only nodes
-// (query_clients, archive_lookup, openai, condition, delay, GET http)
-// run for real, destructive ones (send_email, update_contact, non-GET
-// http) return a "would_have" stub.
+// POST -> validate a workflow's n8n definition without executing it.
 //
-// This does NOT persist a run row — the advisor is shaking the
-// workflow down before committing. We still validate auth + workspace
-// ownership because query_clients returns real contact data.
-//
-// Accepts an optional { input } body so the advisor can try different
-// webhook payloads without wiring them for real.
+// With n8n as the execution engine, dry-run validates the workflow
+// structure and returns node/connection counts. Full simulation
+// requires executing the workflow on n8n (not supported inline).
 
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { runWorkflow } from "@/lib/dante/workflow-runner";
-import { definitionFromRow } from "@/lib/dante/workflow-types";
 import { requireActiveBilling } from "@/lib/billing/gate";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 30;
 
 export async function POST(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ workflowId: string }> }
 ) {
   const { workflowId } = await params;
@@ -54,21 +46,36 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Dry-run still spends model tokens (openai nodes, etc.) so it must
-  // respect the gate even though it doesn't persist anything.
   const gate = await requireActiveBilling(profile.workspace_id);
   if (!gate.ok) return gate.response;
 
-  const body = await request.json().catch(() => ({}));
-  const input =
-    body.input && typeof body.input === "object" ? body.input : {};
+  const n8nId = (wf as Record<string, unknown>).n8n_workflow_id as string | null;
+  if (!n8nId) {
+    return NextResponse.json(
+      { error: "Workflow not migrated to n8n" },
+      { status: 400 },
+    );
+  }
 
   try {
-    const definition = definitionFromRow(wf);
-    const result = await runWorkflow(definition, input, { simulate: true });
-    return NextResponse.json({ ...result, simulated: true });
+    const n8nBridge = await import("@/lib/dante/n8n-bridge");
+    const n8nWorkflow = await n8nBridge.getWorkflow(n8nId);
+
+    return NextResponse.json({
+      simulated: true,
+      status: "ok",
+      engine: "n8n",
+      n8n_workflow_id: n8nId,
+      active: n8nWorkflow.active,
+      nodeCount: n8nWorkflow.nodes?.length || 0,
+      log: [{
+        step: "validation",
+        status: "ok",
+        message: `Workflow has ${n8nWorkflow.nodes?.length || 0} nodes on n8n`,
+      }],
+    });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Dry-run failed";
+    const msg = err instanceof Error ? err.message : "Validation failed";
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

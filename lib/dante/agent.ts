@@ -2679,32 +2679,9 @@ async function dispatchTool(
         }
       }
 
-      // ── Legacy Drift runner (no n8n_workflow_id) ────────────
-      const { enqueueRun, kickQueueWorker } = await import("@/lib/dante/run-executor");
-      const result = await enqueueRun({
-        workflow_id: match.id,
-        workspace_id: ctx.workspaceId,
-        triggered_by: ctx.userId || null,
-        payload: wfInput,
-      });
-
-      if ("error" in result) {
-        return { error: `workflow.run: ${result.error}` };
-      }
-
-      const origin = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : "http://localhost:3000";
-      kickQueueWorker(origin);
-
+      // All workflows must have n8n_workflow_id at this point
       return {
-        ok: true,
-        run_id: result.run_id,
-        workflow_name: match.name,
-        workflow_id: match.id,
-        engine: "legacy",
-        input_provided: wfInput,
-        message: `Workflow "${match.name}" has been triggered. It's now running in the background.`,
+        error: `workflow.run: Workflow "${match.name}" has no n8n engine ID. It needs to be re-created.`,
       };
     }
 

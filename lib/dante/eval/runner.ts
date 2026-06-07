@@ -20,8 +20,7 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { complete as llmComplete } from "@/lib/llm/client";
 import { llmContentText } from "@/lib/llm/types";
-import { runWorkflow } from "@/lib/dante/workflow-runner";
-import { definitionFromRow } from "@/lib/dante/workflow-types";
+import * as n8nBridge from "@/lib/dante/n8n-bridge";
 import { log as rootLog } from "@/lib/logging";
 
 const evalLog = rootLog.child({ component: "eval-runner" });
@@ -230,16 +229,17 @@ async function executeWorkflowCase(
 
   if (!wfRow) throw new Error(`Workflow ${workflowId} not found`);
 
-  const def = definitionFromRow(wfRow);
-  const result = await runWorkflow(def, {
-    input,
-    workspaceId,
-    runId: `eval-${Date.now()}`,
-    simulate: true, // Don't send real emails/SMS during evals
-  });
+  const n8nId = (wfRow as Record<string, unknown>).n8n_workflow_id as string | null;
+  if (!n8nId) throw new Error(`Workflow ${workflowId} has no n8n engine ID`);
+
+  // Execute via n8n and wait for result
+  const executionId = await n8nBridge.executeWorkflowById(n8nId, input);
+  // Give n8n a moment to finish, then fetch the result
+  await new Promise((r) => setTimeout(r, 2000));
+  const execution = await n8nBridge.getExecution(executionId, true);
 
   return {
-    output: result,
+    output: execution,
     tokens_in: 0,  // Token tracking handled by LLM client telemetry
     tokens_out: 0,
   };

@@ -115,7 +115,7 @@ export async function POST(request: Request) {
   // If error, notify workspace owner (same pattern as existing run-executor)
   if (status === "error" && error_message) {
     try {
-      const { notifyRunFailure } = await import("@/lib/dante/run-executor");
+      const { notifyRunFailure } = await import("@/lib/dante/workflow-notifications");
       await notifyRunFailure({
         workflowId: driftWorkflow.id,
         workflowName: driftWorkflow.name,
