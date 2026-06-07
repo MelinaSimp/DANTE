@@ -14,6 +14,7 @@ describe("skill registry", () => {
     "abstract_lease",
     "psa_redline_analysis",
     "broker_email_draft",
+    "loi_draft",
   ];
 
   it("getSkillSeed returns null for unknown slug", () => {
@@ -90,9 +91,9 @@ describe("skill registry", () => {
 });
 
 describe("default skill slugs", () => {
-  it("returns all 6 CRE skills", () => {
+  it("returns all 7 CRE skills", () => {
     const slugs = defaultSkillSlugsFor("real_estate");
-    expect(slugs).toHaveLength(6);
+    expect(slugs).toHaveLength(7);
   });
 
   it("returns same slugs regardless of industry argument", () => {
@@ -121,7 +122,7 @@ describe("default skill slugs", () => {
 describe("default skill seeds", () => {
   it("returns full SkillSeed objects for all defaults", () => {
     const seeds = defaultSkillSeedsFor();
-    expect(seeds).toHaveLength(6);
+    expect(seeds).toHaveLength(7);
     for (const s of seeds) {
       expect(s.name).toBeTruthy();
       expect(s.config).toBeTruthy();
@@ -157,5 +158,35 @@ describe("individual skill validation", () => {
   it("draft_listing_prep_recap is NOT auto-approved", () => {
     const seed = getSkillSeed("draft_listing_prep_recap") as SkillSeed;
     expect(seed.auto_approve).toBe(false);
+  });
+
+  it("loi_draft uses vault.cite and memory.search", () => {
+    const seed = getSkillSeed("loi_draft") as SkillSeed;
+    expect(seed.config.tools).toContain("vault.cite");
+    expect(seed.config.tools).toContain("memory.search");
+  });
+
+  it("loi_draft is NOT auto-approved (legal document)", () => {
+    const seed = getSkillSeed("loi_draft") as SkillSeed;
+    expect(seed.auto_approve).toBe(false);
+  });
+
+  it("loi_draft requires property_name and representation", () => {
+    const seed = getSkillSeed("loi_draft") as SkillSeed;
+    expect(seed.input_schema.required).toContain("property_name");
+    expect(seed.input_schema.required).toContain("representation");
+  });
+
+  it("loi_draft has optional tenant_entity and terms fields", () => {
+    const seed = getSkillSeed("loi_draft") as SkillSeed;
+    expect(seed.input_schema.properties).toHaveProperty("tenant_entity");
+    expect(seed.input_schema.properties).toHaveProperty("terms");
+    expect(seed.input_schema.required).not.toContain("tenant_entity");
+    expect(seed.input_schema.required).not.toContain("terms");
+  });
+
+  it("includes loi_draft in defaults", () => {
+    const slugs = defaultSkillSlugsFor();
+    expect(slugs).toContain("loi_draft");
   });
 });

@@ -172,6 +172,32 @@ const BROKER_EMAIL_DRAFT: SkillSeed = {
   auto_approve: false,
 };
 
+const LOI_DRAFT: SkillSeed = {
+  name: "loi_draft",
+  description:
+    "Generate a market-standard commercial real estate Letter of Intent from deal terms and property context.",
+  config: {
+    objective:
+      'Draft a Letter of Intent for {{input.property_name}}. Representation: {{input.representation}} (landlord or tenant side). Search memory and vault for any prior correspondence, comps, or deal context related to this property. The LOI should include: premises identification (suite/space, rentable SF), proposed term and commencement date, base rent schedule with any escalations, rent abatement or free rent periods, tenant improvement allowance ($/SF or turnkey spec), operating expense structure (NNN, modified gross, or full service), renewal and expansion options, security deposit or letter of credit, permitted use, parking allocation, exclusivity provisions, contingencies (financing, board approval, due diligence), brokerage commission acknowledgment, and a standard non-binding / good-faith negotiation clause. {{#if input.tenant_entity}}Tenant entity: {{input.tenant_entity}}.{{/if}} {{#if input.terms}}Proposed terms: {{input.terms}}{{/if}} {{#if input.notes}}Broker notes: {{input.notes}}{{/if}} Flag any proposed terms that deviate from market standard and suggest the standard fallback. Keep total length under 2 pages. Output as formatted markdown suitable for conversion to PDF.',
+    system:
+      "You are drafting a commercial real estate Letter of Intent on behalf of a CRE broker. The LOI is non-binding and intended to outline the principal business terms before a formal lease or PSA is negotiated. Use clear, professional language. Ground any referenced property details, comps, or prior deal terms in vault citations using [vN] markers. Do not fabricate terms the broker has not provided -- leave blanks as [TBD] with a note to the broker. Structure the LOI with numbered sections and standard CRE formatting. The LOI should be ready for the broker to review and send to the counterparty with minimal edits.",
+    tools: ["vault.cite", "memory.search"],
+    max_steps: 12,
+  },
+  input_schema: {
+    type: "object",
+    required: ["property_name", "representation"],
+    properties: {
+      property_name: { type: "string" },
+      representation: { type: "string" },
+      tenant_entity: { type: "string" },
+      terms: { type: "string" },
+      notes: { type: "string" },
+    },
+  },
+  auto_approve: false,
+};
+
 const REGISTRY: Record<string, SkillSeed> = {
   draft_listing_prep_recap: DRAFT_LISTING_PREP_RECAP,
   summarize_recent_buyer_emails: SUMMARIZE_RECENT_BUYER_EMAILS,
@@ -179,6 +205,7 @@ const REGISTRY: Record<string, SkillSeed> = {
   abstract_lease: ABSTRACT_LEASE,
   psa_redline_analysis: PSA_REDLINE_ANALYSIS,
   broker_email_draft: BROKER_EMAIL_DRAFT,
+  loi_draft: LOI_DRAFT,
 };
 
 export function getSkillSeed(slug: string): SkillSeed | null {
@@ -192,6 +219,7 @@ const DEFAULTS: string[] = [
   "abstract_lease",
   "psa_redline_analysis",
   "broker_email_draft",
+  "loi_draft",
 ];
 
 export function defaultSkillSlugsFor(_industry?: Industry): string[] {

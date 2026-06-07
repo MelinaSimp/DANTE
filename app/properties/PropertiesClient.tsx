@@ -5,7 +5,7 @@
 // page. Status is shown as a chip; click a row to open the detail
 // page.
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -19,7 +19,20 @@ import {
   AlertCircle,
   LayoutList,
   Columns3,
+  GripVertical,
 } from "lucide-react";
+import {
+  DndContext,
+  DragOverlay,
+  useDroppable,
+  useDraggable,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+} from "@dnd-kit/core";
+import type { DragStartEvent, DragEndEvent } from "@dnd-kit/core";
 // CRE-only vertical — no industry branch needed
 import { RealtorListingsEmpty } from "@/components/empty-states/RealtorEmptyStates";
 import { usePageContext } from "@/components/dante/PageContext";
@@ -101,10 +114,214 @@ const PIPELINE_STAGES = [
   { key: "closed", label: "Closed", color: "var(--verified)" },
 ] as const;
 
+/** Per-stage suggested next actions shown on pipeline cards. */
+const NEXT_ACTIONS: Record<string, string[]> = {
+  listed: ["Upload listing docs", "Schedule showing"],
+  showing: ["Log tour notes", "Draft follow-up"],
+  offer: ["Run PSA analysis", "Draft LOI"],
+  pending: ["Due diligence check", "Order inspections"],
+  closed: ["Send closing summary", "Archive docs"],
+};
+
+/* ── DnD sub-components ─────────────────────────────────────── */
+
+function DroppableColumn({
+  stageKey,
+  children,
+}: {
+  stageKey: string;
+  children: React.ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: stageKey });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`flex-1 space-y-2 rounded-[4px] transition-colors min-h-[120px] ${
+        isOver
+          ? "bg-[var(--accent-soft)] ring-1 ring-[var(--accent)]/30"
+          : ""
+      }`}
+      style={{ padding: isOver ? 4 : 0 }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function DraggableCard({
+  property,
+  onClick,
+}: {
+  property: PropertyRow;
+  onClick: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } =
+    useDraggable({ id: property.id });
+  const style = transform
+    ? {
+        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+        zIndex: 50,
+      }
+    : undefined;
+
+  const stage = property.transaction_stage || "listed";
+  const actions = NEXT_ACTIONS[stage] || [];
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`card-flat p-3 transition group ${
+        isDragging ? "opacity-40 shadow-lg" : "hover:shadow-sm cursor-pointer"
+      }`}
+    >
+      <div className="flex items-start gap-1.5">
+        <button
+          {...listeners}
+          {...attributes}
+          className="mt-0.5 p-0.5 rounded-[2px] text-[var(--ink-subtle)] hover:text-[var(--ink-muted)] hover:bg-[var(--canvas-subtle)] cursor-grab active:cursor-grabbing flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+          aria-label="Drag to move stage"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <GripVertical className="w-3 h-3" strokeWidth={1.5} />
+        </button>
+        <div className="flex-1 min-w-0" onClick={onClick}>
+          <div className="text-xs font-medium text-[var(--ink)] mb-1 truncate">
+            {property.name || property.address_line1}
+          </div>
+          <div className="text-[10px] text-[var(--ink-subtle)] mb-2 truncate">
+            {[property.city, property.state].filter(Boolean).join(", ") || "—"}
+          </div>
+          <div className="flex items-center justify-between text-[10px]">
+            <span className="text-[var(--ink-muted)] font-medium">
+              {formatDollars(property.list_price_cents)}
+            </span>
+            {property.expected_close_date && (
+              <span className="text-[var(--ink-subtle)]">
+                Close:{" "}
+                {new Date(property.expected_close_date).toLocaleDateString(
+                  "en-US",
+                  { month: "short", day: "numeric" },
+                )}
+              </span>
+            )}
+          </div>
+          {actions.length > 0 && (
+            <div className="mt-2 pt-2 border-t border-[var(--rule)] flex flex-wrap gap-1">
+              {actions.map((a) => (
+                <span
+                  key={a}
+                  className="text-[9px] text-[var(--accent)] bg-[var(--accent-soft)] px-1.5 py-0.5 rounded-[2px]"
+                >
+                  {a}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OverlayCard({ property }: { property: PropertyRow }) {
+  return (
+    <div className="card-flat p-3 shadow-lg ring-1 ring-[var(--accent)]/30 w-[200px]">
+      <div className="text-xs font-medium text-[var(--ink)] mb-1 truncate">
+        {property.name || property.address_line1}
+      </div>
+      <div className="text-[10px] text-[var(--ink-subtle)] truncate">
+        {[property.city, property.state].filter(Boolean).join(", ") || "—"}
+      </div>
+    </div>
+  );
+}
+
 export default function PropertiesClient() {
   const router = useRouter();
   const [rows, setRows] = useState<PropertyRow[] | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "pipeline">("list");
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+
+  /* DnD sensors — require 8px movement before drag starts so clicks still work */
+  const pointerSensor = useSensor(PointerSensor, {
+    activationConstraint: { distance: 8 },
+  });
+  const keyboardSensor = useSensor(KeyboardSensor);
+  const sensors = useSensors(pointerSensor, keyboardSensor);
+
+  const activeDragProperty = useMemo(
+    () => (activeDragId ? rows?.find((r) => r.id === activeDragId) ?? null : null),
+    [activeDragId, rows],
+  );
+
+  /** Pipeline summary stats */
+  const pipelineStats = useMemo(() => {
+    if (!rows) return null;
+    return PIPELINE_STAGES.map((stage) => {
+      const items = rows.filter(
+        (p) => (p.transaction_stage || "listed") === stage.key,
+      );
+      const totalCents = items.reduce(
+        (sum, p) => sum + (p.list_price_cents || 0),
+        0,
+      );
+      return { ...stage, count: items.length, totalCents };
+    });
+  }, [rows]);
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setActiveDragId(String(event.active.id));
+  }, []);
+
+  const handleDragEnd = useCallback(
+    async (event: DragEndEvent) => {
+      setActiveDragId(null);
+      const { active, over } = event;
+      if (!over || !rows) return;
+
+      const propertyId = String(active.id);
+      const newStage = String(over.id);
+      const property = rows.find((r) => r.id === propertyId);
+      if (!property) return;
+
+      const currentStage = property.transaction_stage || "listed";
+      if (currentStage === newStage) return;
+
+      // Optimistic update
+      setRows((prev) =>
+        prev
+          ? prev.map((r) =>
+              r.id === propertyId
+                ? { ...r, transaction_stage: newStage }
+                : r,
+            )
+          : prev,
+      );
+
+      try {
+        const res = await fetch(`/api/properties/${propertyId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ transaction_stage: newStage }),
+        });
+        if (!res.ok) throw new Error("Stage update failed");
+      } catch {
+        // Revert on failure
+        setRows((prev) =>
+          prev
+            ? prev.map((r) =>
+                r.id === propertyId
+                  ? { ...r, transaction_stage: currentStage }
+                  : r,
+              )
+            : prev,
+        );
+      }
+    },
+    [rows],
+  );
 
   usePageContext({
     title: "Properties",
@@ -466,58 +683,88 @@ export default function PropertiesClient() {
           </div>
         ) : viewMode === "pipeline" ? (
           /* ── Pipeline / Kanban view ──────────────────────────── */
-          <div className="grid grid-cols-5 gap-3 min-h-[400px]">
-            {PIPELINE_STAGES.map((stage) => {
-              const items = rows.filter(
-                (p) => (p.transaction_stage || "listed") === stage.key,
-              );
-              return (
-                <div key={stage.key} className="flex flex-col">
-                  <div className="flex items-center gap-2 mb-2 px-2">
-                    <div
-                      className="w-2 h-2 rounded-full"
-                      style={{ backgroundColor: stage.color }}
-                    />
-                    <span className="label-section text-[10px]">{stage.label}</span>
-                    <span className="text-[10px] text-[var(--ink-subtle)]">
-                      {items.length}
-                    </span>
-                  </div>
-                  <div className="flex-1 space-y-2">
-                    {items.map((p) => (
+          <>
+            {/* Pipeline summary bar */}
+            {pipelineStats && (
+              <div className="flex gap-3 mb-4">
+                {pipelineStats.map((s) => (
+                  <div
+                    key={s.key}
+                    className="flex-1 card-flat px-3 py-2 flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-1.5">
                       <div
-                        key={p.id}
-                        onClick={() => router.push(`/properties/${p.id}`)}
-                        className="card-flat p-3 cursor-pointer hover:shadow-sm transition"
-                      >
-                        <div className="text-xs font-medium text-[var(--ink)] mb-1 truncate">
-                          {p.name || p.address_line1}
-                        </div>
-                        <div className="text-[10px] text-[var(--ink-subtle)] mb-2 truncate">
-                          {[p.city, p.state].filter(Boolean).join(", ") || "—"}
-                        </div>
-                        <div className="flex items-center justify-between text-[10px]">
-                          <span className="text-[var(--ink-muted)] font-medium">
-                            {formatDollars(p.list_price_cents)}
-                          </span>
-                          {p.expected_close_date && (
-                            <span className="text-[var(--ink-subtle)]">
-                              Close: {new Date(p.expected_close_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                    {items.length === 0 && (
-                      <div className="p-4 text-center text-[10px] text-[var(--ink-subtle)] border border-dashed border-[var(--rule)] rounded-[4px]">
-                        No deals
-                      </div>
-                    )}
+                        className="w-1.5 h-1.5 rounded-full"
+                        style={{ backgroundColor: s.color }}
+                      />
+                      <span className="text-[10px] font-medium text-[var(--ink-muted)]">
+                        {s.label}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs font-semibold text-[var(--ink)]">
+                        {s.count}
+                      </span>
+                      {s.totalCents > 0 && (
+                        <span className="text-[10px] text-[var(--ink-subtle)] ml-1.5">
+                          {formatDollars(s.totalCents)}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                ))}
+              </div>
+            )}
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+            >
+              <div className="grid grid-cols-5 gap-3 min-h-[400px]">
+                {PIPELINE_STAGES.map((stage) => {
+                  const items = rows.filter(
+                    (p) => (p.transaction_stage || "listed") === stage.key,
+                  );
+                  return (
+                    <div key={stage.key} className="flex flex-col">
+                      <div className="flex items-center gap-2 mb-2 px-2">
+                        <div
+                          className="w-2 h-2 rounded-full"
+                          style={{ backgroundColor: stage.color }}
+                        />
+                        <span className="label-section text-[10px]">
+                          {stage.label}
+                        </span>
+                        <span className="text-[10px] text-[var(--ink-subtle)]">
+                          {items.length}
+                        </span>
+                      </div>
+                      <DroppableColumn stageKey={stage.key}>
+                        {items.map((p) => (
+                          <DraggableCard
+                            key={p.id}
+                            property={p}
+                            onClick={() => router.push(`/properties/${p.id}`)}
+                          />
+                        ))}
+                        {items.length === 0 && (
+                          <div className="p-4 text-center text-[10px] text-[var(--ink-subtle)] border border-dashed border-[var(--rule)] rounded-[4px]">
+                            No deals
+                          </div>
+                        )}
+                      </DroppableColumn>
+                    </div>
+                  );
+                })}
+              </div>
+              <DragOverlay>
+                {activeDragProperty ? (
+                  <OverlayCard property={activeDragProperty} />
+                ) : null}
+              </DragOverlay>
+            </DndContext>
+          </>
         ) : (
           /* ── List / Table view ───────────────────────────────── */
           <div className="card-flat overflow-hidden">
