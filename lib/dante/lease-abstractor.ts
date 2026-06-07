@@ -151,7 +151,7 @@ async function callClaude(
   };
 }
 
-function parseJSON(raw: string): unknown {
+export function parseJSON(raw: string): unknown {
   const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
   const jsonStr = fenced ? fenced[1].trim() : raw.trim();
   return JSON.parse(jsonStr);
@@ -163,7 +163,7 @@ function parseJSON(raw: string): unknown {
  * ISO-ish formats ("2028-12-31") but can also return natural language
  * ("December 31, 2028"). Returns null for unparseable values.
  */
-function parseLeaseDate(raw: string | null): string | null {
+export function parseLeaseDate(raw: string | null): string | null {
   if (!raw) return null;
   // Try ISO first
   const isoMatch = raw.match(/(\d{4}-\d{2}-\d{2})/);
@@ -369,7 +369,7 @@ ${finalDoc}`;
   };
 }
 
-function extractCitationFromValue(value: string | null): string | undefined {
+export function extractCitationFromValue(value: string | null): string | undefined {
   if (!value) return undefined;
   const matches = value.match(/\[v(\d+)\]/g);
   if (!matches) return undefined;
