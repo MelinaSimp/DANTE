@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Check n8n is configured
-  if (!process.env.DRIFT_N8N_BASE_URL || !process.env.DRIFT_N8N_API_KEY) {
+  if (!process.env.DRIFT_N8N_BASE_URL || (!process.env.DRIFT_N8N_API_KEY && !process.env.DRIFT_N8N_BASIC_AUTH)) {
     return NextResponse.json(
       { error: "n8n integration not configured" },
       { status: 503 },

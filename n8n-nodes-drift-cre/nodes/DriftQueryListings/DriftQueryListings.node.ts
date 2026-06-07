@@ -1,4 +1,5 @@
 import type {
+  IDataObject,
   IExecuteFunctions,
   INodeExecutionData,
   INodeType,
@@ -81,6 +82,6 @@ export class DriftQueryListings implements INodeType {
     });
 
     const listings = Array.isArray(response) ? response : [];
-    return [listings.map((l: Record<string, unknown>) => ({ json: l }))];
+    return [listings.map((l: Record<string, unknown>) => ({ json: l as IDataObject }))];
   }
 }

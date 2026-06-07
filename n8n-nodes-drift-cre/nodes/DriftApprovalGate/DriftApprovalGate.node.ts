@@ -1,4 +1,5 @@
 import type {
+  IDataObject,
   IExecuteFunctions,
   INodeExecutionData,
   INodeType,
@@ -92,8 +93,13 @@ export class DriftApprovalGate implements INodeType {
     const notifyVia = this.getNodeParameter("notifyVia", 0, "email") as string;
     const timeoutHours = this.getNodeParameter("timeoutHours", 0, 72) as number;
 
-    // Get the webhook URL for approval callbacks
-    const webhookUrl = this.getNodeWebhookUrl("default");
+    // Construct webhook URL for approval callbacks.
+    // n8n registers waiting-webhook endpoints at /webhook-waiting/<path>
+    // when putExecutionToWait is called. The execution ID is appended by
+    // the caller so the correct paused run resumes.
+    const n8nBaseUrl = (process.env.WEBHOOK_URL || process.env.N8N_HOST || "").replace(/\/$/, "");
+    const executionId = this.getExecutionId();
+    const webhookUrl = `${n8nBaseUrl}/webhook-waiting/approval/${executionId}`;
 
     const approveUrl = `${webhookUrl}?action=approve`;
     const rejectUrl = `${webhookUrl}?action=reject`;
@@ -201,7 +207,7 @@ export class DriftApprovalGate implements INodeType {
         approve_url: approveUrl,
         reject_url: rejectUrl,
         timeout: waitUntil.toISOString(),
-      },
+      } as IDataObject,
     };
 
     // Use n8n's built-in wait mechanism

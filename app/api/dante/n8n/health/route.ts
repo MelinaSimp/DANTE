@@ -16,7 +16,7 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   // Only check if the env vars are configured
-  if (!process.env.DRIFT_N8N_BASE_URL || !process.env.DRIFT_N8N_API_KEY) {
+  if (!process.env.DRIFT_N8N_BASE_URL || (!process.env.DRIFT_N8N_API_KEY && !process.env.DRIFT_N8N_BASIC_AUTH)) {
     return NextResponse.json({
       ok: false,
       configured: false,

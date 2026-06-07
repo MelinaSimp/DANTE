@@ -34,10 +34,23 @@ function getBaseUrl(): string {
   return url.replace(/\/$/, "");
 }
 
-function getApiKey(): string {
-  const key = process.env.DRIFT_N8N_API_KEY;
-  if (!key) throw new Error("n8n-bridge: DRIFT_N8N_API_KEY is not set");
-  return key;
+/**
+ * Returns auth headers for the n8n API. Supports two modes:
+ *   1. API key (DRIFT_N8N_API_KEY) -- sent as X-N8N-API-KEY header
+ *   2. Basic auth (DRIFT_N8N_BASIC_AUTH=user:pass) -- sent as Authorization header
+ * At least one must be set.
+ */
+function getAuthHeaders(): Record<string, string> {
+  const apiKey = process.env.DRIFT_N8N_API_KEY;
+  if (apiKey) return { "X-N8N-API-KEY": apiKey };
+
+  const basicAuth = process.env.DRIFT_N8N_BASIC_AUTH;
+  if (basicAuth) {
+    const encoded = Buffer.from(basicAuth).toString("base64");
+    return { Authorization: `Basic ${encoded}` };
+  }
+
+  throw new Error("n8n-bridge: DRIFT_N8N_API_KEY or DRIFT_N8N_BASIC_AUTH must be set");
 }
 
 // ── HTTP Helpers ─────────────────────────────────────────────
@@ -60,7 +73,7 @@ async function n8nFetch<T>(path: string, opts: FetchOptions = {}): Promise<T> {
 
   try {
     const headers: Record<string, string> = {
-      "X-N8N-API-KEY": getApiKey(),
+      ...getAuthHeaders(),
       "Accept": "application/json",
     };
     if (body !== undefined) {

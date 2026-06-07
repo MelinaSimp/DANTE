@@ -1,4 +1,5 @@
 import type {
+  IDataObject,
   IExecuteFunctions,
   INodeExecutionData,
   INodeType,
@@ -78,6 +79,6 @@ export class DriftLeaseLookup implements INodeType {
     });
 
     const abstractions = Array.isArray(response) ? response : [];
-    return [abstractions.map((a: Record<string, unknown>) => ({ json: a }))];
+    return [abstractions.map((a: Record<string, unknown>) => ({ json: a as IDataObject }))];
   }
 }

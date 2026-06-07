@@ -1,4 +1,5 @@
 import type {
+  IDataObject,
   IExecuteFunctions,
   INodeExecutionData,
   INodeType,
@@ -100,7 +101,7 @@ export class DriftQueryContacts implements INodeType {
 
     const contacts = Array.isArray(response) ? response : [];
     const items: INodeExecutionData[] = contacts.map((contact: Record<string, unknown>) => ({
-      json: contact,
+      json: contact as IDataObject,
     }));
 
     return [items];
