@@ -120,3 +120,69 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ content_request_id: cr?.id, status: "ingest_requested" });
 }
+
+/**
+ * DELETE — remove an ingested file from the vault and reset its index status.
+ * Body: { index_entry_id: string }
+ */
+export async function DELETE(req: Request) {
+  const supabase = await createServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("workspace_id")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (!profile?.workspace_id) {
+    return NextResponse.json({ error: "no workspace" }, { status: 403 });
+  }
+
+  const body = await req.json().catch(() => null);
+  const indexEntryId = body?.index_entry_id;
+  if (!indexEntryId) {
+    return NextResponse.json({ error: "index_entry_id required" }, { status: 400 });
+  }
+
+  const { data: entry } = await supabaseAdmin
+    .from("watched_file_index")
+    .select("id, vault_item_id, ingest_status, workspace_id")
+    .eq("id", indexEntryId)
+    .maybeSingle();
+
+  if (!entry || entry.workspace_id !== profile.workspace_id) {
+    return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
+
+  if (entry.ingest_status !== "ingested" || !entry.vault_item_id) {
+    return NextResponse.json({ error: "file is not ingested" }, { status: 400 });
+  }
+
+  // Delete the vault item
+  const { error: delErr } = await supabaseAdmin
+    .from("vault_items")
+    .delete()
+    .eq("id", entry.vault_item_id)
+    .eq("workspace_id", profile.workspace_id);
+
+  if (delErr) {
+    console.error("[file-index] vault delete error:", delErr);
+    return NextResponse.json({ error: delErr.message }, { status: 500 });
+  }
+
+  // Reset the index entry back to "indexed"
+  await supabaseAdmin
+    .from("watched_file_index")
+    .update({
+      ingest_status: "indexed",
+      vault_item_id: null,
+      ingested_at: null,
+      ingest_error: null,
+    })
+    .eq("id", indexEntryId);
+
+  return NextResponse.json({ success: true, status: "indexed" });
+}

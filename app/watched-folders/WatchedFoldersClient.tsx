@@ -19,6 +19,8 @@ import {
   FolderPlus,
   Server,
   RefreshCw,
+  Trash2,
+  Activity,
 } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────
@@ -276,11 +278,14 @@ function FolderList({
       ) : activeFolders.length === 0 ? (
         <EmptyState onAddFolder={onAddFolder} adding={adding} />
       ) : (
-        <div className="space-y-3">
-          {activeFolders.map((f) => (
-            <FolderCard key={f.id} folder={f} onClick={() => onSelect(f)} />
-          ))}
-        </div>
+        <>
+          <div className="space-y-3">
+            {activeFolders.map((f) => (
+              <FolderCard key={f.id} folder={f} onClick={() => onSelect(f)} />
+            ))}
+          </div>
+          <RecentActivity folders={activeFolders} />
+        </>
       )}
     </div>
   );
@@ -397,6 +402,7 @@ function FolderDetail({
   const [statusFilter, setStatusFilter] = useState("");
   const [loading, setLoading] = useState(false);
   const [ingesting, setIngesting] = useState<Set<string>>(new Set());
+  const [removing, setRemoving] = useState<Set<string>>(new Set());
   const [batchIngesting, setBatchIngesting] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -481,6 +487,32 @@ function FolderDetail({
       );
     } finally {
       setBatchIngesting(false);
+    }
+  };
+
+  const removeFromVault = async (entry: IndexEntry) => {
+    setRemoving((prev) => new Set(prev).add(entry.id));
+    try {
+      const res = await fetch("/api/electron/watched-folders/file-index", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ index_entry_id: entry.id }),
+      });
+      if (res.ok) {
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.id === entry.id
+              ? { ...f, ingest_status: "indexed" as const, vault_item_id: null, ingested_at: null }
+              : f,
+          ),
+        );
+      }
+    } finally {
+      setRemoving((prev) => {
+        const next = new Set(prev);
+        next.delete(entry.id);
+        return next;
+      });
     }
   };
 
@@ -679,12 +711,26 @@ function FolderDetail({
                       </button>
                     )}
                     {f.ingest_status === "ingested" && f.vault_item_id && (
-                      <a
-                        href={`/vault?item=${f.vault_item_id}`}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--neu-hover)] transition"
-                      >
-                        View in Vault
-                      </a>
+                      <div className="flex items-center gap-1">
+                        <a
+                          href={`/vault?item=${f.vault_item_id}`}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--neu-hover)] transition"
+                        >
+                          View in Vault
+                        </a>
+                        <button
+                          onClick={() => removeFromVault(f)}
+                          disabled={removing.has(f.id)}
+                          className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-[var(--ink-subtle)] hover:text-red-600 hover:bg-red-50 transition"
+                          title="Remove from Vault"
+                        >
+                          {removing.has(f.id) ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-3 h-3" />
+                          )}
+                        </button>
+                      </div>
                     )}
                     {f.ingest_status === "ingest_failed" && (
                       <button
@@ -727,6 +773,134 @@ function FolderDetail({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Recent activity feed ─────────────────────────────────────────
+
+function RecentActivity({ folders }: { folders: WatchedFolder[] }) {
+  const [recentFiles, setRecentFiles] = useState<(IndexEntry & { folder_label?: string })[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [removing, setRemoving] = useState<Set<string>>(new Set());
+
+  const folderMap = new Map(folders.map((f) => [f.id, f.folder_label]));
+
+  const fetchRecent = useCallback(async () => {
+    try {
+      const res = await fetch(
+        "/api/electron/watched-folders/file-index?status=ingested&limit=20",
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      const files = (data.files || []).map((f: IndexEntry) => ({
+        ...f,
+        folder_label: folderMap.get(f.folder_id) || "Unknown folder",
+      }));
+      setRecentFiles(files);
+    } finally {
+      setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [folders]);
+
+  useEffect(() => {
+    if (folders.length > 0) fetchRecent();
+  }, [fetchRecent, folders]);
+
+  const removeFromVault = async (entry: IndexEntry) => {
+    setRemoving((prev) => new Set(prev).add(entry.id));
+    try {
+      const res = await fetch("/api/electron/watched-folders/file-index", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ index_entry_id: entry.id }),
+      });
+      if (res.ok) {
+        setRecentFiles((prev) => prev.filter((f) => f.id !== entry.id));
+      }
+    } finally {
+      setRemoving((prev) => {
+        const next = new Set(prev);
+        next.delete(entry.id);
+        return next;
+      });
+    }
+  };
+
+  if (loading && folders.length > 0) {
+    return (
+      <div className="flex items-center gap-2 py-6 justify-center text-sm text-gray-400">
+        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        Loading recent activity...
+      </div>
+    );
+  }
+
+  if (recentFiles.length === 0) return null;
+
+  return (
+    <div className="mt-10">
+      <div className="flex items-center gap-2 mb-4">
+        <Activity className="w-4 h-4 text-[var(--ink-subtle)]" />
+        <h2 className="text-sm font-medium text-[var(--ink-muted)] uppercase tracking-wider">
+          Recently Ingested
+        </h2>
+      </div>
+      <div className="glass-card rounded-xl overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-black/[0.06] text-left text-xs text-[var(--ink-muted)] uppercase tracking-wider">
+              <th className="px-4 py-3 font-medium">File</th>
+              <th className="px-4 py-3 font-medium w-40">Folder</th>
+              <th className="px-4 py-3 font-medium w-32">Ingested</th>
+              <th className="px-4 py-3 font-medium w-28"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {recentFiles.map((f) => (
+              <tr key={f.id} className="border-b border-black/[0.04] hover:bg-[var(--neu-hover)]">
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-[var(--ink-subtle)] flex-shrink-0" />
+                    <span className="font-medium text-[var(--ink)] truncate">{f.file_name}</span>
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-xs text-[var(--ink-muted)] truncate">
+                  {f.folder_label}
+                </td>
+                <td className="px-4 py-3 text-xs text-[var(--ink-subtle)]">
+                  {f.ingested_at ? timeAgo(new Date(f.ingested_at)) : "--"}
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <div className="flex items-center gap-1 justify-end">
+                    {f.vault_item_id && (
+                      <a
+                        href={`/vault?item=${f.vault_item_id}`}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--neu-hover)] transition"
+                      >
+                        View
+                      </a>
+                    )}
+                    <button
+                      onClick={() => removeFromVault(f)}
+                      disabled={removing.has(f.id)}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-[var(--ink-subtle)] hover:text-red-600 hover:bg-red-50 transition"
+                      title="Remove from Vault"
+                    >
+                      {removing.has(f.id) ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-3 h-3" />
+                      )}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

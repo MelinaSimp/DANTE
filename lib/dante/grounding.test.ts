@@ -165,6 +165,72 @@ describe("computeGroundingScore", () => {
     expect(r.score).toBeLessThanOrEqual(1);
   });
 
+  it("tier=partial when retrieval tools called but response has no citations", () => {
+    const r = computeGroundingScore({
+      responseText: "I checked the documents and here is some general advice about leasing strategies.",
+      trace: [
+        { step_name: "agent → vault_cite", status: "success" },
+      ],
+    });
+    expect(r.tier).toBe("partial");
+    expect(r.parts.retrieval_tools_called).toBe(1);
+    expect(r.parts.citation_count).toBe(0);
+  });
+
+  it("counts failed tool calls the same as successful ones", () => {
+    const r = computeGroundingScore({
+      responseText: "I tried to look it up but couldn't find anything.",
+      trace: [
+        { step_name: "agent → vault_cite", status: "error" },
+        { step_name: "agent → memory_search", status: "error" },
+      ],
+    });
+    // The grounding score counts all trace entries regardless of status
+    expect(r.parts.retrieval_tools_called).toBe(2);
+    expect(r.parts.total_tools_called).toBe(2);
+  });
+
+  it("handles very long response with few citations (low density)", () => {
+    const longText = "word ".repeat(500) + "[v1]";
+    const r = computeGroundingScore({
+      responseText: longText,
+      trace: [{ step_name: "vault_cite", status: "success" }],
+    });
+    expect(r.parts.citation_density).toBeLessThan(0.1);
+    expect(r.parts.citation_count).toBe(1);
+  });
+
+  it("handles empty trace with citations (high density gives strong tier)", () => {
+    const r = computeGroundingScore({
+      responseText: "Just some advice [v1].",
+      trace: [],
+    });
+    expect(r.parts.total_tools_called).toBe(0);
+    expect(r.parts.retrieval_tools_called).toBe(0);
+    expect(r.parts.citation_count).toBe(1);
+    // With high citation density (1 citation per 4 words), the score
+    // can still cross the 0.7 strong threshold via citation_density alone
+    expect(["strong", "partial"]).toContain(r.tier);
+  });
+
+  it("treats archive_search as a retrieval tool", () => {
+    const r = computeGroundingScore({
+      responseText: "Found in archive [v1].",
+      trace: [{ step_name: "agent → archive_search", status: "success" }],
+    });
+    expect(r.parts.retrieval_tools_called).toBe(1);
+  });
+
+  it("file_index.search is not a retrieval tool (counts as general)", () => {
+    const r = computeGroundingScore({
+      responseText: "Found in file index [v1].",
+      trace: [{ step_name: "agent → file_index.search", status: "success" }],
+    });
+    // file_index.search is not in RETRIEVAL_TOOLS
+    expect(r.parts.retrieval_tools_called).toBe(0);
+    expect(r.parts.total_tools_called).toBe(1);
+  });
+
   it("summary mentions vault + memory + regulatory counts for strong tier", () => {
     const r = computeGroundingScore({
       responseText: "Per [v1] and [mem:1234] and [reg:1], this is well-supported advice for your situation.",
