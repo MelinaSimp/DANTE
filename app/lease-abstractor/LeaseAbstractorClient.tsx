@@ -24,6 +24,7 @@ import {
   Settings2,
   Sparkles,
   Globe,
+  LayoutList,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { usePageContext } from "@/components/dante/PageContext";
@@ -78,6 +79,19 @@ interface PropertyOption {
   id: string;
   name: string;
   address?: string;
+}
+
+interface TemplateField {
+  name: string;
+  category: string;
+  description: string;
+}
+
+interface Template {
+  id: string | null;
+  name: string;
+  fields: TemplateField[];
+  is_default: boolean;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -162,6 +176,8 @@ export default function LeaseAbstractorClient() {
   const [webSearch, setWebSearch] = useState(false);
   const [properties, setProperties] = useState<PropertyOption[]>([]);
   const [linkingProperty, setLinkingProperty] = useState(false);
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadData = useCallback(async () => {
@@ -170,10 +186,11 @@ export default function LeaseAbstractorClient() {
     const ac = new AbortController();
     const timeout = setTimeout(() => ac.abort(), 15_000);
     try {
-      const [itemsRes, abstractsRes, propsRes] = await Promise.all([
+      const [itemsRes, abstractsRes, propsRes, tplRes] = await Promise.all([
         fetch("/api/vault?kind=document&limit=500", { credentials: "include", signal: ac.signal }),
         fetch("/api/lease-abstractor", { credentials: "include", signal: ac.signal }),
         fetch("/api/properties", { credentials: "include", signal: ac.signal }).catch(() => null),
+        fetch("/api/lease-abstractor/templates", { credentials: "include", signal: ac.signal }).catch(() => null),
       ]);
       if (!itemsRes.ok) throw new Error("Failed to load vault items");
       const items = await itemsRes.json();
@@ -191,6 +208,16 @@ export default function LeaseAbstractorClient() {
           name: [p.address_line1, p.city, p.state].filter(Boolean).join(", ") || String(p.id).slice(0, 8),
           address: p.address_line1 as string | undefined,
         })));
+      }
+      if (tplRes?.ok) {
+        const tplData = await tplRes.json();
+        if (Array.isArray(tplData)) {
+          setTemplates(tplData);
+          if (!selectedTemplateId && tplData.length > 0) {
+            const def = tplData.find((t: Template) => t.is_default);
+            setSelectedTemplateId(def ? (def.id ?? "__default__") : (tplData[0].id ?? "__default__"));
+          }
+        }
       }
     } catch (e: unknown) {
       if (e instanceof DOMException && e.name === "AbortError") {
@@ -222,10 +249,18 @@ export default function LeaseAbstractorClient() {
     return map;
   }, [abstracts]);
 
+  const selectedTemplate = useMemo(() => {
+    if (!selectedTemplateId) return templates[0] || null;
+    return templates.find((t) => (t.id ?? "__default__") === selectedTemplateId) || templates[0] || null;
+  }, [templates, selectedTemplateId]);
+
   const runExtraction = async (vaultItemId: string) => {
     setExtracting(true);
     setError(null);
     try {
+      const tplFields = selectedTemplate && !selectedTemplate.is_default
+        ? selectedTemplate.fields
+        : undefined;
       const res = await fetch("/api/lease-abstractor", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -235,6 +270,7 @@ export default function LeaseAbstractorClient() {
           options: {
             refinePrompt: refinePrompt || undefined,
             webSearch: webSearch || undefined,
+            templateFields: tplFields,
           },
         }),
       });
@@ -608,6 +644,34 @@ export default function LeaseAbstractorClient() {
                         </p>
                       </div>
                     </label>
+
+                    {/* Template selector */}
+                    {templates.length > 0 && (
+                      <div className="rounded-[var(--r-input)] p-2 hover:bg-[var(--canvas-subtle)] transition">
+                        <div className="flex items-center gap-1.5 text-xs font-medium text-[var(--ink)] mb-1.5">
+                          <LayoutList className="w-3 h-3 text-[var(--accent)]" strokeWidth={1.5} />
+                          Field Template
+                        </div>
+                        <select
+                          value={selectedTemplateId ?? "__default__"}
+                          onChange={(e) => setSelectedTemplateId(e.target.value)}
+                          className="w-full rounded-[var(--r-input)] border border-[var(--rule)] bg-[var(--canvas)] px-2.5 py-1.5 text-xs text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
+                        >
+                          {templates.map((t) => (
+                            <option key={t.id ?? "__default__"} value={t.id ?? "__default__"}>
+                              {t.name} ({t.fields.length} fields)
+                            </option>
+                          ))}
+                        </select>
+                        {selectedTemplate && (
+                          <p className="text-[10px] text-[var(--ink-subtle)] mt-1 px-0.5">
+                            {selectedTemplate.fields.filter((f) => f.category === "deal_terms").length} deal /
+                            {" "}{selectedTemplate.fields.filter((f) => f.category === "financial_terms").length} financial /
+                            {" "}{selectedTemplate.fields.filter((f) => f.category === "key_clauses").length} clauses
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     {(refinePrompt || webSearch) && (
                       <p className="text-[10px] text-[var(--flag)] px-2">

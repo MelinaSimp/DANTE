@@ -69,7 +69,11 @@ export async function POST(request: NextRequest) {
 
   let body: {
     vault_item_id?: string;
-    options?: { refinePrompt?: boolean; webSearch?: boolean };
+    options?: {
+      refinePrompt?: boolean;
+      webSearch?: boolean;
+      templateFields?: Array<{ name: string; category: string; description: string }>;
+    };
   };
   try {
     body = await request.json();
@@ -109,11 +113,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Anthropic API key not configured" }, { status: 500 });
   }
 
+  const templateFields = body.options?.templateFields;
   const result: LeaseAbstract = await abstractLease({
     workspaceId: profile.workspace_id,
     vaultItemId,
     userId: user.id,
     anthropicKey,
+    fields: templateFields?.length ? templateFields.map((f) => ({
+      name: f.name,
+      category: f.category as "deal_terms" | "financial_terms" | "key_clauses",
+      description: f.description,
+    })) : undefined,
     options: body.options,
   });
 
