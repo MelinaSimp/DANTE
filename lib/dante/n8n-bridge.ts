@@ -125,12 +125,64 @@ async function n8nFetchWithRetry<T>(path: string, opts: FetchOptions = {}): Prom
  * The workflow is created inactive by default.
  */
 export async function createWorkflow(json: N8nWorkflowJSON): Promise<string> {
-  const payload = { ...json, active: json.active ?? false };
+  // n8n v1 API treats `active` and `tags` as read-only on create -- strip them
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { active, tags, ...payload } = json as N8nWorkflowJSON & { active?: boolean; tags?: unknown[] };
   const result = await n8nFetchWithRetry<N8nWorkflowResponse>("/workflows", {
     method: "POST",
     body: payload,
   });
   n8nLog.info("created n8n workflow", { n8nId: result.id, name: json.name });
+
+  // Apply tags after creation if provided (requires tag IDs, not names)
+  if (tags && Array.isArray(tags) && tags.length > 0) {
+    try {
+      // Resolve tag names to IDs
+      const existingTags = await listTags();
+      const tagIds: Array<{ id: string }> = [];
+      for (const tag of tags) {
+        const tagName = typeof tag === "string" ? tag : (tag as { name?: string })?.name;
+        if (!tagName) continue;
+        let found = existingTags.find((t) => t.name === tagName);
+        if (!found) {
+          try {
+            const newId = await createTag(tagName);
+            found = { id: newId, name: tagName, createdAt: "", updatedAt: "" };
+          } catch {
+            // Tag might have been created concurrently -- refetch
+            const refreshed = await listTags();
+            found = refreshed.find((t) => t.name === tagName);
+          }
+        }
+        if (found) tagIds.push({ id: found.id });
+      }
+      if (tagIds.length > 0) {
+        await n8nFetchWithRetry<unknown>(`/workflows/${result.id}/tags`, {
+          method: "PUT",
+          body: tagIds,
+        });
+      }
+    } catch (tagErr) {
+      n8nLog.warn("failed to apply tags to workflow", {
+        n8nId: result.id,
+        err: tagErr instanceof Error ? tagErr.message : String(tagErr),
+      });
+      // Non-fatal -- workflow was created, just not tagged
+    }
+  }
+
+  // If the workflow should be active, try to activate it (non-fatal)
+  if (active) {
+    try {
+      await activateWorkflow(result.id);
+    } catch (activateErr) {
+      n8nLog.warn("failed to activate workflow after creation (non-fatal)", {
+        n8nId: result.id,
+        err: activateErr instanceof Error ? activateErr.message : String(activateErr),
+      });
+    }
+  }
+
   return result.id;
 }
 
