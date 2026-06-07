@@ -1,8 +1,8 @@
 # Drift Workflow Engine: n8n Backend Migration Plan
 
-**Status**: Phase 2 in progress (2026-06-06)
+**Status**: Phase 3 COMPLETE. n8n is the sole execution engine. (2026-06-07)
 **Owner**: Drift AI engineering
-**Timeline**: 8 weeks (padded from 6 per board recommendation)
+**Timeline**: Completed ahead of schedule
 
 ### Progress
 
@@ -12,7 +12,7 @@
   - n8n workflow AI generator, agent tool updates (propose/run/status/update/clone),
     5 templates converted, per-node execution traces in frontend, API routing,
     health check endpoint, parallel operation with legacy engine
-- **Phase 2** (Full Migration): IN PROGRESS
+- **Phase 2** (Full Migration): COMPLETE
   - [x] All 12 custom CRE nodes complete
   - [x] Auto-converter (n8n-converter.ts) for legacy templates
   - [x] Auto-converter integrated into clone_template flow
@@ -24,7 +24,25 @@
   - [x] Cron tick skips n8n-migrated workflows (no duplicate scheduling)
   - [x] Queue tick skips n8n-owned runs
   - [x] Migration reports sent to workspace admins via Resend
-  - [ ] End-to-end validation with live n8n instance
+  - [x] End-to-end validation with live n8n instance
+  - [x] 15/15 workflows migrated across 4 workspaces (run-migration.ts)
+  - [x] Orphaned n8n workflows reconciled with DB
+- **Phase 3** (Legacy Engine Removal): COMPLETE
+  - [x] Deleted legacy DAG executor (workflow-runner.ts, 2,464 lines)
+  - [x] Deleted run-executor.ts, workflow-cache.ts, workflow-errors.ts
+  - [x] Deleted queue/tick and cron/tick API routes
+  - [x] Deleted test harnesses (test-hardening, test-full-pipeline, test-due-diligence)
+  - [x] Extracted workflow-notifications.ts from run-executor before deletion
+  - [x] Rewrote all API routes to use n8n bridge exclusively
+  - [x] Removed legacy cron schedules from vercel.json
+  - [x] Total: 5,540 lines deleted, 357 added, zero TypeScript errors
+  - [x] Custom n8n nodes compiled and deploying to Railway
+
+### Remaining work
+
+- [ ] Custom n8n nodes package installed on Railway n8n instance (deploy in progress)
+- [ ] Activate 6 workflows that depend on custom nodes (blocked on above)
+- [ ] Drop deprecated tables after removing code references (dante_secrets, dante_webhook_tokens, dante_approval_tokens, dante_workflow_versions, dante_workflow_step_cache, dante_pending_nudges)
 
 ---
 
