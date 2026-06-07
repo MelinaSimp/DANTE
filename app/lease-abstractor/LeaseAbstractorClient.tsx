@@ -25,6 +25,7 @@ import {
   Sparkles,
   Globe,
 } from "lucide-react";
+import * as XLSX from "xlsx";
 import { usePageContext } from "@/components/dante/PageContext";
 
 interface VaultItem {
@@ -410,6 +411,49 @@ export default function LeaseAbstractorClient() {
     URL.revokeObjectURL(url);
   };
 
+  const exportXLSX = () => {
+    if (!selectedAbstract?.fields.length) return;
+    const wb = XLSX.utils.book_new();
+    const categories = ["deal_terms", "financial_terms", "key_clauses"] as const;
+    for (const cat of categories) {
+      const fields = selectedAbstract.fields.filter((f) => f.category === cat);
+      const rows = fields.map((f) => ({
+        Field: f.name,
+        Value: f.value ?? "",
+        Confidence: f.confidence,
+        Citation: f.citation ?? "",
+        Page: f.page != null ? f.page : "",
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws["!cols"] = [
+        { wch: 30 },
+        { wch: 50 },
+        { wch: 12 },
+        { wch: 60 },
+        { wch: 8 },
+      ];
+      XLSX.utils.book_append_sheet(wb, ws, CATEGORY_LABELS[cat]);
+    }
+    if (selectedAbstract.context_analysis) {
+      const ca = selectedAbstract.context_analysis;
+      const contextRows: { Section: string; Detail: string }[] = [];
+      contextRows.push({ Section: "Tenant Favorable Assessment", Detail: ca.tenant_favorable_assessment });
+      for (const r of ca.key_risks) {
+        contextRows.push({ Section: "Key Risk", Detail: r });
+      }
+      for (const u of ca.unusual_clauses) {
+        contextRows.push({ Section: "Unusual Clause", Detail: u });
+      }
+      for (const c of ca.cross_reference_issues) {
+        contextRows.push({ Section: "Cross-Reference Issue", Detail: c });
+      }
+      const ws = XLSX.utils.json_to_sheet(contextRows);
+      ws["!cols"] = [{ wch: 30 }, { wch: 80 }];
+      XLSX.utils.book_append_sheet(wb, ws, "Context Analysis");
+    }
+    XLSX.writeFile(wb, `lease-abstract-${selectedAbstract.id.slice(0, 8)}.xlsx`);
+  };
+
   const copyJSON = async () => {
     if (!selectedAbstract) return;
     await navigator.clipboard.writeText(JSON.stringify(selectedAbstract, null, 2));
@@ -762,6 +806,13 @@ export default function LeaseAbstractorClient() {
                       >
                         <Download className="w-3 h-3" strokeWidth={1.5} />
                         CSV
+                      </button>
+                      <button
+                        onClick={exportXLSX}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[var(--r-input)] border border-[var(--rule)] text-xs text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition"
+                      >
+                        <Download className="w-3 h-3" strokeWidth={1.5} />
+                        Excel
                       </button>
                       <button
                         onClick={async () => {

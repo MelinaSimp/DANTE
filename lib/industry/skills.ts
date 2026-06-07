@@ -122,11 +122,63 @@ const ABSTRACT_LEASE: SkillSeed = {
   auto_approve: true,
 };
 
+const PSA_REDLINE_ANALYSIS: SkillSeed = {
+  name: "psa_redline_analysis",
+  description:
+    "Upload a Purchase and Sale Agreement. Get a structured analysis of non-standard clauses, risk flags, and seller/buyer favorability assessment with citations.",
+  config: {
+    objective:
+      'Analyze the Purchase and Sale Agreement for {{input.property_name}}. {{#if input.document_id}}Use vault document ID {{input.document_id}}.{{else}}Search the vault for the PSA document.{{/if}} Perform a clause-by-clause redline analysis against market-standard CRE purchase agreements. For each material clause, determine whether it is standard or non-standard. For non-standard clauses, assess whether the deviation favors the buyer, the seller, or is neutral, and explain the practical impact. Specifically examine: purchase price and earnest money terms, financing and loan contingencies, due diligence period and scope, inspection rights and remedies, title and survey requirements, closing conditions and timeline, representations and warranties, default and remedies provisions, assignment and assumption rights, environmental and hazmat provisions, prorations and adjustments, risk of loss allocation, broker commission terms, and any unusual addenda or side agreements. Flag items that warrant negotiation or legal review before execution. All findings must carry inline vault citations using [vN] markers. {{#if input.notes}}Additional context from the broker: {{input.notes}}{{/if}}',
+    system:
+      "You are analyzing a CRE Purchase and Sale Agreement on behalf of a commercial real estate broker. Accuracy is critical -- every clause assessment must be grounded in the actual document language with a vault citation. Compare each provision against market-standard CRE purchase agreement terms. Do not speculate about terms not present in the document; instead note them as missing. Output structured markdown with clear section headers. For each non-standard clause, state the deviation, which party it favors, the risk level (high / medium / low), and a recommended negotiation position. Run as many vault.cite passes as needed to ensure full coverage.",
+    tools: ["vault.cite", "archive.search"],
+    max_steps: 20,
+  },
+  input_schema: {
+    type: "object",
+    required: ["property_name"],
+    properties: {
+      property_name: { type: "string" },
+      document_id: { type: "string" },
+      notes: { type: "string" },
+    },
+  },
+  auto_approve: true,
+};
+
+const BROKER_EMAIL_DRAFT: SkillSeed = {
+  name: "broker_email_draft",
+  description:
+    "Draft a professional CRE email from deal context, contact history, and relevant terms.",
+  config: {
+    objective:
+      'Draft a professional email to {{input.contact_name}} regarding {{input.subject_context}}. Pull recent interaction history and deal context from memory for contact {{input.contact_id}}. {{#if input.property_address}}Reference the property at {{input.property_address}} and any relevant vault documents (lease abstracts, LOIs, comps, PSAs) that support the message.{{/if}} The email should be professional but warm in tone, reference specific deal details or prior conversations to show continuity, and close with a clear next-step CTA (schedule a call, submit documents, confirm terms, tour a property). {{#if input.notes}}Broker notes on what to cover: {{input.notes}}{{/if}}',
+    system:
+      "You are drafting an email on behalf of a CRE broker. Tone should be professional, direct, and warm -- not stiff or overly formal. Reference concrete deal facts and prior interactions to demonstrate attentiveness. Ground any claims about property terms, comps, or deal status in vault citations using [vN] markers where applicable. Keep the email concise -- brokers and their clients respect brevity. Always end with a single, clear call to action.",
+    tools: ["memory.search", "vault.cite"],
+    max_steps: 6,
+  },
+  input_schema: {
+    type: "object",
+    required: ["contact_id", "contact_name", "subject_context"],
+    properties: {
+      contact_id: { type: "string" },
+      contact_name: { type: "string" },
+      subject_context: { type: "string" },
+      property_address: { type: "string" },
+      notes: { type: "string" },
+    },
+  },
+  auto_approve: false,
+};
+
 const REGISTRY: Record<string, SkillSeed> = {
   draft_listing_prep_recap: DRAFT_LISTING_PREP_RECAP,
   summarize_recent_buyer_emails: SUMMARIZE_RECENT_BUYER_EMAILS,
   prep_briefing_for_showing: PREP_BRIEFING_FOR_SHOWING,
   abstract_lease: ABSTRACT_LEASE,
+  psa_redline_analysis: PSA_REDLINE_ANALYSIS,
+  broker_email_draft: BROKER_EMAIL_DRAFT,
 };
 
 export function getSkillSeed(slug: string): SkillSeed | null {
@@ -138,6 +190,8 @@ const DEFAULTS: string[] = [
   "summarize_recent_buyer_emails",
   "prep_briefing_for_showing",
   "abstract_lease",
+  "psa_redline_analysis",
+  "broker_email_draft",
 ];
 
 export function defaultSkillSlugsFor(_industry?: Industry): string[] {

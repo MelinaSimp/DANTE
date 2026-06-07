@@ -60,6 +60,7 @@ export async function POST(
     file_size_bytes?: number;
     content_sha256?: string;
     extracted_text?: string;
+    mtime_ms?: number;
   };
 
   if (!body.file_path || !body.file_name) {
@@ -211,6 +212,7 @@ export async function POST(
             workspaceId,
             requestedBy: user.id,
             source: "watched_folder",
+            priority: Math.floor((body.mtime_ms || 0) / 1000),
           });
           kickIngestWorker(new URL(req.url).origin);
         } catch (err) {

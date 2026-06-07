@@ -32,6 +32,7 @@ type FilePayload = {
   file_size_bytes?: number;
   content_sha256?: string;
   extracted_text?: string;
+  mtime_ms?: number;
 };
 
 type FileResult = {
@@ -156,6 +157,7 @@ export async function POST(
   // Maps: j-th auto-confirmed file → results index and watchedFileInserts index
   const autoConfirmResultIndices: number[] = [];
   const autoConfirmWfIndices: number[] = [];
+  const autoConfirmFiles: FilePayload[] = [];
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
@@ -243,6 +245,7 @@ export async function POST(
         project_id: fileProjectId ?? f.default_vault_project_id ?? null,
         processing_mode_override: null,
       });
+      autoConfirmFiles.push(file);
       autoConfirmResultIndices.push(results.length);
       results.push({
         file_name: file.file_name,
@@ -337,13 +340,13 @@ export async function POST(
   // ── Enqueue ingest jobs for auto-confirmed vault items ────────────
   let queued = 0;
   if (vaultItemIds.length > 0) {
-    const queueRows = vaultItemIds.map((vid) => ({
+    const queueRows = vaultItemIds.map((vid, idx) => ({
       vault_item_id: vid,
       workspace_id: workspaceId,
       requested_by: user.id,
       source: "watched_folder" as const,
       status: "pending" as const,
-      priority: 0,
+      priority: Math.floor((autoConfirmFiles[idx]?.mtime_ms || 0) / 1000),
     }));
     const { error: queueErr } = await supabaseAdmin
       .from("vault_ingest_queue")

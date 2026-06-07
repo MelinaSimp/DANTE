@@ -451,6 +451,11 @@ Terms to include:
 Use market-standard structure. Flag any term that's off-market and propose the standard fallback. Keep total length under 2 pages.`,
       },
       {
+        label: "PSA analysis",
+        description: "Analyze a Purchase and Sale Agreement for non-standard terms and risks",
+        prompt: `Analyze the PSA for __________ at __________. Identify non-standard clauses, risk factors, and negotiation points. Compare against market-standard CRE purchase agreements.`,
+      },
+      {
         label: "Tenant credit analysis",
         description: "Underwrite tenant ability to pay over lease term",
         prompt: `Run a tenant credit analysis on __________ for a __________ year lease at $__________ annual base rent.
