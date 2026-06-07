@@ -12,8 +12,8 @@
 | Phase 1 | COMPLETE | Lease abstractor: 3-pass pipeline, template persistence, CSV/XLSX/PDF export, disclaimers |
 | Phase 2 | COMPLETE | All 3 CRE voice scenarios configured |
 | Phase 3 | ~95% | Watched folder: consent mode, recency-first, batch embedding, post-hoc review UI all done. Exclusion rules deferred |
-| Phase 4 | ~90% | Deal agent: pipeline view, LOI, PSA redline, broker email all done |
-| Phase 5 | ~80% | 269 tests across 11 files. Lease abstractor, skills, grounding, citations, fair housing, CRE calc all covered |
+| Phase 4 | COMPLETE | Deal agent: DnD pipeline, LOI draft skill, PSA redline, broker email, next-action suggestions, summary stats |
+| Phase 5 | ~85% | 274 tests across 11 files. Lease abstractor, skills (incl. LOI), grounding, citations, fair housing, CRE calc |
 | Phase 6 | KILLED | RIA vertical removed 2026-05-24; CRE-only |
 | Phase 7 | DEFERRED | Integrations demand-gated |
 | n8n Migration | COMPLETE | Custom nodes on Railway, per-workspace credentials, 13/15 workflows active (2 webhook-path duplicates) |
