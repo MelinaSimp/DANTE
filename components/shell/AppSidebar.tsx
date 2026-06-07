@@ -21,6 +21,7 @@ import {
   MapPin,
   X,
   ClipboardCheck,
+  FolderSync,
 } from "lucide-react";
 import { getIndustryConfig } from "@/lib/industry/config";
 import DanteGateLink from "@/components/dante/DanteGateLink";
@@ -101,6 +102,7 @@ export default function AppSidebar({
         { href: "/workflows", label: "Workflows", icon: Workflow },
         { href: "/lease-abstractor", label: "Lease Abstractor", icon: ScrollText },
         { href: "/vault", label: "Vault", icon: FolderClosed },
+        { href: "/watched-folders", label: "Watched Folders", icon: FolderSync },
         { href: "/agent", label: "Voice", icon: Mic },
         { href: "/site-scan", label: "Site Scan", icon: MapPin },
         { href: "/review", label: "Review Queue", icon: ClipboardCheck },
