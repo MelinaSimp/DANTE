@@ -1,7 +1,22 @@
-# Drift — Master Execution Plan
+# Drift -- Master Execution Plan
 
 **Synthesized from three Council of 20 sessions (May 10-12, 2026)**
 **Status:** 1 paying customer, ~3 prospects, partner closing CRE companies at $1,000/month
+**Last updated:** 2026-06-07
+
+### Completion Status
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Phase 0 | COMPLETE | All critical fixes shipped |
+| Phase 1 | COMPLETE | Lease abstractor: 3-pass pipeline, template persistence, CSV/XLSX/PDF export, disclaimers |
+| Phase 2 | COMPLETE | All 3 CRE voice scenarios configured |
+| Phase 3 | ~90% | Watched folder: consent mode, recency-first, batch embedding all done. Post-hoc review UI deferred |
+| Phase 4 | ~90% | Deal agent: pipeline view, LOI, PSA redline, broker email all done |
+| Phase 5 | ~75% | 256 tests across 11 files. Lease abstractor, skills, grounding, citations, fair housing, CRE calc all covered |
+| Phase 6 | KILLED | RIA vertical removed 2026-05-24; CRE-only |
+| Phase 7 | DEFERRED | Integrations demand-gated |
+| n8n Migration | COMPLETE | 3 phases done, custom nodes deployed to Railway, legacy engine stripped |
 
 ---
 
