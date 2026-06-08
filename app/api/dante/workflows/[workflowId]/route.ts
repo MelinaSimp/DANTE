@@ -1,14 +1,84 @@
 // app/api/dante/workflows/[workflowId]/route.ts
 //
 // GET    → fetch one workflow with its steps
-// PUT    → update name/description/enabled/steps
-// DELETE → remove workflow (cascades runs via FK)
+// PUT    → update name/description/enabled/steps + sync graph to n8n
+// DELETE → remove workflow (cascades runs via FK) + clean up n8n
 
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Detect whether a graph object is n8n-native format (has `connections`)
+ * versus Drift internal format (has `edges`).
+ */
+function isN8nNativeGraph(graph: Record<string, unknown>): boolean {
+  return !!graph.connections || (Array.isArray(graph.nodes) && !Array.isArray(graph.edges));
+}
+
+/**
+ * Best-effort sync of the workflow graph to n8n. Non-fatal -- if n8n is
+ * unreachable the DB save still succeeds and the run endpoint's JIT push
+ * catches any missed syncs.
+ */
+async function syncToN8n(
+  workflowId: string,
+  workspaceId: string,
+  graph: Record<string, unknown>,
+  n8nWorkflowId: string | null,
+  name: string,
+): Promise<void> {
+  try {
+    const n8nBridge = await import("@/lib/dante/n8n-bridge");
+
+    if (n8nWorkflowId) {
+      // Existing n8n workflow -- push updated graph
+      const n8nJson = isN8nNativeGraph(graph)
+        ? graph
+        : await convertGraph(graph, name);
+      if (n8nJson) {
+        await n8nBridge.updateWorkflow(n8nWorkflowId, n8nJson as unknown as import("@/lib/dante/n8n-types").N8nWorkflowJSON);
+      }
+    } else if (graph) {
+      // No n8n ID yet -- convert + create
+      const n8nJson = isN8nNativeGraph(graph)
+        ? graph
+        : await convertGraph(graph, name);
+      if (n8nJson) {
+        const newId = await n8nBridge.createWorkspaceWorkflow(
+          workspaceId,
+          n8nJson as unknown as import("@/lib/dante/n8n-types").N8nWorkflowJSON,
+        );
+        // Store the n8n ID back on the Drift row
+        await supabaseAdmin
+          .from("dante_workflows")
+          .update({ n8n_workflow_id: newId })
+          .eq("id", workflowId);
+      }
+    }
+  } catch (err) {
+    // Non-fatal: log but don't block the save response
+    console.error("[workflow-save] n8n sync failed:", err instanceof Error ? err.message : err);
+  }
+}
+
+async function convertGraph(
+  graph: Record<string, unknown>,
+  name: string,
+): Promise<Record<string, unknown> | null> {
+  try {
+    const { convertDriftToN8n } = await import("@/lib/dante/n8n-converter");
+    const result = convertDriftToN8n(
+      graph as unknown as import("@/lib/dante/workflow-types").WorkflowGraph,
+      name,
+    );
+    return result.workflow as unknown as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
 
 async function requireOwnership(workflowId: string) {
   const supabase = await createServerSupabase();
@@ -77,6 +147,19 @@ export async function PUT(
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Best-effort sync to n8n (non-blocking for the response)
+  if (data?.graph && typeof data.graph === "object") {
+    const row = data as Record<string, unknown>;
+    syncToN8n(
+      workflowId,
+      ctx.workspaceId,
+      row.graph as Record<string, unknown>,
+      (row.n8n_workflow_id as string) || null,
+      (row.name as string) || "Untitled",
+    ).catch(() => {}); // fire-and-forget, errors already logged inside
+  }
+
   return NextResponse.json({ workflow: data });
 }
 
@@ -88,11 +171,27 @@ export async function DELETE(
   const ctx = await requireOwnership(workflowId);
   if ("error" in ctx) return ctx.error;
 
+  // Fetch n8n_workflow_id before deleting so we can clean up n8n
+  const { data: wf } = await supabaseAdmin
+    .from("dante_workflows")
+    .select("n8n_workflow_id")
+    .eq("id", workflowId)
+    .maybeSingle();
+
   const { error } = await supabaseAdmin
     .from("dante_workflows")
     .delete()
     .eq("id", workflowId);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Best-effort n8n cleanup
+  const n8nId = (wf as Record<string, unknown> | null)?.n8n_workflow_id as string | null;
+  if (n8nId) {
+    import("@/lib/dante/n8n-bridge")
+      .then((bridge) => bridge.deleteWorkflow(n8nId))
+      .catch((err) => console.error("[workflow-delete] n8n cleanup failed:", err instanceof Error ? err.message : err));
+  }
+
   return NextResponse.json({ ok: true });
 }

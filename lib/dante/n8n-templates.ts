@@ -138,7 +138,7 @@ const leaseExpirationWorkflow: N8nWorkflowJSON = {
       position: [80, 880],
       parameters: {
         fromEmail: "ops@driftai.studio",
-        toEmail: "={{$env.BROKER_EMAIL}}",
+        toEmail: "broker@yourfirm.com", // placeholder -- clone injects workspace owner email
         subject: "Lease expiration alert -- {{ $json.expiring?.length || 0 }} leases approaching",
         emailType: "html",
         html: "={{ $json.digest || $json.text || JSON.stringify($json) }}",
@@ -171,14 +171,19 @@ const corridorVoidAnalysisWorkflow: N8nWorkflowJSON = {
   nodes: [
     {
       id: "trigger",
-      name: "Mondays 6am ET",
-      type: "n8n-nodes-base.scheduleTrigger",
+      name: "Run Corridor Analysis",
+      type: "n8n-nodes-base.manualTrigger",
       typeVersion: 1,
       position: [80, 80],
       parameters: {
-        rule: {
-          interval: [{ field: "cronExpression", expression: "0 6 * * 1" }],
-        },
+        input_fields: [
+          { name: "corridor_anchors", label: "Corridor Anchor Points", type: "textarea", required: true, placeholder: "I-71 from Medina to downtown Cleveland, OH" },
+          { name: "target_use", label: "Target Use", type: "text", required: true, placeholder: "retail", default_value: "retail" },
+          { name: "target_zoning", label: "Target Zoning", type: "text", required: true, placeholder: "C-2", default_value: "commercial" },
+          { name: "acreage_min", label: "Min Acreage", type: "number", required: false, placeholder: "1", default_value: "1" },
+          { name: "acreage_max", label: "Max Acreage", type: "number", required: false, placeholder: "10", default_value: "10" },
+          { name: "broker_email", label: "Send Results To (email)", type: "text", required: true, placeholder: "broker@yourfirm.com" },
+        ],
       },
     },
     {
@@ -188,7 +193,7 @@ const corridorVoidAnalysisWorkflow: N8nWorkflowJSON = {
       typeVersion: 1,
       position: [80, 240],
       parameters: {
-        objective: "Run a void analysis along the corridor defined by these anchor points: {{$env.CORRIDOR_ANCHORS}}. Target use: {{$env.TARGET_USE}}. Search for parcels that are {{$env.TARGET_ZONING}}-zoned, {{$env.ACREAGE_MIN}}-{{$env.ACREAGE_MAX}} acres, prefer vacant land. For each corridor segment, report which business categories are missing (the voids) and which are already saturated. Return the top 15 scored parcels. Then for the top 5 scoring sites, pull full parcel detail including auditor records, tax estimates, and environmental (EPA brownfield) status.",
+        objective: "Run a void analysis along the corridor defined by these anchor points: ={{ $json.corridor_anchors }}. Target use: ={{ $json.target_use }}. Search for parcels that are ={{ $json.target_zoning }}-zoned, ={{ $json.acreage_min }}-={{ $json.acreage_max }} acres, prefer vacant land. For each corridor segment, report which business categories are missing (the voids) and which are already saturated. Return the top 15 scored parcels. Then for the top 5 scoring sites, pull full parcel detail including auditor records, tax estimates, and environmental (EPA brownfield) status.",
         tools: ["site_scan.void_analysis", "site_scan.detail", "memory.write"],
         maxSteps: 12,
       },
@@ -214,13 +219,13 @@ return [{
     },
     {
       id: "send-report",
-      name: "Deliver Weekly Brief",
+      name: "Deliver Brief",
       type: "n8n-nodes-base.emailSend",
       typeVersion: 2,
       position: [80, 560],
       parameters: {
         fromEmail: "ops@driftai.studio",
-        toEmail: "={{$env.BROKER_EMAIL}}",
+        toEmail: `={{ $node["Run Corridor Analysis"].json.broker_email }}`,
         subject: "={{ $json.subject }}",
         emailType: "html",
         html: "={{ $json.body }}",
@@ -229,10 +234,10 @@ return [{
     reportNode([80, 720], "send-report").node,
   ],
   connections: {
-    "Mondays 6am ET": { main: [[{ node: "Run Void Analysis", type: "main", index: 0 }]] },
+    "Run Corridor Analysis": { main: [[{ node: "Run Void Analysis", type: "main", index: 0 }]] },
     "Run Void Analysis": { main: [[{ node: "Write Executive Brief", type: "main", index: 0 }]] },
-    "Write Executive Brief": { main: [[{ node: "Deliver Weekly Brief", type: "main", index: 0 }]] },
-    "Deliver Weekly Brief": { main: [[{ node: "Report to Drift", type: "main", index: 0 }]] },
+    "Write Executive Brief": { main: [[{ node: "Deliver Brief", type: "main", index: 0 }]] },
+    "Deliver Brief": { main: [[{ node: "Report to Drift", type: "main", index: 0 }]] },
   },
   settings: { executionOrder: "v1" },
 };
@@ -246,14 +251,14 @@ const dueDiligenceWorkflow: N8nWorkflowJSON = {
   nodes: [
     {
       id: "trigger",
-      name: "Due Diligence Trigger",
-      type: "n8n-nodes-base.webhook",
-      typeVersion: 2,
+      name: "Run Due Diligence",
+      type: "n8n-nodes-base.manualTrigger",
+      typeVersion: 1,
       position: [80, 80],
       parameters: {
-        path: "due-diligence",
-        httpMethod: "POST",
-        responseMode: "lastNode",
+        input_fields: [
+          { name: "address", label: "Property Address", type: "text", required: true, placeholder: "1600 Euclid Ave, Cleveland, OH 44115" },
+        ],
       },
     },
     {
@@ -263,7 +268,7 @@ const dueDiligenceWorkflow: N8nWorkflowJSON = {
       typeVersion: 1,
       position: [80, 240],
       parameters: {
-        address: "={{ $json.body?.address || $json.address }}",
+        address: "={{ $json.address }}",
       },
       credentials: { driftCreApi: { id: "1", name: "Drift CRE" } },
     },
@@ -274,7 +279,7 @@ const dueDiligenceWorkflow: N8nWorkflowJSON = {
       typeVersion: 1,
       position: [80, 400],
       parameters: {
-        query: "={{ $json.body?.address || $json.address }} due diligence environmental survey",
+        query: `={{ $node["Run Due Diligence"].json.address }} due diligence environmental survey`,
         topK: 5,
         kind: "",
       },
@@ -301,7 +306,7 @@ const dueDiligenceWorkflow: N8nWorkflowJSON = {
       position: [80, 720],
       parameters: {
         title: "Due Diligence Report",
-        subtitle: "={{ $node['Due Diligence Trigger'].json.body?.address || 'Property Assessment' }}",
+        subtitle: `={{ $node["Run Due Diligence"].json.address || "Property Assessment" }}`,
         sections: "={{ JSON.stringify($json.sections || [{heading: 'Report', body: $json.text || JSON.stringify($json)}]) }}",
       },
       credentials: { driftCreApi: { id: "1", name: "Drift CRE" } },
@@ -309,7 +314,7 @@ const dueDiligenceWorkflow: N8nWorkflowJSON = {
     reportNode([80, 880], "generate-doc").node,
   ],
   connections: {
-    "Due Diligence Trigger": { main: [[{ node: "Full Site Intelligence", type: "main", index: 0 }]] },
+    "Run Due Diligence": { main: [[{ node: "Full Site Intelligence", type: "main", index: 0 }]] },
     "Full Site Intelligence": { main: [[{ node: "Search Vault for Docs", type: "main", index: 0 }]] },
     "Search Vault for Docs": { main: [[{ node: "Compile DD Report", type: "main", index: 0 }]] },
     "Compile DD Report": { main: [[{ node: "Generate DD PDF", type: "main", index: 0 }]] },
@@ -327,14 +332,15 @@ const acquisitionDeepDiveWorkflow: N8nWorkflowJSON = {
   nodes: [
     {
       id: "trigger",
-      name: "Acquisition Trigger",
-      type: "n8n-nodes-base.webhook",
-      typeVersion: 2,
+      name: "Run Acquisition Analysis",
+      type: "n8n-nodes-base.manualTrigger",
+      typeVersion: 1,
       position: [80, 80],
       parameters: {
-        path: "acquisition-deep-dive",
-        httpMethod: "POST",
-        responseMode: "lastNode",
+        input_fields: [
+          { name: "address", label: "Property Address", type: "text", required: true, placeholder: "1600 Euclid Ave, Cleveland, OH 44115" },
+          { name: "broker_email", label: "Send Results To (email)", type: "text", required: true, placeholder: "broker@yourfirm.com" },
+        ],
       },
     },
     {
@@ -344,7 +350,7 @@ const acquisitionDeepDiveWorkflow: N8nWorkflowJSON = {
       typeVersion: 1,
       position: [80, 240],
       parameters: {
-        objective: "Run full intelligence on: {{ $json.body?.address || $json.address }}. (1) Search for the parcel to get parcel number and basic data. (2) Pull full detail: auditor records, tax estimate, census demographics, EPA brownfield status. (3) Note neighboring parcels and zoning. (4) Save key findings to memory. Compile all findings with full citations.",
+        objective: "Run full intelligence on: ={{ $json.address }}. (1) Search for the parcel to get parcel number and basic data. (2) Pull full detail: auditor records, tax estimate, census demographics, EPA brownfield status. (3) Note neighboring parcels and zoning. (4) Save key findings to memory. Compile all findings with full citations.",
         tools: ["site_scan.search", "site_scan.detail", "memory.write", "memory.search"],
         maxSteps: 10,
       },
@@ -383,8 +389,8 @@ const acquisitionDeepDiveWorkflow: N8nWorkflowJSON = {
       position: [80, 720],
       parameters: {
         fromEmail: "ops@driftai.studio",
-        toEmail: "={{$env.BROKER_EMAIL}}",
-        subject: "Acquisition memo -- {{ $node['Acquisition Trigger'].json.body?.address || 'Target Property' }}",
+        toEmail: `={{ $node["Run Acquisition Analysis"].json.broker_email }}`,
+        subject: `Acquisition memo -- ={{ $node["Run Acquisition Analysis"].json.address || "Target Property" }}`,
         emailType: "html",
         html: "={{ $json.text || JSON.stringify($json) }}",
       },
@@ -392,7 +398,7 @@ const acquisitionDeepDiveWorkflow: N8nWorkflowJSON = {
     reportNode([80, 880], "send-memo").node,
   ],
   connections: {
-    "Acquisition Trigger": { main: [[{ node: "Full Parcel Intelligence", type: "main", index: 0 }]] },
+    "Run Acquisition Analysis": { main: [[{ node: "Full Parcel Intelligence", type: "main", index: 0 }]] },
     "Full Parcel Intelligence": { main: [[{ node: "Check Lease Data", type: "main", index: 0 }]] },
     "Check Lease Data": { main: [[{ node: "Draft Acquisition Memo", type: "main", index: 0 }]] },
     "Draft Acquisition Memo": { main: [[{ node: "Deliver Memo", type: "main", index: 0 }]] },
@@ -480,7 +486,7 @@ const marketUpdateWorkflow: N8nWorkflowJSON = {
       position: [80, 880],
       parameters: {
         fromEmail: "ops@driftai.studio",
-        toEmail: "={{$env.BROKER_EMAIL}}",
+        toEmail: "broker@yourfirm.com", // placeholder -- clone injects workspace owner email
         subject: "Weekly market update -- {{ $now.format('MMM d, yyyy') }}",
         emailType: "html",
         html: "={{ $json.text || JSON.stringify($json) }}",
@@ -513,25 +519,25 @@ export const N8N_TEMPLATES: N8nWorkflowTemplate[] = [
   {
     slug: "corridor-void-analysis",
     name: "Corridor void analysis",
-    description: "Weekly corridor void analysis. Searches for underserved business categories and vacant parcels along configured anchor points, scores and ranks sites, delivers a ranked brief.",
+    description: "On demand. Enter corridor anchor points, target use and zoning. Searches for underserved business categories and vacant parcels, scores and ranks sites, delivers a ranked brief.",
     category: "Site intelligence",
-    triggerLabel: "Mondays 6am ET",
+    triggerLabel: "On demand (manual)",
     workflow: corridorVoidAnalysisWorkflow,
   },
   {
     slug: "due-diligence-checklist",
     name: "Due diligence checklist",
-    description: "On demand. Runs full site intelligence (census, EPA, auditor, zoning), searches the vault for existing docs, and compiles a DD report with PDF.",
+    description: "On demand. Enter a property address. Runs full site intelligence (census, EPA, auditor, zoning), searches the vault for existing docs, and compiles a DD report with PDF.",
     category: "Due diligence",
-    triggerLabel: "On demand (webhook)",
+    triggerLabel: "On demand (manual)",
     workflow: dueDiligenceWorkflow,
   },
   {
     slug: "acquisition-deep-dive",
     name: "Acquisition target deep-dive",
-    description: "On demand. Runs full parcel intelligence, checks existing lease data, and drafts an acquisition memo with investment thesis and risk assessment.",
+    description: "On demand. Enter a property address. Runs full parcel intelligence, checks existing lease data, and drafts an acquisition memo with investment thesis and risk assessment.",
     category: "Due diligence",
-    triggerLabel: "On demand (webhook)",
+    triggerLabel: "On demand (manual)",
     workflow: acquisitionDeepDiveWorkflow,
   },
   {

@@ -93,5 +93,29 @@ export async function POST(req: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // Best-effort push to n8n so the workflow is immediately runnable.
+  if (data?.id && data.graph) {
+    try {
+      const { convertDriftToN8n } = await import("@/lib/dante/n8n-converter");
+      const n8nBridge = await import("@/lib/dante/n8n-bridge");
+      const conversion = convertDriftToN8n(
+        generated.graph,
+        generated.name,
+      );
+      const n8nId = await n8nBridge.createWorkspaceWorkflow(
+        profile.workspace_id,
+        conversion.workflow,
+      );
+      await supabaseAdmin
+        .from("dante_workflows")
+        .update({ n8n_workflow_id: n8nId })
+        .eq("id", data.id);
+      data.n8n_workflow_id = n8nId;
+    } catch (err) {
+      console.error("[workflow-materialize] n8n push failed:", err instanceof Error ? err.message : err);
+    }
+  }
+
   return NextResponse.json({ workflow: data, prompt, proposal_id: proposal?.id });
 }

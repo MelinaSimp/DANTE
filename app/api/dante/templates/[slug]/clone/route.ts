@@ -80,6 +80,31 @@ export async function POST(
       : { type: "manual" as const }
     : { type: "manual" as const };
 
+  // For cron-triggered templates, inject the cloning user's email in
+  // place of the "broker@yourfirm.com" placeholder. This way each
+  // cloned workflow has the correct recipient without requiring n8n
+  // env var provisioning per workspace.
+  if (trigger.type === "cron") {
+    const { data: userEmail } = await supabase
+      .from("profiles")
+      .select("email")
+      .eq("id", user.id)
+      .maybeSingle();
+    const email = userEmail?.email || user.email;
+    if (email) {
+      for (const node of workflowJson.nodes) {
+        const params = node.parameters as Record<string, unknown> | undefined;
+        if (params) {
+          for (const [key, val] of Object.entries(params)) {
+            if (typeof val === "string" && val.includes("broker@yourfirm.com")) {
+              (params as Record<string, string>)[key] = val.replace("broker@yourfirm.com", email);
+            }
+          }
+        }
+      }
+    }
+  }
+
   // Push to n8n (best-effort)
   let n8nWorkflowId: string | null = null;
   try {

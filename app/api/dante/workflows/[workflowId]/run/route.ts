@@ -41,12 +41,49 @@ export async function POST(
   const body = await request.json().catch(() => ({}));
   const input = (body.input && typeof body.input === "object") ? body.input : {};
 
-  const n8nId = (wf as Record<string, unknown>).n8n_workflow_id as string | null;
+  let n8nId = (wf as Record<string, unknown>).n8n_workflow_id as string | null;
+
+  // JIT push: if the workflow was never synced to n8n (e.g. AI-generated,
+  // failed earlier push), convert and push now before executing.
   if (!n8nId) {
-    return NextResponse.json(
-      { error: "Workflow has no n8n engine ID. Please re-create this workflow." },
-      { status: 400 },
-    );
+    try {
+      const graph = (wf as Record<string, unknown>).graph as Record<string, unknown> | null;
+      if (!graph) {
+        return NextResponse.json(
+          { error: "Workflow has no graph definition." },
+          { status: 400 },
+        );
+      }
+      const n8nBridge = await import("@/lib/dante/n8n-bridge");
+
+      // Detect format: n8n-native has `connections`, Drift has `edges`
+      const isN8nNative = !!graph.connections || (Array.isArray(graph.nodes) && !Array.isArray(graph.edges));
+      let n8nJson: import("@/lib/dante/n8n-types").N8nWorkflowJSON;
+
+      if (isN8nNative) {
+        n8nJson = graph as unknown as import("@/lib/dante/n8n-types").N8nWorkflowJSON;
+      } else {
+        const { convertDriftToN8n } = await import("@/lib/dante/n8n-converter");
+        const conversion = convertDriftToN8n(
+          graph as unknown as import("@/lib/dante/workflow-types").WorkflowGraph,
+          (wf as Record<string, unknown>).name as string || "Untitled",
+        );
+        n8nJson = conversion.workflow;
+      }
+
+      n8nId = await n8nBridge.createWorkspaceWorkflow(profile.workspace_id, n8nJson);
+      // Persist so we don't JIT-push again next time
+      await supabaseAdmin
+        .from("dante_workflows")
+        .update({ n8n_workflow_id: n8nId })
+        .eq("id", workflowId);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to push workflow to n8n";
+      return NextResponse.json(
+        { error: `Workflow has no n8n engine ID and auto-push failed: ${msg}` },
+        { status: 400 },
+      );
+    }
   }
 
   try {

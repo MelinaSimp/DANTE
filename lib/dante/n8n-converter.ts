@@ -218,8 +218,13 @@ function convertParameters(
         },
       };
 
-    case "trigger_manual":
+    case "trigger_manual": {
+      const fields = config.input_fields;
+      if (Array.isArray(fields) && fields.length > 0) {
+        return { input_fields: fields };
+      }
       return {};
+    }
 
     case "trigger_webhook":
       return {
@@ -398,6 +403,16 @@ function convertTemplateExpr(text: string): string {
   let result = text.replace(
     /\{\{\s*secrets\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g,
     (_match, key: string) => `={{$env.${key.toUpperCase()}}}`,
+  );
+
+  // {{steps.trigger.input.fieldName}} → ={{ $json.fieldName }}
+  // Per-execution input data: n8n exposes API-supplied data as $json on
+  // the trigger node's output. Must precede the generic steps.id.field
+  // rule below, otherwise "steps.trigger.input.X" gets caught by the
+  // generic pattern and mapped incorrectly.
+  result = result.replace(
+    /\{\{\s*steps\.trigger\.input\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g,
+    (_match, field: string) => `={{ $json.${field} }}`,
   );
 
   // {{steps.id.field}} → ={{ $node["id"].json.field }}
