@@ -37,9 +37,8 @@ const nextConfig: NextConfig = {
     { source: "/email", destination: "/home", permanent: true },
     { source: "/reminders", destination: "/home", permanent: true },
     { source: "/review-tables", destination: "/home", permanent: true },
-    { source: "/audit", destination: "/home", permanent: true },
+    // /audit and /watched-folders are now live routes
     { source: "/library", destination: "/home", permanent: true },
-    { source: "/watched-folders", destination: "/home", permanent: true },
     { source: "/resources", destination: "/features", permanent: true },
   ],
   headers: async () => [

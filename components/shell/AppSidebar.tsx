@@ -22,6 +22,7 @@ import {
   X,
   ClipboardCheck,
   FolderSync,
+  FileSearch,
 } from "lucide-react";
 import { getIndustryConfig } from "@/lib/industry/config";
 import DanteGateLink from "@/components/dante/DanteGateLink";
@@ -106,6 +107,7 @@ export default function AppSidebar({
         { href: "/agent", label: "Voice", icon: Mic },
         { href: "/site-scan", label: "Site Scan", icon: MapPin },
         { href: "/review", label: "Review Queue", icon: ClipboardCheck },
+        { href: "/audit", label: "Audit Log", icon: FileSearch },
       ],
     },
   ];

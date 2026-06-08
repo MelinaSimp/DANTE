@@ -2506,13 +2506,18 @@ async function dispatchTool(
         return { error: `workflow.propose: ${insertErr.message}` };
       }
 
-      // Activate the n8n workflow if it was pushed successfully
+      // Patch the webhook trigger path to use the Drift workflow ID,
+      // then activate so n8n registers the webhook endpoint. Without
+      // this step, the trigger has a placeholder path ("trigger" or
+      // "{{DRIFT_WORKFLOW_ID}}") and workflow.run hits a 405.
+      const driftWfId = (wf as { id: string }).id;
       if (n8nWorkflowId) {
         try {
-          await n8nBridge.activateWorkflow(n8nWorkflowId);
+          await n8nBridge.ensureWebhookTrigger(n8nWorkflowId, driftWfId);
         } catch (err) {
-          agentLog.warn("workflow.propose: n8n activation failed", {
+          agentLog.warn("workflow.propose: webhook patch failed", {
             n8nWorkflowId,
+            driftWfId,
             err: err instanceof Error ? err.message : String(err),
           });
         }
@@ -2520,7 +2525,7 @@ async function dispatchTool(
 
       return {
         ok: true,
-        workflow_id: (wf as { id: string }).id,
+        workflow_id: driftWfId,
         title: insertPayload.name,
         trigger_type: triggerType,
         n8n_synced: !!n8nWorkflowId,
@@ -2779,9 +2784,23 @@ async function dispatchTool(
           return { error: `workflow.clone_template: ${insertErr.message}` };
         }
 
+        // Patch webhook trigger path so workflow.run can hit it
+        const clonedId = (wf as { id: string }).id;
+        if (n8nWorkflowId) {
+          try {
+            await n8nBridge.ensureWebhookTrigger(n8nWorkflowId, clonedId);
+          } catch (err) {
+            agentLog.warn("workflow.clone_template: webhook patch failed", {
+              n8nWorkflowId,
+              clonedId,
+              err: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }
+
         return {
           ok: true,
-          workflow_id: (wf as { id: string }).id,
+          workflow_id: clonedId,
           name: n8nTemplate.name,
           category: n8nTemplate.category,
           trigger: n8nTemplate.triggerLabel,
@@ -2853,9 +2872,23 @@ async function dispatchTool(
         return { error: `workflow.clone_template: ${insertErr.message}` };
       }
 
+      // Patch webhook trigger path so workflow.run can hit it
+      const legacyClonedId = (wf as { id: string }).id;
+      if (n8nWorkflowId) {
+        try {
+          await n8nBridge.ensureWebhookTrigger(n8nWorkflowId, legacyClonedId);
+        } catch (err) {
+          agentLog.warn("workflow.clone_template: webhook patch failed (auto-converted)", {
+            n8nWorkflowId,
+            legacyClonedId,
+            err: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+
       return {
         ok: true,
-        workflow_id: (wf as { id: string }).id,
+        workflow_id: legacyClonedId,
         name: template.name,
         category: template.category,
         trigger: template.triggerLabel,
