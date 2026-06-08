@@ -487,19 +487,19 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
     function: {
       name: "workflow_propose",
       description:
-        "Draft a persistent workflow for the user to accept or decline. CALL THIS whenever the user asks for recurring monitoring, future-dated outreach, or 'let me know if X' — anything that needs to keep working when the app is closed. The workflow is created with enabled=false and proposal_state='pending'; it does NOT fire until the user accepts it on the dashboard or in /reminders. Don't promise to do persistent things yourself — you only run while the app is open. Use reminder.schedule for one-shot self-SMS; use workflow.propose for everything else (recurring, multi-step, conditional, client-facing).",
+        "Create and activate a persistent workflow. CALL THIS whenever the user asks for recurring monitoring, future-dated outreach, or 'let me know if X' -- anything that needs to keep working when the app is closed. The workflow is created as enabled and immediately active. IMPORTANT: before calling, describe what the workflow will do and ASK the user for confirmation ('Want me to set that up?'). Only call after the user says yes. Don't promise to do persistent things yourself -- you only run while the app is open. Use reminder.schedule for one-shot self-SMS; use workflow.propose for everything else (recurring, multi-step, conditional, client-facing).",
       parameters: {
         type: "object",
         properties: {
           intent: {
             type: "string",
             description:
-              "Plain-English description of what the workflow should do, written for the materializer. Include trigger frequency ('every Monday at 9am', 'on 2026-12-31', 'when a webhook fires'), action(s) ('email Mrs. Chen with subject ... and body ...'), and any condition logic. Do NOT pass the user's raw question — translate it into an unambiguous spec the materializer can turn into a graph.",
+              "Plain-English description of what the workflow should do, written for the materializer. Include trigger frequency ('every Monday at 9am', 'on 2026-12-31', 'when a webhook fires'), action(s) ('email Mrs. Chen with subject ... and body ...'), and any condition logic. Do NOT pass the user's raw question -- translate it into an unambiguous spec the materializer can turn into a graph.",
           },
           summary: {
             type: "string",
             description:
-              "One short sentence the user will see as the proposal title in /reminders. ≤80 chars. E.g. 'Weekly check-in with Mrs. Chen until RMD is filed.'",
+              "Short title for the workflow. 80 chars max. E.g. 'Weekly check-in with Mrs. Chen until RMD is filed.'",
           },
         },
         required: ["intent", "summary"],
@@ -2408,15 +2408,15 @@ async function dispatchTool(
         delivery: "self_sms",
         scheduled_for: when.toISOString(),
         message:
-          "Scheduled. The user can edit or cancel from /reminders.",
+          "Scheduled. The user can view or cancel it from Workflows.",
       };
     }
     case "workflow.propose": {
-      // Materializes a persistent workflow proposal. The n8n workflow
+      // Creates and activates a persistent workflow. The n8n workflow
       // JSON is generated from the model's natural-language `intent`,
-      // pushed to n8n (inactive), and inserted into dante_workflows
-      // with enabled=false + proposal_state='pending' so the UI can
-      // show Accept / Decline buttons.
+      // pushed to n8n (active), and inserted into dante_workflows
+      // with enabled=true. The chat prompt instructs the model to ask
+      // for user confirmation before calling this tool.
       const intent = String(args.intent || "").trim();
       const summary = String(args.summary || "").trim();
       if (!intent) return { error: "workflow.propose: 'intent' required." };
@@ -2450,7 +2450,7 @@ async function dispatchTool(
         });
       } catch (err) {
         return {
-          error: `workflow.propose: graph generation failed — ${
+          error: `workflow.propose: graph generation failed -- ${
             err instanceof Error ? err.message : String(err)
           }`,
         };
@@ -2466,16 +2466,14 @@ async function dispatchTool(
           : "manual"
         : "manual";
 
-      // Push to n8n (inactive — proposal not yet accepted)
+      // Push to n8n as active -- the user already confirmed in chat
       let n8nWorkflowId: string | undefined;
       try {
         n8nWorkflowId = await n8nBridge.createWorkspaceWorkflow(
           ctx.workspaceId,
-          { ...generated.workflow, active: false },
+          { ...generated.workflow, active: true },
         );
       } catch (err) {
-        // n8n push failed — still save the proposal locally so the user
-        // can accept it later and we retry the push.
         agentLog.warn("workflow.propose: n8n push failed, saving locally", {
           err: err instanceof Error ? err.message : String(err),
         });
@@ -2486,8 +2484,8 @@ async function dispatchTool(
         created_by: ctx.userId ?? null,
         name: summary.slice(0, 80) || generated.name,
         description: generated.description || intent.slice(0, 280),
-        enabled: false,
-        proposal_state: "pending",
+        enabled: true,
+        proposal_state: null,
         trigger: { type: triggerType },
         steps: generated.workflow.nodes.map((n) => ({
           id: n.id,
@@ -2508,14 +2506,26 @@ async function dispatchTool(
         return { error: `workflow.propose: ${insertErr.message}` };
       }
 
+      // Activate the n8n workflow if it was pushed successfully
+      if (n8nWorkflowId) {
+        try {
+          await n8nBridge.activateWorkflow(n8nWorkflowId);
+        } catch (err) {
+          agentLog.warn("workflow.propose: n8n activation failed", {
+            n8nWorkflowId,
+            err: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+
       return {
         ok: true,
-        proposal_id: (wf as { id: string }).id,
+        workflow_id: (wf as { id: string }).id,
         title: insertPayload.name,
         trigger_type: triggerType,
         n8n_synced: !!n8nWorkflowId,
         message:
-          "Drafted as a pending proposal. The user can Accept or Decline from /reminders or the dashboard.",
+          "Workflow created and activated. It will run on its schedule automatically.",
       };
     }
 
