@@ -504,6 +504,68 @@ export async function createWorkspaceWorkflow(
 // ── Webhook Trigger Management ──────────────────────────────
 
 /**
+ * Patch a graph's trigger node to be a webhook with the given path.
+ * Handles every case:
+ *   - manualTrigger or scheduleTrigger -> replace with webhook
+ *   - webhook with wrong path -> fix path
+ *   - no trigger at all -> add one
+ *
+ * Mutates the nodes array in place. Call this BEFORE pushing to n8n
+ * so the webhook is registered on activation.
+ */
+export function patchGraphTrigger(
+  nodes: Array<{ id: string; name: string; type: string; typeVersion?: number; position?: number[]; parameters?: unknown }>,
+  webhookPath: string,
+): void {
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i];
+    const type = String(node.type || "");
+
+    // Already a webhook -- just fix the path
+    if (type === "n8n-nodes-base.webhook") {
+      const p = (node.parameters || {}) as Record<string, unknown>;
+      p.path = webhookPath;
+      p.httpMethod = p.httpMethod || "POST";
+      p.responseMode = p.responseMode || "onReceived";
+      node.parameters = p;
+      return;
+    }
+
+    // manualTrigger or any other trigger -> convert to webhook
+    if (type.includes("Trigger") || type.includes("trigger")) {
+      const oldParams = (node.parameters || {}) as Record<string, unknown>;
+      nodes[i] = {
+        ...node,
+        type: "n8n-nodes-base.webhook",
+        typeVersion: 2,
+        parameters: {
+          path: webhookPath,
+          httpMethod: "POST",
+          responseMode: "onReceived",
+          // Preserve input_fields for the Drift UI run dialog
+          ...(oldParams.input_fields ? { input_fields: oldParams.input_fields } : {}),
+        },
+      };
+      return;
+    }
+  }
+
+  // No trigger found at all -- add one at the front
+  nodes.unshift({
+    id: "trigger",
+    name: "Webhook Trigger",
+    type: "n8n-nodes-base.webhook",
+    typeVersion: 2,
+    position: [80, 80],
+    parameters: {
+      path: webhookPath,
+      httpMethod: "POST",
+      responseMode: "onReceived",
+    },
+  });
+}
+
+/**
  * Ensure a workflow in n8n has a webhook trigger with the correct path
  * so it can be executed via `POST /webhook/{path}`.
  *

@@ -111,19 +111,9 @@ export async function POST(
   // {N8N_BASE_URL}/webhook/{driftWorkflowId}
   const driftWorkflowId = crypto.randomUUID();
 
-  // Replace the webhook path placeholder with the actual Drift workflow ID.
-  // Templates use "{{DRIFT_WORKFLOW_ID}}" as a placeholder; AI-generated
-  // and converter output may use other strings -- replace any trigger's path.
-  for (const node of workflowJson.nodes) {
-    const params = node.parameters as Record<string, unknown> | undefined;
-    if (
-      params &&
-      (node.type.includes("webhook") || node.type.includes("Trigger")) &&
-      typeof params.path === "string"
-    ) {
-      params.path = driftWorkflowId;
-    }
-  }
+  // Convert trigger to webhook with the Drift workflow ID as path.
+  // Handles manualTrigger, scheduleTrigger, or webhook with placeholder.
+  n8nBridge.patchGraphTrigger(workflowJson.nodes, driftWorkflowId);
 
   // Push to n8n (best-effort)
   let n8nWorkflowId: string | null = null;

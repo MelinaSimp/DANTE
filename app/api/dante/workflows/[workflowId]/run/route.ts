@@ -71,15 +71,8 @@ export async function POST(
         n8nJson = conversion.workflow;
       }
 
-      // Set webhook path to the Drift workflow ID for execution
-      for (const node of n8nJson.nodes) {
-        if (node.type.includes("webhook") || node.type.includes("Trigger")) {
-          const p = node.parameters as Record<string, unknown>;
-          if (typeof p.path === "string") {
-            p.path = workflowId;
-          }
-        }
-      }
+      // Convert trigger to webhook with Drift workflow ID as path
+      n8nBridge.patchGraphTrigger(n8nJson.nodes, workflowId);
 
       n8nId = await n8nBridge.createWorkspaceWorkflow(
         profile.workspace_id,
@@ -147,13 +140,8 @@ export async function POST(
           ).workflow;
         }
 
-        // Set webhook path and push
-        for (const node of freshJson.nodes) {
-          if (node.type.includes("webhook") || node.type.includes("Trigger")) {
-            const p = node.parameters as Record<string, unknown>;
-            if (typeof p.path === "string") p.path = workflowId;
-          }
-        }
+        // Convert trigger to webhook with correct path
+        n8nBridge.patchGraphTrigger(freshJson.nodes, workflowId);
         const freshN8nId = await n8nBridge.createWorkspaceWorkflow(
           profile.workspace_id,
           { ...freshJson, active: true },
