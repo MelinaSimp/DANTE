@@ -15,7 +15,7 @@ export async function GET() {
 
   const { data, error } = await supabaseAdmin
     .from("dante_workflow_runs")
-    .select("id, workflow_id, status, started_at, finished_at, error, output, log, n8n_execution_id, result")
+    .select("id, workflow_id, status, started_at, finished_at, error, output, log, n8n_execution_id")
     .eq("workspace_id", profile.workspace_id)
     .in("status", ["success", "error", "completed", "failed", "running"])
     .order("finished_at", { ascending: false, nullsFirst: false })
