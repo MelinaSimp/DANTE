@@ -1313,7 +1313,7 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
                         onChange={(e) => setRunInputValues((v) => ({ ...v, [f.name]: e.target.value }))}
                         placeholder={f.placeholder || ""}
                         rows={4}
-                        className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[6px] px-4 py-3 text-[15px] leading-relaxed text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none focus:border-[var(--rule-strong)] focus:ring-1 focus:ring-[var(--rule-strong)]"
+                        className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[6px] px-4 py-3 text-sm leading-relaxed text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none focus:border-[var(--rule-strong)] focus:ring-1 focus:ring-[var(--rule-strong)]"
                       />
                     ) : (
                       <input
@@ -1321,7 +1321,7 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
                         value={runInputValues[f.name] || ""}
                         onChange={(e) => setRunInputValues((v) => ({ ...v, [f.name]: e.target.value }))}
                         placeholder={f.placeholder || ""}
-                        className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[6px] px-4 py-3 text-[15px] text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none focus:border-[var(--rule-strong)] focus:ring-1 focus:ring-[var(--rule-strong)]"
+                        className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[6px] px-4 py-3 text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none focus:border-[var(--rule-strong)] focus:ring-1 focus:ring-[var(--rule-strong)]"
                       />
                     )}
                   </div>
