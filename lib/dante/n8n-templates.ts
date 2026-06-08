@@ -177,11 +177,8 @@ const corridorVoidAnalysisWorkflow: N8nWorkflowJSON = {
       position: [80, 80],
       parameters: {
         input_fields: [
-          { name: "corridor_anchors", label: "Corridor Anchor Points", type: "textarea", required: true, placeholder: "I-71 from Medina to downtown Cleveland, OH" },
-          { name: "target_use", label: "Target Use", type: "text", required: true, placeholder: "retail", default_value: "retail" },
-          { name: "target_zoning", label: "Target Zoning", type: "text", required: true, placeholder: "C-2", default_value: "commercial" },
-          { name: "acreage_min", label: "Min Acreage", type: "number", required: false, placeholder: "1", default_value: "1" },
-          { name: "acreage_max", label: "Max Acreage", type: "number", required: false, placeholder: "10", default_value: "10" },
+          { name: "brief", label: "What are you looking for?", type: "textarea", required: true, placeholder: "My client is a Chick-fil-A franchisee looking for a 1-2 acre pad site along the I-71 corridor between Medina and downtown Cleveland. Needs C-2 or better zoning, high traffic count, and no environmental issues." },
+          { name: "corridor_anchors", label: "Search Area", type: "text", required: true, placeholder: "I-71 from Medina to downtown Cleveland, OH" },
           { name: "broker_email", label: "Send Results To (email)", type: "text", required: true, placeholder: "broker@yourfirm.com" },
         ],
       },
@@ -193,7 +190,7 @@ const corridorVoidAnalysisWorkflow: N8nWorkflowJSON = {
       typeVersion: 1,
       position: [80, 240],
       parameters: {
-        objective: "Run a void analysis along the corridor defined by these anchor points: ={{ $json.corridor_anchors }}. Target use: ={{ $json.target_use }}. Search for parcels that are ={{ $json.target_zoning }}-zoned, ={{ $json.acreage_min }}-={{ $json.acreage_max }} acres, prefer vacant land. For each corridor segment, report which business categories are missing (the voids) and which are already saturated. Return the top 15 scored parcels. Then for the top 5 scoring sites, pull full parcel detail including auditor records, tax estimates, and environmental (EPA brownfield) status.",
+        objective: "A broker submitted this request: ={{ $json.brief }}\n\nSearch area: ={{ $json.corridor_anchors }}\n\nRun a void analysis along that corridor. Based on what the broker described, identify what types of sites and tenants they need. For each corridor segment, report which business categories are missing (the voids) and which are already saturated. Score and rank parcels that match the broker's criteria. Return the top 15 scored parcels. For the top 5, pull full parcel detail including auditor records, tax estimates, and environmental (EPA brownfield) status. Flag any disqualifying issues (contamination, wrong zoning, too small/large) up front.",
         tools: ["site_scan.void_analysis", "site_scan.detail", "memory.write"],
         maxSteps: 12,
       },
@@ -258,6 +255,7 @@ const dueDiligenceWorkflow: N8nWorkflowJSON = {
       parameters: {
         input_fields: [
           { name: "address", label: "Property Address", type: "text", required: true, placeholder: "1600 Euclid Ave, Cleveland, OH 44115" },
+          { name: "context", label: "What should we look for? (optional)", type: "textarea", required: false, placeholder: "Evaluating for a quick-service restaurant. Need to confirm no environmental contamination and verify C-2 zoning allows drive-through." },
         ],
       },
     },
@@ -292,7 +290,7 @@ const dueDiligenceWorkflow: N8nWorkflowJSON = {
       typeVersion: 1,
       position: [80, 560],
       parameters: {
-        objective: "Using the site intelligence and vault documents from previous steps, compile a comprehensive due diligence checklist and report. Cover: (1) Property overview, (2) Environmental status (EPA, brownfield), (3) Census demographics, (4) Zoning and land use, (5) Tax assessment, (6) Any vault documents found. Flag risks prominently. Format as a professional DD memo.",
+        objective: `Using the site intelligence and vault documents from previous steps, compile a comprehensive due diligence checklist and report. The broker's notes on what to look for: ={{ $node["Run Due Diligence"].json.context || "general due diligence" }}. Cover: (1) Property overview, (2) Environmental status (EPA, brownfield), (3) Census demographics, (4) Zoning and land use, (5) Tax assessment, (6) Any vault documents found. If the broker specified what they're evaluating for, tailor the risk flags and recommendations to that use case. Format as a professional DD memo.`,
         tools: ["memory.write"],
         maxSteps: 4,
       },
@@ -339,6 +337,7 @@ const acquisitionDeepDiveWorkflow: N8nWorkflowJSON = {
       parameters: {
         input_fields: [
           { name: "address", label: "Property Address", type: "text", required: true, placeholder: "1600 Euclid Ave, Cleveland, OH 44115" },
+          { name: "brief", label: "Deal Context", type: "textarea", required: false, placeholder: "Evaluating for a mixed-use redevelopment. Client budget is $2-3M. Interested in the building's condition and whether current zoning allows residential above retail." },
           { name: "broker_email", label: "Send Results To (email)", type: "text", required: true, placeholder: "broker@yourfirm.com" },
         ],
       },
@@ -350,7 +349,7 @@ const acquisitionDeepDiveWorkflow: N8nWorkflowJSON = {
       typeVersion: 1,
       position: [80, 240],
       parameters: {
-        objective: "Run full intelligence on: ={{ $json.address }}. (1) Search for the parcel to get parcel number and basic data. (2) Pull full detail: auditor records, tax estimate, census demographics, EPA brownfield status. (3) Note neighboring parcels and zoning. (4) Save key findings to memory. Compile all findings with full citations.",
+        objective: `Run full intelligence on: ={{ $json.address }}. Deal context from the broker: ={{ $json.brief || "general acquisition analysis" }}. (1) Search for the parcel to get parcel number and basic data. (2) Pull full detail: auditor records, tax estimate, census demographics, EPA brownfield status. (3) Note neighboring parcels and zoning. (4) Save key findings to memory. Compile all findings with full citations. If the broker described a specific use case or budget, flag anything that conflicts.`,
         tools: ["site_scan.search", "site_scan.detail", "memory.write", "memory.search"],
         maxSteps: 10,
       },
@@ -375,7 +374,7 @@ const acquisitionDeepDiveWorkflow: N8nWorkflowJSON = {
       typeVersion: 1,
       position: [80, 560],
       parameters: {
-        objective: "Using the parcel intelligence and lease data from previous steps, draft a professional acquisition memo with these sections: (1) Investment Thesis (3 sentences), (2) Property Overview, (3) Financial Snapshot (assessed value, tax, asking price if known), (4) Market Context (demographics), (5) Environmental Status, (6) Lease Analysis (if data exists), (7) Risks and Concerns, (8) Recommended Next Steps. Format for email delivery.",
+        objective: `Using the parcel intelligence and lease data from previous steps, draft a professional acquisition memo. The broker's deal context: ={{ $node["Run Acquisition Analysis"].json.brief || "general acquisition" }}. Sections: (1) Investment Thesis (3 sentences, tailored to the stated use case), (2) Property Overview, (3) Financial Snapshot (assessed value, tax, asking price if known), (4) Market Context (demographics), (5) Environmental Status, (6) Lease Analysis (if data exists), (7) Risks and Concerns (flag anything that conflicts with the broker's stated goals), (8) Recommended Next Steps. Format for email delivery.`,
         tools: ["memory.search"],
         maxSteps: 4,
       },
