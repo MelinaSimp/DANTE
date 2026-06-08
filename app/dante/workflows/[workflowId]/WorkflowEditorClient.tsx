@@ -1293,17 +1293,17 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
         const missingRequired = fields.some((f) => f.required && !runInputValues[f.name]?.trim());
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-            <div className="bg-[var(--canvas)] rounded-lg shadow-xl border border-[var(--rule)] w-full max-w-md mx-4">
-              <div className="px-6 py-4 border-b border-[var(--rule)]">
-                <h3 className="text-base font-semibold text-[var(--ink)]">Run workflow</h3>
-                <p className="text-xs text-[var(--ink-muted)] mt-1">
+            <div className="bg-[var(--canvas)] rounded-xl shadow-2xl border border-[var(--rule)] w-full max-w-xl mx-4">
+              <div className="px-8 py-6 border-b border-[var(--rule)]">
+                <h3 className="text-lg font-semibold text-[var(--ink)]">Run workflow</h3>
+                <p className="text-sm text-[var(--ink-muted)] mt-1">
                   Provide the inputs this workflow needs to run.
                 </p>
               </div>
-              <div className="px-6 py-4 space-y-4">
+              <div className="px-8 py-6 space-y-5">
                 {fields.map((f) => (
                   <div key={f.name}>
-                    <label className="block text-sm font-medium text-[var(--ink)] mb-1">
+                    <label className="block text-sm font-semibold text-[var(--ink)] mb-1.5">
                       {f.label || f.name}
                       {f.required && <span className="text-[var(--danger)] ml-0.5">*</span>}
                     </label>
@@ -1312,8 +1312,8 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
                         value={runInputValues[f.name] || ""}
                         onChange={(e) => setRunInputValues((v) => ({ ...v, [f.name]: e.target.value }))}
                         placeholder={f.placeholder || ""}
-                        rows={3}
-                        className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
+                        rows={4}
+                        className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[6px] px-4 py-3 text-[15px] leading-relaxed text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none focus:border-[var(--rule-strong)] focus:ring-1 focus:ring-[var(--rule-strong)]"
                       />
                     ) : (
                       <input
@@ -1321,16 +1321,16 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
                         value={runInputValues[f.name] || ""}
                         onChange={(e) => setRunInputValues((v) => ({ ...v, [f.name]: e.target.value }))}
                         placeholder={f.placeholder || ""}
-                        className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
+                        className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[6px] px-4 py-3 text-[15px] text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none focus:border-[var(--rule-strong)] focus:ring-1 focus:ring-[var(--rule-strong)]"
                       />
                     )}
                   </div>
                 ))}
               </div>
-              <div className="px-6 py-3 border-t border-[var(--rule)] flex justify-end gap-2">
+              <div className="px-8 py-5 border-t border-[var(--rule)] flex justify-end gap-3">
                 <button
                   onClick={() => setRunInputOpen(false)}
-                  className="px-4 py-2 rounded-[4px] border border-[var(--rule)] text-sm text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
+                  className="px-5 py-2.5 rounded-[6px] border border-[var(--rule)] text-sm font-medium text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition"
                 >
                   Cancel
                 </button>
@@ -1344,10 +1344,10 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
                     run(input);
                   }}
                   disabled={missingRequired}
-                  className="px-4 py-2 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-sm font-semibold hover:opacity-90 disabled:opacity-50"
+                  className="px-6 py-2.5 rounded-[6px] bg-[var(--ink)] text-[var(--canvas)] text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition"
                 >
-                  <span className="flex items-center gap-1.5">
-                    <Play className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  <span className="flex items-center gap-2">
+                    <Play className="w-4 h-4" strokeWidth={1.5} />
                     Run
                   </span>
                 </button>
