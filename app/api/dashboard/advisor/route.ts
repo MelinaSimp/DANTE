@@ -85,6 +85,7 @@ export async function GET() {
     inboundEmailsResult,
     sentEmailsResult,
     smsResult,
+    propertiesCountResult,
     allWorkflowsResult,
     featuresResult,
   ] = await Promise.all([
@@ -263,6 +264,13 @@ export async function GET() {
           .eq("workspace_id", wid)
           .order("created_at", { ascending: false })
           .limit(8)
+      : noop,
+    // Property count for stat strip
+    wid
+      ? supabaseAdmin
+          .from("properties")
+          .select("id", { count: "exact", head: true })
+          .eq("workspace_id", wid)
       : noop,
     // All workspace workflows — for usage insights on the dashboard
     wid
@@ -735,10 +743,17 @@ export async function GET() {
     workflowResults,
     stats: {
       clients: empty<any>(contacts).length,
+      properties: (propertiesCountResult as any)?.count || 0,
       calls7d: (calls7dResult as any)?.count || 0,
       documents: (documentsResult as any)?.count || 0,
+      activeWorkflows: activeWfs.filter((w: any) => w.enabled).length,
+      totalWorkflows: activeWfs.length,
       verifiedPct,
     },
+    enabledWorkflows: activeWfs
+      .filter((w: any) => w.enabled)
+      .slice(0, 6)
+      .map((w: any) => ({ id: w.id, name: w.name })),
     noticedToday: {
       pendingDraftsCount,
       topDrafts,

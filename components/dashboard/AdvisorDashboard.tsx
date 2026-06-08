@@ -42,6 +42,8 @@ import {
   MailOpen,
   MessageSquare,
   Send,
+  Building2,
+  Play,
 } from "lucide-react";
 
 type Meeting = {
@@ -156,10 +158,14 @@ type DashboardData = {
   workflowResults?: WorkflowResult[];
   stats: {
     clients: number;
+    properties: number;
     calls7d: number;
     documents: number;
+    activeWorkflows: number;
+    totalWorkflows: number;
     verifiedPct: number | null;
   };
+  enabledWorkflows?: { id: string; name: string }[];
   noticedToday?: {
     pendingDraftsCount: number;
     topDrafts: NoticedDraft[];
@@ -261,12 +267,38 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
             and merges them into noticedItems with click-through to
             the source regulator URL. */}
 
-        {/* Stat strip removed — Clients / Calls / Documents / Verified
-            felt like vanity metrics next to the more meaningful
-            WhatChanged + bento surfaces. The same numbers live on the
-            top-of-page subtitle ("N clients · M calls this week") and
-            on their own dedicated pages, so cutting them here just
-            tightens the dashboard. */}
+        {/* Stat strip — compact workspace-level numbers. Keeps the
+            dashboard from feeling barren when activity streams are
+            empty. Each cell links to its dedicated page. */}
+        <div className="grid grid-cols-4 gap-3 mb-10">
+          <Link href="/properties" className="group">
+            <div className="glass-card glass-card-hover px-4 py-3 transition">
+              <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] mb-1">Properties</div>
+              <div className="heading-display text-2xl">{data.stats.properties}</div>
+            </div>
+          </Link>
+          <Link href="/workflows" className="group">
+            <div className="glass-card glass-card-hover px-4 py-3 transition">
+              <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] mb-1">Workflows</div>
+              <div className="flex items-baseline gap-1.5">
+                <span className="heading-display text-2xl">{data.stats.activeWorkflows}</span>
+                {data.stats.totalWorkflows > data.stats.activeWorkflows && (
+                  <span className="text-xs text-[var(--ink-subtle)]">/ {data.stats.totalWorkflows}</span>
+                )}
+              </div>
+            </div>
+          </Link>
+          <Link href="/vault" className="group">
+            <div className="glass-card glass-card-hover px-4 py-3 transition">
+              <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] mb-1">Documents</div>
+              <div className="heading-display text-2xl">{data.stats.documents}</div>
+            </div>
+          </Link>
+          <div className="glass-card px-4 py-3">
+            <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] mb-1">Calls this week</div>
+            <div className="heading-display text-2xl">{data.stats.calls7d}</div>
+          </div>
+        </div>
 
         {/* Two-column dashboard layout. Left column surfaces
             Dante's analysis: usage insights, cron-materialized
@@ -550,11 +582,44 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
                     </div>
                   )}
 
+                  {/* Your workflows — quick-run cards when there's no
+                      activity yet. Gives the right column something
+                      actionable instead of an empty placeholder. */}
+                  {(!data.workflowResults || data.workflowResults.length === 0) &&
+                    (!data.recentActivity || data.recentActivity.length === 0) &&
+                    data.enabledWorkflows && data.enabledWorkflows.length > 0 && (
+                    <div>
+                      <div className="text-[11px] mono uppercase tracking-wider text-[var(--ink-muted)] mb-2 flex items-center gap-1.5">
+                        <Zap className="w-3 h-3" strokeWidth={1.5} />
+                        Your workflows
+                      </div>
+                      <ul className="space-y-2">
+                        {data.enabledWorkflows.map((wf) => (
+                          <li key={wf.id}>
+                            <Link
+                              href={`/dante/workflows/${wf.id}`}
+                              className="flex items-center gap-3 px-3 py-2.5 rounded-[4px] border border-[var(--rule)] hover:border-[var(--rule-strong)] bg-[var(--canvas)] transition group"
+                            >
+                              <Zap className="w-4 h-4 text-[var(--accent)] shrink-0" strokeWidth={1.5} />
+                              <span className="text-sm font-medium text-[var(--ink)] truncate flex-1">{wf.name}</span>
+                              <span className="text-[11px] text-[var(--ink-muted)] group-hover:text-[var(--accent)] transition flex items-center gap-1 shrink-0">
+                                <Play className="w-3 h-3" strokeWidth={1.5} />
+                                Run
+                              </span>
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
                   {/* Activity feed */}
                   {!data.recentActivity || data.recentActivity.length === 0 ? (
-                    <div className="py-6 border-t border-b border-[var(--rule)] text-sm text-[var(--ink-subtle)] italic">
-                      Workflow results, emails, and messages will appear here as they come in.
-                    </div>
+                    (!data.enabledWorkflows || data.enabledWorkflows.length === 0) ? (
+                      <div className="py-6 border-t border-b border-[var(--rule)] text-sm text-[var(--ink-subtle)] italic">
+                        Workflow results, emails, and messages will appear here as they come in.
+                      </div>
+                    ) : null
                   ) : (
                     <ul className="divide-y divide-[var(--rule)] border-t border-[var(--rule)]">
                       {data.recentActivity.slice(0, 12).map((a) => (
