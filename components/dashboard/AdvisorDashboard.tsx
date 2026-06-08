@@ -44,6 +44,10 @@ import {
   Send,
   Building2,
   Play,
+  Clock,
+  Mail,
+  FolderOpen,
+  MessageCircle,
 } from "lucide-react";
 
 type Meeting = {
@@ -174,6 +178,20 @@ type DashboardData = {
     items?: NoticedItem[];
   };
   usageInsights?: UsageInsight[];
+  recentChats?: { id: string; title: string; updatedAt: string }[];
+  digest?: {
+    emailsToday: number;
+    emailsUrgent: number;
+    vaultUploadsWeek: number;
+  };
+  upcomingDeadlines?: {
+    id: string;
+    kind: "expiring_doc" | "draft_send" | "scheduled_workflow";
+    label: string;
+    detail: string | null;
+    date: string;
+    href: string | null;
+  }[];
 };
 
 function formatDateTime(iso: string) {
@@ -300,19 +318,64 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
           </div>
         </div>
 
-        {/* Two-column dashboard layout. Left column surfaces
-            Dante's analysis: usage insights, cron-materialized
-            notices, pending drafts, expiring docs. Right column
-            shows workflow results and the chronological activity
-            feed. AgentOutputsSection sits below as its own row
-            since it self-hides on empty.
+        {/* Digest bar — compact email + vault summary. Shows the
+            workspace's recent pulse even when no items need action. */}
+        {data.digest && (data.digest.emailsToday > 0 || data.digest.vaultUploadsWeek > 0) && (
+          <div className="flex items-center gap-5 text-xs text-[var(--ink-muted)] mb-6">
+            {data.digest.emailsToday > 0 && (
+              <span className="inline-flex items-center gap-1.5">
+                <Mail className="w-3.5 h-3.5" strokeWidth={1.5} />
+                {data.digest.emailsToday} email{data.digest.emailsToday === 1 ? "" : "s"} today
+                {data.digest.emailsUrgent > 0 && (
+                  <span className="text-[var(--flag)] font-medium">
+                    ({data.digest.emailsUrgent} urgent)
+                  </span>
+                )}
+              </span>
+            )}
+            {data.digest.vaultUploadsWeek > 0 && (
+              <span className="inline-flex items-center gap-1.5">
+                <FolderOpen className="w-3.5 h-3.5" strokeWidth={1.5} />
+                {data.digest.vaultUploadsWeek} document{data.digest.vaultUploadsWeek === 1 ? "" : "s"} uploaded this week
+              </span>
+            )}
+          </div>
+        )}
 
-            Layout (lg+):
-              [ What Dante noticed today ] | [ Recent activity  ]
-              [ usage insights           ] | [ workflow results ]
-              [ noticed items            ] | [ activity feed    ]
-              [ drafts + expiring        ] | [ recent calls     ]
-        */}
+        {/* Upcoming deadlines — merged timeline of the nearest
+            expirations, draft send dates, and scheduled workflows.
+            Gives a cross-cutting view of what's coming up. */}
+        {data.upcomingDeadlines && data.upcomingDeadlines.length > 0 && (
+          <div className="mb-10">
+            <div className="flex items-center gap-1.5 mb-3">
+              <Clock className="w-3.5 h-3.5 text-[var(--ink-muted)]" strokeWidth={1.5} />
+              <span className="label-section">Upcoming deadlines</span>
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-1">
+              {data.upcomingDeadlines.map((d) => {
+                const inner = (
+                  <div className="glass-card glass-card-hover px-4 py-3 min-w-[180px] transition">
+                    <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] mb-1.5">
+                      {d.kind === "expiring_doc" ? "Expires" : d.kind === "draft_send" ? "Sends" : "Runs"}{" "}
+                      {formatRelativeDate(d.date)}
+                    </div>
+                    <div className="text-sm font-medium text-[var(--ink)] truncate">{d.label}</div>
+                    {d.detail && (
+                      <div className="text-[11px] text-[var(--ink-muted)] truncate mt-0.5">{d.detail}</div>
+                    )}
+                  </div>
+                );
+                return d.href ? (
+                  <Link key={d.id} href={d.href} className="shrink-0">{inner}</Link>
+                ) : (
+                  <div key={d.id} className="shrink-0">{inner}</div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Two-column dashboard layout. */}
         {(() => {
           const n = data.noticedToday;
           const assistantName = getIndustryConfig(data.industry).assistantName;
@@ -702,6 +765,33 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
                                 </Link>
                               )}
                             </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {/* Recent Dante conversations */}
+                  {data.recentChats && data.recentChats.length > 0 && (
+                    <div>
+                      <div className="text-[11px] mono uppercase tracking-wider text-[var(--ink-muted)] mb-2 flex items-center gap-1.5">
+                        <MessageCircle className="w-3 h-3" strokeWidth={1.5} />
+                        Recent conversations
+                      </div>
+                      <ul className="space-y-1.5">
+                        {data.recentChats.map((chat) => (
+                          <li key={chat.id}>
+                            <Link
+                              href={`/dante?chat=${chat.id}`}
+                              className="flex items-center gap-3 px-3 py-2 rounded-[4px] border border-[var(--rule)] hover:border-[var(--rule-strong)] bg-[var(--canvas)] transition group"
+                            >
+                              <MessageCircle className="w-3.5 h-3.5 text-[var(--ink-subtle)] shrink-0" strokeWidth={1.5} />
+                              <span className="text-sm text-[var(--ink)] truncate flex-1">
+                                {chat.title}
+                              </span>
+                              <span className="text-[11px] mono text-[var(--ink-subtle)] shrink-0">
+                                {formatRelativeDate(chat.updatedAt)}
+                              </span>
+                            </Link>
                           </li>
                         ))}
                       </ul>

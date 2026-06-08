@@ -87,6 +87,9 @@ export async function GET() {
     smsResult,
     propertiesCountResult,
     allWorkflowsResult,
+    recentChatsResult,
+    vaultUploadsResult,
+    scheduledWfsResult,
     featuresResult,
   ] = await Promise.all([
     wid
@@ -278,6 +281,36 @@ export async function GET() {
           .from("dante_workflows")
           .select("id, name, enabled, created_at, proposal_state")
           .eq("workspace_id", wid)
+      : noop,
+    // Recent Dante chats for the dashboard sidebar
+    wid
+      ? supabaseAdmin
+          .from("dante_chats")
+          .select("id, title, updated_at")
+          .eq("workspace_id", wid)
+          .eq("user_id", user.id)
+          .is("deleted_at", null)
+          .order("updated_at", { ascending: false })
+          .limit(4)
+      : noop,
+    // Vault uploads this week
+    wid
+      ? supabaseAdmin
+          .from("vault_items")
+          .select("id", { count: "exact", head: true })
+          .eq("workspace_id", wid)
+          .gte("created_at", sevenDaysAgo)
+      : noop,
+    // Scheduled one-shot workflows with upcoming fire dates
+    wid
+      ? supabaseAdmin
+          .from("dante_workflows")
+          .select("id, name, next_fire_at")
+          .eq("workspace_id", wid)
+          .not("next_fire_at", "is", null)
+          .gt("next_fire_at", nowIso)
+          .order("next_fire_at", { ascending: true })
+          .limit(4)
       : noop,
     getWorkspaceFeatures(wid),
   ]);
@@ -729,6 +762,73 @@ export async function GET() {
     }
   }
 
+  // ---- Recent chats ----
+  const recentChats = (recentChatsResult.data || []).map((c: any) => ({
+    id: c.id as string,
+    title: (c.title || "Untitled") as string,
+    updatedAt: c.updated_at as string,
+  }));
+
+  // ---- Digest: emails + vault ----
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+  const todayStartIso = todayStart.toISOString();
+  const inboundEmails = empty<any>(inboundEmailsResult.data);
+  const emailsToday = inboundEmails.filter(
+    (e: any) => e.created_at >= todayStartIso,
+  ).length;
+  const emailsUrgent = inboundEmails.filter(
+    (e: any) => e.urgency === "high" && e.created_at >= todayStartIso,
+  ).length;
+  const vaultUploadsWeek = (vaultUploadsResult as any)?.count || 0;
+
+  // ---- Upcoming deadlines ----
+  // Merge the nearest deadlines from expiring docs, draft send dates,
+  // and one-shot scheduled workflows into a single chronological list.
+  type Deadline = {
+    id: string;
+    kind: "expiring_doc" | "draft_send" | "scheduled_workflow";
+    label: string;
+    detail: string | null;
+    date: string;
+    href: string | null;
+  };
+  const deadlines: Deadline[] = [];
+  for (const e of topExpiring) {
+    deadlines.push({
+      id: `exp:${e.id}`,
+      kind: "expiring_doc",
+      label: e.title,
+      detail: e.doc_kind,
+      date: e.expires_at,
+      href: `/properties/${e.property_id}`,
+    });
+  }
+  for (const d of topDrafts) {
+    if (d.send_at) {
+      deadlines.push({
+        id: `draft:${d.id}`,
+        kind: "draft_send",
+        label: d.subject || "Reminder",
+        detail: d.contact_name || null,
+        date: d.send_at,
+        href: "/reminders",
+      });
+    }
+  }
+  for (const w of empty<any>(scheduledWfsResult.data)) {
+    deadlines.push({
+      id: `wf:${w.id}`,
+      kind: "scheduled_workflow",
+      label: w.name,
+      detail: null,
+      date: w.next_fire_at,
+      href: `/dante/workflows/${w.id}`,
+    });
+  }
+  deadlines.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const upcomingDeadlines = deadlines.slice(0, 5);
+
   return NextResponse.json({
     advisorName: profile.full_name || user.email?.split("@")[0] || "there",
     workspaceName,
@@ -762,5 +862,12 @@ export async function GET() {
       items: noticedItems,
     },
     usageInsights,
+    recentChats,
+    digest: {
+      emailsToday,
+      emailsUrgent,
+      vaultUploadsWeek,
+    },
+    upcomingDeadlines,
   });
 }
