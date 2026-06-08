@@ -648,18 +648,20 @@ function convertN8nGraph(g: Record<string, unknown>): WorkflowGraph {
         ? pos as { x: number; y: number }
         : { x: 0, y: 0 };
 
+    // WorkflowStep is a discriminated union -- cast through unknown
+    // since n8n nodes don't match any specific variant exactly.
+    const step = {
+      id: String(n.id),
+      type: String(n.type || "unknown"),
+      name: String(n.name || n.id),
+      config: (n.parameters || {}) as Record<string, unknown>,
+    } as unknown as WorkflowStep;
+
     return {
       id: String(n.id),
       type: String(n.type || "unknown") as StepType,
       position,
-      data: {
-        step: {
-          id: String(n.id),
-          type: String(n.type || "unknown") as StepType,
-          name: String(n.name || n.id),
-          config: (n.parameters || {}) as Record<string, unknown>,
-        },
-      },
+      data: { step },
     };
   });
 
