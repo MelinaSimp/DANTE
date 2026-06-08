@@ -128,6 +128,8 @@ export async function createWorkflow(json: N8nWorkflowJSON): Promise<string> {
   // n8n v1 API treats `active` and `tags` as read-only on create -- strip them
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { active, tags, ...payload } = json as N8nWorkflowJSON & { active?: boolean; tags?: unknown[] };
+  // n8n requires `settings` even if empty
+  if (!payload.settings) payload.settings = {};
   const result = await n8nFetchWithRetry<N8nWorkflowResponse>("/workflows", {
     method: "POST",
     body: payload,
