@@ -13,8 +13,30 @@
 //   Distance Matrix: $10  | Reverse Geocoding: $5
 
 const GEO_BASE = "https://maps.googleapis.com/maps/api/geocode/json";
-const PLACES_BASE = "https://maps.googleapis.com/maps/api/place/nearbysearch/json";
+const PLACES_NEW_BASE = "https://places.googleapis.com/v1/places:searchNearby";
 const DISTANCE_BASE = "https://maps.googleapis.com/maps/api/distancematrix/json";
+
+/** Field mask for Places API (New) -- controls which fields are returned. */
+const PLACES_FIELD_MASK = [
+  "places.id",
+  "places.displayName",
+  "places.formattedAddress",
+  "places.location",
+  "places.types",
+  "places.rating",
+  "places.userRatingCount",
+  "places.currentOpeningHours",
+  "places.priceLevel",
+].join(",");
+
+/** Map Places API (New) price level enum to legacy numeric values */
+const PRICE_LEVEL_MAP: Record<string, number> = {
+  PRICE_LEVEL_FREE: 0,
+  PRICE_LEVEL_INEXPENSIVE: 1,
+  PRICE_LEVEL_MODERATE: 2,
+  PRICE_LEVEL_EXPENSIVE: 3,
+  PRICE_LEVEL_VERY_EXPENSIVE: 4,
+};
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -179,24 +201,43 @@ export async function nearbyPlaces(
   const typeChunks = types.slice(0, 6);
 
   const fetches = typeChunks.map(async (type) => {
-    const url = `${PLACES_BASE}?location=${lat},${lng}&radius=${radius}&type=${type}&key=${apiKey}`;
     try {
-      const res = await fetch(url);
+      const res = await fetch(PLACES_NEW_BASE, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Goog-Api-Key": apiKey,
+          "X-Goog-FieldMask": PLACES_FIELD_MASK,
+        },
+        body: JSON.stringify({
+          includedTypes: [type],
+          maxResultCount: 5,
+          locationRestriction: {
+            circle: {
+              center: { latitude: lat, longitude: lng },
+              radius,
+            },
+          },
+        }),
+      });
       if (!res.ok) return [];
       const data = await res.json();
-      if (data.status !== "OK") return [];
+      if (data.error) return [];
 
-      return (data.results || []).slice(0, 5).map((p: Record<string, unknown>) => ({
-        name: String(p.name || ""),
-        type,
-        vicinity: String(p.vicinity || ""),
-        distance_meters: p.geometry
-          ? haversineMeters(lat, lng, (p.geometry as { location: { lat: number; lng: number } }).location.lat, (p.geometry as { location: { lat: number; lng: number } }).location.lng)
-          : null,
-        rating: typeof p.rating === "number" ? p.rating : null,
-        total_ratings: typeof p.user_ratings_total === "number" ? p.user_ratings_total : 0,
-        open_now: (p.opening_hours as { open_now?: boolean } | undefined)?.open_now ?? null,
-      }));
+      return (data.places || []).map((p: Record<string, unknown>) => {
+        const loc = p.location as { latitude: number; longitude: number } | undefined;
+        return {
+          name: (p.displayName as { text: string } | undefined)?.text || "",
+          type,
+          vicinity: String(p.formattedAddress || ""),
+          distance_meters: loc
+            ? haversineMeters(lat, lng, loc.latitude, loc.longitude)
+            : null,
+          rating: typeof p.rating === "number" ? p.rating : null,
+          total_ratings: typeof p.userRatingCount === "number" ? p.userRatingCount : 0,
+          open_now: (p.currentOpeningHours as { openNow?: boolean } | undefined)?.openNow ?? null,
+        };
+      });
     } catch {
       return [];
     }
@@ -307,7 +348,7 @@ export interface SurveyResult {
 /** CRE void-analysis taxonomy: category name -> Google place types */
 const SURVEY_CATEGORIES: Record<string, string[]> = {
   restaurants:    ["restaurant", "cafe", "bar", "bakery", "meal_delivery"],
-  grocery:        ["supermarket", "grocery_or_supermarket", "convenience_store"],
+  grocery:        ["supermarket", "grocery_store", "convenience_store"],
   medical:        ["hospital", "doctor", "dentist", "pharmacy", "physiotherapist", "veterinary_care"],
   fitness:        ["gym", "spa"],
   retail:         ["shopping_mall", "clothing_store", "shoe_store", "furniture_store", "electronics_store", "book_store", "home_goods_store", "pet_store", "hardware_store"],
@@ -369,7 +410,7 @@ export async function surveyNearbyBusinesses(
 ): Promise<SurveyResult> {
   const radii = [...opts.radii].sort((a, b) => a - b);
   const outerRadius = radii[radii.length - 1];
-  const maxPerType = opts.maxPerType ?? 60; // up to 3 pages
+  // Places API (New) caps at 20 results per call (no pagination)
   const filterCategories = opts.categories?.length
     ? opts.categories.map((c) => c.toLowerCase())
     : null;
@@ -398,40 +439,39 @@ export async function surveyNearbyBusinesses(
       if (cached) return { category, googleType, results: cached };
 
       const results: unknown[] = [];
-      let nextPageToken: string | null = null;
-      let pages = 0;
 
-      while (pages < 3) { // max 3 pages = 60 results per type
-        const params = new URLSearchParams({
-          location: `${lat},${lng}`,
-          radius: String(outerRadius),
-          type: googleType,
-          key: apiKey,
+      try {
+        const res = await fetch(PLACES_NEW_BASE, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": apiKey,
+            "X-Goog-FieldMask": PLACES_FIELD_MASK,
+          },
+          body: JSON.stringify({
+            includedTypes: [googleType],
+            maxResultCount: 20,
+            locationRestriction: {
+              circle: {
+                center: { latitude: lat, longitude: lng },
+                radius: outerRadius,
+              },
+            },
+          }),
         });
-        if (nextPageToken) params.set("pagetoken", nextPageToken);
-
-        try {
-          const res = await fetch(`${PLACES_BASE}?${params}`);
-          apiCalls++;
-          if (!res.ok) {
-            apiErrors.add(`HTTP ${res.status} for type=${googleType}`);
-            break;
-          }
+        apiCalls++;
+        if (!res.ok) {
+          apiErrors.add(`HTTP ${res.status} for type=${googleType}`);
+        } else {
           const data = await res.json();
-          if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
-            apiErrors.add(`${data.status}: ${data.error_message || "unknown error"} (type=${googleType})`);
-            break;
+          if (data.error) {
+            apiErrors.add(`${data.error.status || data.error.code}: ${data.error.message || "unknown error"} (type=${googleType})`);
+          } else {
+            results.push(...(data.places || []));
           }
-          results.push(...(data.results || []));
-          nextPageToken = data.next_page_token || null;
-          pages++;
-          if (!nextPageToken || results.length >= maxPerType) break;
-          // Google requires a short delay before using next_page_token
-          await new Promise((r) => setTimeout(r, 250));
-        } catch (err) {
-          apiErrors.add(`fetch error for type=${googleType}: ${err instanceof Error ? err.message : String(err)}`);
-          break;
         }
+      } catch (err) {
+        apiErrors.add(`fetch error for type=${googleType}: ${err instanceof Error ? err.message : String(err)}`);
       }
 
       setCachedPlaces(cacheKey, results);
@@ -442,30 +482,30 @@ export async function surveyNearbyBusinesses(
 
     for (const { category, googleType, results } of batchResults) {
       for (const p of results as Array<Record<string, unknown>>) {
-        const placeId = String(p.place_id || "");
+        const placeId = String(p.id || "");
         if (!placeId || seen.has(placeId)) continue;
 
-        const geo = p.geometry as
-          | { location: { lat: number; lng: number } }
+        const loc = p.location as
+          | { latitude: number; longitude: number }
           | undefined;
-        if (!geo) continue;
+        if (!loc) continue;
 
-        const dist = haversineMeters(lat, lng, geo.location.lat, geo.location.lng);
+        const dist = haversineMeters(lat, lng, loc.latitude, loc.longitude);
         if (dist > outerRadius) continue;
 
         seen.set(placeId, {
-          name: String(p.name || ""),
+          name: (p.displayName as { text: string } | undefined)?.text || "",
           place_id: placeId,
           category,
           google_type: googleType,
-          address: String(p.vicinity || ""),
+          address: String(p.formattedAddress || ""),
           distance_meters: Math.round(dist),
           distance_miles: Math.round((dist / 1609.34) * 100) / 100,
           radius_band: radiusBandLabel(dist, radii),
           rating: typeof p.rating === "number" ? p.rating : null,
-          total_ratings: typeof p.user_ratings_total === "number" ? p.user_ratings_total : 0,
-          open_now: (p.opening_hours as { open_now?: boolean } | undefined)?.open_now ?? null,
-          price_level: typeof p.price_level === "number" ? p.price_level : null,
+          total_ratings: typeof p.userRatingCount === "number" ? p.userRatingCount : 0,
+          open_now: (p.currentOpeningHours as { openNow?: boolean } | undefined)?.openNow ?? null,
+          price_level: typeof p.priceLevel === "string" ? (PRICE_LEVEL_MAP[p.priceLevel as string] ?? null) : null,
         });
       }
     }
