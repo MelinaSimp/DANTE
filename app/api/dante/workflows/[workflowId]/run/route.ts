@@ -71,7 +71,20 @@ export async function POST(
         n8nJson = conversion.workflow;
       }
 
-      n8nId = await n8nBridge.createWorkspaceWorkflow(profile.workspace_id, n8nJson);
+      // Set webhook path to the Drift workflow ID for execution
+      for (const node of n8nJson.nodes) {
+        if (node.type.includes("webhook") || node.type.includes("Trigger")) {
+          const p = node.parameters as Record<string, unknown>;
+          if (typeof p.path === "string") {
+            p.path = workflowId;
+          }
+        }
+      }
+
+      n8nId = await n8nBridge.createWorkspaceWorkflow(
+        profile.workspace_id,
+        { ...n8nJson, active: true },
+      );
       // Persist so we don't JIT-push again next time
       await supabaseAdmin
         .from("dante_workflows")
@@ -89,16 +102,23 @@ export async function POST(
   try {
     const n8nBridge = await import("@/lib/dante/n8n-bridge");
 
-    // Ensure workflow is active on n8n (non-fatal if activation fails
-    // due to custom node types not being installed yet)
+    // Execute via webhook. The webhook path is the Drift workflow ID,
+    // so the URL is  {N8N_BASE_URL}/webhook/{workflowId}.
+    // On 404 (webhook not registered), patch the n8n workflow's trigger
+    // to a webhook node with the correct path and retry.
+    let executionId: string;
     try {
-      await n8nBridge.activateWorkflow(n8nId);
-    } catch {
-      // Activation may fail for workflows with custom nodes -- proceed anyway
-    }
+      executionId = await n8nBridge.executeAsync(workflowId, input);
+    } catch (webhookErr) {
+      const is404 =
+        webhookErr instanceof Error &&
+        (webhookErr.message.includes("404") || webhookErr.message.includes("not found"));
+      if (!is404) throw webhookErr;
 
-    // Execute via API
-    const executionId = await n8nBridge.executeWorkflowById(n8nId, input);
+      // Patch trigger to webhook with the correct path and retry
+      await n8nBridge.ensureWebhookTrigger(n8nId, workflowId);
+      executionId = await n8nBridge.executeAsync(workflowId, input);
+    }
 
     // Record the run
     const { data: runRow } = await supabaseAdmin

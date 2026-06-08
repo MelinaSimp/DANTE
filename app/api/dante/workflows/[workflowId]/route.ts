@@ -23,6 +23,24 @@ function isN8nNativeGraph(graph: Record<string, unknown>): boolean {
  * unreachable the DB save still succeeds and the run endpoint's JIT push
  * catches any missed syncs.
  */
+/**
+ * Ensure the webhook trigger in an n8n graph has path set to the
+ * Drift workflow ID so execution works via POST /webhook/{driftId}.
+ */
+function setWebhookPath(n8nJson: Record<string, unknown>, driftWorkflowId: string): void {
+  const nodes = n8nJson.nodes as Array<Record<string, unknown>> | undefined;
+  if (!Array.isArray(nodes)) return;
+  for (const node of nodes) {
+    const type = String(node.type || "");
+    if (type.includes("webhook") || type.includes("Trigger")) {
+      const params = node.parameters as Record<string, unknown> | undefined;
+      if (params && typeof params.path === "string") {
+        params.path = driftWorkflowId;
+      }
+    }
+  }
+}
+
 async function syncToN8n(
   workflowId: string,
   workspaceId: string,
@@ -39,7 +57,10 @@ async function syncToN8n(
         ? graph
         : await convertGraph(graph, name);
       if (n8nJson) {
+        setWebhookPath(n8nJson, workflowId);
         await n8nBridge.updateWorkflow(n8nWorkflowId, n8nJson as unknown as import("@/lib/dante/n8n-types").N8nWorkflowJSON);
+        // Ensure webhook is registered after update
+        try { await n8nBridge.ensureWebhookTrigger(n8nWorkflowId, workflowId); } catch { /* non-fatal */ }
       }
     } else if (graph) {
       // No n8n ID yet -- convert + create
@@ -47,9 +68,11 @@ async function syncToN8n(
         ? graph
         : await convertGraph(graph, name);
       if (n8nJson) {
+        setWebhookPath(n8nJson, workflowId);
+        const typed = n8nJson as unknown as import("@/lib/dante/n8n-types").N8nWorkflowJSON;
         const newId = await n8nBridge.createWorkspaceWorkflow(
           workspaceId,
-          n8nJson as unknown as import("@/lib/dante/n8n-types").N8nWorkflowJSON,
+          { ...typed, active: true },
         );
         // Store the n8n ID back on the Drift row
         await supabaseAdmin

@@ -180,7 +180,7 @@ export interface N8nPaginatedResponse<T> {
 /** Maps Drift step types to their n8n node type equivalents. */
 export const DRIFT_TO_N8N_NODE_TYPE: Record<string, string> = {
   // Built-in n8n nodes (no custom code needed)
-  trigger_manual:    "n8n-nodes-base.manualTrigger",
+  trigger_manual:    "n8n-nodes-base.webhook",
   trigger_cron:      "n8n-nodes-base.scheduleTrigger",
   trigger_at:        "n8n-nodes-base.scheduleTrigger",
   trigger_webhook:   "n8n-nodes-base.webhook",

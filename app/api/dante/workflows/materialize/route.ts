@@ -103,9 +103,20 @@ export async function POST(req: NextRequest) {
         generated.graph,
         generated.name,
       );
+
+      // Set webhook path to Drift workflow ID for execution
+      for (const node of conversion.workflow.nodes) {
+        if (node.type.includes("webhook") || node.type.includes("Trigger")) {
+          const p = node.parameters as Record<string, unknown>;
+          if (typeof p.path === "string") {
+            p.path = data.id;
+          }
+        }
+      }
+
       const n8nId = await n8nBridge.createWorkspaceWorkflow(
         profile.workspace_id,
-        conversion.workflow,
+        { ...conversion.workflow, active: true },
       );
       await supabaseAdmin
         .from("dante_workflows")

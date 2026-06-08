@@ -77,14 +77,16 @@ index 0 = true branch, index 1 = false branch.
 AVAILABLE NODE TYPES
 
 Built-in n8n nodes:
-- "n8n-nodes-base.manualTrigger" (typeVersion: 1) -- user clicks Run
-  parameters: {}
-  For manual triggers that need user input, add input_fields to parameters:
-  parameters: { "input_fields": [
-    { "name": "address", "label": "Property Address", "type": "text", "required": true, "placeholder": "1600 Euclid Ave, Cleveland, OH 44115" }
-  ] }
+- "n8n-nodes-base.webhook" (typeVersion: 2) -- user clicks Run (on-demand workflows)
+  parameters: { "path": "trigger", "httpMethod": "POST", "responseMode": "onReceived",
+    "input_fields": [
+      { "name": "address", "label": "Property Address", "type": "text", "required": true, "placeholder": "1600 Euclid Ave, Cleveland, OH 44115" }
+    ]
+  }
   Supported field types: "text", "textarea", "number".
   Access these in downstream nodes with {{ $json.address }} (the field name).
+  The path is overwritten at deploy time -- just use "trigger" as placeholder.
+  IMPORTANT: Use this (webhook) for ALL on-demand workflows, NOT manualTrigger.
 
 - "n8n-nodes-base.scheduleTrigger" (typeVersion: 1) -- cron/time trigger
   parameters: { "rule": { "interval": [{ "field": "cronExpression", "expression": "0 9 * * *" }] } }
@@ -236,11 +238,12 @@ RULES
    multi-step reasoning instead of chaining many individual nodes.
 8. Never invent node types. Stick to the list above.
 9. For per-execution user input, use $json.fieldName (populated from
-   input_fields on the manual trigger). $env is ONLY for instance-level
+   input_fields on the webhook trigger). $env is ONLY for instance-level
    infrastructure (callback URLs, API keys). Never use $env for broker
    email, addresses, or any user-provided parameter.
 10. When a workflow needs user input (address, email, search terms), always
-    use a manualTrigger with input_fields so the user gets a form dialog.
+    use a webhook trigger with input_fields so the user gets a form dialog.
+    Do NOT use manualTrigger -- always use webhook.
 
 OUTPUT ONLY THE JSON OBJECT.
 `.trim();

@@ -16,6 +16,7 @@ import { getN8nTemplate } from "@/lib/dante/n8n-templates";
 import { convertDriftToN8n } from "@/lib/dante/n8n-converter";
 import * as n8nBridge from "@/lib/dante/n8n-bridge";
 import type { StepType, WorkflowGraph } from "@/lib/dante/workflow-types";
+import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
 
@@ -105,6 +106,25 @@ export async function POST(
     }
   }
 
+  // Generate the Drift workflow ID upfront so we can set the webhook
+  // path before pushing to n8n. This makes the webhook URL deterministic:
+  // {N8N_BASE_URL}/webhook/{driftWorkflowId}
+  const driftWorkflowId = crypto.randomUUID();
+
+  // Replace the webhook path placeholder with the actual Drift workflow ID.
+  // Templates use "{{DRIFT_WORKFLOW_ID}}" as a placeholder; AI-generated
+  // and converter output may use other strings -- replace any trigger's path.
+  for (const node of workflowJson.nodes) {
+    const params = node.parameters as Record<string, unknown> | undefined;
+    if (
+      params &&
+      (node.type.includes("webhook") || node.type.includes("Trigger")) &&
+      typeof params.path === "string"
+    ) {
+      params.path = driftWorkflowId;
+    }
+  }
+
   // Push to n8n (best-effort)
   let n8nWorkflowId: string | null = null;
   try {
@@ -119,6 +139,7 @@ export async function POST(
   const { data, error } = await supabaseAdmin
     .from("dante_workflows")
     .insert({
+      id: driftWorkflowId,
       workspace_id: profile.workspace_id,
       created_by: user.id,
       name,

@@ -172,10 +172,13 @@ const corridorVoidAnalysisWorkflow: N8nWorkflowJSON = {
     {
       id: "trigger",
       name: "Run Corridor Analysis",
-      type: "n8n-nodes-base.manualTrigger",
-      typeVersion: 1,
+      type: "n8n-nodes-base.webhook",
+      typeVersion: 2,
       position: [80, 80],
       parameters: {
+        path: "{{DRIFT_WORKFLOW_ID}}",
+        httpMethod: "POST",
+        responseMode: "onReceived",
         input_fields: [
           { name: "brief", label: "What are you looking for?", type: "textarea", required: true, placeholder: "My client is a Chick-fil-A franchisee looking for a 1-2 acre pad site along the I-71 corridor between Medina and downtown Cleveland. Needs C-2 or better zoning, high traffic count, and no environmental issues." },
           { name: "corridor_anchors", label: "Search Area", type: "text", required: true, placeholder: "I-71 from Medina to downtown Cleveland, OH" },
@@ -249,10 +252,13 @@ const dueDiligenceWorkflow: N8nWorkflowJSON = {
     {
       id: "trigger",
       name: "Run Due Diligence",
-      type: "n8n-nodes-base.manualTrigger",
-      typeVersion: 1,
+      type: "n8n-nodes-base.webhook",
+      typeVersion: 2,
       position: [80, 80],
       parameters: {
+        path: "{{DRIFT_WORKFLOW_ID}}",
+        httpMethod: "POST",
+        responseMode: "onReceived",
         input_fields: [
           { name: "address", label: "Property Address", type: "text", required: true, placeholder: "1600 Euclid Ave, Cleveland, OH 44115" },
           { name: "context", label: "What should we look for? (optional)", type: "textarea", required: false, placeholder: "Evaluating for a quick-service restaurant. Need to confirm no environmental contamination and verify C-2 zoning allows drive-through." },
@@ -331,10 +337,13 @@ const acquisitionDeepDiveWorkflow: N8nWorkflowJSON = {
     {
       id: "trigger",
       name: "Run Acquisition Analysis",
-      type: "n8n-nodes-base.manualTrigger",
-      typeVersion: 1,
+      type: "n8n-nodes-base.webhook",
+      typeVersion: 2,
       position: [80, 80],
       parameters: {
+        path: "{{DRIFT_WORKFLOW_ID}}",
+        httpMethod: "POST",
+        responseMode: "onReceived",
         input_fields: [
           { name: "address", label: "Property Address", type: "text", required: true, placeholder: "1600 Euclid Ave, Cleveland, OH 44115" },
           { name: "brief", label: "Deal Context", type: "textarea", required: false, placeholder: "Evaluating for a mixed-use redevelopment. Client budget is $2-3M. Interested in the building's condition and whether current zoning allows residential above retail." },

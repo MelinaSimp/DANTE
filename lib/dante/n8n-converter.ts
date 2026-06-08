@@ -219,11 +219,18 @@ function convertParameters(
       };
 
     case "trigger_manual": {
+      // Convert to webhook trigger so execution works via HTTP POST.
+      // The path placeholder gets replaced with the Drift workflow ID
+      // at clone/push time.
       const fields = config.input_fields;
-      if (Array.isArray(fields) && fields.length > 0) {
-        return { input_fields: fields };
-      }
-      return {};
+      return {
+        path: String(config.webhook_path || nodeId),
+        httpMethod: "POST",
+        responseMode: "onReceived",
+        ...(Array.isArray(fields) && fields.length > 0
+          ? { input_fields: fields }
+          : {}),
+      };
     }
 
     case "trigger_webhook":

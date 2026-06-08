@@ -499,6 +499,87 @@ export async function createWorkspaceWorkflow(
   return createWorkflow(taggedJson);
 }
 
+// ── Webhook Trigger Management ──────────────────────────────
+
+/**
+ * Ensure a workflow in n8n has a webhook trigger with the correct path
+ * so it can be executed via `POST /webhook/{path}`.
+ *
+ * If the trigger is already a webhook with the right path, this is a no-op.
+ * Otherwise it patches the trigger node, updates the workflow, and
+ * reactivates it so n8n registers the new webhook URL.
+ *
+ * @param n8nWorkflowId  The n8n-side workflow ID
+ * @param webhookPath    The path to set (typically the Drift workflow ID)
+ */
+export async function ensureWebhookTrigger(
+  n8nWorkflowId: string,
+  webhookPath: string,
+): Promise<void> {
+  const wf = await getWorkflow(n8nWorkflowId);
+  const nodes = wf.nodes || [];
+
+  // Find trigger node -- the first node whose type mentions trigger/webhook
+  const triggerIdx = nodes.findIndex(
+    (n) =>
+      n.type.toLowerCase().includes("trigger") ||
+      n.type.toLowerCase().includes("webhook"),
+  );
+
+  if (triggerIdx < 0) {
+    n8nLog.warn("ensureWebhookTrigger: no trigger node found", { n8nWorkflowId });
+    return;
+  }
+
+  const trigger = nodes[triggerIdx];
+  const params = (trigger.parameters || {}) as Record<string, unknown>;
+
+  // Already correct?
+  if (
+    trigger.type === "n8n-nodes-base.webhook" &&
+    params.path === webhookPath
+  ) {
+    return;
+  }
+
+  // Preserve input_fields from the old trigger for the Drift UI
+  const inputFields = params.input_fields;
+
+  // Patch trigger to a webhook node
+  const patched = {
+    ...trigger,
+    type: "n8n-nodes-base.webhook" as const,
+    typeVersion: 2,
+    parameters: {
+      path: webhookPath,
+      httpMethod: "POST",
+      responseMode: "onReceived",
+      ...(inputFields ? { input_fields: inputFields } : {}),
+    },
+  };
+  nodes[triggerIdx] = patched;
+
+  // Build update payload -- strip read-only fields
+  const { id: _id, active: _active, ...updatePayload } = wf as N8nWorkflowResponse & { active?: boolean };
+  updatePayload.nodes = nodes;
+
+  await updateWorkflow(n8nWorkflowId, updatePayload as unknown as N8nWorkflowJSON);
+
+  // Deactivate then activate to re-register the new webhook URL
+  try {
+    await deactivateWorkflow(n8nWorkflowId);
+  } catch {
+    // Might already be inactive
+  }
+  await activateWorkflow(n8nWorkflowId);
+
+  n8nLog.info("patched workflow trigger to webhook", {
+    n8nWorkflowId,
+    webhookPath,
+    oldType: trigger.type,
+  });
+}
+
 // ── Health Check ─────────────────────────────────────────────
 
 /** Verify n8n is reachable and the API key is valid. */
