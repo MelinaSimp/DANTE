@@ -299,6 +299,9 @@ export interface SurveyResult {
     by_category: Record<string, number>;
   };
   api_calls_made: number;
+  /** Non-OK statuses returned by Google Places API (e.g. REQUEST_DENIED).
+   *  If this is non-empty, the results are incomplete or empty. */
+  api_errors?: string[];
 }
 
 /** CRE void-analysis taxonomy: category name -> Google place types */
@@ -383,6 +386,7 @@ export async function surveyNearbyBusinesses(
   // Deduplicate by place_id
   const seen = new Map<string, SurveyBusiness>();
   let apiCalls = 0;
+  const apiErrors = new Set<string>();
 
   // Batch queries: 8 concurrent requests to stay under 50 QPS
   const BATCH_SIZE = 8;
@@ -409,16 +413,23 @@ export async function surveyNearbyBusinesses(
         try {
           const res = await fetch(`${PLACES_BASE}?${params}`);
           apiCalls++;
-          if (!res.ok) break;
+          if (!res.ok) {
+            apiErrors.add(`HTTP ${res.status} for type=${googleType}`);
+            break;
+          }
           const data = await res.json();
-          if (data.status !== "OK" && data.status !== "ZERO_RESULTS") break;
+          if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
+            apiErrors.add(`${data.status}: ${data.error_message || "unknown error"} (type=${googleType})`);
+            break;
+          }
           results.push(...(data.results || []));
           nextPageToken = data.next_page_token || null;
           pages++;
           if (!nextPageToken || results.length >= maxPerType) break;
           // Google requires a short delay before using next_page_token
           await new Promise((r) => setTimeout(r, 250));
-        } catch {
+        } catch (err) {
+          apiErrors.add(`fetch error for type=${googleType}: ${err instanceof Error ? err.message : String(err)}`);
           break;
         }
       }
@@ -489,5 +500,6 @@ export async function surveyNearbyBusinesses(
       by_category: byCategoryCounts,
     },
     api_calls_made: apiCalls,
+    ...(apiErrors.size > 0 && { api_errors: Array.from(apiErrors) }),
   };
 }

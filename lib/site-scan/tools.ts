@@ -1008,12 +1008,34 @@ async function runSurvey(
     });
   }
 
+  // If Google Places API returned errors (e.g. REQUEST_DENIED because
+  // the Places API isn't enabled on the key), surface that immediately
+  // instead of showing a misleading "0 businesses" void analysis.
+  if (survey.api_errors?.length && survey.summary.total_unique === 0) {
+    return JSON.stringify({
+      error:
+        "Google Places API returned errors for every category -- the results " +
+        "would be empty and misleading. This usually means the Places API " +
+        "(Nearby Search) is not enabled on your Google Cloud project, or the " +
+        "API key has billing/quota issues. Check the Google Cloud Console.\n\n" +
+        "Errors: " + survey.api_errors.slice(0, 5).join("; "),
+      address_resolved: resolvedAddress,
+      survey_center: { lat, lng },
+    });
+  }
+
   // Build formatted text block for quick model scanning
   const lines: string[] = [];
   lines.push(`AREA SURVEY: ${resolvedAddress}`);
   lines.push(`Center: ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
   lines.push(`Radii: ${radiiMiles.map((r) => `${r} mi`).join(", ")}`);
   lines.push(`Total businesses found: ${survey.summary.total_unique}`);
+  if (survey.api_errors?.length) {
+    lines.push(`WARNING: ${survey.api_errors.length} API error(s) -- some categories may have incomplete data.`);
+    for (const e of survey.api_errors.slice(0, 3)) {
+      lines.push(`  * ${e}`);
+    }
+  }
   lines.push("");
 
   // Summary by radius
@@ -1100,9 +1122,15 @@ async function runSurvey(
     ),
     formatted: lines.join("\n"),
     api_calls_made: survey.api_calls_made,
+    ...(survey.api_errors?.length && { api_errors: survey.api_errors }),
     caveat:
-      "Point-in-time snapshot from Google Places API. Some businesses may be " +
-      "missing or recently closed. Verify with on-site visit and local " +
-      "business directories for critical decisions.",
+      survey.api_errors?.length
+        ? "WARNING: Some Google Places API calls failed. Business counts may be " +
+          "incomplete -- categories showing 0 results may actually have businesses " +
+          "nearby. Check that the Places API (Nearby Search) is enabled on the " +
+          "Google Cloud project and that the API key has no billing issues."
+        : "Point-in-time snapshot from Google Places API. Some businesses may be " +
+          "missing or recently closed. Verify with on-site visit and local " +
+          "business directories for critical decisions.",
   });
 }
