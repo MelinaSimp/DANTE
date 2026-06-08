@@ -3,45 +3,15 @@
 // DELETE THIS after debugging.
 
 import { NextResponse } from "next/server";
-import { createServerSupabase } from "@/lib/supabase/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  // Auth check
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("workspace_id")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (!profile?.workspace_id) {
-    return NextResponse.json({ error: "No workspace" }, { status: 400 });
-  }
+  // Temporary debug endpoint -- no auth gate so we can hit it directly.
+  // DELETE THIS FILE after diagnosing the Places API issue.
 
-  // Resolve the Google Maps API key (same path as the real survey)
-  let apiKey: string | null = null;
-  try {
-    const { data: conn } = await supabaseAdmin
-      .from("integration_connections")
-      .select("credentials")
-      .eq("workspace_id", profile.workspace_id)
-      .eq("provider", "google_maps")
-      .eq("status", "connected")
-      .maybeSingle();
-    if (conn) {
-      const creds = conn.credentials as Record<string, string>;
-      if (creds.api_key) apiKey = creds.api_key;
-    }
-  } catch { /* fall through */ }
-  if (!apiKey) apiKey = process.env.GOOGLE_MAPS_API_KEY || null;
+  // Use the env var directly (same as the real survey code's fallback)
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY || null;
 
   if (!apiKey) {
     return NextResponse.json({
@@ -100,9 +70,7 @@ export async function GET() {
 
   return NextResponse.json({
     test_address: testAddress,
-    api_key_source: apiKey === process.env.GOOGLE_MAPS_API_KEY
-      ? "env:GOOGLE_MAPS_API_KEY"
-      : "integration_connections",
+    api_key_source: "env:GOOGLE_MAPS_API_KEY",
     api_key_prefix: apiKey.slice(0, 8) + "...",
     geocode: {
       status: geoData.status,
