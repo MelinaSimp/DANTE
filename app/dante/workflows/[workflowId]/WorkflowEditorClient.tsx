@@ -803,7 +803,13 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
   // Check if the trigger has input fields; if so, open the dialog
   // instead of running immediately.
   const handleRunClick = useCallback(() => {
-    const triggerNode = nodes.find((n) => n.data.step.type === "trigger_manual");
+    // Find trigger node -- handles both Drift-native (trigger_manual) and
+    // n8n-native (n8n-nodes-base.webhook) trigger types
+    const triggerNode = nodes.find((n) => {
+      const t = String(n.data.step.type);
+      return t === "trigger_manual" || t === "n8n-nodes-base.webhook"
+        || t === "n8n-nodes-base.manualTrigger" || t.startsWith("trigger_");
+    });
     const fields = (triggerNode?.data.step.config as { input_fields?: TriggerInputField[] })?.input_fields;
     if (fields && fields.length > 0 && fields.some((f) => f.name)) {
       // Seed defaults
@@ -1278,7 +1284,11 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
 
       {/* Run input dialog — shown when trigger has input_fields */}
       {runInputOpen && (() => {
-        const triggerNode = nodes.find((n) => n.data.step.type === "trigger_manual");
+        const triggerNode = nodes.find((n) => {
+          const t = String(n.data.step.type);
+          return t === "trigger_manual" || t === "n8n-nodes-base.webhook"
+            || t === "n8n-nodes-base.manualTrigger" || t.startsWith("trigger_");
+        });
         const fields = ((triggerNode?.data.step.config as { input_fields?: TriggerInputField[] })?.input_fields || []).filter((f) => f.name);
         const missingRequired = fields.some((f) => f.required && !runInputValues[f.name]?.trim());
         return (
