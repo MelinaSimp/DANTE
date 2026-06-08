@@ -288,7 +288,7 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
         {/* Stat strip — compact workspace-level numbers. Keeps the
             dashboard from feeling barren when activity streams are
             empty. Each cell links to its dedicated page. */}
-        <div className="grid grid-cols-4 gap-3 mb-10">
+        <div className="grid grid-cols-4 gap-3 mb-3">
           <Link href="/properties" className="group">
             <div className="glass-card glass-card-hover px-4 py-3 transition">
               <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] mb-1">Properties</div>
@@ -318,10 +318,9 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
           </div>
         </div>
 
-        {/* Digest bar — compact email + vault summary. Shows the
-            workspace's recent pulse even when no items need action. */}
+        {/* Digest bar -- compact email + vault summary. */}
         {data.digest && (data.digest.emailsToday > 0 || data.digest.vaultUploadsWeek > 0) && (
-          <div className="flex items-center gap-5 text-xs text-[var(--ink-muted)] mb-6">
+          <div className="glass-card px-4 py-3 flex items-center gap-5 text-xs text-[var(--ink-muted)] mb-3">
             {data.digest.emailsToday > 0 && (
               <span className="inline-flex items-center gap-1.5">
                 <Mail className="w-3.5 h-3.5" strokeWidth={1.5} />
@@ -346,7 +345,7 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
             expirations, draft send dates, and scheduled workflows.
             Gives a cross-cutting view of what's coming up. */}
         {data.upcomingDeadlines && data.upcomingDeadlines.length > 0 && (
-          <div className="mb-10">
+          <div className="mb-3">
             <div className="flex items-center gap-1.5 mb-3">
               <Clock className="w-3.5 h-3.5 text-[var(--ink-muted)]" strokeWidth={1.5} />
               <span className="label-section">Upcoming deadlines</span>
@@ -380,15 +379,15 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
           const n = data.noticedToday;
           const assistantName = getIndustryConfig(data.industry).assistantName;
           return (
-            <div className="grid lg:grid-cols-2 gap-8 mb-12">
+            <div className="grid lg:grid-cols-2 gap-3 mb-12">
               {/* Left column: What Dante Noticed Today */}
-              <section>
-                <div className="flex items-center gap-2 mb-5">
+              <section className="glass-card p-5 flex flex-col min-h-[320px]">
+                <div className="flex items-center gap-2 mb-4">
                   <Eye className="w-3.5 h-3.5 text-[var(--ink-muted)]" strokeWidth={1.5} />
                   <span className="label-section">What {assistantName} noticed today</span>
                 </div>
-                <div className="space-y-6">
-                  {/* Usage insights — patterns, warnings, suggestions */}
+                <div className="space-y-4 flex-1">
+                  {/* Usage insights -- patterns, warnings, suggestions */}
                   {data.usageInsights && data.usageInsights.length > 0 && (
                     <div className="space-y-2">
                       {data.usageInsights.map((insight) => (
@@ -409,117 +408,93 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
                     </div>
                   )}
 
-                  {/* Noticed items — cron-materialized observations */}
+                  {/* Noticed items -- cron-materialized observations */}
                   {n && <NoticedItemsList items={n.items || []} assistantName={assistantName} />}
 
-                  {/* Pending drafts */}
-                  {n && (
+                  {/* Pending drafts -- only when there are actual drafts */}
+                  {n && n.topDrafts.length > 0 && (
                     <div>
-                  <div className="flex items-baseline justify-between mb-3 gap-3">
-                    <div>
-                      <div className="text-sm font-medium text-[var(--ink)]">
-                        {n.pendingDraftsCount === 0
-                          ? "No drafts awaiting review"
-                          : `${n.pendingDraftsCount} draft${n.pendingDraftsCount === 1 ? "" : "s"} awaiting review`}
+                      <div className="flex items-baseline justify-between mb-3 gap-3">
+                        <div>
+                          <div className="text-sm font-medium text-[var(--ink)]">
+                            {n.pendingDraftsCount} draft{n.pendingDraftsCount === 1 ? "" : "s"} awaiting review
+                          </div>
+                          <div className="text-[11px] text-[var(--ink-muted)] mt-0.5">
+                            Auto-proposed reminders. Nothing sends until you approve.
+                          </div>
+                        </div>
+                        <Link
+                          href="/reminders"
+                          className="inline-flex items-center gap-1 text-xs text-[var(--accent)] hover:underline whitespace-nowrap"
+                        >
+                          Review all
+                          <ArrowUpRight className="w-3 h-3" strokeWidth={1.5} />
+                        </Link>
                       </div>
-                      <div className="text-[11px] text-[var(--ink-muted)] mt-0.5">
-                        Auto-proposed reminders. Nothing sends until you approve.
-                      </div>
-                    </div>
-                    {n.pendingDraftsCount > 0 && (
-                      <Link
-                        href="/reminders"
-                        className="inline-flex items-center gap-1 text-xs text-[var(--accent)] hover:underline whitespace-nowrap"
-                      >
-                        Review all
-                        <ArrowUpRight className="w-3 h-3" strokeWidth={1.5} />
-                      </Link>
-                    )}
-                  </div>
-                  {n.topDrafts.length === 0 ? (
-                    <div className="rounded-[4px] border border-dashed border-[var(--rule)] bg-[var(--canvas-subtle)] px-3 py-4 text-center">
-                      <div className="text-[11px] text-[var(--ink-muted)]">
-                        {assistantName} is watching for renewal drafts and
-                        scheduled follow-ups.
-                      </div>
-                    </div>
-                  ) : (
-                    <ul className="space-y-2">
-                      {n.topDrafts.map((d) => (
-                        <li key={d.id}>
-                          <Link
-                            href="/reminders"
-                            className="block group rounded-[4px] border border-[var(--rule)] hover:border-[var(--rule-strong)] p-3 transition"
-                          >
-                            <div className="flex items-start gap-3">
-                              <Bell
-                                className="w-3.5 h-3.5 text-[var(--ink-muted)] mt-0.5 shrink-0"
-                                strokeWidth={1.5}
-                              />
-                              <div className="flex-1 min-w-0">
-                                <div className="text-sm text-[var(--ink)] truncate">
-                                  <EntityAsk
-                                    kind="draft"
-                                    id={d.id}
-                                    label={d.subject || "(no subject)"}
-                                  >
-                                    {d.subject || "(no subject)"}
-                                  </EntityAsk>
-                                </div>
-                                <div className="text-[11px] text-[var(--ink-subtle)] truncate mt-0.5 flex items-center gap-2 flex-wrap">
-                                  {d.contact_name && <span>{d.contact_name}</span>}
-                                  {d.property_address && (
-                                    <span className="inline-flex items-center gap-1">
-                                      <span className="text-[var(--ink-subtle)]">·</span>
-                                      <span>{d.property_address}</span>
-                                    </span>
-                                  )}
-                                  {d.doc_kind && (
-                                    <span className="mono uppercase tracking-wider">
-                                      · {d.doc_kind}
-                                    </span>
-                                  )}
-                                  {d.send_at && (
-                                    <span>
-                                      <span className="text-[var(--ink-subtle)]">·</span>{" "}
-                                      send {formatRelativeDate(d.send_at)}
-                                    </span>
-                                  )}
+                      <ul className="space-y-2">
+                        {n.topDrafts.map((d) => (
+                          <li key={d.id}>
+                            <Link
+                              href="/reminders"
+                              className="block group rounded-[4px] border border-[var(--rule)] hover:border-[var(--rule-strong)] p-3 transition"
+                            >
+                              <div className="flex items-start gap-3">
+                                <Bell
+                                  className="w-3.5 h-3.5 text-[var(--ink-muted)] mt-0.5 shrink-0"
+                                  strokeWidth={1.5}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm text-[var(--ink)] truncate">
+                                    <EntityAsk
+                                      kind="draft"
+                                      id={d.id}
+                                      label={d.subject || "(no subject)"}
+                                    >
+                                      {d.subject || "(no subject)"}
+                                    </EntityAsk>
+                                  </div>
+                                  <div className="text-[11px] text-[var(--ink-subtle)] truncate mt-0.5 flex items-center gap-2 flex-wrap">
+                                    {d.contact_name && <span>{d.contact_name}</span>}
+                                    {d.property_address && (
+                                      <span className="inline-flex items-center gap-1">
+                                        <span className="text-[var(--ink-subtle)]">.</span>
+                                        <span>{d.property_address}</span>
+                                      </span>
+                                    )}
+                                    {d.doc_kind && (
+                                      <span className="mono uppercase tracking-wider">
+                                        . {d.doc_kind}
+                                      </span>
+                                    )}
+                                    {d.send_at && (
+                                      <span>
+                                        <span className="text-[var(--ink-subtle)]">.</span>{" "}
+                                        send {formatRelativeDate(d.send_at)}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   )}
 
-                  {/* Expiring documents */}
-                  {n && (
-                  <div>
-                    <div className="flex items-baseline justify-between mb-3 gap-3">
-                      <div>
-                        <div className="text-sm font-medium text-[var(--ink)]">
-                          {n.expiringDocsCount === 0
-                            ? "Nothing expiring in 30 days"
-                            : `${n.expiringDocsCount} document${n.expiringDocsCount === 1 ? "" : "s"} expiring soon`}
-                        </div>
-                        <div className="text-[11px] text-[var(--ink-muted)] mt-0.5">
-                          Leases, insurance, disclosures within the next month.
-                        </div>
-                      </div>
-                    </div>
-                    {n.topExpiring.length === 0 ? (
-                      <div className="rounded-[4px] border border-dashed border-[var(--rule)] bg-[var(--canvas-subtle)] px-3 py-4 text-center">
-                        <div className="text-[11px] text-[var(--ink-muted)]">
-                          Attach a lease, insurance policy, or HOA doc to a
-                          property and {assistantName} will flag it 30 days
-                          before expiry.
+                  {/* Expiring documents -- only when there are actual items */}
+                  {n && n.topExpiring.length > 0 && (
+                    <div>
+                      <div className="flex items-baseline justify-between mb-3 gap-3">
+                        <div>
+                          <div className="text-sm font-medium text-[var(--ink)]">
+                            {n.expiringDocsCount} document{n.expiringDocsCount === 1 ? "" : "s"} expiring soon
+                          </div>
+                          <div className="text-[11px] text-[var(--ink-muted)] mt-0.5">
+                            Leases, insurance, disclosures within the next month.
+                          </div>
                         </div>
                       </div>
-                    ) : (
                       <ul className="space-y-2">
                         {n.topExpiring.map((e) => (
                           <li key={e.id}>
@@ -547,10 +522,10 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
                                       {e.doc_kind}
                                     </span>
                                     {e.property_address && (
-                                      <span>· {e.property_address}</span>
+                                      <span>. {e.property_address}</span>
                                     )}
                                     <span>
-                                      · expires {formatRelativeDate(e.expires_at)}
+                                      . expires {formatRelativeDate(e.expires_at)}
                                     </span>
                                   </div>
                                 </div>
@@ -559,15 +534,30 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
                           </li>
                         ))}
                       </ul>
-                    )}
-                  </div>
+                    </div>
+                  )}
+
+                  {/* Quiet state -- only if truly nothing to show */}
+                  {(!data.usageInsights || data.usageInsights.length === 0) &&
+                    (!n || ((n.items || []).length === 0 && n.topDrafts.length === 0 && n.topExpiring.length === 0)) && (
+                    <div className="flex-1 flex items-center justify-center py-8">
+                      <div className="text-center">
+                        <Eye className="w-5 h-5 text-[var(--ink-subtle)] mx-auto mb-2" strokeWidth={1.5} />
+                        <div className="text-sm text-[var(--ink-muted)]">
+                          {assistantName} is watching your workspace.
+                        </div>
+                        <div className="text-[11px] text-[var(--ink-subtle)] mt-1">
+                          Insights, drafts, and alerts will show up here.
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
               </section>
 
               {/* Right column: Recent Activity */}
-              <section>
-                <div className="flex items-center gap-2 mb-5">
+              <section className="glass-card p-5 flex flex-col min-h-[320px]">
+                <div className="flex items-center gap-2 mb-4">
                   <Activity className="w-3.5 h-3.5 text-[var(--ink-muted)]" strokeWidth={1.5} />
                   <span className="label-section">Recent activity</span>
                   {data.workflowResults && data.workflowResults.length > 0 && (
@@ -580,7 +570,7 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
                     </Link>
                   )}
                 </div>
-                <div className="space-y-6">
+                <div className="space-y-4 flex-1">
                   {/* Workflow results */}
                   {data.workflowResults && data.workflowResults.length > 0 && (
                     <div>
@@ -645,7 +635,7 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
                     </div>
                   )}
 
-                  {/* Your workflows — quick-run cards when there's no
+                  {/* Your workflows -- quick-run cards when there's no
                       activity yet. Gives the right column something
                       actionable instead of an empty placeholder. */}
                   {(!data.workflowResults || data.workflowResults.length === 0) &&
@@ -677,13 +667,7 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
                   )}
 
                   {/* Activity feed */}
-                  {!data.recentActivity || data.recentActivity.length === 0 ? (
-                    (!data.enabledWorkflows || data.enabledWorkflows.length === 0) ? (
-                      <div className="py-6 border-t border-b border-[var(--rule)] text-sm text-[var(--ink-subtle)] italic">
-                        Workflow results, emails, and messages will appear here as they come in.
-                      </div>
-                    ) : null
-                  ) : (
+                  {data.recentActivity && data.recentActivity.length > 0 && (
                     <ul className="divide-y divide-[var(--rule)] border-t border-[var(--rule)]">
                       {data.recentActivity.slice(0, 12).map((a) => (
                         <li key={a.id} className="py-3">
@@ -704,7 +688,7 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
                                 <ActivityLabel kind={a.kind} />
                                 {a.detail && (
                                   <>
-                                    <span className="text-[var(--ink-subtle)]">·</span>
+                                    <span className="text-[var(--ink-subtle)]">.</span>
                                     <span className="truncate">{a.detail}</span>
                                   </>
                                 )}
@@ -770,6 +754,7 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
                       </ul>
                     </div>
                   )}
+
                   {/* Recent Dante conversations */}
                   {data.recentChats && data.recentChats.length > 0 && (
                     <div>
@@ -795,6 +780,25 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
                           </li>
                         ))}
                       </ul>
+                    </div>
+                  )}
+
+                  {/* Quiet state -- only if truly nothing to show */}
+                  {(!data.workflowResults || data.workflowResults.length === 0) &&
+                    (!data.recentActivity || data.recentActivity.length === 0) &&
+                    (!data.enabledWorkflows || data.enabledWorkflows.length === 0) &&
+                    data.recentCalls.length === 0 &&
+                    (!data.recentChats || data.recentChats.length === 0) && (
+                    <div className="flex-1 flex items-center justify-center py-8">
+                      <div className="text-center">
+                        <Activity className="w-5 h-5 text-[var(--ink-subtle)] mx-auto mb-2" strokeWidth={1.5} />
+                        <div className="text-sm text-[var(--ink-muted)]">
+                          No activity yet.
+                        </div>
+                        <div className="text-[11px] text-[var(--ink-subtle)] mt-1">
+                          Workflow results, emails, and calls will appear here.
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
