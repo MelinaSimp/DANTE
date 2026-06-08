@@ -15,6 +15,7 @@ import {
   X,
   Check,
   DollarSign,
+  Plus,
 } from "lucide-react";
 import { reportError } from "@/lib/report-error";
 
@@ -56,6 +57,8 @@ export default function WorkspacesPage() {
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [newName, setNewName] = useState("");
+  const [creating, setCreating] = useState(false);
 
   const toggleExpanded = (id: string) =>
     setExpanded((prev) => {
@@ -170,6 +173,42 @@ export default function WorkspacesPage() {
     }
   };
 
+  const handleCreate = async () => {
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    setCreating(true);
+    try {
+      const res = await fetch("/api/admin/workspaces", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ name: trimmed }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setWorkspaces((prev) => [
+          ...prev,
+          {
+            ...data,
+            owner_name: null,
+            owner_email: null,
+            user_count: 0,
+            billing_amount: null,
+            industry: null,
+          },
+        ]);
+        setNewName("");
+        setToast({ type: "success", message: `Created "${trimmed}"` });
+      } else {
+        setToast({ type: "error", message: data.error || "Failed to create workspace" });
+      }
+    } catch {
+      setToast({ type: "error", message: "Network error" });
+    } finally {
+      setCreating(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -190,6 +229,29 @@ export default function WorkspacesPage() {
         <p className="text-sm text-[var(--ink-muted)] ml-[52px]">
           {workspaces.length} workspace{workspaces.length !== 1 ? "s" : ""} registered
         </p>
+      </div>
+
+      <div className="flex items-center gap-2 mb-6">
+        <input
+          type="text"
+          placeholder="New workspace name..."
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+          className="flex-1 h-10 px-3 rounded-[6px] border border-[var(--rule)] bg-[var(--canvas)] text-sm text-[var(--ink)] placeholder:text-[var(--ink-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--ink-subtle)]"
+        />
+        <button
+          onClick={handleCreate}
+          disabled={creating || !newName.trim()}
+          className="h-10 px-4 rounded-[6px] bg-[var(--ink)] text-[var(--canvas)] text-sm font-medium flex items-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-40"
+        >
+          {creating ? (
+            <Loader2 className="h-4 w-4 animate-spin" strokeWidth={1.5} />
+          ) : (
+            <Plus className="h-4 w-4" strokeWidth={1.5} />
+          )}
+          Create
+        </button>
       </div>
 
       <div className="card-flat overflow-hidden">
