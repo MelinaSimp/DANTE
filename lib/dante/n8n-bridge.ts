@@ -26,6 +26,51 @@ import type {
 
 const n8nLog = rootLog.child({ component: "n8n-bridge" });
 
+// ── n8n Credential Mapping ───────────────────────────────────
+// Real credential IDs from the production n8n instance. Templates use
+// placeholder IDs (e.g. "1") -- this map replaces them before push.
+// Override via DRIFT_N8N_CREDENTIALS env var (JSON object mapping
+// credential type to {id, name}) if the instance changes.
+
+const DEFAULT_CREDENTIAL_MAP: Record<string, { id: string; name: string }> = {
+  driftCreApi: { id: "d7p7YdIQohdzatvc", name: "Drift CRE - TerraGroup" },
+  smtp: { id: "6eJzxHjAC9aEFBQa", name: "Resend SMTP" },
+  openAiApi: { id: "5MaeTxEbGKeVR8Sk", name: "OpenAI" },
+};
+
+function getCredentialMap(): Record<string, { id: string; name: string }> {
+  const override = process.env.DRIFT_N8N_CREDENTIALS;
+  if (override) {
+    try { return JSON.parse(override); } catch { /* fall through */ }
+  }
+  return DEFAULT_CREDENTIAL_MAP;
+}
+
+/**
+ * Replace placeholder credential IDs on all nodes with real n8n IDs.
+ * Call BEFORE pushing to n8n so activation succeeds.
+ */
+export function patchGraphCredentials(
+  nodes: Array<{ credentials?: unknown }>,
+): void {
+  const credMap = getCredentialMap();
+  for (const node of nodes) {
+    const creds = node.credentials as Record<string, { id: string; name: string }> | undefined;
+    if (!creds) continue;
+    for (const [credType, ref] of Object.entries(creds)) {
+      const real = credMap[credType];
+      if (real && ref.id !== real.id) {
+        creds[credType] = { ...real };
+      }
+    }
+    // Also add missing credentials for known node types
+    const nodeType = (node as { type?: string }).type || "";
+    if (nodeType === "n8n-nodes-base.emailSend" && !creds.smtp && credMap.smtp) {
+      creds.smtp = { ...credMap.smtp };
+    }
+  }
+}
+
 // ── Configuration ────────────────────────────────────────────
 
 function getBaseUrl(): string {

@@ -115,6 +115,10 @@ export async function POST(
   // Handles manualTrigger, scheduleTrigger, or webhook with placeholder.
   n8nBridge.patchGraphTrigger(workflowJson.nodes, driftWorkflowId);
 
+  // Replace placeholder credential IDs with real n8n credential IDs
+  // so the workflow can activate (e.g. SMTP, DriftCRE API, OpenAI).
+  n8nBridge.patchGraphCredentials(workflowJson.nodes);
+
   // Push to n8n (best-effort)
   let n8nWorkflowId: string | null = null;
   try {

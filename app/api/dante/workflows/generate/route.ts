@@ -86,6 +86,7 @@ export async function POST(request: Request) {
 
       // Convert trigger to webhook with Drift workflow ID as path
       n8nBridge.patchGraphTrigger(conversion.workflow.nodes, data.id);
+      n8nBridge.patchGraphCredentials(conversion.workflow.nodes);
 
       const n8nId = await n8nBridge.createWorkspaceWorkflow(
         profile.workspace_id,
