@@ -624,6 +624,69 @@ export function stepsToGraph(steps: WorkflowStep[] | null | undefined): Workflow
 
 // Build a WorkflowDefinition from a DB row, tolerating either legacy
 // `steps` or phase-2 `graph` shape. Used by the runner and the API.
+/**
+ * Detect and convert an n8n-native graph to Drift canvas format.
+ * n8n graphs have `connections` (object keyed by node name) instead
+ * of `edges` (array), and positions as [x,y] arrays instead of {x,y}.
+ */
+function convertN8nGraph(g: Record<string, unknown>): WorkflowGraph {
+  const nodes = g.nodes as Array<Record<string, unknown>>;
+  const connections = g.connections as Record<string, { main?: Array<Array<{ node: string; type: string; index: number }>> }> | undefined;
+
+  // Build a name-to-id lookup (n8n connections reference by name)
+  const nameToId: Record<string, string> = {};
+  for (const n of nodes) {
+    nameToId[String(n.name || n.id)] = String(n.id);
+  }
+
+  // Convert nodes: n8n position [x,y] -> {x,y}, synthesize Drift data shape
+  const gNodes: GraphNode[] = nodes.map((n) => {
+    const pos = n.position;
+    const position = Array.isArray(pos)
+      ? { x: Number(pos[0]) || 0, y: Number(pos[1]) || 0 }
+      : (pos && typeof pos === "object" && "x" in pos)
+        ? pos as { x: number; y: number }
+        : { x: 0, y: 0 };
+
+    return {
+      id: String(n.id),
+      type: String(n.type || "unknown") as StepType,
+      position,
+      data: {
+        step: {
+          id: String(n.id),
+          type: String(n.type || "unknown") as StepType,
+          name: String(n.name || n.id),
+          config: (n.parameters || {}) as Record<string, unknown>,
+        },
+      },
+    };
+  });
+
+  // Convert connections object -> edges array
+  const gEdges: GraphEdge[] = [];
+  if (connections && typeof connections === "object") {
+    for (const [sourceName, outlets] of Object.entries(connections)) {
+      const sourceId = nameToId[sourceName];
+      if (!sourceId || !outlets?.main) continue;
+      for (const outputGroup of outlets.main) {
+        if (!Array.isArray(outputGroup)) continue;
+        for (const conn of outputGroup) {
+          const targetId = nameToId[conn.node];
+          if (!targetId) continue;
+          gEdges.push({
+            id: `${sourceId}-${targetId}`,
+            source: sourceId,
+            target: targetId,
+          });
+        }
+      }
+    }
+  }
+
+  return { nodes: gNodes, edges: gEdges };
+}
+
 export function definitionFromRow(row: {
   id: string;
   workspace_id: string;
@@ -635,9 +698,25 @@ export function definitionFromRow(row: {
   steps?: unknown;
 }): WorkflowDefinition {
   const graph: WorkflowGraph = (() => {
-    const g = row.graph as WorkflowGraph | undefined;
-    if (g && Array.isArray(g.nodes) && g.nodes.length > 0) {
-      return { nodes: g.nodes, edges: Array.isArray(g.edges) ? g.edges : [], viewport: g.viewport };
+    const g = row.graph as Record<string, unknown> | undefined;
+    if (g && Array.isArray(g.nodes) && (g.nodes as unknown[]).length > 0) {
+      // Detect n8n-native format: has `connections` object instead of `edges` array
+      const hasConnections = g.connections && typeof g.connections === "object" && !Array.isArray(g.connections);
+      const hasEdges = Array.isArray(g.edges) && (g.edges as unknown[]).length > 0;
+
+      if (hasConnections && !hasEdges) {
+        return convertN8nGraph(g);
+      }
+
+      // Drift-native format -- use as-is but fix array positions if needed
+      const wg = g as unknown as WorkflowGraph;
+      const fixedNodes = wg.nodes.map((n) => {
+        if (Array.isArray(n.position)) {
+          return { ...n, position: { x: Number(n.position[0]) || 0, y: Number(n.position[1]) || 0 } };
+        }
+        return n;
+      });
+      return { nodes: fixedNodes, edges: Array.isArray(g.edges) ? g.edges as GraphEdge[] : [], viewport: wg.viewport };
     }
     // Fall back to the legacy linear shape.
     return stepsToGraph(row.steps as WorkflowStep[] | undefined);
