@@ -2217,8 +2217,8 @@ function InputBar(p: InputBarProps) {
           <ToolbarButton
             icon={Library}
             label="Prompts"
-            active={p.promptsOpen}
-            onClick={() => p.setPromptsOpen((v) => !v)}
+            active={p.promptLibraryOpen}
+            onClick={() => p.setPromptLibraryOpen((v) => !v)}
           />
           <ToolbarButton
             icon={Telescope}
@@ -2231,12 +2231,6 @@ function InputBar(p: InputBarProps) {
                 return next;
               });
             }}
-          />
-          <ToolbarButton
-            icon={FileText}
-            label="Prompt"
-            active={p.promptLibraryOpen}
-            onClick={() => p.setPromptLibraryOpen((v) => !v)}
           />
           <ToolbarButton
             icon={Globe}
@@ -2271,80 +2265,6 @@ function InputBar(p: InputBarProps) {
           </button>
         )}
       </div>
-
-      {p.promptsOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-[2px]"
-          onClick={(e) => { if (e.target === e.currentTarget) p.setPromptsOpen(false); }}
-        >
-          <div className="bg-[var(--canvas)] border border-[var(--rule)] rounded-xl shadow-xl w-full max-w-2xl max-h-[70vh] overflow-hidden flex flex-col mx-4">
-            {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--rule)]">
-              <div>
-                <h2 className="text-sm font-semibold text-[var(--ink)]">Prompt templates</h2>
-                <p className="text-[11px] text-[var(--ink-subtle)] mt-0.5">Pick a template to fill the chat input</p>
-              </div>
-              <button
-                onClick={() => p.setPromptsOpen(false)}
-                className="p-1.5 rounded-md text-[var(--ink-subtle)] hover:bg-[var(--neu-hover)] hover:text-[var(--ink)] transition"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Body */}
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
-              {/* Quick prompts */}
-              <div>
-                <div className="text-[10px] uppercase tracking-wider text-[var(--ink-subtle)] mb-2">Quick prompts</div>
-                <div className="grid grid-cols-2 gap-2">
-                  {(p.quickPrompts || QUICK_PROMPTS_ADVISOR).map((q) => (
-                    <button
-                      key={q.label}
-                      onClick={() => {
-                        p.setInput(q.prompt);
-                        p.setPromptsOpen(false);
-                        p.textareaRef.current?.focus();
-                      }}
-                      className="text-left rounded-lg border border-[var(--rule)] px-3 py-2.5 hover:bg-[var(--canvas-subtle)] hover:border-[var(--ink-muted)] transition group"
-                    >
-                      <div className="text-[13px] font-medium text-[var(--ink)]">{q.label}</div>
-                      <div className="text-[11px] text-[var(--ink-subtle)] mt-1 leading-relaxed line-clamp-2">{q.prompt}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Deep analysis */}
-              {p.isRealtor && (
-                <div>
-                  <div className="text-[10px] uppercase tracking-wider text-[var(--ink-subtle)] mb-2">Deep analysis</div>
-                  <div className="space-y-2">
-                    {DEEP_PROMPTS_REALTOR.map((q) => (
-                      <button
-                        key={q.label}
-                        onClick={() => {
-                          p.setInput(q.prompt);
-                          p.setPromptsOpen(false);
-                          p.textareaRef.current?.focus();
-                        }}
-                        className="block w-full text-left rounded-lg border border-[var(--rule)] px-4 py-3 hover:bg-[var(--canvas-subtle)] hover:border-[var(--ink-muted)] transition group"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="text-[13px] font-medium text-[var(--ink)]">{q.label}</div>
-                          <div className="text-[10px] mono text-[var(--ink-subtle)] bg-[var(--canvas-subtle)] rounded px-1.5 py-0.5">multi-tool</div>
-                        </div>
-                        <div className="text-[11px] text-[var(--ink-muted)] mt-1">{q.description}</div>
-                        <div className="text-[11px] text-[var(--ink-subtle)] mt-2 leading-relaxed line-clamp-3 whitespace-pre-wrap">{q.prompt.slice(0, 200)}...</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {p.promptLibraryOpen && (
         <PromptLibraryModal
