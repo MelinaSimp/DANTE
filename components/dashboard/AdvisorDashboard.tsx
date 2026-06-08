@@ -23,22 +23,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase/client";
 import { pickGreeting, pickSubtitle } from "@/lib/dashboard/greetings";
-import DanteGateLink from "@/components/dante/DanteGateLink";
 import { getIndustryConfig } from "@/lib/industry/config";
 import AppShell from "@/components/shell/AppShell";
 import EntityAsk from "@/components/dante/EntityAsk";
-import { BentoGrid, BentoCard } from "@/components/ui/bento-grid";
 import { usePageContext } from "@/components/dante/PageContext";
 import {
   ArrowUpRight,
-  ShieldCheck,
   FileCheck2,
-  CalendarClock,
-  AlertTriangle,
-  LogOut,
   Sparkles,
   X,
   Check,
@@ -47,7 +39,6 @@ import {
   Eye,
   Activity,
   Zap,
-  Mail,
   MailOpen,
   MessageSquare,
   Send,
@@ -135,6 +126,13 @@ type WorkflowResult = {
   created_at: string;
 };
 
+type UsageInsight = {
+  id: string;
+  kind: "usage_pattern" | "workflow_tip" | "prompt_hint";
+  title: string;
+  body: string;
+};
+
 type ActivityItem = {
   id: string;
   kind: "workflow" | "email_in" | "email_out" | "sms_in" | "sms_out";
@@ -169,6 +167,7 @@ type DashboardData = {
     topExpiring: NoticedExpiring[];
     items?: NoticedItem[];
   };
+  usageInsights?: UsageInsight[];
 };
 
 function formatDateTime(iso: string) {
@@ -176,13 +175,6 @@ function formatDateTime(iso: string) {
     weekday: "short",
     month: "short",
     day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-function formatTimeOnly(iso: string) {
-  return new Date(iso).toLocaleString("en-US", {
     hour: "numeric",
     minute: "2-digit",
   });
@@ -200,8 +192,6 @@ function formatRelativeDate(iso: string) {
 }
 
 export default function AdvisorDashboard({ data }: { data: DashboardData }) {
-  const router = useRouter();
-
   const firstName = useMemo(
     () => data.advisorName.split(" ")[0] || "there",
     [data.advisorName]
@@ -278,122 +268,57 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
             on their own dedicated pages, so cutting them here just
             tightens the dashboard. */}
 
-        {/* Bento — main dashboard surface. Mixes hero + small + wide
-            tiles so the eye lands on TODAY first, then sweeps right
-            for status counters, down for D/V's daily noticing, and
-            across for recent calls. Replaces what used to be a flat
-            stack of sections. AgentOutputsSection sits below as its
-            own row since it self-hides on empty.
+        {/* Two-column dashboard layout. Left column surfaces
+            Dante's analysis: usage insights, cron-materialized
+            notices, pending drafts, expiring docs. Right column
+            shows workflow results and the chronological activity
+            feed. AgentOutputsSection sits below as its own row
+            since it self-hides on empty.
 
-            Layout (md+):
-              Row 1-2: [   Today 2×2   ][Awaiting 1×1]
-                                        [Flagged  1×1]
-              Row 3-4: [   Noticed today 3×2 (full row)   ]
-              Row 5-6: [   Recent calls 3×2 (full row)    ]
+            Layout (lg+):
+              [ What Dante noticed today ] | [ Recent activity  ]
+              [ usage insights           ] | [ workflow results ]
+              [ noticed items            ] | [ activity feed    ]
+              [ drafts + expiring        ] | [ recent calls     ]
         */}
         {(() => {
           const n = data.noticedToday;
           const assistantName = getIndustryConfig(data.industry).assistantName;
           return (
-            <BentoGrid cols={3} className="mb-12">
-              {/* Today — hero (2×2) */}
-              <BentoCard
-                label="Today"
-                icon={<CalendarClock className="w-3 h-3" />}
-                href="/calendar"
-                className="md:col-span-2 md:row-span-2"
-              >
-                {data.today.length === 0 ? (
-                  <EmptyNote>No meetings scheduled.</EmptyNote>
-                ) : (
-                  <ul className="divide-y divide-[var(--rule)] border-t border-[var(--rule)]">
-                    {data.today.map((m) => (
-                      <li key={m.id} className="py-3">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1">
-                            <div className="text-[15px] font-medium mb-0.5">
-                              {m.contactName}
-                            </div>
-                            <div className="text-xs text-[var(--ink-muted)] mono">
-                              {formatTimeOnly(m.scheduledAt)} · {m.serviceType}
-                            </div>
-                          </div>
-                          <Link
-                            href={`/client-details-overview?contact=${encodeURIComponent(
-                              m.contactName,
-                            )}`}
-                            className="inline-flex items-center gap-1 text-xs text-[var(--accent)] hover:underline"
-                          >
-                            Prep
-                            <ArrowUpRight className="w-3 h-3" />
-                          </Link>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </BentoCard>
-
-
-              {/* Quiet clients — small alert (1×1). Folds in the old
-                  "Needs attention" section: top 3 stale, link out
-                  for the rest. */}
-              <BentoCard
-                label="Quiet clients"
-                icon={
-                  <AlertTriangle
-                    className="w-3 h-3"
-                    style={{
-                      color: data.flagged.length > 0 ? "var(--flag)" : undefined,
-                    }}
-                  />
-                }
-                tone={data.flagged.length > 0 ? "alert" : "default"}
-                className="md:col-span-1 md:row-span-2"
-              >
-                {data.flagged.length === 0 ? (
-                  <div className="text-xs text-[var(--ink-muted)]">
-                    No clients need attention right now.
-                  </div>
-                ) : (
-                  <div>
-                    <div className="flex items-baseline gap-2 mb-2">
-                      <div className="heading-display text-3xl">
-                        {data.flagged.length}
-                      </div>
-                      <div className="text-xs text-[var(--ink-muted)]">
-                        going quiet
-                      </div>
-                    </div>
-                    <ul className="space-y-1">
-                      {data.flagged.slice(0, 3).map((f) => (
-                        <li
-                          key={f.id}
-                          className="text-xs text-[var(--ink)] truncate"
+            <div className="grid lg:grid-cols-2 gap-8 mb-12">
+              {/* Left column: What Dante Noticed Today */}
+              <section>
+                <div className="flex items-center gap-2 mb-5">
+                  <Eye className="w-3.5 h-3.5 text-[var(--ink-muted)]" strokeWidth={1.5} />
+                  <span className="label-section">What {assistantName} noticed today</span>
+                </div>
+                <div className="space-y-6">
+                  {/* Usage insights — patterns, warnings, suggestions */}
+                  {data.usageInsights && data.usageInsights.length > 0 && (
+                    <div className="space-y-2">
+                      {data.usageInsights.map((insight) => (
+                        <div
+                          key={insight.id}
+                          className={`px-3 py-2.5 rounded-[4px] bg-[var(--canvas-subtle)] border-l-2 ${
+                            insight.kind === "prompt_hint"
+                              ? "border-[var(--flag)]"
+                              : insight.kind === "workflow_tip"
+                                ? "border-[var(--accent)]"
+                                : "border-[var(--rule-strong)]"
+                          }`}
                         >
-                          <span className="text-[var(--ink-subtle)]">·</span>{" "}
-                          {f.client}
-                        </li>
+                          <div className="text-sm font-medium text-[var(--ink)]">{insight.title}</div>
+                          <div className="text-[12px] text-[var(--ink-muted)] mt-0.5">{insight.body}</div>
+                        </div>
                       ))}
-                    </ul>
-                  </div>
-                )}
-              </BentoCard>
+                    </div>
+                  )}
 
-              {/* What X noticed today — wide row (3×2) */}
-              {n && (
-                <BentoCard
-                  label={`What ${assistantName} noticed today`}
-                  className="md:col-span-3 md:row-span-2"
-                >
-                  {/* Generic notices from dante_noticed (cron-materialized) —
-                      stale clients, contradictions, RMD deadlines, etc.
-                      Renders above the two legacy streams when there's
-                      anything to show. */}
-                  <NoticedItemsList items={n.items || []} assistantName={assistantName} />
+                  {/* Noticed items — cron-materialized observations */}
+                  {n && <NoticedItemsList items={n.items || []} assistantName={assistantName} />}
 
-                  <div className="grid md:grid-cols-2 gap-5">
-                    {/* Pending drafts */}
+                  {/* Pending drafts */}
+                  {n && (
                     <div>
                   <div className="flex items-baseline justify-between mb-3 gap-3">
                     <div>
@@ -474,239 +399,252 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
                     </ul>
                   )}
                 </div>
+                  )}
 
-                {/* Expiring documents */}
-                <div>
-                  <div className="flex items-baseline justify-between mb-3 gap-3">
-                    <div>
-                      <div className="text-sm font-medium text-[var(--ink)]">
-                        {n.expiringDocsCount === 0
-                          ? "Nothing expiring in 30 days"
-                          : `${n.expiringDocsCount} document${n.expiringDocsCount === 1 ? "" : "s"} expiring soon`}
-                      </div>
-                      <div className="text-[11px] text-[var(--ink-muted)] mt-0.5">
-                        Leases, insurance, disclosures within the next month.
-                      </div>
-                    </div>
-                  </div>
-                  {n.topExpiring.length === 0 ? (
-                    <div className="rounded-[4px] border border-dashed border-[var(--rule)] bg-[var(--canvas-subtle)] px-3 py-4 text-center">
-                      <div className="text-[11px] text-[var(--ink-muted)]">
-                        Attach a lease, insurance policy, or HOA doc to a
-                        property and {assistantName} will flag it 30 days
-                        before expiry.
+                  {/* Expiring documents */}
+                  {n && (
+                  <div>
+                    <div className="flex items-baseline justify-between mb-3 gap-3">
+                      <div>
+                        <div className="text-sm font-medium text-[var(--ink)]">
+                          {n.expiringDocsCount === 0
+                            ? "Nothing expiring in 30 days"
+                            : `${n.expiringDocsCount} document${n.expiringDocsCount === 1 ? "" : "s"} expiring soon`}
+                        </div>
+                        <div className="text-[11px] text-[var(--ink-muted)] mt-0.5">
+                          Leases, insurance, disclosures within the next month.
+                        </div>
                       </div>
                     </div>
-                  ) : (
-                    <ul className="space-y-2">
-                      {n.topExpiring.map((e) => (
-                        <li key={e.id}>
-                          <Link
-                            href={`/properties/${e.property_id}`}
-                            className="block group rounded-[4px] border border-[var(--rule)] hover:border-[var(--rule-strong)] p-3 transition"
-                          >
-                            <div className="flex items-start gap-3">
-                              <FileText
-                                className="w-3.5 h-3.5 text-[var(--ink-muted)] mt-0.5 shrink-0"
-                                strokeWidth={1.5}
-                              />
-                              <div className="flex-1 min-w-0">
-                                <div className="text-sm text-[var(--ink)] truncate">
-                                  <EntityAsk
-                                    kind="document"
-                                    id={e.id}
-                                    label={e.title}
-                                  >
-                                    {e.title}
-                                  </EntityAsk>
-                                </div>
-                                <div className="text-[11px] text-[var(--ink-subtle)] truncate mt-0.5 flex items-center gap-2 flex-wrap">
-                                  <span className="mono uppercase tracking-wider">
-                                    {e.doc_kind}
-                                  </span>
-                                  {e.property_address && (
-                                    <span>· {e.property_address}</span>
-                                  )}
-                                  <span>
-                                    · expires {formatRelativeDate(e.expires_at)}
-                                  </span>
+                    {n.topExpiring.length === 0 ? (
+                      <div className="rounded-[4px] border border-dashed border-[var(--rule)] bg-[var(--canvas-subtle)] px-3 py-4 text-center">
+                        <div className="text-[11px] text-[var(--ink-muted)]">
+                          Attach a lease, insurance policy, or HOA doc to a
+                          property and {assistantName} will flag it 30 days
+                          before expiry.
+                        </div>
+                      </div>
+                    ) : (
+                      <ul className="space-y-2">
+                        {n.topExpiring.map((e) => (
+                          <li key={e.id}>
+                            <Link
+                              href={`/properties/${e.property_id}`}
+                              className="block group rounded-[4px] border border-[var(--rule)] hover:border-[var(--rule-strong)] p-3 transition"
+                            >
+                              <div className="flex items-start gap-3">
+                                <FileText
+                                  className="w-3.5 h-3.5 text-[var(--ink-muted)] mt-0.5 shrink-0"
+                                  strokeWidth={1.5}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm text-[var(--ink)] truncate">
+                                    <EntityAsk
+                                      kind="document"
+                                      id={e.id}
+                                      label={e.title}
+                                    >
+                                      {e.title}
+                                    </EntityAsk>
+                                  </div>
+                                  <div className="text-[11px] text-[var(--ink-subtle)] truncate mt-0.5 flex items-center gap-2 flex-wrap">
+                                    <span className="mono uppercase tracking-wider">
+                                      {e.doc_kind}
+                                    </span>
+                                    {e.property_address && (
+                                      <span>· {e.property_address}</span>
+                                    )}
+                                    <span>
+                                      · expires {formatRelativeDate(e.expires_at)}
+                                    </span>
+                                  </div>
                                 </div>
                               </div>
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  )}
+                </div>
+              </section>
+
+              {/* Right column: Recent Activity */}
+              <section>
+                <div className="flex items-center gap-2 mb-5">
+                  <Activity className="w-3.5 h-3.5 text-[var(--ink-muted)]" strokeWidth={1.5} />
+                  <span className="label-section">Recent activity</span>
+                  {data.workflowResults && data.workflowResults.length > 0 && (
+                    <Link
+                      href="/workflows"
+                      className="ml-auto inline-flex items-center gap-1 text-xs text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                    >
+                      All workflows
+                      <ArrowUpRight className="w-3 h-3" strokeWidth={1.5} />
+                    </Link>
+                  )}
+                </div>
+                <div className="space-y-6">
+                  {/* Workflow results */}
+                  {data.workflowResults && data.workflowResults.length > 0 && (
+                    <div>
+                      <div className="text-[11px] mono uppercase tracking-wider text-[var(--ink-muted)] mb-2 flex items-center gap-1.5">
+                        <Zap className="w-3 h-3" strokeWidth={1.5} />
+                        Workflow results
+                      </div>
+                      <ul className="divide-y divide-[var(--rule)] border-t border-[var(--rule)]">
+                        {data.workflowResults.slice(0, 6).map((wr) => (
+                          <li key={wr.id} className="py-3">
+                            <div className="flex items-start gap-3">
+                              <div className="mt-0.5 shrink-0">
+                                <Zap
+                                  className={`w-4 h-4 ${
+                                    wr.status === "failed"
+                                      ? "text-[var(--danger)]"
+                                      : wr.status === "completed"
+                                        ? "text-[var(--verified)]"
+                                        : "text-[var(--accent)]"
+                                  }`}
+                                  strokeWidth={1.5}
+                                />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-baseline gap-2 mb-0.5">
+                                  <div className="text-sm font-medium truncate">
+                                    {wr.workflow_name}
+                                  </div>
+                                  <span
+                                    className={`mono uppercase tracking-wider text-[10px] shrink-0 ${
+                                      wr.status === "completed"
+                                        ? "text-[var(--verified)]"
+                                        : wr.status === "failed"
+                                          ? "text-[var(--danger)]"
+                                          : "text-[var(--accent)]"
+                                    }`}
+                                  >
+                                    {wr.status}
+                                  </span>
+                                  <div className="text-xs mono text-[var(--ink-subtle)] shrink-0 ml-auto">
+                                    {formatRelativeDate(wr.finished_at || wr.created_at)}
+                                  </div>
+                                </div>
+                                {wr.summary ? (
+                                  <div className="text-sm text-[var(--ink-muted)] leading-relaxed whitespace-pre-line line-clamp-3">
+                                    {wr.summary}
+                                  </div>
+                                ) : wr.error ? (
+                                  <div className="text-sm text-[var(--danger)] line-clamp-2">
+                                    {wr.error}
+                                  </div>
+                                ) : (
+                                  <div className="text-sm text-[var(--ink-subtle)] italic">
+                                    No output recorded.
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Activity feed */}
+                  {!data.recentActivity || data.recentActivity.length === 0 ? (
+                    <div className="py-6 border-t border-b border-[var(--rule)] text-sm text-[var(--ink-subtle)] italic">
+                      Workflow results, emails, and messages will appear here as they come in.
+                    </div>
+                  ) : (
+                    <ul className="divide-y divide-[var(--rule)] border-t border-[var(--rule)]">
+                      {data.recentActivity.slice(0, 12).map((a) => (
+                        <li key={a.id} className="py-3">
+                          <div className="flex items-start gap-3">
+                            <div className="mt-0.5 shrink-0">
+                              <ActivityIcon kind={a.kind} status={a.status} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-baseline gap-2 mb-0.5">
+                                <div className="text-sm font-medium truncate">
+                                  {a.headline}
+                                </div>
+                                <div className="text-xs mono text-[var(--ink-subtle)] shrink-0">
+                                  {formatRelativeDate(a.timestamp)}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 text-xs text-[var(--ink-muted)]">
+                                <ActivityLabel kind={a.kind} />
+                                {a.detail && (
+                                  <>
+                                    <span className="text-[var(--ink-subtle)]">·</span>
+                                    <span className="truncate">{a.detail}</span>
+                                  </>
+                                )}
+                                {a.kind === "workflow" && a.status && (
+                                  <span
+                                    className={`mono uppercase tracking-wider text-[10px] ${
+                                      a.status === "completed"
+                                        ? "text-[var(--verified)]"
+                                        : a.status === "failed"
+                                          ? "text-[var(--danger)]"
+                                          : "text-[var(--accent)]"
+                                    }`}
+                                  >
+                                    {a.status}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
                         </li>
                       ))}
                     </ul>
                   )}
-                </div>
-              </div>
-                </BentoCard>
-              )}
 
-              {/* Workflow results — dedicated output cards (3×2) */}
-              {data.workflowResults && data.workflowResults.length > 0 && (
-                <BentoCard
-                  label="Workflow results"
-                  icon={<Zap className="w-3 h-3" />}
-                  href="/workflows"
-                  className="md:col-span-3 md:row-span-2"
-                >
-                  <ul className="divide-y divide-[var(--rule)] border-t border-[var(--rule)]">
-                    {data.workflowResults.slice(0, 8).map((wr) => (
-                      <li key={wr.id} className="py-3">
-                        <div className="flex items-start gap-3">
-                          <div className="mt-0.5 shrink-0">
-                            <Zap
-                              className={`w-4 h-4 ${
-                                wr.status === "failed"
-                                  ? "text-[var(--danger)]"
-                                  : wr.status === "completed"
-                                    ? "text-[var(--verified)]"
-                                    : "text-[var(--accent)]"
-                              }`}
-                              strokeWidth={1.5}
-                            />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-baseline gap-2 mb-0.5">
-                              <div className="text-[15px] font-medium truncate">
-                                {wr.workflow_name}
+                  {/* Recent calls */}
+                  {data.recentCalls.length > 0 && (
+                    <div>
+                      <div className="text-[11px] mono uppercase tracking-wider text-[var(--ink-muted)] mb-2 flex items-center gap-1.5">
+                        <FileCheck2 className="w-3 h-3" strokeWidth={1.5} />
+                        Recent calls
+                      </div>
+                      <ul className="divide-y divide-[var(--rule)] border-t border-[var(--rule)]">
+                        {data.recentCalls.slice(0, 4).map((c) => (
+                          <li key={c.id} className="py-3">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-baseline gap-2 mb-1">
+                                  <div className="text-sm font-medium truncate">
+                                    {c.contact_name || "Unknown"}
+                                  </div>
+                                  <div className="text-xs mono text-[var(--ink-subtle)]">
+                                    {formatRelativeDate(c.created_at)}
+                                  </div>
+                                </div>
+                                <div className="text-sm text-[var(--ink-muted)] line-clamp-1">
+                                  {c.body
+                                    .replace(/^Call with [^\n]*\n?/, "")
+                                    .slice(0, 180)}
+                                </div>
                               </div>
-                              <span
-                                className={`mono uppercase tracking-wider text-[10px] shrink-0 ${
-                                  wr.status === "completed"
-                                    ? "text-[var(--verified)]"
-                                    : wr.status === "failed"
-                                      ? "text-[var(--danger)]"
-                                      : "text-[var(--accent)]"
-                                }`}
-                              >
-                                {wr.status}
-                              </span>
-                              <div className="text-xs mono text-[var(--ink-subtle)] shrink-0 ml-auto">
-                                {formatRelativeDate(wr.finished_at || wr.created_at)}
-                              </div>
-                            </div>
-                            {wr.summary ? (
-                              <div className="text-sm text-[var(--ink-muted)] leading-relaxed whitespace-pre-line line-clamp-3">
-                                {wr.summary}
-                              </div>
-                            ) : wr.error ? (
-                              <div className="text-sm text-[var(--danger)] line-clamp-2">
-                                {wr.error}
-                              </div>
-                            ) : (
-                              <div className="text-sm text-[var(--ink-subtle)] italic">
-                                No output recorded.
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </BentoCard>
-              )}
-
-              {/* Recent activity — workflow runs, emails, SMS (3×2) */}
-              <BentoCard
-                label="Recent activity"
-                icon={<Activity className="w-3 h-3" />}
-                className="md:col-span-3 md:row-span-2"
-              >
-                {!data.recentActivity || data.recentActivity.length === 0 ? (
-                  <EmptyNote>
-                    Workflow results, emails, and messages will appear here as they come in.
-                  </EmptyNote>
-                ) : (
-                  <ul className="divide-y divide-[var(--rule)] border-t border-[var(--rule)]">
-                    {data.recentActivity.slice(0, 12).map((a) => (
-                      <li key={a.id} className="py-3">
-                        <div className="flex items-start gap-3">
-                          <div className="mt-0.5 shrink-0">
-                            <ActivityIcon kind={a.kind} status={a.status} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-baseline gap-2 mb-0.5">
-                              <div className="text-[15px] font-medium truncate">
-                                {a.headline}
-                              </div>
-                              <div className="text-xs mono text-[var(--ink-subtle)] shrink-0">
-                                {formatRelativeDate(a.timestamp)}
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-[var(--ink-muted)]">
-                              <ActivityLabel kind={a.kind} />
-                              {a.detail && (
-                                <>
-                                  <span className="text-[var(--ink-subtle)]">·</span>
-                                  <span className="truncate">{a.detail}</span>
-                                </>
-                              )}
-                              {a.kind === "workflow" && a.status && (
-                                <span
-                                  className={`mono uppercase tracking-wider text-[10px] ${
-                                    a.status === "completed"
-                                      ? "text-[var(--verified)]"
-                                      : a.status === "failed"
-                                        ? "text-[var(--danger)]"
-                                        : "text-[var(--accent)]"
-                                  }`}
+                              {c.has_audit && (
+                                <Link
+                                  href={`/client-details-overview?contact=${c.contact_id}&audit=${c.id}`}
+                                  className="chip-citation hover:bg-[var(--accent)] hover:text-white transition whitespace-nowrap"
                                 >
-                                  {a.status}
-                                </span>
+                                  <FileCheck2 className="w-3 h-3" />
+                                  View audit
+                                </Link>
                               )}
                             </div>
-                          </div>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </BentoCard>
-
-              {/* Recent calls — wide row (3×2) */}
-              {data.recentCalls.length > 0 && (
-              <BentoCard
-                label="Recent calls"
-                icon={<FileCheck2 className="w-3 h-3" />}
-                className="md:col-span-3 md:row-span-2"
-              >
-                  <ul className="divide-y divide-[var(--rule)] border-t border-[var(--rule)]">
-                    {data.recentCalls.slice(0, 6).map((c) => (
-                      <li key={c.id} className="py-3">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-baseline gap-2 mb-1">
-                              <div className="text-[15px] font-medium truncate">
-                                {c.contact_name || "Unknown"}
-                              </div>
-                              <div className="text-xs mono text-[var(--ink-subtle)]">
-                                {formatRelativeDate(c.created_at)}
-                              </div>
-                            </div>
-                            <div className="text-sm text-[var(--ink-muted)] line-clamp-1">
-                              {c.body
-                                .replace(/^Call with [^\n]*\n?/, "")
-                                .slice(0, 180)}
-                            </div>
-                          </div>
-                          {c.has_audit && (
-                            <Link
-                              href={`/client-details-overview?contact=${c.contact_id}&audit=${c.id}`}
-                              className="chip-citation hover:bg-[var(--accent)] hover:text-white transition whitespace-nowrap"
-                            >
-                              <FileCheck2 className="w-3 h-3" />
-                              View audit
-                            </Link>
-                          )}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-              </BentoCard>
-              )}
-            </BentoGrid>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </section>
+            </div>
           );
         })()}
 

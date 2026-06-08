@@ -85,6 +85,7 @@ export async function GET() {
     inboundEmailsResult,
     sentEmailsResult,
     smsResult,
+    allWorkflowsResult,
     featuresResult,
   ] = await Promise.all([
     wid
@@ -262,6 +263,13 @@ export async function GET() {
           .eq("workspace_id", wid)
           .order("created_at", { ascending: false })
           .limit(8)
+      : noop,
+    // All workspace workflows — for usage insights on the dashboard
+    wid
+      ? supabaseAdmin
+          .from("dante_workflows")
+          .select("id, name, enabled, created_at, proposal_state")
+          .eq("workspace_id", wid)
       : noop,
     getWorkspaceFeatures(wid),
   ]);
@@ -626,6 +634,93 @@ export async function GET() {
   );
   const recentActivity = activityItems.slice(0, 20);
 
+  // ---- Usage insights ----
+  // Computed from workflow run history and workflow definitions.
+  // Shows usage patterns, failure warnings, and workflow status
+  // on the "What Dante noticed" panel.
+  type UsageInsight = {
+    id: string;
+    kind: "usage_pattern" | "workflow_tip" | "prompt_hint";
+    title: string;
+    body: string;
+  };
+  const usageInsights: UsageInsight[] = [];
+
+  // Aggregate run counts per workflow
+  if (workflowResults.length > 0) {
+    const wfCounts = new Map<string, { name: string; total: number; failed: number; wfId: string }>();
+    for (const wr of workflowResults) {
+      const key = wr.workflow_id;
+      const existing = wfCounts.get(key) || { name: wr.workflow_name, total: 0, failed: 0, wfId: key };
+      existing.total++;
+      if (wr.status === "failed") existing.failed++;
+      wfCounts.set(key, existing);
+    }
+
+    // Most active workflow
+    const sorted = [...wfCounts.entries()].sort((a, b) => b[1].total - a[1].total);
+    if (sorted.length > 0 && sorted[0][1].total >= 2) {
+      const top = sorted[0][1];
+      usageInsights.push({
+        id: "usage-top-wf",
+        kind: "usage_pattern",
+        title: `${top.name} is your most active workflow`,
+        body: `${top.total} run${top.total === 1 ? "" : "s"} recently.${top.failed > 0 ? ` ${top.failed} failed -- review the configuration.` : ""}`,
+      });
+    }
+
+    // Failure rate warnings
+    for (const [, wf] of wfCounts) {
+      if (wf.failed > 0 && wf.total >= 2 && wf.failed / wf.total >= 0.5) {
+        usageInsights.push({
+          id: `fail-${wf.wfId}`,
+          kind: "prompt_hint",
+          title: `${wf.name} is failing often`,
+          body: `${wf.failed} of ${wf.total} recent runs failed. Check input parameters or workflow steps.`,
+        });
+      }
+    }
+  }
+
+  // Workflow enable/disable status
+  const activeWfs = (allWorkflowsResult.data || []).filter(
+    (w: any) => w.proposal_state !== "pending",
+  );
+  if (activeWfs.length > 0) {
+    const enabled = activeWfs.filter((w: any) => w.enabled);
+    const disabled = activeWfs.filter((w: any) => !w.enabled);
+
+    // Workflows that have never been run
+    const ranIds = new Set(workflowResults.map((r) => r.workflow_id));
+    const neverRan = enabled.filter((w: any) => !ranIds.has(w.id));
+    if (neverRan.length > 0 && neverRan.length <= 3) {
+      for (const w of neverRan) {
+        usageInsights.push({
+          id: `idle-${w.id}`,
+          kind: "workflow_tip",
+          title: `${w.name} has not been run yet`,
+          body: "This workflow is enabled but has no recent runs. Try running it to verify it works.",
+        });
+      }
+    } else if (neverRan.length > 3) {
+      usageInsights.push({
+        id: "idle-many",
+        kind: "workflow_tip",
+        title: `${neverRan.length} enabled workflows have no recent runs`,
+        body: "Visit Workflows to test them or disable the ones you no longer need.",
+      });
+    }
+
+    if (disabled.length > 0 && enabled.length === 0) {
+      usageInsights.push({
+        id: "usage-all-disabled",
+        kind: "workflow_tip",
+        title: `All ${disabled.length} workflow${disabled.length === 1 ? "" : "s"} disabled`,
+        body: "Enable workflows to automate your analysis. Visit the Workflows page to review and turn them on.",
+      });
+    }
+  }
+
   return NextResponse.json({
     advisorName: profile.full_name || user.email?.split("@")[0] || "there",
     workspaceName,
@@ -651,5 +746,6 @@ export async function GET() {
       topExpiring,
       items: noticedItems,
     },
+    usageInsights,
   });
 }
