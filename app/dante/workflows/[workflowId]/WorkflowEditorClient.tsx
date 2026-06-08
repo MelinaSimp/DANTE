@@ -124,13 +124,22 @@ function graphToFlow(graph: WorkflowGraph): {
   const colors: Record<string, string> = {};
   const notes: Record<string, string> = {};
   const nodes: DanteRFNode[] = graph.nodes.map((n) => {
-    if (n.data.color) colors[n.id] = n.data.color;
-    if (n.data.notes) notes[n.id] = n.data.notes;
+    const d = n.data ?? {} as Record<string, unknown>;
+    if (d.color) colors[n.id] = d.color;
+    if (d.notes) notes[n.id] = d.notes;
+    // n8n-native nodes store config in `parameters` instead of `data.step`.
+    // Synthesize a minimal step so the canvas can render them.
+    const step = d.step ?? {
+      id: n.id,
+      type: n.type ?? "unknown",
+      name: (n as unknown as Record<string, unknown>).name as string ?? n.id,
+      config: (n as unknown as Record<string, unknown>).parameters ?? {},
+    };
     return {
       id: n.id,
       type: "dante",
       position: n.position,
-      data: { step: n.data.step },
+      data: { step },
     };
   });
   const edges: RFEdge[] = graph.edges.map((e) => ({
