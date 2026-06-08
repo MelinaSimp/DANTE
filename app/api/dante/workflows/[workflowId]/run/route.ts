@@ -104,8 +104,11 @@ export async function POST(
 
     // Execute via webhook. The webhook path is the Drift workflow ID,
     // so the URL is  {N8N_BASE_URL}/webhook/{workflowId}.
-    // On 404 (webhook not registered), patch the n8n workflow's trigger
-    // to a webhook node with the correct path and retry.
+    //
+    // Fallback chain on 404 (webhook not registered):
+    //   1. Try ensureWebhookTrigger to patch the existing n8n workflow
+    //   2. If that still 404s (e.g. n8n workflow is broken/incomplete),
+    //      delete the stale n8n workflow and re-push from the Drift graph
     let executionId: string;
     try {
       executionId = await n8nBridge.executeAsync(workflowId, input);
@@ -115,9 +118,54 @@ export async function POST(
         (webhookErr.message.includes("404") || webhookErr.message.includes("not found"));
       if (!is404) throw webhookErr;
 
-      // Patch trigger to webhook with the correct path and retry
-      await n8nBridge.ensureWebhookTrigger(n8nId, workflowId);
-      executionId = await n8nBridge.executeAsync(workflowId, input);
+      // Attempt 1: patch the trigger node on the existing n8n workflow
+      try {
+        await n8nBridge.ensureWebhookTrigger(n8nId, workflowId);
+        executionId = await n8nBridge.executeAsync(workflowId, input);
+      } catch (retryErr) {
+        const stillFailed =
+          retryErr instanceof Error &&
+          (retryErr.message.includes("404") || retryErr.message.includes("not found"));
+        if (!stillFailed) throw retryErr;
+
+        // Attempt 2: the n8n workflow is broken (e.g. missing nodes).
+        // Delete it and re-push the full graph from the Drift DB.
+        try { await n8nBridge.deleteWorkflow(n8nId); } catch { /* best-effort */ }
+
+        const graph = (wf as Record<string, unknown>).graph as Record<string, unknown> | null;
+        if (!graph) throw new Error("Workflow has no graph to re-push");
+
+        const isN8nNative = !!graph.connections || (Array.isArray(graph.nodes) && !Array.isArray(graph.edges));
+        let freshJson: import("@/lib/dante/n8n-types").N8nWorkflowJSON;
+        if (isN8nNative) {
+          freshJson = graph as unknown as import("@/lib/dante/n8n-types").N8nWorkflowJSON;
+        } else {
+          const { convertDriftToN8n } = await import("@/lib/dante/n8n-converter");
+          freshJson = convertDriftToN8n(
+            graph as unknown as import("@/lib/dante/workflow-types").WorkflowGraph,
+            (wf as Record<string, unknown>).name as string || "Untitled",
+          ).workflow;
+        }
+
+        // Set webhook path and push
+        for (const node of freshJson.nodes) {
+          if (node.type.includes("webhook") || node.type.includes("Trigger")) {
+            const p = node.parameters as Record<string, unknown>;
+            if (typeof p.path === "string") p.path = workflowId;
+          }
+        }
+        const freshN8nId = await n8nBridge.createWorkspaceWorkflow(
+          profile.workspace_id,
+          { ...freshJson, active: true },
+        );
+        await supabaseAdmin
+          .from("dante_workflows")
+          .update({ n8n_workflow_id: freshN8nId })
+          .eq("id", workflowId);
+        n8nId = freshN8nId;
+
+        executionId = await n8nBridge.executeAsync(workflowId, input);
+      }
     }
 
     // Record the run
