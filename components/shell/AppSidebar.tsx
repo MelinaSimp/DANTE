@@ -108,11 +108,6 @@ export default function AppSidebar({
         { href: "/review", label: "Review Queue", icon: ClipboardCheck },
       ],
     },
-    {
-      items: [
-        { href: "/settings", label: "Settings", icon: Settings },
-      ],
-    },
   ];
 
   const isActive = (href: string): boolean => {
