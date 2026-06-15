@@ -873,7 +873,7 @@ export default function WorkflowsPageClient({ vaultReady, canManageVault }: Prop
               <button
                 onClick={() => runMigration(false)}
                 disabled={migrating}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[var(--ink-on-accent,#fff)] bg-[var(--accent)] rounded-[4px] hover:opacity-90 disabled:opacity-50 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-[var(--ink)] rounded-[4px] hover:opacity-90 disabled:opacity-50 transition-colors"
               >
                 {migrating ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.5} />
