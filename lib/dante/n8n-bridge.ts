@@ -250,17 +250,34 @@ export async function deleteWorkflow(id: string): Promise<void> {
 
 /** Activate (publish) a workflow so its triggers fire. */
 export async function activateWorkflow(id: string): Promise<void> {
-  await n8nFetchWithRetry<N8nWorkflowResponse>(`/workflows/${id}/activate`, {
-    method: "POST",
-  });
+  // Try POST /activate first (n8n v1.50+), fall back to PATCH with
+  // { active: true } for older versions (Railway self-hosted, etc.)
+  try {
+    await n8nFetchWithRetry<N8nWorkflowResponse>(`/workflows/${id}/activate`, {
+      method: "POST",
+    });
+  } catch {
+    // Fallback: PATCH the workflow with active: true
+    await n8nFetchWithRetry<N8nWorkflowResponse>(`/workflows/${id}`, {
+      method: "PATCH",
+      body: { active: true },
+    });
+  }
   n8nLog.info("activated n8n workflow", { n8nId: id });
 }
 
 /** Deactivate a workflow (triggers stop firing, but definition stays). */
 export async function deactivateWorkflow(id: string): Promise<void> {
-  await n8nFetchWithRetry<N8nWorkflowResponse>(`/workflows/${id}/deactivate`, {
-    method: "POST",
-  });
+  try {
+    await n8nFetchWithRetry<N8nWorkflowResponse>(`/workflows/${id}/deactivate`, {
+      method: "POST",
+    });
+  } catch {
+    await n8nFetchWithRetry<N8nWorkflowResponse>(`/workflows/${id}`, {
+      method: "PATCH",
+      body: { active: false },
+    });
+  }
   n8nLog.info("deactivated n8n workflow", { n8nId: id });
 }
 

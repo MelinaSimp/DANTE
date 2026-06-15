@@ -2687,16 +2687,35 @@ async function dispatchTool(
         try {
           // Ensure the workflow is active in n8n before executing
           await n8nBridge.activateWorkflow(n8nId!);
+          // Re-register webhook after activation to guarantee n8n's
+          // router knows about the path
+          try { await n8nBridge.ensureWebhookTrigger(n8nId!, webhookPath); } catch { /* best-effort */ }
 
           let executionId: string;
           let executionResult: unknown = undefined;
 
-          if (syncMode) {
-            const execResult = await n8nBridge.executeSync(webhookPath, wfInput);
-            executionId = execResult.id;
-            executionResult = execResult.data;
-          } else {
-            executionId = await n8nBridge.executeAsync(webhookPath, wfInput);
+          // Try webhook first; if 404, fall back to direct API execution
+          try {
+            if (syncMode) {
+              const execResult = await n8nBridge.executeSync(webhookPath, wfInput);
+              executionId = execResult.id;
+              executionResult = execResult.data;
+            } else {
+              executionId = await n8nBridge.executeAsync(webhookPath, wfInput);
+            }
+          } catch (webhookErr) {
+            const msg = webhookErr instanceof Error ? webhookErr.message : String(webhookErr);
+            if (msg.includes("404") || msg.includes("not registered")) {
+              // Webhook not registered despite activation — use API execution
+              agentLog.warn("workflow.run: webhook 404, falling back to API execution", { n8nId, webhookPath });
+              executionId = await n8nBridge.executeWorkflowById(n8nId!, wfInput);
+              if (syncMode) {
+                const exec = await n8nBridge.getExecution(executionId, true);
+                executionResult = exec.data;
+              }
+            } else {
+              throw webhookErr;
+            }
           }
 
           // Record the run in dante_workflow_runs
