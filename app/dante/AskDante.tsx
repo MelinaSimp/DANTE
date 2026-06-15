@@ -2166,6 +2166,14 @@ interface InputBarProps {
 function InputBar(p: InputBarProps) {
   const hasAttachments = p.attachments && p.attachments.length > 0;
 
+  // ── Auto-resize textarea to fit content ─────────────────────
+  useEffect(() => {
+    const el = p.textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 384) + "px";
+  }, [p.input, p.textareaRef]);
+
   // ── Send / Stop button (shared) ────────────────────────────
   const sendStopButton = p.streaming ? (
     <button
@@ -2205,7 +2213,7 @@ function InputBar(p: InputBarProps) {
   if (p.compact) {
     return (
       <div className="glass-input rounded-[16px] md:rounded-[20px] bg-[var(--neu-input)] border border-white/30 border-t-white/50 flex flex-col">
-        <div className="px-4 pt-4">
+        <div className="px-4 pt-3">
           <textarea
             ref={p.textareaRef}
             value={p.input}
@@ -2213,8 +2221,9 @@ function InputBar(p: InputBarProps) {
             onKeyDown={p.onKeyDown}
             placeholder="How can I help you today?"
             disabled={p.streaming}
-            rows={p.rows}
-            className="w-full resize-none text-sm overflow-hidden border-0 p-0 bg-transparent outline-none placeholder:text-[var(--ink-subtle)] text-[var(--ink)] leading-6 max-h-48"
+            rows={1}
+            className="w-full resize-none text-sm overflow-hidden border-0 p-0 bg-transparent outline-none placeholder:text-[var(--ink-subtle)] text-[var(--ink)] leading-6"
+            style={{ minHeight: "1.5em" }}
           />
         </div>
         <div className="flex items-center justify-between p-2.5">
@@ -2239,19 +2248,22 @@ function InputBar(p: InputBarProps) {
 
   // ── Full landing input (Claude-style layout) ──────────────
   return (
-    <div className="glass-input rounded-[16px] md:rounded-[20px] bg-[var(--neu-input)] border border-white/30 border-t-white/50 flex flex-col min-h-[150px]">
-      {/* Textarea */}
-      <div className="flex-1 px-4 pt-4">
-        <textarea
-          ref={p.textareaRef}
-          value={p.input}
-          onChange={(e) => p.setInput(e.target.value)}
-          onKeyDown={p.onKeyDown}
-          placeholder="How can I help you today?"
-          disabled={p.streaming}
-          rows={p.rows}
-          className="w-full resize-none text-sm overflow-hidden border-0 p-0 bg-transparent outline-none placeholder:text-[var(--ink-subtle)] text-[var(--ink)] leading-6 max-h-48"
-        />
+    <div className="glass-input rounded-[16px] md:rounded-[20px] bg-[var(--neu-input)] border border-white/30 border-t-white/50 flex flex-col transition-all duration-200">
+      {/* Auto-expanding textarea */}
+      <div className="px-4 pt-4">
+        <div className="max-h-96 w-full overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          <textarea
+            ref={p.textareaRef}
+            value={p.input}
+            onChange={(e) => p.setInput(e.target.value)}
+            onKeyDown={p.onKeyDown}
+            placeholder="How can I help you today?"
+            disabled={p.streaming}
+            rows={1}
+            className="w-full resize-none text-sm overflow-hidden border-0 p-0 bg-transparent outline-none placeholder:text-[var(--ink-subtle)] text-[var(--ink)] leading-6"
+            style={{ minHeight: "1.5em" }}
+          />
+        </div>
       </div>
 
       {/* Toolbar — Claude layout: left actions, right send */}

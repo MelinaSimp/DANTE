@@ -66,12 +66,21 @@ export default function ChatThread({
   const [refining, setRefining] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, streamState.streaming, streamState.events.length, streamState.followups.length]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  // Auto-resize textarea to fit content
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 384) + "px";
+  }, [input]);
 
   const submit = async (overrideInput?: string) => {
     const message = (overrideInput ?? input).trim();
@@ -229,17 +238,21 @@ export default function ChatThread({
 
       <div className="glass-composer-bg fixed bottom-0 left-0 right-0 pt-6 pb-4 z-30">
         <div className="max-w-5xl mx-auto px-6 md:px-8">
-          <div className="glass-input rounded-[16px] md:rounded-[20px] bg-[var(--neu-input)] border border-white/30 border-t-white/50 flex flex-col">
-            <div className="px-4 pt-4">
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={onKeyDown}
-                placeholder="Follow up... Cmd+Enter to send."
-                disabled={streamState.streaming}
-                rows={2}
-                className="w-full resize-none text-sm overflow-hidden border-0 p-0 bg-transparent outline-none placeholder:text-[var(--ink-subtle)] text-[var(--ink)] leading-6 max-h-48"
-              />
+          <div className="glass-input rounded-[16px] md:rounded-[20px] bg-[var(--neu-input)] border border-white/30 border-t-white/50 flex flex-col transition-all duration-200">
+            <div className="px-4 pt-3">
+              <div className="max-h-96 w-full overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                <textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={onKeyDown}
+                  placeholder="Follow up... Cmd+Enter to send."
+                  disabled={streamState.streaming}
+                  rows={1}
+                  className="w-full resize-none text-sm overflow-hidden border-0 p-0 bg-transparent outline-none placeholder:text-[var(--ink-subtle)] text-[var(--ink)] leading-6"
+                  style={{ minHeight: "1.5em" }}
+                />
+              </div>
             </div>
             <div className="flex items-center justify-end p-2.5">
               {streamState.streaming ? (
