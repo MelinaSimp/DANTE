@@ -2680,41 +2680,23 @@ async function dispatchTool(
       {
         const syncMode = !!args.wait_for_result;
 
-        // Extract webhook path from graph if the trigger is a webhook node
-        const graphNodes = Array.isArray((match.graph as any)?.nodes)
-          ? (match.graph as any).nodes as Array<{ type: string; parameters?: { path?: string } }>
-          : [];
-        const webhookTrigger = graphNodes.find(
-          (n) => n.type === "n8n-nodes-base.webhook" && n.parameters?.path,
-        );
-        const webhookPath = webhookTrigger?.parameters?.path as string | undefined;
+        // The webhook path is always the Drift workflow ID —
+        // patchGraphTrigger sets it during JIT push or initial creation.
+        const webhookPath = match.id;
 
         try {
           // Ensure the workflow is active in n8n before executing
-          await n8nBridge.activateWorkflow(n8nId);
+          await n8nBridge.activateWorkflow(n8nId!);
 
           let executionId: string;
           let executionResult: unknown = undefined;
 
           if (syncMode) {
-            // Sync: use webhook if available, else API execution
-            if (webhookPath) {
-              const execResult = await n8nBridge.executeSync(webhookPath, wfInput);
-              executionId = execResult.id;
-              executionResult = execResult.data;
-            } else {
-              executionId = await n8nBridge.executeWorkflowById(n8nId, wfInput);
-              // Fetch result since we used API execution
-              const exec = await n8nBridge.getExecution(executionId, true);
-              executionResult = exec.data;
-            }
+            const execResult = await n8nBridge.executeSync(webhookPath, wfInput);
+            executionId = execResult.id;
+            executionResult = execResult.data;
           } else {
-            // Async: prefer webhook trigger, fall back to API execution
-            if (webhookPath) {
-              executionId = await n8nBridge.executeAsync(webhookPath, wfInput);
-            } else {
-              executionId = await n8nBridge.executeWorkflowById(n8nId, wfInput);
-            }
+            executionId = await n8nBridge.executeAsync(webhookPath, wfInput);
           }
 
           // Record the run in dante_workflow_runs
