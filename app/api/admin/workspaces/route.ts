@@ -155,6 +155,28 @@ export async function DELETE(req: NextRequest) {
       .in("property_id", propIds);
   }
 
+  // ── Clean up n8n workflows before DB deletion ─────────────────
+  // Each Drift workflow may have a corresponding n8n workflow on
+  // Railway. Delete them so we don't leave orphan workflows
+  // consuming resources on the n8n instance.
+  try {
+    const { data: wfRows } = await supabaseAdmin
+      .from("dante_workflows")
+      .select("n8n_workflow_id")
+      .eq("workspace_id", workspaceId)
+      .not("n8n_workflow_id", "is", null);
+    if (wfRows && wfRows.length > 0) {
+      const n8nBridge = await import("@/lib/dante/n8n-bridge");
+      await Promise.allSettled(
+        wfRows.map((r) =>
+          n8nBridge.deleteWorkflow(r.n8n_workflow_id as string)
+        )
+      );
+    }
+  } catch (err) {
+    console.error("Workspace cascade: n8n cleanup failed:", err instanceof Error ? err.message : err);
+  }
+
   // Explicit pre-deletes: append-only trigger tables, NO ACTION
   // FKs, and high-volume tables that can exceed statement_timeout.
   const predelete = [
