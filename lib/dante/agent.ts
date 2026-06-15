@@ -3105,10 +3105,11 @@ async function dispatchTool(
             n8nWfId,
           });
         }
-      } else if (patch.graph) {
+      } else if (patch.graph || args.enabled) {
         // JIT push: workflow has no n8n ID yet. Convert and create in n8n.
+        // Triggered by graph changes OR activation request.
         try {
-          const graphObj = patch.graph as Record<string, unknown>;
+          const graphObj = (patch.graph || wf.graph) as Record<string, unknown>;
           const hasEdges = Array.isArray(graphObj.edges);
           const hasConnections = !!graphObj.connections;
           const nodes = (graphObj.nodes || []) as Array<Record<string, unknown>>;
