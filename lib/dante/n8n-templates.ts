@@ -133,15 +133,28 @@ const leaseExpirationWorkflow: N8nWorkflowJSON = {
     {
       id: "send-digest",
       name: "Send Broker Digest",
-      type: "n8n-nodes-base.emailSend",
-      typeVersion: 2,
+      type: "n8n-nodes-base.httpRequest",
+      typeVersion: 4,
       position: [80, 880],
       parameters: {
-        fromEmail: "ops@driftai.studio",
-        toEmail: "broker@yourfirm.com", // placeholder -- clone injects workspace owner email
-        subject: "Lease expiration alert -- {{ $json.expiring?.length || 0 }} leases approaching",
-        emailType: "html",
-        html: "={{ $json.digest || $json.text || JSON.stringify($json) }}",
+        url: "https://api.resend.com/emails",
+        method: "POST",
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [
+            { name: "Authorization", value: "=Bearer {{$env.RESEND_API_KEY}}" },
+            { name: "Content-Type", value: "application/json" },
+          ],
+        },
+        sendBody: true,
+        bodyParameters: {
+          parameters: [
+            { name: "from", value: "Drift <ops@driftai.studio>" },
+            { name: "to", value: '=["broker@yourfirm.com"]' }, // placeholder -- clone injects workspace owner email
+            { name: "subject", value: "=Lease expiration alert -- {{ $json.expiring?.length || 0 }} leases approaching" },
+            { name: "html", value: "={{ $json.digest || $json.text || JSON.stringify($json) }}" },
+          ],
+        },
       },
     },
     reportNode([80, 1040], "send-digest").node,
@@ -220,15 +233,28 @@ return [{
     {
       id: "send-report",
       name: "Deliver Brief",
-      type: "n8n-nodes-base.emailSend",
-      typeVersion: 2,
+      type: "n8n-nodes-base.httpRequest",
+      typeVersion: 4,
       position: [80, 560],
       parameters: {
-        fromEmail: "ops@driftai.studio",
-        toEmail: `={{ $node["Run Corridor Analysis"].json.broker_email }}`,
-        subject: "={{ $json.subject }}",
-        emailType: "html",
-        html: "={{ $json.body }}",
+        url: "https://api.resend.com/emails",
+        method: "POST",
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [
+            { name: "Authorization", value: "=Bearer {{$env.RESEND_API_KEY}}" },
+            { name: "Content-Type", value: "application/json" },
+          ],
+        },
+        sendBody: true,
+        bodyParameters: {
+          parameters: [
+            { name: "from", value: "Drift <ops@driftai.studio>" },
+            { name: "to", value: `={{ [$node["Run Corridor Analysis"].json.broker_email] }}` },
+            { name: "subject", value: "={{ $json.subject }}" },
+            { name: "html", value: "={{ $json.body }}" },
+          ],
+        },
       },
     },
     reportNode([80, 720], "send-report").node,
@@ -392,15 +418,28 @@ const acquisitionDeepDiveWorkflow: N8nWorkflowJSON = {
     {
       id: "send-memo",
       name: "Deliver Memo",
-      type: "n8n-nodes-base.emailSend",
-      typeVersion: 2,
+      type: "n8n-nodes-base.httpRequest",
+      typeVersion: 4,
       position: [80, 720],
       parameters: {
-        fromEmail: "ops@driftai.studio",
-        toEmail: `={{ $node["Run Acquisition Analysis"].json.broker_email }}`,
-        subject: `Acquisition memo -- ={{ $node["Run Acquisition Analysis"].json.address || "Target Property" }}`,
-        emailType: "html",
-        html: "={{ $json.text || JSON.stringify($json) }}",
+        url: "https://api.resend.com/emails",
+        method: "POST",
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [
+            { name: "Authorization", value: "=Bearer {{$env.RESEND_API_KEY}}" },
+            { name: "Content-Type", value: "application/json" },
+          ],
+        },
+        sendBody: true,
+        bodyParameters: {
+          parameters: [
+            { name: "from", value: "Drift <ops@driftai.studio>" },
+            { name: "to", value: `={{ [$node["Run Acquisition Analysis"].json.broker_email] }}` },
+            { name: "subject", value: `=Acquisition memo -- {{ $node["Run Acquisition Analysis"].json.address || "Target Property" }}` },
+            { name: "html", value: "={{ $json.text || JSON.stringify($json) }}" },
+          ],
+        },
       },
     },
     reportNode([80, 880], "send-memo").node,
@@ -489,15 +528,28 @@ const marketUpdateWorkflow: N8nWorkflowJSON = {
     {
       id: "send-report",
       name: "Deliver Market Update",
-      type: "n8n-nodes-base.emailSend",
-      typeVersion: 2,
+      type: "n8n-nodes-base.httpRequest",
+      typeVersion: 4,
       position: [80, 880],
       parameters: {
-        fromEmail: "ops@driftai.studio",
-        toEmail: "broker@yourfirm.com", // placeholder -- clone injects workspace owner email
-        subject: "Weekly market update -- {{ $now.format('MMM d, yyyy') }}",
-        emailType: "html",
-        html: "={{ $json.text || JSON.stringify($json) }}",
+        url: "https://api.resend.com/emails",
+        method: "POST",
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [
+            { name: "Authorization", value: "=Bearer {{$env.RESEND_API_KEY}}" },
+            { name: "Content-Type", value: "application/json" },
+          ],
+        },
+        sendBody: true,
+        bodyParameters: {
+          parameters: [
+            { name: "from", value: "Drift <ops@driftai.studio>" },
+            { name: "to", value: '=["broker@yourfirm.com"]' }, // placeholder -- clone injects workspace owner email
+            { name: "subject", value: "=Weekly market update -- {{ $now.format('MMM d, yyyy') }}" },
+            { name: "html", value: "={{ $json.text || JSON.stringify($json) }}" },
+          ],
+        },
       },
     },
     reportNode([80, 1040], "send-report").node,
