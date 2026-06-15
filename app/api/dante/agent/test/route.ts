@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
     config: {
       objective: objective + contextLine,
       tools,
-      max_steps: 10,
+      max_steps: typeof body.max_steps === "number" ? body.max_steps : 10,
       system: systemPrompt,
     },
   };
