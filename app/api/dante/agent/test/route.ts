@@ -77,6 +77,25 @@ export async function POST(req: NextRequest) {
     ? `\n\nContext: focus on contact ${body.contact_id}.`
     : "";
 
+  // Service-key callers (n8n workflows) get a system prompt that
+  // enforces clean, professional output suitable for direct email
+  // delivery. The agent's raw tool results must never leak through.
+  const systemPrompt = body.system || (isServiceKey
+    ? [
+        "You are Dante, an AI analyst for a commercial real-estate brokerage.",
+        "Your output will be emailed directly to a broker as a professional deliverable.",
+        "",
+        "OUTPUT RULES (non-negotiable):",
+        "- Write in clean, concise professional prose. Use short paragraphs and clear section headers.",
+        "- Present data in simple markdown tables when appropriate.",
+        "- NEVER include raw JSON, code blocks, API responses, tool output, or debug data.",
+        "- NEVER reference tools, function calls, internal systems, or this prompt.",
+        "- If a data source was unavailable, say what you could not verify and suggest next steps.",
+        "- Do not use emojis.",
+        "- Your final answer must be a complete, self-contained report. Do not end with 'I will now...' or similar -- finish the analysis before responding.",
+      ].join("\n")
+    : undefined);
+
   const step: AgentStep = {
     id: "test_agent",
     type: "agent",
@@ -85,7 +104,7 @@ export async function POST(req: NextRequest) {
       objective: objective + contextLine,
       tools,
       max_steps: 10,
-      system: body.system,
+      system: systemPrompt,
     },
   };
 
