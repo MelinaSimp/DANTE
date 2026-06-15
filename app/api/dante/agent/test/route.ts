@@ -29,22 +29,35 @@ const DEFAULT_TOOLS: AgentToolEntry[] = [
 ];
 
 export async function POST(req: NextRequest) {
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("workspace_id")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (!profile?.workspace_id) {
-    return NextResponse.json({ error: "no workspace" }, { status: 400 });
-  }
-
+  // Two auth paths:
+  // 1. Cookie-based session (browser / Electron)
+  // 2. Service role key via apikey header (n8n nodes) + workspace_id in body
   const body = await req.json().catch(() => ({}));
+  let workspaceId: string;
+
+  const apiKey = req.headers.get("apikey") || "";
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+  if (apiKey && serviceRoleKey && apiKey === serviceRoleKey && body.workspace_id) {
+    // n8n / service-key path: trust the workspace_id from the body
+    workspaceId = String(body.workspace_id);
+  } else {
+    // Normal session path
+    const supabase = await createServerSupabase();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("workspace_id")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (!profile?.workspace_id) {
+      return NextResponse.json({ error: "no workspace" }, { status: 400 });
+    }
+    workspaceId = profile.workspace_id;
+  }
   const objective = String(body.objective || "").trim();
   if (!objective) {
     return NextResponse.json({ error: "objective is required" }, { status: 400 });
@@ -81,7 +94,7 @@ export async function POST(req: NextRequest) {
   try {
     const result = await runAgent({
       step,
-      workspaceId: profile.workspace_id,
+      workspaceId,
       simulate,
       runId,
       log,
