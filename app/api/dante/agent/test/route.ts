@@ -37,7 +37,8 @@ export async function POST(req: NextRequest) {
 
   const apiKey = req.headers.get("apikey") || "";
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-  if (apiKey && serviceRoleKey && apiKey === serviceRoleKey && body.workspace_id) {
+  const isServiceKey = !!(apiKey && serviceRoleKey && apiKey === serviceRoleKey && body.workspace_id);
+  if (isServiceKey) {
     // n8n / service-key path: trust the workspace_id from the body
     workspaceId = String(body.workspace_id);
   } else {
@@ -67,10 +68,10 @@ export async function POST(req: NextRequest) {
     ? (body.tools as AgentToolEntry[])
     : DEFAULT_TOOLS;
 
-  // Default simulate=true. The advisor can opt into live mutation
-  // explicitly, but ad-hoc runs from a test endpoint shouldn't be
-  // the way emails get sent.
-  const simulate = body.simulate !== false;
+  // Service-key calls (n8n) default to simulate=false -- they run
+  // real workflows. Browser/Electron calls default to simulate=true
+  // so ad-hoc testing doesn't fire real side effects.
+  const simulate = body.simulate ?? (isServiceKey ? false : true);
 
   const contextLine = body.contact_id
     ? `\n\nContext: focus on contact ${body.contact_id}.`
