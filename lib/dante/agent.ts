@@ -2655,10 +2655,28 @@ async function dispatchTool(
           n8nBridge.patchGraphTrigger(n8nJson.nodes, match.id);
           n8nBridge.patchGraphCredentials(n8nJson.nodes);
 
-          n8nId = await n8nBridge.createWorkspaceWorkflow(
-            ctx.workspaceId,
-            { ...n8nJson, active: true },
-          );
+          // Check for existing n8n workflow in this workspace first
+          // (avoids creating duplicates when the workflow was already
+          // pushed to n8n via the UI or a prior JIT attempt).
+          const existing = await n8nBridge.listWorkspaceWorkflows(ctx.workspaceId);
+          const matchByWebhook = existing.find((w) => w.name?.includes(match.id.slice(0, 8)));
+          if (matchByWebhook) {
+            n8nId = matchByWebhook.id;
+            // Update the existing workflow's graph
+            await n8nBridge.updateWorkflow(n8nId, n8nJson as unknown as import("@/lib/dante/n8n-types").N8nWorkflowJSON);
+          } else {
+            n8nId = await n8nBridge.createWorkspaceWorkflow(
+              ctx.workspaceId,
+              { ...n8nJson, active: true },
+            );
+          }
+
+          // Force webhook registration: ensureWebhookTrigger does
+          // PUT + deactivate + activate which registers the webhook
+          // with n8n's internal router (API-only creation/activation
+          // doesn't register webhooks on some n8n versions).
+          await n8nBridge.ensureWebhookTrigger(n8nId, match.id);
+
           // Persist so we don't JIT-push again
           await supabaseAdmin
             .from("dante_workflows")
@@ -3156,10 +3174,21 @@ async function dispatchTool(
           n8nBridge.patchGraphTrigger(n8nJson.nodes, workflowId);
           n8nBridge.patchGraphCredentials(n8nJson.nodes);
 
-          n8nWfId = await n8nBridge.createWorkspaceWorkflow(
-            ctx.workspaceId,
-            { ...n8nJson, active: Boolean(args.enabled ?? true) },
-          );
+          // Check for existing n8n workflow to avoid duplicates
+          const existing = await n8nBridge.listWorkspaceWorkflows(ctx.workspaceId);
+          const matchByName = existing.find((w) => w.name?.includes(workflowId.slice(0, 8)));
+          if (matchByName) {
+            n8nWfId = matchByName.id;
+            await n8nBridge.updateWorkflow(n8nWfId, n8nJson as unknown as import("@/lib/dante/n8n-types").N8nWorkflowJSON);
+          } else {
+            n8nWfId = await n8nBridge.createWorkspaceWorkflow(
+              ctx.workspaceId,
+              { ...n8nJson, active: Boolean(args.enabled ?? true) },
+            );
+          }
+          // Force webhook registration via PUT + deactivate + activate cycle
+          await n8nBridge.ensureWebhookTrigger(n8nWfId, workflowId);
+
           await supabaseAdmin
             .from("dante_workflows")
             .update({ n8n_workflow_id: n8nWfId })
