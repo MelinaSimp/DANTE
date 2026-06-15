@@ -137,12 +137,16 @@ export async function POST(req: NextRequest) {
       simulate,
     });
   } catch (err) {
+    const message = err instanceof Error ? err.message : "agent_failed";
+    // Surface upstream provider errors (Anthropic 400/402) with their
+    // actual status instead of masking everything as a generic 500.
+    const isUpstreamBilling = message.includes("credit balance") || message.includes("billing");
     return NextResponse.json(
       {
-        error: err instanceof Error ? err.message : "agent_failed",
+        error: message,
         trace: log,
       },
-      { status: 500 },
+      { status: isUpstreamBilling ? 402 : 500 },
     );
   }
 }
