@@ -19,7 +19,7 @@ import { runAgent } from "@/lib/dante/agent";
 import type { AgentStep, AgentToolEntry, StepLogEntry } from "@/lib/dante/workflow-types";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 300; // Vercel Pro: 5 min for multi-step agent runs
 
 const DEFAULT_TOOLS: AgentToolEntry[] = [
   "memory.search",
