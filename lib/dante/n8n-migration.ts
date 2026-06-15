@@ -49,6 +49,79 @@ export interface MigrationReport {
   results: MigrationResult[];
 }
 
+// ── Drift-wrapped n8n restructuring ─────────────────────────────
+//
+// Some workflows were stored with Drift graph structure (nodes[] +
+// edges[]) but the node types are already n8n types (e.g.
+// "n8n-nodes-base.webhook"). This happens when templates are cloned
+// into a workspace. We need to restructure into proper n8n format
+// (nodes[] with names + connections{}).
+
+function restructureDriftWrappedN8n(
+  graph: Record<string, unknown>,
+  workflowId: string,
+): import("./n8n-types").N8nWorkflowJSON {
+  const sourceNodes = graph.nodes as Array<Record<string, unknown>>;
+  const sourceEdges = (graph.edges || []) as Array<{
+    source: string;
+    target: string;
+  }>;
+
+  // Build n8n nodes. The Drift wrapper stores n8n config under
+  // data.step.config or data.step.parameters. The node name comes
+  // from data.step.name, and position from data.position or position.
+  const n8nNodes: Array<Record<string, unknown>> = [];
+  const idToName = new Map<string, string>();
+
+  for (const node of sourceNodes) {
+    const step = (node.data as Record<string, unknown>)?.step as Record<string, unknown> | undefined;
+    const nodeType = (step?.type || node.type) as string;
+    const nodeName = (step?.name || node.id) as string;
+    const nodeId = node.id as string;
+    const pos = (node.position as Record<string, number>) ||
+      ((node.data as Record<string, unknown>)?.position as Record<string, number>) ||
+      { x: 0, y: 0 };
+
+    idToName.set(nodeId, nodeName);
+
+    // Merge parameters from step.config and step.parameters
+    const config = (step?.config || {}) as Record<string, unknown>;
+    const params = (step?.parameters || config) as Record<string, unknown>;
+
+    n8nNodes.push({
+      id: nodeId,
+      name: nodeName,
+      type: nodeType,
+      typeVersion: step?.typeVersion || 1,
+      position: [pos.x || 0, pos.y || 0],
+      parameters: params,
+    });
+  }
+
+  // Build connections from edges
+  const connections: Record<string, { main: Array<Array<{ node: string; type: string; index: number }>> }> = {};
+  for (const edge of sourceEdges) {
+    const sourceName = idToName.get(edge.source) || edge.source;
+    const targetName = idToName.get(edge.target) || edge.target;
+    if (!connections[sourceName]) {
+      connections[sourceName] = { main: [[]] };
+    }
+    connections[sourceName].main[0].push({
+      node: targetName,
+      type: "main",
+      index: 0,
+    });
+  }
+
+  return {
+    name: `Drift ${workflowId.slice(0, 8)}`,
+    nodes: n8nNodes,
+    connections,
+    active: true,
+    settings: { executionOrder: "v1" },
+  } as unknown as import("./n8n-types").N8nWorkflowJSON;
+}
+
 // ── Validation ──────────────────────────────────────────────────
 
 /**
@@ -164,21 +237,37 @@ async function migrateSingle(
     return { ...base, status: "skipped", error: "No graph data" };
   }
 
-  // Detect format: n8n-native has `connections`, Drift format has `edges`.
-  // Workflows cloned from templates are already n8n-native and must NOT
-  // go through convertDriftToN8n (the converter doesn't know n8n node types).
-  const isN8nNative = !!graph.connections || (Array.isArray(graph.nodes) && !Array.isArray(graph.edges));
+  // Detect format. Three cases:
+  //   1. Pure n8n-native: has `connections`, no `edges`.
+  //   2. Drift-wrapped n8n: has `edges` but node types contain dots
+  //      (e.g. "n8n-nodes-base.webhook"). Cloned templates land here.
+  //   3. Pure Drift: has `edges` and node types are Drift slugs
+  //      (e.g. "trigger_webhook", "ai_prompt"). Needs full conversion.
+  const nodes = graph.nodes as Array<Record<string, unknown>>;
+  const hasConnections = !!graph.connections;
+  const hasEdges = Array.isArray(graph.edges);
+  const hasN8nNodeTypes = nodes.some(
+    (n) => typeof n.type === "string" && n.type.includes("."),
+  );
+  const isN8nNative = hasConnections || (!hasEdges && Array.isArray(nodes));
+  const isDriftWrappedN8n = hasEdges && hasN8nNodeTypes;
 
   let n8nWorkflow: import("./n8n-types").N8nWorkflowJSON;
   let warnings: string[] = [];
 
   if (isN8nNative) {
-    // Already n8n format -- use as-is, just patch trigger + credentials
+    // Pure n8n format -- use as-is
     n8nWorkflow = graph as unknown as import("./n8n-types").N8nWorkflowJSON;
     n8nBridge.patchGraphTrigger(n8nWorkflow.nodes, row.id);
     n8nBridge.patchGraphCredentials(n8nWorkflow.nodes);
+  } else if (isDriftWrappedN8n) {
+    // Drift graph structure (edges) but n8n node types. Restructure
+    // by extracting the n8n step data and building connections from edges.
+    n8nWorkflow = restructureDriftWrappedN8n(graph, row.id);
+    n8nBridge.patchGraphTrigger(n8nWorkflow.nodes, row.id);
+    n8nBridge.patchGraphCredentials(n8nWorkflow.nodes);
   } else {
-    // Drift format -- convert to n8n
+    // Pure Drift format -- convert to n8n
     let conversion: ReturnType<typeof convertDriftToN8n>;
     try {
       conversion = convertDriftToN8n(row.graph, row.name);
