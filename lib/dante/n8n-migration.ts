@@ -45,7 +45,7 @@ export interface MigrationReport {
   migrated: number;
   skipped: number;
   failed: number;
-  dryRunFailed: number;
+  dry_run_failed: number;
   results: MigrationResult[];
 }
 
@@ -159,40 +159,88 @@ async function migrateSingle(
   }
 
   // Must have a graph to convert
-  if (!row.graph || !row.graph.nodes || row.graph.nodes.length === 0) {
+  const graph = row.graph as unknown as Record<string, unknown>;
+  if (!graph || !graph.nodes || (Array.isArray(graph.nodes) && graph.nodes.length === 0)) {
     return { ...base, status: "skipped", error: "No graph data" };
   }
 
-  // Convert
-  let conversion: ReturnType<typeof convertDriftToN8n>;
-  try {
-    conversion = convertDriftToN8n(row.graph, row.name);
-  } catch (err) {
-    return {
-      ...base,
-      status: "failed",
-      error: `Conversion error: ${err instanceof Error ? err.message : String(err)}`,
-    };
+  // Detect format: n8n-native has `connections`, Drift format has `edges`.
+  // Workflows cloned from templates are already n8n-native and must NOT
+  // go through convertDriftToN8n (the converter doesn't know n8n node types).
+  const isN8nNative = !!graph.connections || (Array.isArray(graph.nodes) && !Array.isArray(graph.edges));
+
+  let n8nWorkflow: import("./n8n-types").N8nWorkflowJSON;
+  let warnings: string[] = [];
+
+  if (isN8nNative) {
+    // Already n8n format -- use as-is, just patch trigger + credentials
+    n8nWorkflow = graph as unknown as import("./n8n-types").N8nWorkflowJSON;
+    n8nBridge.patchGraphTrigger(n8nWorkflow.nodes, row.id);
+    n8nBridge.patchGraphCredentials(n8nWorkflow.nodes);
+  } else {
+    // Drift format -- convert to n8n
+    let conversion: ReturnType<typeof convertDriftToN8n>;
+    try {
+      conversion = convertDriftToN8n(row.graph, row.name);
+    } catch (err) {
+      return {
+        ...base,
+        status: "failed",
+        error: `Conversion error: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
+
+    // Validate the conversion
+    const validationResult = validateConversion(row.name, conversion);
+    if (!validationResult.success) {
+      return {
+        ...base,
+        status: "dry_run_failed",
+        dryRunResult: validationResult,
+        warnings: conversion.warnings,
+        error: validationResult.validationErrors.join("; "),
+      };
+    }
+
+    n8nWorkflow = conversion.workflow;
+    warnings = conversion.warnings;
+    n8nBridge.patchGraphTrigger(n8nWorkflow.nodes, row.id);
+    n8nBridge.patchGraphCredentials(n8nWorkflow.nodes);
   }
 
-  // Validate
-  const dryRun = validateConversion(row.name, conversion);
-  if (!dryRun.success) {
-    return {
-      ...base,
-      status: "dry_run_failed",
-      dryRunResult: dryRun,
-      warnings: conversion.warnings,
-      error: dryRun.validationErrors.join("; "),
-    };
+  // Build a dry-run result for reporting
+  const triggerNode = n8nWorkflow.nodes.find(
+    (n) => n.type.includes("Trigger") || n.type.includes("trigger") || n.type.includes("webhook"),
+  );
+  let connectionCount = 0;
+  if (n8nWorkflow.connections) {
+    for (const conn of Object.values(n8nWorkflow.connections)) {
+      for (const outputs of (conn as { main: Array<Array<unknown>> }).main || []) {
+        connectionCount += outputs.length;
+      }
+    }
   }
+  const dryRun: DryRunResult = {
+    success: true,
+    nodeCount: n8nWorkflow.nodes.length,
+    connectionCount,
+    triggerType: triggerNode
+      ? triggerNode.type.includes("scheduleTrigger")
+        ? "cron"
+        : triggerNode.type.includes("webhook")
+          ? "webhook"
+          : "manual"
+      : "manual",
+    validationErrors: [],
+    n8nAccepted: false,
+  };
 
   if (dryRunOnly) {
     return {
       ...base,
       status: "migrated", // would migrate
       dryRunResult: { ...dryRun, n8nAccepted: false },
-      warnings: conversion.warnings,
+      warnings,
     };
   }
 
@@ -202,7 +250,7 @@ async function migrateSingle(
     n8nWorkflowId = await n8nBridge.createWorkspaceWorkflow(
       row.workspace_id,
       {
-        ...conversion.workflow,
+        ...n8nWorkflow,
         // Preserve enabled state from the Drift workflow
         active: row.enabled,
       },
@@ -223,9 +271,9 @@ async function migrateSingle(
     .from("dante_workflows")
     .update({
       n8n_workflow_id: n8nWorkflowId,
-      graph: conversion.workflow,
+      graph: n8nWorkflow,
       trigger: { type: triggerType },
-      steps: conversion.workflow.nodes.map((n) => ({
+      steps: n8nWorkflow.nodes.map((n) => ({
         id: n.id,
         type: n.type,
         name: n.name,
@@ -248,7 +296,7 @@ async function migrateSingle(
     status: "migrated",
     n8nWorkflowId,
     dryRunResult: dryRun,
-    warnings: conversion.warnings,
+    warnings,
   };
 }
 
@@ -286,7 +334,7 @@ export async function migrateWorkspace(
       migrated: 0,
       skipped: 0,
       failed: 0,
-      dryRunFailed: 0,
+      dry_run_failed: 0,
       results: [],
     };
   }
@@ -327,7 +375,7 @@ export async function migrateWorkspace(
     migrated: results.filter((r) => r.status === "migrated").length,
     skipped: results.filter((r) => r.status === "skipped").length,
     failed: results.filter((r) => r.status === "failed").length,
-    dryRunFailed: results.filter((r) => r.status === "dry_run_failed").length,
+    dry_run_failed: results.filter((r) => r.status === "dry_run_failed").length,
     results,
   };
 
@@ -337,7 +385,7 @@ export async function migrateWorkspace(
     migrated: report.migrated,
     skipped: report.skipped,
     failed: report.failed,
-    dryRunFailed: report.dryRunFailed,
+    dry_run_failed: report.dry_run_failed,
   });
 
   return report;
@@ -397,7 +445,7 @@ export async function migrateAllWorkspaces(
     totalWorkflows: reports.reduce((s, r) => s + r.total, 0),
     migrated: reports.reduce((s, r) => s + r.migrated, 0),
     skipped: reports.reduce((s, r) => s + r.skipped, 0),
-    failed: reports.reduce((s, r) => s + r.failed + r.dryRunFailed, 0),
+    failed: reports.reduce((s, r) => s + r.failed + r.dry_run_failed, 0),
   };
 
   migLog.info("bulk migration complete", summary);
@@ -454,10 +502,10 @@ export async function sendMigrationReport(report: MigrationReport): Promise<void
     `Summary:`,
     `  Migrated: ${report.migrated}`,
     `  Already on n8n: ${report.skipped}`,
-    `  Failed: ${report.failed + report.dryRunFailed}`,
+    `  Failed: ${report.failed + report.dry_run_failed}`,
     ``,
     report.migrated > 0 ? `Migrated workflows:\n${migratedList}` : null,
-    (report.failed + report.dryRunFailed) > 0 ? `\nFailed workflows:\n${failedList}` : null,
+    (report.failed + report.dry_run_failed) > 0 ? `\nFailed workflows:\n${failedList}` : null,
     ``,
     `Your workflows now run on the n8n engine with better reliability,`,
     `retry handling, and execution observability. No action needed.`,

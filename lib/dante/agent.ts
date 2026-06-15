@@ -3215,7 +3215,7 @@ async function dispatchTool(
         migrated: report.migrated,
         skipped: report.skipped,
         failed: report.failed,
-        dry_run_failed: report.dryRunFailed,
+        dry_run_failed: report.dry_run_failed,
         results: report.results.map((r) => ({
           name: r.workflowName,
           status: r.status,
@@ -3227,7 +3227,7 @@ async function dispatchTool(
           trigger: r.dryRunResult?.triggerType,
         })),
         message: dryRun
-          ? `Dry run complete: ${report.migrated} would migrate, ${report.skipped} already on n8n, ${report.failed + report.dryRunFailed} would fail.`
+          ? `Dry run complete: ${report.migrated} would migrate, ${report.skipped} already on n8n, ${report.failed + report.dry_run_failed} would fail.`
           : `Migration complete: ${report.migrated} migrated to n8n, ${report.skipped} already migrated, ${report.failed} failed.`,
       };
     }
