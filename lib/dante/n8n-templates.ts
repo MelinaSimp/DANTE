@@ -8,6 +8,15 @@
 // Each template is a valid N8nWorkflowJSON that can be submitted
 // directly to the n8n API via n8n-bridge.ts. All templates include
 // the mandatory "Report to Drift" final node.
+//
+// Email delivery uses a 2-node pattern:
+//   1. Code node builds the Resend payload (handles arrays cleanly)
+//   2. httpRequest node POSTs JSON.stringify($json) to the Resend API
+// Railway blocks outbound SMTP, so all email goes through Resend REST.
+//
+// Webhook-triggered templates: POST body is nested under $json.body
+// by the n8n webhook node v2. Downstream expressions reference
+// $json.body.fieldname or $node["TriggerName"].json.body.fieldname.
 
 import type { N8nWorkflowJSON } from "./n8n-types";
 
@@ -20,7 +29,7 @@ export interface N8nWorkflowTemplate {
   workflow: N8nWorkflowJSON;
 }
 
-// ── Helper: Report to Drift node ────────────────────────────
+// -- Helper: Report to Drift node --
 
 function reportNode(position: [number, number], connectFrom: string) {
   return {
@@ -56,9 +65,73 @@ function reportNode(position: [number, number], connectFrom: string) {
   };
 }
 
-// ══════════════════════════════════════════════════════════════
+// -- Helper: Email send 2-node pattern --
+// Returns [buildNode, sendNode] and the connection name for the send node.
+// The buildPayloadCode must be a JS string that returns [{json: {from, to, subject, html}}].
+
+function emailSendNodes(
+  buildNodeName: string,
+  sendNodeName: string,
+  buildPayloadCode: string,
+  buildPosition: [number, number],
+  sendPosition: [number, number],
+) {
+  return {
+    buildNode: {
+      id: "build-email",
+      name: buildNodeName,
+      type: "n8n-nodes-base.code" as const,
+      typeVersion: 2,
+      position: buildPosition,
+      parameters: { jsCode: buildPayloadCode },
+    },
+    sendNode: {
+      id: "send-email",
+      name: sendNodeName,
+      type: "n8n-nodes-base.httpRequest" as const,
+      typeVersion: 4,
+      position: sendPosition,
+      parameters: {
+        url: "https://api.resend.com/emails",
+        method: "POST",
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [
+            { name: "Authorization", value: "=Bearer {{$env.RESEND_API_KEY}}" },
+            { name: "Content-Type", value: "application/json" },
+          ],
+        },
+        sendBody: true,
+        specifyBody: "json",
+        jsonBody: "={{ JSON.stringify($json) }}",
+      },
+    },
+    sendNodeName,
+  };
+}
+
+// ================================================================
 // 1 - Lease expiration outreach (cron)
-// ══════════════════════════════════════════════════════════════
+// ================================================================
+
+const leaseExpirationEmail = emailSendNodes(
+  "Build Digest Email",
+  "Send Broker Digest",
+  `const items = $input.all();
+const subject = 'Lease expiration alert -- ' + (items[0].json.expiring?.length || 0) + ' leases approaching';
+const html = items[0].json.digest || items[0].json.text || JSON.stringify(items[0].json);
+
+return [{
+  json: {
+    from: 'Drift <ops@driftai.studio>',
+    to: 'broker@yourfirm.com',
+    subject: subject,
+    html: html,
+  }
+}];`,
+  [80, 880],
+  [80, 1040],
+);
 
 const leaseExpirationWorkflow: N8nWorkflowJSON = {
   name: "Lease expiration outreach",
@@ -130,34 +203,9 @@ const leaseExpirationWorkflow: N8nWorkflowJSON = {
         },
       },
     },
-    {
-      id: "send-digest",
-      name: "Send Broker Digest",
-      type: "n8n-nodes-base.httpRequest",
-      typeVersion: 4,
-      position: [80, 880],
-      parameters: {
-        url: "https://api.resend.com/emails",
-        method: "POST",
-        sendHeaders: true,
-        headerParameters: {
-          parameters: [
-            { name: "Authorization", value: "=Bearer {{$env.RESEND_API_KEY}}" },
-            { name: "Content-Type", value: "application/json" },
-          ],
-        },
-        sendBody: true,
-        bodyParameters: {
-          parameters: [
-            { name: "from", value: "Drift <ops@driftai.studio>" },
-            { name: "to", value: '=["broker@yourfirm.com"]' }, // placeholder -- clone injects workspace owner email
-            { name: "subject", value: "=Lease expiration alert -- {{ $json.expiring?.length || 0 }} leases approaching" },
-            { name: "html", value: "={{ $json.digest || $json.text || JSON.stringify($json) }}" },
-          ],
-        },
-      },
-    },
-    reportNode([80, 1040], "send-digest").node,
+    leaseExpirationEmail.buildNode,
+    leaseExpirationEmail.sendNode,
+    reportNode([80, 1200], "Send Broker Digest").node,
   ],
   connections: {
     "Daily 9am ET": { main: [[{ node: "Query Properties", type: "main", index: 0 }]] },
@@ -166,18 +214,41 @@ const leaseExpirationWorkflow: N8nWorkflowJSON = {
     "Analyze Expiring Leases": { main: [[{ node: "Has Expiring Leases?", type: "main", index: 0 }]] },
     "Has Expiring Leases?": {
       main: [
-        [{ node: "Send Broker Digest", type: "main", index: 0 }],
+        [{ node: "Build Digest Email", type: "main", index: 0 }],
         [{ node: "Report to Drift", type: "main", index: 0 }],
       ],
     },
+    "Build Digest Email": { main: [[{ node: "Send Broker Digest", type: "main", index: 0 }]] },
     "Send Broker Digest": { main: [[{ node: "Report to Drift", type: "main", index: 0 }]] },
   },
   settings: { executionOrder: "v1" },
 };
 
-// ══════════════════════════════════════════════════════════════
-// 2 - Corridor void analysis (cron)
-// ══════════════════════════════════════════════════════════════
+// ================================================================
+// 2 - Corridor void analysis (webhook)
+// ================================================================
+
+const corridorEmail = emailSendNodes(
+  "Build Email Payload",
+  "Send Email via Resend",
+  `const items = $input.all();
+// Webhook wraps POST body under .body
+const triggerData = $('Run Corridor Analysis').first().json;
+const brokerEmail = triggerData.body?.broker_email || triggerData.broker_email || 'unknown';
+const subject = items[0].json.subject || 'Site intelligence brief -- corridor analysis';
+const html = items[0].json.body || items[0].json.text || JSON.stringify(items[0].json);
+
+return [{
+  json: {
+    from: 'Drift <ops@driftai.studio>',
+    to: brokerEmail,
+    subject: subject,
+    html: html,
+  }
+}];`,
+  [80, 560],
+  [80, 720],
+);
 
 const corridorVoidAnalysisWorkflow: N8nWorkflowJSON = {
   name: "Corridor void analysis",
@@ -206,7 +277,7 @@ const corridorVoidAnalysisWorkflow: N8nWorkflowJSON = {
       typeVersion: 1,
       position: [80, 240],
       parameters: {
-        objective: "A broker submitted this request: ={{ $json.brief }}\n\nSearch area: ={{ $json.corridor_anchors }}\n\nRun a void analysis along that corridor. Based on what the broker described, identify what types of sites and tenants they need. For each corridor segment, report which business categories are missing (the voids) and which are already saturated. Score and rank parcels that match the broker's criteria. Return the top 15 scored parcels. For the top 5, pull full parcel detail including auditor records, tax estimates, and environmental (EPA brownfield) status. Flag any disqualifying issues (contamination, wrong zoning, too small/large) up front.",
+        objective: "A broker submitted this request: ={{ $json.body.brief }}\n\nSearch area: ={{ $json.body.corridor_anchors }}\n\nRun a void analysis along that corridor. Based on what the broker described, identify what types of sites and tenants they need. For each corridor segment, report which business categories are missing (the voids) and which are already saturated. Score and rank parcels that match the broker's criteria. Return the top 15 scored parcels. For the top 5, pull full parcel detail including auditor records, tax estimates, and environmental (EPA brownfield) status. Flag any disqualifying issues (contamination, wrong zoning, too small/large) up front.",
         tools: ["site_scan.void_analysis", "site_scan.detail", "memory.write"],
         maxSteps: 12,
       },
@@ -230,47 +301,23 @@ return [{
 }];`,
       },
     },
-    {
-      id: "send-report",
-      name: "Deliver Brief",
-      type: "n8n-nodes-base.httpRequest",
-      typeVersion: 4,
-      position: [80, 560],
-      parameters: {
-        url: "https://api.resend.com/emails",
-        method: "POST",
-        sendHeaders: true,
-        headerParameters: {
-          parameters: [
-            { name: "Authorization", value: "=Bearer {{$env.RESEND_API_KEY}}" },
-            { name: "Content-Type", value: "application/json" },
-          ],
-        },
-        sendBody: true,
-        bodyParameters: {
-          parameters: [
-            { name: "from", value: "Drift <ops@driftai.studio>" },
-            { name: "to", value: `={{ [$node["Run Corridor Analysis"].json.broker_email] }}` },
-            { name: "subject", value: "={{ $json.subject }}" },
-            { name: "html", value: "={{ $json.body }}" },
-          ],
-        },
-      },
-    },
-    reportNode([80, 720], "send-report").node,
+    corridorEmail.buildNode,
+    corridorEmail.sendNode,
+    reportNode([80, 880], "Send Email via Resend").node,
   ],
   connections: {
     "Run Corridor Analysis": { main: [[{ node: "Run Void Analysis", type: "main", index: 0 }]] },
     "Run Void Analysis": { main: [[{ node: "Write Executive Brief", type: "main", index: 0 }]] },
-    "Write Executive Brief": { main: [[{ node: "Deliver Brief", type: "main", index: 0 }]] },
-    "Deliver Brief": { main: [[{ node: "Report to Drift", type: "main", index: 0 }]] },
+    "Write Executive Brief": { main: [[{ node: "Build Email Payload", type: "main", index: 0 }]] },
+    "Build Email Payload": { main: [[{ node: "Send Email via Resend", type: "main", index: 0 }]] },
+    "Send Email via Resend": { main: [[{ node: "Report to Drift", type: "main", index: 0 }]] },
   },
   settings: { executionOrder: "v1" },
 };
 
-// ══════════════════════════════════════════════════════════════
+// ================================================================
 // 3 - Due diligence checklist (webhook)
-// ══════════════════════════════════════════════════════════════
+// ================================================================
 
 const dueDiligenceWorkflow: N8nWorkflowJSON = {
   name: "Due diligence checklist",
@@ -298,7 +345,7 @@ const dueDiligenceWorkflow: N8nWorkflowJSON = {
       typeVersion: 1,
       position: [80, 240],
       parameters: {
-        address: "={{ $json.address }}",
+        address: "={{ $json.body.address }}",
       },
       credentials: { driftCreApi: { id: "1", name: "Drift CRE" } },
     },
@@ -309,7 +356,7 @@ const dueDiligenceWorkflow: N8nWorkflowJSON = {
       typeVersion: 1,
       position: [80, 400],
       parameters: {
-        query: `={{ $node["Run Due Diligence"].json.address }} due diligence environmental survey`,
+        query: `={{ $node["Run Due Diligence"].json.body.address }} due diligence environmental survey`,
         topK: 5,
         kind: "",
       },
@@ -322,7 +369,7 @@ const dueDiligenceWorkflow: N8nWorkflowJSON = {
       typeVersion: 1,
       position: [80, 560],
       parameters: {
-        objective: `Using the site intelligence and vault documents from previous steps, compile a comprehensive due diligence checklist and report. The broker's notes on what to look for: ={{ $node["Run Due Diligence"].json.context || "general due diligence" }}. Cover: (1) Property overview, (2) Environmental status (EPA, brownfield), (3) Census demographics, (4) Zoning and land use, (5) Tax assessment, (6) Any vault documents found. If the broker specified what they're evaluating for, tailor the risk flags and recommendations to that use case. Format as a professional DD memo.`,
+        objective: `Using the site intelligence and vault documents from previous steps, compile a comprehensive due diligence checklist and report. The broker's notes on what to look for: ={{ $node["Run Due Diligence"].json.body.context || "general due diligence" }}. Cover: (1) Property overview, (2) Environmental status (EPA, brownfield), (3) Census demographics, (4) Zoning and land use, (5) Tax assessment, (6) Any vault documents found. If the broker specified what they're evaluating for, tailor the risk flags and recommendations to that use case. Format as a professional DD memo.`,
         tools: ["memory.write"],
         maxSteps: 4,
       },
@@ -336,7 +383,7 @@ const dueDiligenceWorkflow: N8nWorkflowJSON = {
       position: [80, 720],
       parameters: {
         title: "Due Diligence Report",
-        subtitle: `={{ $node["Run Due Diligence"].json.address || "Property Assessment" }}`,
+        subtitle: `={{ $node["Run Due Diligence"].json.body.address || "Property Assessment" }}`,
         sections: "={{ JSON.stringify($json.sections || [{heading: 'Report', body: $json.text || JSON.stringify($json)}]) }}",
       },
       credentials: { driftCreApi: { id: "1", name: "Drift CRE" } },
@@ -353,9 +400,32 @@ const dueDiligenceWorkflow: N8nWorkflowJSON = {
   settings: { executionOrder: "v1" },
 };
 
-// ══════════════════════════════════════════════════════════════
+// ================================================================
 // 4 - Acquisition deep-dive (webhook)
-// ══════════════════════════════════════════════════════════════
+// ================================================================
+
+const acquisitionEmail = emailSendNodes(
+  "Build Memo Email",
+  "Send Acquisition Memo",
+  `const items = $input.all();
+// Webhook wraps POST body under .body
+const triggerData = $('Run Acquisition Analysis').first().json;
+const brokerEmail = triggerData.body?.broker_email || triggerData.broker_email || 'unknown';
+const address = triggerData.body?.address || triggerData.address || 'Target Property';
+const subject = 'Acquisition memo -- ' + address;
+const html = items[0].json.text || JSON.stringify(items[0].json);
+
+return [{
+  json: {
+    from: 'Drift <ops@driftai.studio>',
+    to: brokerEmail,
+    subject: subject,
+    html: html,
+  }
+}];`,
+  [80, 720],
+  [80, 880],
+);
 
 const acquisitionDeepDiveWorkflow: N8nWorkflowJSON = {
   name: "Acquisition target deep-dive",
@@ -384,7 +454,7 @@ const acquisitionDeepDiveWorkflow: N8nWorkflowJSON = {
       typeVersion: 1,
       position: [80, 240],
       parameters: {
-        objective: `Run full intelligence on: ={{ $json.address }}. Deal context from the broker: ={{ $json.brief || "general acquisition analysis" }}. (1) Search for the parcel to get parcel number and basic data. (2) Pull full detail: auditor records, tax estimate, census demographics, EPA brownfield status. (3) Note neighboring parcels and zoning. (4) Save key findings to memory. Compile all findings with full citations. If the broker described a specific use case or budget, flag anything that conflicts.`,
+        objective: `Run full intelligence on: ={{ $json.body.address }}. Deal context from the broker: ={{ $json.body.brief || "general acquisition analysis" }}. (1) Search for the parcel to get parcel number and basic data. (2) Pull full detail: auditor records, tax estimate, census demographics, EPA brownfield status. (3) Note neighboring parcels and zoning. (4) Save key findings to memory. Compile all findings with full citations. If the broker described a specific use case or budget, flag anything that conflicts.`,
         tools: ["site_scan.search", "site_scan.detail", "memory.write", "memory.search"],
         maxSteps: 10,
       },
@@ -409,54 +479,48 @@ const acquisitionDeepDiveWorkflow: N8nWorkflowJSON = {
       typeVersion: 1,
       position: [80, 560],
       parameters: {
-        objective: `Using the parcel intelligence and lease data from previous steps, draft a professional acquisition memo. The broker's deal context: ={{ $node["Run Acquisition Analysis"].json.brief || "general acquisition" }}. Sections: (1) Investment Thesis (3 sentences, tailored to the stated use case), (2) Property Overview, (3) Financial Snapshot (assessed value, tax, asking price if known), (4) Market Context (demographics), (5) Environmental Status, (6) Lease Analysis (if data exists), (7) Risks and Concerns (flag anything that conflicts with the broker's stated goals), (8) Recommended Next Steps. Format for email delivery.`,
+        objective: `Using the parcel intelligence and lease data from previous steps, draft a professional acquisition memo. The broker's deal context: ={{ $node["Run Acquisition Analysis"].json.body.brief || "general acquisition" }}. Sections: (1) Investment Thesis (3 sentences, tailored to the stated use case), (2) Property Overview, (3) Financial Snapshot (assessed value, tax, asking price if known), (4) Market Context (demographics), (5) Environmental Status, (6) Lease Analysis (if data exists), (7) Risks and Concerns (flag anything that conflicts with the broker's stated goals), (8) Recommended Next Steps. Format for email delivery.`,
         tools: ["memory.search"],
         maxSteps: 4,
       },
       credentials: { driftCreApi: { id: "1", name: "Drift CRE" } },
     },
-    {
-      id: "send-memo",
-      name: "Deliver Memo",
-      type: "n8n-nodes-base.httpRequest",
-      typeVersion: 4,
-      position: [80, 720],
-      parameters: {
-        url: "https://api.resend.com/emails",
-        method: "POST",
-        sendHeaders: true,
-        headerParameters: {
-          parameters: [
-            { name: "Authorization", value: "=Bearer {{$env.RESEND_API_KEY}}" },
-            { name: "Content-Type", value: "application/json" },
-          ],
-        },
-        sendBody: true,
-        bodyParameters: {
-          parameters: [
-            { name: "from", value: "Drift <ops@driftai.studio>" },
-            { name: "to", value: `={{ [$node["Run Acquisition Analysis"].json.broker_email] }}` },
-            { name: "subject", value: `=Acquisition memo -- {{ $node["Run Acquisition Analysis"].json.address || "Target Property" }}` },
-            { name: "html", value: "={{ $json.text || JSON.stringify($json) }}" },
-          ],
-        },
-      },
-    },
-    reportNode([80, 880], "send-memo").node,
+    acquisitionEmail.buildNode,
+    acquisitionEmail.sendNode,
+    reportNode([80, 1040], "Send Acquisition Memo").node,
   ],
   connections: {
     "Run Acquisition Analysis": { main: [[{ node: "Full Parcel Intelligence", type: "main", index: 0 }]] },
     "Full Parcel Intelligence": { main: [[{ node: "Check Lease Data", type: "main", index: 0 }]] },
     "Check Lease Data": { main: [[{ node: "Draft Acquisition Memo", type: "main", index: 0 }]] },
-    "Draft Acquisition Memo": { main: [[{ node: "Deliver Memo", type: "main", index: 0 }]] },
-    "Deliver Memo": { main: [[{ node: "Report to Drift", type: "main", index: 0 }]] },
+    "Draft Acquisition Memo": { main: [[{ node: "Build Memo Email", type: "main", index: 0 }]] },
+    "Build Memo Email": { main: [[{ node: "Send Acquisition Memo", type: "main", index: 0 }]] },
+    "Send Acquisition Memo": { main: [[{ node: "Report to Drift", type: "main", index: 0 }]] },
   },
   settings: { executionOrder: "v1" },
 };
 
-// ══════════════════════════════════════════════════════════════
+// ================================================================
 // 5 - Market update report (cron)
-// ══════════════════════════════════════════════════════════════
+// ================================================================
+
+const marketUpdateEmail = emailSendNodes(
+  "Build Market Email",
+  "Deliver Market Update",
+  `const items = $input.all();
+const html = items[0].json.text || JSON.stringify(items[0].json);
+
+return [{
+  json: {
+    from: 'Drift <ops@driftai.studio>',
+    to: 'broker@yourfirm.com',
+    subject: 'Weekly market update',
+    html: html,
+  }
+}];`,
+  [80, 880],
+  [80, 1040],
+);
 
 const marketUpdateWorkflow: N8nWorkflowJSON = {
   name: "Weekly market update",
@@ -525,47 +589,23 @@ const marketUpdateWorkflow: N8nWorkflowJSON = {
       },
       credentials: { driftCreApi: { id: "1", name: "Drift CRE" } },
     },
-    {
-      id: "send-report",
-      name: "Deliver Market Update",
-      type: "n8n-nodes-base.httpRequest",
-      typeVersion: 4,
-      position: [80, 880],
-      parameters: {
-        url: "https://api.resend.com/emails",
-        method: "POST",
-        sendHeaders: true,
-        headerParameters: {
-          parameters: [
-            { name: "Authorization", value: "=Bearer {{$env.RESEND_API_KEY}}" },
-            { name: "Content-Type", value: "application/json" },
-          ],
-        },
-        sendBody: true,
-        bodyParameters: {
-          parameters: [
-            { name: "from", value: "Drift <ops@driftai.studio>" },
-            { name: "to", value: '=["broker@yourfirm.com"]' }, // placeholder -- clone injects workspace owner email
-            { name: "subject", value: "=Weekly market update -- {{ $now.format('MMM d, yyyy') }}" },
-            { name: "html", value: "={{ $json.text || JSON.stringify($json) }}" },
-          ],
-        },
-      },
-    },
-    reportNode([80, 1040], "send-report").node,
+    marketUpdateEmail.buildNode,
+    marketUpdateEmail.sendNode,
+    reportNode([80, 1200], "Deliver Market Update").node,
   ],
   connections: {
     "Fridays 7am ET": { main: [[{ node: "Research Market News", type: "main", index: 0 }]] },
     "Research Market News": { main: [[{ node: "Current Pipeline", type: "main", index: 0 }]] },
     "Current Pipeline": { main: [[{ node: "Active Listings", type: "main", index: 0 }]] },
     "Active Listings": { main: [[{ node: "Compile Market Report", type: "main", index: 0 }]] },
-    "Compile Market Report": { main: [[{ node: "Deliver Market Update", type: "main", index: 0 }]] },
+    "Compile Market Report": { main: [[{ node: "Build Market Email", type: "main", index: 0 }]] },
+    "Build Market Email": { main: [[{ node: "Deliver Market Update", type: "main", index: 0 }]] },
     "Deliver Market Update": { main: [[{ node: "Report to Drift", type: "main", index: 0 }]] },
   },
   settings: { executionOrder: "v1" },
 };
 
-// ── Export ───────────────────────────────────────────────────
+// -- Export --
 
 export const N8N_TEMPLATES: N8nWorkflowTemplate[] = [
   {

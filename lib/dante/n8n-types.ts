@@ -192,7 +192,7 @@ export const DRIFT_TO_N8N_NODE_TYPE: Record<string, string> = {
   delay:             "n8n-nodes-base.wait",
   for_each:          "n8n-nodes-base.splitInBatches",
   transform:         "n8n-nodes-base.code",
-  send_email:        "n8n-nodes-base.emailSend",
+  send_email:        "n8n-nodes-base.httpRequest",  // Resend REST (SMTP blocked on Railway)
   send_sms:          "n8n-nodes-base.twilio",
   sub_workflow:      "n8n-nodes-base.executeWorkflow",
 

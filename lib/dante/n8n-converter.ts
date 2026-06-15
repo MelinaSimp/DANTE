@@ -240,14 +240,26 @@ function convertParameters(
         responseMode: "onReceived",
       };
 
-    case "send_email":
+    case "send_email": {
+      // Railway blocks outbound SMTP. Send via Resend REST API instead.
+      const toExpr = convertTemplateExpr(String(config.to || "={{$env.BROKER_EMAIL}}"));
+      const subjectExpr = convertTemplateExpr(String(config.subject || ""));
+      const bodyExpr = convertTemplateExpr(String(config.text || config.body || ""));
       return {
-        fromEmail: "ops@driftai.studio",
-        toEmail: convertTemplateExpr(String(config.to || "={{$env.BROKER_EMAIL}}")),
-        subject: convertTemplateExpr(String(config.subject || "")),
-        emailType: "html",
-        html: convertTemplateExpr(String(config.text || config.body || "")),
+        url: "https://api.resend.com/emails",
+        method: "POST",
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [
+            { name: "Authorization", value: "=Bearer {{$env.RESEND_API_KEY}}" },
+            { name: "Content-Type", value: "application/json" },
+          ],
+        },
+        sendBody: true,
+        specifyBody: "json",
+        jsonBody: `={{ JSON.stringify({ from: "Drift <ops@driftai.studio>", to: String(${stripExprWrapper(toExpr)}), subject: String(${stripExprWrapper(subjectExpr)}), html: String(${stripExprWrapper(bodyExpr)}) }) }}`,
       };
+    }
 
     case "send_sms":
       return {
@@ -442,6 +454,20 @@ function convertTemplateExpr(text: string): string {
   }
 
   return result;
+}
+
+/**
+ * Strip the n8n expression wrapper (={{ ... }}) to get the raw JS expression.
+ * Used when embedding an expression inside a JSON.stringify() expression.
+ * E.g. "={{ $json.email }}" → "$json.email"
+ *      "plain text"         → '"plain text"'
+ */
+function stripExprWrapper(expr: string): string {
+  // Match ={{ ... }} at the boundaries
+  const match = expr.match(/^={{ ([\s\S]*) }}$/);
+  if (match) return match[1];
+  // Not an expression -- return as a quoted string literal
+  return JSON.stringify(expr);
 }
 
 function getTypeVersion(n8nType: string): number {
