@@ -237,10 +237,11 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
 
   // Helper: extract input_fields from trigger node regardless of format.
   // Drift-native stores them in config.input_fields, n8n-native in parameters.input_fields.
-  const getTriggerInputFields = (step: Record<string, unknown>): TriggerInputField[] => {
-    const fromConfig = (step.config as { input_fields?: TriggerInputField[] } | undefined)?.input_fields;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const getTriggerInputFields = (step: any): TriggerInputField[] => {
+    const fromConfig = step?.config?.input_fields as TriggerInputField[] | undefined;
     if (fromConfig && fromConfig.length > 0) return fromConfig;
-    const fromParams = (step.parameters as { input_fields?: TriggerInputField[] } | undefined)?.input_fields;
+    const fromParams = step?.parameters?.input_fields as TriggerInputField[] | undefined;
     if (fromParams && fromParams.length > 0) return fromParams;
     return [];
   };
