@@ -57,7 +57,7 @@ export interface MigrationReport {
 // into a workspace. We need to restructure into proper n8n format
 // (nodes[] with names + connections{}).
 
-function restructureDriftWrappedN8n(
+export function restructureDriftWrappedN8n(
   graph: Record<string, unknown>,
   workflowId: string,
 ): import("./n8n-types").N8nWorkflowJSON {

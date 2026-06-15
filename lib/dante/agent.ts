@@ -2615,11 +2615,69 @@ async function dispatchTool(
       }
 
       // ── n8n execution path ──────────────────────────────────
-      // If this workflow has an n8n_workflow_id, execute via n8n.
-      // Otherwise fall back to the legacy Drift runner (Phase 1
-      // parallel operation — both engines coexist).
-      if ((match as any).n8n_workflow_id) {
-        const n8nId = (match as any).n8n_workflow_id as string;
+      // All workflows execute via n8n. If this workflow has no
+      // n8n_workflow_id yet, JIT-push it to n8n first.
+      let n8nId = (match as any).n8n_workflow_id as string | null;
+
+      if (!n8nId) {
+        // JIT push: convert the graph and create in n8n
+        try {
+          const graph = match.graph as Record<string, unknown> | null;
+          if (!graph || !Array.isArray((graph as any).nodes)) {
+            return { error: `workflow.run: "${match.name}" has no graph definition. It needs to be re-created.` };
+          }
+
+          const hasEdges = Array.isArray(graph.edges);
+          const hasConnections = !!graph.connections;
+          const nodes = graph.nodes as Array<Record<string, unknown>>;
+          const hasN8nNodeTypes = nodes.some(
+            (n) => typeof n.type === "string" && (n.type as string).includes("."),
+          );
+          const isN8nNative = hasConnections || (!hasEdges && Array.isArray(nodes));
+          const isDriftWrappedN8n = hasEdges && hasN8nNodeTypes;
+
+          let n8nJson: import("@/lib/dante/n8n-types").N8nWorkflowJSON;
+
+          if (isN8nNative) {
+            n8nJson = graph as unknown as import("@/lib/dante/n8n-types").N8nWorkflowJSON;
+          } else if (isDriftWrappedN8n) {
+            const { restructureDriftWrappedN8n } = await import("@/lib/dante/n8n-migration");
+            n8nJson = restructureDriftWrappedN8n(graph, match.id);
+          } else {
+            const { convertDriftToN8n } = await import("@/lib/dante/n8n-converter");
+            const conversion = convertDriftToN8n(
+              graph as unknown as import("@/lib/dante/workflow-types").WorkflowGraph,
+              match.name || "Untitled",
+            );
+            n8nJson = conversion.workflow;
+          }
+
+          n8nBridge.patchGraphTrigger(n8nJson.nodes, match.id);
+          n8nBridge.patchGraphCredentials(n8nJson.nodes);
+
+          n8nId = await n8nBridge.createWorkspaceWorkflow(
+            ctx.workspaceId,
+            { ...n8nJson, active: true },
+          );
+          // Persist so we don't JIT-push again
+          await supabaseAdmin
+            .from("dante_workflows")
+            .update({ n8n_workflow_id: n8nId })
+            .eq("id", match.id);
+        } catch (jitErr) {
+          agentLog.error("workflow.run: JIT push to n8n failed", {
+            err: jitErr instanceof Error ? jitErr.message : String(jitErr),
+            workflowId: match.id,
+          });
+          return {
+            error: `workflow.run: "${match.name}" has no n8n engine and auto-push failed: ${
+              jitErr instanceof Error ? jitErr.message : String(jitErr)
+            }`,
+          };
+        }
+      }
+
+      {
         const syncMode = !!args.wait_for_result;
 
         // Extract webhook path from graph if the trigger is a webhook node
@@ -2693,11 +2751,6 @@ async function dispatchTool(
           };
         }
       }
-
-      // All workflows must have n8n_workflow_id at this point
-      return {
-        error: `workflow.run: Workflow "${match.name}" has no n8n engine ID. It needs to be re-created.`,
-      };
     }
 
     case "workflow.list_templates": {
@@ -3025,19 +3078,93 @@ async function dispatchTool(
 
       if (updateErr) return { error: `workflow.update: ${updateErr.message}` };
 
-      // Sync enable/disable state to n8n if this workflow has an n8n ID
-      const n8nWfId = (wf as any).n8n_workflow_id as string | null;
-      if (n8nWfId && args.enabled !== undefined) {
+      // Sync changes to n8n
+      let n8nWfId = (wf as any).n8n_workflow_id as string | null;
+      if (n8nWfId) {
         try {
-          if (args.enabled) {
-            await n8nBridge.activateWorkflow(n8nWfId);
-          } else {
-            await n8nBridge.deactivateWorkflow(n8nWfId);
+          // If graph was patched, push the updated graph to n8n
+          if (patch.graph) {
+            const graphObj = patch.graph as Record<string, unknown>;
+            // Detect format and convert if needed
+            const hasEdges = Array.isArray(graphObj.edges);
+            const hasConnections = !!graphObj.connections;
+            let n8nJson: Record<string, unknown>;
+            if (hasConnections || !hasEdges) {
+              n8nJson = graphObj;
+            } else {
+              // Drift format -- convert
+              const { convertDriftToN8n: convert } = await import("@/lib/dante/n8n-converter");
+              const conversion = convert(
+                graphObj as unknown as import("@/lib/dante/workflow-types").WorkflowGraph,
+                String(args.name || "Untitled"),
+              );
+              n8nJson = conversion.workflow as unknown as Record<string, unknown>;
+            }
+            const nodes = (n8nJson as Record<string, unknown>).nodes;
+            if (Array.isArray(nodes)) {
+              n8nBridge.patchGraphTrigger(nodes, workflowId);
+              n8nBridge.patchGraphCredentials(nodes);
+            }
+            await n8nBridge.updateWorkflow(n8nWfId, n8nJson as unknown as import("@/lib/dante/n8n-types").N8nWorkflowJSON);
           }
+          // Sync enable/disable state
+          if (args.enabled !== undefined) {
+            if (args.enabled) {
+              await n8nBridge.activateWorkflow(n8nWfId);
+            } else {
+              await n8nBridge.deactivateWorkflow(n8nWfId);
+            }
+          }
+          // Ensure the webhook is registered after any update
+          try { await n8nBridge.ensureWebhookTrigger(n8nWfId, workflowId); } catch { /* non-fatal */ }
         } catch (syncErr) {
           agentLog.warn("workflow.update: n8n sync failed", {
             err: syncErr instanceof Error ? syncErr.message : String(syncErr),
             n8nWfId,
+          });
+        }
+      } else if (patch.graph) {
+        // JIT push: workflow has no n8n ID yet. Convert and create in n8n.
+        try {
+          const graphObj = patch.graph as Record<string, unknown>;
+          const hasEdges = Array.isArray(graphObj.edges);
+          const hasConnections = !!graphObj.connections;
+          const nodes = (graphObj.nodes || []) as Array<Record<string, unknown>>;
+          const hasN8nNodeTypes = nodes.some(
+            (n) => typeof n.type === "string" && (n.type as string).includes("."),
+          );
+          const isN8nNative = hasConnections || (!hasEdges && Array.isArray(nodes));
+          const isDriftWrappedN8n = hasEdges && hasN8nNodeTypes;
+
+          let n8nJson: import("@/lib/dante/n8n-types").N8nWorkflowJSON;
+          if (isN8nNative) {
+            n8nJson = graphObj as unknown as import("@/lib/dante/n8n-types").N8nWorkflowJSON;
+          } else if (isDriftWrappedN8n) {
+            const { restructureDriftWrappedN8n } = await import("@/lib/dante/n8n-migration");
+            n8nJson = restructureDriftWrappedN8n(graphObj, workflowId);
+          } else {
+            const { convertDriftToN8n: convert } = await import("@/lib/dante/n8n-converter");
+            const conversion = convert(
+              graphObj as unknown as import("@/lib/dante/workflow-types").WorkflowGraph,
+              String(args.name || "Untitled"),
+            );
+            n8nJson = conversion.workflow;
+          }
+
+          n8nBridge.patchGraphTrigger(n8nJson.nodes, workflowId);
+          n8nBridge.patchGraphCredentials(n8nJson.nodes);
+
+          n8nWfId = await n8nBridge.createWorkspaceWorkflow(
+            ctx.workspaceId,
+            { ...n8nJson, active: Boolean(args.enabled ?? true) },
+          );
+          await supabaseAdmin
+            .from("dante_workflows")
+            .update({ n8n_workflow_id: n8nWfId })
+            .eq("id", workflowId);
+        } catch (jitErr) {
+          agentLog.warn("workflow.update: JIT push to n8n failed", {
+            err: jitErr instanceof Error ? jitErr.message : String(jitErr),
           });
         }
       }
