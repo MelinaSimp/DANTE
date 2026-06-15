@@ -2071,7 +2071,69 @@ function NeedsInputCard({
   );
 }
 
-// ── Input bar ───────────────────────────────────────────────────
+// ── Attachment preview card (Claude-style 100px card) ────────
+
+function AttachmentCard({
+  attachment,
+  onRemove,
+}: {
+  attachment: { name: string; ext?: string; truncated?: boolean; text?: string; image_data?: string; media_type?: string };
+  onRemove: () => void;
+}) {
+  const isImage = !!(attachment.image_data && attachment.media_type);
+  const extLabel = (attachment.ext || attachment.name.split(".").pop() || "FILE").toUpperCase();
+
+  if (isImage) {
+    return (
+      <div className="relative group flex-shrink-0 w-[100px] h-[100px] rounded-lg overflow-hidden bg-[var(--canvas-muted)]">
+        <img
+          src={`data:${attachment.media_type};base64,${attachment.image_data}`}
+          alt={attachment.name}
+          className="w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/60 flex items-end p-2 pointer-events-none">
+          <span className="text-[10px] text-white/90 bg-black/40 backdrop-blur-sm px-1.5 py-0.5 rounded">
+            {extLabel}
+          </span>
+        </div>
+        <button
+          onClick={onRemove}
+          className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+          aria-label={`Remove ${attachment.name}`}
+        >
+          <X className="w-3 h-3" />
+        </button>
+      </div>
+    );
+  }
+
+  // Text / document file preview
+  const previewText = attachment.text?.slice(0, 200) || attachment.name;
+  return (
+    <div className="relative group flex-shrink-0 w-[100px] h-[100px] rounded-lg overflow-hidden bg-[var(--neu-card)] border border-[var(--rule)] p-2">
+      <div className="text-[7px] leading-tight text-[var(--ink-muted)] whitespace-pre-wrap break-words overflow-hidden h-full">
+        {previewText}
+      </div>
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[var(--neu-input)] flex items-end p-2 pointer-events-none">
+        <span className="text-[10px] bg-[var(--canvas-muted)] border border-[var(--rule)] px-1.5 py-0.5 rounded text-[var(--ink-muted)]">
+          {extLabel}
+        </span>
+        {attachment.truncated && (
+          <span className="text-[8px] text-[var(--ink-subtle)] ml-1">truncated</span>
+        )}
+      </div>
+      <button
+        onClick={onRemove}
+        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+        aria-label={`Remove ${attachment.name}`}
+      >
+        <X className="w-3 h-3" />
+      </button>
+    </div>
+  );
+}
+
+// ── Input bar (Claude-style) ────────────────────────────────────
 
 interface InputBarProps {
   input: string;
@@ -2092,30 +2154,57 @@ interface InputBarProps {
   customizing: boolean;
   textareaRef: React.RefObject<HTMLTextAreaElement | null>;
   rows: number;
-  /** Brand name of the assistant, used in the placeholder. */
   assistantName: string;
-  /** Optional handler for the Harvey-style "+ Files and sources"
-   *  toolbar button. When omitted, the button is hidden. */
   onOpenFilesAndSources?: () => void;
-  /** Files the user has attached for the next message — rendered
-   *  as small chips above the textarea. Empty array hides the row. */
-  attachments?: Array<{ name: string; ext?: string; truncated?: boolean; image_data?: string; media_type?: string }>;
-  /** Remove the attachment at the given index. */
+  attachments?: Array<{ name: string; ext?: string; truncated?: boolean; text?: string; image_data?: string; media_type?: string }>;
   onRemoveAttachment?: (idx: number) => void;
-  /** When true, the toolbar (Prompts/Customize/Deep research) is
-   *  hidden and the input shrinks to just textarea + send. Used in
-   *  expanded mode where the chat is the focus and toolbar choices
-   *  feel like noise. */
   compact?: boolean;
   quickPrompts?: Array<{ label: string; prompt: string }>;
   isRealtor?: boolean;
 }
 
 function InputBar(p: InputBarProps) {
-  // Compact mode — clean bordered input for expanded chat
+  const hasAttachments = p.attachments && p.attachments.length > 0;
+
+  // ── Send / Stop button (shared) ────────────────────────────
+  const sendStopButton = p.streaming ? (
+    <button
+      onClick={p.onStop}
+      className="relative bg-gradient-to-b from-neutral-700 to-black text-white rounded-[10px] h-8 w-8 flex items-center justify-center backdrop-blur-xl border border-white/30 active:scale-95 transition-all duration-150"
+      title="Stop generating"
+    >
+      <Square className="w-3 h-3" fill="currentColor" />
+    </button>
+  ) : (
+    <button
+      onClick={p.submit}
+      disabled={!p.input.trim() && !hasAttachments}
+      className="relative bg-gradient-to-b from-neutral-700 to-black text-white rounded-[10px] h-8 w-8 flex items-center justify-center disabled:from-neutral-600 disabled:to-black disabled:opacity-40 backdrop-blur-xl border border-white/30 active:enabled:scale-95 transition-all duration-150"
+      title="Send (Cmd+Enter)"
+    >
+      <Send className="w-3.5 h-3.5" strokeWidth={2} />
+    </button>
+  );
+
+  // ── Attachment cards (Claude-style preview strip) ──────────
+  const attachmentStrip = hasAttachments ? (
+    <div className="overflow-x-auto border-t border-[var(--rule)] p-2.5 bg-[var(--canvas-muted)] rounded-b-[16px] md:rounded-b-[20px] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+      <div className="flex gap-2">
+        {p.attachments!.map((a, i) => (
+          <AttachmentCard
+            key={`${a.name}-${i}`}
+            attachment={a}
+            onRemove={() => p.onRemoveAttachment?.(i)}
+          />
+        ))}
+      </div>
+    </div>
+  ) : null;
+
+  // ── Compact mode ───────────────────────────────────────────
   if (p.compact) {
     return (
-      <div className="glass-input rounded-[16px] md:rounded-[20px] bg-[var(--neu-input)] border border-white/30 border-t-white/50 relative">
+      <div className="glass-input rounded-[16px] md:rounded-[20px] bg-[var(--neu-input)] border border-white/30 border-t-white/50 flex flex-col">
         <div className="px-4 pt-4">
           <textarea
             ref={p.textareaRef}
@@ -2128,67 +2217,31 @@ function InputBar(p: InputBarProps) {
             className="w-full resize-none text-sm overflow-hidden border-0 p-0 bg-transparent outline-none placeholder:text-[var(--ink-subtle)] text-[var(--ink)] leading-6 max-h-48"
           />
         </div>
-        <div className="flex items-center justify-end p-2.5">
-          {p.streaming ? (
-            <button
-              onClick={p.onStop}
-              className="relative bg-gradient-to-b from-neutral-700 to-black text-white rounded-[10px] h-8 w-8 flex items-center justify-center backdrop-blur-xl border border-white/30 active:scale-95 transition-all duration-150"
-              title="Stop generating"
-            >
-              <Square className="w-3 h-3" fill="currentColor" />
-            </button>
-          ) : (
-            <button
-              onClick={p.submit}
-              disabled={!p.input.trim()}
-              className="relative bg-gradient-to-b from-neutral-700 to-black text-white rounded-[10px] h-8 w-8 flex items-center justify-center disabled:from-neutral-600 disabled:to-black disabled:opacity-40 backdrop-blur-xl border border-white/30 active:enabled:scale-95 transition-all duration-150"
-              title="Send (Cmd+Enter)"
-            >
-              <Send className="w-3.5 h-3.5" strokeWidth={2} />
-            </button>
-          )}
+        <div className="flex items-center justify-between p-2.5">
+          <div className="flex items-center gap-1">
+            {p.onOpenFilesAndSources && (
+              <button
+                onClick={p.onOpenFilesAndSources}
+                disabled={p.streaming}
+                className="flex items-center justify-center h-8 w-8 rounded-lg text-[var(--ink-subtle)] hover:bg-[var(--neu-hover)] hover:text-[var(--ink-muted)] transition-colors disabled:opacity-50"
+                title="Attach files"
+              >
+                <Plus className="w-3.5 h-3.5" strokeWidth={2} />
+              </button>
+            )}
+          </div>
+          {sendStopButton}
         </div>
+        {attachmentStrip}
       </div>
     );
   }
 
-  // Full landing input — Mike's rounded bordered style
+  // ── Full landing input (Claude-style layout) ──────────────
   return (
-    <div className="glass-input rounded-[16px] md:rounded-[20px] bg-[var(--neu-input)] border border-white/30 border-t-white/50">
-      {/* Attachment chips */}
-      {p.attachments && p.attachments.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 px-3 pt-3">
-          {p.attachments.map((a, i) => (
-            <span
-              key={`${a.name}-${i}`}
-              className="inline-flex items-center gap-1.5 pl-1.5 pr-1 py-0.5 rounded-full text-xs text-white shadow border border-white/20 bg-black"
-              title={a.truncated ? `${a.name} (truncated to fit)` : a.name}
-            >
-              {a.image_data && a.media_type ? (
-                <img
-                  src={`data:${a.media_type};base64,${a.image_data}`}
-                  alt={a.name}
-                  className="w-5 h-5 rounded-sm object-cover"
-                />
-              ) : null}
-              <span className="max-w-[140px] truncate">{a.name}</span>
-              {p.onRemoveAttachment && (
-                <button
-                  type="button"
-                  onClick={() => p.onRemoveAttachment?.(i)}
-                  className="rounded-full p-0.5 ml-0.5 text-white/60 hover:text-white hover:bg-white/20 transition-colors"
-                  aria-label={`Remove ${a.name}`}
-                >
-                  <X className="w-2.5 h-2.5" />
-                </button>
-              )}
-            </span>
-          ))}
-        </div>
-      )}
-
+    <div className="glass-input rounded-[16px] md:rounded-[20px] bg-[var(--neu-input)] border border-white/30 border-t-white/50 flex flex-col min-h-[150px]">
       {/* Textarea */}
-      <div className="px-4 pt-4">
+      <div className="flex-1 px-4 pt-4">
         <textarea
           ref={p.textareaRef}
           value={p.input}
@@ -2201,14 +2254,15 @@ function InputBar(p: InputBarProps) {
         />
       </div>
 
-      {/* Controls */}
-      <div className="flex items-center justify-between md:p-2.5 p-2">
+      {/* Toolbar — Claude layout: left actions, right send */}
+      <div className="flex items-center justify-between px-2 pb-1.5 md:px-2.5">
         <div className="flex items-center gap-1">
           {p.onOpenFilesAndSources && (
             <button
               onClick={p.onOpenFilesAndSources}
               disabled={p.streaming}
               className="flex items-center gap-1.5 rounded-lg px-2 h-8 text-sm text-[var(--ink-subtle)] hover:bg-[var(--neu-hover)] hover:text-[var(--ink-muted)] transition-colors disabled:opacity-50"
+              title="Attach files"
             >
               <Plus className="w-3.5 h-3.5" strokeWidth={2} />
               <span className="hidden sm:inline">Files</span>
@@ -2245,27 +2299,13 @@ function InputBar(p: InputBarProps) {
             }}
           />
         </div>
-
-        {p.streaming ? (
-          <button
-            onClick={p.onStop}
-            className="relative bg-gradient-to-b from-neutral-700 to-black text-white rounded-[10px] h-8 w-8 flex items-center justify-center backdrop-blur-xl border border-white/30 active:scale-95 transition-all duration-150"
-            title="Stop generating"
-          >
-            <Square className="w-3 h-3" fill="currentColor" />
-          </button>
-        ) : (
-          <button
-            onClick={p.submit}
-            disabled={!p.input.trim()}
-            className="relative bg-gradient-to-b from-neutral-700 to-black text-white rounded-[10px] h-8 w-8 flex items-center justify-center disabled:from-neutral-600 disabled:to-black disabled:opacity-40 backdrop-blur-xl border border-white/30 active:enabled:scale-95 transition-all duration-150"
-            title="Send (Cmd+Enter)"
-          >
-            <Send className="w-3.5 h-3.5" strokeWidth={2} />
-          </button>
-        )}
+        {sendStopButton}
       </div>
 
+      {/* Attachment preview cards */}
+      {attachmentStrip}
+
+      {/* Prompt library modal */}
       {p.promptLibraryOpen && (
         <PromptLibraryModal
           onClose={() => p.setPromptLibraryOpen(false)}

@@ -4,7 +4,6 @@ import type React from "react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Plus,
-  SlidersHorizontal,
   ArrowUp,
   X,
   FileText,
@@ -12,14 +11,13 @@ import {
   Video,
   Music,
   Archive,
-  ChevronDown,
-  Check,
   Loader2,
   AlertCircle,
   Copy,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+// ── Types ─────────────────────────────────────────────────────
 
 export interface FileWithPreview {
   id: string;
@@ -39,13 +37,6 @@ export interface PastedContent {
   wordCount: number;
 }
 
-export interface ModelOption {
-  id: string;
-  name: string;
-  description: string;
-  badge?: string;
-}
-
 interface ChatInputProps {
   onSendMessage?: (
     message: string,
@@ -57,32 +48,19 @@ interface ChatInputProps {
   maxFiles?: number;
   maxFileSize?: number;
   acceptedFileTypes?: string[];
-  models?: ModelOption[];
-  defaultModel?: string;
-  onModelChange?: (modelId: string) => void;
+  /** Extra toolbar items rendered between the + button and the send button. */
+  toolbarLeft?: React.ReactNode;
+  /** Content rendered to the right of the send button. */
+  toolbarRight?: React.ReactNode;
 }
+
+// ── Constants ─────────────────────────────────────────────────
 
 const MAX_FILES = 10;
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 const PASTE_THRESHOLD = 200;
-const DEFAULT_MODELS_INTERNAL: ModelOption[] = [
-  {
-    id: "claude-sonnet-4",
-    name: "Claude Sonnet 4",
-    description: "Balanced model",
-    badge: "Latest",
-  },
-  {
-    id: "claude-opus-3.5",
-    name: "Claude Opus 3.5",
-    description: "Highest intelligence",
-  },
-  {
-    id: "claude-haiku-3",
-    name: "Claude Haiku 3",
-    description: "Fastest responses",
-  },
-];
+
+// ── Helpers ───────────────────────────────────────────────────
 
 const formatFileSize = (bytes: number): string => {
   if (bytes === 0) return "0 Bytes";
@@ -100,9 +78,7 @@ const getFileTypeLabel = (type: string): string => {
   if (label.length > 7 && label.includes("-")) {
     label = label.substring(0, label.indexOf("-"));
   }
-  if (label.length > 10) {
-    label = label.substring(0, 10) + "...";
-  }
+  if (label.length > 10) label = label.substring(0, 10) + "...";
   return label;
 };
 
@@ -114,16 +90,13 @@ const isTextualFile = (file: File): boolean => {
     "application/javascript",
     "application/typescript",
   ];
-
   const textualExtensions = [
-    "txt", "md", "py", "js", "ts", "jsx", "tsx", "html", "htm", "css",
-    "scss", "sass", "json", "xml", "yaml", "yml", "csv", "sql", "sh",
-    "bash", "php", "rb", "go", "java", "c", "cpp", "h", "hpp", "cs",
-    "rs", "swift", "kt", "scala", "r", "vue", "svelte", "astro",
-    "config", "conf", "ini", "toml", "log", "gitignore", "dockerfile",
-    "makefile", "readme",
+    "txt","md","py","js","ts","jsx","tsx","html","htm","css","scss",
+    "sass","json","xml","yaml","yml","csv","sql","sh","bash","php",
+    "rb","go","java","c","cpp","h","hpp","cs","rs","swift","kt",
+    "scala","r","vue","svelte","astro","config","conf","ini","toml",
+    "log","gitignore","dockerfile","makefile","readme",
   ];
-
   const isTextualMimeType = textualTypes.some((type) =>
     file.type.toLowerCase().startsWith(type)
   );
@@ -133,7 +106,6 @@ const isTextualFile = (file: File): boolean => {
     file.name.toLowerCase().includes("readme") ||
     file.name.toLowerCase().includes("dockerfile") ||
     file.name.toLowerCase().includes("makefile");
-
   return isTextualMimeType || isTextualExtension;
 };
 
@@ -151,6 +123,8 @@ const getFileExtension = (filename: string): string => {
   return extension.length > 8 ? extension.substring(0, 8) + "..." : extension;
 };
 
+// ── File Preview Card ─────────────────────────────────────────
+
 const FilePreviewCard: React.FC<{
   file: FileWithPreview;
   onRemove: (id: string) => void;
@@ -165,261 +139,136 @@ const FilePreviewCard: React.FC<{
   return (
     <div
       className={cn(
-        "relative group bg-zinc-700 border w-fit border-zinc-600 rounded-lg p-3 size-[125px] shadow-md flex-shrink-0 overflow-hidden",
-        isImage ? "p-0" : "p-3"
+        "relative group bg-[var(--neu-card)] border border-[var(--rule)] rounded-lg size-[100px] flex-shrink-0 overflow-hidden",
+        isImage ? "p-0" : "p-2.5"
       )}
     >
-      <div className="flex items-start gap-3 size-[125px] overflow-hidden">
-        {isImage && file.preview ? (
-          <div className="relative size-full rounded-md overflow-hidden bg-zinc-600">
-            <img
-              src={file.preview}
-              alt={file.file.name}
-              className="w-full h-full object-cover"
-            />
-          </div>
-        ) : (
-          <></>
-        )}
-        {!isImage && (
-          <div className="flex-1 min-w-0 overflow-hidden">
-            <div className="flex items-center gap-1.5 mb-1">
-              <div className="group absolute flex justify-start items-end p-2 inset-0 bg-gradient-to-b to-[#30302E] from-transparent overflow-hidden">
-                <p className="absolute bottom-2 left-2 capitalize text-white text-xs bg-zinc-800 border border-zinc-700 px-2 py-1 rounded-md">
-                  {getFileTypeLabel(file.type)}
-                </p>
-              </div>
-              {file.uploadStatus === "uploading" && (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-400" />
-              )}
-              {file.uploadStatus === "error" && (
-                <AlertCircle className="h-3.5 w-3.5 text-red-400" />
-              )}
-            </div>
-            <p
-              className="max-w-[90%] text-xs font-medium text-zinc-100 truncate"
-              title={file.file.name}
-            >
-              {file.file.name}
-            </p>
-            <p className="text-[10px] text-zinc-500 mt-1">
-              {formatFileSize(file.file.size)}
-            </p>
-          </div>
-        )}
-      </div>
-      <Button
-        size="icon"
-        variant="outline"
-        className="absolute top-1 right-1 h-6 w-6 p-0 opacity-0 group-hover:opacity-100"
-        onClick={() => onRemove(file.id)}
-      >
-        <X className="h-4 w-4" />
-      </Button>
-    </div>
-  );
-};
-
-const PastedContentCard: React.FC<{
-  content: PastedContent;
-  onRemove: (id: string) => void;
-}> = ({ content, onRemove }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const previewText = content.content.slice(0, 150);
-  const needsTruncation = content.content.length > 150;
-
-  return (
-    <div className="bg-zinc-700 border border-zinc-600 relative rounded-lg p-3 size-[125px] shadow-md flex-shrink-0 overflow-hidden">
-      <div className="text-[8px] text-zinc-300 whitespace-pre-wrap break-words max-h-24 overflow-y-auto custom-scrollbar">
-        {isExpanded || !needsTruncation ? content.content : previewText}
-        {!isExpanded && needsTruncation && "..."}
-      </div>
-      <div className="group absolute flex justify-start items-end p-2 inset-0 bg-gradient-to-b to-[#30302E] from-transparent overflow-hidden">
-        <p className="capitalize text-white text-xs bg-zinc-800 border border-zinc-700 px-2 py-1 rounded-md">
-          PASTED
-        </p>
-        <div className="group-hover:opacity-100 opacity-0 transition-opacity duration-300 flex items-center gap-0.5 absolute top-2 right-2">
-          <Button
-            size="icon"
-            variant="outline"
-            className="size-6"
-            onClick={() => navigator.clipboard.writeText(content.content)}
-            title="Copy content"
-          >
-            <Copy className="h-3 w-3" />
-          </Button>
-          <Button
-            size="icon"
-            variant="outline"
-            className="size-6"
-            onClick={() => onRemove(content.id)}
-            title="Remove content"
-          >
-            <X className="h-3 w-3" />
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const ModelSelectorDropdown: React.FC<{
-  models: ModelOption[];
-  selectedModel: string;
-  onModelChange: (modelId: string) => void;
-}> = ({ models, selectedModel, onModelChange }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const selectedModelData =
-    models.find((m) => m.id === selectedModel) || models[0];
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  return (
-    <div className="relative" ref={dropdownRef}>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-9 px-2.5 text-sm font-medium text-zinc-300 hover:text-zinc-100 hover:bg-zinc-700"
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        <span className="truncate max-w-[150px] sm:max-w-[200px]">
-          {selectedModelData.name}
-        </span>
-        <ChevronDown
-          className={cn(
-            "ml-1 h-4 w-4 transition-transform",
-            isOpen && "rotate-180"
-          )}
+      {isImage && file.preview ? (
+        <img
+          src={file.preview}
+          alt={file.file.name}
+          className="w-full h-full object-cover"
         />
-      </Button>
-
-      {isOpen && (
-        <div className="absolute bottom-full right-0 mb-2 w-72 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl z-20 p-2">
-          {models.map((model) => (
-            <button
-              key={model.id}
-              className={cn(
-                "w-full text-left p-2.5 rounded-md hover:bg-zinc-700 transition-colors flex items-center justify-between",
-                model.id === selectedModel && "bg-zinc-700"
-              )}
-              onClick={() => {
-                onModelChange(model.id);
-                setIsOpen(false);
-              }}
-            >
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-zinc-100">
-                    {model.name}
-                  </span>
-                  {model.badge && (
-                    <span className="px-1.5 py-0.5 text-xs bg-blue-500/20 text-blue-300 rounded">
-                      {model.badge}
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-zinc-400 mt-0.5">
-                  {model.description}
-                </p>
-              </div>
-              {model.id === selectedModel && (
-                <Check className="h-4 w-4 text-blue-400 flex-shrink-0" />
-              )}
-            </button>
-          ))}
+      ) : (
+        <div className="flex-1 min-w-0 overflow-hidden h-full">
+          <p
+            className="text-[10px] font-medium text-[var(--ink)] truncate"
+            title={file.file.name}
+          >
+            {file.file.name}
+          </p>
+          <p className="text-[9px] text-[var(--ink-subtle)] mt-0.5">
+            {formatFileSize(file.file.size)}
+          </p>
         </div>
       )}
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[var(--neu-input)] flex items-end p-2 pointer-events-none">
+        <span className="text-[10px] bg-[var(--canvas-muted)] border border-[var(--rule)] px-1.5 py-0.5 rounded text-[var(--ink-muted)]">
+          {getFileTypeLabel(file.type)}
+        </span>
+        {file.uploadStatus === "uploading" && (
+          <Loader2 className="absolute top-2 left-2 h-3.5 w-3.5 animate-spin text-[var(--accent)]" />
+        )}
+        {file.uploadStatus === "error" && (
+          <AlertCircle className="absolute top-2 left-2 h-3.5 w-3.5 text-[var(--danger)]" />
+        )}
+      </div>
+      <button
+        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+        onClick={() => onRemove(file.id)}
+      >
+        <X className="w-3 h-3" />
+      </button>
     </div>
   );
 };
+
+// ── Textual File Preview Card ─────────────────────────────────
 
 const TextualFilePreviewCard: React.FC<{
   file: FileWithPreview;
   onRemove: (id: string) => void;
 }> = ({ file, onRemove }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const previewText = file.textContent?.slice(0, 150) || "";
-  const needsTruncation = (file.textContent?.length || 0) > 150;
   const fileExtension = getFileExtension(file.file.name);
 
   return (
-    <div className="bg-zinc-700 border border-zinc-600 relative rounded-lg p-3 size-[125px] shadow-md flex-shrink-0 overflow-hidden">
-      <div className="text-[8px] text-zinc-300 whitespace-pre-wrap break-words max-h-24 overflow-y-auto custom-scrollbar">
+    <div className="relative group bg-[var(--neu-card)] border border-[var(--rule)] rounded-lg size-[100px] flex-shrink-0 overflow-hidden p-2">
+      <div className="text-[7px] leading-tight text-[var(--ink-muted)] whitespace-pre-wrap break-words overflow-hidden h-full">
         {file.textContent ? (
-          <>
-            {isExpanded || !needsTruncation ? file.textContent : previewText}
-            {!isExpanded && needsTruncation && "..."}
-          </>
+          file.textContent.slice(0, 200)
         ) : (
-          <div className="flex items-center justify-center h-full text-zinc-400">
-            <Loader2 className="h-4 w-4 animate-spin" />
+          <div className="flex items-center justify-center h-full">
+            <Loader2 className="h-4 w-4 animate-spin text-[var(--ink-subtle)]" />
           </div>
         )}
       </div>
-      <div className="group absolute flex justify-start items-end p-2 inset-0 bg-gradient-to-b to-[#30302E] from-transparent overflow-hidden">
-        <p className="capitalize text-white text-xs bg-zinc-800 border border-zinc-700 px-2 py-1 rounded-md">
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[var(--neu-input)] flex items-end p-2 pointer-events-none">
+        <span className="text-[10px] bg-[var(--canvas-muted)] border border-[var(--rule)] px-1.5 py-0.5 rounded text-[var(--ink-muted)]">
           {fileExtension}
-        </p>
-        {file.uploadStatus === "uploading" && (
-          <div className="absolute top-2 left-2">
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-400" />
-          </div>
-        )}
-        {file.uploadStatus === "error" && (
-          <div className="absolute top-2 left-2">
-            <AlertCircle className="h-3.5 w-3.5 text-red-400" />
-          </div>
-        )}
-        <div className="group-hover:opacity-100 opacity-0 transition-opacity duration-300 flex items-center gap-0.5 absolute top-2 right-2">
-          {file.textContent && (
-            <Button
-              size="icon"
-              variant="outline"
-              className="size-6"
-              onClick={() =>
-                navigator.clipboard.writeText(file.textContent || "")
-              }
-              title="Copy content"
-            >
-              <Copy className="h-3 w-3" />
-            </Button>
-          )}
-          <Button
-            size="icon"
-            variant="outline"
-            className="size-6"
-            onClick={() => onRemove(file.id)}
-            title="Remove file"
+        </span>
+      </div>
+      <div className="absolute top-1 right-1 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        {file.textContent && (
+          <button
+            className="w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center"
+            onClick={() => navigator.clipboard.writeText(file.textContent || "")}
+            title="Copy content"
           >
-            <X className="h-3 w-3" />
-          </Button>
-        </div>
+            <Copy className="w-2.5 h-2.5" />
+          </button>
+        )}
+        <button
+          className="w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center"
+          onClick={() => onRemove(file.id)}
+          title="Remove file"
+        >
+          <X className="w-2.5 h-2.5" />
+        </button>
       </div>
     </div>
   );
 };
 
-let _fileIdCounter = 0;
-function nextFileId(): string {
-  return `file_${++_fileIdCounter}_${Date.now()}`;
-}
+// ── Pasted Content Card ───────────────────────────────────────
 
-let _pasteIdCounter = 0;
-function nextPasteId(): string {
-  return `paste_${++_pasteIdCounter}_${Date.now()}`;
-}
+const PastedContentCard: React.FC<{
+  content: PastedContent;
+  onRemove: (id: string) => void;
+}> = ({ content, onRemove }) => {
+  const previewText = content.content.slice(0, 150);
+  const needsTruncation = content.content.length > 150;
+
+  return (
+    <div className="relative group bg-[var(--neu-card)] border border-[var(--rule)] rounded-lg size-[100px] flex-shrink-0 overflow-hidden p-2">
+      <div className="text-[7px] leading-tight text-[var(--ink-muted)] whitespace-pre-wrap break-words overflow-hidden h-full">
+        {needsTruncation ? previewText + "..." : content.content}
+      </div>
+      <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[var(--neu-input)] flex items-end p-2 pointer-events-none">
+        <span className="text-[10px] bg-[var(--canvas-muted)] border border-[var(--rule)] px-1.5 py-0.5 rounded text-[var(--ink-muted)]">
+          PASTED
+        </span>
+      </div>
+      <div className="absolute top-1 right-1 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          className="w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center"
+          onClick={() => navigator.clipboard.writeText(content.content)}
+          title="Copy content"
+        >
+          <Copy className="w-2.5 h-2.5" />
+        </button>
+        <button
+          className="w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center"
+          onClick={() => onRemove(content.id)}
+          title="Remove content"
+        >
+          <X className="w-2.5 h-2.5" />
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ── Main Component ────────────────────────────────────────────
 
 const ClaudeChatInput: React.FC<ChatInputProps> = ({
   onSendMessage,
@@ -428,17 +277,13 @@ const ClaudeChatInput: React.FC<ChatInputProps> = ({
   maxFiles = MAX_FILES,
   maxFileSize = MAX_FILE_SIZE,
   acceptedFileTypes,
-  models = DEFAULT_MODELS_INTERNAL,
-  defaultModel,
-  onModelChange,
+  toolbarLeft,
+  toolbarRight,
 }) => {
   const [message, setMessage] = useState("");
   const [files, setFiles] = useState<FileWithPreview[]>([]);
   const [pastedContent, setPastedContent] = useState<PastedContent[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [selectedModel, setSelectedModel] = useState(
-    defaultModel || models[0]?.id || ""
-  );
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -459,7 +304,6 @@ const ClaudeChatInput: React.FC<ChatInputProps> = ({
   const handleFileSelect = useCallback(
     (selectedFiles: FileList | null) => {
       if (!selectedFiles) return;
-
       const currentFileCount = files.length;
       if (currentFileCount >= maxFiles) return;
 
@@ -480,7 +324,7 @@ const ClaudeChatInput: React.FC<ChatInputProps> = ({
           return true;
         })
         .map((file) => ({
-          id: nextFileId(),
+          id: String(Math.random()),
           file,
           preview: file.type.startsWith("image/")
             ? URL.createObjectURL(file)
@@ -550,9 +394,7 @@ const ClaudeChatInput: React.FC<ChatInputProps> = ({
   const removeFile = useCallback((id: string) => {
     setFiles((prev) => {
       const fileToRemove = prev.find((f) => f.id === id);
-      if (fileToRemove?.preview) {
-        URL.revokeObjectURL(fileToRemove.preview);
-      }
+      if (fileToRemove?.preview) URL.revokeObjectURL(fileToRemove.preview);
       return prev.filter((f) => f.id !== id);
     });
   }, []);
@@ -583,19 +425,17 @@ const ClaudeChatInput: React.FC<ChatInputProps> = ({
         pastedContent.length < 5
       ) {
         e.preventDefault();
-        setMessage(message + textData.slice(0, PASTE_THRESHOLD) + "...");
-
+        setMessage((prev) => prev + textData.slice(0, PASTE_THRESHOLD) + "...");
         const pastedItem: PastedContent = {
-          id: nextPasteId(),
+          id: String(Math.random()),
           content: textData,
           timestamp: new Date(),
           wordCount: textData.split(/\s+/).filter(Boolean).length,
         };
-
         setPastedContent((prev) => [...prev, pastedItem]);
       }
     },
-    [handleFileSelect, files.length, maxFiles, pastedContent.length, message]
+    [handleFileSelect, files.length, maxFiles, pastedContent.length]
   );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -610,9 +450,7 @@ const ClaudeChatInput: React.FC<ChatInputProps> = ({
     (e: React.DragEvent) => {
       e.preventDefault();
       setIsDragging(false);
-      if (e.dataTransfer.files) {
-        handleFileSelect(e.dataTransfer.files);
-      }
+      if (e.dataTransfer.files) handleFileSelect(e.dataTransfer.files);
     },
     [handleFileSelect]
   );
@@ -626,7 +464,6 @@ const ClaudeChatInput: React.FC<ChatInputProps> = ({
     if (files.some((f) => f.uploadStatus === "uploading")) return;
 
     onSendMessage?.(message, files, pastedContent);
-
     setMessage("");
     files.forEach((file) => {
       if (file.preview) URL.revokeObjectURL(file.preview);
@@ -635,14 +472,6 @@ const ClaudeChatInput: React.FC<ChatInputProps> = ({
     setPastedContent([]);
     if (textareaRef.current) textareaRef.current.style.height = "auto";
   }, [message, files, pastedContent, disabled, onSendMessage]);
-
-  const handleModelChangeInternal = useCallback(
-    (modelId: string) => {
-      setSelectedModel(modelId);
-      onModelChange?.(modelId);
-    },
-    [onModelChange]
-  );
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -669,19 +498,63 @@ const ClaudeChatInput: React.FC<ChatInputProps> = ({
       onDrop={handleDrop}
     >
       {isDragging && (
-        <div className="absolute inset-0 z-50 bg-[#1C3F62] border-2 border-dashed border-blue-500 rounded-xl flex flex-col items-center justify-center pointer-events-none">
-          <p className="text-sm text-blue-500 flex items-center gap-2">
+        <div className="absolute inset-0 z-50 bg-[var(--accent)]/10 border-2 border-dashed border-[var(--accent)] rounded-xl flex items-center justify-center pointer-events-none">
+          <p className="text-sm text-[var(--accent)] flex items-center gap-2">
             <ImageIcon className="size-4 opacity-50" />
             Drop files here to add to chat
           </p>
         </div>
       )}
 
-      <div className="bg-[#30302E] border border-zinc-700 rounded-xl shadow-lg items-end gap-2 min-h-[150px] flex flex-col">
-        {/* Attachments and pasted content ABOVE the textarea */}
+      <div className="glass-input rounded-[16px] md:rounded-[20px] bg-[var(--neu-input)] border border-white/30 border-t-white/50 flex flex-col min-h-[150px]">
+        <textarea
+          ref={textareaRef}
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          onPaste={handlePaste}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          disabled={disabled}
+          className="flex-1 min-h-[100px] w-full p-4 max-h-[120px] resize-none bg-transparent text-[var(--ink)] outline-none border-none placeholder:text-[var(--ink-subtle)] text-sm leading-6 focus:outline-none focus-visible:ring-0"
+          rows={1}
+        />
+        <div className="flex items-center gap-2 justify-between w-full px-2.5 pb-1.5">
+          <div className="flex items-center gap-1">
+            <button
+              className="flex items-center justify-center h-8 w-8 rounded-lg text-[var(--ink-subtle)] hover:bg-[var(--neu-hover)] hover:text-[var(--ink-muted)] transition-colors disabled:opacity-50"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={disabled || files.length >= maxFiles}
+              title={
+                files.length >= maxFiles
+                  ? `Max ${maxFiles} files reached`
+                  : "Attach files"
+              }
+            >
+              <Plus className="w-4 h-4" strokeWidth={2} />
+            </button>
+            {toolbarLeft}
+          </div>
+          <div className="flex items-center gap-2">
+            {toolbarRight}
+            <button
+              className={cn(
+                "h-8 w-8 flex items-center justify-center rounded-[10px] transition-all duration-150",
+                canSend
+                  ? "bg-gradient-to-b from-neutral-700 to-black text-white border border-white/30 active:scale-95"
+                  : "bg-gradient-to-b from-neutral-600 to-black text-white opacity-40 border border-white/30"
+              )}
+              onClick={handleSend}
+              disabled={!canSend}
+              title="Send message"
+            >
+              <ArrowUp className="w-3.5 h-3.5" strokeWidth={2} />
+            </button>
+          </div>
+        </div>
+
         {(files.length > 0 || pastedContent.length > 0) && (
-          <div className="overflow-x-auto border-b-[1px] p-3 border-zinc-700 w-full bg-[#262624] rounded-t-xl hide-scroll-bar">
-            <div className="flex gap-3">
+          <div className="overflow-x-auto border-t border-[var(--rule)] p-3 bg-[var(--canvas-muted)] rounded-b-[16px] md:rounded-b-[20px] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <div className="flex gap-2.5">
               {pastedContent.map((content) => (
                 <PastedContentCard
                   key={content.id}
@@ -701,69 +574,6 @@ const ClaudeChatInput: React.FC<ChatInputProps> = ({
             </div>
           </div>
         )}
-
-        <textarea
-          ref={textareaRef}
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          onPaste={handlePaste}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          disabled={disabled}
-          className="flex-1 min-h-[100px] w-full p-4 focus-within:border-none focus:outline-none focus:border-none border-none outline-none focus-within:ring-0 focus-within:ring-offset-0 focus-within:outline-none max-h-[120px] resize-none border-0 bg-transparent text-zinc-100 shadow-none focus-visible:ring-0 placeholder:text-zinc-500 text-sm sm:text-base custom-scrollbar"
-          rows={1}
-        />
-        <div className="flex items-center gap-2 justify-between w-full px-3 pb-1.5">
-          <div className="flex items-center gap-2">
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-9 w-9 p-0 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 flex-shrink-0"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={disabled || files.length >= maxFiles}
-              title={
-                files.length >= maxFiles
-                  ? `Max ${maxFiles} files reached`
-                  : "Attach files"
-              }
-            >
-              <Plus className="h-5 w-5" />
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-9 w-9 p-0 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700 flex-shrink-0"
-              disabled={disabled}
-              title="Options"
-            >
-              <SlidersHorizontal className="h-5 w-5" />
-            </Button>
-          </div>
-          <div className="flex items-center gap-2">
-            {models && models.length > 0 && (
-              <ModelSelectorDropdown
-                models={models}
-                selectedModel={selectedModel}
-                onModelChange={handleModelChangeInternal}
-              />
-            )}
-
-            <Button
-              size="icon"
-              className={cn(
-                "h-9 w-9 p-0 flex-shrink-0 rounded-md transition-colors",
-                canSend
-                  ? "bg-amber-600 hover:bg-amber-700 text-white"
-                  : "bg-zinc-700 text-zinc-500 cursor-not-allowed"
-              )}
-              onClick={handleSend}
-              disabled={!canSend}
-              title="Send message"
-            >
-              <ArrowUp className="h-5 w-5" />
-            </Button>
-          </div>
-        </div>
       </div>
 
       <input
@@ -782,33 +592,4 @@ const ClaudeChatInput: React.FC<ChatInputProps> = ({
 };
 
 export default ClaudeChatInput;
-
-export const Component = () => {
-  const handleSendMessage = (
-    message: string,
-    files: FileWithPreview[],
-    pastedContent: PastedContent[]
-  ) => {
-    // demo handler — wire to actual send logic
-    void message; void files; void pastedContent;
-  };
-
-  return (
-    <div className="min-h-screen w-screen bg-[#262624] flex items-center justify-center p-4">
-      <div className="w-full max-w-4xl">
-        <div className="mb-8 text-center py-16">
-          <h1 className="text-3xl font-serif font-light text-[#C2C0B6] mb-2">
-            How can I help you today?
-          </h1>
-        </div>
-
-        <ClaudeChatInput
-          onSendMessage={handleSendMessage}
-          placeholder="Try pasting large text or uploading textual files..."
-          maxFiles={10}
-          maxFileSize={10 * 1024 * 1024}
-        />
-      </div>
-    </div>
-  );
-};
+export { ClaudeChatInput, FilePreviewCard, PastedContentCard };

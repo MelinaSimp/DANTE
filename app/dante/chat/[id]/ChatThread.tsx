@@ -12,7 +12,7 @@
 // answer.
 
 import { useEffect, useRef, useState } from "react";
-import { Send, Loader2 } from "lucide-react";
+import { Send, Loader2, Square } from "lucide-react";
 import { deriveFilenameStem } from "@/app/dante/DocumentPanel";
 import DraftEditor from "@/components/dante/DraftEditor";
 import {
@@ -229,28 +229,38 @@ export default function ChatThread({
 
       <div className="glass-composer-bg fixed bottom-0 left-0 right-0 pt-6 pb-4 z-30">
         <div className="max-w-5xl mx-auto px-6 md:px-8">
-          <div className="glass-panel relative rounded-[14px]">
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={onKeyDown}
-              placeholder="Follow up… Cmd+Enter to send."
-              disabled={streamState.streaming}
-              rows={2}
-              className="w-full resize-none bg-transparent pl-5 pr-14 py-4 text-base text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none disabled:opacity-60"
-            />
-            <button
-              onClick={() => submit()}
-              disabled={!input.trim() || streamState.streaming}
-              className="absolute bottom-2.5 right-2.5 inline-flex items-center justify-center w-8 h-8 rounded-[6px] bg-black text-white hover:bg-black/85 disabled:opacity-30 disabled:cursor-not-allowed transition"
-              title="Send (Cmd+Enter)"
-            >
+          <div className="glass-input rounded-[16px] md:rounded-[20px] bg-[var(--neu-input)] border border-white/30 border-t-white/50 flex flex-col">
+            <div className="px-4 pt-4">
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={onKeyDown}
+                placeholder="Follow up... Cmd+Enter to send."
+                disabled={streamState.streaming}
+                rows={2}
+                className="w-full resize-none text-sm overflow-hidden border-0 p-0 bg-transparent outline-none placeholder:text-[var(--ink-subtle)] text-[var(--ink)] leading-6 max-h-48"
+              />
+            </div>
+            <div className="flex items-center justify-end p-2.5">
               {streamState.streaming ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
+                <button
+                  onClick={() => {/* stop handled by parent abort */}}
+                  className="relative bg-gradient-to-b from-neutral-700 to-black text-white rounded-[10px] h-8 w-8 flex items-center justify-center backdrop-blur-xl border border-white/30 active:scale-95 transition-all duration-150"
+                  title="Stop generating"
+                >
+                  <Square className="w-3 h-3" fill="currentColor" />
+                </button>
               ) : (
-                <Send className="w-3.5 h-3.5" strokeWidth={2} />
+                <button
+                  onClick={() => submit()}
+                  disabled={!input.trim()}
+                  className="relative bg-gradient-to-b from-neutral-700 to-black text-white rounded-[10px] h-8 w-8 flex items-center justify-center disabled:from-neutral-600 disabled:to-black disabled:opacity-40 backdrop-blur-xl border border-white/30 active:enabled:scale-95 transition-all duration-150"
+                  title="Send (Cmd+Enter)"
+                >
+                  <Send className="w-3.5 h-3.5" strokeWidth={2} />
+                </button>
               )}
-            </button>
+            </div>
           </div>
         </div>
       </div>
