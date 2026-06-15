@@ -99,9 +99,19 @@ export async function POST(req: NextRequest) {
       runId,
       log,
     });
+    // Flatten key fields to the top level so the n8n DriftAiAgent
+    // node (which reads response.text / response.steps_taken) finds
+    // them without needing a node rebuild.
+    const toolsUsed = log
+      .filter((entry) => entry.tool)
+      .map((entry) => entry.tool as string);
     return NextResponse.json({
       ok: true,
       result,
+      // Top-level compat for n8n node
+      text: result.text,
+      steps_taken: result.steps_taken,
+      tools_used: toolsUsed,
       trace: log,
       simulate,
     });
