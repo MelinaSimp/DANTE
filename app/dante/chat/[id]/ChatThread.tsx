@@ -196,7 +196,7 @@ export default function ChatThread({
                           ? "strong"
                           : m.grounding_score >= 0.4
                             ? "partial"
-                            : "general",
+                            : "none",
                       summary: "Persisted grounding score from when this turn was generated.",
                     }
                   : null)

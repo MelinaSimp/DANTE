@@ -62,7 +62,7 @@ export interface CitationReportState {
  *  Mirrors lib/dante/grounding.ts's GroundingScore. */
 export interface GroundingState {
   score: number;
-  tier: "strong" | "partial" | "general" | "none";
+  tier: "strong" | "partial" | "none";
   summary: string;
 }
 

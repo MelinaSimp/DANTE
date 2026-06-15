@@ -31,14 +31,14 @@ describe("computeGroundingScore", () => {
     expect(r.tier).toBe("none");
   });
 
-  it("returns tier=general when tools called but none are retrieval", () => {
+  it("returns tier=none when tools called but none are retrieval", () => {
     const r = computeGroundingScore({
       responseText: "Done. I sent the email.",
       trace: [
         { step_name: "agent → email.send", status: "success" },
       ],
     });
-    expect(r.tier).toBe("general");
+    expect(r.tier).toBe("none");
     expect(r.score).toBe(0);
   });
 

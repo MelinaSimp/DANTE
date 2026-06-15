@@ -55,7 +55,7 @@ interface TraceEntry {
   output?: unknown;
 }
 
-export type GroundingTier = "strong" | "partial" | "general" | "none";
+export type GroundingTier = "strong" | "partial" | "none";
 
 export interface GroundingScore {
   /** 0..1 composite. */
@@ -143,12 +143,13 @@ export function computeGroundingScore(
 
   // Tier mapping — chosen by where the breakpoints feel right in
   // testing. "strong" requires both citations and validation;
-  // "partial" tolerates one weakness; "general" is the no-tool path.
+  // "partial" tolerates one weakness; "none" = no retrieval at all.
+  // There is no "general knowledge" tier — unverified is unverified
+  // regardless of whether non-retrieval tools were called.
   let tier: GroundingTier;
   if (score >= 0.7) tier = "strong";
   else if (score >= 0.4) tier = "partial";
   else if (retrieval_tools_called > 0 || citationCount > 0) tier = "partial";
-  else if (total_tools_called > 0) tier = "general";
   else tier = "none";
 
   // Friendly summary. We keep this short — it renders below the
@@ -176,8 +177,6 @@ export function computeGroundingScore(
     summary = `Strongly grounded — ${parts.join(" + ") || "citations verified"}.`;
   } else if (tier === "partial") {
     summary = "Partially grounded — some claims uncited or unverified.";
-  } else if (tier === "general") {
-    summary = "General knowledge — no retrieval performed.";
   } else {
     summary = "Not verified against workspace documents.";
   }

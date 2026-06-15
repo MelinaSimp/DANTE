@@ -79,9 +79,9 @@ export function AssistantMessage({
   citationReport?: CitationReportState | null;
   /** Phase 4 W4.9 — grounding score from the SSE `grounding` frame
    *  or persisted on the chat message. Surfaced as a small badge
-   *  below the response so users see "Strongly grounded" / "General
-   *  knowledge" without clicking anything. */
-  grounding?: { tier: "strong" | "partial" | "general" | "none"; score: number; summary: string } | null;
+   *  below the response so users see "Strongly grounded" /
+   *  "Not verified" without clicking anything. */
+  grounding?: { tier: "strong" | "partial" | "none"; score: number; summary: string } | null;
   /** Documents generated during this turn by document.create or
    *  document.edit tools. Rendered as inline cards below the message. */
   documents?: DocumentArtifact[];
@@ -538,7 +538,7 @@ function thinkingSteps(events: StreamState["events"]): string[] {
 function GroundingBadge({
   grounding,
 }: {
-  grounding: { tier: "strong" | "partial" | "general" | "none"; score: number; summary: string };
+  grounding: { tier: "strong" | "partial" | "none"; score: number; summary: string };
 }) {
   const [expanded, setExpanded] = useState(false);
   const tone =
@@ -546,17 +546,13 @@ function GroundingBadge({
       ? "text-emerald-700 bg-emerald-50 border-emerald-200"
       : grounding.tier === "partial"
         ? "text-amber-700 bg-amber-50 border-amber-200"
-        : grounding.tier === "none"
-          ? "text-[var(--danger)] bg-[var(--danger-soft,rgba(239,68,68,0.08))] border-[var(--danger,#ef4444)]/20"
-          : "text-[var(--ink-muted)] bg-[var(--canvas-subtle)] border-[var(--rule)]";
+        : "text-[var(--danger)] bg-[var(--danger-soft,rgba(239,68,68,0.08))] border-[var(--danger,#ef4444)]/20";
   const label =
     grounding.tier === "strong"
       ? "Strongly grounded"
       : grounding.tier === "partial"
         ? "Partially grounded"
-        : grounding.tier === "none"
-          ? "Not verified"
-          : "General knowledge";
+        : "Not verified";
   return (
     <div className="mt-3">
       <button

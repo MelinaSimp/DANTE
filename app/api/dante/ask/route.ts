@@ -597,6 +597,17 @@ export async function POST(req: NextRequest) {
 
       const promptVersion = getActivePromptVersion(industry);
 
+      // Hard grounding gate: if the response used zero retrieval
+      // tools and contains zero citations, append a visible
+      // disclaimer. The system prompt tells the model to refuse
+      // ungrounded answers, but models don't always comply — this
+      // is the server-side enforcement.
+      if (grounding.tier === "none" && !runError && assistantContent) {
+        assistantContent +=
+          "\n\n---\n*This response has not been verified against your workspace " +
+          "documents. Confirm any facts independently before acting on them.*";
+      }
+
       // Persist the assistant turn with citation report + prompt
       // version + grounding score. /chat/[id] reads these on
       // refresh so chips render decorated even hours later.
