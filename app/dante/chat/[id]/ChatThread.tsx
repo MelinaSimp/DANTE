@@ -78,8 +78,11 @@ export default function ChatThread({
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
+    el.style.overflow = "hidden";
     el.style.height = "auto";
-    el.style.height = Math.min(el.scrollHeight, 384) + "px";
+    const next = Math.min(el.scrollHeight, 384);
+    el.style.height = next + "px";
+    el.style.overflow = next >= 384 ? "auto" : "hidden";
   }, [input]);
 
   const submit = async (overrideInput?: string) => {
@@ -240,19 +243,17 @@ export default function ChatThread({
         <div className="max-w-5xl mx-auto px-6 md:px-8">
           <div className="glass-input rounded-[16px] md:rounded-[20px] bg-[var(--neu-input)] border border-white/30 border-t-white/50 flex flex-col transition-all duration-200">
             <div className="px-4 pt-3">
-              <div className="max-h-96 w-full overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                <textarea
-                  ref={textareaRef}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={onKeyDown}
-                  placeholder="Follow up... Cmd+Enter to send."
-                  disabled={streamState.streaming}
-                  rows={1}
-                  className="w-full resize-none text-sm overflow-hidden border-0 p-0 bg-transparent outline-none placeholder:text-[var(--ink-subtle)] text-[var(--ink)] leading-6"
-                  style={{ minHeight: "1.5em" }}
-                />
-              </div>
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={onKeyDown}
+                placeholder="Follow up... Cmd+Enter to send."
+                disabled={streamState.streaming}
+                rows={1}
+                className="w-full resize-none text-sm border-0 p-0 bg-transparent outline-none placeholder:text-[var(--ink-subtle)] text-[var(--ink)] leading-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+                style={{ minHeight: "1.5em", maxHeight: "384px" }}
+              />
             </div>
             <div className="flex items-center justify-end p-2.5">
               {streamState.streaming ? (

@@ -166,14 +166,18 @@ const ClaudeStyleChatInput: React.FC<ChatInputProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Auto-resize textarea ────────────────────────────────────
-  // This is the key behavior: the textarea starts at 1 row and
-  // grows smoothly up to a max of 384px (about 16 lines),
-  // then switches to internal scrolling.
+  // The textarea starts at 1 row and grows smoothly up to 384px
+  // (about 16 lines), then switches to internal scrolling.
+  // We toggle overflow to hidden while measuring so scrollHeight
+  // reflects the full content, not the visible portion.
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
+    el.style.overflow = "hidden";
     el.style.height = "auto";
-    el.style.height = Math.min(el.scrollHeight, 384) + "px";
+    const next = Math.min(el.scrollHeight, 384);
+    el.style.height = next + "px";
+    el.style.overflow = next >= 384 ? "auto" : "hidden";
   }, [message]);
 
   // ── File handling ───────────────────────────────────────────
@@ -313,22 +317,20 @@ const ClaudeStyleChatInput: React.FC<ChatInputProps> = ({
           )}
 
           {/* Auto-expanding text area */}
-          <div className="relative">
-            <div className="max-h-96 w-full overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] break-words transition-opacity duration-200 min-h-[2.5rem] pl-1">
-              <textarea
-                ref={textareaRef}
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onPaste={handlePaste}
-                onKeyDown={handleKeyDown}
-                placeholder={placeholder}
-                disabled={disabled}
-                className="w-full bg-transparent border-0 outline-none text-[var(--ink)] text-sm placeholder:text-[var(--ink-subtle)] resize-none overflow-hidden py-0 leading-6 block font-normal antialiased focus:outline-none focus-visible:ring-0"
-                rows={1}
-                autoFocus
-                style={{ minHeight: "1.5em" }}
-              />
-            </div>
+          <div className="relative pl-1">
+            <textarea
+              ref={textareaRef}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onPaste={handlePaste}
+              onKeyDown={handleKeyDown}
+              placeholder={placeholder}
+              disabled={disabled}
+              className="w-full bg-transparent border-0 outline-none text-[var(--ink)] text-sm placeholder:text-[var(--ink-subtle)] resize-none py-0 leading-6 block font-normal antialiased focus:outline-none focus-visible:ring-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+              rows={1}
+              autoFocus
+              style={{ minHeight: "1.5em", maxHeight: "384px" }}
+            />
           </div>
 
           {/* Toolbar */}
