@@ -104,8 +104,9 @@ export async function POST(req: NextRequest) {
     // node (which reads response.text / response.steps_taken) finds
     // them without needing a node rebuild.
     const toolsUsed = log
-      .filter((entry) => entry.tool)
-      .map((entry) => entry.tool as string);
+      .filter((entry) => entry.step_name.includes(" → "))
+      .map((entry) => entry.step_name.split(" → ").pop() || "")
+      .filter((name) => name && name !== "thinking");
     return NextResponse.json({
       ok: true,
       result,
