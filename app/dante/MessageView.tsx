@@ -204,7 +204,7 @@ export function AssistantMessage({
         </div>
       )}
 
-      {grounding && grounding.tier !== "none" && (
+      {grounding && (
         <GroundingBadge grounding={grounding} />
       )}
 
@@ -546,13 +546,17 @@ function GroundingBadge({
       ? "text-emerald-700 bg-emerald-50 border-emerald-200"
       : grounding.tier === "partial"
         ? "text-amber-700 bg-amber-50 border-amber-200"
-        : "text-[var(--ink-muted)] bg-[var(--canvas-subtle)] border-[var(--rule)]";
+        : grounding.tier === "none"
+          ? "text-[var(--danger)] bg-[var(--danger-soft,rgba(239,68,68,0.08))] border-[var(--danger,#ef4444)]/20"
+          : "text-[var(--ink-muted)] bg-[var(--canvas-subtle)] border-[var(--rule)]";
   const label =
     grounding.tier === "strong"
       ? "Strongly grounded"
       : grounding.tier === "partial"
         ? "Partially grounded"
-        : "General knowledge";
+        : grounding.tier === "none"
+          ? "Not verified"
+          : "General knowledge";
   return (
     <div className="mt-3">
       <button
@@ -567,6 +571,12 @@ function GroundingBadge({
         <div className="mt-1.5 text-[11px] text-[var(--ink-muted)] leading-relaxed max-w-prose">
           {grounding.summary}
         </div>
+      )}
+      {grounding.tier === "none" && (
+        <p className="mt-1.5 text-[11px] text-[var(--ink-muted)] leading-relaxed max-w-prose">
+          This answer is based on general reasoning and has not been verified
+          against your workspace documents. Confirm independently before acting.
+        </p>
       )}
     </div>
   );

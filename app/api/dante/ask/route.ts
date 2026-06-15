@@ -619,6 +619,8 @@ export async function POST(req: NextRequest) {
       }
 
       // Audit: log every Dante chat completion so it surfaces in /audit.
+      // Include the user prompt (truncated) and message ID so compliance
+      // reviewers can see what was asked and trace to the full response.
       logAuditEvent({
         workspaceId: profile.workspace_id!,
         actorUserId: user.id,
@@ -629,10 +631,17 @@ export async function POST(req: NextRequest) {
         metadata: {
           deep,
           grounding_score: grounding.score,
+          grounding_tier: grounding.tier,
           tools_used: (log as Array<{ step_name?: string }>)
             .map((s) => s.step_name)
             .filter(Boolean),
           model: "claude-sonnet-4-6",
+          prompt_version: promptVersion,
+          user_prompt: message.length > 500 ? message.slice(0, 497) + "..." : message,
+          assistant_message_id: persisted?.id || null,
+          response_length: assistantContent.length,
+          citation_count: report?.counts?.total || 0,
+          citation_valid: report?.counts?.valid || 0,
           ...(runError ? { error: runError } : {}),
         },
         request: req,

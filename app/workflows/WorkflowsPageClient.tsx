@@ -772,13 +772,11 @@ export default function WorkflowsPageClient({ vaultReady, canManageVault }: Prop
                       <span className="w-1.5 h-1.5 rounded-full bg-[var(--ink-subtle)]" /> Disabled
                     </span>
                   )}
-                  <span className={`inline-flex items-center gap-1 text-[10px] font-medium rounded-full px-1.5 py-0.5 border border-[var(--rule)] ${
-                    r.n8n_workflow_id
-                      ? "text-[var(--accent)] bg-[var(--accent-soft)]"
-                      : "text-[var(--ink-subtle)] bg-[var(--canvas-subtle)]"
-                  }`}>
-                    {r.n8n_workflow_id ? "n8n" : "legacy"}
-                  </span>
+                  {!r.n8n_workflow_id && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-medium rounded-full px-1.5 py-0.5 border border-[var(--rule)] text-[var(--ink-subtle)] bg-[var(--canvas-subtle)]">
+                      needs update
+                    </span>
+                  )}
                 </div>
                 {r.description && <p className="text-xs text-[var(--ink-muted)] line-clamp-1">{r.description}</p>}
                 <div className="flex items-center gap-3 mt-1 text-[11px] text-[var(--ink-subtle)]">
@@ -848,41 +846,41 @@ export default function WorkflowsPageClient({ vaultReady, canManageVault }: Prop
             </div>
             <div className="flex-1">
               <div className="text-sm font-semibold text-[var(--ink)]">
-                Engine migration available
+                Workflow update available
               </div>
               <p className="text-[11px] text-[var(--ink-muted)] mt-0.5 leading-relaxed">
-                {legacyCount} workflow{legacyCount === 1 ? " is" : "s are"} still
-                on the legacy engine.{" "}
+                {legacyCount} workflow{legacyCount === 1 ? " needs" : "s need"} to
+                be updated to the latest version.{" "}
                 {n8nCount > 0 && (
-                  <>{n8nCount} already migrated. </>
+                  <>{n8nCount} already up to date. </>
                 )}
-                Run a dry-run first to preview, then migrate.
+                Preview first, then update.
               </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={() => runMigration(true)}
                 disabled={migrating}
-                className="btn btn-sm btn-ghost"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[var(--ink-muted)] border border-[var(--rule)] rounded-[4px] hover:bg-[var(--canvas-subtle)] disabled:opacity-50 transition-colors"
               >
                 {migrating ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.5} />
                 ) : (
                   <Eye className="w-3.5 h-3.5" strokeWidth={1.5} />
                 )}
-                Dry run
+                Preview
               </button>
               <button
                 onClick={() => runMigration(false)}
                 disabled={migrating}
-                className="btn btn-sm btn-primary"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[var(--ink-on-accent,#fff)] bg-[var(--accent)] rounded-[4px] hover:opacity-90 disabled:opacity-50 transition-colors"
               >
                 {migrating ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.5} />
                 ) : (
                   <ArrowRight className="w-3.5 h-3.5" strokeWidth={1.5} />
                 )}
-                Migrate all
+                Update all
               </button>
             </div>
           </div>
@@ -899,11 +897,11 @@ export default function WorkflowsPageClient({ vaultReady, canManageVault }: Prop
               <div className="flex items-center gap-4 text-xs text-[var(--ink-muted)] mb-3">
                 <span className="flex items-center gap-1">
                   <CheckCircle2 className="w-3 h-3 text-[var(--verified)]" strokeWidth={1.5} />
-                  {migrationReport.migrated} migrated
+                  {migrationReport.migrated} updated
                 </span>
                 <span className="flex items-center gap-1">
                   <Circle className="w-3 h-3" strokeWidth={1.5} />
-                  {migrationReport.skipped} skipped
+                  {migrationReport.skipped} already current
                 </span>
                 {migrationReport.failed + migrationReport.dry_run_failed > 0 && (
                   <span className="flex items-center gap-1 text-[var(--danger)]">
@@ -927,8 +925,8 @@ export default function WorkflowsPageClient({ vaultReady, canManageVault }: Prop
                     )}
                     <span className="font-medium text-[var(--ink)] truncate flex-1">{r.name}</span>
                     <span className="text-[var(--ink-muted)] shrink-0">
-                      {r.status === "migrated" && r.nodes && `${r.nodes} nodes`}
-                      {r.status === "skipped" && "already on n8n"}
+                      {r.status === "migrated" && r.nodes && `${r.nodes} steps`}
+                      {r.status === "skipped" && "already up to date"}
                       {(r.status === "failed" || r.status === "dry_run_failed") && (
                         <span className="text-[var(--danger)]">{r.error}</span>
                       )}

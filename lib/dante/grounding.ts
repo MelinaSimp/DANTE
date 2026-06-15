@@ -179,7 +179,7 @@ export function computeGroundingScore(
   } else if (tier === "general") {
     summary = "General knowledge — no retrieval performed.";
   } else {
-    summary = "Ungrounded.";
+    summary = "Not verified against workspace documents.";
   }
 
   return {
