@@ -235,6 +235,16 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
   const [runInputOpen, setRunInputOpen] = useState(false);
   const [runInputValues, setRunInputValues] = useState<Record<string, string>>({});
 
+  // Helper: extract input_fields from trigger node regardless of format.
+  // Drift-native stores them in config.input_fields, n8n-native in parameters.input_fields.
+  const getTriggerInputFields = (step: Record<string, unknown>): TriggerInputField[] => {
+    const fromConfig = (step.config as { input_fields?: TriggerInputField[] } | undefined)?.input_fields;
+    if (fromConfig && fromConfig.length > 0) return fromConfig;
+    const fromParams = (step.parameters as { input_fields?: TriggerInputField[] } | undefined)?.input_fields;
+    if (fromParams && fromParams.length > 0) return fromParams;
+    return [];
+  };
+
   // Palette search
   const [paletteSearch, setPaletteSearch] = useState("");
   const [collapsedCategories, setCollapsedCategories] = useState<Set<NodeCategory>>(new Set());
@@ -810,8 +820,8 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
       return t === "trigger_manual" || t === "n8n-nodes-base.webhook"
         || t === "n8n-nodes-base.manualTrigger" || t.startsWith("trigger_");
     });
-    const fields = (triggerNode?.data.step.config as { input_fields?: TriggerInputField[] })?.input_fields;
-    if (fields && fields.length > 0 && fields.some((f) => f.name)) {
+    const fields = triggerNode ? getTriggerInputFields(triggerNode.data.step) : [];
+    if (fields.length > 0 && fields.some((f) => f.name)) {
       // Seed defaults
       const defaults: Record<string, string> = {};
       for (const f of fields) {
@@ -1289,7 +1299,7 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
           return t === "trigger_manual" || t === "n8n-nodes-base.webhook"
             || t === "n8n-nodes-base.manualTrigger" || t.startsWith("trigger_");
         });
-        const fields = ((triggerNode?.data.step.config as { input_fields?: TriggerInputField[] })?.input_fields || []).filter((f) => f.name);
+        const fields = (triggerNode ? getTriggerInputFields(triggerNode.data.step) : []).filter((f) => f.name);
         const missingRequired = fields.some((f) => f.required && !runInputValues[f.name]?.trim());
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
