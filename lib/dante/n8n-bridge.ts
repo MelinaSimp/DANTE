@@ -34,7 +34,7 @@ const n8nLog = rootLog.child({ component: "n8n-bridge" });
 
 const DEFAULT_CREDENTIAL_MAP: Record<string, { id: string; name: string }> = {
   driftCreApi: { id: "d7p7YdIQohdzatvc", name: "Drift CRE - TerraGroup" },
-  smtp: { id: "6eJzxHjAC9aEFBQa", name: "Resend SMTP" },
+  smtp: { id: "ztouaxmhahC8PIgH", name: "Resend SMTP" },
   openAiApi: { id: "5MaeTxEbGKeVR8Sk", name: "OpenAI" },
 };
 
