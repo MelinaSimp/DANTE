@@ -499,9 +499,10 @@ export default function UnderwriterClient() {
                               <span className="mono text-[11px] text-[var(--ink-subtle)]">#{t.sourceRow}</span>
                             </td>
                             <td className="py-2 px-3 text-[var(--ink)]">
-                              {t.tenant || "--"}
-                              {t.isVacant && (
-                                <span className="ml-2 text-[10px] uppercase tracking-wider text-[var(--ink-subtle)]">vacant</span>
+                              {t.isVacant ? (
+                                <span className="text-[10px] uppercase tracking-wider text-[var(--ink-subtle)]">Vacant</span>
+                              ) : (
+                                t.tenant || "--"
                               )}
                             </td>
                             <td className="py-2 px-3 text-[var(--ink-muted)]">{t.suite || "--"}</td>

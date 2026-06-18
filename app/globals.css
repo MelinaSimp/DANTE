@@ -11,6 +11,11 @@
 :root {
   --radius: 0.75rem;
   --radius-panel: 1rem;
+  /* Component radii referenced across forms/cards/chips. Previously
+     undefined, which made every input and card render square. */
+  --r-input: 0.5rem;
+  --r-card: 0.75rem;
+  --r-chip: 0.375rem;
   --color-azure: 0, 136, 255;
 
   /* Panel gaps — space between floating panels and viewport edges */
