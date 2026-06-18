@@ -127,9 +127,12 @@ export async function GET() {
       : noop,
     wid
       ? supabaseAdmin
-          .from("documents")
+          // Count vault documents (what the /vault page shows), not the
+          // legacy CRM `documents` table which is empty post-pivot.
+          .from("vault_items")
           .select("id", { count: "exact", head: true })
           .eq("workspace_id", wid)
+          .eq("kind", "document")
       : noop,
     wid
       ? supabaseAdmin
