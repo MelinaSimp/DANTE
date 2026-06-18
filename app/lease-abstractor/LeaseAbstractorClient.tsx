@@ -1104,7 +1104,12 @@ export default function LeaseAbstractorClient() {
                                 </thead>
                                 <tbody className="divide-y divide-[var(--rule)]">
                                   {fields.map((f, i) => {
-                                    const conf = CONFIDENCE_STYLE[f.confidence] || CONFIDENCE_STYLE.low;
+                                    // Show the "Verify" chip whenever the field is an abstain
+                                    // state, so the chips always match the verification banner count.
+                                    const conf =
+                                      verifyStatusFromConfidence(f.confidence, f.value) === "verify"
+                                        ? CONFIDENCE_STYLE.not_found
+                                        : CONFIDENCE_STYLE[f.confidence] || CONFIDENCE_STYLE.low;
                                     const isEditing = editingField === f.name;
                                     return (
                                       <tr key={`${f.name}-${i}`} className="group hover:bg-[var(--canvas-subtle)]/50 transition">
