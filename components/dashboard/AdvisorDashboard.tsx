@@ -27,6 +27,7 @@ import { pickGreeting, pickSubtitle } from "@/lib/dashboard/greetings";
 import { getIndustryConfig } from "@/lib/industry/config";
 import AppShell from "@/components/shell/AppShell";
 import EntityAsk from "@/components/dante/EntityAsk";
+import AnalysesFeed from "@/components/dashboard/AnalysesFeed";
 import { usePageContext } from "@/components/dante/PageContext";
 import {
   ArrowUpRight,
@@ -317,6 +318,9 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
             <div className="heading-display text-2xl">{data.stats.calls7d}</div>
           </div>
         </div>
+
+        {/* Recent analyses + portfolio signals — real, data-driven feed. */}
+        <AnalysesFeed />
 
         {/* Digest bar -- compact email + vault summary. */}
         {data.digest && (data.digest.emailsToday > 0 || data.digest.vaultUploadsWeek > 0) && (
