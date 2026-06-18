@@ -14,6 +14,7 @@ import {
   LayoutDashboard,
   ScrollText,
   Calculator,
+  Radar,
   ChevronDown,
   ChevronsUpDown,
   User,
@@ -98,6 +99,7 @@ export default function AppSidebar({
     {
       items: [
         { href: "/workflows", label: "Workflows", icon: Workflow },
+        { href: "/autopilot", label: "Autopilot", icon: Radar },
         { href: "/lease-abstractor", label: "Lease Abstractor", icon: ScrollText },
         { href: "/underwriter", label: "Underwriter", icon: Calculator },
         { href: "/vault", label: "Vault", icon: FolderClosed },

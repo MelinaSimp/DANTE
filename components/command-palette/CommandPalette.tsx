@@ -34,6 +34,7 @@ const STATIC_COMMANDS: CommandItem[] = [
   { id: "nav.lease", label: "Go to Lease Abstractor", group: "Navigate", href: "/lease-abstractor" },
   { id: "nav.underwriter", label: "Go to Underwriter", group: "Navigate", href: "/underwriter" },
   { id: "nav.workflows", label: "Go to Workflows", group: "Navigate", href: "/workflows" },
+  { id: "nav.autopilot", label: "Go to Autopilot", group: "Navigate", href: "/autopilot" },
   { id: "nav.contacts", label: "Go to Contacts", group: "Navigate", href: "/contacts" },
   { id: "nav.vault", label: "Go to Vault", group: "Navigate", href: "/vault" },
   { id: "nav.billing", label: "Billing & Plan", group: "Settings", href: "/settings/billing" },

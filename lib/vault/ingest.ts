@@ -159,6 +159,14 @@ export async function ingestVaultItem(
     })
     .eq("id", itemId);
 
+  // Autonomous pipeline: classify the freshly-indexed document and run
+  // the matching analysis (e.g. auto-underwrite a rent roll). Fire-and-
+  // forget and dynamically imported so it can never block or break
+  // ingestion. Idempotent (skips if an analysis already exists).
+  import("@/lib/autopilot/analyze")
+    .then((m) => m.runAutopilotForItem(itemId))
+    .catch((e) => console.error("[autopilot] failed:", e instanceof Error ? e.message : e));
+
   return { itemId, chunkCount: chunksWithPages.length };
 }
 
