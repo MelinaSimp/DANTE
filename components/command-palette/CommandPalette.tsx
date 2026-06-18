@@ -33,6 +33,7 @@ const STATIC_COMMANDS: CommandItem[] = [
   { id: "nav.dante", label: "Go to Dante AI", group: "Navigate", href: "/dante" },
   { id: "nav.lease", label: "Go to Lease Abstractor", group: "Navigate", href: "/lease-abstractor" },
   { id: "nav.underwriter", label: "Go to Underwriter", group: "Navigate", href: "/underwriter" },
+  { id: "nav.market", label: "Go to Market Comps", group: "Navigate", href: "/market" },
   { id: "nav.workflows", label: "Go to Workflows", group: "Navigate", href: "/workflows" },
   { id: "nav.autopilot", label: "Go to Autopilot", group: "Navigate", href: "/autopilot" },
   { id: "nav.contacts", label: "Go to Contacts", group: "Navigate", href: "/contacts" },
