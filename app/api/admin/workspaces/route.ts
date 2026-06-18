@@ -27,7 +27,7 @@ export async function GET() {
 
   const { data: workspaces, error } = await supabaseAdmin
     .from("workspaces")
-    .select("id, name, created_at, owner_id, enabled_features, plan_status, billing_amount, billing_cycle, invite_code, industry, retain_raw_files")
+    .select("id, name, created_at, owner_id, enabled_features, plan_status, billing_amount, billing_cycle, invite_code, industry")
     .order("created_at", { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -285,10 +285,7 @@ export async function PATCH(req: NextRequest) {
   if (billing_cycle !== undefined && (billing_cycle === "monthly" || billing_cycle === "yearly")) {
     updates.billing_cycle = billing_cycle;
   }
-  // Zero-retention toggle: when false, raw files are purged after ingest.
-  if (typeof body.retain_raw_files === "boolean") {
-    updates.retain_raw_files = body.retain_raw_files;
-  }
+
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });

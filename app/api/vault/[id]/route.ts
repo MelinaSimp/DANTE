@@ -7,7 +7,6 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { canAccessProject, getAccessibleProjectIds } from "@/lib/vault/project-access";
-import { deleteVaultFile } from "@/lib/vault/storage";
 
 async function loadAuth() {
   const supabase = await createServerSupabase();
@@ -53,12 +52,12 @@ export async function GET(
 
   let clients: Array<{ contact_id: string; name: string | null; email: string | null; phone: string | null }> = [];
   if (links && links.length > 0) {
-    const ids = links.map((l: { contact_id: string }) => l.contact_id);
+    const ids = links.map((l: any) => l.contact_id);
     const { data: contacts } = await ctx.supabase
       .from("contacts")
       .select("id, name, email, phone")
       .in("id", ids);
-    clients = (contacts || []).map((c: { id: string; name: string | null; email: string | null; phone: string | null }) => ({
+    clients = (contacts || []).map((c: any) => ({
       contact_id: c.id,
       name: c.name,
       email: c.email,
@@ -153,7 +152,7 @@ export async function DELETE(
 
   const { data: delItem } = await ctx.supabase
     .from("vault_items")
-    .select("project_id, file_url")
+    .select("project_id")
     .eq("id", id)
     .eq("workspace_id", ctx.workspaceId)
     .maybeSingle();
@@ -169,10 +168,5 @@ export async function DELETE(
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-
-  // Purge the raw file from storage — deleting the row alone used to
-  // leave the original document in the bucket indefinitely.
-  await deleteVaultFile((delItem as { file_url?: string | null } | null)?.file_url);
-
   return NextResponse.json({ success: true });
 }

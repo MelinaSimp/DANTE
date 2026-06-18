@@ -14,7 +14,6 @@ import { supabaseAdmin, adminClient } from "@/lib/supabase/admin";
 import { embedTexts, toPgVector } from "@/lib/dante/archive/embed";
 import { extractText, extractTextWithPages } from "@/lib/vault/extract";
 import { type ChunkWithProvenance, chunkTextWithPages } from "@/lib/vault/chunking";
-import { deleteVaultFile } from "@/lib/vault/storage";
 
 export interface IngestResult {
   itemId: string;
@@ -160,40 +159,13 @@ export async function ingestVaultItem(
     })
     .eq("id", itemId);
 
-  // Zero-retention mode: when the workspace opts out of retaining raw
-  // files, the original document is purged from storage after ingest —
-  // only the extracted text + vectors remain at rest.
-  let retainRaw = true;
-  try {
-    const { data: ws } = await supabaseAdmin
-      .from("workspaces")
-      .select("retain_raw_files")
-      .eq("id", item.workspace_id)
-      .maybeSingle<{ retain_raw_files: boolean | null }>();
-    retainRaw = ws?.retain_raw_files !== false;
-  } catch {
-    /* default to retaining on any lookup error */
-  }
-
   // Autonomous pipeline: classify the freshly-indexed document and run
-  // the matching analysis (e.g. auto-underwrite a rent roll). Dynamically
-  // imported so it can never block or break ingestion, and idempotent.
-  // In zero-retention mode we await it so the raw file is still present
-  // when an analysis needs to read it — then purge.
-  const autopilotP = import("@/lib/autopilot/analyze")
+  // the matching analysis (e.g. auto-underwrite a rent roll). Fire-and-
+  // forget and dynamically imported so it can never block or break
+  // ingestion. Idempotent (skips if an analysis already exists).
+  import("@/lib/autopilot/analyze")
     .then((m) => m.runAutopilotForItem(itemId))
     .catch((e) => console.error("[autopilot] failed:", e instanceof Error ? e.message : e));
-
-  if (!retainRaw && item.file_url) {
-    await autopilotP;
-    const purged = await deleteVaultFile(item.file_url);
-    if (purged) {
-      await supabaseAdmin
-        .from("vault_items")
-        .update({ file_url: null, raw_purged_at: new Date().toISOString() })
-        .eq("id", itemId);
-    }
-  }
 
   return { itemId, chunkCount: chunksWithPages.length };
 }
