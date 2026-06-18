@@ -539,7 +539,7 @@ export default function GlobalSearchModal({
                 ref={inputRef}
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Search across vault, contacts, properties, prompts…"
+                placeholder="Search across vault, contacts, workflows, prompts…"
                 className="flex-1 bg-transparent text-sm text-[var(--ink)] placeholder:text-[var(--ink-subtle)] focus:outline-none"
               />
             </div>

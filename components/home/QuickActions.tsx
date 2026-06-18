@@ -3,11 +3,11 @@
 import React from "react";
 import Link from "next/link";
 import {
-  Building2,
   FileSearch,
   Workflow,
   ChevronRight,
   MessageSquare,
+  FolderClosed,
 } from "lucide-react";
 
 const quickActions = [
@@ -18,16 +18,16 @@ const quickActions = [
     iconName: "MessageSquare" as const,
   },
   {
-    href: "/properties",
-    title: "View deal pipeline",
-    description: "Track properties and transaction stages",
-    iconName: "Building2" as const,
-  },
-  {
     href: "/lease-abstractor",
     title: "Abstract a lease",
     description: "Upload and extract key lease terms",
     iconName: "FileSearch" as const,
+  },
+  {
+    href: "/vault",
+    title: "Open the vault",
+    description: "Browse and manage uploaded documents",
+    iconName: "FolderClosed" as const,
   },
   {
     href: "/workflows",
@@ -39,8 +39,8 @@ const quickActions = [
 
 const ICONS = {
   MessageSquare,
-  Building2,
   FileSearch,
+  FolderClosed,
   Workflow,
 } as const;
 

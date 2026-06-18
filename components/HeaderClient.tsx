@@ -14,7 +14,6 @@ interface HeaderClientProps {
 
 const navLinks = [
   { href: "/dante", label: "Dante AI" },
-  { href: "/properties", label: "Properties" },
   { href: "/lease-abstractor", label: "Lease Abstractor" },
   { href: "/workflows", label: "Workflows" },
   { href: "/contacts", label: "Contacts" },

@@ -289,10 +289,10 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
             dashboard from feeling barren when activity streams are
             empty. Each cell links to its dedicated page. */}
         <div className="grid grid-cols-4 gap-3 mb-3">
-          <Link href="/properties" className="group">
+          <Link href="/contacts" className="group">
             <div className="glass-card glass-card-hover px-4 py-3 transition">
-              <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] mb-1">Properties</div>
-              <div className="heading-display text-2xl">{data.stats.properties}</div>
+              <div className="text-[10px] mono uppercase tracking-wider text-[var(--ink-subtle)] mb-1">Contacts</div>
+              <div className="heading-display text-2xl">{data.stats.clients}</div>
             </div>
           </Link>
           <Link href="/workflows" className="group">
@@ -499,7 +499,7 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
                         {n.topExpiring.map((e) => (
                           <li key={e.id}>
                             <Link
-                              href={`/properties/${e.property_id}`}
+                              href={`/vault`}
                               className="block group rounded-[4px] border border-[var(--rule)] hover:border-[var(--rule-strong)] p-3 transition"
                             >
                               <div className="flex items-start gap-3">
@@ -1126,7 +1126,7 @@ function noticedHref(item: NoticedItem): string | null {
     case "contact":
       return `/client-details-overview?contact=${item.target_id}`;
     case "property_document":
-      return `/properties?doc=${item.target_id}`;
+      return `/vault?doc=${item.target_id}`;
     case "vault_item":
       return `/dante/archive?item=${item.target_id}`;
     case "reminder":

@@ -13,12 +13,10 @@ import {
   ShieldCheck,
   LayoutDashboard,
   ScrollText,
-  Building2,
   ChevronDown,
   ChevronsUpDown,
   User,
   Workflow,
-  MapPin,
   X,
   ClipboardCheck,
   FolderSync,
@@ -88,9 +86,8 @@ export default function AppSidebar({
 
   const assistantConfig = getIndustryConfig(industry);
 
-  // Collapsed nav — 8 core entries. CRM-era destinations (Clients,
-  // The product surface is: Home, Dante (AI), Properties, Workflows,
-  // Lease Abstractor, Vault, Voice, Site Scan, Review Queue, Settings.
+  // Collapsed nav — core entries. CRM-era destinations (Properties,
+  // Site Scan) removed as Drift focuses on AI-first workflows.
   const sections: { label?: string; items: NavItem[] }[] = [
     {
       items: [
@@ -99,13 +96,11 @@ export default function AppSidebar({
     },
     {
       items: [
-        { href: "/properties", label: "Properties", icon: Building2 },
         { href: "/workflows", label: "Workflows", icon: Workflow },
         { href: "/lease-abstractor", label: "Lease Abstractor", icon: ScrollText },
         { href: "/vault", label: "Vault", icon: FolderClosed },
         { href: "/watched-folders", label: "Watched Folders", icon: FolderSync },
         { href: "/agent", label: "Voice", icon: Mic },
-        { href: "/site-scan", label: "Site Scan", icon: MapPin },
         { href: "/review", label: "Review Queue", icon: ClipboardCheck },
         { href: "/audit", label: "Audit Log", icon: FileSearch },
       ],

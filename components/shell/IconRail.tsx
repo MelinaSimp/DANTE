@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Home,
-  Building2,
   ScrollText,
   FolderClosed,
   Workflow,
@@ -14,7 +13,6 @@ import {
 
 const NAV_ITEMS = [
   { href: "/dashboard", icon: Home, label: "Dashboard" },
-  { href: "/properties", icon: Building2, label: "Properties" },
   { href: "/lease-abstractor", icon: ScrollText, label: "Lease Abstractor" },
   { href: "/workflows", icon: Workflow, label: "Workflows" },
   { href: "/vault", icon: FolderClosed, label: "Vault" },

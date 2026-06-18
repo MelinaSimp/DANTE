@@ -31,7 +31,6 @@ interface CommandItem {
 const STATIC_COMMANDS: CommandItem[] = [
   { id: "nav.home", label: "Go to Dashboard", group: "Navigate", href: "/dashboard" },
   { id: "nav.dante", label: "Go to Dante AI", group: "Navigate", href: "/dante" },
-  { id: "nav.properties", label: "Go to Properties", group: "Navigate", href: "/properties" },
   { id: "nav.lease", label: "Go to Lease Abstractor", group: "Navigate", href: "/lease-abstractor" },
   { id: "nav.workflows", label: "Go to Workflows", group: "Navigate", href: "/workflows" },
   { id: "nav.contacts", label: "Go to Contacts", group: "Navigate", href: "/contacts" },
@@ -44,7 +43,6 @@ const CRE_COMMANDS: CommandItem[] = [
   { id: "rec.deal-score", label: "Score a deal", group: "Suggested", href: "/dante?prompt=Run+a+deal+score+on+my+latest+acquisition+candidate" },
   { id: "rec.void", label: "Run void analysis", group: "Suggested", href: "/dante?prompt=Run+a+void+analysis+for+retail+gaps+in+my+trade+area" },
   { id: "rec.lease-abstract", label: "Abstract a lease", group: "Suggested", href: "/lease-abstractor" },
-  { id: "rec.pipeline", label: "View deal pipeline", group: "Suggested", href: "/properties" },
   { id: "rec.closing", label: "Deals closing this month", group: "Suggested", href: "/dante?prompt=What+deals+are+closing+this+month" },
   { id: "rec.stale", label: "Contacts I haven't reached in 30 days", group: "Suggested", href: "/dante?prompt=Which+contacts+haven't+heard+from+me+in+30+days" },
 ];
