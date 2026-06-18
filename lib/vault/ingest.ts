@@ -13,11 +13,7 @@
 import { supabaseAdmin, adminClient } from "@/lib/supabase/admin";
 import { embedTexts, toPgVector } from "@/lib/dante/archive/embed";
 import { extractText, extractTextWithPages } from "@/lib/vault/extract";
-
-const CHUNK_WORDS = 500;
-const CHUNK_OVERLAP = 50;
-const MAX_CHUNKS_PER_ITEM = 800; // safety: ~400k words
-const MAX_CHUNK_CHARS = 3000; // dense tabular data tokenizes at ~2 chars/token
+import { type ChunkWithProvenance, chunkTextWithPages } from "@/lib/vault/chunking";
 
 export interface IngestResult {
   itemId: string;
@@ -33,82 +29,6 @@ interface VaultItemRow {
   text_extracted: boolean | null;
   file_url: string | null;
   file_type: string | null;
-}
-
-interface ChunkWithPage {
-  content: string;
-  /** 1-based page number for the primary page this chunk came from, or null. */
-  page_number: number | null;
-}
-
-function chunkText(text: string): string[] {
-  return chunkTextWithPages([text]).map((c) => c.content);
-}
-
-/**
- * Page-aware chunking. Takes per-page text arrays and produces chunks
- * that track which page they primarily belong to. A chunk that spans
- * a page boundary is assigned the page it started on.
- *
- * This is the core improvement for vault.cite: when the agent searches
- * the vault, returned chunks carry real page numbers, so the citation
- * can say "Section 4.2, p. 7" instead of just "Section 4.2".
- */
-function chunkTextWithPages(pages: string[]): ChunkWithPage[] {
-  if (pages.length === 0) return [];
-
-  // Build a flat word list with page provenance
-  const wordEntries: Array<{ word: string; page: number }> = [];
-  for (let pageIdx = 0; pageIdx < pages.length; pageIdx++) {
-    const cleaned = (pages[pageIdx] || "").replace(/\u00a0/g, " ").trim();
-    if (!cleaned) continue;
-    const words = cleaned.split(/\s+/);
-    for (const w of words) {
-      wordEntries.push({ word: w, page: pageIdx + 1 }); // 1-based
-    }
-  }
-
-  if (wordEntries.length === 0) return [];
-
-  const rawChunks: ChunkWithPage[] = [];
-
-  if (wordEntries.length <= CHUNK_WORDS) {
-    rawChunks.push({
-      content: wordEntries.map((e) => e.word).join(" "),
-      page_number: wordEntries[0].page,
-    });
-  } else {
-    const stride = CHUNK_WORDS - CHUNK_OVERLAP;
-    for (let i = 0; i < wordEntries.length; i += stride) {
-      const slice = wordEntries.slice(i, i + CHUNK_WORDS);
-      if (slice.length === 0) break;
-      rawChunks.push({
-        content: slice.map((e) => e.word).join(" "),
-        page_number: slice[0].page,
-      });
-      if (rawChunks.length >= MAX_CHUNKS_PER_ITEM) break;
-      if (i + CHUNK_WORDS >= wordEntries.length) break;
-    }
-  }
-
-  // Split any chunk that exceeds the character limit (spreadsheets
-  // with dense numeric data can be few words but many tokens)
-  const chunks: ChunkWithPage[] = [];
-  for (const c of rawChunks) {
-    if (c.content.length <= MAX_CHUNK_CHARS) {
-      chunks.push(c);
-    } else {
-      for (let off = 0; off < c.content.length; off += MAX_CHUNK_CHARS) {
-        chunks.push({
-          content: c.content.slice(off, off + MAX_CHUNK_CHARS),
-          page_number: c.page_number,
-        });
-      }
-    }
-    if (chunks.length >= MAX_CHUNKS_PER_ITEM) break;
-  }
-
-  return chunks;
 }
 
 export async function ingestVaultItem(
@@ -134,7 +54,7 @@ export async function ingestVaultItem(
   // only stores the binary, so without this step we'd have nothing
   // to chunk.
   let text = (item.content || "").trim();
-  let pageChunks: ChunkWithPage[] | null = null;
+  let pageChunks: ChunkWithProvenance[] | null = null;
 
   if (!text && item.file_url) {
     try {
@@ -194,6 +114,10 @@ export async function ingestVaultItem(
     page_number: chunk.page_number,
     content: chunk.content,
     embedding: toPgVector(vectors[i]),
+    line_start: chunk.line_start,
+    line_end: chunk.line_end,
+    char_start: chunk.char_start,
+    char_end: chunk.char_end,
   }));
 
   // Upsert instead of DELETE+INSERT to avoid race condition where a

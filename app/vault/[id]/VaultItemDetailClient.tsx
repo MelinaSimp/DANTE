@@ -24,6 +24,7 @@ import {
   Plus,
 } from "lucide-react";
 import FillTemplateButton from "./FillTemplateButton";
+import SourcePageViewer from "./SourcePageViewer";
 
 interface VaultItem {
   id: string;
@@ -94,8 +95,8 @@ export default function VaultItemDetailClient({
         kind: data.kind,
         property_id: data.property_id || "",
       });
-    } catch (e: any) {
-      setLoadError(e.message);
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : String(e));
     }
   }, [itemId]);
 
@@ -142,8 +143,8 @@ export default function VaultItemDetailClient({
       if (!r.ok) throw new Error((await r.json()).error || "Save failed");
       setSavedAt(Date.now());
       await load();
-    } catch (e: any) {
-      setSaveError(e.message);
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }
@@ -297,6 +298,9 @@ export default function VaultItemDetailClient({
           </div>
         </div>
 
+        {/* Source viewer + line-level provenance */}
+        <SourcePageViewer itemId={itemId} />
+
         {/* Metadata */}
         <section className="card-flat p-6">
           <div className="label-section mb-4">Metadata</div>
@@ -374,7 +378,7 @@ export default function VaultItemDetailClient({
               <div className="label-section mb-1">Property</div>
               <h2 className="text-base font-semibold">Linked property</h2>
               <p className="text-xs text-[var(--ink-muted)] mt-0.5">
-                Optional. Helps Dante pull the right docs when you're
+                Optional. Helps Dante pull the right docs when you&apos;re
                 discussing a specific listing.
               </p>
             </div>

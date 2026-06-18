@@ -22,6 +22,20 @@ export interface PageAwareExtractResult {
   pageCount: number;
 }
 
+/**
+ * Normalize a page's extracted text for stable line/char provenance.
+ * Collapses CRLF to LF and non-breaking spaces to regular spaces while
+ * preserving newlines so line numbers are deterministic.
+ *
+ * The vault chunker (which records line_start/line_end/char_* per chunk)
+ * and the source-page viewer (which highlights those lines) MUST run this
+ * identically, or a stored line range won't map to the same lines on
+ * screen. Keep it the single source of truth.
+ */
+export function normalizePageText(s: string): string {
+  return (s || "").replace(/\r\n?/g, "\n").replace(/ /g, " ");
+}
+
 const PLAIN_TEXT_MIMES = new Set([
   "text/plain",
   "text/markdown",
@@ -127,7 +141,7 @@ async function extractDocx(buffer: Buffer): Promise<ExtractResult> {
 
 function extractXlsx(buffer: Buffer): ExtractResult {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const XLSX = require("xlsx");
     const workbook = XLSX.read(buffer, { type: "buffer" });
     const sheets: string[] = [];
@@ -149,7 +163,7 @@ function extractXlsx(buffer: Buffer): ExtractResult {
 
 function extractXlsxWithPages(buffer: Buffer): PageAwareExtractResult {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const XLSX = require("xlsx");
     const workbook = XLSX.read(buffer, { type: "buffer" });
     const pages: string[] = [];
