@@ -38,6 +38,7 @@ import type {
 import { openaiProvider } from "./providers/openai";
 import { anthropicProvider } from "./providers/anthropic";
 import { hermesProvider } from "./providers/hermes";
+import { resolveTemperature } from "./temperature";
 import { computeCostCents } from "@/lib/dante/model-router";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
@@ -114,7 +115,15 @@ export async function complete(
     workspaceId: opts.workspaceId ?? null,
     processingMode: opts.processingMode,
   });
-  const result = await provider.complete(opts);
+
+  // Lock the temperature: an undefined temperature would otherwise run
+  // at the model's ~1.0 default. Fill it from the per-feature policy so
+  // behavior is deterministic and auditable. Explicit values win.
+  const effectiveOpts: LlmCompleteOptions =
+    opts.temperature === undefined
+      ? { ...opts, temperature: resolveTemperature(opts.feature) }
+      : opts;
+  const result = await provider.complete(effectiveOpts);
 
   // Skip metering for the local Hermes provider (no cloud spend) and
   // when the caller didn't tell us which workspace to bill.

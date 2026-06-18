@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { usePageContext } from "@/components/dante/PageContext";
+import { verifyStatusFromConfidence } from "@/lib/dante/verify";
 
 interface VaultItem {
   id: string;
@@ -104,7 +105,7 @@ const CONFIDENCE_STYLE: Record<string, { cls: string; label: string }> = {
   high: { cls: "text-[var(--verified)] bg-[var(--verified-soft)] border-[var(--verified)]/30", label: "High" },
   medium: { cls: "text-[var(--flag)] bg-[var(--flag-soft)] border-[var(--flag)]/30", label: "Medium" },
   low: { cls: "text-[var(--danger)] bg-[var(--danger-soft)] border-[var(--danger)]/30", label: "Low" },
-  not_found: { cls: "text-[var(--ink-muted)] bg-[var(--canvas-subtle)] border-[var(--rule)]", label: "Not found" },
+  not_found: { cls: "text-[var(--flag)] bg-[var(--flag-soft)] border-[var(--flag)]/30", label: "Verify" },
 };
 
 function formatSize(bytes: number | null) {
@@ -943,7 +944,9 @@ export default function LeaseAbstractorClient() {
                     const high = fields.filter((f) => f.confidence === "high").length;
                     const med = fields.filter((f) => f.confidence === "medium").length;
                     const low = fields.filter((f) => f.confidence === "low").length;
-                    const notFound = fields.filter((f) => f.confidence === "not_found").length;
+                    const needsVerify = fields.filter(
+                      (f) => verifyStatusFromConfidence(f.confidence, f.value) === "verify",
+                    ).length;
                     const total = fields.length || 1;
 
                     // Pull key deal metrics from fields
@@ -959,6 +962,19 @@ export default function LeaseAbstractorClient() {
 
                     return (
                       <div className="px-5 pt-5 pb-3 space-y-4">
+                        {/* Verify contract: abstained fields are flagged, not guessed. */}
+                        {needsVerify > 0 && (
+                          <div className="rounded-[var(--r-card)] border border-[var(--flag)]/30 bg-[var(--flag-soft)] px-3 py-2 flex items-start gap-2">
+                            <AlertTriangle className="w-3.5 h-3.5 text-[var(--flag)] shrink-0 mt-0.5" strokeWidth={1.5} />
+                            <p className="text-xs text-[var(--ink)] leading-relaxed">
+                              <span className="font-medium">
+                                {needsVerify} field{needsVerify === 1 ? "" : "s"} flagged for verification.
+                              </span>{" "}
+                              Dante marked {needsVerify === 1 ? "it" : "these"} as needs-verification rather than
+                              guessing — confirm against the source before relying on {needsVerify === 1 ? "it" : "them"}.
+                            </p>
+                          </div>
+                        )}
                         {/* Confidence bar */}
                         <div className="rounded-lg border border-[var(--rule)] p-3 bg-[var(--canvas-subtle,rgba(0,0,0,0.015))]">
                           <div className="flex items-center justify-between mb-2">
@@ -966,7 +982,7 @@ export default function LeaseAbstractorClient() {
                               Extraction Confidence
                             </span>
                             <span className="text-xs text-[var(--ink-muted)]">
-                              {high} high, {med} medium, {low} low, {notFound} missing
+                              {high} high, {med} medium, {low} low, {needsVerify} to verify
                             </span>
                           </div>
                           <div className="flex h-2 rounded-full overflow-hidden bg-[var(--rule)]">
