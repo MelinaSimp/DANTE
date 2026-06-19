@@ -13,7 +13,7 @@ import {
   ClipboardList, MailCheck, CalendarClock, Eye, Cake, Coins,
   TrendingDown, CalendarDays, FileSpreadsheet, UserCheck, BookOpen,
   UserPlus, Calculator, Share2, Landmark, RefreshCw, CalendarCheck,
-  ScrollText, PiggyBank, Sparkles, Building2,
+  ScrollText, PiggyBank, Sparkles, Building2, X,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { WORKFLOW_TEMPLATES, type WorkflowTemplate } from "@/lib/dante/templates";
@@ -237,6 +237,22 @@ export default function WorkflowsPageClient({ vaultReady, canManageVault }: Prop
   }, []);
 
   useEffect(() => { loadRunFeed(); }, [loadRunFeed]);
+
+  // Dismiss a single result from the feed (soft-dismiss; optimistic).
+  const dismissRun = useCallback(async (id: string) => {
+    setRunFeed((prev) => prev.filter((r) => r.id !== id));
+    try {
+      await fetch(`/api/dante/workflows/runs/${id}/dismiss`, { method: "POST", credentials: "include" });
+    } catch { /* optimistic — already removed locally */ }
+  }, []);
+
+  // Clear all results from the feed at once.
+  const dismissAllRuns = useCallback(async () => {
+    setRunFeed([]);
+    try {
+      await fetch(`/api/dante/workflows/runs`, { method: "DELETE", credentials: "include" });
+    } catch { /* optimistic */ }
+  }, []);
 
   const toggleRunTraces = useCallback(async (run: RunFeedItem) => {
     const runKey = run.n8n_execution_id || run.id;
@@ -617,7 +633,15 @@ export default function WorkflowsPageClient({ vaultReady, canManageVault }: Prop
       )}
       {!runFeedLoading && !runFeedError && runFeed.length > 0 && (
         <section className="mb-8">
-          <div className="label-section mb-3">Recent results</div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="label-section">Recent results</div>
+            <button
+              onClick={dismissAllRuns}
+              className="inline-flex items-center gap-1.5 text-[11px] text-[var(--ink-muted)] hover:text-[var(--ink)] transition"
+            >
+              <Trash2 className="w-3 h-3" strokeWidth={1.5} /> Clear all
+            </button>
+          </div>
           <div className="space-y-2">
             {runFeed.slice(0, 8).map((run) => {
               const wf = rows.find((r) => r.id === run.workflow_id);
@@ -731,6 +755,13 @@ export default function WorkflowsPageClient({ vaultReady, canManageVault }: Prop
                           Details
                         </Link>
                       )}
+                      <button
+                        onClick={() => dismissRun(run.id)}
+                        title="Dismiss this result"
+                        className="p-0.5 rounded text-[var(--ink-subtle)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition"
+                      >
+                        <X className="w-3.5 h-3.5" strokeWidth={1.5} />
+                      </button>
                     </div>
                   </div>
                 </div>

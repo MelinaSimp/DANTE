@@ -173,11 +173,13 @@ export async function GET() {
       .limit(ITEMS_PER_GROUP),
 
     // Workflow runs that fired since last visit. Time-scoped.
+    // Dismissed runs are excluded so cleared results don't resurface here.
     supabaseAdmin
       .from("dante_workflow_runs")
       .select("id, workflow_id, status, started_at, error", { count: "exact" })
       .eq("workspace_id", workspaceId)
       .gt("started_at", sinceClause)
+      .is("dismissed_at", null)
       .in("status", ["success", "error"])
       .order("started_at", { ascending: false })
       .limit(ITEMS_PER_GROUP),
