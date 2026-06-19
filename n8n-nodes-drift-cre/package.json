@@ -19,7 +19,6 @@
       "dist/nodes/DriftLeaseLookup/DriftLeaseLookup.node.js",
       "dist/nodes/DriftVaultSearch/DriftVaultSearch.node.js",
       "dist/nodes/DriftWebSearch/DriftWebSearch.node.js",
-      "dist/nodes/DriftDueDiligence/DriftDueDiligence.node.js",
       "dist/nodes/DriftGenerateDocument/DriftGenerateDocument.node.js",
       "dist/nodes/DriftAiAgent/DriftAiAgent.node.js",
       "dist/nodes/DriftApprovalGate/DriftApprovalGate.node.js",
