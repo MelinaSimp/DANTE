@@ -20,7 +20,6 @@ import {
   User,
   Workflow,
   X,
-  ClipboardCheck,
   FolderSync,
   FileSearch,
 } from "lucide-react";
@@ -106,7 +105,6 @@ export default function AppSidebar({
         { href: "/vault", label: "Vault", icon: FolderClosed },
         { href: "/watched-folders", label: "Watched Folders", icon: FolderSync },
         { href: "/agent", label: "Voice", icon: Mic },
-        { href: "/review", label: "Review Queue", icon: ClipboardCheck },
         { href: "/audit", label: "Audit Log", icon: FileSearch },
       ],
     },
