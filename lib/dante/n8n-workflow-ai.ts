@@ -193,6 +193,18 @@ Custom Drift CRE nodes (these connect to Drift's database):
   Reads the autonomous pipeline's document analyses (auto-underwrites,
   classifications). Use to act on what Autopilot found in the vault.
 
+- "n8n-nodes-drift-cre.driftLeaseAbstractor" (typeVersion: 1)
+  parameters: { "vaultItemId": "={{ $json.vault_item_id }}",
+                "refinePrompt": false, "webSearch": false }
+  Runs AI lease abstraction on a vault document; returns extracted deal
+  terms, financials, and key clauses. The document must be ingested.
+
+- "n8n-nodes-drift-cre.driftUnderwriter" (typeVersion: 1)
+  parameters: { "vaultItemId": "={{ $json.vault_item_id }}", "purchasePrice": 0 }
+  Runs a DCF underwriting model on a rent-roll spreadsheet in the vault;
+  returns indicated value, NOI, implied cap, and (with a purchase price)
+  IRR and equity multiple.
+
 MANDATORY FINAL NODE
 
 Every workflow MUST end with a "Report to Drift" HTTP Request node that
@@ -290,6 +302,8 @@ const VALID_N8N_TYPES = new Set([
   "n8n-nodes-drift-cre.driftApprovalGate",
   "n8n-nodes-drift-cre.driftMarketComps",
   "n8n-nodes-drift-cre.driftAutopilot",
+  "n8n-nodes-drift-cre.driftLeaseAbstractor",
+  "n8n-nodes-drift-cre.driftUnderwriter",
 ]);
 
 const DRIFT_CRE_TYPES = new Set(

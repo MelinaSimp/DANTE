@@ -26,7 +26,9 @@
       "dist/nodes/DriftAiAgent/DriftAiAgent.node.js",
       "dist/nodes/DriftApprovalGate/DriftApprovalGate.node.js",
       "dist/nodes/DriftMarketComps/DriftMarketComps.node.js",
-      "dist/nodes/DriftAutopilot/DriftAutopilot.node.js"
+      "dist/nodes/DriftAutopilot/DriftAutopilot.node.js",
+      "dist/nodes/DriftLeaseAbstractor/DriftLeaseAbstractor.node.js",
+      "dist/nodes/DriftUnderwriter/DriftUnderwriter.node.js"
     ]
   },
   "main": "index.js",

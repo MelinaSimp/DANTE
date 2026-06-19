@@ -7,6 +7,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { NextResponse, type NextRequest } from "next/server";
 import { abstractLease, type LeaseAbstract } from "@/lib/dante/lease-abstractor";
+import { resolveServiceWorkspace } from "@/lib/api/service-auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -54,17 +55,37 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = await createServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("workspace_id")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (!profile?.workspace_id) {
-    return NextResponse.json({ error: "No workspace" }, { status: 400 });
+  // Service callers (n8n workflow nodes) present the service-role key +
+  // workspace header and act as the workspace owner. Otherwise fall back
+  // to the browser session.
+  let workspaceId: string;
+  let userId: string;
+  const serviceWorkspace = resolveServiceWorkspace(request);
+  if (serviceWorkspace) {
+    const { data: ws } = await supabaseAdmin
+      .from("workspaces")
+      .select("owner_id")
+      .eq("id", serviceWorkspace)
+      .maybeSingle();
+    if (!ws?.owner_id) {
+      return NextResponse.json({ error: "Workspace has no owner for service call" }, { status: 400 });
+    }
+    workspaceId = serviceWorkspace;
+    userId = ws.owner_id as string;
+  } else {
+    const supabase = await createServerSupabase();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("workspace_id")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (!profile?.workspace_id) {
+      return NextResponse.json({ error: "No workspace" }, { status: 400 });
+    }
+    workspaceId = profile.workspace_id;
+    userId = user.id;
   }
 
   let body: {
@@ -90,7 +111,7 @@ export async function POST(request: NextRequest) {
     .from("vault_items")
     .select("id, workspace_id")
     .eq("id", vaultItemId)
-    .eq("workspace_id", profile.workspace_id)
+    .eq("workspace_id", workspaceId)
     .maybeSingle();
   if (!item) {
     return NextResponse.json({ error: "Vault item not found" }, { status: 404 });
@@ -115,9 +136,9 @@ export async function POST(request: NextRequest) {
 
   const templateFields = body.options?.templateFields;
   const result: LeaseAbstract = await abstractLease({
-    workspaceId: profile.workspace_id,
+    workspaceId,
     vaultItemId,
-    userId: user.id,
+    userId,
     anthropicKey,
     fields: templateFields?.length ? templateFields.map((f) => ({
       name: f.name,
@@ -128,8 +149,8 @@ export async function POST(request: NextRequest) {
   });
 
   await supabaseAdmin.from("audit_logs").insert({
-    workspace_id: profile.workspace_id,
-    user_id: user.id,
+    workspace_id: workspaceId,
+    user_id: userId,
     action: "lease_abstract.created",
     resource_type: "lease_abstract",
     resource_id: result.id,
