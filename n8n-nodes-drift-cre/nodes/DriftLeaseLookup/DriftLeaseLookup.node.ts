@@ -71,7 +71,7 @@ export class DriftLeaseLookup implements INodeType {
 
     const response = await this.helpers.httpRequest({
       method: "GET",
-      url: `${supabaseUrl}/rest/v1/lease_abstractions?${params.toString()}`,
+      url: `${supabaseUrl}/rest/v1/lease_abstracts?${params.toString()}`,
       headers: {
         apikey: supabaseKey,
         Authorization: `Bearer ${supabaseKey}`,

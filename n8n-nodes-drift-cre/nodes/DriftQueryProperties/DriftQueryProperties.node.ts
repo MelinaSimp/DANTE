@@ -31,8 +31,8 @@ export class DriftQueryProperties implements INodeType {
         name: "filterField",
         type: "string",
         default: "",
-        placeholder: "e.g. transaction_stage, property_type, city",
-        description: "Column name to filter by. Stages: prospecting, showing, under_contract, due_diligence, closing, closed, listed, off_market.",
+        placeholder: "e.g. transaction_stage, kind, city",
+        description: "Column name to filter by. transaction_stage values: listed, showing, offer, pending, closed, withdrawn, expired.",
       },
       {
         displayName: "Filter Value",

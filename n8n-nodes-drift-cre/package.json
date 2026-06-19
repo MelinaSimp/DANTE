@@ -16,8 +16,6 @@
       "dist/nodes/DriftQueryContacts/DriftQueryContacts.node.js",
       "dist/nodes/DriftUpdateContact/DriftUpdateContact.node.js",
       "dist/nodes/DriftQueryProperties/DriftQueryProperties.node.js",
-      "dist/nodes/DriftQueryListings/DriftQueryListings.node.js",
-      "dist/nodes/DriftQueryOffers/DriftQueryOffers.node.js",
       "dist/nodes/DriftLeaseLookup/DriftLeaseLookup.node.js",
       "dist/nodes/DriftVaultSearch/DriftVaultSearch.node.js",
       "dist/nodes/DriftWebSearch/DriftWebSearch.node.js",
@@ -33,7 +31,7 @@
   },
   "main": "index.js",
   "scripts": {
-    "build": "tsc && gulp build:icons",
+    "build": "tsc",
     "dev": "tsc --watch",
     "lint": "tsc --noEmit",
     "test": "vitest"

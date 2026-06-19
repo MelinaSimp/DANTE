@@ -82,14 +82,12 @@ export class DriftAiAgent implements INodeType {
       ? toolsRaw.split(",").map((t) => t.trim()).filter(Boolean)
       : ["memory.search", "memory.write", "clients.query", "web.search"];
 
-    // Gather upstream context from input items
-    const inputItems = this.getInputData();
-    const upstreamContext = inputItems.map((item) => item.json);
-
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://driftai.studio";
 
     try {
-      // Call Drift's agent API which handles the full reasoning loop
+      // Call Drift's agent API which handles the full reasoning loop.
+      // simulate:false makes the service-key path actually run tools
+      // rather than returning a dry-run plan.
       const response = await this.helpers.httpRequest({
         method: "POST",
         url: `${appUrl}/api/dante/agent/test`,
@@ -103,7 +101,7 @@ export class DriftAiAgent implements INodeType {
           objective,
           tools,
           max_steps: maxSteps,
-          context: upstreamContext.length > 0 ? upstreamContext : undefined,
+          simulate: false,
         },
       });
 

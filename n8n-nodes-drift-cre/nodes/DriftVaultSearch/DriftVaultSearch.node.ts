@@ -98,20 +98,20 @@ export class DriftVaultSearch implements INodeType {
       return [[{ json: { hits: [], context: "", error: "Embedding generation failed" } }]];
     }
 
-    // Step 2: RPC call to match_archive_chunks (vector search)
+    // Step 2: vector search via the dante_archive_search RPC. The
+    // embedding is passed as a pgvector literal string (the form the
+    // function's `vector` argument accepts over PostgREST).
     const rpcBody: Record<string, unknown> = {
-      query_embedding: embedding,
-      match_threshold: 0.5,
-      match_count: topK,
       p_workspace_id: workspaceId,
+      p_query_embedding: `[${embedding.join(",")}]`,
+      p_limit: topK,
+      p_kind_filter: kind || null,
+      p_project_id: null,
     };
-    if (kind) {
-      rpcBody.p_kind = kind;
-    }
 
     const searchResponse = await this.helpers.httpRequest({
       method: "POST",
-      url: `${supabaseUrl}/rest/v1/rpc/match_archive_chunks`,
+      url: `${supabaseUrl}/rest/v1/rpc/dante_archive_search`,
       headers: {
         apikey: supabaseKey,
         Authorization: `Bearer ${supabaseKey}`,
@@ -126,7 +126,7 @@ export class DriftVaultSearch implements INodeType {
     const context = hits
       .map(
         (h: Record<string, unknown>, i: number) =>
-          `[${i + 1}] (${h.title || "untitled"}, p.${h.page_number || "?"}): ${h.content || ""}`,
+          `[${i + 1}] (${h.document_title || "untitled"}, p.${h.page_number ?? "?"}): ${h.content || ""}`,
       )
       .join("\n\n");
 
@@ -134,12 +134,13 @@ export class DriftVaultSearch implements INodeType {
       {
         json: {
           hits: hits.map((h: Record<string, unknown>) => ({
-            id: h.id,
-            title: h.title,
+            id: h.chunk_id,
+            document_id: h.document_id,
+            title: h.document_title,
+            kind: h.document_kind,
             content: h.content,
             page_number: h.page_number,
             similarity: h.similarity,
-            source_file: h.source_file,
           })),
           context,
           query,

@@ -53,60 +53,70 @@ export class DriftGenerateDocument implements INodeType {
 
   async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
     const credentials = await this.getCredentials("driftCreApi");
-    const supabaseUrl = credentials.supabaseUrl as string;
     const supabaseKey = credentials.supabaseKey as string;
     const workspaceId = credentials.workspaceId as string;
-
-    const title = this.getNodeParameter("title", 0, "") as string;
-    const subtitle = this.getNodeParameter("subtitle", 0, "") as string;
-    const sectionsRaw = this.getNodeParameter("sections", 0, "[]") as string;
-
-    let sections: Array<{ heading: string; body: string }>;
-    try {
-      sections = typeof sectionsRaw === "string" ? JSON.parse(sectionsRaw) : sectionsRaw;
-    } catch {
-      sections = [{ heading: "Content", body: String(sectionsRaw) }];
-    }
-
-    if (!title) {
-      return [[{ json: { error: "title is required" } }]];
-    }
-
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://driftai.studio";
 
-    try {
-      const response = await this.helpers.httpRequest({
-        method: "POST",
-        url: `${appUrl}/api/dante/export`,
-        headers: {
-          "Content-Type": "application/json",
-          apikey: supabaseKey,
-          Authorization: `Bearer ${supabaseKey}`,
-        },
-        body: {
-          workspace_id: workspaceId,
-          title,
-          subtitle,
-          sections,
-          format: "pdf",
-        },
-      });
+    const items = this.getInputData();
+    const out: INodeExecutionData[] = [];
+    const runFor = Math.max(items.length, 1);
 
-      return [[{
-        json: {
-          generated: true,
-          title,
-          url: response?.url || null,
-          filename: response?.filename || `${title.replace(/\s+/g, "-").toLowerCase()}.pdf`,
-        },
-      }]];
-    } catch (err) {
-      return [[{
-        json: {
-          error: err instanceof Error ? err.message : String(err),
-          title,
-        },
-      }]];
+    for (let i = 0; i < runFor; i++) {
+      const title = this.getNodeParameter("title", i, "") as string;
+      const subtitle = this.getNodeParameter("subtitle", i, "") as string;
+      const sectionsRaw = this.getNodeParameter("sections", i, "[]") as string;
+
+      let sections: Array<{ heading: string; body: string }>;
+      try {
+        sections = typeof sectionsRaw === "string" ? JSON.parse(sectionsRaw) : sectionsRaw;
+      } catch {
+        sections = [{ heading: "Content", body: String(sectionsRaw) }];
+      }
+
+      if (!title) {
+        out.push({ json: { error: "title is required" } });
+        continue;
+      }
+
+      try {
+        const response = await this.helpers.httpRequest({
+          method: "POST",
+          url: `${appUrl}/api/documents/generate`,
+          timeout: 60000,
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${supabaseKey}`,
+            "x-drift-workspace-id": workspaceId,
+          },
+          body: { title, subtitle, sections },
+          json: true,
+        });
+
+        const base64 = (response?.base64 as string) || "";
+        const filename = (response?.filename as string) || "document.pdf";
+
+        const item: INodeExecutionData = {
+          json: { generated: !!base64, title, filename, bytes: response?.bytes ?? 0 },
+        };
+
+        // Re-emit the PDF as n8n binary so downstream nodes (email,
+        // write-to-disk, upload) can consume it directly.
+        if (base64) {
+          item.binary = {
+            data: await this.helpers.prepareBinaryData(
+              Buffer.from(base64, "base64"),
+              filename,
+              "application/pdf",
+            ),
+          };
+        }
+
+        out.push(item);
+      } catch (err) {
+        out.push({ json: { error: err instanceof Error ? err.message : String(err), title } });
+      }
     }
+
+    return [out];
   }
 }

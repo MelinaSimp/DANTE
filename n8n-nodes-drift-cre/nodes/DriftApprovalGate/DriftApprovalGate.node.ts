@@ -16,7 +16,7 @@ export class DriftApprovalGate implements INodeType {
     group: ["transform"],
     version: 1,
     description:
-      "Pause workflow execution, send an approval request via email/SMS, and resume when the approver responds. Uses n8n waitTill for durable pausing.",
+      "Pause workflow execution, email the approver an approve/reject link, and resume when they respond. Uses n8n waitTill for durable pausing.",
     defaults: {
       name: "Approval Gate",
     },
@@ -60,18 +60,6 @@ export class DriftApprovalGate implements INodeType {
         description: "Which workspace role can approve this gate",
       },
       {
-        displayName: "Notification Method",
-        name: "notifyVia",
-        type: "options",
-        options: [
-          { name: "Email", value: "email" },
-          { name: "SMS", value: "sms" },
-          { name: "Both", value: "both" },
-        ],
-        default: "email",
-        description: "How to notify the approver",
-      },
-      {
         displayName: "Timeout (Hours)",
         name: "timeoutHours",
         type: "number",
@@ -90,7 +78,6 @@ export class DriftApprovalGate implements INodeType {
 
     const message = this.getNodeParameter("message", 0, "") as string;
     const approverRole = this.getNodeParameter("approverRole", 0, "owner") as string;
-    const notifyVia = this.getNodeParameter("notifyVia", 0, "email") as string;
     const timeoutHours = this.getNodeParameter("timeoutHours", 0, 72) as number;
 
     // Construct webhook URL for approval callbacks.
@@ -111,7 +98,7 @@ export class DriftApprovalGate implements INodeType {
 
     const profilesResponse = await this.helpers.httpRequest({
       method: "GET",
-      url: `${supabaseUrl}/rest/v1/profiles?${profileFilter}&select=id,full_name,sms_phone,sms_verified_at,role`,
+      url: `${supabaseUrl}/rest/v1/profiles?${profileFilter}&select=id,full_name,role`,
       headers: {
         apikey: supabaseKey,
         Authorization: `Bearer ${supabaseKey}`,
@@ -125,71 +112,51 @@ export class DriftApprovalGate implements INodeType {
       return [[], [{ json: { approved: false, reason: "No approvers found for the specified role" } }]];
     }
 
-    // Send notifications to approvers
+    // Email each approver an approve/reject link. Best-effort: if a send
+    // fails, the same links are still returned in the wait payload below.
     for (const approver of approvers) {
-      if ((notifyVia === "email" || notifyVia === "both")) {
-        // Get email from auth.users (profiles does not store email)
-        try {
-          const resendKey = process.env.RESEND_API_KEY;
-          if (resendKey) {
-            // Look up email via Supabase admin API
-            const userResponse = await this.helpers.httpRequest({
-              method: "GET",
-              url: `${supabaseUrl}/auth/v1/admin/users/${approver.id}`,
-              headers: {
-                apikey: supabaseKey,
-                Authorization: `Bearer ${supabaseKey}`,
-              },
-            });
-            const email = userResponse?.email;
-            if (email) {
-              await this.helpers.httpRequest({
-                method: "POST",
-                url: "https://api.resend.com/emails",
-                headers: {
-                  Authorization: `Bearer ${resendKey}`,
-                  "Content-Type": "application/json",
-                },
-                body: {
-                  from: process.env.RESEND_FROM_EMAIL || "Drift <ops@driftai.studio>",
-                  to: email,
-                  subject: "Approval Required -- Drift Workflow",
-                  html: `
-                    <div style="font-family: system-ui, sans-serif; max-width: 480px; margin: 0 auto;">
-                      <h2 style="color: #1a1a1a;">Approval Required</h2>
-                      <p style="color: #444; line-height: 1.6;">${message}</p>
-                      <div style="margin: 24px 0;">
-                        <a href="${approveUrl}" style="display: inline-block; padding: 10px 24px; background: #22c55e; color: white; text-decoration: none; border-radius: 6px; margin-right: 12px;">Approve</a>
-                        <a href="${rejectUrl}" style="display: inline-block; padding: 10px 24px; background: #ef4444; color: white; text-decoration: none; border-radius: 6px;">Reject</a>
-                      </div>
-                      <p style="color: #999; font-size: 12px;">This request will auto-expire in ${timeoutHours} hours.</p>
-                    </div>
-                  `.trim(),
-                },
-              });
-            }
-          }
-        } catch {
-          // Email send failed -- continue to SMS
-        }
-      }
+      try {
+        const resendKey = process.env.RESEND_API_KEY;
+        if (!resendKey) break;
 
-      if ((notifyVia === "sms" || notifyVia === "both") && approver.sms_phone && approver.sms_verified_at) {
-        try {
-          // Send via Drift's SMS API
-          const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://driftai.studio";
-          await this.helpers.httpRequest({
-            method: "POST",
-            url: `${appUrl}/api/sms/send`,
-            headers: { "Content-Type": "application/json" },
-            body: {
-              to: approver.sms_phone,
-              body: `Approval needed: ${message.slice(0, 120)}. Reply APPROVE or REJECT.`,
-            },
-          });
-        } catch {
-          // SMS send failed -- continue
-        }
+        // Email lives in auth.users, not profiles -- look it up via admin API.
+        const userResponse = await this.helpers.httpRequest({
+          method: "GET",
+          url: `${supabaseUrl}/auth/v1/admin/users/${approver.id}`,
+          headers: {
+            apikey: supabaseKey,
+            Authorization: `Bearer ${supabaseKey}`,
+          },
+        });
+        const email = userResponse?.email;
+        if (!email) continue;
+
+        await this.helpers.httpRequest({
+          method: "POST",
+          url: "https://api.resend.com/emails",
+          headers: {
+            Authorization: `Bearer ${resendKey}`,
+            "Content-Type": "application/json",
+          },
+          body: {
+            from: process.env.RESEND_FROM_EMAIL || "Drift <ops@driftai.studio>",
+            to: email,
+            subject: "Approval Required -- Drift Workflow",
+            html: `
+              <div style="font-family: system-ui, sans-serif; max-width: 480px; margin: 0 auto;">
+                <h2 style="color: #1a1a1a;">Approval Required</h2>
+                <p style="color: #444; line-height: 1.6;">${message}</p>
+                <div style="margin: 24px 0;">
+                  <a href="${approveUrl}" style="display: inline-block; padding: 10px 24px; background: #22c55e; color: white; text-decoration: none; border-radius: 6px; margin-right: 12px;">Approve</a>
+                  <a href="${rejectUrl}" style="display: inline-block; padding: 10px 24px; background: #ef4444; color: white; text-decoration: none; border-radius: 6px;">Reject</a>
+                </div>
+                <p style="color: #999; font-size: 12px;">This request will auto-expire in ${timeoutHours} hours.</p>
+              </div>
+            `.trim(),
+          },
+        });
+      } catch {
+        // Email send failed -- approver can still use the links in the wait payload
       }
     }
 
