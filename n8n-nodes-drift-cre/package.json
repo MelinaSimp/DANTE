@@ -24,7 +24,9 @@
       "dist/nodes/DriftDueDiligence/DriftDueDiligence.node.js",
       "dist/nodes/DriftGenerateDocument/DriftGenerateDocument.node.js",
       "dist/nodes/DriftAiAgent/DriftAiAgent.node.js",
-      "dist/nodes/DriftApprovalGate/DriftApprovalGate.node.js"
+      "dist/nodes/DriftApprovalGate/DriftApprovalGate.node.js",
+      "dist/nodes/DriftMarketComps/DriftMarketComps.node.js",
+      "dist/nodes/DriftAutopilot/DriftAutopilot.node.js"
     ]
   },
   "main": "index.js",

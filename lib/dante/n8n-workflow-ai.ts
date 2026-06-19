@@ -183,6 +183,16 @@ Custom Drift CRE nodes (these connect to Drift's database):
   Pauses workflow, sends approval request, resumes on response.
   Two outputs: output 0 (approved), output 1 (rejected).
 
+- "n8n-nodes-drift-cre.driftMarketComps" (typeVersion: 1)
+  parameters: { "propertyType": "Retail", "limit": 50 }
+  Returns imported market comparables (sales) with avg $/SF and cap-rate
+  aggregates. Use to benchmark a deal against recent comps.
+
+- "n8n-nodes-drift-cre.driftAutopilot" (typeVersion: 1)
+  parameters: { "status": "pending", "docType": "rent_roll", "limit": 25 }
+  Reads the autonomous pipeline's document analyses (auto-underwrites,
+  classifications). Use to act on what Autopilot found in the vault.
+
 MANDATORY FINAL NODE
 
 Every workflow MUST end with a "Report to Drift" HTTP Request node that
@@ -278,6 +288,8 @@ const VALID_N8N_TYPES = new Set([
   "n8n-nodes-drift-cre.driftGenerateDocument",
   "n8n-nodes-drift-cre.driftAiAgent",
   "n8n-nodes-drift-cre.driftApprovalGate",
+  "n8n-nodes-drift-cre.driftMarketComps",
+  "n8n-nodes-drift-cre.driftAutopilot",
 ]);
 
 const DRIFT_CRE_TYPES = new Set(
