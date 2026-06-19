@@ -79,17 +79,20 @@ export function classifyDocument(input: Input): Classification {
   }
 
   // ── Operating statement / T-12 ─────────────────────────────────
-  const opSignals = hits(hay, [
-    "t-12",
-    "t12",
-    "trailing twelve",
-    "operating statement",
-    "income statement",
-    "profit and loss",
-    "p&l",
-    "noi",
-    "net operating income",
-  ]);
+  // Multi-word phrases are safe with substring matching; short tokens
+  // (noi, t12, p&l) MUST be word-boundary matched or they false-positive
+  // inside unrelated words (e.g. "noi" matches "Illinois"/"noise"), which
+  // mislabels nearly everything as an operating statement.
+  const opPhrases = ["trailing twelve", "operating statement", "income statement", "profit and loss", "net operating income"];
+  const opShort: Array<[string, RegExp]> = [
+    ["t-12", /\bt-?12\b/],
+    ["noi", /\bnoi\b/],
+    ["p&l", /\bp&l\b/],
+  ];
+  const opSignals = [
+    ...opPhrases.filter((p) => hay.includes(p)),
+    ...opShort.filter(([, re]) => re.test(hay)).map(([label]) => label),
+  ];
   if (opSignals.length) {
     scores.operating_statement.score += 2 + opSignals.length;
     scores.operating_statement.signals.push(...opSignals.map((s) => `text: "${s}"`));

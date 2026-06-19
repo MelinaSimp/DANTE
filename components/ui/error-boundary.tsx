@@ -56,29 +56,29 @@ class ErrorBoundaryClass extends Component<Props, State> {
       }
 
       return (
-        <div className="min-h-screen bg-[#1a1a1a] text-white flex items-center justify-center p-4">
-          <div className="max-w-2xl w-full bg-[#242423] rounded-3xl border border-white/10 p-8">
+        <div className="min-h-screen bg-[var(--canvas)] text-[var(--ink)] flex items-center justify-center p-4">
+          <div className="max-w-2xl w-full card-flat p-8">
             <div className="flex items-center gap-4 mb-6">
-              <div className="h-12 w-12 rounded-full bg-red-500/20 flex items-center justify-center">
-                <AlertCircle className="h-6 w-6 text-red-400" />
+              <div className="h-12 w-12 rounded-full bg-[var(--danger-soft)] flex items-center justify-center">
+                <AlertCircle className="h-6 w-6 text-[var(--danger)]" strokeWidth={1.5} />
               </div>
               <div>
-                <h1 className="text-2xl font-semibold">Something went wrong</h1>
-                <p className="text-white/60 mt-1">An unexpected error occurred</p>
+                <h1 className="text-2xl font-semibold text-[var(--ink)]">Something went wrong</h1>
+                <p className="text-[var(--ink-muted)] mt-1">This view hit an error — your data is safe.</p>
               </div>
             </div>
 
             {this.state.error && (
-              <div className="bg-black/40 rounded-lg p-4 mb-6 border border-white/10">
-                <div className="text-sm font-mono text-red-400 mb-2">
+              <div className="bg-[var(--canvas-subtle)] rounded-[var(--r-card)] p-4 mb-6 border border-[var(--rule)]">
+                <div className="text-sm font-mono text-[var(--danger)] mb-2 break-words">
                   {this.state.error.name}: {this.state.error.message}
                 </div>
                 {this.state.errorInfo && (
                   <details className="mt-2">
-                    <summary className="text-sm text-white/70 cursor-pointer hover:text-white">
-                      Stack trace
+                    <summary className="text-sm text-[var(--ink-muted)] cursor-pointer hover:text-[var(--ink)]">
+                      Technical details
                     </summary>
-                    <pre className="mt-2 text-xs text-white/60 overflow-auto max-h-48 p-2 bg-black/40 rounded">
+                    <pre className="mt-2 text-xs text-[var(--ink-subtle)] overflow-auto max-h-48 p-2 bg-[var(--canvas)] rounded border border-[var(--rule)]">
                       {this.state.errorInfo.componentStack}
                     </pre>
                   </details>
@@ -89,24 +89,24 @@ class ErrorBoundaryClass extends Component<Props, State> {
             <div className="flex gap-3">
               <button
                 onClick={this.handleReset}
-                className="flex items-center gap-2 px-4 py-2 bg-[#3351ff] hover:bg-[#4a64ff] rounded-xl transition"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-[var(--r-input)] bg-[var(--ink)] text-[var(--canvas)] text-sm font-medium hover:opacity-90 transition"
               >
-                <RefreshCw className="h-4 w-4" />
-                Reload Page
+                <RefreshCw className="h-4 w-4" strokeWidth={1.5} />
+                Reload
+              </button>
+              <button
+                onClick={() => { if (typeof window !== "undefined") window.history.back(); }}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-[var(--r-input)] border border-[var(--rule)] text-sm font-medium text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition"
+              >
+                Go back
               </button>
               <a
-                href="/app"
-                className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl transition"
+                href="/dashboard"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-[var(--r-input)] border border-[var(--rule)] text-sm font-medium text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition"
               >
-                <Home className="h-4 w-4" />
-                Go Home
+                <Home className="h-4 w-4" strokeWidth={1.5} />
+                Dashboard
               </a>
-            </div>
-
-            <div className="mt-6 pt-6 border-t border-white/10">
-              <p className="text-sm text-white/60">
-                If this problem persists, please contact support with the error details above.
-              </p>
             </div>
           </div>
         </div>

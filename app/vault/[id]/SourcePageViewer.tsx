@@ -105,7 +105,13 @@ export default function SourcePageViewer({ itemId }: { itemId: string }) {
   // Don't clutter documents that have no indexed passages.
   if (passages !== null && passages.length === 0) return null;
 
-  const lines = pageText != null ? pageText.split("\n") : [];
+  // Cap rendered lines: documents with no stored file fall back to the
+  // full extracted text as a single page, which can be tens of thousands
+  // of lines — rendering them all freezes the view.
+  const MAX_RENDERED_LINES = 4000;
+  const allLines = pageText != null ? pageText.split("\n") : [];
+  const lines = allLines.slice(0, MAX_RENDERED_LINES);
+  const linesTruncated = allLines.length > MAX_RENDERED_LINES;
 
   return (
     <section className="card-flat overflow-hidden">
@@ -231,6 +237,11 @@ export default function SourcePageViewer({ itemId }: { itemId: string }) {
                   </div>
                 );
               })}
+              {linesTruncated && (
+                <div className="px-4 py-2 mt-1 text-[11px] text-[var(--ink-subtle)] border-t border-[var(--rule)]">
+                  Showing the first {MAX_RENDERED_LINES.toLocaleString()} of {allLines.length.toLocaleString()} lines.
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import FillTemplateButton from "./FillTemplateButton";
 import SourcePageViewer from "./SourcePageViewer";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 
 interface VaultItem {
   id: string;
@@ -298,8 +299,18 @@ export default function VaultItemDetailClient({
           </div>
         </div>
 
-        {/* Source viewer + line-level provenance */}
-        <SourcePageViewer itemId={itemId} />
+        {/* Source viewer + line-level provenance. Isolated in its own
+            error boundary so a failure here degrades to a note instead
+            of crashing the whole vault item page. */}
+        <ErrorBoundary
+          fallback={
+            <section className="card-flat px-5 py-4 text-sm text-[var(--ink-muted)]">
+              Couldn&apos;t load the source preview for this document.
+            </section>
+          }
+        >
+          <SourcePageViewer itemId={itemId} />
+        </ErrorBoundary>
 
         {/* Metadata */}
         <section className="card-flat p-6">
