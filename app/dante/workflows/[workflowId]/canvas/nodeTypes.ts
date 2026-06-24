@@ -9,6 +9,7 @@ import type { StepType, WorkflowStep } from "@/lib/dante/workflow-types";
 import {
   Hand, Clock4, Webhook, Globe, Sparkles, Users, Pencil, Mail, GitBranch, Clock,
   BookOpen, Building2, ListChecks, Handshake, FileSearch, Search,
+  TrendingUp, Calculator, ScrollText,
   MessageSquare, Bot, CalendarClock,
   Plug, ShieldCheck, FileText, Repeat,
   UserCheck, CalendarX2, ArrowRightLeft,
@@ -211,6 +212,24 @@ export const NODE_TYPES: NodeTypeMeta[] = [
     icon: FileSearch, group: "action", category: "cre", accent: "accent",
     default: (id) => mk({ id, type: "lease_lookup", name: "Lease lookup",
       config: { status: "completed", limit: 10 } }),
+  },
+  {
+    type: "market_comps", label: "Market comps", hint: "Imported sales comparables",
+    icon: TrendingUp, group: "action", category: "cre", accent: "accent",
+    default: (id) => mk({ id, type: "market_comps", name: "Market comps",
+      config: { property_type: "", limit: 50 } }),
+  },
+  {
+    type: "underwrite", label: "Underwrite", hint: "DCF model on a rent roll",
+    icon: Calculator, group: "action", category: "cre", accent: "accent",
+    default: (id) => mk({ id, type: "underwrite", name: "Underwrite",
+      config: { vault_item_id: "{{steps.trigger.input.vault_item_id}}" } }),
+  },
+  {
+    type: "lease_abstract", label: "Lease abstract", hint: "AI lease term extraction",
+    icon: ScrollText, group: "action", category: "cre", accent: "accent",
+    default: (id) => mk({ id, type: "lease_abstract", name: "Lease abstract",
+      config: { vault_item_id: "{{steps.trigger.input.vault_item_id}}" } }),
   },
   {
     type: "due_diligence", label: "Due diligence", hint: "Census + BLS + FEMA + EPA lookup",

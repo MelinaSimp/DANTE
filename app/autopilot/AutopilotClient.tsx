@@ -66,9 +66,9 @@ function relativeTime(iso: string): string {
 function actionFor(a: Analysis): { label: string; href: string } | null {
   switch (a.doc_type) {
     case "rent_roll":
-      return { label: "Open in Underwriter", href: "/underwriter" };
+      return { label: "Underwrite (workflow)", href: "/workflows" };
     case "lease":
-      return { label: "Abstract this lease", href: "/lease-abstractor" };
+      return { label: "Abstract (workflow)", href: "/workflows" };
     default:
       return null;
   }

@@ -4,8 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Home,
-  ScrollText,
-  Calculator,
   FolderClosed,
   Workflow,
   Mic,
@@ -14,8 +12,6 @@ import {
 
 const NAV_ITEMS = [
   { href: "/dashboard", icon: Home, label: "Dashboard" },
-  { href: "/lease-abstractor", icon: ScrollText, label: "Lease Abstractor" },
-  { href: "/underwriter", icon: Calculator, label: "Underwriter" },
   { href: "/workflows", icon: Workflow, label: "Workflows" },
   { href: "/vault", icon: FolderClosed, label: "Vault" },
   { href: "/agent", icon: Mic, label: "Voice" },

@@ -370,6 +370,27 @@ return items.map(item => ({
         limit: Number(config.limit || 10),
       };
 
+    case "market_comps":
+      return {
+        propertyType: convertTemplateExpr(String(config.property_type || config.propertyType || "")),
+        limit: Number(config.limit || 50),
+      };
+
+    case "underwrite":
+      // vaultItemId + purchasePrice pass through as expressions so they can
+      // resolve from the manual-trigger form input at run time.
+      return {
+        vaultItemId: convertTemplateExpr(String(config.vault_item_id || config.vaultItemId || "")),
+        purchasePrice: convertTemplateExpr(String(config.purchase_price ?? config.purchasePrice ?? 0)),
+      };
+
+    case "lease_abstract":
+      return {
+        vaultItemId: convertTemplateExpr(String(config.vault_item_id || config.vaultItemId || "")),
+        refinePrompt: Boolean(config.refine_prompt ?? config.refinePrompt ?? false),
+        webSearch: Boolean(config.web_search ?? config.webSearch ?? false),
+      };
+
     case "archive_lookup":
       return {
         query: convertTemplateExpr(String(config.query || "")),

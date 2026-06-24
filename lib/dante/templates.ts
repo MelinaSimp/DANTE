@@ -1839,7 +1839,112 @@ const dealScoreUnderwritingGraph: WorkflowGraph = {
 // Registry
 // ══════════════════════════════════════════════════════════════
 
+// ══════════════════════════════════════════════════════════════
+// CRE single-step tools, exposed as manual-trigger workflows.
+// Each was formerly a standalone page; a broker now runs them from
+// the Workflows catalog. They wrap the matching Drift CRE n8n node.
+// ══════════════════════════════════════════════════════════════
+
+const marketCompsGraph: WorkflowGraph = {
+  nodes: [
+    {
+      id: "trigger", type: "trigger_manual", position: row(0),
+      data: { step: {
+        id: "trigger", type: "trigger_manual", name: "Run market comps",
+        config: { input_fields: [
+          { name: "property_type", label: "Property Type", type: "text" as const, placeholder: "Retail (blank = all types)" },
+        ] },
+      } },
+    },
+    {
+      id: "comps", type: "market_comps", position: row(1),
+      data: { step: {
+        id: "comps", type: "market_comps", name: "Look up sales comparables",
+        config: { property_type: "{{steps.trigger.input.property_type}}", limit: 50 },
+      } },
+    },
+  ],
+  edges: [edge("trigger", "comps")],
+};
+
+const underwriteGraph: WorkflowGraph = {
+  nodes: [
+    {
+      id: "trigger", type: "trigger_manual", position: row(0),
+      data: { step: {
+        id: "trigger", type: "trigger_manual", name: "Submit a rent roll",
+        config: { input_fields: [
+          { name: "vault_item_id", label: "Rent Roll (vault item ID)", type: "text" as const, required: true, placeholder: "Vault item ID of the rent-roll spreadsheet" },
+          { name: "purchase_price", label: "Purchase Price (optional)", type: "number" as const, placeholder: "e.g. 4250000" },
+        ] },
+      } },
+    },
+    {
+      id: "model", type: "underwrite", position: row(1),
+      data: { step: {
+        id: "model", type: "underwrite", name: "Run DCF underwriting",
+        config: { vault_item_id: "{{steps.trigger.input.vault_item_id}}", purchase_price: "{{steps.trigger.input.purchase_price}}" },
+      } },
+    },
+  ],
+  edges: [edge("trigger", "model")],
+};
+
+const leaseAbstractGraph: WorkflowGraph = {
+  nodes: [
+    {
+      id: "trigger", type: "trigger_manual", position: row(0),
+      data: { step: {
+        id: "trigger", type: "trigger_manual", name: "Submit a lease",
+        config: { input_fields: [
+          { name: "vault_item_id", label: "Lease (vault item ID)", type: "text" as const, required: true, placeholder: "Vault item ID of the lease document" },
+        ] },
+      } },
+    },
+    {
+      id: "abstract", type: "lease_abstract", position: row(1),
+      data: { step: {
+        id: "abstract", type: "lease_abstract", name: "Abstract lease terms",
+        config: { vault_item_id: "{{steps.trigger.input.vault_item_id}}" },
+      } },
+    },
+  ],
+  edges: [edge("trigger", "abstract")],
+};
+
 export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
+  {
+    slug: "market-comps-lookup",
+    name: "Market comps lookup",
+    description: "On demand. Pulls imported sales comparables for a property type and rolls up average price/SF and cap rate. Formerly the Market Comps page.",
+    category: "Deal pipeline",
+    icon: "FileSpreadsheet",
+    accent: "accent",
+    triggerLabel: "Manual",
+    graph: marketCompsGraph,
+  },
+  {
+    slug: "one-click-underwriter",
+    name: "One-click underwriter",
+    description: "On demand. Runs a DCF model on a rent-roll spreadsheet from the vault: indicated value, NOI, implied cap, and (with a price) IRR and equity multiple. Formerly the Underwriter page.",
+    category: "Deal pipeline",
+    icon: "Calculator",
+    accent: "accent",
+    triggerLabel: "Manual",
+    requiresVault: true,
+    graph: underwriteGraph,
+  },
+  {
+    slug: "lease-abstractor",
+    name: "Lease abstractor",
+    description: "On demand. Runs AI lease abstraction on a lease document in the vault: extracted deal terms, financials, and key clauses. Formerly the Lease Abstractor page.",
+    category: "Lease management",
+    icon: "ScrollText",
+    accent: "accent",
+    triggerLabel: "Manual",
+    requiresVault: true,
+    graph: leaseAbstractGraph,
+  },
   {
     slug: "lease-expiration-outreach",
     name: "Lease expiration outreach",

@@ -31,9 +31,6 @@ interface CommandItem {
 const STATIC_COMMANDS: CommandItem[] = [
   { id: "nav.home", label: "Go to Dashboard", group: "Navigate", href: "/dashboard" },
   { id: "nav.dante", label: "Go to Dante AI", group: "Navigate", href: "/dante" },
-  { id: "nav.lease", label: "Go to Lease Abstractor", group: "Navigate", href: "/lease-abstractor" },
-  { id: "nav.underwriter", label: "Go to Underwriter", group: "Navigate", href: "/underwriter" },
-  { id: "nav.market", label: "Go to Market Comps", group: "Navigate", href: "/market" },
   { id: "nav.workflows", label: "Go to Workflows", group: "Navigate", href: "/workflows" },
   { id: "nav.autopilot", label: "Go to Autopilot", group: "Navigate", href: "/autopilot" },
   { id: "nav.contacts", label: "Go to Contacts", group: "Navigate", href: "/contacts" },
@@ -45,8 +42,8 @@ const STATIC_COMMANDS: CommandItem[] = [
 const CRE_COMMANDS: CommandItem[] = [
   { id: "rec.deal-score", label: "Score a deal", group: "Suggested", href: "/dante?prompt=Run+a+deal+score+on+my+latest+acquisition+candidate" },
   { id: "rec.void", label: "Run void analysis", group: "Suggested", href: "/dante?prompt=Run+a+void+analysis+for+retail+gaps+in+my+trade+area" },
-  { id: "rec.lease-abstract", label: "Abstract a lease", group: "Suggested", href: "/lease-abstractor" },
-  { id: "rec.underwrite", label: "Underwrite a rent roll", group: "Suggested", href: "/underwriter" },
+  { id: "rec.lease-abstract", label: "Abstract a lease", group: "Suggested", href: "/workflows" },
+  { id: "rec.underwrite", label: "Underwrite a rent roll", group: "Suggested", href: "/workflows" },
   { id: "rec.closing", label: "Deals closing this month", group: "Suggested", href: "/dante?prompt=What+deals+are+closing+this+month" },
   { id: "rec.stale", label: "Contacts I haven't reached in 30 days", group: "Suggested", href: "/dante?prompt=Which+contacts+haven't+heard+from+me+in+30+days" },
 ];

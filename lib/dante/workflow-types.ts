@@ -36,6 +36,9 @@ export type StepType =
   | "query_listings"    // Supabase select on re_listings (active/pending/sold)
   | "query_offers"      // Supabase select on re_offers, with status filters
   | "lease_lookup"      // query lease_abstracts for extracted lease terms
+  | "market_comps"      // look up imported sales comparables (driftMarketComps)
+  | "underwrite"        // DCF underwriting on a rent-roll vault item (driftUnderwriter)
+  | "lease_abstract"    // AI lease abstraction on a lease vault item (driftLeaseAbstractor)
   // Web intelligence:
   | "web_search"        // Tavily web search → { results: [...], answer }
   // Integration + data source nodes:
@@ -277,6 +280,38 @@ export interface LeaseLookupStep extends BaseStep {
   };
 }
 
+// Look up imported market comparables (sales) for the workspace,
+// optionally filtered by property type. Backed by the driftMarketComps
+// n8n node, which reads the market_comps table.
+export interface MarketCompsStep extends BaseStep {
+  type: "market_comps";
+  config: {
+    property_type?: string; // case-insensitive filter; blank = all
+    limit?: number;
+  };
+}
+
+// Run the DCF underwriting model on a rent-roll spreadsheet already in
+// the vault. Backed by the driftUnderwriter n8n node → /api/underwrite/summary.
+export interface UnderwriteStep extends BaseStep {
+  type: "underwrite";
+  config: {
+    vault_item_id: string;            // rent-roll vault item (xlsx/csv)
+    purchase_price?: number | string; // > 0 adds IRR + equity multiple; string when templated from trigger input
+  };
+}
+
+// Run AI lease abstraction on a lease document already in the vault.
+// Backed by the driftLeaseAbstractor n8n node → /api/lease-abstractor.
+export interface LeaseAbstractStep extends BaseStep {
+  type: "lease_abstract";
+  config: {
+    vault_item_id: string;   // lease vault item (must be ingested)
+    refine_prompt?: boolean; // extra AI pass to tailor extraction
+    web_search?: boolean;    // extra AI pass for market context
+  };
+}
+
 export interface WebSearchStep extends BaseStep {
   type: "web_search";
   config: {
@@ -505,6 +540,9 @@ export type WorkflowStep =
   | QueryListingsStep
   | QueryOffersStep
   | LeaseLookupStep
+  | MarketCompsStep
+  | UnderwriteStep
+  | LeaseAbstractStep
   | WebSearchStep
   | IntegrationQueryStep
   | DueDiligenceStep

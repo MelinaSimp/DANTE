@@ -368,6 +368,45 @@ function renderBody(
         </>
       );
 
+    case "market_comps":
+      return (
+        <>
+          <Field label="Property type" hint="Optional case-insensitive filter; blank = all comp types.">
+            <Text value={String(cfg.property_type ?? "")} onChange={(v) => setConfig("property_type", v)} placeholder="Retail" />
+          </Field>
+          <Field label="Limit">
+            <Text value={String(cfg.limit ?? "")} onChange={(v) => setConfig("limit", v)} placeholder="50" />
+          </Field>
+          <Help>
+            Returns imported sales comparables + rolled-up averages. Reference via
+            <code className="mx-1 text-[var(--ink)]">{"{{steps.<this-id>.summary}}"}</code>.
+          </Help>
+        </>
+      );
+
+    case "underwrite":
+      return (
+        <>
+          <Field label="Rent roll (vault item ID)" hint="An xlsx/csv rent roll already ingested in the vault. Supports {{steps.trigger.input.vault_item_id}}.">
+            <Text value={String(cfg.vault_item_id ?? "")} onChange={(v) => setConfig("vault_item_id", v)} placeholder="{{steps.trigger.input.vault_item_id}}" />
+          </Field>
+          <Field label="Purchase price" hint="Optional. When > 0, adds IRR, cash-on-cash, and equity multiple.">
+            <Text value={String(cfg.purchase_price ?? "")} onChange={(v) => setConfig("purchase_price", v)} placeholder="0" />
+          </Field>
+          <Help>Runs the DCF model. Returns indicated value, NOI, and implied cap.</Help>
+        </>
+      );
+
+    case "lease_abstract":
+      return (
+        <>
+          <Field label="Lease (vault item ID)" hint="A lease document already ingested in the vault. Supports {{steps.trigger.input.vault_item_id}}.">
+            <Text value={String(cfg.vault_item_id ?? "")} onChange={(v) => setConfig("vault_item_id", v)} placeholder="{{steps.trigger.input.vault_item_id}}" />
+          </Field>
+          <Help>AI lease abstraction: extracted deal terms, financials, and key clauses.</Help>
+        </>
+      );
+
     case "web_search":
       return (
         <>

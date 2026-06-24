@@ -18,12 +18,6 @@ const quickActions = [
     iconName: "MessageSquare" as const,
   },
   {
-    href: "/lease-abstractor",
-    title: "Abstract a lease",
-    description: "Upload and extract key lease terms",
-    iconName: "FileSearch" as const,
-  },
-  {
     href: "/vault",
     title: "Open the vault",
     description: "Browse and manage uploaded documents",
