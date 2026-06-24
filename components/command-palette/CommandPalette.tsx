@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, ArrowRight, X } from "lucide-react";
+import { useDensity } from "@/components/theme/DensityProvider";
 // CRE-only product — no vertical branch needed
 
 interface CommandItem {
@@ -24,6 +25,8 @@ interface CommandItem {
   label: string;
   hint?: string;
   href?: string;
+  /** Action to run instead of navigating. Takes precedence over href. */
+  onSelect?: () => void;
   /** Free-form group label rendered as a section header. */
   group: string;
 }
@@ -50,6 +53,7 @@ const CRE_COMMANDS: CommandItem[] = [
 
 export default function CommandPalette() {
   const router = useRouter();
+  const { setDensity } = useDensity();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -68,12 +72,24 @@ export default function CommandPalette() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
+  // Text-size quick access — built in-component because they call
+  // setDensity. Surfaced in the palette so users can switch without
+  // digging into Settings (the canonical home is Settings > Appearance).
+  const densityCommands = useMemo<CommandItem[]>(
+    () => [
+      { id: "disp.compact", label: "Text size: Compact", group: "Display", onSelect: () => setDensity("compact") },
+      { id: "disp.comfortable", label: "Text size: Comfortable", group: "Display", onSelect: () => setDensity("comfortable") },
+      { id: "disp.large", label: "Text size: Large", group: "Display", onSelect: () => setDensity("large") },
+    ],
+    [setDensity],
+  );
+
   const items = useMemo<CommandItem[]>(() => {
-    const base = [...STATIC_COMMANDS, ...CRE_COMMANDS];
+    const base = [...STATIC_COMMANDS, ...CRE_COMMANDS, ...densityCommands];
     if (!query.trim()) return base;
     const q = query.toLowerCase();
     return base.filter((c) => c.label.toLowerCase().includes(q));
-  }, [query]);
+  }, [query, densityCommands]);
 
   // Group items by group label, preserving insertion order.
   const grouped = useMemo(() => {
@@ -90,7 +106,8 @@ export default function CommandPalette() {
     (item: CommandItem) => {
       setOpen(false);
       setQuery("");
-      if (item.href) router.push(item.href);
+      if (item.onSelect) item.onSelect();
+      else if (item.href) router.push(item.href);
     },
     [router],
   );

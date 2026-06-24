@@ -7,10 +7,11 @@
 // large, etc.) and conflating them would force one big provider
 // that does two unrelated things.
 //
-// Storage: localStorage["drift-density"] = "comfortable" | "large"
-// Class:   <html class="density-large"> when density is "large"
-// CSS:     globals.css scales the html font-size up under that
-//          class so all rem-based Tailwind text-* classes grow
+// Storage: localStorage["drift-density"] = "compact" | "comfortable" | "large"
+// Class:   <html class="density-large"> (17.5px) or "density-compact"
+//          (13px); "comfortable" (16px) is the unclassed default.
+// CSS:     globals.css scales the html font-size under those classes
+//          so all rem-based Tailwind text-* classes grow/shrink
 //          proportionally.
 //
 // Why this exists, per the panel-review brief: the older RIA buyer
@@ -22,7 +23,7 @@
 
 import * as React from "react";
 
-export type Density = "comfortable" | "large";
+export type Density = "compact" | "comfortable" | "large";
 
 const STORAGE_KEY = "drift-density";
 
@@ -37,7 +38,7 @@ function readStoredDensity(): Density {
   if (typeof window === "undefined") return "comfortable";
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (raw === "comfortable" || raw === "large") return raw;
+    if (raw === "compact" || raw === "comfortable" || raw === "large") return raw;
   } catch {
     // localStorage may throw in private mode / sandboxed iframes.
   }
@@ -47,11 +48,8 @@ function readStoredDensity(): Density {
 function applyDensity(density: Density) {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
-  if (density === "large") {
-    root.classList.add("density-large");
-  } else {
-    root.classList.remove("density-large");
-  }
+  root.classList.toggle("density-large", density === "large");
+  root.classList.toggle("density-compact", density === "compact");
 }
 
 export function DensityProvider({ children }: { children: React.ReactNode }) {
@@ -94,6 +92,6 @@ export function useDensity(): DensityContextValue {
 // blocking in <head> so the .density-large class is on <html>
 // before first paint, preventing a font-size jump on hydration.
 export function DensityScript() {
-  const code = `(function(){try{var s=localStorage.getItem('${STORAGE_KEY}');if(s==='large')document.documentElement.classList.add('density-large');}catch(e){}})();`;
+  const code = `(function(){try{var s=localStorage.getItem('${STORAGE_KEY}');var c=document.documentElement.classList;if(s==='large')c.add('density-large');else if(s==='compact')c.add('density-compact');}catch(e){}})();`;
   return <script dangerouslySetInnerHTML={{ __html: code }} />;
 }

@@ -3,7 +3,7 @@
 // AppearanceCard — settings panel for theme + display-density.
 //
 // Theme: three-way segmented toggle (Light · Dark · System).
-// Density: two-way (Comfortable · Large). Density is a per-device
+// Density: three-way (Compact · Comfortable · Large). Density is a per-device
 // preference like theme, not a workspace setting — older advisors
 // might want larger sizing on their daily desktop while staff on
 // the same workspace use comfortable on a larger monitor.
@@ -48,9 +48,14 @@ interface DensityOption {
 
 const DENSITY_OPTIONS: DensityOption[] = [
   {
+    value: "compact",
+    label: "Compact",
+    description: "13px base. Significantly smaller — more on screen at once.",
+  },
+  {
     value: "comfortable",
     label: "Comfortable",
-    description: "Default 16px base. Tighter information density.",
+    description: "Default 16px base. The standard size.",
   },
   {
     value: "large",
@@ -138,7 +143,7 @@ export default function AppearanceCard() {
         <div
           role="radiogroup"
           aria-label="Display density"
-          className="grid grid-cols-2 gap-2"
+          className="grid grid-cols-3 gap-2"
         >
           {DENSITY_OPTIONS.map((opt) => {
             const active = density === opt.value;
