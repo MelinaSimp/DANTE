@@ -67,6 +67,8 @@ export default function DanteNode({ data, selected }: NodeProps) {
   const isTrigger = isTriggerType(step.type);
   const isCondition = step.type === "condition";
   const isSwitch = step.type === "switch";
+  const isAgent = step.type === "agent";
+  const isAgentSubNode = step.type === "chat_model" || step.type === "agent_memory" || step.type === "agent_tool";
   const isDisabled = !!d.disabled;
   const nodeColor = d.color || "";
   const switchCases = isSwitch
@@ -116,7 +118,7 @@ export default function DanteNode({ data, selected }: NodeProps) {
       )}
 
       {/* Target handle */}
-      {!isTrigger && (
+      {!isTrigger && !isAgentSubNode && (
         <Handle
           type="target"
           position={Position.Top}
@@ -202,7 +204,7 @@ export default function DanteNode({ data, selected }: NodeProps) {
       )}
 
       {/* Error output handle (right side) */}
-      {!isTrigger && !isCondition && !isSwitch && (
+      {!isTrigger && !isCondition && !isSwitch && !isAgentSubNode && (
         <Handle
           id="error"
           type="source"
@@ -254,6 +256,13 @@ export default function DanteNode({ data, selected }: NodeProps) {
             className="!w-3 !h-3 !bg-[var(--ink-muted)] !border-2 !border-[var(--canvas)] !-bottom-[6px] !rounded-full"
           />
         </>
+      ) : isAgentSubNode ? (
+        <Handle
+          type="source"
+          position={Position.Right}
+          className="!w-3 !h-3 !bg-[var(--accent)] !border-2 !border-[var(--canvas)] !-right-[6px] !rounded-full"
+          title="Connect into an Agent"
+        />
       ) : (
         <div className="relative">
           <Handle
@@ -272,6 +281,30 @@ export default function DanteNode({ data, selected }: NodeProps) {
           )}
         </div>
       )}
+
+      {/* Agent sub-node input ports (left): Chat Model / Memory / Tool */}
+      {isAgent && (([
+        { id: "ai_model", label: "Model", top: "32%" },
+        { id: "ai_memory", label: "Memory", top: "56%" },
+        { id: "ai_tool", label: "Tool", top: "80%" },
+      ] as const).map((p) => (
+        <div key={p.id}>
+          <Handle
+            id={p.id}
+            type="target"
+            position={Position.Left}
+            style={{ top: p.top }}
+            className="!w-2.5 !h-2.5 !bg-[var(--accent)] !border-2 !border-[var(--canvas)] !-left-[5px] !rounded-full"
+            title={p.label}
+          />
+          <span
+            className="absolute text-[7px] uppercase tracking-wider font-mono font-semibold text-[var(--ink-subtle)] pointer-events-none whitespace-nowrap"
+            style={{ left: -10, top: p.top, transform: "translate(-100%, -50%)" }}
+          >
+            {p.label}
+          </span>
+        </div>
+      )))}
     </div>
   );
 }

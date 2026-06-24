@@ -466,6 +466,50 @@ function renderBody(
         </>
       );
 
+    case "chat_model":
+      return (
+        <Field label="Model" hint="The model the connected Agent uses.">
+          <select
+            value={String(cfg.model ?? "claude-sonnet-4-6")}
+            onChange={(e) => setConfig("model", e.target.value)}
+            className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
+          >
+            <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
+            <option value="claude-opus-4-8">Claude Opus 4.8</option>
+            <option value="gpt-4o">GPT-4o</option>
+            <option value="gpt-4o-mini">GPT-4o Mini</option>
+          </select>
+        </Field>
+      );
+
+    case "agent_memory":
+      return (
+        <Field label="Memory" hint="Wired into an Agent's Memory port — keeps context across the run.">
+          <select
+            value={String(cfg.kind ?? "conversation")}
+            onChange={(e) => setConfig("kind", e.target.value)}
+            className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
+          >
+            <option value="conversation">Conversation memory</option>
+          </select>
+        </Field>
+      );
+
+    case "agent_tool":
+      return (
+        <Field label="Tool" hint="One Drift tool the connected Agent may call.">
+          <select
+            value={String(cfg.tool ?? "vault.cite")}
+            onChange={(e) => setConfig("tool", e.target.value)}
+            className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
+          >
+            {AGENT_TOOL_OPTIONS.map((t) => (
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
+          </select>
+        </Field>
+      );
+
     case "agent":
       return (
         <>
@@ -788,6 +832,22 @@ function renderBody(
       return null;
   }
 }
+
+// Curated Drift agent tools surfaced in the "Tool" sub-node picker.
+// (AgentToolName is a type, so we keep a runtime list of the common ones.)
+const AGENT_TOOL_OPTIONS: { value: string; label: string }[] = [
+  { value: "vault.cite", label: "Vault retrieval (cited)" },
+  { value: "archive.search", label: "Archive search" },
+  { value: "cre.calculate", label: "CRE calculator" },
+  { value: "web.search", label: "Web search" },
+  { value: "clients.query", label: "Query contacts" },
+  { value: "properties.query", label: "Query properties" },
+  { value: "memory.search", label: "Memory search" },
+  { value: "memory.write", label: "Memory write" },
+  { value: "regulatory.search", label: "Regulatory search" },
+  { value: "site_scan.detail", label: "Site-scan detail" },
+  { value: "document.create", label: "Create document" },
+];
 
 // ── Input primitives ──────────────────────────────────────────
 

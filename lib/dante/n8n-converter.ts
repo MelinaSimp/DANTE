@@ -48,8 +48,32 @@ export function convertDriftToN8n(
   const nodes: N8nNode[] = [];
   const nameMap = new Map<string, string>(); // drift id → n8n node name
 
+  // ── Approach B: fold agent sub-nodes into the agent's config ──
+  // chat_model / agent_memory / agent_tool are a visual/config layer.
+  // We collapse them into their connected agent's parameters and never
+  // emit them (their ai_* edges drop out for free, since the sub-node
+  // is excluded from nameMap below and edge conversion skips unknown ends).
+  const SUB_TYPES = new Set(["chat_model", "agent_memory", "agent_tool"]);
+  const subNodeIds = new Set(
+    graph.nodes
+      .filter((n) => SUB_TYPES.has(n.type || (n.data?.step?.type as string) || ""))
+      .map((n) => n.id),
+  );
+  const agentFold: Record<string, { model?: string; tools: string[]; memory: boolean }> = {};
+  for (const e of graph.edges) {
+    const ct = e.connectionType;
+    if (ct !== "ai_model" && ct !== "ai_memory" && ct !== "ai_tool") continue;
+    const sub = graph.nodes.find((n) => n.id === e.source);
+    const cfg = (sub?.data?.step?.config || {}) as Record<string, unknown>;
+    const fold = (agentFold[e.target] ||= { tools: [], memory: false });
+    if (ct === "ai_model" && typeof cfg.model === "string") fold.model = cfg.model;
+    if (ct === "ai_tool" && typeof cfg.tool === "string") fold.tools.push(cfg.tool);
+    if (ct === "ai_memory") fold.memory = true;
+  }
+
   // ── Convert nodes ─────────────────────────────────────────
   for (const gNode of graph.nodes) {
+    if (subNodeIds.has(gNode.id)) continue; // folded into the agent above
     const driftType = gNode.type || (gNode.data?.step?.type as string) || "";
     const n8nType = DRIFT_TO_N8N_NODE_TYPE[driftType];
 
@@ -60,7 +84,17 @@ export function convertDriftToN8n(
     }
 
     const step = gNode.data?.step;
-    const config = (step?.config || {}) as Record<string, unknown>;
+    let config = (step?.config || {}) as Record<string, unknown>;
+    const fold = agentFold[gNode.id];
+    if (driftType === "agent" && fold) {
+      const existingTools = Array.isArray(config.tools) ? (config.tools as unknown[]) : [];
+      const memoryTools = fold.memory ? ["memory.search", "memory.write"] : [];
+      config = {
+        ...config,
+        ...(fold.model ? { model: fold.model } : {}),
+        tools: Array.from(new Set([...existingTools, ...fold.tools, ...memoryTools].filter(Boolean))),
+      };
+    }
     const nodeName = step?.name || gNode.id;
 
     // Ensure unique names (n8n uses names as connection keys)

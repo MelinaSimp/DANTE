@@ -147,6 +147,7 @@ function graphToFlow(graph: WorkflowGraph): {
     source: e.source,
     target: e.target,
     sourceHandle: e.sourceHandle,
+    targetHandle: e.connectionType && e.connectionType !== "main" ? e.connectionType : e.targetHandle,
     type: "smooth",
     label: e.sourceHandle ? e.sourceHandle : undefined,
     data: {},
@@ -172,12 +173,18 @@ function flowToGraph(
       ...(notes?.[n.id] ? { notes: notes[n.id] } : {}),
     },
   }));
-  const gEdges: GraphEdge[] = edges.map((e) => ({
-    id: e.id,
-    source: e.source,
-    target: e.target,
-    sourceHandle: e.sourceHandle || undefined,
-  }));
+  const gEdges: GraphEdge[] = edges.map((e) => {
+    const th = e.targetHandle || undefined;
+    const isSub = th === "ai_model" || th === "ai_memory" || th === "ai_tool";
+    return {
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      sourceHandle: e.sourceHandle || undefined,
+      targetHandle: th,
+      ...(isSub ? { connectionType: th as GraphEdge["connectionType"] } : {}),
+    };
+  });
   return { nodes: gNodes, edges: gEdges };
 }
 
@@ -632,6 +639,16 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
         addToast("Cannot connect: would create a loop", "error");
         return;
       }
+      // Agent sub-ports accept only the matching sub-node kind.
+      const tHandle = conn.targetHandle;
+      if (tHandle === "ai_model" || tHandle === "ai_memory" || tHandle === "ai_tool") {
+        const srcType = nodes.find((n) => n.id === conn.source)?.data.step.type;
+        const expected = tHandle === "ai_model" ? "chat_model" : tHandle === "ai_memory" ? "agent_memory" : "agent_tool";
+        if (srcType !== expected) {
+          addToast("That agent port needs a matching sub-node", "error");
+          return;
+        }
+      }
       pushUndo();
       const handle = conn.sourceHandle === "true" || conn.sourceHandle === "false" || conn.sourceHandle === "error"
         ? conn.sourceHandle : undefined;
@@ -643,7 +660,7 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
         style: { stroke: "var(--rule-strong)", strokeWidth: 2 },
       }, es));
     },
-    [pushUndo, wouldCreateLoop, addToast],
+    [pushUndo, wouldCreateLoop, addToast, nodes],
   );
 
   // ── Node ops ──────────────────────────────────────────────

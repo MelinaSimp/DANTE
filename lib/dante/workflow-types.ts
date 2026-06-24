@@ -31,6 +31,10 @@ export type StepType =
   | "delay"           // pause N seconds
   | "archive_lookup"  // vector-search the Dante archive → {hits, context}
   | "agent"           // model-driven loop; picks tools itself
+  // Agent-composition sub-nodes (visual; folded into the agent at convert time):
+  | "chat_model"      // the agent's model (e.g. claude-sonnet-4-6)
+  | "agent_memory"    // toggles the agent's conversation memory
+  | "agent_tool"      // one Drift agent tool wired to the agent
   // CRE-native nodes:
   | "query_properties"  // Supabase select on properties, with pipeline stage filters
   | "lease_lookup"      // query lease_abstracts for extracted lease terms
@@ -239,6 +243,33 @@ export interface AgentStep extends BaseStep {
      * is what shows up in {{steps.<id>.output}}.
      */
     output_schema?: object;
+  };
+}
+
+// ── Agent-composition sub-nodes ───────────────────────────────
+// Visual/config layer over the agent: the canvas shows these wired
+// into an agent's Chat Model / Memory / Tool ports, and the n8n
+// converter folds them back into the single agent node's config
+// (it never emits them as separate n8n nodes). Execution is unchanged.
+
+export interface ChatModelStep extends BaseStep {
+  type: "chat_model";
+  config: {
+    model: string; // e.g. "claude-sonnet-4-6", "gpt-4o"
+  };
+}
+
+export interface AgentMemoryStep extends BaseStep {
+  type: "agent_memory";
+  config: {
+    kind?: "conversation";
+  };
+}
+
+export interface AgentToolStep extends BaseStep {
+  type: "agent_tool";
+  config: {
+    tool: AgentToolName; // one Drift agent tool (vault.cite, cre.calculate, ...)
   };
 }
 
@@ -503,6 +534,9 @@ export type WorkflowStep =
   | DelayStep
   | ArchiveLookupStep
   | AgentStep
+  | ChatModelStep
+  | AgentMemoryStep
+  | AgentToolStep
   | QueryPropertiesStep
   | LeaseLookupStep
   | MarketCompsStep
@@ -545,6 +579,9 @@ export interface GraphEdge {
   // Everything else uses the default single handle (undefined).
   sourceHandle?: string;
   targetHandle?: string;
+  // Agent sub-node wiring: which agent input the source feeds.
+  // Absent ⇒ a normal "main" data connection (backward compatible).
+  connectionType?: "main" | "ai_model" | "ai_memory" | "ai_tool";
 }
 
 export interface WorkflowGraph {

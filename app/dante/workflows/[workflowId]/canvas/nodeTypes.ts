@@ -10,7 +10,7 @@ import {
   Hand, Clock4, Webhook, Globe, Sparkles, Users, Pencil, Mail, GitBranch, Clock,
   BookOpen, Building2, FileSearch, Search,
   TrendingUp, Calculator, ScrollText,
-  MessageSquare, Bot, CalendarClock,
+  MessageSquare, Bot, CalendarClock, Cpu, Database, Wrench,
   Plug, FileText, Repeat,
   UserCheck, CalendarX2, ArrowRightLeft,
   Shuffle, SquareFunction, Workflow,
@@ -131,6 +131,24 @@ export const NODE_TYPES: NodeTypeMeta[] = [
     icon: Search, group: "action", category: "ai", accent: "accent",
     default: (id) => mk({ id, type: "web_search", name: "Web search",
       config: { query: "", max_results: 5, search_depth: "basic" } }),
+  },
+  {
+    type: "chat_model", label: "Chat model", hint: "The agent's brain — wire into an Agent",
+    icon: Cpu, group: "action", category: "ai", accent: "accent",
+    default: (id) => mk({ id, type: "chat_model", name: "Chat model",
+      config: { model: "claude-sonnet-4-6" } }),
+  },
+  {
+    type: "agent_memory", label: "Memory", hint: "Let the agent remember across the run",
+    icon: Database, group: "action", category: "ai", accent: "accent",
+    default: (id) => mk({ id, type: "agent_memory", name: "Memory",
+      config: { kind: "conversation" } }),
+  },
+  {
+    type: "agent_tool", label: "Tool", hint: "Give the agent one Drift tool",
+    icon: Wrench, group: "action", category: "ai", accent: "accent",
+    default: (id) => mk({ id, type: "agent_tool", name: "Tool",
+      config: { tool: "vault.cite" } }),
   },
   // ── Communication ──
   {
