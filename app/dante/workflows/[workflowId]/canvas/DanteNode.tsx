@@ -96,17 +96,19 @@ export default function DanteNode({ data, selected }: NodeProps) {
       className={`group relative rounded-[10px] transition-shadow duration-150 cursor-pointer ${isDisabled ? "opacity-50 grayscale-[30%]" : ""}`}
       style={{
         background: "var(--neu-card)",
-        border: "1px solid rgba(255,255,255,0.30)",
-        borderTopColor: "rgba(255,255,255,0.50)",
+        // Hairline + a real drop shadow on top of the (faint) neu-shadow:
+        // the neumorphic shadow alone is too weak to separate a card from
+        // the light canvas, so cards were ghosting out.
+        border: "1px solid rgba(0,0,0,0.06)",
         width: 260,
         boxShadow:
           d.runStatus === "running"
-            ? "var(--neu-shadow-card), 0 0 0 2px var(--accent)"
+            ? "var(--neu-shadow-card), 0 2px 8px rgba(0,0,0,0.10), 0 0 0 2px var(--accent)"
             : selected
-              ? "var(--neu-shadow-card), 0 0 0 2px var(--ink)"
+              ? "var(--neu-shadow-card), 0 2px 8px rgba(0,0,0,0.10), 0 0 0 2px var(--ink)"
               : hovered
-                ? "var(--neu-shadow-card-hover)"
-                : "var(--neu-shadow-card)",
+                ? "var(--neu-shadow-card-hover), 0 4px 16px rgba(0,0,0,0.12)"
+                : "var(--neu-shadow-card), 0 2px 8px rgba(0,0,0,0.10)",
       }}
     >
       {/* Color accent bar */}
@@ -138,9 +140,11 @@ export default function DanteNode({ data, selected }: NodeProps) {
         <div
           className="relative rounded-[10px] p-2.5 shrink-0 flex items-center justify-center"
           style={{
-            background: isTrigger ? "var(--ink)" : "var(--neu-card)",
-            color: isTrigger ? "#fff" : "var(--ink)",
-            boxShadow: isTrigger ? "0 1px 3px rgba(0,0,0,.25)" : "var(--neu-shadow-raised)",
+            background: isTrigger ? "var(--ink)" : "var(--neu-input)",
+            color: isTrigger ? "#fff" : "var(--accent)",
+            boxShadow: isTrigger
+              ? "0 1px 3px rgba(0,0,0,.25)"
+              : "inset 1px 1px 2px rgba(0,0,0,.06), 3px 3px 6px rgba(0,0,0,.10), -2px -2px 5px rgba(255,255,255,.6)",
           }}
         >
           {Icon && <Icon className="w-[22px] h-[22px]" strokeWidth={1.5} />}
