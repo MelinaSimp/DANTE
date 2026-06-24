@@ -6,7 +6,7 @@ import {
   CheckCircle2, AlertCircle, Loader2, Plus, StickyNote, Ban,
 } from "lucide-react";
 import type { WorkflowStep } from "@/lib/dante/workflow-types";
-import { getMeta, isTriggerType, accentClasses } from "./nodeTypes";
+import { getMeta, isTriggerType } from "./nodeTypes";
 
 export const NODE_COLORS = [
   { value: "", label: "Default" },
@@ -64,7 +64,6 @@ export default function DanteNode({ data, selected }: NodeProps) {
 
   const meta = getMeta(step.type);
   const Icon = meta?.icon;
-  const accent = accentClasses(meta?.accent ?? "ink");
   const isTrigger = isTriggerType(step.type);
   const isCondition = step.type === "condition";
   const isSwitch = step.type === "switch";
@@ -92,18 +91,20 @@ export default function DanteNode({ data, selected }: NodeProps) {
     <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className={`
-        group relative rounded-[10px] transition-all duration-100 cursor-pointer
-        ${d.runStatus === "running" ? "ring-2 ring-[var(--accent)] shadow-lg" : ""}
-        ${d.runStatus !== "running" && selected
-          ? `ring-2 ring-offset-2 ring-offset-[var(--canvas)] ${accent.selectedOutline} shadow-lg`
-          : d.runStatus !== "running" ? "shadow hover:shadow-lg" : ""}
-        ${isDisabled ? "opacity-50 grayscale-[30%]" : ""}
-      `}
+      className={`group relative rounded-[10px] transition-shadow duration-150 cursor-pointer ${isDisabled ? "opacity-50 grayscale-[30%]" : ""}`}
       style={{
-        background: "var(--canvas)",
-        border: "1px solid var(--rule)",
+        background: "var(--neu-card)",
+        border: "1px solid rgba(255,255,255,0.30)",
+        borderTopColor: "rgba(255,255,255,0.50)",
         width: 260,
+        boxShadow:
+          d.runStatus === "running"
+            ? "var(--neu-shadow-card), 0 0 0 2px var(--accent)"
+            : selected
+              ? "var(--neu-shadow-card), 0 0 0 2px var(--ink)"
+              : hovered
+                ? "var(--neu-shadow-card-hover)"
+                : "var(--neu-shadow-card)",
       }}
     >
       {/* Color accent bar */}
@@ -132,7 +133,14 @@ export default function DanteNode({ data, selected }: NodeProps) {
 
       <div className="flex items-center gap-3 px-4 py-3.5">
         {/* Icon */}
-        <div className={`relative rounded-[10px] p-2.5 shrink-0 ${accent.iconWrap}`}>
+        <div
+          className="relative rounded-[10px] p-2.5 shrink-0 flex items-center justify-center"
+          style={{
+            background: isTrigger ? "var(--ink)" : "var(--neu-card)",
+            color: isTrigger ? "#fff" : "var(--ink)",
+            boxShadow: isTrigger ? "0 1px 3px rgba(0,0,0,.25)" : "var(--neu-shadow-raised)",
+          }}
+        >
           {Icon && <Icon className="w-[22px] h-[22px]" strokeWidth={1.5} />}
           {statusIcon && (
             <div className="absolute -bottom-1 -right-1 bg-[var(--canvas)] rounded-full p-[1px]">

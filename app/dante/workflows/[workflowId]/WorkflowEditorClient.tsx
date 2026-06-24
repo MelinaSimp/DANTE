@@ -56,7 +56,7 @@ import {
   EyeOff, Clipboard, AlignVerticalJustifyCenter, Pin, PinOff,
   Keyboard, Command, Download, Upload, Square, Palette, StickyNote,
   Maximize, MapPin, StopCircle, RefreshCw, Tag, Key, GitBranch,
-  RotateCw, Eye,
+  RotateCw, Eye, Spline, LayoutGrid,
 } from "lucide-react";
 
 import type {
@@ -73,7 +73,7 @@ import { definitionFromRow } from "@/lib/dante/workflow-types";
 import DanteNode, { type DanteNodeData, getItemCount, NODE_COLORS } from "./canvas/DanteNode";
 import StepConfigForm, { type StepPatch } from "./canvas/StepConfigForm";
 import { NODE_TYPES, getMeta, isTriggerType, CATEGORY_LABELS, CATEGORY_ORDER, accentClasses, type NodeCategory } from "./canvas/nodeTypes";
-import SmoothEdge from "./canvas/SmoothEdge";
+import SmoothEdge, { SteppedEdgeContext } from "./canvas/SmoothEdge";
 import { autoLayout } from "./canvas/autoLayout";
 
 // ── Types ─────────────────────────────────────────────────────
@@ -281,6 +281,8 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
   const [showImportExport, setShowImportExport] = useState<"import" | "export" | null>(null);
   const [importJson, setImportJson] = useState("");
   const [minimapVisible, setMinimapVisible] = useState(true);
+  const [showGrid, setShowGrid] = useState(true);
+  const [connectionStyle, setConnectionStyle] = useState<"curved" | "stepped">("curved");
   const [nodeColors, setNodeColors] = useState<Record<string, string>>(initialFlow.colors);
   const [nodeNotes, setNodeNotes] = useState<Record<string, string>>(initialFlow.notes);
   const [toasts, setToasts] = useState<Array<{ id: string; message: string; type: "success" | "error" | "info" }>>([]);
@@ -1215,6 +1217,20 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
           >
             <MapPin className="w-3.5 h-3.5" strokeWidth={1.5} />
           </button>
+          <button
+            onClick={() => setConnectionStyle((s) => (s === "curved" ? "stepped" : "curved"))}
+            title={`Connections: ${connectionStyle === "curved" ? "Curved" : "Stepped"}`}
+            className="p-1.5 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition"
+          >
+            <Spline className="w-3.5 h-3.5" strokeWidth={1.5} />
+          </button>
+          <button
+            onClick={() => setShowGrid((v) => !v)}
+            title="Toggle grid"
+            className={`p-1.5 rounded-[4px] transition ${showGrid ? "text-[var(--ink)]" : "text-[var(--ink-subtle)]"} hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)]`}
+          >
+            <LayoutGrid className="w-3.5 h-3.5" strokeWidth={1.5} />
+          </button>
         </div>
 
         {/* Right: actions */}
@@ -1415,6 +1431,7 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
         <div className="flex-1 flex flex-col min-w-0">
           <div className="flex-1 relative min-h-0">
             <ReactFlowProvider>
+              <SteppedEdgeContext.Provider value={connectionStyle === "stepped"}>
               <ReactFlow
                 nodes={enhancedNodes}
                 edges={edges}
@@ -1447,7 +1464,7 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
                   style: { stroke: "var(--ink-subtle)", strokeWidth: 2 },
                 }}
               >
-                <Background color="var(--rule)" gap={20} size={1} variant={"dots" as any} />
+                {showGrid && <Background color="var(--rule)" gap={20} size={1} variant={"dots" as any} />}
                 <Controls
                   showInteractive={false}
                   className="!bg-[var(--canvas)] !border-[var(--rule)] !rounded-[4px]"
@@ -1461,6 +1478,7 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
                   />
                 )}
               </ReactFlow>
+              </SteppedEdgeContext.Provider>
 
               {/* Context menu */}
               {contextMenu && (() => {

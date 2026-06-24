@@ -1,6 +1,12 @@
 "use client";
 
-import { getBezierPath, type EdgeProps } from "@xyflow/react";
+import { createContext, useContext } from "react";
+import { getBezierPath, getSmoothStepPath, type EdgeProps } from "@xyflow/react";
+
+// Connection-style toggle (Curved vs Stepped). The editor provides the
+// value; every edge consumes it here so flipping the toggle re-renders
+// all edges at once.
+export const SteppedEdgeContext = createContext(false);
 
 export interface SmoothEdgeData {
   itemCount?: number | null;
@@ -26,15 +32,10 @@ export default function SmoothEdge({
   const itemCount = edgeData.itemCount;
   const isExecuting = edgeData.isExecuting;
 
-  const [edgePath, labelX, labelY] = getBezierPath({
-    sourceX,
-    sourceY,
-    targetX,
-    targetY,
-    sourcePosition,
-    targetPosition,
-    curvature: 0.25,
-  });
+  const stepped = useContext(SteppedEdgeContext);
+  const [edgePath, labelX, labelY] = stepped
+    ? getSmoothStepPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, borderRadius: 10 })
+    : getBezierPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, curvature: 0.25 });
 
   const strokeColor = selected
     ? "var(--ink)"
