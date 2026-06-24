@@ -351,8 +351,6 @@ function nodeSummary(step: WorkflowStep): string | null {
     case "condition":        return truncate(String(cfg.expression ?? ""), 28);
     case "delay":            return `${cfg.seconds ?? 0}s pause`;
     case "query_properties": return `limit ${cfg.limit ?? 25}`;
-    case "query_listings":   return `limit ${cfg.limit ?? 25}`;
-    case "query_offers":     return `limit ${cfg.limit ?? 25}`;
     case "lease_lookup":     return String(cfg.status ?? "completed");
     case "web_search":       return truncate(String(cfg.query ?? ""), 28);
     case "archive_lookup":   return truncate(String(cfg.query ?? ""), 28);
@@ -360,7 +358,6 @@ function nodeSummary(step: WorkflowStep): string | null {
     case "agent":            return truncate(String(cfg.objective ?? ""), 28);
     case "trigger_at":       return cfg.scheduled_for ? String(cfg.scheduled_for).slice(0, 16).replace("T", " ") : null;
     case "integration_query": return (cfg.provider as string) || null;
-    case "due_diligence":    return (cfg.address as string)?.slice(0, 28) || null;
     case "generate_document": return truncate(String(cfg.title ?? ""), 24);
     case "for_each":         return (cfg.action_type as string) || null;
     case "transform":        return `${((cfg.operations as unknown[]) || []).length} ops`;

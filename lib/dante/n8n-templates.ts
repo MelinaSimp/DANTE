@@ -315,90 +315,7 @@ return [{
   settings: { executionOrder: "v1" },
 };
 
-// ================================================================
-// 3 - Due diligence checklist (webhook)
-// ================================================================
 
-const dueDiligenceWorkflow: N8nWorkflowJSON = {
-  name: "Due diligence checklist",
-  nodes: [
-    {
-      id: "trigger",
-      name: "Run Due Diligence",
-      type: "n8n-nodes-base.webhook",
-      typeVersion: 2,
-      position: [80, 80],
-      parameters: {
-        path: "{{DRIFT_WORKFLOW_ID}}",
-        httpMethod: "POST",
-        responseMode: "onReceived",
-        input_fields: [
-          { name: "address", label: "Property Address", type: "text", required: true, placeholder: "1600 Euclid Ave, Cleveland, OH 44115" },
-          { name: "context", label: "What should we look for? (optional)", type: "textarea", required: false, placeholder: "Evaluating for a quick-service restaurant. Need to confirm no environmental contamination and verify C-2 zoning allows drive-through." },
-        ],
-      },
-    },
-    {
-      id: "site-intel",
-      name: "Full Site Intelligence",
-      type: "n8n-nodes-drift-cre.driftDueDiligence",
-      typeVersion: 1,
-      position: [80, 240],
-      parameters: {
-        address: "={{ $json.body.address }}",
-      },
-      credentials: { driftCreApi: { id: "1", name: "Drift CRE" } },
-    },
-    {
-      id: "vault-search",
-      name: "Search Vault for Docs",
-      type: "n8n-nodes-drift-cre.driftVaultSearch",
-      typeVersion: 1,
-      position: [80, 400],
-      parameters: {
-        query: `={{ $node["Run Due Diligence"].json.body.address }} due diligence environmental survey`,
-        topK: 5,
-        kind: "",
-      },
-      credentials: { driftCreApi: { id: "1", name: "Drift CRE" } },
-    },
-    {
-      id: "analyze",
-      name: "Compile DD Report",
-      type: "n8n-nodes-drift-cre.driftAiAgent",
-      typeVersion: 1,
-      position: [80, 560],
-      parameters: {
-        objective: `Using the site intelligence and vault documents from previous steps, compile a comprehensive due diligence checklist and report. The broker's notes on what to look for: ={{ $node["Run Due Diligence"].json.body.context || "general due diligence" }}. Cover: (1) Property overview, (2) Environmental status (EPA, brownfield), (3) Census demographics, (4) Zoning and land use, (5) Tax assessment, (6) Any vault documents found. If the broker specified what they're evaluating for, tailor the risk flags and recommendations to that use case. Format as a professional DD memo.`,
-        tools: ["memory.write"],
-        maxSteps: 4,
-      },
-      credentials: { driftCreApi: { id: "1", name: "Drift CRE" } },
-    },
-    {
-      id: "generate-doc",
-      name: "Generate DD PDF",
-      type: "n8n-nodes-drift-cre.driftGenerateDocument",
-      typeVersion: 1,
-      position: [80, 720],
-      parameters: {
-        title: "Due Diligence Report",
-        subtitle: `={{ $node["Run Due Diligence"].json.body.address || "Property Assessment" }}`,
-        sections: "={{ JSON.stringify($json.sections || [{heading: 'Report', body: $json.text || JSON.stringify($json)}]) }}",
-      },
-      credentials: { driftCreApi: { id: "1", name: "Drift CRE" } },
-    },
-    reportNode([80, 880], "generate-doc").node,
-  ],
-  connections: {
-    "Run Due Diligence": { main: [[{ node: "Full Site Intelligence", type: "main", index: 0 }]] },
-    "Full Site Intelligence": { main: [[{ node: "Search Vault for Docs", type: "main", index: 0 }]] },
-    "Search Vault for Docs": { main: [[{ node: "Compile DD Report", type: "main", index: 0 }]] },
-    "Compile DD Report": { main: [[{ node: "Generate DD PDF", type: "main", index: 0 }]] },
-    "Generate DD PDF": { main: [[{ node: "Report to Drift", type: "main", index: 0 }]] },
-  },
-  settings: { executionOrder: "v1" },
-};
 
 // ================================================================
 // 4 - Acquisition deep-dive (webhook)
@@ -500,110 +417,7 @@ const acquisitionDeepDiveWorkflow: N8nWorkflowJSON = {
   settings: { executionOrder: "v1" },
 };
 
-// ================================================================
-// 5 - Market update report (cron)
-// ================================================================
 
-const marketUpdateEmail = emailSendNodes(
-  "Build Market Email",
-  "Deliver Market Update",
-  `const items = $input.all();
-const html = items[0].json.text || JSON.stringify(items[0].json);
-
-return [{
-  json: {
-    from: 'Drift <ops@driftai.studio>',
-    to: 'broker@yourfirm.com',
-    subject: 'Weekly market update',
-    html: html,
-  }
-}];`,
-  [80, 880],
-  [80, 1040],
-);
-
-const marketUpdateWorkflow: N8nWorkflowJSON = {
-  name: "Weekly market update",
-  nodes: [
-    {
-      id: "trigger",
-      name: "Fridays 7am ET",
-      type: "n8n-nodes-base.scheduleTrigger",
-      typeVersion: 1,
-      position: [80, 80],
-      parameters: {
-        rule: {
-          interval: [{ field: "cronExpression", expression: "0 7 * * 5" }],
-        },
-      },
-    },
-    {
-      id: "web-research",
-      name: "Research Market News",
-      type: "n8n-nodes-drift-cre.driftWebSearch",
-      typeVersion: 1,
-      position: [80, 240],
-      parameters: {
-        query: "commercial real estate market news trends 2026",
-        maxResults: 10,
-        searchDepth: "basic",
-      },
-      credentials: { driftCreApi: { id: "1", name: "Drift CRE" } },
-    },
-    {
-      id: "query-pipeline",
-      name: "Current Pipeline",
-      type: "n8n-nodes-drift-cre.driftQueryProperties",
-      typeVersion: 1,
-      position: [80, 400],
-      parameters: {
-        filterField: "",
-        filterValue: "",
-        limit: 50,
-      },
-      credentials: { driftCreApi: { id: "1", name: "Drift CRE" } },
-    },
-    {
-      id: "query-listings",
-      name: "Active Listings",
-      type: "n8n-nodes-drift-cre.driftQueryListings",
-      typeVersion: 1,
-      position: [80, 560],
-      parameters: {
-        filterField: "status",
-        filterValue: "active",
-        limit: 25,
-      },
-      credentials: { driftCreApi: { id: "1", name: "Drift CRE" } },
-    },
-    {
-      id: "compile-report",
-      name: "Compile Market Report",
-      type: "n8n-nodes-drift-cre.driftAiAgent",
-      typeVersion: 1,
-      position: [80, 720],
-      parameters: {
-        objective: "Using the web research, pipeline data, and active listings from previous steps, compile a weekly market update report. Include: (1) Market Headlines -- top 3-5 CRE news items with implications, (2) Pipeline Summary -- deals by stage, any stuck deals, (3) Listing Status -- new listings, price changes, days on market, (4) Outlook -- what to watch next week. Write for a busy broker who wants the highlights in 2 minutes.",
-        tools: ["memory.search"],
-        maxSteps: 4,
-      },
-      credentials: { driftCreApi: { id: "1", name: "Drift CRE" } },
-    },
-    marketUpdateEmail.buildNode,
-    marketUpdateEmail.sendNode,
-    reportNode([80, 1200], "Deliver Market Update").node,
-  ],
-  connections: {
-    "Fridays 7am ET": { main: [[{ node: "Research Market News", type: "main", index: 0 }]] },
-    "Research Market News": { main: [[{ node: "Current Pipeline", type: "main", index: 0 }]] },
-    "Current Pipeline": { main: [[{ node: "Active Listings", type: "main", index: 0 }]] },
-    "Active Listings": { main: [[{ node: "Compile Market Report", type: "main", index: 0 }]] },
-    "Compile Market Report": { main: [[{ node: "Build Market Email", type: "main", index: 0 }]] },
-    "Build Market Email": { main: [[{ node: "Deliver Market Update", type: "main", index: 0 }]] },
-    "Deliver Market Update": { main: [[{ node: "Report to Drift", type: "main", index: 0 }]] },
-  },
-  settings: { executionOrder: "v1" },
-};
 
 // -- Export --
 
@@ -625,28 +439,12 @@ export const N8N_TEMPLATES: N8nWorkflowTemplate[] = [
     workflow: corridorVoidAnalysisWorkflow,
   },
   {
-    slug: "due-diligence-checklist",
-    name: "Due diligence checklist",
-    description: "On demand. Enter a property address. Runs full site intelligence (census, EPA, auditor, zoning), searches the vault for existing docs, and compiles a DD report with PDF.",
-    category: "Due diligence",
-    triggerLabel: "On demand (manual)",
-    workflow: dueDiligenceWorkflow,
-  },
-  {
     slug: "acquisition-deep-dive",
     name: "Acquisition target deep-dive",
     description: "On demand. Enter a property address. Runs full parcel intelligence, checks existing lease data, and drafts an acquisition memo with investment thesis and risk assessment.",
     category: "Due diligence",
     triggerLabel: "On demand (manual)",
     workflow: acquisitionDeepDiveWorkflow,
-  },
-  {
-    slug: "market-update",
-    name: "Weekly market update",
-    description: "Every Friday. Researches CRE market news, reviews pipeline and listings, and delivers a concise market update email.",
-    category: "Operations",
-    triggerLabel: "Fridays 7am ET",
-    workflow: marketUpdateWorkflow,
   },
 ];
 

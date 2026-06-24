@@ -144,14 +144,6 @@ Custom Drift CRE nodes (these connect to Drift's database):
   parameters: { "filterField": "transaction_stage", "filterValue": "prospecting", "limit": 50 }
   Pipeline stages: prospecting, showing, under_contract, due_diligence, closing, closed, listed, off_market.
 
-- "n8n-nodes-drift-cre.driftQueryListings" (typeVersion: 1)
-  parameters: { "filterField": "status", "filterValue": "active", "limit": 25 }
-  Status: active, pending, sold, expired, withdrawn.
-
-- "n8n-nodes-drift-cre.driftQueryOffers" (typeVersion: 1)
-  parameters: { "filterField": "status", "filterValue": "pending", "limit": 25 }
-  Status: pending, accepted, rejected, countered, withdrawn, expired.
-
 - "n8n-nodes-drift-cre.driftLeaseLookup" (typeVersion: 1)
   parameters: { "status": "completed", "limit": 10 }
   Returns abstracted lease terms.
@@ -162,10 +154,6 @@ Custom Drift CRE nodes (these connect to Drift's database):
 
 - "n8n-nodes-drift-cre.driftWebSearch" (typeVersion: 1)
   parameters: { "query": "commercial real estate trends Cleveland 2026", "maxResults": 5, "searchDepth": "basic" }
-
-- "n8n-nodes-drift-cre.driftDueDiligence" (typeVersion: 1)
-  parameters: { "address": "1600 Euclid Ave, Cleveland, OH 44115" }
-  Census + BLS + FEMA + EPA + Google Maps consolidated lookup.
 
 - "n8n-nodes-drift-cre.driftGenerateDocument" (typeVersion: 1)
   parameters: { "title": "...", "subtitle": "...", "sections": [{"heading":"...","body":"..."}] }
@@ -291,12 +279,9 @@ const VALID_N8N_TYPES = new Set([
   "n8n-nodes-drift-cre.driftQueryContacts",
   "n8n-nodes-drift-cre.driftUpdateContact",
   "n8n-nodes-drift-cre.driftQueryProperties",
-  "n8n-nodes-drift-cre.driftQueryListings",
-  "n8n-nodes-drift-cre.driftQueryOffers",
   "n8n-nodes-drift-cre.driftLeaseLookup",
   "n8n-nodes-drift-cre.driftVaultSearch",
   "n8n-nodes-drift-cre.driftWebSearch",
-  "n8n-nodes-drift-cre.driftDueDiligence",
   "n8n-nodes-drift-cre.driftGenerateDocument",
   "n8n-nodes-drift-cre.driftAiAgent",
   "n8n-nodes-drift-cre.driftApprovalGate",

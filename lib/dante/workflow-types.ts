@@ -33,8 +33,6 @@ export type StepType =
   | "agent"           // model-driven loop; picks tools itself
   // CRE-native nodes:
   | "query_properties"  // Supabase select on properties, with pipeline stage filters
-  | "query_listings"    // Supabase select on re_listings (active/pending/sold)
-  | "query_offers"      // Supabase select on re_offers, with status filters
   | "lease_lookup"      // query lease_abstracts for extracted lease terms
   | "market_comps"      // look up imported sales comparables (driftMarketComps)
   | "underwrite"        // DCF underwriting on a rent-roll vault item (driftUnderwriter)
@@ -43,7 +41,6 @@ export type StepType =
   | "web_search"        // Tavily web search → { results: [...], answer }
   // Integration + data source nodes:
   | "integration_query" // query a connected integration using stored credentials
-  | "due_diligence"     // Census + BLS + FEMA + EPA consolidated lookup
   | "generate_document" // branded PDF generation via workspace branding
   | "for_each"          // iterate over array, apply action per item
   // Foundational primitives:
@@ -255,22 +252,6 @@ export interface QueryPropertiesStep extends BaseStep {
   };
 }
 
-export interface QueryListingsStep extends BaseStep {
-  type: "query_listings";
-  config: {
-    filter?: Record<string, string>;
-    limit?: number;
-  };
-}
-
-export interface QueryOffersStep extends BaseStep {
-  type: "query_offers";
-  config: {
-    filter?: Record<string, string>;
-    limit?: number;
-  };
-}
-
 export interface LeaseLookupStep extends BaseStep {
   type: "lease_lookup";
   config: {
@@ -346,20 +327,6 @@ export interface IntegrationQueryStep extends BaseStep {
     method?: "GET" | "POST" | "PUT" | "DELETE";
     params?: Record<string, unknown>;
     headers?: Record<string, string>;
-  };
-}
-
-export interface DueDiligenceStep extends BaseStep {
-  type: "due_diligence";
-  config: {
-    address?: string;
-    latitude?: number;
-    longitude?: number;
-    state_fips?: string;
-    county_fips?: string;
-    tract_fips?: string;
-    county_name?: string;
-    drive_time_destinations?: string[] | string;
   };
 }
 
@@ -537,15 +504,12 @@ export type WorkflowStep =
   | ArchiveLookupStep
   | AgentStep
   | QueryPropertiesStep
-  | QueryListingsStep
-  | QueryOffersStep
   | LeaseLookupStep
   | MarketCompsStep
   | UnderwriteStep
   | LeaseAbstractStep
   | WebSearchStep
   | IntegrationQueryStep
-  | DueDiligenceStep
   | GenerateDocumentStep
   | ForEachStep
   | CodeStep

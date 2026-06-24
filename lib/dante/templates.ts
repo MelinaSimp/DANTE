@@ -15,7 +15,6 @@
 //   - reference prior step outputs via {{steps.<id>.<path>}} templates
 
 import type { WorkflowGraph } from "./workflow-types";
-import { formatTierGuidance } from "./source-tiers";
 
 export interface WorkflowTemplate {
   slug: string;
@@ -248,123 +247,9 @@ const newListingDistributionGraph: WorkflowGraph = {
   ],
 };
 
-// ══════════════════════════════════════════════════════════════
-// 4 - Deal pipeline stage nudge (cron)
-// ══════════════════════════════════════════════════════════════
 
-const dealStageNudgeGraph: WorkflowGraph = {
-  nodes: [
-    {
-      id: "trigger", type: "trigger_cron", position: row(0),
-      data: { step: {
-        id: "trigger", type: "trigger_cron", name: "Weekdays 8:30am ET",
-        config: { cron: "30 8 * * 1-5", timezone: "America/New_York" },
-      } },
-    },
-    {
-      id: "properties", type: "query_properties", position: row(1),
-      data: { step: {
-        id: "properties", type: "query_properties", name: "All active pipeline properties",
-        config: { filter: { transaction_stage: "neq:closed" }, limit: 200 },
-      } },
-    },
-    {
-      id: "offers", type: "query_offers", position: row(2),
-      data: { step: {
-        id: "offers", type: "query_offers", name: "Pending and active offers",
-        config: { filter: { status: "neq:closed" }, limit: 200 },
-      } },
-    },
-    {
-      id: "analyze", type: "openai", position: row(3),
-      data: { step: {
-        id: "analyze", type: "openai", name: "Flag stalled deals",
-        config: {
-          model: "claude-sonnet-4-6",
-          system: "You are a CRE deal operations analyst. Return JSON only.",
-          prompt: "Today: {{steps.trigger.input.fired_at}}\n\nProperties in pipeline:\n{{steps.properties.properties}}\n\nActive offers:\n{{steps.offers.offers}}\n\nIdentify deals that appear stalled:\n- Properties in 'showing' stage for >14 days\n- Properties in 'offer' stage for >7 days with no accepted offer\n- Properties in 'pending' stage past their expected_close_date\n- Offers in 'pending' status for >5 days\n- Offers expiring within 48 hours\n\nReturn [{ property_id, address, stage, days_in_stage, issue, suggested_action, urgency: 'high'|'medium'|'low' }]. Sort by urgency desc.",
-          max_tokens: 1200,
-        },
-      } },
-    },
-    {
-      id: "email", type: "send_email", position: row(4),
-      data: { step: {
-        id: "email", type: "send_email", name: "Email deal nudge report",
-        config: {
-          to: "{{secrets.broker_email}}",
-          subject: "Deal pipeline -- stalled deals flagged",
-          text: "Deals requiring attention today:\n\n{{steps.analyze.text}}",
-        },
-      } },
-    },
-  ],
-  edges: [
-    edge("trigger", "properties"),
-    edge("properties", "offers"),
-    edge("offers", "analyze"),
-    edge("analyze", "email"),
-  ],
-};
 
-// ══════════════════════════════════════════════════════════════
-// 5 - Comp survey report (cron)
-// ══════════════════════════════════════════════════════════════
 
-const compSurveyGraph: WorkflowGraph = {
-  nodes: [
-    {
-      id: "trigger", type: "trigger_cron", position: row(0),
-      data: { step: {
-        id: "trigger", type: "trigger_cron", name: "Fridays 4pm ET",
-        config: { cron: "0 16 * * 5", timezone: "America/New_York" },
-      } },
-    },
-    {
-      id: "listings", type: "query_listings", position: row(1),
-      data: { step: {
-        id: "listings", type: "query_listings", name: "Recent listing activity",
-        config: { filter: {}, limit: 100 },
-      } },
-    },
-    {
-      id: "closed", type: "query_offers", position: row(2),
-      data: { step: {
-        id: "closed", type: "query_offers", name: "Recently closed offers",
-        config: { filter: { status: "closed" }, limit: 50 },
-      } },
-    },
-    {
-      id: "report", type: "openai", position: row(3),
-      data: { step: {
-        id: "report", type: "openai", name: "Compile weekly comp report",
-        config: {
-          model: "claude-sonnet-4-6",
-          system: "You are a CRE market analyst. Write a concise, professional weekly comp report. Use tables where helpful. No speculation -- only report what the data shows.",
-          prompt: "Week ending: {{steps.trigger.input.fired_at}}\n\nActive/recent listings:\n{{steps.listings.listings}}\n\nRecently closed deals:\n{{steps.closed.offers}}\n\nCompile a weekly comp survey covering:\n1. New listings this week (address, type, size, asking price)\n2. Deals closed this week (address, sale price, price/SF, days on market)\n3. Notable pricing trends (avg asking price/SF, avg sale price/SF)\n4. Properties to watch (large spreads between ask and offer, long DOM)\n\nFormat as a professional email body.",
-          max_tokens: 1500,
-        },
-      } },
-    },
-    {
-      id: "email", type: "send_email", position: row(4),
-      data: { step: {
-        id: "email", type: "send_email", name: "Distribute comp report",
-        config: {
-          to: "{{secrets.broker_email}}",
-          subject: "Weekly comp survey -- {{steps.trigger.input.fired_at}}",
-          text: "{{steps.report.text}}",
-        },
-      } },
-    },
-  ],
-  edges: [
-    edge("trigger", "listings"),
-    edge("listings", "closed"),
-    edge("closed", "report"),
-    edge("report", "email"),
-  ],
-};
 
 // ══════════════════════════════════════════════════════════════
 // 6 - Property tour follow-up (webhook)
@@ -417,126 +302,9 @@ const tourFollowupGraph: WorkflowGraph = {
   ],
 };
 
-// ══════════════════════════════════════════════════════════════
-// 7 - Stale listing alert (cron)
-// ══════════════════════════════════════════════════════════════
 
-const staleListingGraph: WorkflowGraph = {
-  nodes: [
-    {
-      id: "trigger", type: "trigger_cron", position: row(0),
-      data: { step: {
-        id: "trigger", type: "trigger_cron", name: "Wednesdays 9am ET",
-        config: { cron: "0 9 * * 3", timezone: "America/New_York" },
-      } },
-    },
-    {
-      id: "listings", type: "query_listings", position: row(1),
-      data: { step: {
-        id: "listings", type: "query_listings", name: "All active listings",
-        config: { filter: { status: "active" }, limit: 200 },
-      } },
-    },
-    {
-      id: "analyze", type: "openai", position: row(2),
-      data: { step: {
-        id: "analyze", type: "openai", name: "Flag stale listings",
-        config: {
-          model: "claude-sonnet-4-6",
-          system: "You are a CRE listing analyst. Return JSON only.",
-          prompt: "Today: {{steps.trigger.input.fired_at}}\n\nActive listings:\n{{steps.listings.listings}}\n\nFlag listings that may need attention:\n- Listed for >60 days with no offers\n- Listing expiring within 30 days\n- Price per SF significantly above recent comps in the same submarket\n\nReturn [{ listing_id, property_id, address, list_date, days_on_market, list_price_cents, issue, recommendation }]. Sort by days_on_market desc.",
-          max_tokens: 1000,
-        },
-      } },
-    },
-    {
-      id: "check", type: "condition", position: row(3),
-      data: { step: {
-        id: "check", type: "condition", name: "Any stale?",
-        config: {
-          expression: "{{steps.analyze.text}} contains \"listing_id\"",
-          on_false: "stop",
-        },
-      } },
-    },
-    {
-      id: "email", type: "send_email", position: row(4),
-      data: { step: {
-        id: "email", type: "send_email", name: "Send stale listing report",
-        config: {
-          to: "{{secrets.broker_email}}",
-          subject: "Stale listings -- action needed",
-          text: "The following listings may need a price adjustment or marketing refresh:\n\n{{steps.analyze.text}}",
-        },
-      } },
-    },
-  ],
-  edges: [
-    edge("trigger", "listings"),
-    edge("listings", "analyze"),
-    edge("analyze", "check"),
-    edge("check", "email", "true"),
-  ],
-};
 
-// ══════════════════════════════════════════════════════════════
-// 8 - Commission tracking and close-date reminder (cron)
-// ══════════════════════════════════════════════════════════════
 
-const commissionTrackingGraph: WorkflowGraph = {
-  nodes: [
-    {
-      id: "trigger", type: "trigger_cron", position: row(0),
-      data: { step: {
-        id: "trigger", type: "trigger_cron", name: "Mondays 7am ET",
-        config: { cron: "0 7 * * 1", timezone: "America/New_York" },
-      } },
-    },
-    {
-      id: "offers", type: "query_offers", position: row(1),
-      data: { step: {
-        id: "offers", type: "query_offers", name: "Accepted offers with closing targets",
-        config: { filter: { status: "accepted" }, limit: 100 },
-      } },
-    },
-    {
-      id: "listings", type: "query_listings", position: row(2),
-      data: { step: {
-        id: "listings", type: "query_listings", name: "Listings with commission data",
-        config: { filter: { status: "pending" }, limit: 100 },
-      } },
-    },
-    {
-      id: "report", type: "openai", position: row(3),
-      data: { step: {
-        id: "report", type: "openai", name: "Build commission pipeline report",
-        config: {
-          model: "claude-sonnet-4-6",
-          system: "You are a CRE operations analyst specializing in transaction management. Write concise, numbers-driven reports.",
-          prompt: "Today: {{steps.trigger.input.fired_at}}\n\nAccepted offers (pending close):\n{{steps.offers.offers}}\n\nPending listings with commission rates:\n{{steps.listings.listings}}\n\nProduce a commission pipeline report:\n1. Deals closing this week (address, sale price, commission %, estimated commission $)\n2. Deals closing this month (same fields)\n3. Total estimated commission this month\n4. Any deals past their closing_target that haven't closed yet (flag as at-risk)\n\nFormat as a professional email body with clear dollar amounts.",
-          max_tokens: 1200,
-        },
-      } },
-    },
-    {
-      id: "email", type: "send_email", position: row(4),
-      data: { step: {
-        id: "email", type: "send_email", name: "Email commission report",
-        config: {
-          to: "{{secrets.broker_email}}",
-          subject: "Commission pipeline -- week of {{steps.trigger.input.fired_at}}",
-          text: "{{steps.report.text}}",
-        },
-      } },
-    },
-  ],
-  edges: [
-    edge("trigger", "offers"),
-    edge("offers", "listings"),
-    edge("listings", "report"),
-    edge("report", "email"),
-  ],
-};
 
 // ══════════════════════════════════════════════════════════════
 // 9 - COI expiration tracker (cron)
@@ -722,64 +490,7 @@ const leaseAbstractionAlertGraph: WorkflowGraph = {
   ],
 };
 
-// ══════════════════════════════════════════════════════════════
-// 12 - Prospect re-engagement (cron)
-// ══════════════════════════════════════════════════════════════
 
-const prospectReengagementGraph: WorkflowGraph = {
-  nodes: [
-    {
-      id: "trigger", type: "trigger_cron", position: row(0),
-      data: { step: {
-        id: "trigger", type: "trigger_cron", name: "Tuesdays 9am ET",
-        config: { cron: "0 9 * * 2", timezone: "America/New_York" },
-      } },
-    },
-    {
-      id: "clients", type: "query_clients", position: row(1),
-      data: { step: {
-        id: "clients", type: "query_clients", name: "All contacts",
-        config: { filter: {}, limit: 500 },
-      } },
-    },
-    {
-      id: "listings", type: "query_listings", position: row(2),
-      data: { step: {
-        id: "listings", type: "query_listings", name: "Current active listings",
-        config: { filter: { status: "active" }, limit: 50 },
-      } },
-    },
-    {
-      id: "match", type: "openai", position: row(3),
-      data: { step: {
-        id: "match", type: "openai", name: "Find stale prospects with matching inventory",
-        config: {
-          model: "claude-sonnet-4-6",
-          system: "You are a CRE prospecting specialist. Return JSON only.",
-          prompt: "Today: {{steps.trigger.input.fired_at}}\n\nContacts:\n{{steps.clients.contacts}}\n\nActive listings:\n{{steps.listings.listings}}\n\nIdentify contacts who:\n1. Haven't had any activity in 30+ days (based on created_at or last touch)\n2. Match at least one current active listing based on their known requirements\n\nFor each, draft a short re-engagement email that mentions the specific listing. Return [{ contact_id, name, email, days_since_contact, matching_listing_address, email_subject, email_body }].",
-          max_tokens: 1500,
-        },
-      } },
-    },
-    {
-      id: "email", type: "send_email", position: row(4),
-      data: { step: {
-        id: "email", type: "send_email", name: "Send re-engagement drafts",
-        config: {
-          to: "{{secrets.broker_email}}",
-          subject: "Prospect re-engagement -- stale contacts with matching inventory",
-          text: "These prospects haven't been contacted recently but match your current listings:\n\n{{steps.match.text}}",
-        },
-      } },
-    },
-  ],
-  edges: [
-    edge("trigger", "clients"),
-    edge("clients", "listings"),
-    edge("listings", "match"),
-    edge("match", "email"),
-  ],
-};
 
 // ══════════════════════════════════════════════════════════════
 // 13 - Due diligence checklist (webhook)
@@ -843,67 +554,7 @@ const dueDiligenceGraph: WorkflowGraph = {
   ],
 };
 
-// ══════════════════════════════════════════════════════════════
-// 14 - Closing countdown (cron)
-// ══════════════════════════════════════════════════════════════
 
-const closingCountdownGraph: WorkflowGraph = {
-  nodes: [
-    {
-      id: "trigger", type: "trigger_cron", position: row(0),
-      data: { step: {
-        id: "trigger", type: "trigger_cron", name: "Weekdays 8am ET",
-        config: { cron: "0 8 * * 1-5", timezone: "America/New_York" },
-      } },
-    },
-    {
-      id: "offers", type: "query_offers", position: row(1),
-      data: { step: {
-        id: "offers", type: "query_offers", name: "Accepted offers approaching close",
-        config: { filter: { status: "accepted" }, limit: 50 },
-      } },
-    },
-    {
-      id: "countdown", type: "openai", position: row(2),
-      data: { step: {
-        id: "countdown", type: "openai", name: "Build closing countdown",
-        config: {
-          model: "claude-sonnet-4-6",
-          system: "You are a CRE transaction coordinator. Return JSON only.",
-          prompt: "Today: {{steps.trigger.input.fired_at}}\n\nAccepted offers:\n{{steps.offers.offers}}\n\nFor each offer with a closing_target within the next 30 days, produce:\n- Days until closing\n- Outstanding items (earnest money verification, title commitment, survey, loan docs, closing statement)\n- Risk level (green/yellow/red based on days remaining vs typical CRE closing timeline)\n\nReturn [{ offer_id, property_address, buyer_name, closing_target, days_until_close, risk_level, outstanding_items: string[], next_action }]. Sort by days_until_close asc.",
-          max_tokens: 1000,
-        },
-      } },
-    },
-    {
-      id: "check", type: "condition", position: row(3),
-      data: { step: {
-        id: "check", type: "condition", name: "Any closings upcoming?",
-        config: {
-          expression: "{{steps.countdown.text}} contains \"offer_id\"",
-          on_false: "stop",
-        },
-      } },
-    },
-    {
-      id: "email", type: "send_email", position: row(4),
-      data: { step: {
-        id: "email", type: "send_email", name: "Send closing countdown",
-        config: {
-          to: "{{secrets.broker_email}}",
-          subject: "Closing countdown -- deals approaching close",
-          text: "Deals closing in the next 30 days:\n\n{{steps.countdown.text}}",
-        },
-      } },
-    },
-  ],
-  edges: [
-    edge("trigger", "offers"),
-    edge("offers", "countdown"),
-    edge("countdown", "check"),
-    edge("check", "email", "true"),
-  ],
-};
 
 // ══════════════════════════════════════════════════════════════
 // 15 - Market volatility landlord update (manual)
@@ -1649,18 +1300,7 @@ const zoningOpportunityGraph: WorkflowGraph = {
 // 28 - Property due diligence report (manual)
 // ══════════════════════════════════════════════════════════════
 
-const DD_TIER_GUIDANCE = `\n\nSOURCE RELIABILITY TIERS -- use appropriate confidence language:\n${formatTierGuidance()}\n\nWhen writing the report, use definitive language for Tier 1 (government data), sourced language for Tier 2 (commercial providers), and hedged language for Tier 3 (web search). If Tier 3 contradicts Tier 1, note the discrepancy and defer to the authoritative source.`;
 
-const propertyDueDiligenceGraph: WorkflowGraph = {
-  nodes: [
-    { id: "trigger", type: "trigger_manual", position: row(0), data: { step: { id: "trigger", type: "trigger_manual", name: "Manual trigger", config: { input_fields: [{ name: "address", label: "Property Address", type: "text" as const, required: true, placeholder: "1600 Euclid Ave, Cleveland, OH 44115" }] } } } },
-    { id: "web_intel", type: "web_search", position: row(1), data: { step: { id: "web_intel", type: "web_search", name: "Recent news and market activity", config: { query: "{{steps.trigger.input.address}} commercial real estate news zoning development", max_results: 8, search_depth: "advanced" } } } },
-    { id: "dd", type: "due_diligence", position: row(2), data: { step: { id: "dd", type: "due_diligence", name: "Due diligence", config: { address: "{{steps.trigger.input.address}}" } } } },
-    { id: "analyze", type: "openai", position: row(3), data: { step: { id: "analyze", type: "openai", name: "Analyze results", config: { model: "gpt-4o-mini", system: "You are a CRE due diligence analyst. Summarize findings concisely, flag risks." + DD_TIER_GUIDANCE, prompt: "Property at {{steps.trigger.input.address}}.\n\nTIER 1 -- Government Data:\nCensus: {{steps.dd.census}}\nEmployment: {{steps.dd.employment}}\nFlood zone: {{steps.dd.flood_zone}}\nEPA: {{steps.dd.epa}}\n\nTIER 2 -- Commercial Data:\nNearby places: {{steps.dd.nearby_places}}\nDrive times: {{steps.dd.drive_times}}\n\nTIER 3 -- Web Intelligence:\n{{steps.web_intel.answer}}\nSources: {{steps.web_intel.results}}\n\nProvide a structured due diligence summary with risk flags. Label each data point with its source tier.", max_tokens: 4000 } } } },
-    { id: "report", type: "generate_document", position: row(4), data: { step: { id: "report", type: "generate_document", name: "Generate report", config: { title: "Due Diligence Report", subtitle: "{{steps.trigger.input.address}}", sections: [{ heading: "Executive Summary", body: "{{steps.analyze.text}}" }, { heading: "Market Intelligence", body: "{{steps.web_intel.answer}}" }, { heading: "Employment Data", body: "{{steps.dd.employment}}" }, { heading: "Environmental Assessment", body: "EPA: {{steps.dd.epa}}\nFlood Zone: {{steps.dd.flood_zone}}" }] } } } },
-  ],
-  edges: [edge("trigger", "web_intel"), edge("web_intel", "dd"), edge("dd", "analyze"), edge("analyze", "report")],
-};
 
 // ══════════════════════════════════════════════════════════════
 // 29 - Lease expiry auto-alert (trigger_lease_expiry)
@@ -1688,19 +1328,7 @@ const weeklyPipelineDigestGraph: WorkflowGraph = {
   edges: [edge("trigger", "props"), edge("props", "summarize"), edge("summarize", "email")],
 };
 
-// ══════════════════════════════════════════════════════════════
-// 31 - New listing analysis (manual + integration)
-// ══════════════════════════════════════════════════════════════
 
-const listingAnalysisGraph: WorkflowGraph = {
-  nodes: [
-    { id: "trigger", type: "trigger_manual", position: row(0), data: { step: { id: "trigger", type: "trigger_manual", name: "Manual trigger", config: { input_fields: [{ name: "address", label: "Property Address", type: "text" as const, required: true, placeholder: "123 Main St, City, ST 12345" }] } } } },
-    { id: "ext", type: "integration_query", position: row(1), data: { step: { id: "ext", type: "integration_query", name: "Integration lookup", config: { provider: "costar", endpoint: "https://api.example.com/v1/search", method: "GET", params: { address: "{{steps.trigger.input.address}}" } } } } },
-    { id: "dd", type: "due_diligence", position: row(2), data: { step: { id: "dd", type: "due_diligence", name: "Due diligence", config: { address: "{{steps.trigger.input.address}}" } } } },
-    { id: "report", type: "generate_document", position: row(3), data: { step: { id: "report", type: "generate_document", name: "Generate report", config: { title: "Listing Analysis", subtitle: "{{steps.trigger.input.address}}", sections: [{ heading: "Market Data", body: "{{steps.ext.body}}" }, { heading: "Environmental & Demographics", body: "Census: {{steps.dd.census}}\nFlood: {{steps.dd.flood_zone}}\nEPA: {{steps.dd.epa}}" }] } } } },
-  ],
-  edges: [edge("trigger", "ext"), edge("ext", "dd"), edge("dd", "report")],
-};
 
 // ══════════════════════════════════════════════════════════════
 // 32 - Deal stage notification (trigger_deal_stage)
@@ -1715,26 +1343,7 @@ const dealStageNotificationGraph: WorkflowGraph = {
   edges: [edge("trigger", "contacts"), edge("contacts", "notify")],
 };
 
-// ══════════════════════════════════════════════════════════════
-// 33 - Environmental risk screen with approval
-// ══════════════════════════════════════════════════════════════
 
-const environmentalRiskScreenGraph: WorkflowGraph = {
-  nodes: [
-    { id: "trigger", type: "trigger_manual", position: row(0), data: { step: { id: "trigger", type: "trigger_manual", name: "Manual trigger", config: { input_fields: [{ name: "address", label: "Property Address", type: "text" as const, required: true, placeholder: "123 Main St, City, ST 12345" }] } } } },
-    { id: "dd", type: "due_diligence", position: row(1), data: { step: { id: "dd", type: "due_diligence", name: "Due diligence", config: { address: "{{steps.trigger.input.address}}" } } } },
-    { id: "check_flood", type: "condition", position: row(2), data: { step: { id: "check_flood", type: "condition", name: "In flood zone?", config: { expression: "{{steps.dd.flood_zone.sfha}} == true", on_false: "continue" } } } },
-    { id: "approve", type: "approval", position: { x: X + 260, y: 40 + 3 * 150 }, data: { step: { id: "approve", type: "approval", name: "Approve flood risk", config: { message: "Property is in a Special Flood Hazard Area ({{steps.dd.flood_zone.flood_zone}}). Proceed?", approver_role: "owner", timeout_hours: 48 } } } },
-    { id: "notify", type: "send_email", position: row(4), data: { step: { id: "notify", type: "send_email", name: "Send results", config: { to: "{{secrets.team_email}}", subject: "Environmental Screen -- {{steps.trigger.input.address}}", text: "Flood zone: {{steps.dd.flood_zone.flood_zone}} ({{steps.dd.flood_zone.zone_description}})\nSFHA: {{steps.dd.flood_zone.sfha}}\nToxics: {{steps.dd.epa.toxics_facilities}}\nSuperfund: {{steps.dd.epa.superfund_sites}}" } } } },
-  ],
-  edges: [
-    edge("trigger", "dd"),
-    edge("dd", "check_flood"),
-    edge("check_flood", "approve", "true"),
-    edge("check_flood", "notify", "false"),
-    edge("approve", "notify"),
-  ],
-};
 
 // ══════════════════════════════════════════════════════════════
 // 31 - Deal score underwriting (manual)
@@ -1976,26 +1585,6 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     graph: newListingDistributionGraph,
   },
   {
-    slug: "deal-stage-nudge",
-    name: "Deal pipeline stage nudge",
-    description: "Every weekday morning, flags deals stuck in any pipeline stage too long -- showings without offers, stalled LOIs, overdue closings.",
-    category: "Deal pipeline",
-    icon: "AlertTriangle",
-    accent: "flag",
-    triggerLabel: "Weekdays 8:30am ET",
-    graph: dealStageNudgeGraph,
-  },
-  {
-    slug: "weekly-comp-survey",
-    name: "Weekly comp survey",
-    description: "Every Friday afternoon, compiles recent listing activity and closed deals into a professional comp report for the brokerage.",
-    category: "Operations",
-    icon: "BarChart3",
-    accent: "ink",
-    triggerLabel: "Fridays 4pm ET",
-    graph: compSurveyGraph,
-  },
-  {
     slug: "tour-followup",
     name: "Property tour follow-up",
     description: "After a tour completes, drafts a personalized follow-up email citing property specifics and the prospect's feedback.",
@@ -2004,26 +1593,6 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     accent: "verified",
     triggerLabel: "On tour-completed webhook",
     graph: tourFollowupGraph,
-  },
-  {
-    slug: "stale-listing-alert",
-    name: "Stale listing alert",
-    description: "Every Wednesday, flags active listings that have been on market too long or are nearing expiration, with pricing adjustment recommendations.",
-    category: "Operations",
-    icon: "Clock",
-    accent: "flag",
-    triggerLabel: "Wednesdays 9am ET",
-    graph: staleListingGraph,
-  },
-  {
-    slug: "commission-tracking",
-    name: "Commission pipeline tracker",
-    description: "Weekly. Calculates expected commissions from pending deals, flags overdue closings, and projects monthly revenue.",
-    category: "Operations",
-    icon: "DollarSign",
-    accent: "accent",
-    triggerLabel: "Mondays 7am ET",
-    graph: commissionTrackingGraph,
   },
   {
     slug: "coi-expiration",
@@ -2056,16 +1625,6 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     graph: leaseAbstractionAlertGraph,
   },
   {
-    slug: "prospect-reengagement",
-    name: "Prospect re-engagement",
-    description: "Weekly. Finds stale prospects who match current active listings and drafts re-engagement emails citing the specific property.",
-    category: "Prospecting",
-    icon: "UserPlus",
-    accent: "accent",
-    triggerLabel: "Tuesdays 9am ET",
-    graph: prospectReengagementGraph,
-  },
-  {
     slug: "due-diligence-checklist",
     name: "Due diligence checklist",
     description: "When an offer is accepted, generates a complete DD checklist with deadlines, responsible parties, and items tailored to the deal.",
@@ -2075,16 +1634,6 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     triggerLabel: "On offer-accepted webhook",
     requiresVault: true,
     graph: dueDiligenceGraph,
-  },
-  {
-    slug: "closing-countdown",
-    name: "Closing countdown",
-    description: "Daily. Tracks all deals approaching close, flags outstanding items, and assigns risk levels based on timeline.",
-    category: "Deal pipeline",
-    icon: "Timer",
-    accent: "flag",
-    triggerLabel: "Weekdays 8am ET",
-    graph: closingCountdownGraph,
   },
   {
     slug: "market-update",
@@ -2200,16 +1749,6 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   // ── Phase B templates (new step types) ──
   {
-    slug: "property-due-diligence-report",
-    name: "Property due diligence report",
-    description: "Run Census, BLS, FEMA, and EPA checks on a property, analyze with AI, and generate a branded PDF report.",
-    category: "Due diligence",
-    icon: "ShieldCheck",
-    accent: "accent",
-    triggerLabel: "Manual",
-    graph: propertyDueDiligenceGraph,
-  },
-  {
     slug: "lease-expiry-auto-alert",
     name: "Lease expiry auto-alert",
     description: "Fires daily when leases are within 90 days of expiration, emails each tenant contact automatically.",
@@ -2230,16 +1769,6 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     graph: weeklyPipelineDigestGraph,
   },
   {
-    slug: "listing-analysis-with-integration",
-    name: "New listing analysis",
-    description: "Pull data from a connected integration, run due diligence, and generate a branded analysis report.",
-    category: "Due diligence",
-    icon: "FileText",
-    accent: "accent",
-    triggerLabel: "Manual",
-    graph: listingAnalysisGraph,
-  },
-  {
     slug: "deal-stage-notification",
     name: "Deal stage notification",
     description: "When a property moves to a pending stage, automatically email the team with the deal details.",
@@ -2248,16 +1777,6 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     accent: "verified",
     triggerLabel: "Stage change to pending",
     graph: dealStageNotificationGraph,
-  },
-  {
-    slug: "environmental-risk-screen-with-approval",
-    name: "Environmental risk screen with approval",
-    description: "Run due diligence, flag flood zones, pause for owner approval if SFHA, then email the team.",
-    category: "Risk management",
-    icon: "AlertTriangle",
-    accent: "flag",
-    triggerLabel: "Manual",
-    graph: environmentalRiskScreenGraph,
   },
   {
     slug: "deal-score-underwriting",

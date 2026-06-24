@@ -95,7 +95,7 @@ export async function middleware(req: NextRequest) {
   // Protected routes that require authentication
   // Note: /agents is a top-level redirect (legacy URL support) — it
   // does not need auth gating here because the redirect target does.
-  const protectedRoutes = ["/app", "/admin", "/frontend", "/home", "/select", "/superadmin", "/dashboard", "/settings", "/dante", "/workflows", "/vault", "/agent", "/site-scan", "/properties", "/contacts", "/review"];
+  const protectedRoutes = ["/app", "/admin", "/frontend", "/home", "/select", "/superadmin", "/dashboard", "/settings", "/dante", "/workflows", "/vault", "/agent", "/site-scan", "/properties", "/contacts"];
   const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
 
   // Check authentication for protected routes.

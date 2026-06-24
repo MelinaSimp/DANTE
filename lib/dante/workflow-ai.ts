@@ -101,19 +101,6 @@ RULES
      Example: properties with leases expiring in next 90 days:
        { "filter": { "lease_end_date": "lte:{{now + 90d}}" }, "limit": 50 }
 
-   - "query_listings" (Supabase select on re_listings -> emits { listings: [...], count }):
-     config: { "filter": { "column": "value" }, "limit": 25 }
-     Available columns: id, property_id, list_price_cents, list_date,
-       expires_on, agency_type, commission_pct, status, notes.
-     Status values: active, pending, sold, expired, withdrawn.
-
-   - "query_offers" (Supabase select on re_offers -> emits { offers: [...], count }):
-     config: { "filter": { "column": "value" }, "limit": 25 }
-     Available columns: id, property_id, listing_id, buyer_contact_id,
-       offer_price_cents, earnest_money_cents, contingencies,
-       expires_at, closing_target, status, notes.
-     Status values: pending, accepted, rejected, countered, withdrawn, expired.
-
    - "lease_lookup" (query lease_abstracts -> emits { abstracts: [...], count, terms }):
      config: { "status": "completed"|"pending"|"processing", "limit": 10 }
      Returns abstracted lease terms (base rent, escalation,
@@ -175,19 +162,6 @@ RULES
      Credentials (API key) are loaded automatically from Settings > Integrations.
      source_tier is { tier: 2, source: "<provider> API" } -- Tier 2 (commercial data).
 
-   - "due_diligence" (Census + BLS + FEMA + EPA + Google Maps consolidated lookup -> emits { location, census, employment, flood_zone, epa, nearby_places, drive_times, source_tiers, errors }):
-     config: { "address": "1600 Euclid Ave, Cleveland, OH 44115" }
-     OR config: { "latitude": 41.4993, "longitude": -81.6944, "state_fips": "39", "county_fips": "049" }
-     Accepts a street address (auto-geocoded via Google Maps if API key is connected) OR lat/lng coordinates.
-     Runs government data sources (Census ACS, BLS employment, FEMA flood, EPA TRI) in parallel.
-     If Google Maps API key is connected: also returns nearby_places (transit, hospitals, schools, retail) and drive_times.
-     Optional: "drive_time_destinations": "Cleveland Hopkins Airport, Progressive Field" (comma-separated).
-     Prefer address mode -- it auto-resolves FIPS codes, county name, and coordinates.
-     Output includes location.formatted_address, flood_zone.sfha, nearby_places (sorted by distance).
-     source_tiers tags each data category: census/bls/fema/epa are Tier 1 (government primary),
-     google_places/google_distance are Tier 2 (commercial), nominatim is Tier 2.
-     When using DD output in a downstream openai node, instruct the LLM to cite sources
-     with appropriate confidence: definitive for Tier 1, sourced for Tier 2, hedged for Tier 3.
 
    - "generate_document" (branded PDF report -> emits { url, size_bytes, filename }):
      config: { "title": "...", "subtitle": "...", "sections": [{"heading": "...", "body": "..."}] }
@@ -272,9 +246,9 @@ const VALID_STEP_TYPES: StepType[] = [
   "trigger_lease_expiry", "trigger_deal_stage",
   "http", "openai", "query_clients", "update_contact",
   "send_email", "send_sms", "condition", "delay", "archive_lookup",
-  "agent", "query_properties", "query_listings", "query_offers", "lease_lookup",
+  "agent", "query_properties", "lease_lookup",
   "web_search",
-  "integration_query", "due_diligence", "generate_document", "for_each",
+  "integration_query", "generate_document", "for_each",
   "transform", "switch", "sub_workflow",
   "approval",
 ];

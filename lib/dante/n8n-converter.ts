@@ -346,24 +346,6 @@ return items.map(item => ({
       };
     }
 
-    case "query_listings": {
-      const f = (config.filter || {}) as Record<string, unknown>;
-      return {
-        filterField: String(f.field || config.filterField || "status"),
-        filterValue: String(f.value || config.filterValue || "active"),
-        limit: Number(config.limit || 25),
-      };
-    }
-
-    case "query_offers": {
-      const f = (config.filter || {}) as Record<string, unknown>;
-      return {
-        filterField: String(f.field || config.filterField || "status"),
-        filterValue: String(f.value || config.filterValue || "pending"),
-        limit: Number(config.limit || 25),
-      };
-    }
-
     case "lease_lookup":
       return {
         status: String(config.status || "completed"),
@@ -404,11 +386,6 @@ return items.map(item => ({
         approverRole: String(config.approver_role || config.approverRole || "owner"),
         notifyVia: String(config.notify_via || config.notifyVia || "email"),
         timeoutHours: Number(config.timeout_hours || config.timeoutHours || 72),
-      };
-
-    case "due_diligence":
-      return {
-        address: convertTemplateExpr(String(config.address || "")),
       };
 
     case "generate_document":

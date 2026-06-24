@@ -8,10 +8,10 @@ import type { LucideIcon } from "lucide-react";
 import type { StepType, WorkflowStep } from "@/lib/dante/workflow-types";
 import {
   Hand, Clock4, Webhook, Globe, Sparkles, Users, Pencil, Mail, GitBranch, Clock,
-  BookOpen, Building2, ListChecks, Handshake, FileSearch, Search,
+  BookOpen, Building2, FileSearch, Search,
   TrendingUp, Calculator, ScrollText,
   MessageSquare, Bot, CalendarClock,
-  Plug, ShieldCheck, FileText, Repeat,
+  Plug, FileText, Repeat,
   UserCheck, CalendarX2, ArrowRightLeft,
   Shuffle, SquareFunction, Workflow,
   StickyNote,
@@ -196,18 +196,6 @@ export const NODE_TYPES: NodeTypeMeta[] = [
       config: { filter: {}, limit: 25 } }),
   },
   {
-    type: "query_listings", label: "Query listings", hint: "Select from active listings",
-    icon: ListChecks, group: "action", category: "cre", accent: "accent",
-    default: (id) => mk({ id, type: "query_listings", name: "Query listings",
-      config: { filter: {}, limit: 25 } }),
-  },
-  {
-    type: "query_offers", label: "Query offers", hint: "Select from offers table",
-    icon: Handshake, group: "action", category: "cre", accent: "ink",
-    default: (id) => mk({ id, type: "query_offers", name: "Query offers",
-      config: { filter: {}, limit: 25 } }),
-  },
-  {
     type: "lease_lookup", label: "Lease lookup", hint: "Fetch abstracted lease terms",
     icon: FileSearch, group: "action", category: "cre", accent: "accent",
     default: (id) => mk({ id, type: "lease_lookup", name: "Lease lookup",
@@ -230,12 +218,6 @@ export const NODE_TYPES: NodeTypeMeta[] = [
     icon: ScrollText, group: "action", category: "cre", accent: "accent",
     default: (id) => mk({ id, type: "lease_abstract", name: "Lease abstract",
       config: { vault_item_id: "{{steps.trigger.input.vault_item_id}}" } }),
-  },
-  {
-    type: "due_diligence", label: "Due diligence", hint: "Census + BLS + FEMA + EPA lookup",
-    icon: ShieldCheck, group: "action", category: "cre", accent: "accent",
-    default: (id) => mk({ id, type: "due_diligence", name: "Due diligence",
-      config: { latitude: 0, longitude: 0, state_fips: "", county_fips: "" } }),
   },
   {
     type: "code", label: "Code", hint: "Custom JavaScript logic",
