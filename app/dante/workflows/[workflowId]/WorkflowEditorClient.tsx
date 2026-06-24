@@ -24,7 +24,7 @@
 // or dragging from it onto the canvas.
 
 import {
-  useState, useCallback, useMemo, useEffect,
+  useState, useCallback, useMemo, useEffect, useRef,
 } from "react";
 import Link from "next/link";
 import {
@@ -74,6 +74,7 @@ import DanteNode, { type DanteNodeData, getItemCount, NODE_COLORS } from "./canv
 import StepConfigForm, { type StepPatch } from "./canvas/StepConfigForm";
 import { NODE_TYPES, getMeta, isTriggerType, CATEGORY_LABELS, CATEGORY_ORDER, accentClasses, type NodeCategory } from "./canvas/nodeTypes";
 import SmoothEdge, { SteppedEdgeContext } from "./canvas/SmoothEdge";
+import CitationRenderer, { type CitationReport } from "../../CitationRenderer";
 import { autoLayout } from "./canvas/autoLayout";
 
 // ── Types ─────────────────────────────────────────────────────
@@ -290,6 +291,8 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
   const [minimapVisible, setMinimapVisible] = useState(true);
   const [showGrid, setShowGrid] = useState(true);
   const [connectionStyle, setConnectionStyle] = useState<"curved" | "stepped">("curved");
+  const [citationReports, setCitationReports] = useState<Record<string, CitationReport>>({});
+  const citationRequested = useRef<Set<string>>(new Set());
   const [nodeColors, setNodeColors] = useState<Record<string, string>>(initialFlow.colors);
   const [nodeNotes, setNodeNotes] = useState<Record<string, string>>(initialFlow.notes);
   const [toasts, setToasts] = useState<Array<{ id: string; message: string; type: "success" | "error" | "info" }>>([]);
@@ -715,6 +718,31 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
   }, [selectedId]);
 
   const selectedNode = nodes.find((n) => n.id === selectedId) ?? null;
+
+  // Verified/flagged display: when an agent node's Output tab is open,
+  // run its result through Drift's citation validator (server-only) and
+  // cache the report. validateCitations re-queries the workspace archive.
+  const agentOutputText = selectedNode && selectedNode.data.step.type === "agent"
+    ? ((selectedNode.data.runOutput as { text?: string } | undefined)?.text ?? "")
+    : "";
+  useEffect(() => {
+    if (dataViewTab !== "output" || !selectedId || !agentOutputText) return;
+    const key = `${selectedId}:${agentOutputText.length}`;
+    if (citationRequested.current.has(key)) return;
+    citationRequested.current.add(key);
+    const nodeId = selectedId;
+    fetch("/api/dante/citations/validate", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ responseText: agentOutputText, trace: runLog ?? [] }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((report: CitationReport | null) => {
+        if (report) setCitationReports((m) => ({ ...m, [nodeId]: report }));
+      })
+      .catch(() => { /* leave undecorated */ });
+  }, [selectedId, dataViewTab, agentOutputText, runLog]);
 
   // ── Save / run ────────────────────────────────────────────
 
@@ -2101,9 +2129,15 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
                           {selectedNode.data.runError}
                         </pre>
                       )}
-                      {selectedNode.data.runOutput !== undefined && selectedNode.data.runOutput !== null && (
+                      {selectedNode.data.step.type === "agent" && (selectedNode.data.runOutput as { text?: string } | undefined)?.text ? (
+                        <AgentOutputView
+                          text={(selectedNode.data.runOutput as { text?: string }).text as string}
+                          trace={runLog ?? []}
+                          report={citationReports[selectedNode.id] ?? null}
+                        />
+                      ) : selectedNode.data.runOutput !== undefined && selectedNode.data.runOutput !== null ? (
                         <DataView data={selectedNode.data.runOutput} />
-                      )}
+                      ) : null}
                     </>
                   )}
                 </div>
@@ -2562,6 +2596,40 @@ function CommandPalette({
 
 function durationMs(start: string, end: string): number {
   return Math.max(0, new Date(end).getTime() - new Date(start).getTime());
+}
+
+// Agent output with verified/flagged claims. CitationRenderer decorates
+// each [vN]/[mem:..] chip with its verification status; the banner below
+// summarizes and lists anything that didn't check out against source.
+function AgentOutputView({ text, trace, report }: { text: string; trace: unknown; report: CitationReport | null }) {
+  const flagged = (report?.checks ?? []).filter((c) => c.status !== "valid");
+  return (
+    <div className="space-y-3">
+      <div className="text-sm text-[var(--ink)] leading-relaxed">
+        <CitationRenderer content={text} trace={trace} citationReport={report} />
+      </div>
+      {report && (
+        flagged.length === 0 ? (
+          <div className="text-[11px] text-[var(--verified)]">
+            All {report.counts.total} citation{report.counts.total === 1 ? "" : "s"} verified against source.
+          </div>
+        ) : (
+          <div className="rounded-[4px] border border-[var(--flag)] bg-[var(--flag-soft)] p-2.5 text-[11px]">
+            <div className="font-semibold text-[var(--ink)] mb-1">
+              {flagged.length} claim{flagged.length === 1 ? "" : "s"} flagged — verify before relying on {flagged.length === 1 ? "it" : "them"}
+            </div>
+            <ul className="space-y-0.5">
+              {flagged.map((c, i) => (
+                <li key={i} className="text-[var(--ink-muted)] mono">
+                  {c.marker} — {c.detail || c.status}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )
+      )}
+    </div>
+  );
 }
 
 function DataView({ data }: { data: unknown }) {
