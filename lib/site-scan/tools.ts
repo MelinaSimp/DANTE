@@ -1068,6 +1068,38 @@ async function runSurvey(
     }
   }
 
+  // Citation markers — assign [ss:N] to each surveyed business (same scheme
+  // site_scan parcels use) so the model can cite each business inline. Without
+  // these anchors the void analysis has real data but nothing to cite, so it
+  // reads as uncited prose. Ordered to match the by_category output below.
+  const surveyAccessedAt = new Date().toISOString();
+  const bizMarker = new Map<string, string>();
+  const citations: Array<Record<string, unknown>> = [];
+  const markerKey = (b: SurveyBusiness) => b.place_id || `${b.name}|${b.address}`;
+  for (const cat of relevantCategories) {
+    const sorted = (survey.by_category[cat] || [])
+      .slice()
+      .sort((a, b) => a.distance_meters - b.distance_meters)
+      .slice(0, 20);
+    for (const b of sorted) {
+      const key = markerKey(b);
+      if (bizMarker.has(key)) continue;
+      const idx = citations.length + 1;
+      const marker = `[ss:${idx}]`;
+      bizMarker.set(key, marker);
+      const ratingStr = b.rating ? ` -- ${b.rating}/5 (${b.total_ratings} reviews)` : "";
+      citations.push({
+        marker,
+        index: idx,
+        address: `${b.name}, ${b.address} (${b.distance_miles} mi)${ratingStr}`,
+        source: "Google Places API",
+        source_url: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${b.name} ${b.address}`)}`,
+        accessed_at: surveyAccessedAt,
+      });
+    }
+  }
+  const markerFor = (b: SurveyBusiness) => bizMarker.get(markerKey(b)) || "";
+
   // Category detail
   for (const cat of relevantCategories) {
     const businesses = survey.by_category[cat] || [];
@@ -1086,8 +1118,9 @@ async function runSurvey(
         .slice(0, 15);
       for (const b of shown) {
         const rating = b.rating ? ` (${b.rating}/5, ${b.total_ratings} reviews)` : "";
+        const mk = markerFor(b);
         lines.push(
-          `  ${b.distance_miles} mi | ${b.name} | ${b.address}${rating} [${b.radius_band.replace("_", " ")}]`,
+          `  ${mk ? mk + " " : ""}${b.distance_miles} mi | ${b.name} | ${b.address}${rating} [${b.radius_band.replace("_", " ")}]`,
         );
       }
       if (businesses.length > 15) {
@@ -1110,6 +1143,7 @@ async function runSurvey(
           .sort((a: SurveyBusiness, b: SurveyBusiness) => a.distance_meters - b.distance_meters)
           .slice(0, 20)
           .map((b: SurveyBusiness) => ({
+            citation: markerFor(b),
             name: b.name,
             address: b.address,
             distance_miles: b.distance_miles,
@@ -1120,6 +1154,12 @@ async function runSurvey(
           })),
       ]),
     ),
+    citations,
+    citation_instruction:
+      "Every business you name in the analysis MUST carry its [ss:N] marker inline " +
+      "(e.g. \"Domino's [ss:3] at 0.12 mi\"). These are live Google Places results — " +
+      "cite them. Demographic, traffic (AADT), and rent figures are estimates, not from " +
+      "this survey: label them as estimates and do not attach an [ss:N] marker to them.",
     formatted: lines.join("\n"),
     api_calls_made: survey.api_calls_made,
     ...(survey.api_errors?.length && { api_errors: survey.api_errors }),

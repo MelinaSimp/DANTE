@@ -183,7 +183,9 @@ export function buildCitationMap(trace: TraceEntry[] | undefined): CitationMap {
     if (
       Array.isArray(ssCitations) &&
       (entry.step_name.includes("site_scan") ||
-        entry.step_name.includes("void_analysis"))
+        entry.step_name.includes("void_analysis") ||
+        entry.step_name.includes("survey_area") ||
+        entry.step_name.includes("survey"))
     ) {
       for (const c of ssCitations as Array<{
         marker?: string;
