@@ -96,26 +96,26 @@ export default function DanteNode({ data, selected }: NodeProps) {
       className={`group relative rounded-[10px] transition-shadow duration-150 cursor-pointer ${isDisabled ? "opacity-50 grayscale-[30%]" : ""}`}
       style={{
         background: "var(--neu-card)",
-        // Beveled, extruded card (matches the design's nodeView recipe):
-        // directional borders — luminous top/left, dark bottom/right — plus
-        // an inset top highlight give the neumorphic "raised" read; a real
-        // drop shadow keeps the card separated from the light canvas (the
-        // neu-shadow alone is too faint and cards ghosted out).
-        // Interim depth pending the real design-system shadow tokens.
-        border: "1px solid rgba(0,0,0,0.05)",
-        borderTopColor: "rgba(255,255,255,0.55)",
-        borderLeftColor: "rgba(255,255,255,0.40)",
-        borderBottomColor: "rgba(0,0,0,0.08)",
-        borderRightColor: "rgba(0,0,0,0.07)",
+        // Exact .glass-card recipe from the design system (primitives.css):
+        // directional borders (luminous top/left, faint-dark bottom/right) +
+        // var(--neu-shadow-card) + an inset top highlight. Run state adds a
+        // glow from the semantic tokens (--verified / --danger); selection an
+        // ink ring. No hand-rolled shadow values — all map to neu tokens.
+        border: "1px solid rgba(255,255,255,0.30)",
+        borderTopColor: "rgba(255,255,255,0.45)",
+        borderLeftColor: "rgba(255,255,255,0.35)",
+        borderBottomColor: "rgba(0,0,0,0.04)",
+        borderRightColor: "rgba(0,0,0,0.03)",
         width: 260,
         boxShadow:
-          d.runStatus === "running"
-            ? "var(--neu-shadow-card), 0 3px 10px rgba(0,0,0,0.11), inset 0 1px 0 rgba(255,255,255,0.45), 0 0 0 2px var(--accent)"
-            : selected
-              ? "var(--neu-shadow-card), 0 3px 10px rgba(0,0,0,0.11), inset 0 1px 0 rgba(255,255,255,0.45), 0 0 0 2px var(--ink)"
-              : hovered
-                ? "var(--neu-shadow-card-hover), 0 6px 18px rgba(0,0,0,0.14), inset 0 1px 0 rgba(255,255,255,0.50)"
-                : "var(--neu-shadow-card), 0 3px 10px rgba(0,0,0,0.11), inset 0 1px 0 rgba(255,255,255,0.45)",
+          (hovered && !selected
+            ? "var(--neu-shadow-card-hover), inset 0 1px 0 rgba(255,255,255,0.50)"
+            : "var(--neu-shadow-card), inset 0 1px 0 rgba(255,255,255,0.30)")
+          + (d.runStatus === "running" ? ", 0 0 0 2px var(--accent)"
+             : d.runStatus === "success" ? ", 0 0 0 1px var(--verified), 0 0 16px var(--verified-soft)"
+             : d.runStatus === "error" ? ", 0 0 0 1px var(--danger), 0 0 12px var(--danger-soft)"
+             : "")
+          + (selected ? ", 0 0 0 2px var(--ink)" : ""),
       }}
     >
       {/* Color accent bar */}
@@ -147,11 +147,11 @@ export default function DanteNode({ data, selected }: NodeProps) {
         <div
           className="relative rounded-[10px] p-2.5 shrink-0 flex items-center justify-center"
           style={{
-            background: isTrigger ? "var(--ink)" : "var(--neu-input)",
-            color: isTrigger ? "#fff" : "var(--accent)",
+            background: isTrigger ? "var(--ink)" : "var(--neu-card)",
+            color: isTrigger ? "#fff" : "var(--ink)",
             boxShadow: isTrigger
               ? "0 1px 3px rgba(0,0,0,.25)"
-              : "inset 1px 1px 2px rgba(0,0,0,.06), 3px 3px 6px rgba(0,0,0,.10), -2px -2px 5px rgba(255,255,255,.6)",
+              : "var(--neu-shadow-raised)",
           }}
         >
           {Icon && <Icon className="w-[22px] h-[22px]" strokeWidth={1.5} />}
