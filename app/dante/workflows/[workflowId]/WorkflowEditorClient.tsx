@@ -1361,11 +1361,20 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
 
         {/* Right: actions */}
         <div className="flex items-center gap-1 flex-shrink-0">
-          <label className="flex items-center gap-1.5 text-[11px] text-[var(--ink-muted)] cursor-pointer px-2 py-1">
-            <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)}
-              className="accent-[var(--ink)] w-3.5 h-3.5" />
-            Active
-          </label>
+          <div className="flex items-center gap-2 px-2">
+            <span className="text-[11px] text-[var(--ink-muted)]">Active</span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={enabled}
+              data-on={enabled ? "true" : "false"}
+              onClick={() => setEnabled(!enabled)}
+              className="drift-switch"
+              title={enabled ? "Active" : "Inactive"}
+            >
+              <span className="drift-switch__knob" />
+            </button>
+          </div>
           <div className="w-px h-5 bg-[var(--rule)] mx-1" />
           {/* Grouped secondary tools */}
           <div className="flex items-center bg-[var(--canvas-subtle)] rounded-[6px] p-0.5">
@@ -1392,32 +1401,29 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
           </div>
           <div className="w-px h-5 bg-[var(--rule)] mx-1" />
           {/* Primary actions */}
-          <button onClick={save} disabled={saving}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-[6px] border border-[var(--rule)] text-[var(--ink)] hover:bg-[var(--canvas-subtle)] text-xs font-medium transition disabled:opacity-50">
-            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.5} /> : <Save className="w-3.5 h-3.5" strokeWidth={1.5} />}
+          <button onClick={save} disabled={saving} className="drift-btn drift-btn--secondary drift-btn--sm">
+            {saving ? <Loader2 className="animate-spin" strokeWidth={1.5} /> : <Save strokeWidth={1.5} />}
             Save
           </button>
           <button
             onClick={dryRun}
             disabled={dryRunning || running || nodes.length === 0}
             title="Test run (side effects mocked)"
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-[6px] border border-[var(--rule)] text-[var(--ink)] hover:bg-[var(--canvas-subtle)] text-xs font-medium transition disabled:opacity-50"
+            className="drift-btn drift-btn--secondary drift-btn--sm"
           >
             {dryRunning
-              ? <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.5} />
-              : <FlaskConical className="w-3.5 h-3.5" strokeWidth={1.5} />}
+              ? <Loader2 className="animate-spin" strokeWidth={1.5} />
+              : <FlaskConical strokeWidth={1.5} />}
             Test
           </button>
           {running ? (
-            <button onClick={cancelExecution}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-[6px] bg-[var(--danger)] hover:opacity-90 text-[var(--canvas)] text-xs font-semibold transition">
-              <StopCircle className="w-3.5 h-3.5" strokeWidth={1.5} />
+            <button onClick={cancelExecution} className="drift-btn drift-btn--danger drift-btn--sm">
+              <StopCircle strokeWidth={1.5} />
               Stop
             </button>
           ) : (
-            <button onClick={handleRunClick} disabled={dryRunning || nodes.length === 0}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-[6px] bg-[var(--ink)] hover:opacity-90 text-[var(--canvas)] text-xs font-semibold transition disabled:opacity-50">
-              <Play className="w-3.5 h-3.5" strokeWidth={1.5} />
+            <button onClick={handleRunClick} disabled={dryRunning || nodes.length === 0} className="drift-btn drift-btn--primary drift-btn--sm">
+              <Play strokeWidth={1.5} />
               Execute
             </button>
           )}

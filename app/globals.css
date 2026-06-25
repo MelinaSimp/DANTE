@@ -626,3 +626,42 @@ main {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
 }
+
+/* ── Design-system controls: Button + Switch ────────────────────
+   Ported from the bound design system (Button.jsx / Switch.jsx), keyed
+   to tokens. Primary = solid --action (the brand's one high-contrast
+   control); --accent resolves to ink in this monochrome build. */
+.drift-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  font-family:var(--font-ui);font-weight:600;white-space:nowrap;cursor:pointer;
+  border:1px solid transparent;transition:filter .15s var(--ease-out-quart),
+  background .15s var(--ease-out-quart),box-shadow .15s var(--ease-out-quart),transform .08s;
+  outline:none;text-decoration:none;}
+.drift-btn:focus-visible{box-shadow:0 0 0 2px var(--neu-main),0 0 0 4px var(--accent);}
+.drift-btn:disabled{opacity:.5;pointer-events:none;}
+.drift-btn:active{transform:scale(.98);}
+.drift-btn svg{width:1em;height:1em;flex-shrink:0;}
+.drift-btn--sm{height:32px;padding:0 12px;font-size:12px;border-radius:var(--r-input);}
+.drift-btn--default{height:36px;padding:0 16px;font-size:13px;border-radius:var(--radius);}
+.drift-btn--lg{height:44px;padding:0 28px;font-size:15px;border-radius:var(--radius);}
+.drift-btn--primary{background:var(--action);color:var(--action-ink);box-shadow:0 1px 2px rgba(0,0,0,.18);}
+.drift-btn--primary:hover{background:var(--action-hover);}
+.drift-btn--secondary{background:var(--neu-card);color:var(--ink);
+  border-color:rgba(255,255,255,.35);border-top-color:rgba(255,255,255,.55);
+  box-shadow:var(--neu-shadow-card);}
+.drift-btn--secondary:hover{box-shadow:var(--neu-shadow-card-hover);}
+.drift-btn--outline{background:transparent;color:var(--ink);border-color:var(--rule-ink);}
+.drift-btn--outline:hover{background:var(--neu-hover);}
+.drift-btn--ghost{background:transparent;color:var(--ink-muted);}
+.drift-btn--ghost:hover{background:var(--neu-hover);color:var(--ink);}
+.drift-btn--danger{background:var(--danger);color:#fff;}
+.drift-btn--danger:hover{filter:brightness(1.06);}
+
+.drift-switch{position:relative;display:inline-flex;align-items:center;width:40px;height:22px;
+  border-radius:999px;background:var(--neu-input);box-shadow:var(--neu-shadow-pressed);
+  border:1px solid rgba(255,255,255,.25);cursor:pointer;transition:background .18s var(--ease-out-quart);
+  padding:0;flex-shrink:0;}
+.drift-switch[data-on="true"]{background:var(--action);box-shadow:none;border-color:transparent;}
+.drift-switch__knob{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:999px;
+  background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .18s var(--ease-out-quart);}
+.drift-switch[data-on="true"] .drift-switch__knob{transform:translateX(18px);}
+.drift-switch:disabled{opacity:.5;pointer-events:none;}
