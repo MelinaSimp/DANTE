@@ -72,7 +72,7 @@ import { definitionFromRow } from "@/lib/dante/workflow-types";
 
 import DanteNode, { type DanteNodeData, getItemCount, NODE_COLORS } from "./canvas/DanteNode";
 import StepConfigForm, { type StepPatch } from "./canvas/StepConfigForm";
-import { NODE_TYPES, getMeta, isTriggerType, CATEGORY_LABELS, CATEGORY_ORDER, accentClasses, type NodeCategory } from "./canvas/nodeTypes";
+import { NODE_TYPES, getMeta, isTriggerType, resolveStepType, CATEGORY_LABELS, CATEGORY_ORDER, accentClasses, type NodeCategory } from "./canvas/nodeTypes";
 import SmoothEdge, { SteppedEdgeContext } from "./canvas/SmoothEdge";
 import CitationRenderer, { type CitationReport } from "../../CitationRenderer";
 import { autoLayout } from "./canvas/autoLayout";
@@ -2264,9 +2264,9 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
 
       {/* Node Detail View (NDV) — centered three-pane modal: Input · Parameters · Output (spec §8) */}
       {ndvNode && (() => {
-        const meta = getMeta(ndvNode.data.step.type);
+        const nodeType = resolveStepType(ndvNode.data.step.type);
+        const meta = getMeta(nodeType);
         const Icon = meta?.icon;
-        const nodeType = ndvNode.data.step.type;
         const isAgent = nodeType === "agent";
         const isSub = nodeType === "chat_model" || nodeType === "agent_memory" || nodeType === "agent_tool";
         const isTrig = isTriggerType(nodeType);

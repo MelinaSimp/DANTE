@@ -273,6 +273,54 @@ export function isTriggerType(t: StepType): boolean {
   return t.startsWith("trigger_");
 }
 
+// Workflows authored or synced via n8n are stored with n8n-native node type
+// names (e.g. "n8n-nodes-drift-cre.driftAiAgent"), not Drift step types. The
+// editor styles a node by resolving its type to the Drift equivalent for
+// icon / label / kind / sizing. This is DISPLAY ONLY — the stored type is
+// left untouched so the n8n execution graph round-trips unchanged on save.
+const N8N_TO_DRIFT: Record<string, StepType> = {
+  "n8n-nodes-base.webhook": "trigger_webhook",
+  "n8n-nodes-base.scheduleTrigger": "trigger_cron",
+  "n8n-nodes-base.manualTrigger": "trigger_manual",
+  "n8n-nodes-base.httpRequest": "http",
+  "n8n-nodes-base.if": "condition",
+  "n8n-nodes-base.switch": "switch",
+  "n8n-nodes-base.wait": "delay",
+  "n8n-nodes-base.splitInBatches": "for_each",
+  "n8n-nodes-base.code": "code",
+  "n8n-nodes-base.emailSend": "send_email",
+  "n8n-nodes-base.twilio": "send_sms",
+  "n8n-nodes-base.executeWorkflow": "sub_workflow",
+  "@n8n/n8n-nodes-langchain.openAi": "openai",
+  "@n8n/n8n-nodes-langchain.agent": "agent",
+  "n8n-nodes-drift-cre.driftAiAgent": "agent",
+  "n8n-nodes-drift-cre.driftQueryContacts": "query_clients",
+  "n8n-nodes-drift-cre.driftUpdateContact": "update_contact",
+  "n8n-nodes-drift-cre.driftQueryProperties": "query_properties",
+  "n8n-nodes-drift-cre.driftLeaseLookup": "lease_lookup",
+  "n8n-nodes-drift-cre.driftMarketComps": "market_comps",
+  "n8n-nodes-drift-cre.driftUnderwriter": "underwrite",
+  "n8n-nodes-drift-cre.driftLeaseAbstractor": "lease_abstract",
+  "n8n-nodes-drift-cre.driftVaultSearch": "archive_lookup",
+  "n8n-nodes-drift-cre.driftWebSearch": "web_search",
+  "n8n-nodes-drift-cre.driftGenerateDocument": "generate_document",
+  "n8n-nodes-drift-cre.driftApprovalGate": "approval",
+};
+
+/** Resolve a raw node type (Drift- or n8n-native) to the Drift step type used
+ *  for styling. Drift types pass through unchanged. */
+export function resolveStepType(type: string): StepType {
+  if (N8N_TO_DRIFT[type]) return N8N_TO_DRIFT[type];
+  if (type.startsWith("@n8n/n8n-nodes-langchain.")) {
+    if (/memory/i.test(type)) return "agent_memory";
+    if (/tool|vectorstore|retriever/i.test(type)) return "agent_tool";
+    if (/lmchat|chatmodel|chat/i.test(type)) return "chat_model";
+    if (/agent/i.test(type)) return "agent";
+  }
+  if (type.endsWith("Trigger") || type.endsWith(".webhook")) return "trigger_webhook";
+  return type as StepType;
+}
+
 /** Accent → (bg, fg, border) tuple of CSS var strings. */
 export function accentClasses(accent: NodeTypeMeta["accent"]): {
   iconWrap: string; selectedOutline: string;

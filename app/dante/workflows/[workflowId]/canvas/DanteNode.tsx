@@ -6,7 +6,7 @@ import {
   CheckCircle2, AlertCircle, Loader2, Plus, StickyNote, Ban,
 } from "lucide-react";
 import type { WorkflowStep } from "@/lib/dante/workflow-types";
-import { getMeta, isTriggerType } from "./nodeTypes";
+import { getMeta, isTriggerType, resolveStepType } from "./nodeTypes";
 
 export const NODE_COLORS = [
   { value: "", label: "Default" },
@@ -62,13 +62,16 @@ export default function DanteNode({ data, selected }: NodeProps) {
     return <StickyNoteCard data={d} selected={!!selected} />;
   }
 
-  const meta = getMeta(step.type);
+  // Resolve n8n-native types (e.g. "n8n-nodes-drift-cre.driftAiAgent") to the
+  // Drift step type so icon/kind/sizing work for n8n-authored workflows too.
+  const ctype = resolveStepType(step.type);
+  const meta = getMeta(ctype);
   const Icon = meta?.icon;
-  const isTrigger = isTriggerType(step.type);
-  const isCondition = step.type === "condition";
-  const isSwitch = step.type === "switch";
-  const isAgent = step.type === "agent";
-  const isAgentSubNode = step.type === "chat_model" || step.type === "agent_memory" || step.type === "agent_tool";
+  const isTrigger = isTriggerType(ctype);
+  const isCondition = ctype === "condition";
+  const isSwitch = ctype === "switch";
+  const isAgent = ctype === "agent";
+  const isAgentSubNode = ctype === "chat_model" || ctype === "agent_memory" || ctype === "agent_tool";
   const isDisabled = !!d.disabled;
   const nodeColor = d.color || "";
 
