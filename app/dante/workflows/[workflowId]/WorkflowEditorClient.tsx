@@ -332,6 +332,9 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
   // Data view tab in drawer
   const [dataViewTab, setDataViewTab] = useState<"config" | "input" | "output">("config");
 
+  // Node Detail View (NDV) — the three-pane modal opened on double-click (spec §8).
+  const [ndvNodeId, setNdvNodeId] = useState<string | null>(null);
+
   // n8n-parity state
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
@@ -772,6 +775,7 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
   }, [selectedId]);
 
   const selectedNode = nodes.find((n) => n.id === selectedId) ?? null;
+  const ndvNode = nodes.find((n) => n.id === ndvNodeId) ?? null;
 
   // Verified/flagged display: when an agent node's Output tab is open,
   // run its result through Drift's citation validator (server-only) and
@@ -797,6 +801,14 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
       })
       .catch(() => { /* leave undecorated */ });
   }, [selectedId, dataViewTab, agentOutputText, runLog]);
+
+  // Esc closes the NDV (spec §9).
+  useEffect(() => {
+    if (!ndvNodeId) return;
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") setNdvNodeId(null); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [ndvNodeId]);
 
   // ── Save / run ────────────────────────────────────────────
 
@@ -1574,6 +1586,7 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
                 onConnect={onConnect}
                 onConnectEnd={onConnectEnd}
                 onNodeClick={(_, n) => { setSelectedId(n.id); setContextMenu(null); setNodePicker(null); setDataViewTab("config"); }}
+                onNodeDoubleClick={(_, n) => { setNdvNodeId(n.id); setSelectedId(n.id); setDataViewTab("output"); }}
                 onPaneClick={() => { setSelectedId(null); setContextMenu(null); setNodePicker(null); }}
                 onNodeContextMenu={(e, n) => {
                   e.preventDefault();
@@ -1995,8 +2008,8 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
           </aside>
         )}
 
-        {/* Right drawer -- n8n-style node settings panel */}
-        {selectedNode && !historyOpen && (() => {
+        {/* Right drawer -- n8n-style node settings panel (hidden while the NDV modal is open) */}
+        {selectedNode && !historyOpen && !ndvNodeId && (() => {
           const hasRunData = selectedNode.data.runStatus && selectedNode.data.runStatus !== "running";
           const isPinned = pinnedData[selectedNode.id] !== undefined;
           const meta = getMeta(selectedNode.data.step.type);
@@ -2248,6 +2261,149 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
           );
         })()}
       </div>
+
+      {/* Node Detail View (NDV) — centered three-pane modal: Input · Parameters · Output (spec §8) */}
+      {ndvNode && (() => {
+        const meta = getMeta(ndvNode.data.step.type);
+        const Icon = meta?.icon;
+        const nodeType = ndvNode.data.step.type;
+        const isAgent = nodeType === "agent";
+        const isSub = nodeType === "chat_model" || nodeType === "agent_memory" || nodeType === "agent_tool";
+        const isTrig = isTriggerType(nodeType);
+        const hasRunData = ndvNode.data.runStatus && ndvNode.data.runStatus !== "running";
+        const dur = ndvNode.data.runDuration as number | null | undefined;
+        const fmtDur = dur == null ? "" : dur < 1000 ? `${dur}ms` : `${(dur / 1000).toFixed(1)}s`;
+        const ndvInput = edges
+          .filter((e) => e.target === ndvNode.id)
+          .map((e) => nodes.find((n) => n.id === e.source))
+          .filter((n): n is DanteRFNode => !!n && n.data.runOutput !== undefined)
+          .map((n) => ({ id: n.id, name: n.data.step.name || n.id, output: n.data.runOutput }));
+        const subRows = isAgent
+          ? edges
+              .filter((e) => e.target === ndvNode.id && (e.targetHandle === "ai_model" || e.targetHandle === "ai_memory" || e.targetHandle === "ai_tool"))
+              .map((e) => ({
+                label: e.targetHandle === "ai_model" ? "Chat Model" : e.targetHandle === "ai_memory" ? "Memory" : "Tool",
+                name: nodes.find((n) => n.id === e.source)?.data.step.name ?? "—",
+              }))
+          : [];
+        const out = ndvNode.data.runOutput;
+        return (
+          <div
+            className="fixed inset-0 z-[55] flex items-center justify-center"
+            style={{ background: "rgba(20,20,24,.28)", backdropFilter: "blur(3px)" }}
+            onMouseDown={() => setNdvNodeId(null)}
+          >
+            <div
+              className="glass-panel flex flex-col overflow-hidden"
+              style={{ background: "var(--neu-sidebar)", width: "min(1180px,94vw)", height: "min(720px,88vh)" }}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center gap-3 px-5 py-3 border-b border-[var(--rule-ink)] shrink-0">
+                <div
+                  className="shrink-0 flex items-center justify-center"
+                  style={{ width: 40, height: 40, borderRadius: 11, background: isTrig ? "var(--ink)" : "var(--neu-card)", color: isTrig ? "#fff" : "var(--ink)", boxShadow: isTrig ? "0 1px 3px rgba(0,0,0,.25)" : "var(--neu-shadow-raised)" }}
+                >
+                  {Icon && <Icon style={{ width: 22, height: 22 }} strokeWidth={1.5} />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-[var(--ink)] truncate">{ndvNode.data.step.name || meta?.label || nodeType}</div>
+                  <div className="label-section">{meta?.label || nodeType}</div>
+                </div>
+                {hasRunData && (
+                  <span
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[999px] text-[11px] font-medium"
+                    style={ndvNode.data.runStatus === "error" ? { background: "var(--danger-soft)", color: "var(--danger)" } : { background: "var(--verified-soft)", color: "var(--verified)" }}
+                  >
+                    {ndvNode.data.runStatus === "success" ? <CheckCircle2 className="w-3 h-3" strokeWidth={2} /> : <AlertCircle className="w-3 h-3" strokeWidth={2} />}
+                    {ndvNode.data.runStatus === "success" ? "Success" : "Error"}{fmtDur ? ` · ${fmtDur}` : ""}
+                  </span>
+                )}
+                {!isTrig && (
+                  <button onClick={() => { setSelectedId(ndvNode.id); dryRun(); }} disabled={dryRunning} className="drift-btn drift-btn--secondary drift-btn--sm">
+                    {dryRunning ? <Loader2 className="animate-spin" strokeWidth={1.5} /> : <FlaskConical strokeWidth={1.5} />}
+                    Test step
+                  </button>
+                )}
+                <button onClick={() => setNdvNodeId(null)} title="Close (Esc)" className="p-1.5 text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--neu-hover)] rounded-[6px]">
+                  <X className="w-4 h-4" strokeWidth={1.5} />
+                </button>
+              </div>
+
+              {/* Body — Input · Parameters · Output */}
+              <div className="flex-1 overflow-hidden grid" style={{ gridTemplateColumns: "1fr 1.3fr 1fr" }}>
+                {/* INPUT (inset) */}
+                <div className="overflow-y-auto p-4 border-r border-[var(--rule-ink)]" style={{ background: "var(--neu-main)" }}>
+                  <div className="label-section mb-3">Input{ndvInput.length ? ` · ${ndvInput.length} item${ndvInput.length === 1 ? "" : "s"}` : ""}</div>
+                  {ndvInput.length === 0 ? (
+                    <p className="text-[11px] text-[var(--ink-muted)] py-3">
+                      {isTrig ? "Starts the run — no input." : isSub ? "Invoked by its agent." : "No input yet. Run the workflow to see upstream data."}
+                    </p>
+                  ) : (
+                    ndvInput.map((src) => (
+                      <div key={src.id} className="mb-4">
+                        <div className="text-[11px] font-medium text-[var(--ink)] mb-2">{src.name}</div>
+                        <DataView data={src.output} />
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* PARAMETERS (raised) */}
+                <div className="overflow-y-auto p-5" style={{ background: "var(--neu-card)" }}>
+                  <div className="label-section mb-3">Parameters</div>
+                  <StepConfigForm key={ndvNode.id} step={ndvNode.data.step} onChange={updateSelectedStep} />
+                  {subRows.length > 0 && (
+                    <div className="mt-5 pt-5 border-t border-[var(--rule-ink)]">
+                      <div className="label-section mb-2">Sub-nodes</div>
+                      <div className="space-y-1.5">
+                        {subRows.map((r, i) => (
+                          <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-[8px]" style={{ background: "var(--neu-card)", boxShadow: "var(--neu-shadow-raised)" }}>
+                            <span className="w-1.5 h-1.5 rounded-full bg-[var(--verified)] shrink-0" />
+                            <span className="label-section">{r.label}</span>
+                            <span className="text-[12px] text-[var(--ink)] ml-auto truncate">{r.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="mt-5 pt-5 border-t border-[var(--rule-ink)]">
+                    <div className="label-section mb-2">Notes</div>
+                    <textarea
+                      value={nodeNotes[ndvNode.id] || ""}
+                      onChange={(e) => setNodeNote(ndvNode.id, e.target.value)}
+                      placeholder="Add notes about this node..."
+                      rows={3}
+                      className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[6px] px-3 py-2 text-[11px] text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)] placeholder:text-[var(--ink-subtle)] resize-y"
+                    />
+                  </div>
+                </div>
+
+                {/* OUTPUT (inset) */}
+                <div className="overflow-y-auto p-4 border-l border-[var(--rule-ink)]" style={{ background: "var(--neu-main)" }}>
+                  <div className="label-section mb-3">Output</div>
+                  {!hasRunData ? (
+                    <p className="text-[11px] text-[var(--ink-muted)] py-3">No output yet. Run the step to see its result.</p>
+                  ) : (
+                    <>
+                      {ndvNode.data.runError ? (
+                        <pre className="mono text-[10px] text-[var(--danger)] bg-[var(--danger-soft)] rounded-[6px] p-2.5 whitespace-pre-wrap break-words mb-3">{ndvNode.data.runError as string}</pre>
+                      ) : null}
+                      {isAgent && (out as { text?: string } | undefined)?.text ? (
+                        <AgentOutputView text={(out as { text?: string }).text as string} trace={runLog ?? []} report={citationReports[ndvNode.id] ?? null} />
+                      ) : out !== undefined && out !== null ? (
+                        <DataView data={out} />
+                      ) : (
+                        <p className="text-[11px] text-[var(--ink-muted)] py-3">No output payload.</p>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Toast notifications */}
       {toasts.length > 0 && (
