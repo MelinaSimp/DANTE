@@ -1587,7 +1587,13 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
                 snapToGrid
                 snapGrid={[16, 16]}
                 fitView
-                fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
+                // Open at a readable scale: clamp the initial fit to >=0.85 so
+                // a wide linear chain doesn't shrink to flat pills (the
+                // neumorphic depth + dot grid only read near 100%). Wider
+                // graphs open partially and pan; the Fit control (overall
+                // minZoom 0.2) still frames everything on demand.
+                fitViewOptions={{ padding: 0.15, minZoom: 0.85, maxZoom: 1 }}
+                minZoom={0.2}
                 deleteKeyCode={null}
                 defaultEdgeOptions={{
                   type: "smooth",
