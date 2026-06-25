@@ -119,12 +119,12 @@ export default function DanteNode({ data, selected }: NodeProps) {
         />
       )}
 
-      {/* Target handle */}
+      {/* Target handle (main input — left edge) */}
       {!isTrigger && !isAgentSubNode && (
         <Handle
           type="target"
-          position={Position.Top}
-          className="!w-3 !h-3 !bg-[var(--ink)] !border-2 !border-[var(--canvas)] !-top-[6px] !transition-colors !rounded-full"
+          position={Position.Left}
+          className="!w-3 !h-3 !bg-[var(--ink)] !border-2 !border-[var(--canvas)] !-left-[6px] !transition-colors !rounded-full"
         />
       )}
 
@@ -207,38 +207,35 @@ export default function DanteNode({ data, selected }: NodeProps) {
         </div>
       )}
 
-      {/* Error output handle (right side) */}
+      {/* Error output handle (right edge, below the main output) */}
       {!isTrigger && !isCondition && !isSwitch && !isAgentSubNode && (
         <Handle
           id="error"
           type="source"
           position={Position.Right}
+          style={{ top: "78%" }}
           className="!w-2 !h-2 !bg-[var(--danger)] !border-2 !border-[var(--canvas)] !-right-[4px] !rounded-full opacity-40 hover:opacity-100 !transition-opacity"
           title="Error output"
         />
       )}
 
-      {/* Source handles */}
+      {/* Source handles (outputs — right edge; branch outputs stack vertically) */}
       {isCondition ? (
         <>
           <Handle
             id="true"
             type="source"
-            position={Position.Bottom}
-            style={{ left: "30%" }}
-            className="!w-3 !h-3 !bg-[var(--verified)] !border-2 !border-[var(--canvas)] !-bottom-[6px] !rounded-full"
+            position={Position.Right}
+            style={{ top: "34%" }}
+            className="!w-3 !h-3 !bg-[var(--verified)] !border-2 !border-[var(--canvas)] !-right-[6px] !rounded-full"
           />
           <Handle
             id="false"
             type="source"
-            position={Position.Bottom}
-            style={{ left: "70%" }}
-            className="!w-3 !h-3 !bg-[var(--danger)] !border-2 !border-[var(--canvas)] !-bottom-[6px] !rounded-full"
+            position={Position.Right}
+            style={{ top: "70%" }}
+            className="!w-3 !h-3 !bg-[var(--danger)] !border-2 !border-[var(--canvas)] !-right-[6px] !rounded-full"
           />
-          <div className="flex justify-between px-3 pb-1 text-[8px] uppercase tracking-wider font-mono font-semibold">
-            <span className="text-[var(--verified)]">true</span>
-            <span className="text-[var(--danger)]">false</span>
-          </div>
         </>
       ) : isSwitch && switchCases.length > 0 ? (
         <>
@@ -247,63 +244,61 @@ export default function DanteNode({ data, selected }: NodeProps) {
               key={c.value}
               id={c.value}
               type="source"
-              position={Position.Bottom}
-              style={{ left: `${((i + 1) / (switchCases.length + 2)) * 100}%` }}
-              className="!w-3 !h-3 !bg-[var(--accent)] !border-2 !border-[var(--canvas)] !-bottom-[6px] !rounded-full"
+              position={Position.Right}
+              style={{ top: `${((i + 1) / (switchCases.length + 2)) * 100}%` }}
+              className="!w-3 !h-3 !bg-[var(--accent)] !border-2 !border-[var(--canvas)] !-right-[6px] !rounded-full"
             />
           ))}
           <Handle
             id="__default__"
             type="source"
-            position={Position.Bottom}
-            style={{ left: `${((switchCases.length + 1) / (switchCases.length + 2)) * 100}%` }}
-            className="!w-3 !h-3 !bg-[var(--ink-muted)] !border-2 !border-[var(--canvas)] !-bottom-[6px] !rounded-full"
+            position={Position.Right}
+            style={{ top: `${((switchCases.length + 1) / (switchCases.length + 2)) * 100}%` }}
+            className="!w-3 !h-3 !bg-[var(--ink-muted)] !border-2 !border-[var(--canvas)] !-right-[6px] !rounded-full"
           />
         </>
       ) : isAgentSubNode ? (
         <Handle
           type="source"
-          position={Position.Right}
-          className="!w-3 !h-3 !bg-[var(--accent)] !border-2 !border-[var(--canvas)] !-right-[6px] !rounded-full"
-          title="Connect into an Agent"
+          position={Position.Top}
+          className="!w-3 !h-3 !bg-[var(--accent)] !border-2 !border-[var(--canvas)] !-top-[6px] !rounded-full"
+          title="Connect up into an Agent"
         />
       ) : (
-        <div className="relative">
-          <Handle
-            type="source"
-            position={Position.Bottom}
-            className="!w-3 !h-3 !bg-[var(--ink)] !border-2 !border-[var(--canvas)] !-bottom-[6px] !transition-colors !rounded-full"
-          />
-          {hovered && (
-            <div
-              className="absolute left-1/2 -translate-x-1/2 -bottom-[24px] z-10 pointer-events-none"
-            >
-              <div className="w-[22px] h-[22px] rounded-full bg-[var(--ink)] flex items-center justify-center shadow-md">
-                <Plus className="w-3 h-3 text-[var(--canvas)]" strokeWidth={2.5} />
-              </div>
-            </div>
-          )}
+        <Handle
+          type="source"
+          position={Position.Right}
+          className="!w-3 !h-3 !bg-[var(--ink)] !border-2 !border-[var(--canvas)] !-right-[6px] !transition-colors !rounded-full"
+        />
+      )}
+
+      {/* Hover quick-add affordance (right edge) */}
+      {!isCondition && !isSwitch && !isAgentSubNode && hovered && (
+        <div className="absolute top-1/2 -translate-y-1/2 -right-[28px] z-10 pointer-events-none">
+          <div className="w-[22px] h-[22px] rounded-full bg-[var(--ink)] flex items-center justify-center shadow-md">
+            <Plus className="w-3 h-3 text-[var(--canvas)]" strokeWidth={2.5} />
+          </div>
         </div>
       )}
 
-      {/* Agent sub-node input ports (left): Chat Model / Memory / Tool */}
+      {/* Agent sub-node input ports (bottom lanes): Chat Model / Memory / Tool */}
       {isAgent && (([
-        { id: "ai_model", label: "Model", top: "32%" },
-        { id: "ai_memory", label: "Memory", top: "56%" },
-        { id: "ai_tool", label: "Tool", top: "80%" },
+        { id: "ai_model", label: "Chat Model", left: "22%" },
+        { id: "ai_memory", label: "Memory", left: "50%" },
+        { id: "ai_tool", label: "Tool", left: "78%" },
       ] as const).map((p) => (
         <div key={p.id}>
           <Handle
             id={p.id}
             type="target"
-            position={Position.Left}
-            style={{ top: p.top }}
-            className="!w-2.5 !h-2.5 !bg-[var(--accent)] !border-2 !border-[var(--canvas)] !-left-[5px] !rounded-full"
+            position={Position.Bottom}
+            style={{ left: p.left }}
+            className="!w-2.5 !h-2.5 !bg-[var(--accent)] !border-2 !border-[var(--canvas)] !-bottom-[5px] !rounded-full"
             title={p.label}
           />
           <span
             className="absolute text-[7px] uppercase tracking-wider font-mono font-semibold text-[var(--ink-subtle)] pointer-events-none whitespace-nowrap"
-            style={{ left: -10, top: p.top, transform: "translate(-100%, -50%)" }}
+            style={{ left: p.left, top: "calc(100% + 8px)", transform: "translate(-50%, 0)" }}
           >
             {p.label}
           </span>

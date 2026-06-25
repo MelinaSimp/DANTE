@@ -1521,6 +1521,79 @@ const leaseAbstractGraph: WorkflowGraph = {
   edges: [edge("trigger", "abstract")],
 };
 
+// ══════════════════════════════════════════════════════════════
+// 26 - AI agent: corridor void brief (manual)
+//
+// Demonstrates the Approach-B agent pattern from the design: an Agent
+// node with a Chat Model, Memory, and a Tool wired into its bottom
+// sub-ports. The converter folds the sub-nodes into the single agent
+// at run time (n8n-converter.ts), so this both renders the agent-with-
+// lanes layout AND executes.
+// ══════════════════════════════════════════════════════════════
+
+const agentCorridorBriefGraph: WorkflowGraph = {
+  nodes: [
+    {
+      id: "trigger", type: "trigger_manual", position: { x: 40, y: 300 },
+      data: { step: {
+        id: "trigger", type: "trigger_manual", name: "Run manually", config: {},
+      } },
+    },
+    {
+      id: "agent", type: "agent", position: { x: 380, y: 280 },
+      data: { step: {
+        id: "agent", type: "agent", name: "Corridor void analysis",
+        config: {
+          model: "claude-sonnet-4-6",
+          system: "You are a CRE void analyst. Identify what is missing from a trade area -- underserved categories, vacant or underutilized parcels -- and cite every data point with [ss:N] markers.",
+          objective: "Run a void analysis along the corridor defined by {{secrets.corridor_anchors}}. Report the missing business categories and the top candidate parcels, then summarize the findings for a development team.",
+          tools: [],
+          max_steps: 10,
+        },
+      } },
+    },
+    {
+      id: "chat_model", type: "chat_model", position: { x: 150, y: 540 },
+      data: { step: {
+        id: "chat_model", type: "chat_model", name: "Claude Sonnet 4.6",
+        config: { model: "claude-sonnet-4-6" },
+      } },
+    },
+    {
+      id: "memory", type: "agent_memory", position: { x: 390, y: 540 },
+      data: { step: {
+        id: "memory", type: "agent_memory", name: "Conversation memory",
+        config: { kind: "conversation" },
+      } },
+    },
+    {
+      id: "tool", type: "agent_tool", position: { x: 630, y: 540 },
+      data: { step: {
+        id: "tool", type: "agent_tool", name: "Void analysis tool",
+        config: { tool: "site_scan.void_analysis" },
+      } },
+    },
+    {
+      id: "email", type: "send_email", position: { x: 770, y: 290 },
+      data: { step: {
+        id: "email", type: "send_email", name: "Email the brief",
+        config: {
+          to: "{{secrets.broker_email}}",
+          subject: "Corridor void analysis brief",
+          text: "{{steps.agent.text}}",
+        },
+      } },
+    },
+  ],
+  edges: [
+    edge("trigger", "agent"),
+    edge("agent", "email"),
+    { id: "chat_model->agent", source: "chat_model", target: "agent", connectionType: "ai_model" },
+    { id: "memory->agent", source: "memory", target: "agent", connectionType: "ai_memory" },
+    { id: "tool->agent", source: "tool", target: "agent", connectionType: "ai_tool" },
+  ],
+};
+
 export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   {
     slug: "market-comps-lookup",
@@ -1686,6 +1759,16 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     accent: "accent",
     triggerLabel: "Mondays 6am ET",
     graph: corridorVoidAnalysisGraph,
+  },
+  {
+    slug: "agent-corridor-brief",
+    name: "AI agent: corridor void brief",
+    description: "Manual. An autonomous agent runs the corridor void analysis with a wired Chat Model, Memory, and Void-analysis tool, then emails a cited brief. Showcases the agent + sub-node pattern from the editor.",
+    category: "Site intelligence",
+    icon: "Bot",
+    accent: "accent",
+    triggerLabel: "Manual",
+    graph: agentCorridorBriefGraph,
   },
   {
     slug: "development-prospector",

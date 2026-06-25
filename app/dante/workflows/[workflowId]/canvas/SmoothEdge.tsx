@@ -63,7 +63,9 @@ export default function SmoothEdge({
         style={{
           ...style,
           stroke: strokeColor,
-          strokeDasharray: isExecuting ? "6 4" : undefined,
+          // Preserve a configured dash (e.g. agent sub-node edges) at rest;
+          // only the executing animation overrides it.
+          strokeDasharray: isExecuting ? "6 4" : (style?.strokeDasharray as string | undefined),
           animation: isExecuting ? "dash-flow 0.6s linear infinite" : undefined,
         }}
         markerEnd={markerEnd as string}

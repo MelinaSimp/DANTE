@@ -30,13 +30,13 @@ import Link from "next/link";
 import {
   ReactFlow,
   Background,
-  Controls,
   MiniMap,
   applyNodeChanges,
   applyEdgeChanges,
   addEdge,
   ReactFlowProvider,
   useReactFlow,
+  useStore,
   type Node as RFNode,
   type Edge as RFEdge,
   type Connection,
@@ -56,7 +56,7 @@ import {
   EyeOff, Clipboard, AlignVerticalJustifyCenter, Pin, PinOff,
   Keyboard, Command, Download, Upload, Square, Palette, StickyNote,
   Maximize, MapPin, StopCircle, RefreshCw, Tag, Key, GitBranch,
-  RotateCw, Eye, Spline, LayoutGrid,
+  RotateCw, Eye, Spline, LayoutGrid, ZoomIn, ZoomOut,
 } from "lucide-react";
 
 import type {
@@ -143,18 +143,26 @@ function graphToFlow(graph: WorkflowGraph): {
       data: { step },
     };
   });
-  const edges: RFEdge[] = graph.edges.map((e) => ({
-    id: e.id,
-    source: e.source,
-    target: e.target,
-    sourceHandle: e.sourceHandle,
-    targetHandle: e.connectionType && e.connectionType !== "main" ? e.connectionType : e.targetHandle,
-    type: "smooth",
-    label: e.sourceHandle ? e.sourceHandle : undefined,
-    data: {},
-    animated: false,
-    style: { stroke: "var(--rule-strong)", strokeWidth: 2 },
-  }));
+  const edges: RFEdge[] = graph.edges.map((e) => {
+    const isSub = !!(e.connectionType && e.connectionType !== "main");
+    return {
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      sourceHandle: e.sourceHandle,
+      targetHandle: isSub ? e.connectionType : e.targetHandle,
+      type: "smooth",
+      label: e.sourceHandle ? e.sourceHandle : undefined,
+      data: {},
+      animated: false,
+      // Sub-node edges read as dashed accent lanes; main edges are solid
+      // ink. (--rule-strong is translucent white — invisible on the light
+      // canvas — so main edges use --ink-subtle.)
+      style: isSub
+        ? { stroke: "var(--accent)", strokeWidth: 1.5, strokeDasharray: "5 5", opacity: 0.75 }
+        : { stroke: "var(--ink-subtle)", strokeWidth: 2 },
+    };
+  });
   return { nodes, edges, colors, notes };
 }
 
@@ -189,6 +197,35 @@ function flowToGraph(
   return { nodes: gNodes, edges: gEdges };
 }
 
+// Neumorphic zoom controls (bottom-left), replacing React Flow's stock
+// <Controls>. Rendered inside <ReactFlowProvider> so it can drive the viewport.
+function CanvasZoomControls() {
+  const { zoomIn, zoomOut, fitView } = useReactFlow();
+  const zoom = useStore((s) => s.transform[2]);
+  const btn =
+    "w-8 h-8 flex items-center justify-center rounded-[7px] text-[var(--ink-muted)] hover:bg-[var(--neu-hover)] hover:text-[var(--ink)] transition-colors";
+  return (
+    <div
+      className="absolute left-4 bottom-4 z-10 flex items-center gap-0.5 p-1 rounded-[10px]"
+      style={{ background: "var(--neu-card)", boxShadow: "var(--neu-shadow-card), 0 2px 8px rgba(0,0,0,0.10)" }}
+    >
+      <button onClick={() => zoomOut()} title="Zoom out" className={btn}>
+        <ZoomOut className="w-4 h-4" strokeWidth={1.7} />
+      </button>
+      <span className="mono min-w-[44px] text-center text-xs text-[var(--ink-muted)] select-none">
+        {Math.round((zoom ?? 1) * 100)}%
+      </span>
+      <button onClick={() => zoomIn()} title="Zoom in" className={btn}>
+        <ZoomIn className="w-4 h-4" strokeWidth={1.7} />
+      </button>
+      <div className="w-px h-4 bg-[rgba(0,0,0,0.08)] mx-1" />
+      <button onClick={() => fitView({ padding: 0.2, maxZoom: 1 })} title="Fit to view" className={btn}>
+        <Maximize className="w-4 h-4" strokeWidth={1.7} />
+      </button>
+    </div>
+  );
+}
+
 // ── Component ─────────────────────────────────────────────────
 
 export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowRow }) {
@@ -215,7 +252,21 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
         data: { step: { id: "trigger", type: "trigger_manual", name: "Manual trigger", config: {} } },
       }], edges: [] };
 
-  const initialFlow = useMemo(() => graphToFlow(seeded), [seeded]);
+  const initialFlow = useMemo(() => {
+    const flow = graphToFlow(seeded);
+    // Migrate legacy vertical (top-down) layouts to the horizontal flow on
+    // load. Positions saved under the old orientation otherwise render as a
+    // broken, side-wired vertical stack. Already-horizontal graphs (wider
+    // than tall) are left untouched.
+    if (flow.nodes.length >= 2) {
+      const xs = flow.nodes.map((n) => n.position.x);
+      const ys = flow.nodes.map((n) => n.position.y);
+      const w = Math.max(...xs) - Math.min(...xs);
+      const h = Math.max(...ys) - Math.min(...ys);
+      if (h > w) flow.nodes = autoLayout(flow.nodes, flow.edges, "LR");
+    }
+    return flow;
+  }, [seeded]);
 
   const [name, setName]       = useState(initial.name);
   const [description, setDesc] = useState(initial.description ?? "");
@@ -288,7 +339,7 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
   const [nodeSearchQuery, setNodeSearchQuery] = useState("");
   const [showImportExport, setShowImportExport] = useState<"import" | "export" | null>(null);
   const [importJson, setImportJson] = useState("");
-  const [minimapVisible, setMinimapVisible] = useState(true);
+  const [minimapVisible, setMinimapVisible] = useState(false);
   const [showGrid, setShowGrid] = useState(true);
   const [connectionStyle, setConnectionStyle] = useState<"curved" | "stepped">("curved");
   const [citationReports, setCitationReports] = useState<Record<string, CitationReport>>({});
@@ -620,7 +671,7 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
       source: nodePicker.fromNodeId,
       target: id,
       sourceHandle: nodePicker.fromHandle,
-      style: { stroke: "var(--rule-strong)", strokeWidth: 2 },
+      style: { stroke: "var(--ink-subtle)", strokeWidth: 2 },
     }, es));
     setSelectedId(id);
     setNodePicker(null);
@@ -655,12 +706,15 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
       pushUndo();
       const handle = conn.sourceHandle === "true" || conn.sourceHandle === "false" || conn.sourceHandle === "error"
         ? conn.sourceHandle : undefined;
+      const isSubConn = tHandle === "ai_model" || tHandle === "ai_memory" || tHandle === "ai_tool";
       setEdges((es) => addEdge({
         ...conn,
         id: `${conn.source}->${conn.target}${handle ? `:${handle}` : ""}_${Math.random().toString(36).slice(2,5)}`,
         label: handle,
         data: {},
-        style: { stroke: "var(--rule-strong)", strokeWidth: 2 },
+        style: isSubConn
+          ? { stroke: "var(--accent)", strokeWidth: 1.5, strokeDasharray: "5 5", opacity: 0.75 }
+          : { stroke: "var(--ink-subtle)", strokeWidth: 2 },
       }, es));
     },
     [pushUndo, wouldCreateLoop, addToast, nodes],
@@ -1120,6 +1174,33 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
     }));
   }, [runLog, runStatus]);
 
+  // Paint the most recent run's results at rest: a workflow that has run
+  // before opens already decorated (green badges, item-count pills) — the
+  // "just-ran" look from the design — instead of a bare canvas. Fetches the
+  // last run's log once on mount; the paint effect above then decorates.
+  useEffect(() => {
+    if (!workflow.last_run_status) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const listRes = await fetch(`/api/dante/workflows/${workflow.id}`, { credentials: "include" });
+        if (!listRes.ok) return;
+        const listJson = await listRes.json();
+        const lastRun = (listJson.runs ?? [])[0];
+        if (!lastRun?.id) return;
+        const detailRes = await fetch(`/api/dante/workflows/runs/${lastRun.id}`, { credentials: "include" });
+        if (!detailRes.ok) return;
+        const detailJson = await detailRes.json();
+        const rd = detailJson.run;
+        if (!cancelled && rd?.log) {
+          setRunLog(rd.log);
+          setRunStatus(rd.status === "error" ? "error" : "success");
+        }
+      } catch { /* leave the canvas undecorated */ }
+    })();
+    return () => { cancelled = true; };
+  }, [workflow.id, workflow.last_run_status]);
+
   // ── Webhook token ─────────────────────────────────────────
   // Loaded lazily when a webhook trigger is selected. Mint on demand.
 
@@ -1509,15 +1590,23 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
                   style: { stroke: "var(--ink-subtle)", strokeWidth: 2 },
                 }}
               >
-                {showGrid && <Background color="var(--rule)" gap={20} size={1} variant={"dots" as any} />}
-                <Controls
-                  showInteractive={false}
-                  className="!bg-[var(--canvas)] !border-[var(--rule)] !rounded-[4px]"
-                />
+                {showGrid && <Background color="var(--grid-dot)" gap={22} size={1} variant={"dots" as any} />}
+                <CanvasZoomControls />
+                {/* Ask Dante */}
+                <button
+                  onClick={() => setShowCommandPalette(true)}
+                  title="Ask Dante (Cmd+K)"
+                  className="absolute right-4 bottom-4 z-10 inline-flex items-center gap-2 rounded-[12px] px-4 py-2.5 text-[13px] font-semibold text-white border-none cursor-pointer transition hover:opacity-90"
+                  style={{ background: "var(--accent)", boxShadow: "0 4px 16px rgba(0,0,0,0.18)" }}
+                >
+                  <Sparkles className="w-[15px] h-[15px]" strokeWidth={1.85} />
+                  Ask Dante
+                </button>
                 {minimapVisible && (
                   <MiniMap
-                    className="!bg-[var(--canvas-subtle)] !border !border-[var(--rule)] !rounded-[4px]"
-                    nodeColor="var(--rule-strong)"
+                    className="!bg-[var(--canvas-subtle)] !border !border-[var(--rule)] !rounded-[8px] !shadow-md"
+                    position="top-right"
+                    nodeColor="var(--ink-subtle)"
                     maskColor="rgba(21,21,21,0.05)"
                     pannable
                   />
