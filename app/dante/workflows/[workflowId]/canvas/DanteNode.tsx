@@ -96,19 +96,26 @@ export default function DanteNode({ data, selected }: NodeProps) {
       className={`group relative rounded-[10px] transition-shadow duration-150 cursor-pointer ${isDisabled ? "opacity-50 grayscale-[30%]" : ""}`}
       style={{
         background: "var(--neu-card)",
-        // Hairline + a real drop shadow on top of the (faint) neu-shadow:
-        // the neumorphic shadow alone is too weak to separate a card from
-        // the light canvas, so cards were ghosting out.
-        border: "1px solid rgba(0,0,0,0.06)",
+        // Beveled, extruded card (matches the design's nodeView recipe):
+        // directional borders — luminous top/left, dark bottom/right — plus
+        // an inset top highlight give the neumorphic "raised" read; a real
+        // drop shadow keeps the card separated from the light canvas (the
+        // neu-shadow alone is too faint and cards ghosted out).
+        // Interim depth pending the real design-system shadow tokens.
+        border: "1px solid rgba(0,0,0,0.05)",
+        borderTopColor: "rgba(255,255,255,0.55)",
+        borderLeftColor: "rgba(255,255,255,0.40)",
+        borderBottomColor: "rgba(0,0,0,0.08)",
+        borderRightColor: "rgba(0,0,0,0.07)",
         width: 260,
         boxShadow:
           d.runStatus === "running"
-            ? "var(--neu-shadow-card), 0 2px 8px rgba(0,0,0,0.10), 0 0 0 2px var(--accent)"
+            ? "var(--neu-shadow-card), 0 3px 10px rgba(0,0,0,0.11), inset 0 1px 0 rgba(255,255,255,0.45), 0 0 0 2px var(--accent)"
             : selected
-              ? "var(--neu-shadow-card), 0 2px 8px rgba(0,0,0,0.10), 0 0 0 2px var(--ink)"
+              ? "var(--neu-shadow-card), 0 3px 10px rgba(0,0,0,0.11), inset 0 1px 0 rgba(255,255,255,0.45), 0 0 0 2px var(--ink)"
               : hovered
-                ? "var(--neu-shadow-card-hover), 0 4px 16px rgba(0,0,0,0.12)"
-                : "var(--neu-shadow-card), 0 2px 8px rgba(0,0,0,0.10)",
+                ? "var(--neu-shadow-card-hover), 0 6px 18px rgba(0,0,0,0.14), inset 0 1px 0 rgba(255,255,255,0.50)"
+                : "var(--neu-shadow-card), 0 3px 10px rgba(0,0,0,0.11), inset 0 1px 0 rgba(255,255,255,0.45)",
       }}
     >
       {/* Color accent bar */}
