@@ -71,6 +71,20 @@ export default function DanteNode({ data, selected }: NodeProps) {
   const isAgentSubNode = step.type === "chat_model" || step.type === "agent_memory" || step.type === "agent_tool";
   const isDisabled = !!d.disabled;
   const nodeColor = d.color || "";
+
+  // Per-kind footprint + treatment (spec §4). Drift's graph carries no
+  // authored w/h, so size is derived from kind: the agent is the hub
+  // (tallest/widest — it carries the 3 bottom-port lanes), sub-nodes are
+  // the smallest leaf pills, processes/triggers sit in between. kind only
+  // selects sizing/treatment; it never depends on text length.
+  const cardW      = isAgent ? 248 : isTrigger ? 200 : isAgentSubNode ? 196 : 214;
+  const cardMinH   = isAgent ? 132 : isTrigger ? 92  : isAgentSubNode ? 76  : 98;
+  const tileSize   = isAgent ? 46  : isAgentSubNode ? 34 : 42;
+  const tileRadius = isAgentSubNode ? 9 : 11;
+  const iconSize   = isAgent ? 24  : isAgentSubNode ? 18 : 22;
+  const cardRadius = isAgentSubNode ? 14 : isTrigger ? 14 : 13;
+  const rowGap     = isAgentSubNode ? 11 : 13;
+  const rowPadX    = isAgentSubNode ? 16 : 18;
   const switchCases = isSwitch
     ? ((step.config as Record<string, unknown>).cases as Array<{ value: string; label?: string }>) || []
     : [];
@@ -93,9 +107,15 @@ export default function DanteNode({ data, selected }: NodeProps) {
     <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className={`group relative rounded-[10px] transition-shadow duration-150 cursor-pointer ${isDisabled ? "opacity-50 grayscale-[30%]" : ""}`}
+      className={`group relative transition-shadow duration-150 cursor-pointer ${isDisabled ? "opacity-50 grayscale-[30%]" : ""}`}
       style={{
         background: "var(--neu-card)",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+        width: cardW,
+        minHeight: cardMinH,
+        borderRadius: cardRadius,
         // Exact .glass-card recipe from the design system (primitives.css):
         // directional borders (luminous top/left, faint-dark bottom/right) +
         // var(--neu-shadow-card) + an inset top highlight. Run state adds a
@@ -106,7 +126,6 @@ export default function DanteNode({ data, selected }: NodeProps) {
         borderLeftColor: "rgba(255,255,255,0.35)",
         borderBottomColor: "rgba(0,0,0,0.04)",
         borderRightColor: "rgba(0,0,0,0.03)",
-        width: 260,
         boxShadow:
           (hovered && !selected
             ? "var(--neu-shadow-card-hover), inset 0 1px 0 rgba(255,255,255,0.50)"
@@ -142,11 +161,14 @@ export default function DanteNode({ data, selected }: NodeProps) {
         </div>
       )}
 
-      <div className="flex items-center gap-3 px-4 py-3.5">
+      <div className="flex items-center min-w-0" style={{ gap: rowGap, padding: `0 ${rowPadX}px` }}>
         {/* Icon */}
         <div
-          className="relative rounded-[10px] p-2.5 shrink-0 flex items-center justify-center"
+          className="relative shrink-0 flex items-center justify-center"
           style={{
+            width: tileSize,
+            height: tileSize,
+            borderRadius: tileRadius,
             background: isTrigger ? "var(--ink)" : "var(--neu-card)",
             color: isTrigger ? "#fff" : "var(--ink)",
             boxShadow: isTrigger
@@ -154,7 +176,7 @@ export default function DanteNode({ data, selected }: NodeProps) {
               : "var(--neu-shadow-raised)",
           }}
         >
-          {Icon && <Icon className="w-[22px] h-[22px]" strokeWidth={1.5} />}
+          {Icon && <Icon style={{ width: iconSize, height: iconSize }} strokeWidth={1.5} />}
           {statusIcon && (
             <div className="absolute -bottom-1 -right-1 bg-[var(--canvas)] rounded-full p-[1px]">
               {statusIcon}
