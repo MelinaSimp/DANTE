@@ -4279,8 +4279,11 @@ function buildVoidDashboard(ctx: AgentToolCtx): Record<string, unknown> | null {
   const survey = ctx.surveyAreaResult;
   const hasSurvey = !!survey?.by_category;
 
-  // Must have either survey data OR a void analysis address to build anything
-  if (!hasSurvey && !ctx.voidAnalysisAddress) return null;
+  // Require real business-density data. Without a survey, every category
+  // would read as a 0-count "void" — a confident, fabricated gap (the bug
+  // that reported "0 restaurants" where there were 20). The caller backfills
+  // survey_area on demand before building, so this should normally hold.
+  if (!hasSurvey) return null;
 
   // Build site info from whatever we have
   const site: Record<string, unknown> = {
@@ -4944,9 +4947,28 @@ export async function runAgent(input: AgentRunInput): Promise<AgentRunResult> {
     // and renders as ugly raw text if we leave it. We rebuild from code.
     finalText = finalText.replace(/```void_analysis[\s\S]*?```/g, "").trim();
 
-    // Step 2: Build the dashboard from real data + model prose.
-    // Works with partial data — even without survey_area results,
-    // we can build a site header + void cards from the model's text.
+    // Step 2: Ground the dashboard in real business density. If the void
+    // analysis ran but survey_area was never called, every category count
+    // would be 0 and the dashboard would fabricate a "void" for each one.
+    // Backfill the survey now — it's the same Google Places API survey_area
+    // uses — so the counts reflect what's actually on the ground.
+    if (!ctx.surveyAreaResult?.by_category && ctx.voidAnalysisAddress) {
+      try {
+        const raw = await handleSurveyArea({ address: ctx.voidAnalysisAddress }, ctx.workspaceId);
+        const parsed = JSON.parse(raw);
+        if (parsed && !parsed.error && parsed.by_category) {
+          ctx.surveyAreaResult = parsed as SurveyAreaResult;
+        } else if (parsed?.error) {
+          agentLog.warn("void dashboard survey backfill returned error", { error: String(parsed.error).slice(0, 200) });
+        }
+      } catch (err) {
+        agentLog.warn("void dashboard survey backfill failed", { error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+
+    // Build the dashboard from real survey data + model prose. If survey
+    // data is still unavailable, buildVoidDashboard returns null and we keep
+    // the model's prose rather than emit a zero-count, all-void dashboard.
     const dashboard = buildVoidDashboard(ctx);
     if (dashboard) {
       const block = "```void_analysis\n" + JSON.stringify(dashboard) + "\n```\n\n";
