@@ -6,6 +6,7 @@ import {
   Shield,
   Building2,
   CreditCard,
+  FileText,
   UserPlus,
   BarChart3,
   Gauge,
@@ -64,6 +65,12 @@ const navItems: NavItem[] = [
     description: "Stripe keys, webhook, subscription status.",
     icon: CreditCard,
     panelId: "billing",
+  },
+  {
+    name: "Invoices",
+    description: "Create & send company invoices via Stripe.",
+    icon: FileText,
+    href: "/admin/invoices",
   },
   {
     name: "Usage",
