@@ -32,8 +32,11 @@ const STATUS_STYLE: Record<string, { label: string; color: string; bg: string }>
   uncollectible: { label: "Uncollectible", color: "var(--danger)", bg: "var(--danger-soft)" },
 };
 
-const inputClass =
-  "w-full px-3 py-2 rounded-[4px] bg-[var(--canvas)] border border-[var(--rule)] text-[var(--ink)] text-sm placeholder:text-[var(--ink-subtle)] focus:outline-none focus:border-[var(--accent)] transition";
+// Field styling WITHOUT a width, so line-item rows can set their own widths
+// (flex-1 / w-16) without colliding with w-full.
+const baseField =
+  "px-3 py-2 rounded-[4px] bg-[var(--canvas)] border border-[var(--rule)] text-[var(--ink)] text-sm placeholder:text-[var(--ink-subtle)] focus:outline-none focus:border-[var(--accent)] transition";
+const inputClass = "w-full " + baseField;
 
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<InvoiceSummary[] | null>(null);
@@ -182,22 +185,22 @@ export default function InvoicesPage() {
           {lines.map((l, i) => (
             <div key={i} className="flex items-center gap-2">
               <input
-                className={inputClass + " flex-1"}
+                className={baseField + " flex-1 min-w-0"}
                 value={l.description}
                 onChange={(e) => updateLine(i, { description: e.target.value })}
                 placeholder="Description (e.g. Drift platform — June 2026)"
               />
               <input
-                className={inputClass + " w-16 text-center"}
+                className={baseField + " w-16 text-center shrink-0"}
                 type="number" min={1}
                 value={l.quantity}
                 onChange={(e) => updateLine(i, { quantity: Math.max(1, Number(e.target.value) || 1) })}
                 title="Quantity"
               />
-              <div className="relative w-32">
+              <div className="relative w-32 shrink-0">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--ink-subtle)] text-sm">$</span>
                 <input
-                  className={inputClass + " pl-6"}
+                  className={baseField + " w-full pl-6"}
                   type="number" min={0} step="0.01"
                   value={l.unit_amount}
                   onChange={(e) => updateLine(i, { unit_amount: e.target.value })}
