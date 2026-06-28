@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Loader2, Plus, Trash2, Send, ExternalLink, Check, X, Ban, FileText } from "lucide-react";
+import { Loader2, Plus, Trash2, Send, ExternalLink, Check, X, Ban, FileText, Eye } from "lucide-react";
 import { reportError } from "@/lib/report-error";
 
 interface InvoiceSummary {
@@ -16,6 +16,12 @@ interface InvoiceSummary {
   due_date: number | null;
   hosted_invoice_url: string | null;
   invoice_pdf: string | null;
+}
+
+interface InvoiceDetail extends InvoiceSummary {
+  memo: string | null;
+  payment_method_types: string[];
+  lines: Array<{ description: string; quantity: number | null; amount: number }>;
 }
 
 interface LineItem {
@@ -44,6 +50,8 @@ export default function InvoicesPage() {
   const [creating, setCreating] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [preview, setPreview] = useState<InvoiceDetail | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   // Form state
   const [company, setCompany] = useState("");
@@ -62,6 +70,21 @@ export default function InvoicesPage() {
     } catch (e) {
       reportError("admin/invoices: load")(e);
       setLoadError("Network error loading invoices");
+    }
+  }, []);
+
+  const openPreview = useCallback(async (id: string) => {
+    setPreviewLoading(true);
+    setPreview(null);
+    try {
+      const res = await fetch(`/api/admin/invoices/${id}`, { credentials: "include" });
+      const data = await res.json();
+      if (res.ok) setPreview(data.invoice);
+      else setToast({ type: "error", message: data.error || "Failed to load preview" });
+    } catch {
+      setToast({ type: "error", message: "Network error" });
+    } finally {
+      setPreviewLoading(false);
     }
   }, []);
 
@@ -104,6 +127,7 @@ export default function InvoicesPage() {
       setCompany(""); setEmail(""); setMemo(""); setDueDays(30);
       setLines([{ description: "", quantity: 1, unit_amount: "" }]);
       await loadInvoices();
+      if (data.invoice?.id) openPreview(data.invoice.id);
     } catch {
       setToast({ type: "error", message: "Network error" });
     } finally {
@@ -289,6 +313,10 @@ export default function InvoicesPage() {
                   {fmtMoney(inv.total, inv.currency)}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
+                  <button onClick={() => openPreview(inv.id)} title="Preview"
+                    className="p-2 text-[var(--ink-muted)] hover:text-[var(--ink)] rounded-[4px] hover:bg-[var(--canvas-subtle)]">
+                    <Eye className="h-4 w-4" strokeWidth={1.5} />
+                  </button>
                   {inv.hosted_invoice_url && (
                     <a href={inv.hosted_invoice_url} target="_blank" rel="noopener noreferrer" title="View hosted invoice"
                       className="p-2 text-[var(--ink-muted)] hover:text-[var(--ink)] rounded-[4px] hover:bg-[var(--canvas-subtle)]">
@@ -311,6 +339,78 @@ export default function InvoicesPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {(preview || previewLoading) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(20,20,24,.28)", backdropFilter: "blur(3px)" }} onMouseDown={() => setPreview(null)}>
+          <div className="card-flat w-full max-w-lg mx-4 max-h-[88vh] overflow-y-auto" style={{ background: "var(--surface,#fff)" }} onMouseDown={(e) => e.stopPropagation()}>
+            {previewLoading || !preview ? (
+              <div className="flex items-center justify-center py-16"><Loader2 className="h-5 w-5 animate-spin text-[var(--ink-subtle)]" strokeWidth={1.5} /></div>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 px-5 py-3 border-b border-[var(--rule)]">
+                  <div className="label-section flex-1">Invoice preview</div>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-[3px]" style={{ color: (STATUS_STYLE[preview.status] || STATUS_STYLE.draft).color, background: (STATUS_STYLE[preview.status] || STATUS_STYLE.draft).bg }}>
+                    {(STATUS_STYLE[preview.status] || STATUS_STYLE.draft).label}
+                  </span>
+                  <button onClick={() => setPreview(null)} className="p-1.5 text-[var(--ink-muted)] hover:text-[var(--ink)] rounded-[4px]"><X className="h-4 w-4" strokeWidth={1.5} /></button>
+                </div>
+                <div className="px-5 py-4 space-y-4">
+                  <div>
+                    <div className="label-section mb-1">Bill to</div>
+                    <div className="text-sm text-[var(--ink)]">{preview.company}</div>
+                    <div className="text-[11px] text-[var(--ink-muted)]">{preview.email || "—"}</div>
+                  </div>
+                  <div>
+                    <div className="label-section mb-2">Line items</div>
+                    <div className="border border-[var(--rule)] rounded-[6px] overflow-hidden">
+                      {preview.lines.length === 0 ? (
+                        <div className="px-3 py-3 text-[11px] text-[var(--ink-muted)] text-center">No line items.</div>
+                      ) : (
+                        preview.lines.map((l, i) => (
+                          <div key={i} className="flex items-center gap-2 px-3 py-2 border-b border-[var(--rule)] last:border-b-0">
+                            <span className="text-[13px] text-[var(--ink)] flex-1 min-w-0">{l.description}</span>
+                            {l.quantity != null && <span className="text-[11px] text-[var(--ink-subtle)] shrink-0">x{l.quantity}</span>}
+                            <span className="text-[13px] text-[var(--ink)] tabular-nums shrink-0">{fmtMoney(l.amount, preview.currency)}</span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between border-t border-[var(--rule)] pt-3">
+                    <span className="text-sm font-medium text-[var(--ink-muted)]">Total</span>
+                    <span className="text-base font-semibold text-[var(--ink)] tabular-nums">{fmtMoney(preview.total, preview.currency)}</span>
+                  </div>
+                  {preview.memo && (
+                    <div><div className="label-section mb-1">Memo</div><div className="text-[12px] text-[var(--ink-muted)]">{preview.memo}</div></div>
+                  )}
+                  <div className="text-[11px] text-[var(--ink-subtle)]">
+                    Due {fmtDate(preview.due_date)} · Pays by {preview.payment_method_types.map((t) => t === "us_bank_account" ? "ACH bank transfer" : t === "card" ? "card" : t).join(", ") || "card"}
+                  </div>
+                  {preview.status === "draft" && (
+                    <div className="text-[11px] px-3 py-2 rounded-[4px]" style={{ background: "var(--flag-soft)", color: "var(--flag)" }}>
+                      This is a draft — it has not been emailed. Review, then send.
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-[var(--rule)]">
+                  {preview.hosted_invoice_url && (
+                    <a href={preview.hosted_invoice_url} target="_blank" rel="noopener noreferrer" className="text-xs text-[var(--accent)] hover:opacity-80 flex items-center gap-1 mr-auto">
+                      <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.5} /> Hosted invoice
+                    </a>
+                  )}
+                  <button onClick={() => setPreview(null)} className="px-4 py-2 rounded-[4px] text-sm text-[var(--ink-muted)] hover:bg-[var(--canvas-subtle)]">Close</button>
+                  {preview.status === "draft" && (
+                    <button onClick={() => { const p = preview; setPreview(null); sendInvoice(p.id, p.company); }} disabled={busyId === preview.id}
+                      className="px-4 py-2 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] text-sm font-medium hover:opacity-90 flex items-center gap-2 disabled:opacity-40">
+                      <Send className="h-4 w-4" strokeWidth={1.5} /> Send invoice
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
 

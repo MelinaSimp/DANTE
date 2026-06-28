@@ -139,3 +139,25 @@ export async function listInvoices(limit = 50): Promise<InvoiceSummary[]> {
   const res = await stripe.invoices.list({ limit });
   return res.data.map(toSummary);
 }
+
+export interface InvoiceDetail extends InvoiceSummary {
+  memo: string | null;
+  payment_method_types: string[];
+  lines: Array<{ description: string; quantity: number | null; amount: number }>;
+}
+
+/** Full invoice incl. line items — backs the in-app preview ("what gets sent"). */
+export async function getInvoiceDetail(invoiceId: string): Promise<InvoiceDetail> {
+  const stripe = await getStripeAsync();
+  const inv = await stripe.invoices.retrieve(invoiceId, { expand: ["lines"] });
+  return {
+    ...toSummary(inv),
+    memo: inv.description ?? null,
+    payment_method_types: (inv.payment_settings?.payment_method_types ?? []) as string[],
+    lines: (inv.lines?.data ?? []).map((l) => ({
+      description: l.description ?? "—",
+      quantity: l.quantity ?? null,
+      amount: (l.amount ?? 0) / 100,
+    })),
+  };
+}
