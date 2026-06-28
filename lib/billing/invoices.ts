@@ -95,17 +95,20 @@ export async function createDraftInvoice(input: CreateInvoiceInput): Promise<Inv
     payment_settings: { payment_method_types: [...PAYMENT_METHOD_TYPES] },
   });
 
-  // Attach each line to this specific draft invoice.
+  // Attach each line to this specific draft invoice. Use unit_amount_decimal
+  // (per-unit cents) x quantity: Stripe rejects `amount` together with
+  // `quantity`, and the per-unit form keeps the qty visible on the invoice
+  // and in the preview. Stripe computes line total = unit x quantity.
   for (const line of input.line_items) {
     const qty = Math.max(1, Math.round(line.quantity || 1));
+    const unitCents = Math.round((line.unit_amount || 0) * 100);
     await stripe.invoiceItems.create({
       customer,
       invoice: invoice.id,
       currency,
       description: line.description,
       quantity: qty,
-      // amount is the integer-cents total for the line (unit price x quantity).
-      amount: Math.round((line.unit_amount || 0) * 100) * qty,
+      unit_amount_decimal: String(unitCents),
     });
   }
 
