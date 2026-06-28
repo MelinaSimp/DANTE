@@ -244,6 +244,15 @@ export default function InvoicesPage() {
             Create draft
           </button>
         </div>
+        {!canCreate && (
+          <p className="text-[11px] text-[var(--ink-subtle)] mt-2 text-right">
+            {!company.trim()
+              ? "Enter a company name to continue."
+              : !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())
+                ? "Enter a valid billing email."
+                : "Add a description and an amount over $0 to at least one line."}
+          </p>
+        )}
       </div>
 
       {/* Invoice list */}
