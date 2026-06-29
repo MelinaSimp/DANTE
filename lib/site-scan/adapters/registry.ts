@@ -18,6 +18,7 @@
 import { ArcGISCountyAdapter } from "./arcgis";
 import { OGRIP_OH } from "./configs/ogrip-oh";
 import { CUYAHOGA_OH } from "./configs/cuyahoga-oh";
+import { LAKE_OH } from "./configs/lake-oh";
 import { ALLEGHENY_PA } from "./configs/allegheny-pa";
 import { WESTMORELAND_PA } from "./configs/westmoreland-pa";
 import { BUTLER_PA } from "./configs/butler-pa";
@@ -76,6 +77,7 @@ import type { CountyAdapter, CountyAdapterConfig } from "./types";
 
 const COUNTY_CONFIGS: CountyAdapterConfig[] = [
   CUYAHOGA_OH,
+  LAKE_OH,
   ALLEGHENY_PA,
   WESTMORELAND_PA,
   BUTLER_PA,
