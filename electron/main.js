@@ -7,6 +7,7 @@ const {
   nativeImage,
   dialog,
   ipcMain,
+  powerMonitor,
 } = require("electron");
 const path = require("path");
 const fs = require("fs");
@@ -17,8 +18,20 @@ const device = require("./device");
 
 const isDev = process.env.NODE_ENV === "development";
 
-autoUpdater.autoDownload = true;
-autoUpdater.autoInstallOnAppQuit = true;
+// Auto-update only works where the bundle can be replaced in place. The macOS
+// build is ad-hoc signed (no Developer ID), so Squirrel.Mac cannot apply
+// updates — attempting it just throws "ZIP file not provided". Restrict
+// auto-download to Windows; mac users update by re-downloading from the site.
+autoUpdater.autoDownload = process.platform === "win32";
+autoUpdater.autoInstallOnAppQuit = process.platform === "win32";
+
+// Safety net: a stray updater rejection should never bubble up as unhandled.
+process.on("unhandledRejection", (reason) => {
+  console.error(
+    "[Drift] Unhandled rejection:",
+    reason && reason.message ? reason.message : reason,
+  );
+});
 autoUpdater.setFeedURL({
   provider: "generic",
   url: "https://driftai.studio/api/desktop-download",
@@ -132,17 +145,69 @@ function createWindow() {
     userAgent: `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36`,
   };
 
-  mainWindow.loadURL(APP_URL, loadOpts).catch((err) => {
-    console.error("[Drift] Load error:", err.message);
-    dialog.showErrorBox(
-      "Connection Error",
-      `Could not connect to ${APP_URL}.\n\nCheck your internet connection and try again.`
-    );
+  // Resilient load. The app often launches — or wakes from sleep — a beat
+  // before the network is ready, and a single failed loadURL used to dead-end
+  // on a blank window with a "Connection Error" box and no way back. Now we
+  // retry quietly with backoff and only surface a Retry/Quit choice after
+  // several failures; a successful load resets the counter.
+  let loadAttempts = 0;
+  let retryTimer = null;
+
+  function loadApp() {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.loadURL(APP_URL, loadOpts).catch((err) => {
+      console.error("[Drift] Load error:", err && err.message ? err.message : err);
+      scheduleRetry();
+    });
+  }
+
+  function scheduleRetry() {
+    if (retryTimer || !mainWindow || mainWindow.isDestroyed()) return;
+    loadAttempts += 1;
+    if (loadAttempts <= 8) {
+      const delay = Math.min(loadAttempts * 1000, 8000); // 1s,2s,…,8s
+      retryTimer = setTimeout(() => {
+        retryTimer = null;
+        loadApp();
+      }, delay);
+    } else {
+      dialog
+        .showMessageBox(mainWindow, {
+          type: "warning",
+          title: "Connection Error",
+          message: "Could not connect to Drift AI.",
+          detail: `Couldn't reach ${APP_URL}.\n\nCheck your internet connection.`,
+          buttons: ["Retry", "Quit"],
+          defaultId: 0,
+          cancelId: 1,
+        })
+        .then(({ response }) => {
+          if (response === 0) {
+            loadAttempts = 0;
+            loadApp();
+          } else {
+            app.quit();
+          }
+        })
+        .catch(() => {});
+    }
+  }
+
+  loadApp();
+
+  mainWindow.webContents.on("did-finish-load", () => {
+    loadAttempts = 0;
+  });
+  mainWindow.webContents.on("did-fail-load", (_e, code, desc, _url, isMainFrame) => {
+    if (code === -3 || !isMainFrame) return; // -3 = ERR_ABORTED (redirects etc.)
+    console.error(`[Drift] Load failed: ${code} ${desc}`);
+    scheduleRetry();
   });
 
-  mainWindow.webContents.on("did-fail-load", (_e, code, desc) => {
-    if (code === -3) return;
-    console.error(`[Drift] Load failed: ${code} ${desc}`);
+  // Reconnect when the Mac wakes from sleep (network returns after resume).
+  powerMonitor.on("resume", () => {
+    loadAttempts = 0;
+    loadApp();
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -699,7 +764,8 @@ app.whenReady().then(async () => {
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
-  if (!isDev) {
+  // Only auto-check for updates where auto-update can actually apply (Windows).
+  if (!isDev && process.platform === "win32") {
     autoUpdater.checkForUpdates().catch((e) =>
       console.error("[Drift updater] initial check failed:", e?.message || e)
     );
