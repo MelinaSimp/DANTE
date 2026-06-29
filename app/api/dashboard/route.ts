@@ -23,7 +23,6 @@ export async function GET() {
 
   const wid = profile.workspace_id;
 
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString();
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
 
   // Build workspace-scoped queries; for superadmins without a workspace,
@@ -48,10 +47,12 @@ export async function GET() {
     wid
       ? supabaseAdmin.from("conversations").select("id, created_at").eq("workspace_id", wid).gte("created_at", sevenDaysAgo)
       : supabaseAdmin.from("conversations").select("id, created_at").limit(0),
-    wsFilter(supabaseAdmin.from("sales_records").select("id, product, price, company_name, created_at, month, year")),
-    wid
-      ? supabaseAdmin.from("sales_records").select("id, price, created_at").eq("workspace_id", wid).gte("created_at", thirtyDaysAgo)
-      : supabaseAdmin.from("sales_records").select("id, price, created_at").limit(0),
+    // sales_records is a global, owner-level ledger (no workspace_id), shown
+    // only in Admin -> Analytics. It is intentionally NOT part of the
+    // per-workspace dashboard: kept empty so revenue widgets stay inert
+    // without erroring (42703) or leaking cross-workspace sales.
+    Promise.resolve({ data: [] as { price?: number; company_name?: string; month?: number; created_at?: string }[] }),
+    Promise.resolve({ data: [] as { price?: number; created_at?: string }[] }),
     wsFilter(supabaseAdmin.from("appointments").select("id, status, scheduled_at, created_at")),
     wid
       ? supabaseAdmin.from("appointments").select("id, contact_id, scheduled_at, service_type, status, notes").eq("workspace_id", wid).gte("scheduled_at", new Date().toISOString()).order("scheduled_at", { ascending: true }).limit(5)

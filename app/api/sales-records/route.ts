@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { hasSuperadminAccess } from "@/lib/superadmin";
 import { emitEvent } from "@/lib/automations";
 
 export const dynamic = "force-dynamic";
@@ -12,11 +13,14 @@ export async function GET() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("workspace_id, is_superadmin")
+    .select("is_superadmin")
     .eq("id", user.id)
     .maybeSingle();
 
-  if (!profile?.workspace_id && !profile?.is_superadmin) {
+  // sales_records is a global, owner-level revenue ledger (no workspace
+  // scoping) surfaced only in Admin -> Analytics. Restrict to superadmins so a
+  // regular workspace user can't read the whole platform's sales.
+  if (!hasSuperadminAccess(user.email, profile?.is_superadmin)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -51,6 +55,12 @@ export async function POST(request: NextRequest) {
   const supabase = await createServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { data: profile } = await supabase
+    .from("profiles").select("is_superadmin").eq("id", user.id).maybeSingle();
+  if (!hasSuperadminAccess(user.email, profile?.is_superadmin)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   try {
     const body = await request.json();
@@ -111,6 +121,12 @@ export async function DELETE(request: NextRequest) {
   const supabase = await createServerSupabase();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { data: profile } = await supabase
+    .from("profiles").select("is_superadmin").eq("id", user.id).maybeSingle();
+  if (!hasSuperadminAccess(user.email, profile?.is_superadmin)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   try {
     const { searchParams } = new URL(request.url);

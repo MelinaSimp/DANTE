@@ -43,7 +43,8 @@ const WORKSPACE_TABLES: Array<{ table: string; column: string }> = [
   { table: "knowledge_base", column: "workspace_id" },
   { table: "llm_guidelines", column: "workspace_id" },
   { table: "deployments", column: "workspace_id" },
-  { table: "sales_records", column: "workspace_id" },
+  // sales_records intentionally excluded: it is a global, owner-level ledger
+  // with no workspace_id (Admin -> Analytics), not per-workspace data.
   { table: "scheduled_emails", column: "workspace_id" },
   { table: "tasks", column: "workspace_id" },
   { table: "audit_logs", column: "workspace_id" },
