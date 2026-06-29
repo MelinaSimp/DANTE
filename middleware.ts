@@ -104,8 +104,25 @@ export async function middleware(req: NextRequest) {
   // availability — a Supabase outage won't block the entire app.
   // API routes still verify tokens server-side via getUser().
   if (isProtectedRoute || pathname === "/") {
-    const { data: { session } } = await supabase.auth.getSession();
+    // getSession() is meant to be a fast local JWT read, but an expired access
+    // token makes it fire a network token-refresh to Supabase. If Supabase is
+    // slow/degraded that refresh can hang 20s+ and the whole middleware
+    // invocation 504s (MIDDLEWARE_INVOCATION_TIMEOUT), walling off the app.
+    // Bound it: if auth can't resolve in 3s, fail OPEN and let the request
+    // through — the page does its own server-side auth and the client refreshes
+    // the session once Supabase recovers. A Supabase blip should degrade the
+    // app, never take it down with a 504.
+    const TIMED_OUT = Symbol("auth-timeout");
+    const sessionResult = await Promise.race([
+      supabase.auth.getSession().catch(() => ({ data: { session: null } })),
+      new Promise((resolve) => setTimeout(() => resolve(TIMED_OUT), 3000)),
+    ]);
 
+    if (sessionResult === TIMED_OUT) {
+      return response;
+    }
+
+    const session = (sessionResult as { data: { session: unknown } }).data.session;
     if (!session) {
       const target = pathname === "/" ? "/download" : "/auth";
       return NextResponse.redirect(new URL(target, req.url));
