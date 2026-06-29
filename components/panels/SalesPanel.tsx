@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { FileText, Phone, Plus, Trash2, Loader2, Play, PhoneCall, Square, ChevronDown, ChevronUp } from "lucide-react";
 import { reportError } from "@/lib/report-error";
+import { useFeatures } from "@/hooks/useFeatures";
 
 interface CallLogEntry {
   id: string;
@@ -19,6 +20,8 @@ const STATUS_LABELS: Record<string, string> = { completed: "Completed", "no-answ
 const STATUS_COLORS: Record<string, string> = { completed: "bg-green-100 text-green-700", "no-answer": "bg-red-100 text-red-700", voicemail: "bg-yellow-100 text-yellow-700", "in-progress": "bg-cyan-100 text-cyan-700" };
 
 export default function SalesPanel({ agentId }: { agentId: string }) {
+  const { hasFeature, loading: featuresLoading } = useFeatures();
+  const outboundEnabled = hasFeature("outbound_voice");
   const [salesScript, setSalesScript] = useState("");
   const [phoneNumbers, setPhoneNumbers] = useState<string[]>([]);
   const [callLog, setCallLog] = useState<CallLogEntry[]>([]);
@@ -104,7 +107,7 @@ export default function SalesPanel({ agentId }: { agentId: string }) {
   };
 
   const handleStartCalling = async () => {
-    if (phoneNumbers.length === 0) return;
+    if (phoneNumbers.length === 0 || !outboundEnabled) return;
     setCalling(true); stopRef.current = false; setCallError(null);
 
     for (let i = 0; i < phoneNumbers.length; i++) {
@@ -222,10 +225,13 @@ export default function SalesPanel({ agentId }: { agentId: string }) {
             </div>
           )}
           {callError && <div className="mt-2 px-3 py-2 rounded-xl bg-red-50 border border-red-100 text-xs text-red-600">{callError}</div>}
+          {!outboundEnabled && !featuresLoading && (
+            <div className="mt-2 px-3 py-2 rounded-xl bg-amber-50 border border-amber-100 text-xs text-amber-700">Outbound Voice add-on is not enabled for this workspace.</div>
+          )}
           {calling ? (
             <button onClick={() => { stopRef.current = true; }} className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 text-white text-sm font-medium hover:bg-red-700"><Square className="w-4 h-4" />Stop</button>
           ) : (
-            <button onClick={handleStartCalling} disabled={phoneNumbers.length === 0} className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-cyan-600 text-white text-sm font-medium hover:bg-cyan-700 disabled:opacity-40"><Play className="w-4 h-4" />Start Calling</button>
+            <button onClick={handleStartCalling} disabled={phoneNumbers.length === 0 || !outboundEnabled} className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-cyan-600 text-white text-sm font-medium hover:bg-cyan-700 disabled:opacity-40"><Play className="w-4 h-4" />Start Calling</button>
           )}
         </div>
       </div>

@@ -3,6 +3,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { createOutboundCall, getCall } from "@/lib/vapi/client";
 import { requireActiveBilling } from "@/lib/billing/gate";
+import { hasWorkspaceFeature } from "@/lib/features/server";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ age
 
   const gate = await requireActiveBilling(agent.workspace_id);
   if (!gate.ok) return gate.response;
+
+  // Feature gate — Outbound Voice is a paid add-on. No outbound call can be
+  // placed unless the workspace has it enabled.
+  if (!(await hasWorkspaceFeature(agent.workspace_id, "outbound_voice"))) {
+    return NextResponse.json(
+      { error: "Outbound Voice is not enabled for this workspace." },
+      { status: 403 },
+    );
+  }
 
   if (!agent.vapi_assistant_id || !agent.vapi_phone_number_id) {
     return NextResponse.json({
