@@ -193,10 +193,23 @@ function createWindow() {
     }
   }
 
+  let lastHttpCode = 0;
+
   loadApp();
 
+  // A 5xx from the server (e.g. a transient Vercel 504 middleware timeout) does
+  // NOT fire did-fail-load — the error page "loads" successfully. Treat it as a
+  // retriable failure so the app self-heals instead of stranding the user on a
+  // raw error page.
+  mainWindow.webContents.on("did-navigate", (_e, _url, httpResponseCode) => {
+    lastHttpCode = httpResponseCode || 0;
+    if (lastHttpCode >= 500) {
+      console.error(`[Drift] Server returned ${lastHttpCode}; retrying`);
+      scheduleRetry();
+    }
+  });
   mainWindow.webContents.on("did-finish-load", () => {
-    loadAttempts = 0;
+    if (lastHttpCode < 500) loadAttempts = 0; // reset backoff only on a real success
   });
   mainWindow.webContents.on("did-fail-load", (_e, code, desc, _url, isMainFrame) => {
     if (code === -3 || !isMainFrame) return; // -3 = ERR_ABORTED (redirects etc.)
