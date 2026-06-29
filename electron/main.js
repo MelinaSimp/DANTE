@@ -113,7 +113,7 @@ function createWindow() {
     visualEffectState: "active",
     backgroundColor: "#00000000",
     show: false,
-    icon: path.join(__dirname, "../public/brand/logo-circle.png"),
+    icon: path.join(__dirname, "../public/brand/Drift.png"),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -172,11 +172,17 @@ function createWindow() {
 }
 
 function createTray() {
-  const iconPath = path.join(__dirname, "../public/brand/logo-circle.png");
+  const isMac = process.platform === "darwin";
+  // mac: monochrome menu-bar template image. win/linux: full-colour brand icon —
+  // setTemplateImage there renders the icon as a black blob, so guard it to mac.
+  const iconPath = path.join(
+    __dirname,
+    isMac ? "../public/brand/logo-circle.png" : "../public/brand/Drift.png",
+  );
   let icon = nativeImage.createFromPath(iconPath);
   if (icon.isEmpty()) return;
-  icon = icon.resize({ width: 18, height: 18 });
-  icon.setTemplateImage(true);
+  icon = icon.resize({ width: isMac ? 18 : 16, height: isMac ? 18 : 16 });
+  if (isMac) icon.setTemplateImage(true);
 
   tray = new Tray(icon);
   tray.setToolTip("Drift AI");

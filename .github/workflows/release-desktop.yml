@@ -1,5 +1,11 @@
 name: Release desktop app
 
+# Two modes:
+#   * Manual run (Actions tab -> Run workflow): builds mac + win and uploads the
+#     installers as downloadable artifacts. Nothing is published — use this to
+#     TEST a Windows/macOS build.
+#   * Push a `desktop-v*` tag: builds and publishes to a GitHub Release, writing
+#     the latest*.yml update feeds (enables auto-update).
 on:
   push:
     tags:
@@ -12,6 +18,7 @@ permissions:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
@@ -26,15 +33,43 @@ jobs:
       - name: Install deps
         run: npm ci
 
-      - name: Build and publish (macOS)
+      # Tag build -> publish a release; manual build -> artifacts only.
+      - name: Determine publish mode
+        id: mode
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/desktop-v* ]]; then
+            echo "publish=always" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=never" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build (macOS)
         if: matrix.os == 'macos-latest'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # No Apple Developer ID — ad-hoc sign, skip notarization (scripts/notarize.js
+          # no-ops without APPLE_* secrets).
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: npx electron-builder --mac --arm64 --x64 --publish always
+        run: npx electron-builder --mac --arm64 --x64 --publish ${{ steps.mode.outputs.publish }}
 
-      - name: Build and publish (Windows)
+      - name: Build (Windows)
         if: matrix.os == 'windows-latest'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --win --x64 --publish always
+          # No Windows code-signing cert — produces an unsigned installer
+          # (SmartScreen will warn until a cert is added via WIN_CSC_LINK).
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npx electron-builder --win --x64 --publish ${{ steps.mode.outputs.publish }}
+
+      - name: Upload installers (manual builds)
+        if: steps.mode.outputs.publish == 'never'
+        uses: actions/upload-artifact@v4
+        with:
+          name: drift-desktop-${{ matrix.os }}
+          path: |
+            dist-electron/*.dmg
+            dist-electron/*.exe
+            dist-electron/*.blockmap
+            dist-electron/latest*.yml
+          if-no-files-found: ignore
