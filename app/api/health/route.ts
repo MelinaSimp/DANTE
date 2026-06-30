@@ -9,6 +9,7 @@ import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 10;
 
 interface Check {
   name: string;
@@ -33,8 +34,15 @@ export async function GET() {
       const sb = createClient(sbUrl, sbKey, {
         auth: { persistSession: false, autoRefreshToken: false },
       });
-      // Simple query that touches the DB without needing RLS
-      const { error } = await sb.from("workspaces").select("id").limit(1);
+      // Bound the probe with a 3s timeout. Without this, a hung Supabase — the
+      // exact outage this endpoint exists to catch — makes the health check
+      // itself hang instead of cleanly reporting "degraded".
+      const { error } = (await Promise.race([
+        sb.from("workspaces").select("id").limit(1),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("supabase probe timed out (3000ms)")), 3000),
+        ),
+      ])) as { error: unknown };
       if (error) throw error;
       checks.push({ name: "supabase", ok: true, latency_ms: Date.now() - t0 });
     } catch (err) {
