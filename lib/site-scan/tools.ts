@@ -75,8 +75,15 @@ export async function handleSiteScanSearch(
   }
   const zoningConfig = adapter.config.zoningClassMap;
 
-  // Resolve natural-language zoning ("retail") to codes
-  let zoningCodes = args.zoning;
+  // Resolve natural-language zoning ("retail") to codes. Callers pass
+  // either an array or a bare string (workflow nodes, direct API use) —
+  // normalize before mapping so a string doesn't crash the search.
+  const rawZoning = args.zoning as unknown;
+  let zoningCodes = Array.isArray(rawZoning)
+    ? (rawZoning as string[])
+    : typeof rawZoning === "string" && rawZoning.trim()
+      ? [rawZoning.trim()]
+      : undefined;
   if (zoningCodes && zoningConfig) {
     zoningCodes = zoningCodes.flatMap((z) => {
       const mapped = zoningConfig[z.toLowerCase()];

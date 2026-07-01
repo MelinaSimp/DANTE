@@ -12,7 +12,6 @@ import {
   MapPin,
   Workflow,
   Shield,
-  Phone,
   Building2,
   ArrowRight,
   Layers,
@@ -87,17 +86,6 @@ const CAPABILITIES = [
     ],
   },
   {
-    icon: Phone,
-    title: "Voice AI",
-    body: "Inbound call handling for your brokerage. Dante answers, qualifies the caller, books meetings, and logs the transcript to the contact timeline.",
-    bullets: [
-      "24/7 call answering with natural voice",
-      "Caller qualification and routing",
-      "Meeting booking via calendar integration",
-      "Full transcript in the contact record",
-    ],
-  },
-  {
     icon: Shield,
     title: "Compliance and privacy",
     body: "SOC 2 in progress via EasyAudit. Local-only processing mode runs models on-device so content never leaves the laptop.",
@@ -140,7 +128,6 @@ const TIERS = [
       "Autonomous agents with supervisor queue",
       "MCP server integrations",
       "Void analysis and site scanning",
-      "Voice AI inbound call handling",
       "Priority support",
       "Up to 5 seats",
     ],
@@ -205,7 +192,6 @@ const jsonLd = {
     "50-state parcel analytics",
     "Autonomous workflow engine",
     "Citation-grounded search",
-    "Voice AI for inbound calls",
     "Comparable rent and sale analysis",
   ],
 };

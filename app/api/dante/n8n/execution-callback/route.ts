@@ -75,41 +75,81 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, matched: false });
   }
 
-  // Upsert execution record into dante_workflow_runs
-  const runRecord = {
-    workflow_id: driftWorkflow.id,
-    workspace_id: driftWorkflow.workspace_id,
-    status: status === "success" ? "completed" : "failed",
-    started_at: started_at || new Date().toISOString(),
-    finished_at: finished_at || new Date().toISOString(),
-    result: {
-      n8n_execution_id,
-      status,
-      output: result_summary || null,
-      error: error_message || null,
-    },
+  // Close out the run row. The run route inserts a `running` row when it
+  // fires the webhook, but n8n's onReceived webhook response carries no
+  // execution id — that row's n8n_execution_id is "unknown". So matching
+  // by n8n_execution_id alone can never find it (and the old upsert on a
+  // non-unique column failed outright, leaving runs stuck on "running"
+  // forever). Match the open running row for this workflow instead, and
+  // only insert a fresh row when there isn't one (cron/webhook-triggered
+  // executions that never went through the run route).
+  // NB: dante_workflow_runs has a CHECK constraint allowing only
+  // queued/running/success/error/cancelled/waiting_approval — writing
+  // "completed"/"failed" (the old behavior) violates it and the write
+  // silently dies, leaving the run stuck on "running".
+  const terminalStatus = status === "success" ? "success" : "error";
+  const resultPayload = {
     n8n_execution_id,
+    status,
+    output: result_summary || null,
+    error: error_message || null,
   };
 
-  const { error: upsertErr } = await supabaseAdmin
+  const { data: openRun } = await supabaseAdmin
     .from("dante_workflow_runs")
-    .upsert(runRecord, {
-      onConflict: "n8n_execution_id",
-      ignoreDuplicates: false,
-    });
+    .select("id")
+    .eq("workflow_id", driftWorkflow.id)
+    .eq("status", "running")
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-  if (upsertErr) {
-    callbackLog.error(
-      "failed to upsert run record",
-      { err: upsertErr.message, n8n_execution_id },
-    );
-    // Still return 200 so n8n does not retry
+  if (openRun) {
+    const { error: updateErr } = await supabaseAdmin
+      .from("dante_workflow_runs")
+      .update({
+        status: terminalStatus,
+        finished_at: finished_at || new Date().toISOString(),
+        result: resultPayload,
+        n8n_execution_id,
+        error: error_message || null,
+      })
+      .eq("id", openRun.id);
+    if (updateErr) {
+      callbackLog.error(
+        "failed to close open run",
+        { err: updateErr.message, run_id: openRun.id, n8n_execution_id },
+      );
+    }
+  } else {
+    const { error: insertErr } = await supabaseAdmin
+      .from("dante_workflow_runs")
+      .insert({
+        workflow_id: driftWorkflow.id,
+        workspace_id: driftWorkflow.workspace_id,
+        status: terminalStatus,
+        started_at: started_at || new Date().toISOString(),
+        finished_at: finished_at || new Date().toISOString(),
+        result: resultPayload,
+        n8n_execution_id,
+        error: error_message || null,
+      });
+    if (insertErr) {
+      callbackLog.error(
+        "failed to insert run record",
+        { err: insertErr.message, n8n_execution_id },
+      );
+      // Still return 200 so n8n does not retry
+    }
   }
 
-  // Update last_run_at on the workflow
+  // Update last-run bookkeeping on the workflow
   await supabaseAdmin
     .from("dante_workflows")
-    .update({ last_run_at: finished_at || new Date().toISOString() })
+    .update({
+      last_run_at: finished_at || new Date().toISOString(),
+      last_run_status: status === "success" ? "success" : "error",
+    })
     .eq("id", driftWorkflow.id);
 
   // If error, notify workspace owner (same pattern as existing run-executor)

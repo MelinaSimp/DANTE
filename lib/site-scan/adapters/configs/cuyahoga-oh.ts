@@ -38,6 +38,8 @@ export const CUYAHOGA_OH: CountyAdapterConfig = {
     industrial: ["GI", "SI", "M-1", "M-2", "M-3", "IL", "IH"],
     residential: ["R1", "R2", "R3", "RA1", "RA2", "RES", "MF"],
     office: ["O-1", "O-2", "SO", "GO"],
+    // Broker-speak alias: "commercial" = retail + office zones.
+    commercial: ["C-1", "C-2", "C-3", "C-4", "CC", "GR", "RA", "GB", "LB", "O-1", "O-2", "SO", "GO"],
     mixed_use: ["MU", "PUD", "SD", "PD"],
     vacant: ["VAC"],
   },

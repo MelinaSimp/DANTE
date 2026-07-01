@@ -10,8 +10,8 @@ import AppShell from "@/components/shell/AppShell";
 import AgentRosterClient from "./AgentRosterClient";
 
 export const metadata: Metadata = {
-  title: "Voice AI — Drift AI",
-  description: "Configure and manage voice agents that handle inbound calls for your brokerage.",
+  title: "Agents — Drift AI",
+  description: "Configure and manage the agents that work your brokerage's chat, email, and workflows.",
 };
 
 export const dynamic = "force-dynamic";

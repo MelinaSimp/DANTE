@@ -47,6 +47,9 @@ export function convertDriftToN8n(
   const unmappedTypes: string[] = [];
   const nodes: N8nNode[] = [];
   const nameMap = new Map<string, string>(); // drift id → n8n node name
+  // Report-to-Drift nodes skipped during pass-through (re-added fresh at
+  // the end). Edges pointing at them must not count when finding leaves.
+  const skippedReportIds = new Set<string>();
 
   // ── Approach B: fold agent sub-nodes into the agent's config ──
   // chat_model / agent_memory / agent_tool are a visual/config layer.
@@ -75,6 +78,59 @@ export function convertDriftToN8n(
   for (const gNode of graph.nodes) {
     if (subNodeIds.has(gNode.id)) continue; // folded into the agent above
     const driftType = gNode.type || (gNode.data?.step?.type as string) || "";
+
+    // Round-trip pass-through: graphs that were cloned from n8n JSON and
+    // re-saved by the canvas editor carry n8n node types directly
+    // ("n8n-nodes-base.webhook", "n8n-nodes-drift-cre.driftLeaseAbstractor",
+    // "@n8n/n8n-nodes-langchain.openAi"). Those must NOT go through the
+    // Drift→n8n mapping table — they already are n8n nodes. Dropping them
+    // (the old behavior) collapsed real workflows into an empty webhook +
+    // Report-to-Drift shell that n8n refuses to register a webhook for.
+    const isAlreadyN8nType =
+      driftType.startsWith("n8n-nodes-") || driftType.startsWith("@n8n/");
+    if (isAlreadyN8nType) {
+      const step = gNode.data?.step;
+      const params = (step?.config ||
+        (gNode as unknown as Record<string, unknown>).parameters ||
+        {}) as Record<string, unknown>;
+      const rawName = step?.name || gNode.id;
+
+      // The editor re-saves the auto-added completion callback too —
+      // skip it here; the converter appends a fresh one below.
+      const isReportToDrift =
+        gNode.id === "report-to-drift" ||
+        (typeof params.url === "string" &&
+          params.url.includes("/api/dante/n8n/execution-callback"));
+      if (isReportToDrift) {
+        skippedReportIds.add(gNode.id);
+        continue;
+      }
+
+      let uniqueName = rawName;
+      let counter = 1;
+      const usedNames = new Set(nodes.map((n) => n.name));
+      while (usedNames.has(uniqueName)) {
+        uniqueName = `${rawName} ${++counter}`;
+      }
+      nameMap.set(gNode.id, uniqueName);
+
+      const n8nNode: N8nNode = {
+        id: gNode.id,
+        name: uniqueName,
+        type: driftType,
+        typeVersion:
+          (gNode as unknown as Record<string, unknown>).typeVersion as number ??
+          getTypeVersion(driftType),
+        position: [gNode.position?.x ?? 80, gNode.position?.y ?? 80],
+        parameters: params,
+      };
+      if (DRIFT_CRE_NODE_TYPES.has(driftType) || driftType.startsWith("n8n-nodes-drift-cre.")) {
+        n8nNode.credentials = { driftCreApi: { id: "1", name: "Drift CRE" } };
+      }
+      nodes.push(n8nNode);
+      continue;
+    }
+
     const n8nType = DRIFT_TO_N8N_NODE_TYPE[driftType];
 
     if (!n8nType) {
@@ -192,8 +248,14 @@ export function convertDriftToN8n(
   nodes.push(reportNode);
 
   // Connect last action node(s) to Report to Drift
-  // Find leaf nodes (nodes with no outgoing edges)
-  const sourcesWithEdges = new Set(graph.edges.map((e) => e.source));
+  // Find leaf nodes (nodes with no outgoing edges). Edges that pointed at
+  // a skipped Report-to-Drift node don't count — their source is still a
+  // leaf and must be wired to the freshly added Report node.
+  const sourcesWithEdges = new Set(
+    graph.edges
+      .filter((e) => !skippedReportIds.has(e.target))
+      .map((e) => e.source),
+  );
   const leafNodes = graph.nodes.filter((n) => !sourcesWithEdges.has(n.id));
   for (const leaf of leafNodes) {
     const leafName = nameMap.get(leaf.id);
@@ -456,14 +518,16 @@ function convertTemplateExpr(text: string): string {
     (_match, key: string) => `={{$env.${key.toUpperCase()}}}`,
   );
 
-  // {{steps.trigger.input.fieldName}} → ={{ $json.fieldName }}
-  // Per-execution input data: n8n exposes API-supplied data as $json on
-  // the trigger node's output. Must precede the generic steps.id.field
-  // rule below, otherwise "steps.trigger.input.X" gets caught by the
-  // generic pattern and mapped incorrectly.
+  // {{steps.trigger.input.fieldName}} → ={{ $json.body.fieldName }}
+  // Drift triggers become webhook (typeVersion 2) nodes, and webhook v2
+  // nests the POST payload under `body` ({headers, params, query, body}).
+  // Mapping to bare $json.fieldName silently resolves to undefined and
+  // downstream nodes fail with "<param> is required". Must precede the
+  // generic steps.id.field rule below, otherwise "steps.trigger.input.X"
+  // gets caught by the generic pattern and mapped incorrectly.
   result = result.replace(
     /\{\{\s*steps\.trigger\.input\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g,
-    (_match, field: string) => `={{ $json.${field} }}`,
+    (_match, field: string) => `={{ $json.body.${field} }}`,
   );
 
   // {{steps.id.field}} → ={{ $node["id"].json.field }}

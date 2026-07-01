@@ -58,8 +58,14 @@ export async function POST(req: NextRequest) {
     .eq("workspace_id", ws)
     .maybeSingle<{ id: string; title: string | null; file_url: string | null; file_type: string | null }>();
   if (!item) return NextResponse.json({ error: "Vault item not found" }, { status: 404 });
-  if (!item.file_url || !isSpreadsheet(item.file_type)) {
+  if (!isSpreadsheet(item.file_type)) {
     return NextResponse.json({ error: "Vault item is not a spreadsheet rent roll." }, { status: 422 });
+  }
+  if (!item.file_url) {
+    return NextResponse.json(
+      { error: "The original file for this vault item is no longer stored (text-only ingestion or raw file purged). Re-upload the rent roll to underwrite it." },
+      { status: 422 },
+    );
   }
 
   let buffer: Buffer;

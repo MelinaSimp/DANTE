@@ -61,22 +61,9 @@ export const FEATURE_DEFINITIONS = {
   },
 
   // ── Add-ons — billed on top of $400/mo base ───────────────────
-  ai_receptionist: {
-    id: "ai_receptionist",
-    name: "AI Voice Receptionist",
-    description:
-      "Vapi-powered always-on inbound voice agent on a dedicated number. Includes 200 minutes/mo; overage at $0.15/min.",
-    tier: "addon",
-    monthly_price: 200,
-  },
-  outbound_voice: {
-    id: "outbound_voice",
-    name: "Outbound Voice",
-    description:
-      "D/V making outbound calls on the user's behalf — appointment confirmations, callbacks. 100 minutes/mo included; overage at $0.20/min.",
-    tier: "addon",
-    monthly_price: 150,
-  },
+  // Voice add-ons (ai_receptionist, outbound_voice) removed 2026-07-01:
+  // voice AI is no longer part of the product. Stale IDs in workspace
+  // enabled_features arrays are dropped by getEnabledFeatures().
   compliance_plus: {
     id: "compliance_plus",
     name: "Compliance Plus (LLM scan)",

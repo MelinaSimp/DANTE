@@ -6,7 +6,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import {
   PanelLeft,
-  Mic,
   FolderClosed,
   LogOut,
   ShieldCheck,
@@ -98,7 +97,6 @@ export default function AppSidebar({
         { href: "/autopilot", label: "Autopilot", icon: Radar },
         { href: "/vault", label: "Vault", icon: FolderClosed },
         { href: "/watched-folders", label: "Watched Folders", icon: FolderSync },
-        { href: "/agent", label: "Voice", icon: Mic },
         { href: "/audit", label: "Audit Log", icon: FileSearch },
       ],
     },

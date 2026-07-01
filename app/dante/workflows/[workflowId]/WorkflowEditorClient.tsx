@@ -116,6 +116,19 @@ function newId(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+// Short relative timestamp for the header subtitle ("2m ago", "3h ago").
+function timeAgoShort(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  if (!Number.isFinite(diff) || diff < 0) return "just now";
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return days < 30 ? `${days}d ago` : `${Math.floor(days / 30)}mo ago`;
+}
+
 function graphToFlow(graph: WorkflowGraph): {
   nodes: DanteRFNode[];
   edges: RFEdge[];
@@ -1181,6 +1194,9 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
           ...((e.data ?? {}) as Record<string, unknown>),
           itemCount: srcEntry ? getItemCount(srcEntry.output) : null,
           isExecuting: isRunning,
+          // At-rest run tint: edges downstream of a succeeded/failed step
+          // pick up the status color (the green dashed look from the design).
+          runStatus: !isRunning && srcEntry ? (srcEntry.status as string) : null,
         },
       };
     }));
@@ -1283,7 +1299,7 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
   }, []);
 
   return (
-    <div className="min-h-screen flex flex-col bg-[var(--canvas)]">
+    <div className="h-full min-h-0 flex flex-col overflow-hidden bg-[var(--canvas)]">
       {/* Top bar — n8n-style: back + name left, tools center, actions right */}
       <div className="sticky top-0 z-30 flex items-center h-[50px] px-3 bg-[var(--canvas)] border-b border-[var(--rule)]">
         {/* Left: back + name */}
@@ -1293,11 +1309,17 @@ export default function WorkflowEditorClient({ workflow }: { workflow: WorkflowR
             <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
           </Link>
           <div className="w-px h-5 bg-[var(--rule)]" />
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="text-sm font-semibold text-[var(--ink)] bg-transparent border-none focus:outline-none focus:bg-[var(--canvas-subtle)] rounded-[4px] px-2 py-1 max-w-[240px]"
-          />
+          <div className="flex flex-col min-w-0">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="text-sm font-semibold text-[var(--ink)] bg-transparent border-none focus:outline-none focus:bg-[var(--canvas-subtle)] rounded-[4px] px-2 py-0.5 max-w-[240px]"
+            />
+            <span className="mono px-2 text-[9px] uppercase tracking-wide text-[var(--ink-subtle)] whitespace-nowrap">
+              {nodes.length} node{nodes.length === 1 ? "" : "s"}
+              {workflow.last_run_at ? ` · last run ${timeAgoShort(workflow.last_run_at)}` : " · never run"}
+            </span>
+          </div>
           {saveStatus === "saved" && (
             <span className="text-[10px] text-[var(--verified)] flex items-center gap-1">
               <CheckCircle2 className="w-3 h-3" strokeWidth={1.5} /> Saved

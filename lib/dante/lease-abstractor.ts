@@ -117,44 +117,114 @@ async function callClaude(
   prompt: string,
   opts: { maxTokens?: number; temperature?: number } = {},
 ): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-6",
-      max_tokens: opts.maxTokens ?? 12000,
-      temperature: opts.temperature ?? 0.1,
-      messages: [{ role: "user", content: prompt }],
-    }),
-  });
+  // Two failure modes shaped this implementation:
+  //  - Truncated output (stop_reason max_tokens) breaks the JSON passes
+  //    with mid-array parse errors → on truncation retry once with double
+  //    the budget rather than handing garbage downstream.
+  //  - Long generations (10k+ tokens) exceed Node fetch's (undici's)
+  //    ~300s header/body timeouts on non-streaming requests → "fetch
+  //    failed" after minutes of work. Streaming keeps bytes flowing so
+  //    the socket never idles out.
+  let maxTokens = opts.maxTokens ?? 12000;
+  let totals = { inputTokens: 0, outputTokens: 0 };
 
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Anthropic API error (${response.status}): ${errText}`);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: maxTokens,
+        temperature: opts.temperature ?? 0.1,
+        stream: true,
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+
+    if (!response.ok || !response.body) {
+      const errText = await response.text().catch(() => "");
+      throw new Error(`Anthropic API error (${response.status}): ${errText}`);
+    }
+
+    // Accumulate SSE events: text deltas, usage, and stop_reason.
+    let text = "";
+    let stopReason: string | null = null;
+    let inputTokens = 0;
+    let outputTokens = 0;
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        if (!line.startsWith("data:")) continue;
+        const payload = line.slice(5).trim();
+        if (!payload || payload === "[DONE]") continue;
+        let evt: Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+        try { evt = JSON.parse(payload); } catch { continue; }
+        if (evt.type === "content_block_delta" && evt.delta?.type === "text_delta") {
+          text += evt.delta.text ?? "";
+        } else if (evt.type === "message_start") {
+          inputTokens = evt.message?.usage?.input_tokens ?? 0;
+        } else if (evt.type === "message_delta") {
+          stopReason = evt.delta?.stop_reason ?? stopReason;
+          outputTokens = evt.usage?.output_tokens ?? outputTokens;
+        } else if (evt.type === "error") {
+          throw new Error(`Anthropic stream error: ${JSON.stringify(evt.error)}`);
+        }
+      }
+    }
+
+    totals = {
+      inputTokens: totals.inputTokens + inputTokens,
+      outputTokens: totals.outputTokens + outputTokens,
+    };
+
+    if (stopReason === "max_tokens" && attempt === 0) {
+      maxTokens = Math.min(maxTokens * 2, 32000);
+      continue;
+    }
+
+    return { text: text.trim(), ...totals };
   }
 
-  const data = await response.json();
-  const text = (data.content || [])
-    .filter((b: { type: string }) => b.type === "text")
-    .map((b: { text?: string }) => b.text || "")
-    .join("")
-    .trim();
-
-  return {
-    text,
-    inputTokens: data.usage?.input_tokens ?? 0,
-    outputTokens: data.usage?.output_tokens ?? 0,
-  };
+  // Unreachable (loop always returns on attempt 1), but satisfies TS.
+  throw new Error("callClaude: exhausted retries");
 }
 
 export function parseJSON(raw: string): unknown {
+  // Closed fence: take the fenced body.
   const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
-  const jsonStr = fenced ? fenced[1].trim() : raw.trim();
-  return JSON.parse(jsonStr);
+  let jsonStr = fenced ? fenced[1].trim() : raw.trim();
+
+  // Unclosed fence (max-tokens truncation, or prose after the block):
+  // strip a leading ```json line if the closing fence never matched.
+  if (!fenced && jsonStr.startsWith("```")) {
+    jsonStr = jsonStr.replace(/^```(?:json)?\s*/, "").trim();
+  }
+
+  try {
+    return JSON.parse(jsonStr);
+  } catch (err) {
+    // Last resort: extract the outermost JSON value. Models sometimes
+    // wrap the payload in prose ("Here is the analysis: {...} Hope that
+    // helps") — slice from the first opening brace/bracket to the last
+    // closing one and retry before giving up.
+    const start = jsonStr.search(/[{[]/);
+    const end = Math.max(jsonStr.lastIndexOf("}"), jsonStr.lastIndexOf("]"));
+    if (start >= 0 && end > start) {
+      return JSON.parse(jsonStr.slice(start, end + 1));
+    }
+    throw err;
+  }
 }
 
 /**

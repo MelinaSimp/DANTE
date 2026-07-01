@@ -1,8 +1,10 @@
 // app/agent/AgentRosterClient.tsx
 //
-// Workspace voice/chat agent management. Voice agents talk to clients
-// and answer calls; per-agent config (persona/rules, knowledge base,
-// voice/model) lives at /agent/[id] via the "Configure" button.
+// Workspace agent management (chat/email). Voice modality was removed
+// from the product 2026-07-01; existing voice agents still render (so
+// nothing silently disappears for workspaces that had them) but new
+// agents are chat-only. Per-agent config (persona/rules, knowledge
+// base, model) lives at /agent/[id] via the "Configure" button.
 //
 // The legacy autonomous CRM agents (Revenue Analyzer, Churn Risk
 // Detector, etc.) were removed — that surface duplicated Autopilot and
@@ -92,14 +94,14 @@ export default function AgentsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Voice agent creation
+  // Agent creation
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createName, setCreateName] = useState("");
   const [createDescription, setCreateDescription] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
-  const createVoiceAgent = async () => {
+  const createAgent = async () => {
     const name = createName.trim();
     if (!name) return;
     setCreating(true);
@@ -111,7 +113,7 @@ export default function AgentsPage() {
         credentials: "include",
         body: JSON.stringify({
           name,
-          modality: "voice",
+          modality: "chat",
           description: createDescription.trim() || undefined,
         }),
       });
@@ -204,7 +206,7 @@ export default function AgentsPage() {
           <span className="text-xs text-[var(--ink-subtle)]">/</span>
           <span className="label-section text-xs">Workspace</span>
           <span className="text-xs text-[var(--ink-subtle)]">/</span>
-          <span className="text-xs text-[var(--ink)]">Voice</span>
+          <span className="text-xs text-[var(--ink)]">Agents</span>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={refreshAll} disabled={refreshing}
@@ -231,10 +233,10 @@ export default function AgentsPage() {
         <div className="flex items-start justify-between mb-8 flex-wrap gap-4">
           <div>
             <div className="label-section mb-2">Workspace</div>
-            <h1 className="heading-display text-4xl text-[var(--ink)] mb-2">Voice Agents</h1>
+            <h1 className="heading-display text-4xl text-[var(--ink)] mb-2">Agents</h1>
             <p className="text-sm text-[var(--ink-muted)] max-w-2xl">
-              Voice and chat agents that talk to your clients and answer calls. Configure
-              each one&apos;s persona, model, voice, and knowledge base.
+              Chat and email agents that work your clients and workflows. Configure
+              each one&apos;s persona, model, and knowledge base.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -285,7 +287,7 @@ export default function AgentsPage() {
           <div className="mt-10 card-flat p-6">
             <div className="flex items-center gap-2 mb-5">
               <Layers className="h-4 w-4 text-[var(--ink-muted)]" strokeWidth={1.5} />
-              <h2 className="text-base font-semibold text-[var(--ink)]">Voice &amp; chat performance</h2>
+              <h2 className="text-base font-semibold text-[var(--ink)]">Agent performance</h2>
             </div>
             <div className="space-y-3">
               {crmAgents.map((agent) => (
@@ -322,10 +324,10 @@ export default function AgentsPage() {
             >
               <X className="h-4 w-4" strokeWidth={1.5} />
             </button>
-            <div className="label-section mb-2">New voice agent</div>
-            <h2 className="heading-display text-2xl text-[var(--ink)] mb-1">Create a voice agent</h2>
+            <div className="label-section mb-2">New agent</div>
+            <h2 className="heading-display text-2xl text-[var(--ink)] mb-1">Create an agent</h2>
             <p className="text-xs text-[var(--ink-muted)] mb-5">
-              Name it now, configure persona, model, and voice on the next screen.
+              Name it now, configure persona and model on the next screen.
             </p>
 
             <label className="block mb-4">
@@ -337,7 +339,7 @@ export default function AgentsPage() {
                 placeholder="e.g. Riley"
                 className="w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && createName.trim() && !creating) createVoiceAgent();
+                  if (e.key === "Enter" && createName.trim() && !creating) createAgent();
                 }}
               />
             </label>
@@ -347,7 +349,7 @@ export default function AgentsPage() {
               <input
                 value={createDescription}
                 onChange={(e) => setCreateDescription(e.target.value)}
-                placeholder="Voice agent for Acme Realty"
+                placeholder="Agent for Acme Realty"
                 className="w-full rounded-[4px] border border-[var(--rule)] bg-[var(--canvas)] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
               />
             </label>
@@ -365,7 +367,7 @@ export default function AgentsPage() {
                 Cancel
               </button>
               <button
-                onClick={createVoiceAgent}
+                onClick={createAgent}
                 disabled={!createName.trim() || creating}
                 className="inline-flex items-center gap-2 px-5 py-2 rounded-[4px] bg-[var(--ink)] hover:opacity-90 text-[var(--canvas)] text-sm font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed"
               >
@@ -403,9 +405,9 @@ function UnifiedRoster({
           <div className="border border-[var(--rule)] bg-[var(--canvas)] rounded-[4px] p-2.5 mb-3 group-hover:border-[var(--ink)] transition">
             <Plus className="h-4 w-4 text-[var(--ink)]" strokeWidth={1.5} />
           </div>
-          <div className="text-sm font-semibold text-[var(--ink)] mb-1">New voice agent</div>
+          <div className="text-sm font-semibold text-[var(--ink)] mb-1">New agent</div>
           <p className="text-xs text-[var(--ink-muted)] max-w-[220px]">
-            Create a voice agent that answers calls. Configure persona, model, voice, and knowledge after.
+            Create an agent for chat and email work. Configure persona, model, and knowledge after.
           </p>
         </button>
 

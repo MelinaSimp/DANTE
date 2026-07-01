@@ -11,6 +11,8 @@ export const SteppedEdgeContext = createContext(false);
 export interface SmoothEdgeData {
   itemCount?: number | null;
   isExecuting?: boolean;
+  /** Source step's status from the last finished run — tints the edge at rest. */
+  runStatus?: "success" | "error" | string | null;
   [key: string]: unknown;
 }
 
@@ -31,6 +33,7 @@ export default function SmoothEdge({
   const edgeData = (data ?? {}) as SmoothEdgeData;
   const itemCount = edgeData.itemCount;
   const isExecuting = edgeData.isExecuting;
+  const runStatus = edgeData.runStatus;
 
   const stepped = useContext(SteppedEdgeContext);
   const [edgePath, labelX, labelY] = stepped
@@ -41,7 +44,15 @@ export default function SmoothEdge({
     ? "var(--ink)"
     : isExecuting
       ? "var(--accent)"
-      : (style?.stroke as string) ?? "var(--ink-subtle)";
+      : runStatus === "success"
+        ? "var(--verified)"
+        : runStatus === "error"
+          ? "var(--danger)"
+          : (style?.stroke as string) ?? "var(--ink-subtle)";
+
+  // Success/error at-rest edges read as dashed status lanes (per the
+  // workflow-editor design); executing keeps its own animated dash.
+  const restDash = runStatus === "success" || runStatus === "error" ? "5 5" : undefined;
 
   return (
     <>
@@ -64,8 +75,10 @@ export default function SmoothEdge({
           ...style,
           stroke: strokeColor,
           // Preserve a configured dash (e.g. agent sub-node edges) at rest;
-          // only the executing animation overrides it.
-          strokeDasharray: isExecuting ? "6 4" : (style?.strokeDasharray as string | undefined),
+          // executing animation and run-status lanes override it.
+          strokeDasharray: isExecuting
+            ? "6 4"
+            : restDash ?? (style?.strokeDasharray as string | undefined),
           animation: isExecuting ? "dash-flow 0.6s linear infinite" : undefined,
         }}
         markerEnd={markerEnd as string}

@@ -8,7 +8,6 @@ import {
   Phone,
   Video,
   ArrowLeft,
-  Bot,
   ArrowUpRight,
   Mail,
   Sparkles,
@@ -118,7 +117,7 @@ interface NavItem {
 const ALL_NAV_ITEMS: NavItem[] = [
   { name: "Account", icon: UserCircle, panelId: "account", group: "Workspace" },
   { name: "Market knowledge", icon: MapPin, panelId: "market_knowledge", adminOnly: true, group: "Workspace" },
-  { name: "Phone numbers", icon: Phone, panelId: "phone_numbers", feature: "ai_receptionist", adminOnly: true, group: "Workspace" },
+  { name: "Phone numbers", icon: Phone, panelId: "phone_numbers", feature: "sms_outreach", adminOnly: true, group: "Workspace" },
   { name: "Zoom", icon: Video, panelId: "zoom", group: "Workspace" },
   { name: "Google", icon: Mail, panelId: "google", group: "Workspace" },
   { name: "Microsoft", icon: Mail, panelId: "microsoft", group: "Workspace" },
@@ -309,16 +308,7 @@ export default function SettingsOrbClient({
                       <span className="flex-1 text-left">Watched Folders</span>
                       <ArrowUpRight className="w-3 h-3 text-[var(--ink-subtle)]" strokeWidth={1.5} />
                     </Link>
-                    {features.includes("ai_receptionist") && (
-                      <Link
-                        href="/agent"
-                        className="w-full flex items-center gap-2 px-3 py-2 text-sm rounded-[4px] transition text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)]"
-                      >
-                        <Bot className="w-4 h-4" strokeWidth={1.5} />
-                        <span className="flex-1 text-left">Voice AI config</span>
-                        <ArrowUpRight className="w-3 h-3 text-[var(--ink-subtle)]" strokeWidth={1.5} />
-                      </Link>
-                    )}
+                    {/* Voice AI config link removed 2026-07-01 — voice is no longer part of the product. */}
                   </>
                 )}
               </nav>

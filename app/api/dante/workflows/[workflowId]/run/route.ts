@@ -112,9 +112,12 @@ export async function POST(
         (webhookErr.message.includes("404") || webhookErr.message.includes("not found"));
       if (!is404) throw webhookErr;
 
-      // Attempt 1: patch the trigger node on the existing n8n workflow
+      // Attempt 1: patch the trigger node on the existing n8n workflow,
+      // then force webhook re-registration (n8n can report active:true
+      // while the production webhook is unregistered).
       try {
         await n8nBridge.ensureWebhookTrigger(n8nId, workflowId);
+        try { await n8nBridge.reactivateWorkflow(n8nId); } catch { /* non-fatal */ }
         executionId = await n8nBridge.executeAsync(workflowId, input);
       } catch (retryErr) {
         const stillFailed =

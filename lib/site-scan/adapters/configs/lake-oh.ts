@@ -38,6 +38,10 @@ export const LAKE_OH: CountyAdapterConfig = {
     industrial: ["300", "310", "320", "330", "340", "350", "360", "370", "380", "385", "390", "395", "399"],
     residential: ["500", "510", "511", "520", "530", "540", "550", "560", "570", "599"],
     office: ["450", "460", "470"],
+    // "commercial" is the term brokers (and workflow prompts) actually
+    // use — alias it to retail + office classes so the filter doesn't
+    // pass the literal string into a numeric IN() clause.
+    commercial: ["400", "401", "402", "410", "411", "412", "419", "420", "421", "422", "423", "424", "425", "426", "427", "428", "429", "430", "431", "432", "433", "434", "435", "436", "437", "438", "439", "440", "441", "442", "443", "444", "445", "446", "447", "448", "449", "450", "460", "470"],
     vacant: ["100", "300", "400", "500"],
   },
 };

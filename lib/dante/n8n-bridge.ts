@@ -240,6 +240,34 @@ export async function updateWorkflow(id: string, json: N8nWorkflowJSON): Promise
     body: json,
   });
   n8nLog.info("updated n8n workflow", { n8nId: id, name: json.name });
+
+  // n8n does not reliably re-register production webhooks after a PUT —
+  // the workflow can report active:true while its webhook 404s. Cycle
+  // deactivate→activate to force re-registration. Best-effort: a failure
+  // here must not fail the update itself.
+  try {
+    await reactivateWorkflow(id);
+  } catch (err) {
+    n8nLog.warn("failed to reactivate workflow after update (non-fatal)", {
+      n8nId: id,
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+/**
+ * Force webhook re-registration by cycling deactivate → activate.
+ * Safe to call on an inactive workflow (deactivate is then a no-op
+ * server-side, and activate brings it up).
+ */
+export async function reactivateWorkflow(id: string): Promise<void> {
+  try {
+    await deactivateWorkflow(id);
+  } catch {
+    // Already inactive or transient error — activation below decides.
+  }
+  await activateWorkflow(id);
+  n8nLog.info("reactivated n8n workflow (webhook re-registration)", { n8nId: id });
 }
 
 /** Delete a workflow from n8n. */
@@ -576,9 +604,18 @@ export async function createWorkspaceWorkflow(
  * so the webhook is registered on activation.
  */
 export function patchGraphTrigger(
-  nodes: Array<{ id: string; name: string; type: string; typeVersion?: number; position?: number[]; parameters?: unknown }>,
+  nodes: Array<{ id: string; name: string; type: string; typeVersion?: number; position?: number[]; parameters?: unknown; webhookId?: string }>,
   webhookPath: string,
 ): void {
+  // n8n's production-webhook registry requires the node-level `webhookId`
+  // property. Nodes created in the n8n UI get one automatically; nodes
+  // pushed via the REST API do NOT — and without it the workflow
+  // activates (active: true) while its webhook silently never registers,
+  // so every POST /webhook/{path} 404s. Always ensure one is set.
+  const ensureWebhookId = (node: { webhookId?: string }) => {
+    if (!node.webhookId) node.webhookId = crypto.randomUUID();
+  };
+
   for (let i = 0; i < nodes.length; i++) {
     const node = nodes[i];
     const type = String(node.type || "");
@@ -590,6 +627,7 @@ export function patchGraphTrigger(
       p.httpMethod = p.httpMethod || "POST";
       p.responseMode = p.responseMode || "onReceived";
       node.parameters = p;
+      ensureWebhookId(node);
       return;
     }
 
@@ -600,6 +638,7 @@ export function patchGraphTrigger(
         ...node,
         type: "n8n-nodes-base.webhook",
         typeVersion: 2,
+        webhookId: node.webhookId || crypto.randomUUID(),
         parameters: {
           path: webhookPath,
           httpMethod: "POST",
@@ -618,6 +657,7 @@ export function patchGraphTrigger(
     name: "Webhook Trigger",
     type: "n8n-nodes-base.webhook",
     typeVersion: 2,
+    webhookId: crypto.randomUUID(),
     position: [80, 80],
     parameters: {
       path: webhookPath,
@@ -657,13 +697,15 @@ export async function ensureWebhookTrigger(
     return;
   }
 
-  const trigger = nodes[triggerIdx];
+  const trigger = nodes[triggerIdx] as typeof nodes[number] & { webhookId?: string };
   const params = (trigger.parameters || {}) as Record<string, unknown>;
 
-  // Already correct?
+  // Already correct? Requires the node-level webhookId too — without it
+  // n8n never registers the production webhook even when active.
   if (
     trigger.type === "n8n-nodes-base.webhook" &&
-    params.path === webhookPath
+    params.path === webhookPath &&
+    trigger.webhookId
   ) {
     return;
   }
@@ -676,6 +718,7 @@ export async function ensureWebhookTrigger(
     ...trigger,
     type: "n8n-nodes-base.webhook" as const,
     typeVersion: 2,
+    webhookId: trigger.webhookId || crypto.randomUUID(),
     parameters: {
       path: webhookPath,
       httpMethod: "POST",

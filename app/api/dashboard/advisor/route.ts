@@ -240,7 +240,7 @@ export async function GET() {
           .from("dante_workflow_runs")
           .select("id, workflow_id, status, error, output, created_at, completed_at, started_at, finished_at")
           .eq("workspace_id", wid)
-          .in("status", ["completed", "failed", "running"])
+          .in("status", ["success", "error", "running"])
           .order("created_at", { ascending: false })
           .limit(12)
       : noop,
@@ -628,7 +628,7 @@ export async function GET() {
         id: `wf:${r.id}`,
         kind: "workflow",
         headline: name,
-        detail: r.status === "failed" ? (r.error || "Failed") : null,
+        detail: r.status === "error" ? (r.error || "Failed") : null,
         status: r.status,
         timestamp: r.completed_at || r.created_at,
       });
@@ -697,7 +697,7 @@ export async function GET() {
       const key = wr.workflow_id;
       const existing = wfCounts.get(key) || { name: wr.workflow_name, total: 0, failed: 0, wfId: key };
       existing.total++;
-      if (wr.status === "failed") existing.failed++;
+      if (wr.status === "error") existing.failed++;
       wfCounts.set(key, existing);
     }
 

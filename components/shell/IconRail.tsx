@@ -6,7 +6,6 @@ import {
   Home,
   FolderClosed,
   Workflow,
-  Mic,
   Settings,
 } from "lucide-react";
 
@@ -14,7 +13,6 @@ const NAV_ITEMS = [
   { href: "/dashboard", icon: Home, label: "Dashboard" },
   { href: "/workflows", icon: Workflow, label: "Workflows" },
   { href: "/vault", icon: FolderClosed, label: "Vault" },
-  { href: "/agent", icon: Mic, label: "Voice" },
 ] as const;
 
 interface IconRailProps {
