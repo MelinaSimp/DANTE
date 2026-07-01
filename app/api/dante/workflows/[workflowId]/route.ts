@@ -42,7 +42,7 @@ async function syncToN8n(
         const nodes = (n8nJson as Record<string, unknown>).nodes;
         if (Array.isArray(nodes)) {
           n8nBridge.patchGraphTrigger(nodes, workflowId);
-          n8nBridge.patchGraphCredentials(nodes);
+          await n8nBridge.patchGraphCredentialsForWorkspace(nodes, workspaceId);
         }
         await n8nBridge.updateWorkflow(n8nWorkflowId, n8nJson as unknown as import("@/lib/dante/n8n-types").N8nWorkflowJSON);
         // Ensure webhook is registered after update

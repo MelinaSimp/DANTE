@@ -2653,7 +2653,7 @@ async function dispatchTool(
           }
 
           n8nBridge.patchGraphTrigger(n8nJson.nodes, match.id);
-          n8nBridge.patchGraphCredentials(n8nJson.nodes);
+          await n8nBridge.patchGraphCredentialsForWorkspace(n8nJson.nodes, ctx.workspaceId);
 
           // Check for existing n8n workflow in this workspace first
           // (avoids creating duplicates when the workflow was already
@@ -3122,7 +3122,7 @@ async function dispatchTool(
             const nodes = (n8nJson as Record<string, unknown>).nodes;
             if (Array.isArray(nodes)) {
               n8nBridge.patchGraphTrigger(nodes, workflowId);
-              n8nBridge.patchGraphCredentials(nodes);
+              await n8nBridge.patchGraphCredentialsForWorkspace(nodes, ctx.workspaceId);
             }
             await n8nBridge.updateWorkflow(n8nWfId, n8nJson as unknown as import("@/lib/dante/n8n-types").N8nWorkflowJSON);
           }
@@ -3172,7 +3172,7 @@ async function dispatchTool(
           }
 
           n8nBridge.patchGraphTrigger(n8nJson.nodes, workflowId);
-          n8nBridge.patchGraphCredentials(n8nJson.nodes);
+          await n8nBridge.patchGraphCredentialsForWorkspace(n8nJson.nodes, ctx.workspaceId);
 
           // Check for existing n8n workflow to avoid duplicates
           const existing = await n8nBridge.listWorkspaceWorkflows(ctx.workspaceId);

@@ -31,9 +31,13 @@ const n8nLog = rootLog.child({ component: "n8n-bridge" });
 // placeholder IDs (e.g. "1") -- this map replaces them before push.
 // Override via DRIFT_N8N_CREDENTIALS env var (JSON object mapping
 // credential type to {id, name}) if the instance changes.
+//
+// driftCreApi is deliberately NOT in the default map: it embeds a
+// workspaceId, so every workspace needs its own credential (see
+// ensureWorkspaceCredential). A driftCreApi entry in the env override
+// still wins everywhere -- that is the single-tenant escape hatch.
 
 const DEFAULT_CREDENTIAL_MAP: Record<string, { id: string; name: string }> = {
-  driftCreApi: { id: "d7p7YdIQohdzatvc", name: "Drift CRE - TerraGroup" },
   smtp: { id: "ztouaxmhahC8PIgH", name: "Resend SMTP" },
   openAiApi: { id: "5MaeTxEbGKeVR8Sk", name: "OpenAI" },
 };
@@ -49,11 +53,17 @@ function getCredentialMap(): Record<string, { id: string; name: string }> {
 /**
  * Replace placeholder credential IDs on all nodes with real n8n IDs.
  * Call BEFORE pushing to n8n so activation succeeds.
+ *
+ * Prefer patchGraphCredentialsForWorkspace, which also resolves the
+ * workspace-scoped driftCreApi credential. This sync variant only maps
+ * shared credential types (smtp, openAiApi) plus whatever the env
+ * override supplies.
  */
 export function patchGraphCredentials(
   nodes: Array<{ credentials?: unknown }>,
+  overrides?: Record<string, { id: string; name: string }>,
 ): void {
-  const credMap = getCredentialMap();
+  const credMap = { ...getCredentialMap(), ...overrides };
   for (const node of nodes) {
     const creds = node.credentials as Record<string, { id: string; name: string }> | undefined;
     if (!creds) continue;
@@ -69,6 +79,159 @@ export function patchGraphCredentials(
       creds.smtp = { ...credMap.smtp };
     }
   }
+}
+
+/**
+ * Workspace-aware credential patch: resolves (creating if needed) the
+ * workspace's own driftCreApi credential and applies it along with the
+ * shared credential map. Use this at every push/update site.
+ *
+ * Throws if the graph references driftCreApi and the workspace
+ * credential cannot be resolved -- executing against another tenant's
+ * credential is worse than a failed push.
+ */
+export async function patchGraphCredentialsForWorkspace(
+  nodes: Array<{ credentials?: unknown }>,
+  workspaceId: string,
+): Promise<void> {
+  const needsDriftCred = nodes.some((n) => {
+    const creds = n.credentials as Record<string, unknown> | undefined;
+    return !!creds?.driftCreApi;
+  });
+  const overrides = needsDriftCred
+    ? { driftCreApi: await ensureWorkspaceCredential(workspaceId) }
+    : undefined;
+  patchGraphCredentials(nodes, overrides);
+}
+
+// ── Per-Workspace Credentials ────────────────────────────────
+// Each workspace gets its own driftCreApi credential in n8n so cloned
+// workflows execute Drift API calls against the right tenant. The n8n
+// public API cannot list credentials, so the mapping is persisted on
+// workspaces.n8n_credential_id and cached per process.
+
+const workspaceCredCache = new Map<string, { id: string; name: string }>();
+
+function workspaceCredName(workspaceId: string): string {
+  return `Drift CRE - ws:${workspaceId}`;
+}
+
+/** Create a credential in n8n. Returns its ID. No retry -- a retried
+ *  POST after an ambiguous timeout would create a duplicate. */
+export async function createCredential(
+  name: string,
+  type: string,
+  data: Record<string, unknown>,
+): Promise<string> {
+  const result = await n8nFetch<{ id: string }>("/credentials", {
+    method: "POST",
+    body: { name, type, data },
+  });
+  n8nLog.info("created n8n credential", { credentialId: result.id, name, type });
+  return result.id;
+}
+
+/** Delete a credential from n8n (best-effort cleanup). */
+export async function deleteCredential(id: string): Promise<void> {
+  await n8nFetch<void>(`/credentials/${id}`, { method: "DELETE" });
+  n8nLog.info("deleted n8n credential", { credentialId: id });
+}
+
+/**
+ * Get or create the workspace's driftCreApi credential in n8n.
+ *
+ * Resolution order:
+ *   1. DRIFT_N8N_CREDENTIALS env override (if it defines driftCreApi)
+ *   2. In-process cache
+ *   3. workspaces.n8n_credential_id in the Drift DB
+ *   4. Create via the n8n API, persist the ID back to the workspace row
+ */
+export async function ensureWorkspaceCredential(
+  workspaceId: string,
+): Promise<{ id: string; name: string }> {
+  // Env override is the single-tenant / dev escape hatch
+  const override = process.env.DRIFT_N8N_CREDENTIALS;
+  if (override) {
+    try {
+      const parsed = JSON.parse(override) as Record<string, { id: string; name: string }>;
+      if (parsed.driftCreApi?.id) return { ...parsed.driftCreApi };
+    } catch { /* fall through */ }
+  }
+
+  const cached = workspaceCredCache.get(workspaceId);
+  if (cached) return { ...cached };
+
+  // Dynamic import keeps the bridge usable in scripts that only have
+  // n8n env configured (no Supabase).
+  const { supabaseAdmin } = await import("@/lib/supabase/admin");
+
+  const { data: ws, error: readErr } = await supabaseAdmin
+    .from("workspaces")
+    .select("n8n_credential_id")
+    .eq("id", workspaceId)
+    .maybeSingle();
+  if (readErr) {
+    throw new Error(`ensureWorkspaceCredential: workspace lookup failed -- ${readErr.message}`);
+  }
+  if (!ws) {
+    throw new Error(`ensureWorkspaceCredential: workspace ${workspaceId} not found`);
+  }
+
+  const name = workspaceCredName(workspaceId);
+  const storedId = (ws as { n8n_credential_id?: string | null }).n8n_credential_id;
+  if (storedId) {
+    const cred = { id: storedId, name };
+    workspaceCredCache.set(workspaceId, cred);
+    return { ...cred };
+  }
+
+  // Not provisioned yet -- create in n8n. The credential carries the
+  // same Supabase project as the app plus the tenant's workspace ID.
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error("ensureWorkspaceCredential: NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set");
+  }
+  const newId = await createCredential(name, "driftCreApi", {
+    supabaseUrl,
+    supabaseKey,
+    workspaceId,
+    // n8n-core field on every credential schema; "none" blocks the
+    // generic HTTP Request tool from borrowing this credential. Drift
+    // nodes read it via getCredentials, which is unaffected.
+    allowedHttpRequestDomains: "none",
+  });
+
+  // Persist; guard against a concurrent create winning the race.
+  const { data: updated, error: writeErr } = await supabaseAdmin
+    .from("workspaces")
+    .update({ n8n_credential_id: newId })
+    .eq("id", workspaceId)
+    .is("n8n_credential_id", null)
+    .select("n8n_credential_id");
+  if (writeErr) {
+    throw new Error(`ensureWorkspaceCredential: failed to store credential ID -- ${writeErr.message}`);
+  }
+  if (!updated || updated.length === 0) {
+    // Someone else stored one first -- use theirs, drop ours.
+    const { data: fresh } = await supabaseAdmin
+      .from("workspaces")
+      .select("n8n_credential_id")
+      .eq("id", workspaceId)
+      .maybeSingle();
+    const winnerId = (fresh as { n8n_credential_id?: string | null } | null)?.n8n_credential_id;
+    if (winnerId && winnerId !== newId) {
+      try { await deleteCredential(newId); } catch { /* orphan is harmless */ }
+      const cred = { id: winnerId, name };
+      workspaceCredCache.set(workspaceId, cred);
+      return { ...cred };
+    }
+  }
+
+  const cred = { id: newId, name };
+  workspaceCredCache.set(workspaceId, cred);
+  n8nLog.info("provisioned workspace n8n credential", { workspaceId, credentialId: newId });
+  return { ...cred };
 }
 
 // ── Configuration ────────────────────────────────────────────
@@ -578,11 +741,16 @@ export async function listWorkspaceWorkflows(
 /**
  * Create a workflow in n8n tagged with the workspace.
  * Returns the n8n workflow ID.
+ *
+ * Also enforces the workspace's own driftCreApi credential on every
+ * node that references one -- a backstop so no push path can ship a
+ * workflow pinned to another tenant's credential.
  */
 export async function createWorkspaceWorkflow(
   workspaceId: string,
   json: N8nWorkflowJSON,
 ): Promise<string> {
+  await patchGraphCredentialsForWorkspace(json.nodes || [], workspaceId);
   const tagName = `workspace:${workspaceId}`;
   const taggedJson: N8nWorkflowJSON = {
     ...json,
