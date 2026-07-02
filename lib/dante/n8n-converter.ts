@@ -274,6 +274,31 @@ export function convertDriftToN8n(
     });
   }
 
+  // Rewrite $node["<stepId>"] references to the actual node NAMES.
+  // convertTemplateExpr only knows step IDs ("scan"), but n8n resolves
+  // $node[...] by display name ("Run corridor void analysis") — unmapped
+  // references kill the run with "Referenced node doesn't exist".
+  const rewriteNodeRefs = (v: unknown): unknown => {
+    if (typeof v === "string") {
+      return v.replace(/\$node\["([^"]+)"\]/g, (match, ref: string) => {
+        const mapped = nameMap.get(ref);
+        return mapped && mapped !== ref ? `$node["${mapped}"]` : match;
+      });
+    }
+    if (Array.isArray(v)) return v.map(rewriteNodeRefs);
+    if (v && typeof v === "object") {
+      const out: Record<string, unknown> = {};
+      for (const [k, inner] of Object.entries(v as Record<string, unknown>)) {
+        out[k] = rewriteNodeRefs(inner);
+      }
+      return out;
+    }
+    return v;
+  };
+  for (const node of nodes) {
+    node.parameters = rewriteNodeRefs(node.parameters) as Record<string, unknown>;
+  }
+
   // Carry the trigger's timezone up to workflow settings — n8n evaluates
   // cron expressions in the workflow timezone, and dropping it silently
   // shifts "6am ET" to whatever the instance default is.
