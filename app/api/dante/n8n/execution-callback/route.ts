@@ -88,6 +88,8 @@ export async function POST(request: Request) {
   // "completed"/"failed" (the old behavior) violates it and the write
   // silently dies, leaving the run stuck on "running".
   const terminalStatus = status === "success" ? "success" : "error";
+  // The runs table stores execution output in `output` (there is no
+  // `result` column — writing one made PostgREST reject the whole row).
   const resultPayload = {
     n8n_execution_id,
     status,
@@ -110,7 +112,7 @@ export async function POST(request: Request) {
       .update({
         status: terminalStatus,
         finished_at: finished_at || new Date().toISOString(),
-        result: resultPayload,
+        output: resultPayload,
         n8n_execution_id,
         error: error_message || null,
       })
@@ -130,7 +132,7 @@ export async function POST(request: Request) {
         status: terminalStatus,
         started_at: started_at || new Date().toISOString(),
         finished_at: finished_at || new Date().toISOString(),
-        result: resultPayload,
+        output: resultPayload,
         n8n_execution_id,
         error: error_message || null,
       });
