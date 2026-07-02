@@ -287,22 +287,21 @@ const corridorVoidAnalysisWorkflow: N8nWorkflowJSON = {
       credentials: { driftCreApi: { id: "1", name: "Drift CRE" } },
     },
     {
+      // Second-stage agent, mirroring the weekly variant: the analysis
+      // agent's final text is often raw tool output (a heavy void
+      // analysis exhausts its steps), so a dedicated synthesis pass
+      // turns it into the client-ready brief the email needs.
       id: "synthesize",
       name: "Write Executive Brief",
-      type: "n8n-nodes-base.code",
-      typeVersion: 2,
+      type: "n8n-nodes-drift-cre.driftAiAgent",
+      typeVersion: 1,
       position: [80, 400],
       parameters: {
-        jsCode: `const items = $input.all();
-const analysisText = items[0]?.json?.text || JSON.stringify(items[0]?.json || {});
-// Pass through for email -- the AI agent already formatted the report
-return [{
-  json: {
-    subject: "Site intelligence brief -- corridor analysis",
-    body: analysisText,
-  }
-}];`,
+        objective: "=You are a senior CRE analyst writing a site intelligence brief a broker will forward to their client. Rewrite the raw corridor void-analysis output below into a polished brief: lead with the single best opportunity and why, then the ranked parcel list with acreage, zoning, and assessed value, then risks and disqualifiers. Use clear section headers, plain prose, and keep every [ss:N] citation marker. Output only the brief — no raw JSON, no tool blocks.\n\nThe broker's original request: {{ $node[\"Run Corridor Analysis\"].json.body.brief }}\n\nRaw analysis:\n{{ $node[\"Run Void Analysis\"].json.text }}",
+        tools: "",
+        maxSteps: 4,
       },
+      credentials: { driftCreApi: { id: "1", name: "Drift CRE" } },
     },
     corridorEmail.buildNode,
     corridorEmail.sendNode,
