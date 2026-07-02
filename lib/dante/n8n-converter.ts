@@ -319,8 +319,10 @@ export function convertDriftToN8n(
 }
 
 // ── Parameter Conversion ────────────────────────────────────
+// Exported for workflow-surgery.ts, which builds replacement n8n nodes
+// when Dante structurally edits a workflow (e.g. email → SMS swap).
 
-function convertParameters(
+export function convertParameters(
   driftType: string,
   config: Record<string, unknown>,
   nodeId: string,
@@ -389,12 +391,29 @@ function convertParameters(
       };
     }
 
-    case "send_sms":
+    case "send_sms": {
+      // Delivery runs through Drift's SendBlue sender (iMessage with SMS
+      // fallback) via the workflow-send endpoint — the n8n instance has
+      // no SMS credentials of its own. Workspace resolution happens
+      // server-side from the n8n workflow id.
+      const toExpr = convertTemplateExpr(String(config.to_phone || config.to || ""));
+      const bodyExpr = convertTemplateExpr(String(config.body || config.text || config.message || ""));
+      const fromNumber = String(config.from_number || "");
       return {
-        from: "={{$env.TWILIO_FROM_NUMBER}}",
-        to: convertTemplateExpr(String(config.to_phone || config.to || "")),
-        message: convertTemplateExpr(String(config.body || config.text || "")),
+        url: "={{$env.DRIFT_CALLBACK_URL}}/api/sms/workflow-send",
+        method: "POST",
+        sendHeaders: true,
+        headerParameters: {
+          parameters: [
+            { name: "x-drift-n8n-secret", value: "={{$env.DRIFT_N8N_CALLBACK_SECRET}}" },
+            { name: "Content-Type", value: "application/json" },
+          ],
+        },
+        sendBody: true,
+        specifyBody: "json",
+        jsonBody: `={{ JSON.stringify({ n8n_workflow_id: $workflow.id, to: String(${stripExprWrapper(toExpr)}), body: String(${stripExprWrapper(bodyExpr)})${fromNumber ? `, from_number: ${JSON.stringify(fromNumber)}` : ""} }) }}`,
       };
+    }
 
     case "openai": {
       // LLM prompt step → Drift agent node (objective/tools/maxSteps).
@@ -608,7 +627,7 @@ function stripExprWrapper(expr: string): string {
   return JSON.stringify(expr);
 }
 
-function getTypeVersion(n8nType: string): number {
+export function getTypeVersion(n8nType: string): number {
   const versions: Record<string, number> = {
     "n8n-nodes-base.manualTrigger": 1,
     "n8n-nodes-base.scheduleTrigger": 1,

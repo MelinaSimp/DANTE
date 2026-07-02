@@ -197,7 +197,7 @@ export const DRIFT_TO_N8N_NODE_TYPE: Record<string, string> = {
   for_each:          "n8n-nodes-base.splitInBatches",
   transform:         "n8n-nodes-base.code",
   send_email:        "n8n-nodes-base.httpRequest",  // Resend REST (SMTP blocked on Railway)
-  send_sms:          "n8n-nodes-base.twilio",
+  send_sms:          "n8n-nodes-base.httpRequest",  // Drift /api/sms/workflow-send → SendBlue (the Twilio node had no credential and failed n8n validation)
   sub_workflow:      "n8n-nodes-base.executeWorkflow",
 
   // Custom Drift CRE nodes

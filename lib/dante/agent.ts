@@ -593,12 +593,14 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
     function: {
       name: "workflow_update",
       description:
-        "Update an existing workflow's settings or node configuration. " +
-        "Use this to change email recipients, SMS numbers, cron schedules, " +
-        "enable/disable workflows, rename them, or edit any node's config. " +
-        "Call workflow.list first to get the workflow id and see its current " +
-        "structure. Provide node_updates to surgically edit specific nodes " +
-        "within the workflow graph.",
+        "Update an existing workflow's settings, node configuration, or " +
+        "STRUCTURE. Use this to change email recipients, SMS numbers, cron " +
+        "schedules, enable/disable workflows, rename them, edit any node's " +
+        "config — or restructure: swap a node's type (e.g. change an email " +
+        "step to SMS), add nodes, or remove nodes (connections heal " +
+        "automatically). Call workflow.list first to get the workflow id " +
+        "and its current structure. Use node_updates for config-only edits " +
+        "and structural_ops for type changes / add / remove.",
       parameters: {
         type: "object",
         properties: {
@@ -640,7 +642,57 @@ const TOOL_DEFS: Record<AgentToolName, ToolDef> = {
             },
             description:
               "Surgical edits to specific nodes in the workflow graph. " +
-              "Each entry patches one node's config without touching others.",
+              "Each entry patches one node's config without touching others. " +
+              "NOTE: patching an email or SMS delivery node requires the " +
+              "COMPLETE config for that channel (email: to, subject, text; " +
+              "SMS: to_phone, body).",
+          },
+          structural_ops: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                op: {
+                  type: "string",
+                  enum: ["change_type", "add_node", "remove_node"],
+                  description: "The structural operation to perform.",
+                },
+                node: {
+                  type: "string",
+                  description:
+                    "Target node id or display name (for change_type / remove_node).",
+                },
+                new_type: {
+                  type: "string",
+                  description:
+                    "For change_type: the Drift step type to become, e.g. " +
+                    "send_sms, send_email, agent, condition, delay, http.",
+                },
+                config: {
+                  type: "object",
+                  description:
+                    "COMPLETE config for the new/changed node — old config " +
+                    "does not carry over across type changes. send_sms needs " +
+                    "{to_phone, body}; send_email needs {to, subject, text}.",
+                },
+                new_name: { type: "string", description: "Optional rename with change_type." },
+                type: { type: "string", description: "For add_node: the Drift step type." },
+                name: { type: "string", description: "For add_node: display name (must be unique)." },
+                connect_from: {
+                  type: "string",
+                  description: "For add_node: wire an edge from this existing node (id or name).",
+                },
+                connect_to: {
+                  type: "string",
+                  description: "For add_node: wire an edge to this existing node (id or name).",
+                },
+              },
+              required: ["op"],
+            },
+            description:
+              "Structural graph edits: change a node's type (e.g. email → " +
+              "SMS), add a node, or remove one (surrounding connections " +
+              "heal automatically). Applied in order, before node_updates.",
           },
         },
         required: ["workflow_id"],
@@ -3064,24 +3116,35 @@ async function dispatchTool(
       if (args.description !== undefined) patch.description = String(args.description || "").slice(0, 500);
       if (args.enabled !== undefined) patch.enabled = Boolean(args.enabled);
 
-      // Apply node-level config patches
+      // Apply structural ops + node-level config patches through the
+      // surgery module, which handles BOTH stored graph shapes
+      // (n8n-native nodes+connections and editor nodes+edges). The old
+      // inline patcher only understood the editor shape, so config
+      // edits on cloned-template workflows silently did nothing.
       const nodeUpdates = Array.isArray(args.node_updates) ? args.node_updates as Array<{ node_id: string; config_patch: Record<string, unknown> }> : [];
-      if (nodeUpdates.length > 0) {
-        const graph = (wf.graph as { nodes: Array<{ id: string; data: { step: { config: Record<string, unknown> } } }>; edges: unknown[]; viewport?: unknown }) || { nodes: [], edges: [] };
-        let patchedCount = 0;
-        for (const update of nodeUpdates) {
-          const node = graph.nodes.find((n) => n.id === update.node_id);
-          if (node && node.data?.step?.config) {
-            Object.assign(node.data.step.config, update.config_patch);
-            patchedCount++;
-          }
+      const structuralOps = Array.isArray(args.structural_ops) ? args.structural_ops as Array<Record<string, unknown>> : [];
+      const surgeryChanges: string[] = [];
+      if (nodeUpdates.length > 0 || structuralOps.length > 0) {
+        const { applyWorkflowSurgery } = await import("@/lib/dante/workflow-surgery");
+        const graph = (wf.graph as Record<string, unknown>) || { nodes: [], edges: [] };
+        const ops = [
+          ...structuralOps.map((o) => o as unknown as import("@/lib/dante/workflow-surgery").StructuralOp),
+          ...nodeUpdates.map((u) => ({ op: "set_config" as const, node: u.node_id, config_patch: u.config_patch })),
+        ];
+        const result = applyWorkflowSurgery(graph, ops);
+        if (result.changed.length === 0) {
+          return {
+            error: `workflow.update: no edits applied. ${result.errors.join("; ") || "Check node ids/names via workflow.list."}`,
+          };
         }
-        if (patchedCount === 0) {
-          return { error: `workflow.update: none of the specified node_ids were found in the workflow graph.` };
-        }
+        surgeryChanges.push(...result.changed);
+        if (result.errors.length > 0) surgeryChanges.push(`(${result.errors.length} op(s) failed: ${result.errors.join("; ")})`);
         patch.graph = graph;
-        // Keep legacy steps array in sync
-        patch.steps = graph.nodes.map((n: { data: { step: unknown } }) => n.data.step);
+        // Keep legacy steps array in sync for editor-format graphs
+        const gNodes = graph.nodes as Array<{ data?: { step?: unknown }; parameters?: unknown; id?: string; name?: string; type?: string }>;
+        patch.steps = gNodes.map((n) =>
+          n.data?.step ?? { id: n.id, type: n.type, name: n.name, parameters: n.parameters },
+        );
       }
 
       if (Object.keys(patch).length === 0) {
@@ -3206,7 +3269,7 @@ async function dispatchTool(
       if (args.name) changes.push(`renamed to "${args.name}"`);
       if (args.description !== undefined) changes.push("description updated");
       if (args.enabled !== undefined) changes.push(args.enabled ? "enabled" : "disabled");
-      if (nodeUpdates.length > 0) changes.push(`${nodeUpdates.length} node(s) updated`);
+      changes.push(...surgeryChanges);
 
       return {
         ok: true,
