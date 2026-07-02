@@ -10,7 +10,10 @@ import { abstractLease, type LeaseAbstract } from "@/lib/dante/lease-abstractor"
 import { resolveServiceWorkspace } from "@/lib/api/service-auth";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
+// Three LLM passes over a long lease can legitimately run 5-10 minutes
+// (a verified real abstraction took 361s) — 300s was killing them at
+// the platform level mid-pass. Vercel Pro allows up to 800s.
+export const maxDuration = 800;
 
 export async function GET(request: NextRequest) {
   const supabase = await createServerSupabase();

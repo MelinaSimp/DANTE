@@ -75,7 +75,9 @@ export class DriftLeaseAbstractor implements INodeType {
       const response = await this.helpers.httpRequest({
         method: "POST",
         url: `${appUrl}/api/lease-abstractor`,
-        timeout: 290000,
+        // Match the API route's maxDuration (800s) — real abstractions on
+        // long leases run 5-10 minutes; 290s cut them off mid-pass.
+        timeout: 810000,
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${supabaseKey}`,
