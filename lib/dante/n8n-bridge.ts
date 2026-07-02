@@ -762,18 +762,23 @@ export async function createWorkspaceWorkflow(
 // ── Webhook Trigger Management ──────────────────────────────
 
 /**
- * Patch a graph's trigger node to be a webhook with the given path.
+ * Ensure a graph has a webhook trigger with the given path.
  * Handles every case:
- *   - manualTrigger or scheduleTrigger -> replace with webhook
- *   - webhook with wrong path -> fix path
- *   - no trigger at all -> add one
+ *   - webhook present -> fix its path (+ webhookId)
+ *   - manualTrigger -> replace with webhook (lossless; the n8n UI's
+ *     manual trigger is unreachable from Drift)
+ *   - scheduleTrigger -> KEEP the schedule and add a webhook alongside,
+ *     mirroring the schedule's outgoing connections, so cron workflows
+ *     still fire on schedule AND can be run on demand
+ *   - no trigger at all -> add a webhook wired to the first action node
  *
- * Mutates the nodes array in place. Call this BEFORE pushing to n8n
- * so the webhook is registered on activation.
+ * Mutates nodes (and connections, when adding a trigger) in place.
+ * Call this BEFORE pushing to n8n so the webhook registers on activation.
  */
 export function patchGraphTrigger(
   nodes: Array<{ id: string; name: string; type: string; typeVersion?: number; position?: number[]; parameters?: unknown; webhookId?: string }>,
   webhookPath: string,
+  connections?: Record<string, { main: Array<Array<{ node: string; type: string; index: number }>> }>,
 ): void {
   // n8n's production-webhook registry requires the node-level `webhookId`
   // property. Nodes created in the n8n UI get one automatically; nodes
@@ -783,6 +788,9 @@ export function patchGraphTrigger(
   const ensureWebhookId = (node: { webhookId?: string }) => {
     if (!node.webhookId) node.webhookId = crypto.randomUUID();
   };
+
+  let scheduleTrigger: (typeof nodes)[number] | null = null;
+  let manualTriggerIdx = -1;
 
   for (let i = 0; i < nodes.length; i++) {
     const node = nodes[i];
@@ -799,40 +807,91 @@ export function patchGraphTrigger(
       return;
     }
 
-    // manualTrigger or any other trigger -> convert to webhook
-    if (type.includes("Trigger") || type.includes("trigger")) {
-      const oldParams = (node.parameters || {}) as Record<string, unknown>;
-      nodes[i] = {
-        ...node,
-        type: "n8n-nodes-base.webhook",
-        typeVersion: 2,
-        webhookId: node.webhookId || crypto.randomUUID(),
-        parameters: {
-          path: webhookPath,
-          httpMethod: "POST",
-          responseMode: "onReceived",
-          // Preserve input_fields for the Drift UI run dialog
-          ...(oldParams.input_fields ? { input_fields: oldParams.input_fields } : {}),
-        },
-      };
-      return;
+    if (type === "n8n-nodes-base.scheduleTrigger" || type === "n8n-nodes-base.cron") {
+      // A scheduled workflow must KEEP its schedule. The old behavior
+      // replaced it with a webhook, which silently killed every cron
+      // template ("Daily 9am ET" never fired again). Remember it and
+      // add a webhook alongside below so manual "Execute" still works.
+      if (!scheduleTrigger) scheduleTrigger = node;
+      continue;
+    }
+
+    if ((type.includes("Trigger") || type.includes("trigger")) && manualTriggerIdx < 0) {
+      manualTriggerIdx = i;
     }
   }
 
-  // No trigger found at all -- add one at the front
-  nodes.unshift({
-    id: "trigger",
-    name: "Webhook Trigger",
+  // Manual trigger (no schedule elsewhere): converting it to a webhook is
+  // lossless — manualTrigger only fires from the n8n UI, which Drift
+  // users never see.
+  if (!scheduleTrigger && manualTriggerIdx >= 0) {
+    const node = nodes[manualTriggerIdx];
+    const oldParams = (node.parameters || {}) as Record<string, unknown>;
+    nodes[manualTriggerIdx] = {
+      ...node,
+      type: "n8n-nodes-base.webhook",
+      typeVersion: 2,
+      webhookId: node.webhookId || crypto.randomUUID(),
+      parameters: {
+        path: webhookPath,
+        httpMethod: "POST",
+        responseMode: "onReceived",
+        // Preserve input_fields for the Drift UI run dialog
+        ...(oldParams.input_fields ? { input_fields: oldParams.input_fields } : {}),
+      },
+    };
+    return;
+  }
+
+  // Schedule trigger present (or no trigger at all): add a webhook
+  // trigger node so the workflow is also executable on demand.
+  const webhookName = "Run on demand";
+  const anchor = scheduleTrigger ?? nodes[0];
+  const webhookNode = {
+    id: "drift-webhook-trigger",
+    name: webhookName,
     type: "n8n-nodes-base.webhook",
     typeVersion: 2,
     webhookId: crypto.randomUUID(),
-    position: [80, 80],
+    position: [
+      (anchor?.position?.[0] ?? 80),
+      (anchor?.position?.[1] ?? 80) + 180,
+    ] as number[],
     parameters: {
       path: webhookPath,
       httpMethod: "POST",
       responseMode: "onReceived",
     },
-  });
+  };
+  nodes.unshift(webhookNode);
+
+  // Mirror the schedule trigger's outgoing connections onto the webhook
+  // so a manual run enters the graph at the same place a scheduled run
+  // does. Without this the webhook would be an orphan node (and n8n
+  // refuses to register webhooks on disconnected triggers).
+  if (connections && scheduleTrigger && connections[scheduleTrigger.name]?.main) {
+    connections[webhookName] = {
+      main: connections[scheduleTrigger.name].main.map((outputs) =>
+        outputs.map((c) => ({ ...c })),
+      ),
+    };
+  } else if (connections && !scheduleTrigger) {
+    // No trigger existed at all — wire the webhook to the first node
+    // that isn't a trigger or the Report-to-Drift callback, so it
+    // isn't an orphan (n8n skips webhook registration for those).
+    const firstAction = nodes.find(
+      (n) =>
+        n !== webhookNode &&
+        !String(n.type).toLowerCase().includes("trigger") &&
+        n.type !== "n8n-nodes-base.webhook" &&
+        n.name !== "Report to Drift",
+    );
+    if (firstAction) {
+      connections[webhookName] = {
+        main: [[{ node: firstAction.name, type: "main", index: 0 }]],
+      };
+    }
+  }
 }
 
 /**
@@ -853,48 +912,32 @@ export async function ensureWebhookTrigger(
   const wf = await getWorkflow(n8nWorkflowId);
   const nodes = wf.nodes || [];
 
-  // Find trigger node -- the first node whose type mentions trigger/webhook
-  const triggerIdx = nodes.findIndex(
-    (n) =>
-      n.type.toLowerCase().includes("trigger") ||
-      n.type.toLowerCase().includes("webhook"),
-  );
+  // Prefer an existing webhook node; a schedule trigger must never be
+  // consumed by this repair path (converting it used to silently kill
+  // the workflow's cron firing).
+  const webhookIdx = nodes.findIndex((n) => n.type === "n8n-nodes-base.webhook");
 
-  if (triggerIdx < 0) {
-    n8nLog.warn("ensureWebhookTrigger: no trigger node found", { n8nWorkflowId });
-    return;
+  if (webhookIdx >= 0) {
+    const hook = nodes[webhookIdx] as typeof nodes[number] & { webhookId?: string };
+    const params = (hook.parameters || {}) as Record<string, unknown>;
+    // Already correct? Requires the node-level webhookId too — without it
+    // n8n never registers the production webhook even when active.
+    if (params.path === webhookPath && hook.webhookId) return;
+    params.path = webhookPath;
+    params.httpMethod = params.httpMethod || "POST";
+    params.responseMode = params.responseMode || "onReceived";
+    hook.parameters = params;
+    if (!hook.webhookId) hook.webhookId = crypto.randomUUID();
+  } else {
+    // No webhook — run the same trigger-preserving logic used at push
+    // time (converts a manual trigger, or adds a webhook beside a
+    // schedule trigger and mirrors its connections).
+    patchGraphTrigger(
+      nodes as Parameters<typeof patchGraphTrigger>[0],
+      webhookPath,
+      (wf as unknown as { connections?: Parameters<typeof patchGraphTrigger>[2] }).connections,
+    );
   }
-
-  const trigger = nodes[triggerIdx] as typeof nodes[number] & { webhookId?: string };
-  const params = (trigger.parameters || {}) as Record<string, unknown>;
-
-  // Already correct? Requires the node-level webhookId too — without it
-  // n8n never registers the production webhook even when active.
-  if (
-    trigger.type === "n8n-nodes-base.webhook" &&
-    params.path === webhookPath &&
-    trigger.webhookId
-  ) {
-    return;
-  }
-
-  // Preserve input_fields from the old trigger for the Drift UI
-  const inputFields = params.input_fields;
-
-  // Patch trigger to a webhook node
-  const patched = {
-    ...trigger,
-    type: "n8n-nodes-base.webhook" as const,
-    typeVersion: 2,
-    webhookId: trigger.webhookId || crypto.randomUUID(),
-    parameters: {
-      path: webhookPath,
-      httpMethod: "POST",
-      responseMode: "onReceived",
-      ...(inputFields ? { input_fields: inputFields } : {}),
-    },
-  };
-  nodes[triggerIdx] = patched;
 
   // Build update payload -- strip read-only fields
   const { id: _id, active: _active, ...updatePayload } = wf as N8nWorkflowResponse & { active?: boolean };
@@ -910,11 +953,7 @@ export async function ensureWebhookTrigger(
   }
   await activateWorkflow(n8nWorkflowId);
 
-  n8nLog.info("patched workflow trigger to webhook", {
-    n8nWorkflowId,
-    webhookPath,
-    oldType: trigger.type,
-  });
+  n8nLog.info("ensured webhook trigger", { n8nWorkflowId, webhookPath });
 }
 
 // ── Health Check ─────────────────────────────────────────────

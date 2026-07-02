@@ -113,7 +113,7 @@ export async function POST(
 
   // Convert trigger to webhook with the Drift workflow ID as path.
   // Handles manualTrigger, scheduleTrigger, or webhook with placeholder.
-  n8nBridge.patchGraphTrigger(workflowJson.nodes, driftWorkflowId);
+  n8nBridge.patchGraphTrigger(workflowJson.nodes, driftWorkflowId, workflowJson.connections as Parameters<typeof n8nBridge.patchGraphTrigger>[2]);
 
   // Replace placeholder credential IDs with real n8n credential IDs
   // so the workflow can activate (e.g. SMTP, DriftCRE API, OpenAI).
