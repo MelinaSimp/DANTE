@@ -71,15 +71,21 @@ export class DriftAiAgent implements INodeType {
     const workspaceId = credentials.workspaceId as string;
 
     const objective = this.getNodeParameter("objective", 0, "") as string;
-    const toolsRaw = this.getNodeParameter("tools", 0, "") as string;
+    // Templates pass tools as an array; the UI field is a comma-separated
+    // string. Accept both — calling .split on an array crashed every
+    // agent step that came from a hand-crafted template.
+    const toolsRaw = this.getNodeParameter("tools", 0, "") as string | string[];
     const maxSteps = this.getNodeParameter("maxSteps", 0, 10) as number;
 
     if (!objective) {
       return [[{ json: { error: "objective is required" } }]];
     }
 
-    const tools = toolsRaw
-      ? toolsRaw.split(",").map((t) => t.trim()).filter(Boolean)
+    const toolsList = Array.isArray(toolsRaw)
+      ? toolsRaw.map((t) => String(t).trim()).filter(Boolean)
+      : String(toolsRaw || "").split(",").map((t) => t.trim()).filter(Boolean);
+    const tools = toolsList.length > 0
+      ? toolsList
       : ["memory.search", "memory.write", "clients.query", "web.search"];
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://driftai.studio";

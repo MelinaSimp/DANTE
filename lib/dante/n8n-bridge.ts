@@ -751,12 +751,40 @@ export async function createWorkspaceWorkflow(
   json: N8nWorkflowJSON,
 ): Promise<string> {
   await patchGraphCredentialsForWorkspace(json.nodes || [], workspaceId);
+  patchGraphResilience(json.nodes || []);
   const tagName = `workspace:${workspaceId}`;
   const taggedJson: N8nWorkflowJSON = {
     ...json,
     tags: [...(json.tags || []), { name: tagName }],
   };
   return createWorkflow(taggedJson);
+}
+
+// Drift data nodes that can legitimately return zero rows. Without
+// alwaysOutputData, an empty result ends the n8n branch — downstream
+// nodes (including the mandatory "Report to Drift" callback) never run,
+// so quiet runs on an empty book are invisible in Drift's run history.
+const ZERO_ROW_NODE_TYPES = new Set([
+  "n8n-nodes-drift-cre.driftQueryProperties",
+  "n8n-nodes-drift-cre.driftQueryContacts",
+  "n8n-nodes-drift-cre.driftLeaseLookup",
+  "n8n-nodes-drift-cre.driftMarketComps",
+  "n8n-nodes-drift-cre.driftVaultSearch",
+]);
+
+/**
+ * Keep the pipeline flowing through empty results: data-query nodes get
+ * alwaysOutputData so a zero-row response still emits one (empty) item
+ * and the run reaches Report to Drift. Idempotent; safe on every push.
+ */
+export function patchGraphResilience(
+  nodes: Array<{ type?: string; alwaysOutputData?: boolean }>,
+): void {
+  for (const node of nodes) {
+    if (node.type && ZERO_ROW_NODE_TYPES.has(node.type)) {
+      node.alwaysOutputData = true;
+    }
+  }
 }
 
 // ── Webhook Trigger Management ──────────────────────────────
