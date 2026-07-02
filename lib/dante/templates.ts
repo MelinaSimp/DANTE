@@ -869,6 +869,48 @@ const corridorVoidAnalysisGraph: WorkflowGraph = {
   ],
 };
 
+// On-demand corridor variant — catalog/editor preview only. The clone
+// route resolves this slug to the hand-crafted n8n JSON in
+// n8n-templates.ts (webhook trigger with the broker's brief / search
+// area / email form), so this graph just has to read faithfully.
+const corridorVoidOnDemandGraph: WorkflowGraph = {
+  nodes: [
+    {
+      id: "trigger", type: "trigger_manual", position: row(0),
+      data: { step: {
+        id: "trigger", type: "trigger_manual", name: "Run corridor analysis",
+        config: { input_fields: [
+          { name: "brief", label: "What are you looking for?", type: "textarea" as const, required: true, placeholder: "My client is a Chick-fil-A franchisee looking for a 1-2 acre pad site along the I-71 corridor between Medina and downtown Cleveland. Needs C-2 or better zoning, high traffic count, and no environmental issues." },
+          { name: "corridor_anchors", label: "Search Area", type: "text" as const, required: true, placeholder: "I-71 from Medina to downtown Cleveland, OH" },
+          { name: "broker_email", label: "Send Results To (email)", type: "text" as const, required: true, placeholder: "broker@yourfirm.com" },
+        ] },
+      } },
+    },
+    {
+      id: "scan", type: "agent", position: row(1),
+      data: { step: {
+        id: "scan", type: "agent", name: "Run void analysis",
+        config: {
+          model: "claude-sonnet-4-6",
+          objective: "Run a void analysis along the corridor the broker described: {{steps.trigger.input.corridor_anchors}}. Broker's brief: {{steps.trigger.input.brief}}. Identify missing business categories per segment, score and rank matching parcels, pull full detail on the top 5 with auditor, tax, and EPA brownfield status.",
+          tools: ["site_scan.void_analysis", "site_scan.search", "site_scan.detail", "survey_area"],
+        },
+      } },
+    },
+    {
+      id: "email", type: "send_email", position: row(2),
+      data: { step: {
+        id: "email", type: "send_email", name: "Email ranked site brief",
+        config: { to: "{{steps.trigger.input.broker_email}}", subject: "Site intelligence brief -- corridor analysis", text: "{{steps.scan.text}}" },
+      } },
+    },
+  ],
+  edges: [
+    edge("trigger", "scan"),
+    edge("scan", "email"),
+  ],
+};
+
 // ══════════════════════════════════════════════════════════════
 // 20 - Development site prospector (cron)
 //
@@ -1752,13 +1794,25 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   // ── Site intelligence ──
   {
     slug: "corridor-void-analysis",
-    name: "Corridor void analysis",
-    description: "Weekly. Runs a directional void analysis along a configured corridor, scores parcels on zoning/acreage/vacancy/value, pulls full auditor + EPA detail on top candidates, and delivers a ranked site intelligence brief.",
+    name: "Corridor void analysis (weekly)",
+    description: "Weekly. Runs a directional void analysis along a configured corridor (set once via workspace secrets), scores parcels on zoning/acreage/vacancy/value, pulls full auditor + EPA detail on top candidates, and delivers a ranked site intelligence brief.",
     category: "Site intelligence",
     icon: "Radar",
     accent: "accent",
     triggerLabel: "Mondays 6am ET",
     graph: corridorVoidAnalysisGraph,
+  },
+  {
+    // Clone resolves to the hand-crafted n8n JSON in n8n-templates.ts
+    // (same slug); this graph is the catalog/editor preview.
+    slug: "corridor-void-on-demand",
+    name: "Corridor void analysis (on demand)",
+    description: "On demand. Describe what your client needs and the corridor to search; an agent runs the void analysis, scores and ranks parcels, and emails a ranked site brief with citations.",
+    category: "Site intelligence",
+    icon: "Radar",
+    accent: "accent",
+    triggerLabel: "Manual (one-click)",
+    graph: corridorVoidOnDemandGraph,
   },
   {
     slug: "agent-corridor-brief",

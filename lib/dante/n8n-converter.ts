@@ -274,12 +274,19 @@ export function convertDriftToN8n(
     });
   }
 
+  // Carry the trigger's timezone up to workflow settings — n8n evaluates
+  // cron expressions in the workflow timezone, and dropping it silently
+  // shifts "6am ET" to whatever the instance default is.
+  const triggerTz = graph.nodes
+    .map((n) => (n.data?.step?.config as Record<string, unknown> | undefined)?.timezone)
+    .find((tz): tz is string => typeof tz === "string" && tz.length > 0);
+
   return {
     workflow: {
       name,
       nodes,
       connections,
-      settings: { executionOrder: "v1" },
+      settings: { executionOrder: "v1", ...(triggerTz ? { timezone: triggerTz } : {}) },
     },
     warnings,
     unmappedTypes,
@@ -364,23 +371,20 @@ function convertParameters(
         message: convertTemplateExpr(String(config.body || config.text || "")),
       };
 
-    case "openai":
+    case "openai": {
+      // LLM prompt step → Drift agent node (objective/tools/maxSteps).
+      // The system prompt folds into the objective; no tools are wired
+      // beyond the node defaults — this is a synthesis step, not a
+      // research loop, so cap the reasoning budget low.
+      const system = String(config.system || "You are a CRE analyst.");
+      const prompt = convertTemplateExpr(String(config.prompt || config.objective || ""));
+      const promptBody = prompt.startsWith("=") ? prompt.slice(1) : prompt;
       return {
-        // Map to a Code node that calls the LLM API, since n8n's
-        // OpenAI node doesn't support Claude models
-        jsCode: `// AI synthesis step (converted from Drift openai node)
-const objective = ${JSON.stringify(String(config.prompt || config.objective || ""))};
-const system = ${JSON.stringify(String(config.system || "You are a CRE analyst."))};
-// This is a placeholder -- the actual LLM call happens via the Drift API
-const items = $input.all();
-return items.map(item => ({
-  json: {
-    ...item.json,
-    _ai_prompt: objective,
-    _ai_system: system,
-  }
-}));`,
+        objective: `=${system}\n\n${promptBody}`,
+        tools: "",
+        maxSteps: 4,
       };
+    }
 
     case "agent":
       return {
@@ -512,41 +516,43 @@ return items.map(item => ({
 function convertTemplateExpr(text: string): string {
   if (!text) return text;
 
-  // {{secrets.key}} → ={{$env.KEY}}
+  // n8n only evaluates a parameter as an expression when the WHOLE
+  // string starts with "=" — inline placeholders then use plain {{ }}.
+  // The old implementation emitted mid-string "={{ ... }}", which n8n
+  // treats as literal text: agents received prompts containing raw
+  // "={{ $json.body.brief }}" instead of the broker's actual words.
+
+  // {{secrets.key}} → {{$env.KEY}}
+  // (Workspace secrets are inlined at clone time now; this env mapping
+  // is the fallback for anything that slips through unresolved.)
   let result = text.replace(
     /\{\{\s*secrets\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g,
-    (_match, key: string) => `={{$env.${key.toUpperCase()}}}`,
+    (_match, key: string) => `{{$env.${key.toUpperCase()}}}`,
   );
 
-  // {{steps.trigger.input.fieldName}} → ={{ $json.body.fieldName }}
+  // {{steps.trigger.input.fieldName}} → {{ $json.body.fieldName }}
   // Drift triggers become webhook (typeVersion 2) nodes, and webhook v2
   // nests the POST payload under `body` ({headers, params, query, body}).
-  // Mapping to bare $json.fieldName silently resolves to undefined and
-  // downstream nodes fail with "<param> is required". Must precede the
-  // generic steps.id.field rule below, otherwise "steps.trigger.input.X"
-  // gets caught by the generic pattern and mapped incorrectly.
+  // Must precede the generic steps.id.field rule below, otherwise
+  // "steps.trigger.input.X" gets caught by the generic pattern.
   result = result.replace(
     /\{\{\s*steps\.trigger\.input\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g,
-    (_match, field: string) => `={{ $json.body.${field} }}`,
+    (_match, field: string) => `{{ $json.body.${field} }}`,
   );
 
-  // {{steps.id.field}} → ={{ $node["id"].json.field }}
+  // {{steps.id.field}} → {{ $node["id"].json.field }}
   // Note: in n8n, we use the node name, not ID. Since we don't have
   // the name map here, we use the step ID as-is -- the n8n validator
   // in n8n-workflow-ai.ts handles deduplication.
   result = result.replace(
     /\{\{\s*steps\.([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_.]+)\s*\}\}/g,
     (_match, stepId: string, field: string) =>
-      `={{ $node["${stepId}"].json.${field} }}`,
+      `{{ $node["${stepId}"].json.${field} }}`,
   );
 
-  // If the entire string is a single expression, prefix with =
-  if (result.startsWith("={{") || result.includes("={{")) {
-    return result;
-  }
-  // If there's a {{ but no =, add it
-  if (result.includes("{{") && !result.includes("={{")) {
-    result = result.replace(/\{\{/g, "={{");
+  // Any placeholder present → the whole string must be expression-mode.
+  if (result.includes("{{") && !result.startsWith("=")) {
+    result = `=${result}`;
   }
 
   return result;
@@ -562,6 +568,17 @@ function stripExprWrapper(expr: string): string {
   // Match ={{ ... }} at the boundaries
   const match = expr.match(/^={{ ([\s\S]*) }}$/);
   if (match) return match[1];
+  // Mixed expression-mode string ("=Digest for {{ $json.body.x }}"):
+  // convert to a JS template literal so inline placeholders still
+  // evaluate when embedded inside the jsonBody expression.
+  if (expr.startsWith("=") && expr.includes("{{")) {
+    const body = expr
+      .slice(1)
+      .replace(/`/g, "\\`")
+      .replace(/\$\{/g, "\\${")
+      .replace(/\{\{\s*([\s\S]*?)\s*\}\}/g, (_m, inner: string) => `\${ ${inner} }`);
+    return `\`${body}\``;
+  }
   // Not an expression -- return as a quoted string literal
   return JSON.stringify(expr);
 }

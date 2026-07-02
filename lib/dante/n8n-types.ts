@@ -185,7 +185,11 @@ export const DRIFT_TO_N8N_NODE_TYPE: Record<string, string> = {
   trigger_at:        "n8n-nodes-base.scheduleTrigger",
   trigger_webhook:   "n8n-nodes-base.webhook",
   http:              "n8n-nodes-base.httpRequest",
-  openai:            "@n8n/n8n-nodes-langchain.openAi",
+  // LLM prompt steps run through Drift's agent node (citations, model
+  // routing, per-workspace credential) — NOT the n8n LangChain node,
+  // which needs its own OpenAI credential and rejects our params, making
+  // every converted workflow fail n8n validation ("workflow has issues").
+  openai:            "n8n-nodes-drift-cre.driftAiAgent",
   code:              "n8n-nodes-base.code",
   condition:         "n8n-nodes-base.if",
   switch:            "n8n-nodes-base.switch",

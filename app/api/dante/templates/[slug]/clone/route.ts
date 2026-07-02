@@ -54,18 +54,33 @@ export async function POST(
     return NextResponse.json({ error: `Unknown template: ${slug}` }, { status: 404 });
   }
 
+  // Resolve {{secrets.key}} placeholders against the workspace's secret
+  // store BEFORE conversion. Scheduled templates ("watch my corridor")
+  // can't ask anyone at run time; without this the converter mapped
+  // secrets to n8n $env.* vars that don't exist and the agent got an
+  // objective full of blanks. Unresolved keys are reported back so the
+  // caller knows what still needs configuring.
+  const { loadWorkspaceSecrets, substituteSecretsDeep } = await import("@/lib/dante/secrets");
+  const workspaceSecrets = await loadWorkspaceSecrets(profile.workspace_id);
+
   // Get the n8n workflow JSON -- either from hand-crafted template or auto-conversion
   let workflowJson;
   let name: string;
   let description: string;
+  let missingSecrets: string[] = [];
 
   if (n8nTemplate) {
-    workflowJson = structuredClone(n8nTemplate.workflow);
+    const sub = substituteSecretsDeep(structuredClone(n8nTemplate.workflow), workspaceSecrets);
+    workflowJson = sub.value;
+    missingSecrets = sub.missing;
     name = n8nTemplate.name;
     description = n8nTemplate.description;
   } else {
-    // Auto-convert the legacy template to n8n format
-    const conversion = convertDriftToN8n(template!.graph, template!.name);
+    // Auto-convert the legacy template to n8n format (secrets first,
+    // so the converter never sees {{secrets.*}} and maps it to $env)
+    const sub = substituteSecretsDeep(structuredClone(template!.graph), workspaceSecrets);
+    missingSecrets = sub.missing;
+    const conversion = convertDriftToN8n(sub.value, template!.name);
     workflowJson = conversion.workflow;
     name = template!.name;
     description = template!.description;
@@ -161,5 +176,9 @@ export async function POST(
     template_slug: slug,
     engine: "n8n",
     n8n_synced: !!n8nWorkflowId,
+    // Secrets the template referenced but the workspace hasn't set —
+    // the workflow will run with visible {{secrets.*}} placeholders
+    // until these are configured (Dante's secrets_set tool or settings).
+    missing_secrets: missingSecrets,
   });
 }

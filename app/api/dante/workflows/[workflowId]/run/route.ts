@@ -162,7 +162,7 @@ export async function POST(
     }
 
     // Record the run
-    const { data: runRow } = await supabaseAdmin
+    const { data: runRow, error: runInsertErr } = await supabaseAdmin
       .from("dante_workflow_runs")
       .insert({
         workflow_id: workflowId,
@@ -170,11 +170,21 @@ export async function POST(
         triggered_by: user.id,
         status: "running",
         input,
-        n8n_execution_id: executionId,
+        // executeAsync can't learn the execution id from an onReceived
+        // webhook — it returns the sentinel "unknown". n8n_execution_id
+        // has a UNIQUE index, so writing the sentinel makes every second
+        // concurrent run collide and silently lose its row. Store null;
+        // the completion callback fills in the real id.
+        n8n_execution_id: executionId === "unknown" ? null : executionId,
         started_at: new Date().toISOString(),
       })
       .select("id")
       .single();
+    if (runInsertErr) {
+      // The execution is already in flight — surface the bookkeeping
+      // failure loudly instead of silently returning run_id "unknown".
+      console.error("[workflow-run] failed to insert run row:", runInsertErr.message);
+    }
 
     logAuditEvent({
       workspaceId: profile.workspace_id,

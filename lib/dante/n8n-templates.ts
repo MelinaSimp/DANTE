@@ -277,7 +277,10 @@ const corridorVoidAnalysisWorkflow: N8nWorkflowJSON = {
       typeVersion: 1,
       position: [80, 240],
       parameters: {
-        objective: "A broker submitted this request: ={{ $json.body.brief }}\n\nSearch area: ={{ $json.body.corridor_anchors }}\n\nRun a void analysis along that corridor. Based on what the broker described, identify what types of sites and tenants they need. For each corridor segment, report which business categories are missing (the voids) and which are already saturated. Score and rank parcels that match the broker's criteria. Return the top 15 scored parcels. For the top 5, pull full parcel detail including auditor records, tax estimates, and environmental (EPA brownfield) status. Flag any disqualifying issues (contamination, wrong zoning, too small/large) up front.",
+        // n8n expression mode: leading "=" once, plain {{ }} inline.
+        // Mid-string "={{ }}" is treated as literal text and the agent
+        // receives raw placeholders instead of the broker's brief.
+        objective: "=A broker submitted this request: {{ $json.body.brief }}\n\nSearch area: {{ $json.body.corridor_anchors }}\n\nRun a void analysis along that corridor. Based on what the broker described, identify what types of sites and tenants they need. For each corridor segment, report which business categories are missing (the voids) and which are already saturated. Score and rank parcels that match the broker's criteria. Return the top 15 scored parcels. For the top 5, pull full parcel detail including auditor records, tax estimates, and environmental (EPA brownfield) status. Flag any disqualifying issues (contamination, wrong zoning, too small/large) up front.",
         tools: ["site_scan.void_analysis", "site_scan.detail", "memory.write"],
         maxSteps: 12,
       },
@@ -371,7 +374,7 @@ const acquisitionDeepDiveWorkflow: N8nWorkflowJSON = {
       typeVersion: 1,
       position: [80, 240],
       parameters: {
-        objective: `Run full intelligence on: ={{ $json.body.address }}. Deal context from the broker: ={{ $json.body.brief || "general acquisition analysis" }}. (1) Search for the parcel to get parcel number and basic data. (2) Pull full detail: auditor records, tax estimate, census demographics, EPA brownfield status. (3) Note neighboring parcels and zoning. (4) Save key findings to memory. Compile all findings with full citations. If the broker described a specific use case or budget, flag anything that conflicts.`,
+        objective: `=Run full intelligence on: {{ $json.body.address }}. Deal context from the broker: {{ $json.body.brief || "general acquisition analysis" }}. (1) Search for the parcel to get parcel number and basic data. (2) Pull full detail: auditor records, tax estimate, census demographics, EPA brownfield status. (3) Note neighboring parcels and zoning. (4) Save key findings to memory. Compile all findings with full citations. If the broker described a specific use case or budget, flag anything that conflicts.`,
         tools: ["site_scan.search", "site_scan.detail", "memory.write", "memory.search"],
         maxSteps: 10,
       },
@@ -431,8 +434,11 @@ export const N8N_TEMPLATES: N8nWorkflowTemplate[] = [
     workflow: leaseExpirationWorkflow,
   },
   {
-    slug: "corridor-void-analysis",
-    name: "Corridor void analysis",
+    // Own slug so it no longer shadows the WEEKLY corridor template in
+    // templates.ts — the catalog card said "Mondays 6am ET" while
+    // cloning silently delivered this webhook variant instead.
+    slug: "corridor-void-on-demand",
+    name: "Corridor void analysis (on demand)",
     description: "On demand. Enter corridor anchor points, target use and zoning. Searches for underserved business categories and vacant parcels, scores and ranks sites, delivers a ranked brief.",
     category: "Site intelligence",
     triggerLabel: "On demand (manual)",

@@ -77,3 +77,43 @@ export function redactSecrets<T>(value: T, secrets: SecretMap): T {
 
   return walk(value) as T;
 }
+
+/**
+ * Walk any JSON-ish value and substitute `{{secrets.key}}` placeholders
+ * with the workspace's actual secret values. Used at clone time so
+ * scheduled templates (which can't ask anyone at run time) carry real
+ * values into n8n instead of dangling `$env.*` references that resolve
+ * empty. Returns the substituted copy plus the keys that had no value —
+ * callers surface those so the user knows what still needs configuring.
+ */
+export function substituteSecretsDeep<T>(
+  value: T,
+  secrets: SecretMap,
+): { value: T; missing: string[] } {
+  const missing = new Set<string>();
+  const PATTERN = /\{\{\s*secrets\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}/g;
+
+  function walk(v: unknown): unknown {
+    if (typeof v === "string") {
+      return v.replace(PATTERN, (match, key: string) => {
+        const val = secrets[key];
+        if (val === undefined || val === "") {
+          missing.add(key);
+          return match; // leave the placeholder — visible, greppable
+        }
+        return val;
+      });
+    }
+    if (Array.isArray(v)) return v.map(walk);
+    if (v && typeof v === "object") {
+      const out: Record<string, unknown> = {};
+      for (const [k, inner] of Object.entries(v as Record<string, unknown>)) {
+        out[k] = walk(inner);
+      }
+      return out;
+    }
+    return v;
+  }
+
+  return { value: walk(value) as T, missing: [...missing] };
+}
