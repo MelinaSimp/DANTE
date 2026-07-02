@@ -2847,9 +2847,13 @@ async function dispatchTool(
       const slug = String(args.slug || "").trim();
       if (!slug) return { error: "workflow.clone_template: 'slug' required. Call workflow.list_templates first to see available slugs." };
 
-      if (ctx.simulate) {
-        return { simulated: true, would_have: { action: "workflow.clone_template", slug } };
-      }
+      // Deliberately ignores ctx.simulate — same rationale as
+      // reminder.schedule: the user explicitly asked ("set up the
+      // renewal drip"), the action only writes the user's own workflow
+      // configuration (nothing outbound fires from the clone itself;
+      // clones start on their template's trigger, visible in the
+      // workflows list), and it's fully audited. Without this the
+      // model summarizes "Cloned!" while nothing happened.
 
       // Check for n8n version first (Phase 1 — top 5 templates converted)
       const { getN8nTemplate } = await import("@/lib/dante/n8n-templates");
@@ -3094,9 +3098,13 @@ async function dispatchTool(
       const workflowId = String(args.workflow_id || "").trim();
       if (!workflowId) return { error: "workflow.update: 'workflow_id' required. Call workflow.list first." };
 
-      if (ctx.simulate) {
-        return { simulated: true, would_have: { action: "workflow.update", workflow_id: workflowId, args } };
-      }
+      // Deliberately ignores ctx.simulate — same rationale as
+      // reminder.schedule: the user explicitly asked for the edit,
+      // the action only rewrites the user's own workflow configuration
+      // (the edit itself sends nothing; whatever the workflow later
+      // does was already going to run on its trigger), ownership is
+      // verified below, and every change is summarized back. Without
+      // this the model narrates "Done!" over a simulated no-op.
 
       // Fetch the workflow and verify ownership
       const { data: wf, error: fetchErr } = await supabaseAdmin

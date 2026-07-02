@@ -120,6 +120,30 @@ function findN8nNode(nodes: N8nNode[], ref: string): N8nNode | undefined {
   return nodes.find((n) => n.id === ref || n.name === ref);
 }
 
+/** Rewrite $node["<step id>"] references to node display names — n8n
+ *  resolves $node[...] by NAME. convertParameters emits step-id refs
+ *  (it has no name map); in a live graph we do. */
+function rewriteNodeRefsToNames(params: Record<string, unknown> | undefined, nodes: N8nNode[]): Record<string, unknown> | undefined {
+  if (!params) return params;
+  const byId = new Map(nodes.map((n) => [n.id, n.name]));
+  const walk = (v: unknown): unknown => {
+    if (typeof v === "string") {
+      return v.replace(/\$node\["([^"]+)"\]/g, (match, ref: string) => {
+        const name = byId.get(ref);
+        return name && name !== ref ? `$node["${name}"]` : match;
+      });
+    }
+    if (Array.isArray(v)) return v.map(walk);
+    if (v && typeof v === "object") {
+      const out: Record<string, unknown> = {};
+      for (const [k, inner] of Object.entries(v as Record<string, unknown>)) out[k] = walk(inner);
+      return out;
+    }
+    return v;
+  };
+  return walk(params) as Record<string, unknown>;
+}
+
 function renameInConnections(connections: Connections, oldName: string, newName: string): void {
   if (connections[oldName]) {
     connections[newName] = connections[oldName];
@@ -150,6 +174,7 @@ function applyToN8nGraph(graph: AnyGraph, ops: StructuralOp[]): SurgeryResult {
           if (!isKnownDriftType(op.new_type)) throw new Error(`unknown step type "${op.new_type}"`);
           const name = op.new_name || node.name;
           const fresh = buildN8nNode(node.id, name, op.new_type, op.config || {}, node.position || [80, 80]);
+          fresh.parameters = rewriteNodeRefsToNames(fresh.parameters, nodes);
           if (name !== node.name) renameInConnections(connections, node.name, name);
           const idx = nodes.indexOf(node);
           nodes[idx] = fresh;
@@ -166,7 +191,9 @@ function applyToN8nGraph(graph: AnyGraph, ops: StructuralOp[]): SurgeryResult {
           const anchor = from || nodes[nodes.length - 1];
           const pos = [(anchor?.position?.[0] ?? 80) + 220, anchor?.position?.[1] ?? 80];
           const id = `node-${nodes.length + 1}-${op.type}`;
-          nodes.push(buildN8nNode(id, op.name, op.type, op.config || {}, pos));
+          const added = buildN8nNode(id, op.name, op.type, op.config || {}, pos);
+          added.parameters = rewriteNodeRefsToNames(added.parameters, nodes);
+          nodes.push(added);
           if (from) {
             const entry = (connections[from.name] ||= { main: [[]] });
             (entry.main[0] ||= []).push({ node: op.name, type: "main", index: 0 });
@@ -233,7 +260,7 @@ function applyToN8nGraph(graph: AnyGraph, ops: StructuralOp[]): SurgeryResult {
                 `Include all of: ${required.join(", ")}.`,
               );
             }
-            node.parameters = convertParameters(isSms ? "send_sms" : "send_email", op.config_patch, node.id);
+            node.parameters = rewriteNodeRefsToNames(convertParameters(isSms ? "send_sms" : "send_email", op.config_patch, node.id), nodes);
           } else {
             node.parameters = { ...node.parameters, ...op.config_patch };
           }
