@@ -214,6 +214,10 @@ export default function AgentsPage() {
             <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} strokeWidth={1.5} />
             <span className="hidden sm:inline">Refresh</span>
           </button>
+          <Link href="/agent/new" className="flex items-center gap-1.5 px-3 py-2 rounded-[4px] bg-[var(--ink)] text-[var(--canvas)] hover:opacity-90 transition text-sm font-medium">
+            <Sparkles className="w-4 h-4" strokeWidth={1.5} />
+            <span className="hidden sm:inline">Build by chatting</span>
+          </Link>
           <Link href="/home" className="flex items-center gap-1.5 px-3 py-2 rounded-[4px] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:bg-[var(--canvas-subtle)] transition text-sm font-medium">
             <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
             <span className="hidden sm:inline">Dashboard</span>
