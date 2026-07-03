@@ -1,11 +1,14 @@
 // lib/industry/config.ts
 //
-// CRE-only configuration. Drift serves commercial real estate
-// brokers and developers. The RIA vertical was removed 2026-05-24.
+// Platform-neutral configuration. Dante is a horizontal AI agent &
+// workflow builder — this config carries the default copy for every
+// workspace. Industry-specific packs (e.g. the Drift CRE template)
+// will land as marketplace templates, not hardcoded verticals.
 //
-// The Industry type and getIndustryConfig function are kept so
-// existing call sites don't break — they now always resolve to
-// real_estate.
+// NOTE: the Industry type key remains "real_estate" for now — it is
+// referenced by regulatory/compliance/sms modules as an internal
+// legacy key and is renamed in the workspace-templates plan. The
+// copy below is what users see; the key is not user-facing.
 
 export type Industry = "real_estate";
 
@@ -28,32 +31,32 @@ export interface IndustryConfig {
   seededSkills: string[];
 }
 
-const REAL_ESTATE: IndustryConfig = {
-  industry: "real_estate",
-  eyebrow: "FOR COMMERCIAL REAL ESTATE",
-  shortLabel: "CRE broker",
-  marketingHeadline: "Every parcel, researched in seconds.",
+const GENERAL: IndustryConfig = {
+  industry: "real_estate", // legacy internal key — see file header
+  eyebrow: "BUILD AI AGENTS FOR YOUR BUSINESS",
+  shortLabel: "builder",
+  marketingHeadline: "Agents that know your business.",
   marketingDescription:
-    "Drift pulls zoning, assessed value, tax estimates, demographics, and environmental data from county public records the moment you type an address. Link your own Phase I, lease abstract, or zoning letter and the AI cites the exact section -- your 40-hour research package, searchable.",
-  marketingChips: ["Parcel intelligence", "Citation-grounded"],
-  displayName: "CRE Broker",
+    "Dante lets you build AI agents that read your documents and cite their sources, answer your phones, and run multi-step workflows — deployed in minutes, no code required.",
+  marketingChips: ["Citation-grounded", "Voice + workflows"],
+  displayName: "Business",
   assistantName: "Dante",
   assistantIconPath: "/brand/dante-sword.png",
-  clientLabel: "client",
-  clientLabelPlural: "clients",
-  danteHero: "What do you need today?",
-  danteSubtitle: "Search a parcel, pull demographics, draft a lease abstract.",
-  chatPlaceholder: "Search parcels near an address, pull a property report, draft an email…",
+  clientLabel: "contact",
+  clientLabelPlural: "contacts",
+  danteHero: "What should we build today?",
+  danteSubtitle: "Ask a question, search your documents, or automate a process.",
+  chatPlaceholder: "Ask about your documents, draft an email, build a workflow…",
   starterQuestions: [
-    "Find C-2 parcels over 1 acre near {address}",
-    "Pull the full report on {address}",
-    "Which clients haven't heard from me in 30+ days?",
-    "Prep me for my 2 PM meeting",
+    "What can you do?",
+    "Summarize the documents I uploaded this week",
+    "Which contacts haven't heard from me in 30+ days?",
+    "Build a workflow that emails me a daily digest",
   ],
   seededSkills: [
-    "draft_listing_prep_recap",
-    "summarize_recent_buyer_emails",
-    "prep_briefing_for_showing",
+    "draft_follow_up_email",
+    "summarize_recent_emails",
+    "prep_meeting_briefing",
   ],
 };
 
@@ -62,5 +65,5 @@ export const ALL_INDUSTRIES: Industry[] = ["real_estate"];
 export const SIGNUP_INDUSTRIES: Industry[] = ["real_estate"];
 
 export function getIndustryConfig(_industry?: string | null | undefined): IndustryConfig {
-  return REAL_ESTATE;
+  return GENERAL;
 }
