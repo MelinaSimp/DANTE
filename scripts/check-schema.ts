@@ -128,6 +128,8 @@ const MANIFEST: TableSpec[] = [
   { table: "re_tours", columns: ["id", "workspace_id", "property_id", "scheduled_at", "status"] },
   { table: "re_offers", columns: ["id", "workspace_id", "buyer_contact_id", "offer_price_cents", "status"] },
   { table: "re_transactions", columns: ["id", "workspace_id", "side", "sale_price_cents", "closing_status"] },
+  // ── Agent Builder ──
+  { table: "agents", columns: ["id", "workspace_id", "name", "status", "llm_instructions", "first_message", "llm_model", "builder_config"] },
 ];
 
 async function main() {
