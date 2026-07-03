@@ -28,7 +28,7 @@ autoUpdater.autoInstallOnAppQuit = process.platform === "win32";
 // Safety net: a stray updater rejection should never bubble up as unhandled.
 process.on("unhandledRejection", (reason) => {
   console.error(
-    "[Drift] Unhandled rejection:",
+    "[Dante] Unhandled rejection:",
     reason && reason.message ? reason.message : reason,
   );
 });
@@ -59,7 +59,7 @@ autoUpdater.on("checking-for-update", () => {
   emitUpdateState();
 });
 autoUpdater.on("update-available", (info) => {
-  console.log("[Drift updater] update available:", info?.version);
+  console.log("[Dante updater] update available:", info?.version);
   updateState = {
     ...updateState,
     status: "downloading",
@@ -82,7 +82,7 @@ autoUpdater.on("download-progress", (p) => {
   emitUpdateState();
 });
 autoUpdater.on("update-downloaded", (info) => {
-  console.log("[Drift updater] downloaded:", info?.version);
+  console.log("[Dante updater] downloaded:", info?.version);
   updateState = {
     ...updateState,
     status: "downloaded",
@@ -93,7 +93,7 @@ autoUpdater.on("update-downloaded", (info) => {
   emitUpdateState();
 });
 autoUpdater.on("error", (err) => {
-  console.error("[Drift updater]", err?.message || err);
+  console.error("[Dante updater]", err?.message || err);
   updateState = {
     ...updateState,
     status: "error",
@@ -156,7 +156,7 @@ function createWindow() {
   function loadApp() {
     if (!mainWindow || mainWindow.isDestroyed()) return;
     mainWindow.loadURL(APP_URL, loadOpts).catch((err) => {
-      console.error("[Drift] Load error:", err && err.message ? err.message : err);
+      console.error("[Dante] Load error:", err && err.message ? err.message : err);
       scheduleRetry();
     });
   }
@@ -175,7 +175,7 @@ function createWindow() {
         .showMessageBox(mainWindow, {
           type: "warning",
           title: "Connection Error",
-          message: "Could not connect to Drift AI.",
+          message: "Could not connect to Dante.",
           detail: `Couldn't reach ${APP_URL}.\n\nCheck your internet connection.`,
           buttons: ["Retry", "Quit"],
           defaultId: 0,
@@ -204,7 +204,7 @@ function createWindow() {
   mainWindow.webContents.on("did-navigate", (_e, _url, httpResponseCode) => {
     lastHttpCode = httpResponseCode || 0;
     if (lastHttpCode >= 500) {
-      console.error(`[Drift] Server returned ${lastHttpCode}; retrying`);
+      console.error(`[Dante] Server returned ${lastHttpCode}; retrying`);
       scheduleRetry();
     }
   });
@@ -213,7 +213,7 @@ function createWindow() {
   });
   mainWindow.webContents.on("did-fail-load", (_e, code, desc, _url, isMainFrame) => {
     if (code === -3 || !isMainFrame) return; // -3 = ERR_ABORTED (redirects etc.)
-    console.error(`[Drift] Load failed: ${code} ${desc}`);
+    console.error(`[Dante] Load failed: ${code} ${desc}`);
     scheduleRetry();
   });
 
@@ -263,11 +263,11 @@ function createTray() {
   if (isMac) icon.setTemplateImage(true);
 
   tray = new Tray(icon);
-  tray.setToolTip("Drift AI");
+  tray.setToolTip("Dante");
   tray.setContextMenu(
     Menu.buildFromTemplate([
       {
-        label: "Open Drift",
+        label: "Open Dante",
         click: () => {
           if (mainWindow) mainWindow.show();
           else createWindow();
@@ -312,7 +312,7 @@ ipcMain.handle("pdfs:pickAndExtract", async () => {
         size: buffer.length,
       });
     } catch (err) {
-      console.error("[Drift] PDF parse failed:", filePath, err?.message);
+      console.error("[Dante] PDF parse failed:", filePath, err?.message);
       out.push({
         name: path.basename(filePath),
         text: "",
@@ -540,7 +540,7 @@ async function extractDocxText(filePath) {
 ipcMain.handle("watched:pickFolder", async () => {
   if (!mainWindow) return { canceled: true };
   const result = await dialog.showOpenDialog(mainWindow, {
-    title: "Pick a folder for Drift to watch",
+    title: "Pick a folder for Dante to watch",
     properties: ["openDirectory", "createDirectory"],
   });
   if (result.canceled || result.filePaths.length === 0) {
@@ -769,7 +769,7 @@ app.whenReady().then(async () => {
   // silently. Doesn't block window creation — the privacy-mode
   // panel will reflect the real state by the time the user opens it.
   ollama.ensureRunning().catch((err) =>
-    console.warn("[Drift] ollama.ensureRunning failed:", err?.message || err),
+    console.warn("[Dante] ollama.ensureRunning failed:", err?.message || err),
   );
 
   createWindow();
@@ -780,7 +780,7 @@ app.whenReady().then(async () => {
   // Only auto-check for updates where auto-update can actually apply (Windows).
   if (!isDev && process.platform === "win32") {
     autoUpdater.checkForUpdates().catch((e) =>
-      console.error("[Drift updater] initial check failed:", e?.message || e)
+      console.error("[Dante updater] initial check failed:", e?.message || e)
     );
     setInterval(() => {
       autoUpdater.checkForUpdates().catch(() => {});
