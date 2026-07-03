@@ -1,13 +1,16 @@
-// Desktop chat system prompt — CRE only.
+// Desktop chat system prompt — platform-neutral.
 //
-// Authoritative source: `prompts/vergil-v3.md`.
-// Production reads from the .ts module (lib/dante/prompts/vergil-v3.ts)
+// Authoritative source: `prompts/dante-v1.md`.
+// Production reads from the .ts module (lib/dante/prompts/dante-v1.ts)
 // because Vercel's serverless bundler doesn't reliably trace runtime
 // fs.readFileSync calls.
+//
+// The CRE persona (prompts/vergil-v3.md) is retained on disk for the
+// future Drift CRE marketplace template but is no longer imported.
 
 import { getIndustryConfig } from "@/lib/industry/config";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { VERGIL_V3_PROMPT, VERGIL_V3_VERSION } from "./prompts/vergil-v3";
+import { DANTE_V1_PROMPT, DANTE_V1_VERSION } from "./prompts/dante-v1";
 
 interface BuildDantePromptInput {
   industry?: string | null;
@@ -15,7 +18,7 @@ interface BuildDantePromptInput {
 }
 
 export function buildDanteSystemPrompt(_input?: BuildDantePromptInput): string {
-  return VERGIL_V3_PROMPT;
+  return DANTE_V1_PROMPT;
 }
 
 /**
@@ -174,7 +177,7 @@ export async function buildDanteSystemPromptWithFirm(
 }
 
 export function getActivePromptVersion(_industry?: string | null): string {
-  return VERGIL_V3_VERSION;
+  return DANTE_V1_VERSION;
 }
 
 export function getAssistantName(industry: string | null): string {
