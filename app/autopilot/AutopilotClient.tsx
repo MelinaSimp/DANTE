@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Radar,
@@ -8,16 +8,25 @@ import {
   ScrollText,
   BarChart3,
   FileText,
+  Leaf,
+  Scale,
   Loader2,
   AlertCircle,
   X,
   Check,
-  ArrowUpRight,
   ExternalLink,
+  Play,
 } from "lucide-react";
 import { usePageContext } from "@/components/dante/PageContext";
 
-type DocType = "rent_roll" | "lease" | "operating_statement" | "offering_memo" | "other";
+type DocType =
+  | "rent_roll"
+  | "lease"
+  | "operating_statement"
+  | "offering_memo"
+  | "environmental"
+  | "appraisal"
+  | "other";
 type Status = "pending" | "approved" | "dismissed";
 
 interface Analysis {
@@ -32,13 +41,25 @@ interface Analysis {
   created_at: string;
 }
 
-const TYPE_META: Record<DocType, { label: string; icon: typeof Calculator }> = {
-  rent_roll: { label: "Rent roll", icon: Calculator },
-  lease: { label: "Lease", icon: ScrollText },
-  operating_statement: { label: "Operating statement", icon: BarChart3 },
-  offering_memo: { label: "Offering memo", icon: FileText },
-  other: { label: "Document", icon: FileText },
+const TYPE_META: Record<DocType, { label: string; plural: string; icon: typeof Calculator }> = {
+  rent_roll: { label: "Rent roll", plural: "Rent rolls", icon: Calculator },
+  lease: { label: "Lease", plural: "Leases", icon: ScrollText },
+  operating_statement: { label: "Operating statement", plural: "Operating statements", icon: BarChart3 },
+  offering_memo: { label: "Offering memo", plural: "Offering memos", icon: FileText },
+  environmental: { label: "Environmental", plural: "Environmental", icon: Leaf },
+  appraisal: { label: "Appraisal", plural: "Appraisals", icon: Scale },
+  other: { label: "Document", plural: "Documents", icon: FileText },
 };
+
+const TYPE_ORDER: DocType[] = [
+  "lease",
+  "rent_roll",
+  "operating_statement",
+  "environmental",
+  "appraisal",
+  "offering_memo",
+  "other",
+];
 
 const FILTERS: { key: Status | "all"; label: string }[] = [
   { key: "pending", label: "Pending" },
@@ -63,15 +84,12 @@ function relativeTime(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function actionFor(a: Analysis): { label: string; href: string } | null {
-  switch (a.doc_type) {
-    case "rent_roll":
-      return { label: "Underwrite (workflow)", href: "/workflows" };
-    case "lease":
-      return { label: "Abstract (workflow)", href: "/workflows" };
-    default:
-      return null;
-  }
+interface BatchState {
+  running: boolean;
+  done: number;
+  total: number;
+  failed: number;
+  current: string | null;
 }
 
 export default function AutopilotClient() {
@@ -84,7 +102,12 @@ export default function AutopilotClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Status | "all">("pending");
+  const [typeFilter, setTypeFilter] = useState<DocType | "all">("all");
   const [busy, setBusy] = useState<string | null>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [abstracting, setAbstracting] = useState<Set<string>>(new Set());
+  const [batch, setBatch] = useState<BatchState | null>(null);
+  const cancelBatch = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -106,6 +129,18 @@ export default function AutopilotClient() {
     load();
   }, [load]);
 
+  // Type counts for the chips, computed from the current status view.
+  const typeCounts = useMemo(() => {
+    const counts = new Map<DocType, number>();
+    for (const a of analyses) counts.set(a.doc_type, (counts.get(a.doc_type) || 0) + 1);
+    return counts;
+  }, [analyses]);
+
+  const visible = useMemo(
+    () => (typeFilter === "all" ? analyses : analyses.filter((a) => a.doc_type === typeFilter)),
+    [analyses, typeFilter],
+  );
+
   const setStatus = async (id: string, status: Status) => {
     setBusy(id);
     try {
@@ -116,7 +151,6 @@ export default function AutopilotClient() {
         body: JSON.stringify({ status }),
       });
       if (!r.ok) throw new Error((await r.json()).error || "Update failed");
-      // Drop from view if it no longer matches the active filter.
       if (filter !== "all" && filter !== status) {
         setAnalyses((prev) => prev.filter((a) => a.id !== id));
       } else {
@@ -128,6 +162,134 @@ export default function AutopilotClient() {
       setBusy(null);
     }
   };
+
+  // Bulk approve / dismiss everything in the current view (status +
+  // type filters both respected — the ids are explicit).
+  const bulkSetStatus = async (status: "approved" | "dismissed") => {
+    const targets = visible.filter((a) => a.status === "pending");
+    if (targets.length === 0) return;
+    const noun = typeFilter === "all" ? "items" : TYPE_META[typeFilter].plural.toLowerCase();
+    if (!window.confirm(`${status === "approved" ? "Approve" : "Dismiss"} ${targets.length} pending ${noun}?`)) return;
+    setBulkBusy(true);
+    try {
+      const r = await fetch(`/api/autopilot/analyses/bulk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ status, ids: targets.map((a) => a.id) }),
+      });
+      if (!r.ok) throw new Error((await r.json()).error || "Bulk update failed");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
+  // Run a real abstraction for one lease analysis. Multi-minute call —
+  // the API streams no progress, so we just hold a spinner per item.
+  const abstractOne = async (a: Analysis): Promise<boolean> => {
+    if (!a.vault_item_id) return false;
+    setAbstracting((prev) => new Set(prev).add(a.id));
+    try {
+      const r = await fetch(`/api/lease-abstractor`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ vault_item_id: a.vault_item_id }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || d.status === "failed") {
+        throw new Error(d.error_message || d.error || "Abstraction failed");
+      }
+      // Mark reviewed and reflect the result inline.
+      await fetch(`/api/autopilot/analyses/${a.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ status: "approved" }),
+      });
+      setAnalyses((prev) =>
+        prev.map((x) =>
+          x.id === a.id
+            ? {
+                ...x,
+                status: "approved" as Status,
+                headline: `Abstracted — ${d.tenant_name || "terms extracted"}${d.expiration_date ? `, expires ${d.expiration_date}` : ""}`,
+              }
+            : x,
+        ),
+      );
+      return true;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      return false;
+    } finally {
+      setAbstracting((prev) => {
+        const next = new Set(prev);
+        next.delete(a.id);
+        return next;
+      });
+    }
+  };
+
+  // Batch abstraction over every pending lease in view. Runs 2 at a
+  // time from this window — each lease takes several minutes of LLM
+  // extraction, so the progress bar and a cancel affordance matter.
+  const abstractAllLeases = async () => {
+    const targets = visible.filter((a) => a.status === "pending" && a.doc_type === "lease" && a.vault_item_id);
+    if (targets.length === 0) return;
+
+    // Skip leases that already have a completed abstract.
+    let existing = new Set<string>();
+    try {
+      const r = await fetch(`/api/lease-abstractor`, { credentials: "include" });
+      const d = await r.json();
+      existing = new Set(
+        (Array.isArray(d.abstracts) ? d.abstracts : [])
+          .filter((x: { status?: string }) => x.status === "completed")
+          .map((x: { vault_item_id?: string }) => x.vault_item_id),
+      );
+    } catch { /* best effort — worst case we re-abstract */ }
+    const queue = targets.filter((a) => !existing.has(a.vault_item_id!));
+    const skipped = targets.length - queue.length;
+
+    const est = Math.ceil((queue.length * 4) / 2); // ~4 min each, 2 in parallel
+    const msg =
+      `Abstract ${queue.length} lease${queue.length === 1 ? "" : "s"}?` +
+      (skipped ? ` (${skipped} already abstracted — skipped.)` : "") +
+      `\n\nThis runs AI extraction on each document — roughly ${est} minute${est === 1 ? "" : "s"} total. ` +
+      `Keep this window open; you can cancel anytime.`;
+    if (queue.length === 0) {
+      window.alert("Every pending lease in view already has a completed abstract.");
+      return;
+    }
+    if (!window.confirm(msg)) return;
+
+    cancelBatch.current = false;
+    setBatch({ running: true, done: 0, total: queue.length, failed: 0, current: null });
+
+    const work = [...queue];
+    await Promise.all(
+      Array.from({ length: 2 }, async () => {
+        for (;;) {
+          if (cancelBatch.current) return;
+          const item = work.shift();
+          if (!item) return;
+          setBatch((b) => (b ? { ...b, current: item.title || "document" } : b));
+          const ok = await abstractOne(item);
+          setBatch((b) =>
+            b ? { ...b, done: b.done + 1, failed: b.failed + (ok ? 0 : 1) } : b,
+          );
+        }
+      }),
+    );
+    setBatch((b) => (b ? { ...b, running: false, current: null } : b));
+  };
+
+  const pendingInView = visible.filter((a) => a.status === "pending").length;
+  const pendingLeases = visible.filter((a) => a.status === "pending" && a.doc_type === "lease").length;
 
   return (
     <div className="min-h-full bg-[var(--canvas)] text-[var(--ink)]">
@@ -148,8 +310,8 @@ export default function AutopilotClient() {
           </p>
         </div>
 
-        {/* Filter tabs */}
-        <div className="flex items-center gap-1 mb-5 border-b border-[var(--rule)]">
+        {/* Status tabs */}
+        <div className="flex items-center gap-1 mb-3 border-b border-[var(--rule)]">
           {FILTERS.map((f) => (
             <button
               key={f.key}
@@ -165,6 +327,109 @@ export default function AutopilotClient() {
           ))}
         </div>
 
+        {/* Doc-type chips */}
+        <div className="flex items-center gap-1.5 mb-4 flex-wrap">
+          <button
+            onClick={() => setTypeFilter("all")}
+            className={`px-2.5 py-1 rounded-full text-xs font-medium border transition ${
+              typeFilter === "all"
+                ? "border-[var(--ink)] bg-[var(--ink)] text-[var(--canvas)]"
+                : "border-[var(--rule)] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:border-[var(--rule-strong)]"
+            }`}
+          >
+            All types {analyses.length > 0 ? `(${analyses.length})` : ""}
+          </button>
+          {TYPE_ORDER.filter((t) => (typeCounts.get(t) || 0) > 0).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTypeFilter(typeFilter === t ? "all" : t)}
+              className={`px-2.5 py-1 rounded-full text-xs font-medium border transition ${
+                typeFilter === t
+                  ? "border-[var(--ink)] bg-[var(--ink)] text-[var(--canvas)]"
+                  : "border-[var(--rule)] text-[var(--ink-muted)] hover:text-[var(--ink)] hover:border-[var(--rule-strong)]"
+              }`}
+            >
+              {TYPE_META[t].plural} ({typeCounts.get(t)})
+            </button>
+          ))}
+        </div>
+
+        {/* Bulk actions — appear when the view has pending items */}
+        {pendingInView > 1 && !batch?.running && (
+          <div className="mb-4 flex items-center gap-2 flex-wrap card-flat px-3 py-2">
+            <span className="text-xs text-[var(--ink-muted)]">
+              {pendingInView} pending in view
+            </span>
+            <div className="flex-1" />
+            {pendingLeases > 1 && (typeFilter === "lease" || typeFilter === "all") && (
+              <button
+                onClick={abstractAllLeases}
+                disabled={bulkBusy}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--r-input)] bg-[var(--ink)] text-[var(--canvas)] text-xs font-medium hover:opacity-90 disabled:opacity-50 transition"
+              >
+                <Play className="w-3 h-3" strokeWidth={1.5} />
+                Abstract all leases ({pendingLeases})
+              </button>
+            )}
+            <button
+              onClick={() => bulkSetStatus("approved")}
+              disabled={bulkBusy}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[var(--r-input)] border border-[var(--rule)] text-xs font-medium text-[var(--verified)] hover:bg-[var(--verified-soft)] disabled:opacity-50 transition"
+            >
+              <Check className="w-3 h-3" strokeWidth={1.5} />
+              Approve all
+            </button>
+            <button
+              onClick={() => bulkSetStatus("dismissed")}
+              disabled={bulkBusy}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[var(--r-input)] border border-[var(--rule)] text-xs font-medium text-[var(--ink-muted)] hover:bg-[var(--canvas-subtle)] disabled:opacity-50 transition"
+            >
+              <X className="w-3 h-3" strokeWidth={1.5} />
+              Dismiss all
+            </button>
+          </div>
+        )}
+
+        {/* Batch progress */}
+        {batch && (
+          <div className="mb-4 card-flat px-3 py-2.5">
+            <div className="flex items-center gap-2">
+              {batch.running ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--ink-muted)]" strokeWidth={1.5} />
+              ) : (
+                <Check className="w-3.5 h-3.5 text-[var(--verified)]" strokeWidth={1.5} />
+              )}
+              <span className="text-xs font-medium text-[var(--ink)]">
+                {batch.running
+                  ? `Abstracting ${batch.done + 1} of ${batch.total}${batch.current ? ` — ${batch.current}` : ""}`
+                  : `Batch finished: ${batch.done - batch.failed} abstracted${batch.failed ? `, ${batch.failed} failed` : ""}`}
+              </span>
+              <div className="flex-1" />
+              {batch.running ? (
+                <button
+                  onClick={() => { cancelBatch.current = true; }}
+                  className="text-xs text-[var(--ink-muted)] hover:text-[var(--ink)] underline"
+                >
+                  Cancel after current
+                </button>
+              ) : (
+                <button
+                  onClick={() => setBatch(null)}
+                  className="p-0.5 text-[var(--ink-muted)] hover:text-[var(--ink)]"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            <div className="mt-2 h-1.5 rounded-full bg-[var(--canvas-muted)] overflow-hidden">
+              <div
+                className="h-full rounded-full bg-[var(--accent)] transition-all duration-500"
+                style={{ width: `${batch.total ? Math.round((batch.done / batch.total) * 100) : 0}%` }}
+              />
+            </div>
+          </div>
+        )}
+
         {error && (
           <div className="mb-5 px-3 py-2 text-sm text-[var(--danger)] bg-[var(--danger-soft)] border border-[var(--danger)]/30 rounded-[var(--r-input)] flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" strokeWidth={1.5} />
@@ -179,7 +444,7 @@ export default function AutopilotClient() {
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-5 h-5 animate-spin text-[var(--ink-subtle)]" strokeWidth={1.5} />
           </div>
-        ) : analyses.length === 0 ? (
+        ) : visible.length === 0 ? (
           <div className="card-flat p-10 text-center">
             <div className="rounded-full bg-[var(--canvas-subtle)] border border-[var(--rule)] p-3 mx-auto w-fit mb-4">
               <Radar className="w-5 h-5 text-[var(--ink-muted)]" strokeWidth={1.5} />
@@ -195,12 +460,12 @@ export default function AutopilotClient() {
           </div>
         ) : (
           <div className="space-y-3">
-            {analyses.map((a) => {
+            {visible.map((a) => {
               const meta = TYPE_META[a.doc_type] || TYPE_META.other;
               const Icon = meta.icon;
-              const action = actionFor(a);
               const s = a.summary || {};
               const autoUw = s.auto_underwrite === true;
+              const isAbstracting = abstracting.has(a.id);
               return (
                 <div key={a.id} className="card-flat p-4">
                   <div className="flex items-start gap-3">
@@ -260,14 +525,24 @@ export default function AutopilotClient() {
 
                       {/* Actions */}
                       <div className="mt-3 flex items-center gap-2 flex-wrap">
-                        {action && (
-                          <Link
-                            href={action.href}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--r-input)] bg-[var(--ink)] text-[var(--canvas)] text-xs font-medium hover:opacity-90 transition"
+                        {a.doc_type === "lease" && a.vault_item_id && a.status === "pending" && (
+                          <button
+                            onClick={() => abstractOne(a)}
+                            disabled={isAbstracting || batch?.running}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--r-input)] bg-[var(--ink)] text-[var(--canvas)] text-xs font-medium hover:opacity-90 disabled:opacity-50 transition"
                           >
-                            <ArrowUpRight className="w-3 h-3" strokeWidth={1.5} />
-                            {action.label}
-                          </Link>
+                            {isAbstracting ? (
+                              <>
+                                <Loader2 className="w-3 h-3 animate-spin" strokeWidth={1.5} />
+                                Abstracting (3-6 min)...
+                              </>
+                            ) : (
+                              <>
+                                <Play className="w-3 h-3" strokeWidth={1.5} />
+                                Abstract now
+                              </>
+                            )}
+                          </button>
                         )}
                         {a.vault_item_id && (
                           <Link
