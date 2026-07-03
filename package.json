@@ -1,8 +1,8 @@
 {
-  "name": "drift-ai",
-  "version": "1.4.2",
-  "description": "Drift AI — Customer Relationship Management",
-  "author": "Drift AI",
+  "name": "dante",
+  "version": "2.0.0",
+  "description": "Dante — AI Agent & Workflow Builder Platform",
+  "author": "Dante",
   "private": true,
   "main": "electron/main.js",
   "scripts": {
@@ -100,8 +100,8 @@
     "vitest": "^4.1.6"
   },
   "build": {
-    "appId": "com.drift.ai",
-    "productName": "Drift AI",
+    "appId": "com.dante.app",
+    "productName": "Dante",
     "directories": {
       "output": "dist-electron"
     },
@@ -135,7 +135,7 @@
       ],
       "icon": "public/brand/Drift.icns",
       "darkModeSupport": true,
-      "artifactName": "Drift-AI-mac-${arch}.${ext}",
+      "artifactName": "Dante-mac-${arch}.${ext}",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
       "entitlements": "electron/entitlements.mac.plist",
@@ -145,7 +145,7 @@
     "win": {
       "target": "nsis",
       "icon": "public/brand/Drift.ico",
-      "artifactName": "Drift-AI-Setup.${ext}",
+      "artifactName": "Dante-Setup.${ext}",
       "publisherName": "Drift AI LLC",
       "signingHashAlgorithms": [
         "sha256"

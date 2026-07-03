@@ -1,7 +1,7 @@
 {
-  "name": "Drift AI",
-  "short_name": "Drift AI",
-  "description": "AI-powered deal intelligence for commercial real estate",
+  "name": "Dante",
+  "short_name": "Dante",
+  "description": "Build AI agents that read your documents, answer your phones, and run your workflows",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -26,7 +26,7 @@
     {
       "name": "Dante AI",
       "short_name": "Dante",
-      "description": "Ask Dante about deals and leases",
+      "description": "Ask Dante anything",
       "url": "/dante"
     },
     {
