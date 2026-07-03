@@ -8,6 +8,11 @@ import {
 
 describe("skill registry", () => {
   const EXPECTED_SKILLS = [
+    // generic defaults (seeded into new workspaces)
+    "draft_follow_up_email",
+    "summarize_recent_emails",
+    "prep_meeting_briefing",
+    // CRE pack (kept in registry for the future Drift template)
     "draft_listing_prep_recap",
     "summarize_recent_buyer_emails",
     "prep_briefing_for_showing",
@@ -91,38 +96,38 @@ describe("skill registry", () => {
 });
 
 describe("default skill slugs", () => {
-  it("returns all 7 CRE skills", () => {
-    const slugs = defaultSkillSlugsFor("real_estate");
-    expect(slugs).toHaveLength(7);
+  it("returns only the generic defaults", () => {
+    expect(defaultSkillSlugsFor()).toEqual([
+      "draft_follow_up_email",
+      "summarize_recent_emails",
+      "prep_meeting_briefing",
+    ]);
   });
 
   it("returns same slugs regardless of industry argument", () => {
-    // After RIA removal, industry argument is ignored
+    // Industry argument is ignored — Dante is horizontal
     const cre = defaultSkillSlugsFor("real_estate");
     const noArg = defaultSkillSlugsFor();
     expect(cre).toEqual(noArg);
   });
 
-  it("includes abstract_lease (revenue-critical skill)", () => {
+  it("does not seed CRE-pack skills by default", () => {
     const slugs = defaultSkillSlugsFor();
-    expect(slugs).toContain("abstract_lease");
-  });
-
-  it("includes psa_redline_analysis", () => {
-    const slugs = defaultSkillSlugsFor();
-    expect(slugs).toContain("psa_redline_analysis");
-  });
-
-  it("includes broker_email_draft", () => {
-    const slugs = defaultSkillSlugsFor();
-    expect(slugs).toContain("broker_email_draft");
+    for (const creSlug of [
+      "abstract_lease",
+      "psa_redline_analysis",
+      "broker_email_draft",
+      "loi_draft",
+    ]) {
+      expect(slugs).not.toContain(creSlug);
+    }
   });
 });
 
 describe("default skill seeds", () => {
   it("returns full SkillSeed objects for all defaults", () => {
     const seeds = defaultSkillSeedsFor();
-    expect(seeds).toHaveLength(7);
+    expect(seeds).toHaveLength(3);
     for (const s of seeds) {
       expect(s.name).toBeTruthy();
       expect(s.config).toBeTruthy();
@@ -185,8 +190,8 @@ describe("individual skill validation", () => {
     expect(seed.input_schema.required).not.toContain("terms");
   });
 
-  it("includes loi_draft in defaults", () => {
-    const slugs = defaultSkillSlugsFor();
-    expect(slugs).toContain("loi_draft");
+  it("loi_draft remains registered but is not a default", () => {
+    expect(getSkillSeed("loi_draft")).not.toBeNull();
+    expect(defaultSkillSlugsFor()).not.toContain("loi_draft");
   });
 });

@@ -1,9 +1,9 @@
 // lib/industry/skills.ts
 //
-// Default CRE skills seeded into a workspace on first onboarding
-// completion. Skill bodies (objective, system prompt, tools, IO
-// schema) live here in TypeScript so they're versioned in the repo.
-// RIA skills removed 2026-05-24.
+// Skill seeds. The generic defaults are seeded into a workspace on
+// first onboarding completion. The CRE pack remains registered (not
+// seeded) and will ship as the Drift CRE marketplace template.
+// Skill bodies live in TypeScript so they're versioned in the repo.
 
 import type { Industry } from "./config";
 
@@ -198,7 +198,82 @@ const LOI_DRAFT: SkillSeed = {
   auto_approve: false,
 };
 
+// ── Generic defaults (seeded into every new workspace) ──────────
+
+const DRAFT_FOLLOW_UP_EMAIL: SkillSeed = {
+  name: "draft_follow_up_email",
+  description:
+    "Draft a follow-up email to a contact, grounded in memory and any relevant vault documents.",
+  config: {
+    objective:
+      "Draft a follow-up email to {{input.contact_name}}. Pull recent context about them from memory, cite any vault documents that support concrete claims, and end with a clear next step. Context from the user: {{input.notes}}",
+    system:
+      "You are drafting on behalf of a business professional. Warm, specific, and free of jargon. Ground concrete claims in vault citations using the [v1] [v2] markers from vault.cite. Never invent facts about the contact.",
+    tools: ["memory.search", "vault.cite"],
+    max_steps: 6,
+  },
+  input_schema: {
+    type: "object",
+    required: ["contact_id", "contact_name", "notes"],
+    properties: {
+      contact_id: { type: "string" },
+      contact_name: { type: "string" },
+      notes: { type: "string" },
+    },
+  },
+  auto_approve: false,
+};
+
+const SUMMARIZE_RECENT_EMAILS: SkillSeed = {
+  name: "summarize_recent_emails",
+  description:
+    "Roll up the last 14 days of correspondence with a contact into a 4-bullet brief.",
+  config: {
+    objective:
+      'Search memory for episode-kind entries with source_kind="email" about contact {{input.contact_id}} from the last 14 days. Summarize them as 4 bullets focusing on: (1) what they want or need, (2) any commitments either side made, (3) the emotional tone (positive, hesitant, frustrated), (4) anything still open. Be concise.',
+    system:
+      "You are summarizing for someone about to call this contact or walk into a meeting with them. They have 90 seconds to read this. No fluff.",
+    tools: ["memory.search"],
+    max_steps: 4,
+  },
+  input_schema: {
+    type: "object",
+    required: ["contact_id"],
+    properties: {
+      contact_id: { type: "string" },
+    },
+  },
+  auto_approve: true,
+};
+
+const PREP_MEETING_BRIEFING: SkillSeed = {
+  name: "prep_meeting_briefing",
+  description:
+    "Prepare a briefing before a meeting: who the contact is, history, open items, and suggested talking points.",
+  config: {
+    objective:
+      "Prepare a briefing for a meeting with {{input.contact_name}}. From memory and the vault, assemble: (1) who they are and their relationship to us, (2) what has happened recently, (3) open commitments or questions, (4) three suggested talking points. Cite vault documents where relevant. Meeting context: {{input.meeting_context}}",
+    system:
+      "You are prepping a business professional for a meeting. Specific and scannable — headers and short bullets. Ground document-based claims in [v1] [v2] citations from vault.cite.",
+    tools: ["memory.search", "vault.cite"],
+    max_steps: 6,
+  },
+  input_schema: {
+    type: "object",
+    required: ["contact_id", "contact_name", "meeting_context"],
+    properties: {
+      contact_id: { type: "string" },
+      contact_name: { type: "string" },
+      meeting_context: { type: "string" },
+    },
+  },
+  auto_approve: true,
+};
+
 const REGISTRY: Record<string, SkillSeed> = {
+  draft_follow_up_email: DRAFT_FOLLOW_UP_EMAIL,
+  summarize_recent_emails: SUMMARIZE_RECENT_EMAILS,
+  prep_meeting_briefing: PREP_MEETING_BRIEFING,
   draft_listing_prep_recap: DRAFT_LISTING_PREP_RECAP,
   summarize_recent_buyer_emails: SUMMARIZE_RECENT_BUYER_EMAILS,
   prep_briefing_for_showing: PREP_BRIEFING_FOR_SHOWING,
@@ -213,13 +288,9 @@ export function getSkillSeed(slug: string): SkillSeed | null {
 }
 
 const DEFAULTS: string[] = [
-  "draft_listing_prep_recap",
-  "summarize_recent_buyer_emails",
-  "prep_briefing_for_showing",
-  "abstract_lease",
-  "psa_redline_analysis",
-  "broker_email_draft",
-  "loi_draft",
+  "draft_follow_up_email",
+  "summarize_recent_emails",
+  "prep_meeting_briefing",
 ];
 
 export function defaultSkillSlugsFor(_industry?: Industry): string[] {
