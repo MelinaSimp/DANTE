@@ -453,7 +453,7 @@ Be specific about WHO needs to do WHAT and by WHEN. Reference client data and gu
     });
 
     // Add current message with file references
-    let userMessage = message.trim();
+    const userMessage = message.trim();
     
     // Detect if user provided data (spreadsheet, table, or structured data)
     const hasDataPattern = /(?:spreadsheet|table|data|chart|graph|visualize|plot|numbers|statistics|metrics|values|rows|columns)/i.test(userMessage);

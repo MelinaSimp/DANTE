@@ -45,7 +45,6 @@ export async function POST(
     }
 
     // Get agent and workspace - supports both user auth and agent-based calls
-    let workspaceId: string;
     
     // First, try to get agent to get workspace
     const { data: agent } = await supabaseAdmin
@@ -58,7 +57,7 @@ export async function POST(
       return NextResponse.json({ error: "Agent not found" }, { status: 404 });
     }
 
-    workspaceId = agent.workspace_id;
+    const workspaceId: string = agent.workspace_id;
 
     // If user is authenticated, verify agent belongs to their workspace
     const supabase = await createServerSupabase();
@@ -224,7 +223,6 @@ export async function GET(
   try {
     const { agentId } = await params;
     // Get workspace - supports both user auth and agent-based calls
-    let workspaceId: string;
     
     // First, try to get agent to get workspace
     const { data: agent } = await supabaseAdmin
@@ -237,7 +235,7 @@ export async function GET(
       return NextResponse.json({ error: "Agent not found" }, { status: 404 });
     }
 
-    workspaceId = agent.workspace_id;
+    const workspaceId: string = agent.workspace_id;
 
     // Try to verify user auth (optional - for UI calls)
     try {

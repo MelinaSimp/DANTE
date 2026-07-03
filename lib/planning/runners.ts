@@ -668,7 +668,7 @@ function analyzeBeneficiaries(
   // "Robert Smith" (trust) vs "Bob" (account form), and to formatting
   // differences ("the Smith Family Trust" vs "Smith Family Trust").
   const trust = extractions.find((e) => e.doc_type === "trust_document");
-  let trustMismatches: string[] = [];
+  const trustMismatches: string[] = [];
   if (trust) {
     const trustBenString = String(trust.fields.primary_beneficiaries || "");
     const trustNameRaw = String(trust.fields.trust_name || "");

@@ -308,7 +308,7 @@ function makeCoStarAdapter(): IntegrationAdapter {
       // Pull data for each configured market
       let totalPulled = 0;
       let totalUpserted = 0;
-      let totalSkipped = 0;
+      const totalSkipped = 0;
       let totalErrors = 0;
       const errors: string[] = [];
       const syncDetails: Record<string, unknown> = {};

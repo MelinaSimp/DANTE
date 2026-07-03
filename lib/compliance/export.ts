@@ -302,7 +302,7 @@ export async function generateAuditPack(input: ExportInput): Promise<ExportBundl
   }
 
   // ── Documents ──
-  let docQuery = supabaseAdmin
+  const docQuery = supabaseAdmin
     .from("dante_archive_documents")
     .select("id, title, kind, page_count, uploaded_by, created_at")
     .eq("workspace_id", input.workspaceId)

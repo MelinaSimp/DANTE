@@ -60,7 +60,7 @@ function nowInZone(tz: string, now: Date): { day: DayKey; hh: number; mm: number
   const parts = fmt.formatToParts(now);
   const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
   const weekday = get("weekday").toLowerCase().slice(0, 3) as DayKey;
-  let hourStr = get("hour");
+  const hourStr = get("hour");
   // Intl quirk: with hour12:false, midnight can render as "24" in some
   // locales. Normalize to 0 so window comparisons work.
   let hh = parseInt(hourStr, 10);

@@ -108,6 +108,13 @@ export async function PUT(
       : null;
     updates.after_hours_transfer_to = raw && raw.length > 0 ? raw : null;
   }
+  // Web widget channel — independent of the voice deploy state above.
+  // widget_public_id is intentionally NOT settable here; it's a
+  // server-managed token. Rotating it is a separate explicit action.
+  if (body.widget_enabled !== undefined) updates.widget_enabled = !!body.widget_enabled;
+  if (body.widget_config === null || (body.widget_config && typeof body.widget_config === "object")) {
+    updates.widget_config = body.widget_config;
+  }
 
   const { data, error } = await supabaseAdmin
     .from("agents")

@@ -143,7 +143,7 @@ export async function GET(_req: NextRequest) {
     .sort((a, b) => b[1].cost_cents - a[1].cost_cents)
     .slice(0, 20)
     .map(([id]) => id);
-  let workflowNames: Record<string, string> = {};
+  const workflowNames: Record<string, string> = {};
   if (topWorkflowIds.length > 0) {
     const { data: wfRows } = await supabaseAdmin
       .from("dante_workflows")

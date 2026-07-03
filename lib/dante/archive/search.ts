@@ -291,7 +291,7 @@ async function fileIndexFallbackSearch(
     .map((r) => r.vault_item_id!);
 
   // Fetch actual chunks for files that completed ingest.
-  let chunksByVaultItem = new Map<string, Array<{
+  const chunksByVaultItem = new Map<string, Array<{
     id: string; item_id: string; chunk_index: number;
     page_number: number | null; content: string;
   }>>();

@@ -214,7 +214,7 @@ Be friendly, concise, and natural. For voice conversations, keep responses short
     const llmEndTime = Date.now();
     console.log(`[Media Stream Execute] LLM call took ${llmEndTime - llmStartTime}ms`);
 
-    let assistantMessage = llmResult.message;
+    const assistantMessage = llmResult.message;
     let finalOutput = "";
     let functionCallResult = null;
 

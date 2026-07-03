@@ -207,7 +207,7 @@ export async function POST(
             }
             
             let runData = await runResponse.json();
-            let runId = runData.id;
+            const runId = runData.id;
             
             // Poll for completion
             for (let i = 0; i < 30; i++) {

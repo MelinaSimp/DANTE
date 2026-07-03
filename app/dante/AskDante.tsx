@@ -1513,7 +1513,7 @@ export default function AskDante({
     textareaRef.current?.focus();
   };
 
-  const useFollowup = (q: string) => {
+  const handleFollowup = (q: string) => {
     submit(q);
   };
 
@@ -1892,7 +1892,7 @@ export default function AskDante({
                   documents={t.documents}
                   onOpenEditor={(c) => setEditorContent(c)}
                   onRewrite={(instruction) => onRewriteLast(instruction)}
-                  onFollowup={(q) => useFollowup(q)}
+                  onFollowup={(q) => handleFollowup(q)}
                   rewriting={refining === "rewrite"}
                 />
               ),

@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
 
     // Get human grades for these runs
     const runIds = (fbRuns || []).map((r: Record<string, unknown>) => r.id);
-    let gradesByRun: Record<string, Array<Record<string, unknown>>> = {};
+    const gradesByRun: Record<string, Array<Record<string, unknown>>> = {};
     if (runIds.length > 0) {
       const { data: grades } = await supabaseAdmin
         .from("eval_grades")
@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
     const suiteIds = [
       ...new Set((danteRuns || []).map((r: Record<string, unknown>) => r.suite_id)),
     ];
-    let suiteNames: Record<string, string> = {};
+    const suiteNames: Record<string, string> = {};
     if (suiteIds.length > 0) {
       const { data: suites } = await supabaseAdmin
         .from("dante_eval_suites")
@@ -104,7 +104,7 @@ export async function GET(req: NextRequest) {
     const wsIds = [
       ...new Set((danteRuns || []).map((r: Record<string, unknown>) => r.workspace_id)),
     ];
-    let wsNames: Record<string, string> = {};
+    const wsNames: Record<string, string> = {};
     if (wsIds.length > 0) {
       const { data: workspaces } = await supabaseAdmin
         .from("workspaces")

@@ -149,7 +149,7 @@ async function handleMediaStream(req: NextRequest) {
     }
 
     // Create or get conversation
-    let { data: conversation, error: conversationError } = await supabaseAdmin
+    const { data: conversationInit, error: conversationError } = await supabaseAdmin
       .from("conversations")
       .select("*")
       .eq("channel_id", callSid)
@@ -157,6 +157,9 @@ async function handleMediaStream(req: NextRequest) {
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+    // `conversation` is reassigned below (line ~217) when we create a new
+    // row, so it stays `let`; `conversationError` is read-only → const.
+    let conversation = conversationInit;
 
     if (conversationError) {
       console.error("[Media Stream] Database error finding conversation:", conversationError);

@@ -33,7 +33,7 @@ export async function GET(
     .eq("project_id", projectId);
 
   const profileIds = (access || []).map((a: any) => a.profile_id);
-  let profiles: Record<string, { full_name: string; role: string }> = {};
+  const profiles: Record<string, { full_name: string; role: string }> = {};
   if (profileIds.length > 0) {
     const { data: pRows } = await supabaseAdmin
       .from("profiles")

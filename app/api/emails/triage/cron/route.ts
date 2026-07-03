@@ -27,7 +27,7 @@ async function handle(request: Request) {
     .from("workspaces")
     .select("id");
 
-  let total = { processed: 0, rules_only: 0, ai_pass: 0, errors: 0 };
+  const total = { processed: 0, rules_only: 0, ai_pass: 0, errors: 0 };
   for (const ws of workspaces || []) {
     for (let i = 0; i < MAX_BATCHES_PER_WORKSPACE; i++) {
       const r = await triageWorkspaceEmails(supabaseAdmin as any, ws.id, 40);

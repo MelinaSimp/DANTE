@@ -315,7 +315,7 @@ export async function editDocument(input: EditDocumentInput): Promise<DocumentRe
     throw new Error("Document was not created by Dante and cannot be edited. Only Dante-generated documents support section-level editing.");
   }
 
-  let sections = [...meta.sections];
+  const sections = [...meta.sections];
   let title = item.title as string;
   let subtitle = meta.subtitle || (item.description as string | null) || undefined;
 
