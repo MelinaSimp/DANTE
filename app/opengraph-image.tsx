@@ -1,12 +1,12 @@
 // app/opengraph-image.tsx
 //
 // Dynamic OG card rendered at build time. 1200x630, dark canvas
-// with the Drift logo and tagline. Replaces the square logo fallback.
+// with the Dante logo and tagline. Replaces the square logo fallback.
 
 import { ImageResponse } from "next/og";
 
 export const runtime = "edge";
-export const alt = "Drift AI -- CRE deal intelligence";
+export const alt = "Dante -- AI agents & workflows";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -88,7 +88,7 @@ export default async function Image() {
             lineHeight: 1.1,
           }}
         >
-          Drift AI
+          Dante
         </span>
 
         {/* Tagline */}
@@ -101,7 +101,7 @@ export default async function Image() {
             textTransform: "uppercase" as const,
           }}
         >
-          CRE Deal Intelligence
+          AI Agents & Workflows
         </span>
 
         {/* Feature pills */}
@@ -112,7 +112,7 @@ export default async function Image() {
             marginTop: 40,
           }}
         >
-          {["Lease Abstraction", "Parcel Analytics", "AI Workflows"].map(
+          {["Document Intelligence", "Voice AI", "Workflows"].map(
             (label) => (
               <span
                 key={label}
