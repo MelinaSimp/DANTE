@@ -10,7 +10,7 @@ import AppShell from "@/components/shell/AppShell";
 import PropertiesClient from "./PropertiesClient";
 
 export const metadata: Metadata = {
-  title: "Properties — Drift AI",
+  title: "Properties — Dante",
   description: "Deal pipeline for commercial real estate. Track listings, offers, and closings.",
 };
 

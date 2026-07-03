@@ -8,7 +8,7 @@ import AppShell from "@/components/shell/AppShell";
 import SettingsOrbClient from "./SettingsOrbClient";
 
 export const metadata: Metadata = {
-  title: "Settings — Drift AI",
+  title: "Settings — Dante",
   description: "Workspace settings, integrations, billing, and team management.",
 };
 

@@ -18,11 +18,11 @@ import {
 } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Features & Pricing - Drift AI",
+  title: "Features & Pricing - Dante",
   description:
     "AI-powered deal intelligence for commercial real estate. Lease abstraction, 50-state parcel analytics, autonomous workflows, and citation-grounded search.",
   openGraph: {
-    title: "Features & Pricing - Drift AI",
+    title: "Features & Pricing - Dante",
     description:
       "Lease abstraction, 50-state parcel analytics, deal scoring, and autonomous workflows for CRE brokers and developers.",
     url: "https://driftai.studio/features",
@@ -157,7 +157,7 @@ const TIERS = [
 const jsonLd = {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
-  name: "Drift AI",
+  name: "Dante",
   applicationCategory: "BusinessApplication",
   operatingSystem: "macOS",
   description:

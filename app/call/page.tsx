@@ -8,7 +8,7 @@ import { redirect } from "next/navigation";
 import CallPageClient from "./CallPageClient";
 
 export const metadata: Metadata = {
-  title: "Call Recording — Drift AI",
+  title: "Call Recording — Dante",
   description: "Record and transcribe calls. Notes are automatically added to the contact timeline.",
 };
 

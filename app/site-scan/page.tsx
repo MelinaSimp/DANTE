@@ -7,7 +7,7 @@ import AppShell from "@/components/shell/AppShell";
 import SiteScanClient from "./SiteScanClient";
 
 export const metadata: Metadata = {
-  title: "Site Scan — Drift AI",
+  title: "Site Scan — Dante",
   description: "Scan commercial properties and trade areas for void analysis, demographics, and competitor mapping.",
 };
 

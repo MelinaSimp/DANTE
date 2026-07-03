@@ -629,7 +629,7 @@ export async function sendAppointmentEmail(
   // Otherwise wrap it with workspace name
   const fromField = rawFrom.includes("<")
     ? rawFrom
-    : `${workspace?.name || "Drift AI"} <${rawFrom}>`;
+    : `${workspace?.name || "Dante"} <${rawFrom}>`;
 
   const result = await resend.emails.send({
     from: fromField,

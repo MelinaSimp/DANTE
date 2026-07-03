@@ -3,11 +3,11 @@ import Link from "next/link";
 import { Apple, Monitor, Info, Check } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Download Drift AI Desktop App",
+  title: "Download Dante Desktop App",
   description:
-    "Download the native Drift AI desktop app for macOS. CRE deal intelligence, lease abstraction, and 50-state parcel analytics.",
+    "Download the native Dante desktop app for macOS. Watched-folder document sync, AI agents, and workflows on your desktop.",
   openGraph: {
-    title: "Download Drift AI Desktop App",
+    title: "Download Dante Desktop App",
     description:
       "Native macOS app for commercial real estate deal intelligence.",
     url: "https://driftai.studio/download",
@@ -77,7 +77,7 @@ export default function DownloadPage() {
 
       <div className="max-w-5xl mx-auto px-6 py-16">
         <p className="label-section text-[var(--ink-subtle)]">Download</p>
-        <h1 className="heading-display text-5xl mt-3">Download Drift AI</h1>
+        <h1 className="heading-display text-5xl mt-3">Download Dante</h1>
         <p className="mt-4 text-[var(--ink-muted)] text-base max-w-2xl">
           Native desktop apps for macOS and Windows. Sign in with your workspace
           to pick up where you left off.
@@ -142,7 +142,7 @@ export default function DownloadPage() {
           <div className="mt-4 space-y-3 text-sm text-[var(--ink-muted)]">
             <div>
               <strong className="text-[var(--ink)] font-medium">macOS:</strong>{" "}
-              Open the .dmg, drag Drift AI to Applications. First launch: right-click
+              Open the .dmg, drag Dante to Applications. First launch: right-click
               the app and choose Open to bypass the unsigned-developer warning.
             </div>
             <div>

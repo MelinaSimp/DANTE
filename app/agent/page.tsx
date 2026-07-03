@@ -10,7 +10,7 @@ import AppShell from "@/components/shell/AppShell";
 import AgentRosterClient from "./AgentRosterClient";
 
 export const metadata: Metadata = {
-  title: "Agents — Drift AI",
+  title: "Agents — Dante",
   description: "Configure and manage the agents that work your brokerage's chat, email, and workflows.",
 };
 

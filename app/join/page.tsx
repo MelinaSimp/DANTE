@@ -294,7 +294,7 @@ export default function JoinPage() {
             className="mt-6 text-center text-[11px] mono"
             style={{ color: "var(--ink-subtle)" }}
           >
-            © {new Date().getFullYear()} Drift AI
+            © {new Date().getFullYear()} Dante
           </div>
         </div>
       </div>

@@ -10,7 +10,7 @@ import AppShell from "@/components/shell/AppShell";
 import VaultClient from "./VaultClient";
 
 export const metadata: Metadata = {
-  title: "Vault — Drift AI",
+  title: "Vault — Dante",
   description: "Workspace document store. Upload templates, leases, and deal docs for AI-powered search and analysis.",
 };
 

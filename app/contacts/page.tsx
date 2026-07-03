@@ -12,7 +12,7 @@ import AppShell from "@/components/shell/AppShell";
 import ClientDetailsOverviewClient from "@/app/client-details-overview/ClientDetailsOverviewClient";
 
 export const metadata: Metadata = {
-  title: "Contacts — Drift AI",
+  title: "Contacts — Dante",
   description: "Manage your CRE contacts, deals, and communication history.",
 };
 

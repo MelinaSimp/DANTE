@@ -9,7 +9,7 @@ export default function CompiledPage() {
         <div className="text-center mb-12">
           <Image
             src="/brand/logo.png"
-            alt="Drift AI"
+            alt="Dante"
             width={200}
             height={200}
             className="mx-auto mb-8"
@@ -84,7 +84,7 @@ export default function CompiledPage() {
         <div className="text-center">
           <h2 className="text-3xl font-bold mb-4">Ready to Get Started?</h2>
           <p className="text-xl text-gray-600 mb-8">
-            Join CRE brokerages already using Drift AI to streamline every deal.
+            Join the businesses already using Dante to run their agents and workflows.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link

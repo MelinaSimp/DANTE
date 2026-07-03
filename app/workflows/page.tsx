@@ -9,7 +9,7 @@ import AppShell from "@/components/shell/AppShell";
 import WorkflowsPageClient from "./WorkflowsPageClient";
 
 export const metadata: Metadata = {
-  title: "Workflows — Drift AI",
+  title: "Workflows — Dante",
   description: "Automate CRE operations with AI-powered workflows. Build, run, and monitor deal processes.",
 };
 

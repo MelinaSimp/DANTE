@@ -1,6 +1,6 @@
 // lib/logging.ts
 //
-// Structured logger for Drift AI.
+// Structured logger for Dante.
 //
 // In production (Vercel), emits single-line JSON that Vercel's log
 // pipeline parses automatically — giving us structured search, level

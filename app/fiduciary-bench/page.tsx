@@ -378,7 +378,7 @@ export default async function FiduciaryBenchPage() {
         </section>
 
         <div className="mt-12 text-center text-[11px] mono text-[var(--ink-subtle)]">
-          © {new Date().getFullYear()} Drift AI · FiduciaryBench is open methodology
+          © {new Date().getFullYear()} Dante · FiduciaryBench is open methodology
         </div>
       </div>
     </div>

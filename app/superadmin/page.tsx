@@ -51,7 +51,7 @@ export default async function SuperadminPage() {
         <div className="label-section mb-4">Superadmin console</div>
         <h1 className="heading-display text-4xl mb-3">Platform Administration</h1>
         <p className="text-[var(--ink-muted)] max-w-2xl">
-          Manage the entire Drift AI platform, users, and system-wide operations.
+          Manage the entire Dante platform, users, and system-wide operations.
         </p>
       </section>
 

@@ -55,7 +55,7 @@ function authOk(request: Request): boolean {
 function userAgent(): string {
   return (
     process.env.DRIFT_INGEST_USER_AGENT ||
-    "Drift AI Ingest (ops@driftai.studio)"
+    "Dante Ingest (ops@driftai.studio)"
   );
 }
 

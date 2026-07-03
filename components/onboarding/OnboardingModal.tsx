@@ -29,7 +29,7 @@ export default function OnboardingModal({ isOpen, onClose, onComplete }: Onboard
   const steps: OnboardingStep[] = [
     {
       id: "welcome",
-      title: "Welcome to Drift AI!",
+      title: "Welcome to Dante!",
       description: "Let's get you set up in just a few minutes.",
       content: (
         <div className="text-center space-y-4">
