@@ -12,6 +12,8 @@ export type DocType =
   | "lease"
   | "operating_statement"
   | "offering_memo"
+  | "environmental"
+  | "appraisal"
   | "other";
 
 export interface Classification {
@@ -57,6 +59,8 @@ export function classifyDocument(input: Input): Classification {
     operating_statement: { score: 0, signals: [] },
     lease: { score: 0, signals: [] },
     offering_memo: { score: 0, signals: [] },
+    environmental: { score: 0, signals: [] },
+    appraisal: { score: 0, signals: [] },
     other: { score: 0, signals: [] },
   };
 
@@ -129,8 +133,61 @@ export function classifyDocument(input: Input): Classification {
     scores.offering_memo.signals.push(...omSignals.map((s) => `text: "${s}"`));
   }
 
+  // ── Environmental (Phase I/II ESA, remediation) ────────────────
+  // These previously fell into the operating-statement bucket because
+  // ESA reports quote NOI-adjacent financial language.
+  const envStrong = hits(hay, [
+    "environmental site assessment",
+    "phase i environmental",
+    "phase 1 environmental",
+    "phase ii environmental",
+    "phase 2 environmental",
+    "astm e-1527",
+    "astm e1527",
+    "recognized environmental condition",
+    "innocent landowner",
+  ]);
+  if (envStrong.length) {
+    scores.environmental.score += 4 + envStrong.length;
+    scores.environmental.signals.push(...envStrong.map((s) => `text: "${s}"`));
+  }
+  if (/\bphase\s?(i{1,2}|1|2)\b/.test(title) && /environ/.test(hay)) {
+    scores.environmental.score += 4;
+    scores.environmental.signals.push('title: "phase I/II" + environmental');
+  }
+  const envWeak = hits(hay, ["brownfield", "remediation", "underground storage tank", "groundwater", "contamination", "asbestos"]);
+  if (envWeak.length >= 2) {
+    scores.environmental.score += 2;
+    scores.environmental.signals.push("environmental vocabulary cluster");
+  }
+
+  // ── Appraisal ──────────────────────────────────────────────────
+  if (title.includes("appraisal")) {
+    scores.appraisal.score += 4;
+    scores.appraisal.signals.push('title: "appraisal"');
+  }
+  const apprStrong = hits(hay, [
+    "appraisal report",
+    "appraised value",
+    "market value conclusion",
+    "uspap",
+    "as-is market value",
+    "opinion of value",
+  ]);
+  if (apprStrong.length) {
+    scores.appraisal.score += 2 + apprStrong.length;
+    scores.appraisal.signals.push(...apprStrong.map((s) => `text: "${s}"`));
+  }
+  const approaches = hits(hay, ["income approach", "sales comparison approach", "cost approach"]);
+  if (approaches.length >= 2) {
+    scores.appraisal.score += 3;
+    scores.appraisal.signals.push("valuation approaches cluster");
+  }
+
   // Pick the highest score; ties break by this priority order.
-  const order: DocType[] = ["rent_roll", "operating_statement", "lease", "offering_memo"];
+  // Environmental and appraisal outrank operating_statement so ESA and
+  // appraisal reports that quote financials don't get mislabeled.
+  const order: DocType[] = ["rent_roll", "environmental", "appraisal", "operating_statement", "lease", "offering_memo"];
   let best: DocType = "other";
   let bestScore = 0;
   for (const t of order) {

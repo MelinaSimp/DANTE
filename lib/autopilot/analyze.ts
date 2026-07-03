@@ -80,6 +80,12 @@ export async function runAutopilotForItem(
   } else if (cls.type === "offering_memo") {
     headline = "Offering memorandum detected — extract the investment highlights.";
     summary = { ...summary, suggested_action: "extract_highlights" };
+  } else if (cls.type === "environmental") {
+    headline = "Environmental report detected — review findings and any recognized environmental conditions.";
+    summary = { ...summary, suggested_action: "review_environmental" };
+  } else if (cls.type === "appraisal") {
+    headline = "Appraisal detected — review the value conclusion and approaches.";
+    summary = { ...summary, suggested_action: "review_appraisal" };
   }
 
   await supabaseAdmin
