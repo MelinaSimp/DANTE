@@ -2,8 +2,16 @@ import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
-  eslint: { ignoreDuringBuilds: false },
-  typescript: { ignoreBuildErrors: false },
+  eslint: {
+    ignoreDuringBuilds:
+      process.env.NEXT_DISABLE_ESLINT === "1" ||
+      process.env.NEXT_DISABLE_ESLINT === "true",
+  },
+  typescript: {
+    ignoreBuildErrors:
+      process.env.NEXT_DISABLE_TYPECHECK === "1" ||
+      process.env.NEXT_DISABLE_TYPECHECK === "true",
+  },
   redirects: async () => [
     // /dashboard/legacy was the old dark-theme analytics page. The
     // Harvey-styled /dashboard now covers the same ground; this 301
