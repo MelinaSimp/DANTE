@@ -46,7 +46,7 @@ function getVisitorId(publicId: string): string {
 
 export default function WidgetPage() {
   const params = useParams();
-  const publicId = String(params.agentId || "");
+  const publicId = String(params?.agentId || "");
 
   const [config, setConfig] = useState<WidgetConfig | null>(null);
   const [notFound, setNotFound] = useState(false);
