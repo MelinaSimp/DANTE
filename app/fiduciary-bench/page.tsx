@@ -36,7 +36,7 @@ export const dynamic = "force-dynamic";
 export const metadata = {
   title: "FiduciaryBench — open evaluation framework for fiduciary AI",
   description:
-    "An open methodology for benchmarking AI tools used by commercial real-estate brokerages. Tasks defined in code, graded by named domain experts, leaderboard open to any tool.",
+    "An open methodology for benchmarking AI tools used by teams and businesses that need grounded, cited AI. Tasks defined in code, graded by named domain experts, leaderboard open to any tool.",
 };
 
 type TaskCount = { task_slug: string; runs: number };
@@ -112,10 +112,10 @@ export default async function FiduciaryBenchPage() {
         </p>
         <h1 className="heading-display text-5xl mt-3">FiduciaryBench</h1>
         <p className="mt-4 text-[var(--ink-muted)] text-base max-w-2xl leading-relaxed">
-          An open methodology for benchmarking AI tools used by commercial
-          real-estate brokerages. Tasks defined in code, graded by named
-          domain experts, leaderboard open to any tool that wants to be
-          benchmarked.
+          An open methodology for benchmarking AI tools used by teams and
+          businesses that need grounded, cited AI. Tasks defined in code,
+          graded by named domain experts, leaderboard open to any tool that
+          wants to be benchmarked.
         </p>
 
         {/* Why */}
@@ -149,7 +149,7 @@ export default async function FiduciaryBenchPage() {
               >
                 open-sourced for the same reason
               </a>
-              . The CRE brokerage compliance work isn&rsquo;t
+              . Grounded, cited AI work isn&rsquo;t
               legal work; the tasks need to be different. But the
               architecture — task corpus in version control, two rubrics
               (Answer Quality + Source Reliability), human graders, public

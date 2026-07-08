@@ -35,7 +35,7 @@ function accentClasses(accent: WorkflowTemplate["accent"]): { iconWrap: string; 
 }
 
 const CATEGORY_ORDER: WorkflowTemplate["category"][] = [
-  "Site intelligence", "Deal pipeline", "Lease management",
+  "Research", "Pipeline", "Document management",
   "Operations", "Prospecting", "Client communication",
 ];
 
@@ -128,9 +128,9 @@ interface BookSummary {
 }
 
 const EXAMPLE_PROMPTS = [
-  "Every morning, find leases expiring in 90 days and email me a summary with tenant details.",
-  "When a new offer is submitted, classify it as strong or weak and notify me if it's strong.",
-  "Run a corridor void analysis on the I-71 corridor between downtown Cleveland and Akron every Monday.",
+  "Every morning, find documents expiring in 90 days and email me a summary with the key details.",
+  "When a new request is submitted, classify it as urgent or routine and notify me if it's urgent.",
+  "Research my competitors on the web and send me a summary every Monday.",
 ];
 
 interface Props {
@@ -406,7 +406,7 @@ export default function WorkflowsPageClient({ vaultReady, canManageVault }: Prop
       <div className="mb-8">
         <h1 className="heading-display text-3xl text-[var(--ink)] mb-2">Workflows</h1>
         <p className="text-sm text-[var(--ink-muted)] max-w-2xl leading-relaxed">
-          Chain LLM prompts, site intelligence, CRM queries, and actions into
+          Chain LLM prompts, research, data queries, and actions into
           reusable automations. Triggered by schedule, webhook, or manual run.
         </p>
         <div className="mt-3 flex items-center gap-4 text-xs text-[var(--ink-muted)]">
@@ -451,7 +451,7 @@ export default function WorkflowsPageClient({ vaultReady, canManageVault }: Prop
           <div>
             <div className="text-sm font-semibold text-[var(--ink)]">Generate a workflow</div>
             <div className="text-[11px] text-[var(--ink-subtle)]">
-              Describe what you want and Drift builds the workflow from your book. Tweak it on the canvas after.
+              Describe what you want and Drift builds the workflow from your data. Tweak it on the canvas after.
             </div>
           </div>
         </div>
@@ -460,7 +460,7 @@ export default function WorkflowsPageClient({ vaultReady, canManageVault }: Prop
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           rows={3}
-          placeholder="Every morning, find leases expiring in 90 days and email me a summary with tenant details."
+          placeholder="Every morning, find documents expiring in 90 days and email me a summary with the key details."
           className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-3 py-2.5 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)] resize-y mb-3"
           onKeyDown={(e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); generate(); }
@@ -523,7 +523,7 @@ export default function WorkflowsPageClient({ vaultReady, canManageVault }: Prop
                   <>
                     Based on {bookSummary.counts.contacts} contact{bookSummary.counts.contacts === 1 ? "" : "s"}
                     {bookSummary.pipeline && (
-                      <> · {bookSummary.pipeline.properties_total} properties · {bookSummary.pipeline.active_listings} active listings</>
+                      <> · {bookSummary.pipeline.properties_total} records · {bookSummary.pipeline.active_listings} active items</>
                     )}
                   </>
                 ) : null}
@@ -973,7 +973,7 @@ export default function WorkflowsPageClient({ vaultReady, canManageVault }: Prop
       {/* Template gallery */}
       <div className="label-section mb-1">Starter templates</div>
       <p className="text-xs text-[var(--ink-muted)] mb-6">
-        Pre-built workflows tuned for CRE brokers and developers. Clone one into your workspace and tweak it on the canvas.
+        Pre-built workflows for any team. Clone one into your workspace and tweak it on the canvas.
       </p>
 
       <div className="space-y-10 pb-12">
@@ -1053,7 +1053,7 @@ function extractOutputText(o: Record<string, unknown>): string | null {
   if (Array.isArray(o.delivered) && o.delivered.length > 0) return `${o.delivered.length} message${o.delivered.length === 1 ? "" : "s"} sent`;
   if (Array.isArray(o.hits) && o.hits.length > 0) return `${o.hits.length} hit${o.hits.length === 1 ? "" : "s"} found`;
   if (Array.isArray(o.results) && o.results.length > 0) return `${o.results.length} result${o.results.length === 1 ? "" : "s"} returned`;
-  if (Array.isArray(o.abstracts) && o.abstracts.length > 0) return `${o.abstracts.length} lease${o.abstracts.length === 1 ? "" : "s"} found`;
+  if (Array.isArray(o.abstracts) && o.abstracts.length > 0) return `${o.abstracts.length} document${o.abstracts.length === 1 ? "" : "s"} found`;
   if (o.contact && typeof o.contact === "object") return "contact updated";
   if (typeof o.email_id === "string") return `email sent (${o.to || "recipient"})`;
   return null;

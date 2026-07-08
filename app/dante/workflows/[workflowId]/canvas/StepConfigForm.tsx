@@ -287,13 +287,13 @@ function renderBody(
               className="w-full bg-[var(--canvas)] border border-[var(--rule)] rounded-[4px] px-3 py-2 text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--rule-strong)]"
             >
               <option value="">All kinds</option>
-              <option value="lease">Lease</option>
+              <option value="lease">Contract</option>
               <option value="policy">Policy / SOP</option>
               <option value="memo">Memo</option>
-              <option value="comp">Comp / market data</option>
+              <option value="comp">Report / data</option>
               <option value="inspection">Inspection report</option>
               <option value="disclosure">Disclosure</option>
-              <option value="deed">Deed</option>
+              <option value="deed">Agreement</option>
               <option value="insurance">Insurance / COI</option>
               <option value="regulation">Regulation</option>
               <option value="other">Other</option>
@@ -387,7 +387,7 @@ function renderBody(
       return (
         <>
           <Field label="Query" hint="Supports {{steps.<id>.<field>}} templates">
-            <Textarea value={String(cfg.query ?? "")} onChange={(v) => setConfig("query", v)} rows={2} placeholder="commercial real estate listings in {{steps.trigger.input.market}}" />
+            <Textarea value={String(cfg.query ?? "")} onChange={(v) => setConfig("query", v)} rows={2} placeholder="latest news about {{steps.trigger.input.topic}}" />
           </Field>
           <Field label="Max results">
             <Text value={String(cfg.max_results ?? "")} onChange={(v) => setConfig("max_results", v)} placeholder="5" />
@@ -566,10 +566,10 @@ function renderBody(
       return (
         <>
           <Field label="Provider" hint="Must match a connected integration in Settings > Integrations.">
-            <Text value={(cfg.provider as string) || ""} onChange={(v) => setConfig("provider", v)} placeholder="costar" />
+            <Text value={(cfg.provider as string) || ""} onChange={(v) => setConfig("provider", v)} placeholder="my-provider" />
           </Field>
           <Field label="Endpoint URL">
-            <Text value={(cfg.endpoint as string) || ""} onChange={(v) => setConfig("endpoint", v)} placeholder="https://api.costar.com/v1/properties" />
+            <Text value={(cfg.endpoint as string) || ""} onChange={(v) => setConfig("endpoint", v)} placeholder="https://api.example.com/v1/records" />
           </Field>
           <Field label="Method">
             <select
@@ -838,14 +838,10 @@ function renderBody(
 const AGENT_TOOL_OPTIONS: { value: string; label: string }[] = [
   { value: "vault.cite", label: "Vault retrieval (cited)" },
   { value: "archive.search", label: "Archive search" },
-  { value: "cre.calculate", label: "CRE calculator" },
   { value: "web.search", label: "Web search" },
   { value: "clients.query", label: "Query contacts" },
-  { value: "properties.query", label: "Query properties" },
   { value: "memory.search", label: "Memory search" },
   { value: "memory.write", label: "Memory write" },
-  { value: "regulatory.search", label: "Regulatory search" },
-  { value: "site_scan.detail", label: "Site-scan detail" },
   { value: "document.create", label: "Create document" },
 ];
 

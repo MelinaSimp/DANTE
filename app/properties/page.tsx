@@ -1,7 +1,7 @@
 // app/properties/page.tsx
 //
-// Properties list — deal pipeline for CRE brokerages. Workspace-
-// isolated so each firm sees only their own data.
+// Records list — a simple pipeline view. Workspace-isolated so each
+// team sees only their own data.
 
 import { Metadata } from "next";
 import { redirect } from "next/navigation";
@@ -10,8 +10,8 @@ import AppShell from "@/components/shell/AppShell";
 import PropertiesClient from "./PropertiesClient";
 
 export const metadata: Metadata = {
-  title: "Properties — Dante",
-  description: "Deal pipeline for commercial real estate. Track listings, offers, and closings.",
+  title: "Records — Dante",
+  description: "Track your records and pipeline in one place.",
 };
 
 export const dynamic = "force-dynamic";

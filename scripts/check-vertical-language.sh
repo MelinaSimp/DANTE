@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # scripts/check-vertical-language.sh
 #
-# CI lint rule: block stale RIA / wealth-management language in
-# user-facing files (app/, components/ .tsx/.ts).  Drift is CRE-only.
+# CI lint rule: block stale vertical-specific language in user-facing
+# files (app/, components/ .tsx/.ts).  Drift is a horizontal, general-
+# purpose platform — keep user-facing copy vertical-neutral.
 #
 # Usage:  bash scripts/check-vertical-language.sh
 # Exit 0 = clean, Exit 1 = violations found.
@@ -49,9 +50,9 @@ done
 
 if [ "$FOUND" -ne 0 ]; then
   echo ""
-  echo "Drift is CRE-only. Remove or replace the above references."
+  echo "Drift is a horizontal platform. Remove or replace the above vertical-specific references."
   exit 1
 fi
 
-echo "Vertical language check passed -- no stale RIA references."
+echo "Vertical language check passed -- no stale vertical references."
 exit 0

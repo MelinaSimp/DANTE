@@ -30,16 +30,16 @@
       "url": "/dante"
     },
     {
-      "name": "Properties",
-      "short_name": "Properties",
-      "description": "View deal pipeline",
-      "url": "/properties"
+      "name": "Workflows",
+      "short_name": "Workflows",
+      "description": "Build and run workflows",
+      "url": "/workflows"
     },
     {
-      "name": "Lease Abstractor",
-      "short_name": "Leases",
-      "description": "Abstract lease terms from PDFs",
-      "url": "/lease-abstractor"
+      "name": "Vault",
+      "short_name": "Vault",
+      "description": "Browse your documents",
+      "url": "/vault"
     }
   ]
 }

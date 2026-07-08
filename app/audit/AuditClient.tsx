@@ -49,7 +49,7 @@ const ACTION_NAMESPACE_OPTIONS = [
   { value: "", label: "All actions" },
   { value: "email.*", label: "Email" },
   { value: "reminder.*", label: "Reminders" },
-  { value: "property.*", label: "Properties" },
+  { value: "property.*", label: "Records" },
   { value: "contact.*", label: "Contacts" },
   { value: "compliance_flag.*", label: "Compliance" },
   { value: "document.*", label: "Documents" },

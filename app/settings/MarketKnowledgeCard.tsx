@@ -1,16 +1,16 @@
 "use client";
 
-// MarketKnowledgeCard — per-workspace market intelligence that feeds
-// into Dante's void analysis and CRE analysis.
+// MarketKnowledgeCard — per-workspace reference knowledge that feeds
+// into Dante's answers as ground truth.
 //
 // Two input modes:
-//   1. Text notes — structured free-form text (rent ranges, competitors,
-//      demographics, local nuances)
-//   2. File uploads — PDFs, DOCX, XLSX, CSV of market research reports,
-//      demographic studies, competitor analysis. Text is extracted
-//      server-side and injected into Dante alongside the notes.
+//   1. Text notes — structured free-form reference text (facts, terms,
+//      definitions, policies, and other context)
+//   2. File uploads — PDFs, DOCX, XLSX, CSV of reference documents and
+//      reports. Text is extracted server-side and injected into Dante
+//      alongside the notes.
 //
-// All content feeds into Dante's system prompt during CRE analysis.
+// All content feeds into Dante's system prompt as trusted context.
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
@@ -24,7 +24,6 @@ import {
   File as FileIcon,
 } from "lucide-react";
 import TetrisLoading from "@/components/ui/tetris-loader";
-import CoverageCard from "./CoverageCard";
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -43,30 +42,30 @@ const MAX_TEXT_LEN = 8000;
 const MAX_FILE_SIZE_MB = 20;
 const ACCEPTED_EXTENSIONS = ".pdf,.docx,.doc,.xlsx,.xls,.txt,.csv,.md";
 
-const TEXT_PLACEHOLDER = `Local market knowledge that Dante uses as ground truth:
+const TEXT_PLACEHOLDER = `Reference knowledge that Dante uses as ground truth:
 
-Rent ranges (NNN):
-- Inline retail: $12-16/SF
-- Restaurant/QSR: $14-18/SF
-- Medical office: $18-24/SF
+Products & pricing:
+- Starter plan: $12/mo
+- Pro plan: $29/mo
+- Enterprise: custom pricing
 
-Key competitors:
-- Willoughby Commons (120K SF, anchored by Giant Eagle)
-- Mentor Commons (85K SF, 15% vacancy)
+Key facts:
+- Support hours: 9am-6pm ET, Mon-Fri
+- Standard refund window: 30 days
+- Data is stored in US regions
 
-Demographics:
-- Median HHI ~$78K, skews older (median age 45+)
-- Strong daytime pop from manufacturing employers
-- Owner-occupancy 62%+
+Policies:
+- Always cite the source document when answering
+- Escalate billing disputes to the finance team
+- Never share internal roadmap details externally
 
-Traffic:
-- Euclid Ave (US-20): 18,000-24,000 ADT
-- SOM Center Rd: 12,000 ADT
+Common terms:
+- "Workspace" = a single customer account
+- "Seat" = one active user
 
 Known gaps:
-- No urgent care east of SOM Center Road
-- Pet services underserved in Willoughby
-- Two restaurant closures on Euclid Ave in 2025`;
+- No published SLA for the free tier
+- Mobile app does not support offline mode yet`;
 
 // ── Component ────────────────────────────────────────────────────
 
@@ -212,13 +211,13 @@ export default function MarketKnowledgeCard() {
         <div className="flex items-center gap-2 mb-2">
           <MapPin className="w-4 h-4 text-[var(--ink-muted)]" strokeWidth={1.5} />
           <div className="text-xs uppercase tracking-wide text-[var(--ink-subtle)]">
-            Market intelligence
+            Workspace Knowledge
           </div>
         </div>
         <div className="text-sm text-[var(--ink)] leading-relaxed">
-          Local market knowledge that Dante uses as ground truth during void
-          analysis and CRE analysis. Upload market research PDFs, demographic
-          studies, or type notes directly. Different for every customer.
+          Reference notes and documents that Dante treats as ground truth when
+          answering. Upload reference PDFs and reports, or type notes directly.
+          Different for every workspace.
         </div>
       </div>
 
@@ -306,35 +305,35 @@ export default function MarketKnowledgeCard() {
           {/* Guidance */}
           <div className="grid grid-cols-2 gap-3">
             <GuidanceCard
-              title="Rent ranges"
+              title="Products & pricing"
               items={[
-                "NNN asking rents by property type",
-                "Recent lease comparables",
-                "Which areas trending up/down",
+                "Plans and price points",
+                "What's included in each tier",
+                "Discounts and terms",
               ]}
             />
             <GuidanceCard
-              title="Competition"
+              title="Policies"
               items={[
-                "Major centers + anchors",
-                "Vacancy rates by submarket",
-                "Active developments",
+                "Support and SLAs",
+                "Refunds and billing rules",
+                "Do's and don'ts for answers",
               ]}
             />
             <GuidanceCard
-              title="Demographics"
+              title="Key facts"
               items={[
-                "Median household income",
-                "Population trends",
-                "Daytime vs residential pop",
+                "Definitions and terminology",
+                "Hours and contact points",
+                "Important dates and limits",
               ]}
             />
             <GuidanceCard
-              title="Local nuances"
+              title="Context & nuances"
               items={[
-                "Zoning restrictions",
-                "Traffic counts on key roads",
-                "Known gaps / unmet demand",
+                "Edge cases to watch for",
+                "Common misconceptions",
+                "Known gaps / open questions",
               ]}
             />
           </div>
@@ -397,8 +396,8 @@ export default function MarketKnowledgeCard() {
           {/* File list */}
           {files.length === 0 && !loadingFiles ? (
             <div className="text-center py-8 text-sm text-[var(--ink-muted)]">
-              No files uploaded yet. Upload market research PDFs, demographic
-              reports, or competitor analysis documents.
+              No files uploaded yet. Upload reference PDFs, reports, or any
+              documents Dante should treat as ground truth.
             </div>
           ) : (
             <div className="rounded-md border border-[var(--rule)] divide-y divide-[var(--rule)]">
@@ -445,9 +444,6 @@ export default function MarketKnowledgeCard() {
           </div>
         </div>
       )}
-
-      {/* GIS coverage */}
-      <CoverageCard />
     </div>
   );
 }

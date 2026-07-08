@@ -70,7 +70,7 @@ const PANEL_TITLES: Record<PanelId, string> = {
   appearance: "Appearance",
   privacy_mode: "Privacy mode",
   local_setup: "Local setup",
-  market_knowledge: "Market knowledge",
+  market_knowledge: "Workspace knowledge",
   import_data: "Import data",
 };
 
@@ -98,9 +98,9 @@ const PANEL_SUBTITLES: Record<PanelId, string> = {
   local_setup:
     "Install and manage local services — Ollama for on-device AI and the file watcher daemon for automatic document sync.",
   market_knowledge:
-    "Local market intelligence that Dante uses during void analysis — rent ranges, competitors, demographics, and known gaps. Changes per customer.",
+    "Reference knowledge that Dante treats as ground truth — notes and uploaded documents about your products, policies, and key facts. Changes per workspace.",
   import_data:
-    "Bulk import contacts or properties from a CSV or JSON file. Deduplicates against existing records and maps common column-name variations automatically.",
+    "Bulk import contacts or records from a CSV or JSON file. Deduplicates against existing records and maps common column-name variations automatically.",
 };
 
 interface NavItem {
@@ -116,7 +116,7 @@ interface NavItem {
 
 const ALL_NAV_ITEMS: NavItem[] = [
   { name: "Account", icon: UserCircle, panelId: "account", group: "Workspace" },
-  { name: "Market knowledge", icon: MapPin, panelId: "market_knowledge", adminOnly: true, group: "Workspace" },
+  { name: "Workspace knowledge", icon: MapPin, panelId: "market_knowledge", adminOnly: true, group: "Workspace" },
   { name: "Phone numbers", icon: Phone, panelId: "phone_numbers", feature: "sms_outreach", adminOnly: true, group: "Workspace" },
   { name: "Zoom", icon: Video, panelId: "zoom", group: "Workspace" },
   { name: "Google", icon: Mail, panelId: "google", group: "Workspace" },

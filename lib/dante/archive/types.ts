@@ -15,9 +15,9 @@ export type ArchiveKind =
   | "other";
 
 export const ARCHIVE_KIND_LABELS: Record<ArchiveKind, string> = {
-  lease: "Lease",
-  listing_agreement: "Listing agreement",
-  rent_roll: "Rent roll",
+  lease: "Contract",
+  listing_agreement: "Agreement",
+  rent_roll: "Spreadsheet",
   client_agreement: "Client agreement",
   policy: "Policy / SOP",
   regulation: "Regulation",

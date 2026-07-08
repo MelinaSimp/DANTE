@@ -2,7 +2,7 @@
 
 // app/dante/templates/DanteTemplatesClient.tsx
 //
-// Gallery of pre-built advisor workflows. Reads WORKFLOW_TEMPLATES
+// Gallery of pre-built workflows. Reads WORKFLOW_TEMPLATES
 // from lib/dante/templates and groups by category. Each card has a
 // single "Clone to my workspace" button that POSTs to the clone
 // endpoint and, on success, redirects to the freshly-cloned workflow's
@@ -66,9 +66,9 @@ function accentClasses(accent: WorkflowTemplate["accent"]): {
 }
 
 const CATEGORY_ORDER: WorkflowTemplate["category"][] = [
-  "Site intelligence",
-  "Deal pipeline",
-  "Lease management",
+  "Research",
+  "Pipeline",
+  "Document management",
   "Operations",
   "Prospecting",
   "Client communication",
@@ -141,13 +141,13 @@ export default function DanteTemplatesClient({ vaultReady, canManageVault }: Pro
         <div className="mb-10">
           <div className="label-section mb-3">Dante · Workflow templates</div>
           <h1 className="heading-display text-4xl text-[var(--ink)] mb-4">
-            Starter automations, tuned for CRE.
+            Starter automations for any team.
           </h1>
           <p className="text-base text-[var(--ink-muted)] max-w-2xl leading-relaxed">
-            Each template is a real, runnable workflow — lease tracking,
-            deal prep, comp surveys, void analyses, showing follow-ups. Clone
+            Each template is a real, runnable workflow — document tracking,
+            project prep, research, summaries, follow-ups. Clone
             one into your workspace and tweak it in the visual canvas.
-            Archive-aware templates cite your firm&apos;s own documents.
+            Archive-aware templates cite your own documents.
           </p>
 
           <div className="mt-5 flex items-center gap-4 text-xs text-[var(--ink-muted)]">

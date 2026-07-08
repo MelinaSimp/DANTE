@@ -374,7 +374,7 @@ export default function VaultItemDetailClient({
               rows={4}
               placeholder={
                 form.kind === "template"
-                  ? "Use this for cash offers on residential listings in Texas. Includes seller-fills-title-fee clause."
+                  ? "Use this template for onboarding new customers. Includes the standard terms block."
                   : "Anything you want to remember about this doc."
               }
               className={`${inputClass} resize-y`}
@@ -386,11 +386,11 @@ export default function VaultItemDetailClient({
         <section className="card-flat p-6">
           <div className="flex items-baseline justify-between mb-4">
             <div>
-              <div className="label-section mb-1">Property</div>
-              <h2 className="text-base font-semibold">Linked property</h2>
+              <div className="label-section mb-1">Record</div>
+              <h2 className="text-base font-semibold">Linked record</h2>
               <p className="text-xs text-[var(--ink-muted)] mt-0.5">
                 Optional. Helps Dante pull the right docs when you&apos;re
-                discussing a specific listing.
+                discussing a specific record.
               </p>
             </div>
           </div>
@@ -399,7 +399,7 @@ export default function VaultItemDetailClient({
             onChange={(e) => setForm({ ...form, property_id: e.target.value })}
             className={inputClass}
           >
-            <option value="">— No property —</option>
+            <option value="">— No record —</option>
             {properties.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.address_line1}

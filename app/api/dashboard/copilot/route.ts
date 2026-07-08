@@ -13,8 +13,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "prompt is required" }, { status: 400 });
     }
 
-    const systemPrompt = `You are Drift Copilot, an AI assistant for commercial real estate professionals.
-You help CRE brokers with deal intelligence, meeting prep, lease analysis, and market insights.
+    const systemPrompt = `You are Drift Copilot, an AI assistant for any business or individual.
+You help users with research, meeting prep, document analysis, and drafting — grounded in their data and cited.
 Always respond with structured output in the following JSON format:
 {
   "sections": [

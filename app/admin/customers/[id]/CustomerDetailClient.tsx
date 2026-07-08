@@ -149,7 +149,7 @@ export default function CustomerDetailClient({ workspaceId }: { workspaceId: str
         </Link>
         <h1 className="heading-display text-3xl">{ws.name}</h1>
         <div className="text-xs mono uppercase tracking-wider text-[var(--ink-subtle)] mt-1">
-          CRE · created {new Date(ws.created_at).toLocaleDateString()}
+          Workspace · created {new Date(ws.created_at).toLocaleDateString()}
         </div>
       </div>
 

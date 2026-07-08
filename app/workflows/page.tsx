@@ -10,7 +10,7 @@ import WorkflowsPageClient from "./WorkflowsPageClient";
 
 export const metadata: Metadata = {
   title: "Workflows — Dante",
-  description: "Automate CRE operations with AI-powered workflows. Build, run, and monitor deal processes.",
+  description: "Automate your operations with AI-powered workflows. Build, run, and monitor any process.",
 };
 
 export const dynamic = "force-dynamic";

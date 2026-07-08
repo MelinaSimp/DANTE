@@ -101,7 +101,7 @@ const QUICK_PROMPTS_ADVISOR: Array<{ label: string; prompt: string }> = [
   {
     label: "Brief me on a contact",
     prompt:
-      "Brief me on [contact name] — pull recent context from memory and surface anything I previously committed to, recent concerns from email, and any deal context to lead with.",
+      "Brief me on [contact name] — pull recent context from memory and surface anything I previously committed to, recent concerns from email, and anything relevant to lead with.",
   },
   {
     label: "Summarize recent emails",
@@ -116,30 +116,30 @@ const QUICK_PROMPTS_ADVISOR: Array<{ label: string; prompt: string }> = [
   {
     label: "Find stale contacts",
     prompt:
-      "Which contacts have I not reached out to in over 60 days? Pull the list and flag anyone with an active deal or upcoming lease event.",
+      "Which contacts have I not reached out to in over 60 days? Pull the list and flag anyone with something open or time-sensitive.",
   },
 ];
 
 const QUICK_PROMPTS_REALTOR: Array<{ label: string; prompt: string }> = [
   {
-    label: "Brief me on a tenant",
+    label: "Summarize a document",
     prompt:
-      "Brief me on [tenant / contact name] — pull recent context from memory, any lease dates coming up, and open issues or requests.",
+      "Summarize the documents I uploaded this week. Pull out the key points, decisions, and anything that needs follow-up.",
   },
   {
-    label: "Summarize a lease",
+    label: "Draft a follow-up email",
     prompt:
-      "Summarize the key terms of the lease for [property / tenant]. Include rent, expiry, renewal options, and any unusual clauses.",
+      "Draft a follow-up email to [contact name] based on our last conversation. Keep it short and clear.",
   },
   {
-    label: "Prep for a showing",
+    label: "Build a workflow",
     prompt:
-      "I have a showing at [property address] in 30 minutes. What should I know — comps, zoning, recent inspection notes?",
+      "Build a workflow that emails me a daily digest of anything new or time-sensitive.",
   },
   {
-    label: "Expiring leases this quarter",
+    label: "What can you do?",
     prompt:
-      "Which leases expire in the next 90 days? Flag any tenants I haven't contacted yet about renewal.",
+      "What can you do? Give me a few concrete examples of tasks I can hand off to you.",
   },
 ];
 
@@ -147,809 +147,364 @@ const QUICK_PROMPTS_REALTOR: Array<{ label: string; prompt: string }> = [
 // agent loops. Each has a placeholder (__________) the user fills in.
 const DEEP_PROMPTS_REALTOR: Array<{ label: string; description: string; prompt: string }> = [
   {
-    label: "Full void analysis",
-    description: "Parcel data, demographics, tenant gaps, traffic, competitive supply, highest-and-best-use",
-    prompt: `I'm looking at __________. Run a full void analysis on this property and its trade area.
+    label: "Full research report",
+    description: "Background, key facts, comparisons, risks, and a clear recommendation",
+    prompt: `I'm researching __________. Run a full research report on this topic.
 
-Drop a map of the site first, then start with the parcel — pull whatever you can: zoning, lot size, assessed value, current use, and any recent tax or ownership history. If there's an existing structure, give me the building specs.
+Start with the essentials — pull whatever you can find and cite your sources for every claim.
 
-Then analyze the trade area — 1-mile and 3-mile rings from this address:
+1. BACKGROUND: What is it, why does it matter, and what's the current state of things?
 
-1. DEMOGRAPHIC SNAPSHOT: Population, median household income, median age, household growth trend. How does the 1-mile ring compare to the 3-mile ring — am I in the stronger pocket or the weaker one?
+2. KEY FACTS: The numbers, dates, and details that matter most. Flag anything that's contested or uncertain.
 
-2. VOID ANALYSIS: What tenant categories are missing or underserved relative to the demographics? Flag gaps in medical, dental, veterinary, QSR, fast-casual, personal services (salon, barber, spa), fitness, professional office, and specialty retail. Cross-reference against what's already clustered along the corridor — I don't want to duplicate what's within a 5-minute drive.
+3. COMPARISON: How does this compare to the main alternatives? Use a table or chart where it helps.
 
-3. TRAFFIC & ACCESS: What are the AADT counts at this location? Signalized intersection? Ingress/egress constraints? How does visibility and access compare to nearby retail nodes?
+4. RISKS & UNKNOWNS: What are the biggest risks, open questions, or gaps in the available information?
 
-4. COMPETITIVE SUPPLY: What other retail or mixed-use vacancies exist within 3 miles? If there's available space nearby at lower basis, tell me — I need to know what I'm competing against for tenant attention.
+5. RECOMMENDATION: Given everything above, what would you recommend and why?
 
-5. HIGHEST AND BEST USE: Given the zoning, parcel size, location along the corridor, and the void gaps you identified — what tenant mix would maximize rent per square foot while maintaining low turnover risk? Give me a realistic lease-up scenario.
-
-6. RENT COMPS: What are NNN asking rents for comparable retail/office space in this submarket? What spread should I expect between inline and endcap? Use a chart for the rent comps.
-
-Tell me what this site wants to be.`,
+Tell me what I most need to know.`,
   },
   {
-    label: "Acquisition underwrite",
-    description: "NOI rebuild, cap rate analysis, refinance risk, comp transactions",
-    prompt: `I'm evaluating __________ for acquisition. The asking price is $__________.
+    label: "Options analysis",
+    description: "Compare options against cost, effort, and expected outcome",
+    prompt: `I'm evaluating __________. The budget is $__________.
 
-Run a full underwriting analysis:
+Run a full options analysis:
 
-1. RENT ROLL AUDIT: What is the current gross rent roll versus effective collections? Break out vacancy, concessions, and credit loss.
+1. INVENTORY: List the realistic options on the table, with the key facts for each.
 
-2. NOI REBUILD: Reconstruct the stabilized NOI. Assume realistic market rents for any vacant or month-to-month spaces, 6 months of downtime per turnover, and $15/SF TI allowance on new leases.
+2. COST & EFFORT: Break out the cost, time, and effort each option requires.
 
-3. CAP RATE: What cap rate should I underwrite for this submarket and asset class — not the broker's quoted rate, the rate a lender would use for sizing?
+3. TRADE-OFFS: For each option, the main pros and cons and who it's best for.
 
-4. COMP TRANSACTIONS: What comparable transactions have closed within 10 miles in the last 18 months? How does the asking basis per square foot compare?
+4. COMPARABLES: What have others in a similar situation chosen, and how did it work out?
 
-5. REFINANCE RISK: Given the tenant mix and remaining lease terms, what is my refinance risk at year 5 if rates stay flat vs. rise 75bps?
-
-6. VERDICT: Walk me through whether this is a buy, a negotiate, or a pass.`,
+5. VERDICT: Walk me through whether to proceed, adjust, or pass.`,
   },
   {
-    label: "Lease abstract + red flags",
-    description: "Full lease abstraction with risk analysis and clause-by-clause review",
-    prompt: `Abstract the lease for __________. I need a full breakdown:
+    label: "Document breakdown + red flags",
+    description: "Full document extraction with risk analysis and section-by-section review",
+    prompt: `Break down the document for __________. I need a full summary:
 
-1. PARTIES AND PREMISES: Tenant, landlord, guarantor, premises description, permitted use.
+1. PARTIES & SCOPE: Who's involved, what the document covers, and its purpose.
 
-2. TERM: Commencement, expiration, renewal options (terms and notice periods), early termination rights.
+2. KEY DATES: Effective date, deadlines, renewal or expiration terms, notice periods.
 
-3. RENT STRUCTURE: Base rent schedule with escalations, percentage rent if applicable, free rent/abatement periods.
+3. TERMS: The main obligations, amounts, and conditions each party agreed to.
 
-4. OPERATING EXPENSES: CAM/OpEx structure (NNN, modified gross, full service?), tax obligations, insurance requirements, management fee caps.
+4. OBLIGATIONS: What each side is responsible for, and any recurring requirements.
 
-5. KEY CLAUSES: Co-tenancy, exclusive use, go-dark provisions, assignment/subletting restrictions, SNDA, holdover terms, default/cure periods.
+5. KEY CLAUSES: Anything about termination, assignment, exclusivity, or default.
 
-6. RED FLAGS: Flag anything unusual, one-sided, or that creates outsized landlord/tenant risk. Note any cross-reference inconsistencies between sections.
+6. RED FLAGS: Flag anything unusual, one-sided, or that creates outsized risk. Note any inconsistencies between sections.
 
 Cite specific sections and page numbers for every data point.`,
   },
   {
-    label: "Market rent comp survey",
-    description: "Asking rents, vacancy rates, and absorption trends for a submarket",
-    prompt: `Run a rent comp survey for the __________ submarket.
+    label: "Market survey",
+    description: "Pricing, availability, and trends across a market or category",
+    prompt: `Run a market survey for __________.
 
-1. ASKING RENTS: What are current NNN asking rents for comparable retail/office space? Break out by asset quality (A/B/C) and position (inline, endcap, pad, freestanding).
+1. PRICING: What are typical prices for comparable offerings? Break out by quality or tier.
 
-2. VACANCY: What is the current vacancy rate and how does it compare to the trailing 12-month average?
+2. AVAILABILITY: What is currently available, and how does supply compare to recent months?
 
-3. ABSORPTION: Is net absorption positive or negative? What new supply is in the pipeline?
+3. TRENDS: Is demand rising or falling? What's changing in the market?
 
-4. TENANT MIX TRENDS: What categories are expanding vs. contracting in this market? Where is demand strongest?
+4. SEGMENTS: What categories are growing vs. shrinking? Where is demand strongest?
 
-5. RENT GROWTH: What has annual rent growth been over the last 3 years? What is the forward outlook?
+5. OUTLOOK: What has the trend been over the last few years, and what's the forward outlook?
 
 Chart the data wherever it helps — I want to see the numbers, not just read about them.`,
   },
 ];
 
-// Full CRE prompt library — every prompt a commercial real estate
-// professional needs, shown in complete detail (no truncation) so the
-// user can read, copy, or send each one verbatim. Organized by
-// workflow category. Placeholders use __________ for fields the user
-// fills in before running.
+// Full prompt library — a broad set of prompts anyone can use,
+// shown in complete detail (no truncation) so the user can read,
+// copy, or send each one verbatim. Organized by workflow category.
+// Placeholders use __________ for fields the user fills in before
+// running.
 const CRE_PROMPT_LIBRARY: Array<{
   category: string;
   prompts: Array<{ label: string; description: string; prompt: string }>;
 }> = [
   {
-    category: "Acquisitions & Underwriting",
+    category: "Research & Analysis",
     prompts: [
       {
-        label: "Full acquisition underwrite",
-        description: "NOI rebuild, cap rate, comp transactions, refi risk, verdict",
-        prompt: `I'm evaluating __________ for acquisition. Asking price: $__________. Asset type: __________.
-
-Run a complete institutional underwrite:
-
-1. RENT ROLL AUDIT
-   - Current gross rent roll vs. effective collections (last 12 months)
-   - Vacancy, concessions, credit loss broken out
-   - WALT (weighted-average lease term), tenant concentration risk
-   - Flag any tenants >15% of NOI
-
-2. NOI REBUILD (STABILIZED)
-   - Reconstruct NOI using market rents for vacant / month-to-month
-   - Assume 6 months downtime per turnover, $15/SF TI on new leases, $3/SF LCs
-   - OpEx benchmarked to submarket (taxes, insurance, CAM, mgmt, R&M, reserves)
-   - Reserve replacement: $0.25/SF retail, $0.30/SF office, $0.20/SF industrial
-
-3. CAP RATE ANALYSIS
-   - Quote the broker's cap rate AND a lender-sized cap rate
-   - Pull 5 most recent submarket comp trades, give cap range
-   - Adjust for vintage, tenant credit, lease term, location
-
-4. DEBT SIZING & RETURNS
-   - 65% LTV, 30-yr am, 5-yr IO, current 10-yr UST + spread
-   - Year-1 cash-on-cash, 5-yr levered IRR, equity multiple
-   - DSCR at year 1 and trough year
-
-5. REFINANCE RISK
-   - At year 5: refi proceeds if rates hold vs. +75bps vs. +150bps
-   - Trapped equity scenarios
-
-6. VERDICT
-   - Buy / negotiate / pass with the price you'd actually pay
-   - Top 3 risks and how to mitigate at PSA / closing`,
-      },
-      {
-        label: "Pro forma deep-dive",
-        description: "Line-by-line pro forma with sensitivity analysis",
-        prompt: `Build a 10-year pro forma for __________. Use the rent roll attached (or pull from the file index).
-
-For each line item, show: year 1 base, growth assumption, year 10 stabilized.
-
-REVENUE
-- Base rent (escalated by stated bumps; mark-to-market on rollover)
-- Percentage rent (if applicable; tie to tenant sales reporting)
-- Recoveries (CAM, taxes, insurance) — show recovery ratio per tenant
-- Other income (parking, storage, signage, antenna)
-- Vacancy & credit loss (use submarket average + 100bps cushion)
-
-EXPENSES
-- Real estate taxes (assume reassessment at sale; show with/without)
-- Insurance (benchmark $/SF for asset class and geography)
-- Utilities (separate landlord vs. tenant-billed)
-- Repairs & maintenance
-- Management fee (3-4% of EGI typical)
-- Administrative, legal, professional
-- Replacement reserves
-
-CAPITAL
-- TI allowances per scheduled rollover
-- Leasing commissions per rollover
-- CapEx schedule (roof, parking lot, HVAC, etc.) — pull from PCA if available
-
-SENSITIVITY
-- Vacancy: -200bps / base / +200bps
-- Rent growth: 2% / 3% / 4% annual
-- Exit cap: -50bps / base / +50bps
-- Show levered IRR matrix across all combinations
-
-Highlight any line where my assumption looks aggressive vs. submarket norm.`,
-      },
-      {
-        label: "1031 exchange identification",
-        description: "Find replacement properties matching basis, timing, asset profile",
-        prompt: `I just sold __________ for $__________ net of closing costs on __________. Identifying replacement property for a 1031 exchange. My 45-day identification deadline is __________ and 180-day close deadline is __________.
-
-Pull candidate replacement properties matching:
-
-1. BASIS REQUIREMENTS
-   - Minimum purchase price to absorb full proceeds + boot avoidance
-   - Debt to replace: $__________ (replicate or exceed)
-
-2. PROFILE MATCH
-   - Asset class: __________ (NNN retail / multi-tenant / industrial / MOB)
-   - Geography: __________ (or open to anywhere)
-   - Cap rate target: __________ to __________
-   - Hold period horizon: __________ years
-
-3. SCREEN AGAINST
-   - Tenant credit quality (investment grade preferred for NNN)
-   - Remaining lease term (10+ yrs ideal for STNL)
-   - Submarket fundamentals (positive absorption, low vacancy)
-   - Recent transaction comps validate the asking cap
-
-4. SHORTLIST
-   - Rank 5 candidates with full address, ask price, NOI, cap, tenant, term
-   - Flag any with environmental, title, or zoning red flags
-   - Note QI deadlines and what diligence can finish inside 45 days
-
-Output as a table I can take to my QI and 1031 attorney.`,
-      },
-      {
-        label: "Highest and best use study",
-        description: "Zoning, market, financial feasibility — what should this site be?",
-        prompt: `Run a highest and best use analysis on __________.
-
-1. LEGALLY PERMISSIBLE
-   - Current zoning, allowed uses by-right vs. conditional / variance
-   - FAR, height, setback, parking, lot coverage constraints
-   - Overlay districts (historic, opportunity zone, TIF, etc.)
-   - Any pending rezoning or comp plan changes nearby
-
-2. PHYSICALLY POSSIBLE
-   - Lot size, frontage, topography, access points
-   - Utilities at site (water, sewer capacity, power, gas)
-   - Environmental constraints (wetlands, floodplain, contamination history)
-   - Demolition cost if existing improvements
-
-3. FINANCIALLY FEASIBLE — score each candidate use
-   For each of: retail strip, single-tenant NNN, medical office, multifamily,
-   self-storage, industrial flex, hotel — compute:
-   - Land residual value (backed into from achievable rents and dev cost)
-   - Stabilized yield-on-cost
-   - Construction timeline and lease-up risk
-   - Required equity, projected IRR
-
-4. MAXIMALLY PRODUCTIVE
-   - Pick the winning use
-   - Justify with the demographic / void / comp data
-   - Identify the 2-3 anchor tenants or operators to approach first
-   - Outline a 24-month execution path: entitlement → debt → GC → lease-up`,
-      },
-    ],
-  },
-  {
-    category: "Leasing & Tenant Strategy",
-    prompts: [
-      {
-        label: "Lease abstract + red flags",
-        description: "Full clause-by-clause abstraction with risk callouts",
-        prompt: `Abstract the lease for __________. Cite section and page for every data point.
-
-1. PARTIES & PREMISES
-   - Tenant entity (and parent guarantor if any)
-   - Landlord entity
-   - Premises description, RSF, USF, load factor
-   - Permitted use clause — verbatim
-
-2. TERM
-   - Commencement (rent commencement vs. delivery date)
-   - Expiration
-   - Renewal options: number, length, notice window, rent reset mechanism
-   - Early termination: rights, fees, conditions
-   - Holdover: rate, conversion to MTM, landlord remedies
-
-3. RENT
-   - Base rent schedule with all escalations (fixed, CPI, FMV)
-   - Free rent / abatement periods
-   - Percentage rent: breakpoint, rate, reporting cadence
-   - Late fee structure
-
-4. OPERATING EXPENSES
-   - Structure (NNN, modified gross, full service)
-   - Tax obligation: pro rata, capped, base year?
-   - Insurance: tenant carries what, landlord carries what
-   - CAM: included, excluded, controllable cap %
-   - Management fee cap
-   - Audit rights, statement delivery timing
-
-5. KEY CLAUSES — verbatim or close paraphrase
-   - Co-tenancy (occupancy and named tenants)
-   - Exclusive use
-   - Go-dark / continuous operation
-   - Assignment / subletting (consent standard, recapture, profits split)
-   - SNDA / NDA / estoppel obligations
-   - Default & cure periods (monetary vs. non-monetary)
-   - Casualty / condemnation
-   - Surrender condition
-
-6. RED FLAGS
-   - Anything one-sided or unusual for this asset class
-   - Cross-reference inconsistencies between sections
-   - Open dates, missing exhibits, undefined terms
-   - Provisions that could trigger landlord obligations or losses I'm not pricing
-
-Give me the 3 issues I'd negotiate before closing.`,
-      },
-      {
-        label: "LOI draft",
-        description: "Generate a tight market-standard LOI from deal terms",
-        prompt: `Draft a Letter of Intent for __________ at __________. I'm representing the __________ (landlord / tenant).
-
-Terms to include:
-- Tenant entity: __________
-- Premises: __________ (suite, RSF)
-- Term: __________ years
-- Commencement: __________
-- Base rent schedule: __________
-- Rent abatement: __________
-- TI allowance: $__________/SF
-- OpEx structure: __________ (NNN / modified gross)
-- Renewal options: __________
-- Security deposit / LOC: __________
-- Permitted use: __________
-- Brokerage commission: __________
-- Contingencies: __________
-- Exclusivity / non-binding language: __________
-
-Use market-standard structure. Flag any term that's off-market and propose the standard fallback. Keep total length under 2 pages.`,
-      },
-      {
-        label: "PSA analysis",
-        description: "Analyze a Purchase and Sale Agreement for non-standard terms and risks",
-        prompt: `Analyze the PSA for __________ at __________. Identify non-standard clauses, risk factors, and negotiation points. Compare against market-standard CRE purchase agreements.`,
-      },
-      {
-        label: "Tenant credit analysis",
-        description: "Underwrite tenant ability to pay over lease term",
-        prompt: `Run a tenant credit analysis on __________ for a __________ year lease at $__________ annual base rent.
-
-1. ENTITY STRUCTURE
-   - Legal entity signing the lease vs. operating brand
-   - Parent / guarantor structure
-   - Public, private, franchisee, corporate-owned?
-
-2. FINANCIAL HEALTH (last 3 years if available)
-   - Revenue trend
-   - EBITDA / operating margin
-   - Liquidity (cash, current ratio)
-   - Leverage (debt/EBITDA, interest coverage)
-   - Same-store sales trend if retail
-
-3. INDUSTRY POSITION
-   - Market share, competitive position
-   - Recent store openings / closings net
-   - Bankruptcy or restructuring in last 5 years
-   - Recent management changes, activist pressure
-
-4. RENT COVERAGE
-   - Estimated unit-level sales for this location (use traffic, demographics, brand averages)
-   - Rent-to-sales ratio benchmark for this category
-   - Occupancy cost ratio
-   - 4-wall EBITDA margin estimate
-
-5. CREDIT VERDICT
-   - Investment grade equivalent (S&P / Moody's / NAIC scale)
-   - Recommended security: LOC, personal guaranty, additional months deposit
-   - Rent factor adjustment to underwrite as if tenant were one notch lower
-   - Termination / dark risk over the lease term`,
-      },
-      {
-        label: "Renewal negotiation prep",
-        description: "Leverage map, BATNA, and proposed terms for an expiring lease",
-        prompt: `I have a lease renewal coming up with __________ at __________. Current rent: $__________/SF NNN. Lease expires __________.
-
-Prepare the negotiation:
-
-1. TENANT LEVERAGE
-   - Their relocation cost (TI, moving, downtime, lost sales) — estimate
-   - Available comparable space within 3 miles (size, rate, term)
-   - Their store sales trend if available
-   - Strategic value of this location to their portfolio
-
-2. MY LEVERAGE (LANDLORD)
-   - Market rent today vs. their current rent (mark-to-market gap)
-   - Replacement tenant timeline and TI cost if they leave
-   - Co-tenancy or anchor effect on rest of center
-   - Lender / refinance pressure to keep this tenant
-
-3. PROPOSED OPENING TERMS
-   - Base rent: ask vs. fallback vs. walkaway
-   - Term: years
-   - Escalations: fixed or CPI
-   - TI allowance: $/SF and conditions
-   - Free rent: months
-   - Renewal options going forward
-
-4. CONCESSION LADDER
-   - What I give first, second, third
-   - What I never give
-   - Trade items: TI for term, free rent for higher base, exclusivity for personal guaranty
-
-5. WALKAWAY ANALYSIS
-   - Net effective rent of my offer vs. backfill scenario
-   - Time to backfill, downtime cost, broker fees, TI for new tenant
-   - The number below which I walk
-
-Give me the one-page summary I'd bring to the call.`,
-      },
-      {
-        label: "Co-tenancy clause analysis",
-        description: "Map co-tenancy triggers across the center and quantify exposure",
-        prompt: `Analyze the co-tenancy exposure at __________.
-
-1. CLAUSE INVENTORY
-   - Every lease with a co-tenancy provision
-   - Trigger type: occupancy %, named anchor(s), category-based
-   - Remedy: rent reduction, alternative rent, termination right, cure period
-
-2. CURRENT STATUS
-   - Which clauses are currently in violation
-   - Which are within 6 months of triggering (anchor lease expiring, vacancy creeping)
-   - Cure options available to landlord
-
-3. EXPOSURE QUANTIFICATION
-   - Annual rent at risk if each clause triggers
-   - Cumulative exposure if anchor goes dark
-   - Worst-case cascade scenario
-
-4. MITIGATION
-   - Replacement anchor candidates and timing
-   - Re-tenanting strategy that preserves co-tenancy compliance
-   - Lease amendments to renegotiate the most onerous clauses
-
-Output as a heatmap I can show ownership.`,
-      },
-    ],
-  },
-  {
-    category: "Market & Site Analysis",
-    prompts: [
-      {
-        label: "Full void analysis",
-        description: "Parcel + demographics + voids + traffic + comps + HBU",
-        prompt: `I'm looking at __________. Run a full void analysis on this property and its trade area.
-
-Drop a map of the site first, then start with the parcel — pull whatever you can: zoning, lot size, assessed value, current use, and any recent tax or ownership history. If there's an existing structure, give me the building specs.
-
-Then analyze the trade area — 1-mile and 3-mile rings from this address:
-
-1. DEMOGRAPHIC SNAPSHOT: Population, median household income, median age, household growth trend. How does the 1-mile ring compare to the 3-mile ring — am I in the stronger pocket or the weaker one?
-
-2. VOID ANALYSIS: What tenant categories are missing or underserved relative to the demographics? Flag gaps in medical, dental, veterinary, QSR, fast-casual, personal services (salon, barber, spa), fitness, professional office, and specialty retail. Cross-reference against what's already clustered along the corridor — I don't want to duplicate what's within a 5-minute drive.
-
-3. TRAFFIC & ACCESS: What are the AADT counts at this location? Signalized intersection? Ingress/egress constraints? How does visibility and access compare to nearby retail nodes?
-
-4. COMPETITIVE SUPPLY: What other retail or mixed-use vacancies exist within 3 miles? If there's available space nearby at lower basis, tell me — I need to know what I'm competing against for tenant attention.
-
-5. HIGHEST AND BEST USE: Given the zoning, parcel size, location along the corridor, and the void gaps you identified — what tenant mix would maximize rent per square foot while maintaining low turnover risk? Give me a realistic lease-up scenario.
-
-6. RENT COMPS: What are NNN asking rents for comparable retail/office space in this submarket? What spread should I expect between inline and endcap? Use a chart for the rent comps.
-
-Tell me what this site wants to be.`,
-      },
-      {
-        label: "Market rent comp survey",
-        description: "Asking rents, vacancy, absorption, supply pipeline",
-        prompt: `Run a rent comp survey for the __________ submarket. Asset type: __________.
-
-1. ASKING RENTS
-   - Current NNN asking rents by quality tier (A / B / C)
-   - Position premium: inline vs. endcap vs. pad vs. freestanding
-   - Recent direct deals vs. asking spread
-
-2. VACANCY
-   - Current overall vacancy rate
-   - TTM average and 3-yr average for trend
-   - Vacancy by building class
-
-3. ABSORPTION
-   - YTD and TTM net absorption
-   - New supply delivered in last 12 months
-   - Forward pipeline: under construction, planned
-
-4. TENANT DEMAND
-   - Active requirements in market (categories, sizes)
-   - Categories expanding vs. contracting
-   - Where landlords are giving concessions
-
-5. RENT GROWTH
-   - 3-year and 5-year CAGR
-   - Forward outlook by category
-   - Inflection points or risks
-
-Chart the data wherever it helps. Give me a one-line takeaway: is this submarket a landlord market or a tenant market right now?`,
-      },
-      {
-        label: "Demographic deep-dive",
-        description: "1, 3, 5-mile rings with psychographics and growth trajectory",
-        prompt: `Pull a demographic deep-dive for __________. Rings: 1-mile, 3-mile, 5-mile, and a 10-min drive-time polygon if you can.
-
-For each ring:
-- Population (current + 5-yr forecast)
-- Households (current + 5-yr forecast)
-- Median household income
-- Median age
-- Educational attainment (% bachelor's+)
-- Daytime population (workforce inflow)
-- Racial / ethnic composition
-- Owner vs. renter %
-- Median home value
-- Median monthly rent
-
-PSYCHOGRAPHICS / SPENDING
-- Tapestry / PRIZM dominant segments
-- Annual household expenditure by category (apparel, food away from home, healthcare, etc.)
-- Spending power index vs. national avg
-
-GROWTH SIGNALS
-- Permit activity (residential and commercial) in 3-mile radius last 3 years
-- Major employers and recent expansion / contraction announcements
-- Planned infrastructure (transit, roads, schools)
-
-Output as a comparison table. Flag the segments most relevant for retail / medical / multifamily underwriting.`,
-      },
-      {
-        label: "Competitive supply audit",
-        description: "Every competing property within the trade area, with terms",
-        prompt: `Map every competing property to __________ within a __________-mile radius (asset class: __________).
-
-For each competitor:
-- Property name, address
-- Year built, last renovated
-- Total RSF, current occupancy
-- Asking rate ($/SF and basis: NNN, FSG, MG)
-- Concession package being offered (free rent, TI)
-- Major tenants and remaining lease terms
-- Ownership and any signs of distress
-- Recent leasing activity (last 12 months)
-
-ANALYSIS
-- Where my asset ranks on rent, quality, location
-- Where I'm winning vs. losing tenant tours
-- Pricing power gap — am I leaving rent on the table or overpricing
-- New supply pipeline that hasn't delivered yet
-
-Output as a comparison table sorted by direct competitive threat.`,
-      },
-    ],
-  },
-  {
-    category: "Finance & Capital Markets",
-    prompts: [
-      {
-        label: "Refinance analysis",
-        description: "Rate, proceeds, structure, and execution timing",
-        prompt: `Run a refinance analysis on __________. Current loan: $__________ at __________% maturing __________. Current NOI: $__________.
-
-1. CURRENT MARKET
-   - Today's index (SOFR / 10-yr UST) + spread for this asset class
-   - All-in rate range from agency, life co, CMBS, debt fund
-   - Typical max LTV, min DSCR, interest-only window
-
-2. PROCEEDS SIZING
-   - Max loan at min DSCR vs. max LTV — which constrains?
-   - At a target DSCR of 1.25x and 65% LTV, here's my proceeds
-   - Cash to / cash from refi vs. existing balance
-
-3. STRUCTURE TRADE-OFFS
-   - Fixed vs. floating with cap
-   - 5/7/10-yr term
-   - IO period: how much, what it costs in rate
-   - Prepay: yield maintenance vs. defeasance vs. open
-   - Recourse / carve-outs
-
-4. EXECUTION TIMELINE
-   - Application to close: typical days by lender type
-   - Diligence list (rent roll, OS, environmental, PCA, appraisal, title)
-   - Forward rate lock if it makes sense
+        label: "Full research report",
+        description: "Background, key facts, comparisons, risks, and a clear recommendation",
+        prompt: `I'm researching __________. Run a full research report on this topic.
+
+Cite your sources for every claim, and flag anything that's uncertain or contested.
+
+1. BACKGROUND
+   - What is it, why does it matter, and what's the current state?
+   - Who are the key players or stakeholders?
+
+2. KEY FACTS
+   - The numbers, dates, and details that matter most
+   - Anything commonly misunderstood
+
+3. COMPARISON
+   - How this compares to the main alternatives
+   - Use a table or chart where it helps
+
+4. RISKS & UNKNOWNS
+   - The biggest risks and open questions
+   - Gaps in the available information
 
 5. RECOMMENDATION
-   - Lender type and 2-3 specific lenders to approach
-   - Indicative rate and proceeds I should target
-   - When to launch process to hit maturity
-
-Build the lender call list.`,
+   - What you'd recommend and why
+   - The one thing I most need to know`,
       },
       {
-        label: "Cap rate justification",
-        description: "Defend a cap rate with comp trades and adjustment factors",
-        prompt: `I'm using a __________% cap rate for __________ in __________. Build the justification.
+        label: "Options analysis",
+        description: "Compare options against cost, effort, and expected outcome",
+        prompt: `I'm evaluating __________. Budget: $__________. Goal: __________.
 
-1. RAW COMP TRADES
-   - 10 most relevant sales in last 24 months
-   - Address, asset type, SF, sale price, $/SF, in-place NOI, cap rate
-   - Buyer / seller profile (institutional, private, syndicate)
+Run a full options analysis:
 
-2. ADJUSTMENT FACTORS
-   For each comp, adjust for differences vs. my subject:
-   - Vintage / condition
-   - Tenant credit
-   - Remaining lease term (WALT)
-   - Location / submarket quality
-   - Lot size / parking ratio
-   - In-place vs. market rent gap
+1. INVENTORY
+   - The realistic options on the table, with key facts for each
 
-3. ADJUSTED CAP RANGE
-   - After adjustments, the range of supportable cap rates
-   - Where my underwritten cap sits in that range
-   - Whether I'm conservative, market, or aggressive
+2. COST & EFFORT
+   - Cost, time, and effort each option requires
 
-4. STRESS
-   - What cap rate does the market need to move to for me to lose money
-   - Probability of that scenario in next 24 months
+3. TRADE-OFFS
+   - Main pros and cons of each, and who it's best for
 
-Output the math I'd put in an IC memo.`,
+4. COMPARABLES
+   - What others in a similar situation have chosen and how it worked out
+
+5. VERDICT
+   - Proceed, adjust, or pass — and the reasoning
+   - Top 3 risks and how to mitigate them`,
       },
       {
-        label: "Sources and uses build",
-        description: "Full capital stack for an acquisition or development",
-        prompt: `Build a sources and uses for __________. Total project cost: $__________.
+        label: "Compare two things",
+        description: "Side-by-side comparison with a recommendation",
+        prompt: `Compare __________ and __________ for my use case: __________.
 
-USES
-- Land / acquisition
-- Hard costs (construction or capex)
-- Soft costs (architect, engineering, legal, permits)
-- TI / LC reserve
-- Operating reserve through stabilization
-- Financing costs (origination, legal, third-party reports)
-- Interest reserve
-- Developer fee
-- Contingency (% of hard costs)
+1. Build a side-by-side comparison table of the factors that matter to me.
+2. Call out where each one clearly wins.
+3. Note any hidden costs, lock-in, or gotchas.
+4. Recommend one, and explain the trade-off I'm accepting by choosing it.
 
-SOURCES
-- Senior debt — sizing at __________ LTC, __________ DSCR
-- Mezzanine or preferred equity — if needed to fill gap
-- Sponsor equity (co-invest %)
-- LP / JV equity
-- Tax credits, grants, TIF, EB-5 if applicable
-
-CAPITAL STACK
-- Show $ amount, % of stack, weighted cost, return target by tranche
-- Promote / waterfall structure (pref, catch-up, splits at IRR hurdles)
-- Sponsor projected IRR and equity multiple on co-invest
-
-Flag any gap and propose how to fill it.`,
+Cite sources for any factual claims.`,
       },
       {
-        label: "DSCR stress test",
-        description: "How rent loss, rate shock, and op-ex inflation hit coverage",
-        prompt: `Stress-test debt service coverage for __________. Loan: $__________ at __________%, __________-yr am. In-place NOI: $__________. Current DSCR: __________.
+        label: "Explain it simply",
+        description: "Break a complex topic down into plain language",
+        prompt: `Explain __________ to me clearly.
 
-SCENARIOS
-1. Tenant default — largest tenant goes dark for 12 months
-2. Tenant default — second largest tenant
-3. Rent loss — 10%, 20%, 30% across the board
-4. OpEx inflation — taxes / insurance up 25%
-5. Rate shock at refi — +100bps, +200bps, +300bps
-6. Combined recession — 15% rent loss + 15% OpEx inflation + 150bps refi shock
-
-For each scenario, show:
-- New NOI
-- New DSCR
-- Cash flow deficit (if any) and months of reserves to cover
-- Trigger of any cash sweep / lockbox / springing covenants
-- Likelihood we breach the loan
-
-Build the table for the IC. Flag the scenario that worries me most.`,
+1. Start with a one-sentence plain-English summary.
+2. Then the key concepts, one at a time, no jargon.
+3. Use a concrete analogy or example.
+4. End with the practical takeaway — why it matters for me.`,
       },
     ],
   },
   {
-    category: "Asset Management",
+    category: "Documents & Summaries",
     prompts: [
       {
-        label: "NOI optimization plan",
-        description: "Revenue uplift and expense compression playbook",
-        prompt: `Build a 12-month NOI optimization plan for __________. Current NOI: $__________.
+        label: "Document breakdown + red flags",
+        description: "Full extraction with risk analysis and section-by-section review",
+        prompt: `Break down the document for __________. Cite section and page for every point.
 
-REVENUE UPLIFT
-- Mark-to-market opportunities (which suites, $ uplift at renewal)
-- Vacancy lease-up plan (target tenants, timing, rate)
-- Recovery audit — am I billing back everything I'm entitled to
-- Ancillary income (parking, antenna, storage, signage, ATM, vending)
-- Percentage rent capture for retail tenants
+1. PARTIES & SCOPE
+   - Who's involved, what the document covers, and its purpose
 
-EXPENSE COMPRESSION
-- Property tax appeal opportunity (recent assessment vs. comps)
-- Insurance benchmark — am I overpaying vs. market
-- Utility audit (LED retrofit, controls, supplier rebid)
-- Vendor rebid (janitorial, landscaping, security, R&M)
-- Management fee benchmark
-- Eliminate redundant / low-ROI line items
+2. KEY DATES
+   - Effective date, deadlines, renewal or expiration terms, notice periods
 
-CAPITAL FOR YIELD
-- Capex projects with NOI accretion (sign upgrade, parking lot, facade, common area)
-- ROI and payback for each
+3. TERMS
+   - The main obligations, amounts, and conditions each party agreed to
 
-PRIORITIZED PUNCH LIST
-- Top 5 actions ranked by $ NOI impact and effort
-- Owner approvals needed
-- 90-day, 180-day, 12-month milestones`,
+4. OBLIGATIONS
+   - What each side is responsible for, and any recurring requirements
+
+5. KEY CLAUSES
+   - Anything about termination, assignment, exclusivity, or default
+
+6. RED FLAGS
+   - Anything unusual, one-sided, or that creates outsized risk
+   - Inconsistencies between sections
+   - The 3 issues I'd raise before signing`,
       },
       {
-        label: "Property tax appeal review",
-        description: "Identify over-assessment and build the appeal case",
-        prompt: `Evaluate property tax appeal opportunity for __________. Current assessed value: $__________. Current tax bill: $__________.
+        label: "Summarize a long document",
+        description: "Tight summary with the key points and action items",
+        prompt: `Summarize __________ for me.
 
-1. ASSESSMENT VS. MARKET
-   - Recent sale comps of similar properties (3 yrs)
-   - Implied $/SF and cap-rate-derived value
-   - Income approach: current NOI ÷ market cap rate
-   - Equity / uniformity check: how nearby similar properties are assessed
+1. A 3-sentence executive summary.
+2. The key points as a bulleted list.
+3. Any decisions made or required.
+4. Action items with owners and dates, if the document names them.
 
-2. OVER-ASSESSMENT GAP
-   - $ delta between assessed and market value
-   - Estimated tax savings if reduced
-   - Multi-year savings if reduction holds
-
-3. APPEAL VIABILITY
-   - Jurisdiction's appeal deadline and process
-   - Burden of proof and accepted methodologies
-   - Recent appeal outcomes for similar properties
-   - Risk of upward reassessment
-
-4. EXECUTION
-   - DIY vs. firm engagement (cost vs. contingency)
-   - Evidence to assemble: appraisal, comps, income statement
-   - Recommended target reduction and likely settlement
-
-Net present value of the appeal effort.`,
+Keep it faithful to the source — cite pages, and don't add anything that isn't there.`,
       },
       {
-        label: "Operating expense audit",
-        description: "Line-by-line OpEx benchmark with savings opportunities",
-        prompt: `Audit the operating expenses for __________. Pull last 24 months of operating statements.
+        label: "Extract structured data",
+        description: "Pull fields out of a document into a clean table",
+        prompt: `From the document(s) for __________, extract the following fields into a table: __________.
 
-For each category, benchmark $/SF against submarket for this asset class:
-- Real estate taxes
-- Property insurance
-- Utilities (broken out: electric, gas, water, sewer)
-- Janitorial / cleaning
-- Landscaping / snow removal
-- Security
-- R&M (broken out: HVAC, plumbing, electrical, parking lot, roof)
-- Trash / recycling
-- Pest control
-- Management fee
-- Administrative
-- Legal & professional
-- Marketing / leasing
-- Bad debt
-
-For each line:
-- Subject $/SF vs. benchmark range
-- $ variance (over/under)
-- Year-over-year trend
-- Recommended action (rebid, audit, accept)
-
-TOP OPPORTUNITIES
-- 5 largest savings opportunities with implementation plan
-- Total annual savings target
-- One-time investment required vs. recurring benefit`,
+For each row, include the source page. If a field is missing or ambiguous, mark it clearly rather than guessing. Output as a table I can copy into a spreadsheet.`,
+      },
+      {
+        label: "Compare document versions",
+        description: "Spot what changed between two drafts",
+        prompt: `Compare these two versions of __________. Identify every substantive change — added, removed, or reworded terms. For each change, note the section and why it might matter. Ignore pure formatting differences.`,
       },
     ],
   },
   {
-    category: "Disposition",
+    category: "Writing & Communication",
     prompts: [
       {
-        label: "Hold / sell analysis",
-        description: "Net proceeds vs. forward returns to decide timing",
-        prompt: `Should I hold or sell __________ today? Current basis: $__________. In-place NOI: $__________. Outstanding debt: $__________ at __________%.
+        label: "Draft a follow-up email",
+        description: "Short, clear follow-up based on recent context",
+        prompt: `Draft a follow-up email to __________ based on our last conversation.
 
-SELL TODAY
-- Indicated market value at current cap of __________%
-- Net proceeds after broker fee, defeasance/yield maintenance, transfer taxes, closing costs
-- Recapture / depreciation tax hit
-- 1031 vs. cash treatment
+- Reference what we discussed
+- Restate any commitments either side made
+- Include a clear next step and a proposed time
+- Keep it short and warm, not stiff
 
-HOLD 3 / 5 / 7 YEARS
-- NOI growth assumption and rationale
-- Forward cap rate scenarios (compression, flat, expansion)
-- CapEx required during hold
-- Refinance proceeds at year 5
-- Levered IRR through each exit year
-
-OPPORTUNITY COST
-- Where would I redeploy net sale proceeds and at what return
-- Risk profile of redeploy vs. hold
-
-VERDICT
-- Hold, sell, or recapitalize (cash-out refi)
-- If sell: optimal timing and listing process
-- If hold: the trigger that would change my mind`,
+Give me two versions: one concise, one a touch more detailed.`,
       },
       {
-        label: "BOV / Broker opinion of value",
-        description: "Defensible value range with method reconciliation",
-        prompt: `Build a Broker Opinion of Value for __________. Owner is considering a sale.
+        label: "Rewrite for tone",
+        description: "Adjust an existing message to hit the right tone",
+        prompt: `Rewrite the following so it's __________ (e.g. more concise / friendlier / more formal / more direct), without losing any of the key facts:
 
-PROPERTY SUMMARY
-- Address, asset type, year built, RSF, occupancy, WALT
-- Submarket and trade area
-- Recent capital improvements, deferred maintenance
+__________`,
+      },
+      {
+        label: "Draft an announcement",
+        description: "Clear internal or external announcement from a few bullet points",
+        prompt: `Write an announcement about __________.
 
-VALUATION — three approaches
-1. INCOME APPROACH
-   - In-place NOI ÷ market cap rate = $__________
-   - Stabilized NOI ÷ exit cap = $__________
-   - DCF over 10 years with terminal value
+Key points:
+- __________
+- __________
+- __________
 
-2. SALES COMPARISON
-   - 5 closest comp trades with $/SF and cap rate
-   - Adjustments and indicated value range
+Audience: __________. Tone: __________. Keep it to a few short paragraphs and end with what the reader should do next.`,
+      },
+      {
+        label: "Prep talking points",
+        description: "Bullet points and likely questions for a meeting or call",
+        prompt: `I have a meeting/call about __________ in 30 minutes. Prep me.
 
-3. REPLACEMENT COST
-   - Land + hard cost to rebuild today, less depreciation
-   - Sanity check on income / comp values
+1. The 3-4 points I need to make.
+2. The questions they're likely to ask, with a strong answer for each.
+3. Any objections and how I'd handle them.
+4. A clear ask to close on.`,
+      },
+    ],
+  },
+  {
+    category: "Workflows & Automation",
+    prompts: [
+      {
+        label: "Build a daily digest workflow",
+        description: "Automate a scheduled summary emailed to you",
+        prompt: `Build a workflow that emails me a daily digest of __________.
 
-RECONCILED VALUE RANGE
-- Low / mid / high
-- Recommended listing strategy: whisper, off-market, broad
+- Run every morning on a schedule
+- Pull the relevant items from my sources
+- Summarize what's new or time-sensitive
+- Email it to me in a clean, scannable format
 
-LIKELY BUYER POOL
-- Profile: institutional, private capital, 1031 buyer, owner-user, opportunistic
-- 5 specific buyer names to call first
+Walk me through the steps, then set it up.`,
+      },
+      {
+        label: "Automate follow-ups",
+        description: "Trigger reminders and outreach from events",
+        prompt: `Set up a workflow that watches for __________ and, when it happens, __________.
 
-MARKETING TIMELINE
-- BOV → engagement → OM → tour → BIDs → best & final → PSA → close`,
+Keep me in the loop before anything is sent externally. Explain the trigger, the steps, and where I approve.`,
+      },
+      {
+        label: "Alert me on a condition",
+        description: "Get notified when something crosses a threshold",
+        prompt: `Create a workflow that alerts me when __________ crosses __________. Check on a schedule, and only notify me when the condition is actually met so I don't get noise.`,
+      },
+      {
+        label: "Turn a request into steps",
+        description: "Decompose a goal into an automatable workflow",
+        prompt: `I want to automate this: __________.
+
+Break it into concrete steps, note which steps need data or approvals from me, flag anything risky to do automatically, and then propose the workflow.`,
+      },
+    ],
+  },
+  {
+    category: "Voice & Agents",
+    prompts: [
+      {
+        label: "Design a voice assistant",
+        description: "Script and rules for an inbound or outbound voice agent",
+        prompt: `Help me set up a voice assistant that __________.
+
+1. Draft the greeting and the core script.
+2. Define what it should and shouldn't say (guardrails).
+3. List the questions it should be able to answer, sourced from my knowledge base.
+4. Decide when it hands off to a human.
+
+Keep the tone __________.`,
+      },
+      {
+        label: "Build a task agent",
+        description: "Define an agent that completes a multi-step task",
+        prompt: `Design an agent that handles __________ end to end.
+
+1. The goal and definition of done.
+2. The tools or data it needs.
+3. The steps it should take, and the checkpoints where it asks me.
+4. How it should report back.
+
+Then run it on: __________.`,
+      },
+      {
+        label: "Write agent instructions",
+        description: "A tight system prompt for a focused agent",
+        prompt: `Write clear instructions (a system prompt) for an agent whose job is __________.
+
+Cover its role, its scope, what to prioritize, what to avoid, its tone, and how it should format answers. Keep it precise and unambiguous.`,
+      },
+    ],
+  },
+  {
+    category: "Data & Reporting",
+    prompts: [
+      {
+        label: "Analyze a dataset",
+        description: "Find the story in a table or spreadsheet",
+        prompt: `Analyze the data for __________.
+
+1. The top-line numbers and what they mean.
+2. The most important trends or outliers.
+3. Anything surprising or worth a second look.
+4. A chart for the pattern that matters most.
+5. A one-line takeaway.`,
+      },
+      {
+        label: "Build a summary report",
+        description: "A clean report from raw inputs, with visuals",
+        prompt: `Build a summary report on __________ for __________ (audience).
+
+Include an executive summary, the key metrics, a chart or two, and a short "what to do next" section. Cite where each number came from.`,
+      },
+      {
+        label: "Sanity-check my numbers",
+        description: "Verify a calculation step by step",
+        prompt: `Check this calculation and tell me if it holds up: __________.
+
+Walk through it step by step, flag any assumption that looks off, and show the corrected result if it's wrong.`,
       },
     ],
   },
@@ -970,22 +525,22 @@ const KNOWLEDGE_SOURCES = [
 // templates curated for first-time-feel. Picked manually rather
 // than slicing the full list from lib/dante/templates.ts because
 // (a) the bundle size for the gallery's full registry is wasted on
-// a 4-card preview and (b) the order matters for the buyer
-// demographic — meeting prep + post-meeting + QBR + life event
-// reads as the day-job of a CRE broker; niche templates can wait
-// for the /dante/workflows page proper.
+// a 4-card preview and (b) the order matters — meeting prep +
+// post-meeting + review reminders + digest reads as a useful
+// everyday set; niche templates can wait for the /dante/workflows
+// page proper.
 const RECOMMENDED_WORKFLOWS_ADVISOR = [
   { slug: "meeting-prep-packet", name: "Draft a meeting prep packet", kindLabel: "Draft", steps: 5 },
   { slug: "post-meeting-followup", name: "Generate post-meeting follow-up", kindLabel: "Output", steps: 4 },
   { slug: "qbr-reminder", name: "Quarterly review reminders", kindLabel: "Output", steps: 4 },
-  { slug: "life-event-detector", name: "Surface contact deal events", kindLabel: "Review", steps: 5 },
+  { slug: "life-event-detector", name: "Surface important contact events", kindLabel: "Review", steps: 5 },
 ] as const;
 
 const RECOMMENDED_WORKFLOWS_REALTOR = [
-  { slug: "lease-expiration-outreach", name: "Lease expiration outreach", kindLabel: "Outreach", steps: 4 },
-  { slug: "property-showing-prep", name: "Prep a property showing packet", kindLabel: "Draft", steps: 5 },
-  { slug: "tenant-renewal-followup", name: "Tenant renewal follow-up", kindLabel: "Output", steps: 4 },
-  { slug: "comp-analysis", name: "Run a comp analysis", kindLabel: "Research", steps: 3 },
+  { slug: "lease-expiration-outreach", name: "Send a daily digest", kindLabel: "Outreach", steps: 4 },
+  { slug: "property-showing-prep", name: "Draft a meeting prep packet", kindLabel: "Draft", steps: 5 },
+  { slug: "tenant-renewal-followup", name: "Automate follow-ups", kindLabel: "Output", steps: 4 },
+  { slug: "comp-analysis", name: "Run a research report", kindLabel: "Research", steps: 3 },
 ] as const;
 
 const REWRITE_PRESETS = [
@@ -1011,7 +566,7 @@ export default function AskDante({
   // — we keep it for the InputBar placeholder, but the hero icon
   // reads from context so it always matches the breadcrumb gate.
   const brand = useAssistantBrand();
-  const isRealtor = true; // CRE-only; single vertical
+  const isRealtor = true; // single default prompt set for everyone
   const QUICK_PROMPTS = isRealtor ? QUICK_PROMPTS_REALTOR : QUICK_PROMPTS_ADVISOR;
   const RECOMMENDED_WORKFLOWS = isRealtor ? RECOMMENDED_WORKFLOWS_REALTOR : RECOMMENDED_WORKFLOWS_ADVISOR;
   const router = useRouter();
@@ -1052,7 +607,7 @@ export default function AskDante({
   // cryptic workflow failure.
   const [secretsReady, setSecretsReady] = useState<boolean | null>(null);
   // Workflow health — banner on landing when scheduled workflows are
-  // failing. Fetched once on mount so the broker sees it immediately
+  // failing. Fetched once on mount so the user sees it immediately
   // without navigating to the Workflows page.
   const [workflowHealth, setWorkflowHealth] = useState<{
     ok: boolean;
@@ -1602,7 +1157,7 @@ export default function AskDante({
           )}
 
           {/* Workflow health banner — visible when scheduled
-              automations are failing so the broker knows immediately */}
+              automations are failing so the user knows immediately */}
           {workflowHealth && !workflowHealth.ok && workflowHealth.failing.length > 0 && (
             <div className="w-full max-w-2xl mx-auto mb-6">
               <Link
@@ -2335,7 +1890,7 @@ function InputBar(p: InputBarProps) {
   );
 }
 
-// ── Full CRE prompt library modal ───────────────────────────────
+// ── Full prompt library modal ───────────────────────────────────
 // Shows every prompt in complete detail. Sidebar of categories on
 // the left, prompt cards on the right with the full text visible
 // (collapsible) plus copy + use-in-chat actions.
@@ -2401,9 +1956,9 @@ function PromptLibraryModal({
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--rule)]">
           <div>
-            <h2 className="text-sm font-semibold text-[var(--ink)]">CRE prompt library</h2>
+            <h2 className="text-sm font-semibold text-[var(--ink)]">Prompt library</h2>
             <p className="text-[11px] text-[var(--ink-subtle)] mt-0.5">
-              Every prompt a commercial real estate professional needs — in full detail.
+              Ready-to-use prompts for any kind of work — in full detail.
             </p>
           </div>
           <div className="flex items-center gap-2">

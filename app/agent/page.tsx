@@ -11,7 +11,7 @@ import AgentRosterClient from "./AgentRosterClient";
 
 export const metadata: Metadata = {
   title: "Agents — Dante",
-  description: "Configure and manage the agents that work your brokerage's chat, email, and workflows.",
+  description: "Configure and manage the agents that work your team's chat, email, and workflows.",
 };
 
 export const dynamic = "force-dynamic";

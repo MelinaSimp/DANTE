@@ -7,8 +7,7 @@
 //   - Static commands (navigate to dashboard, settings, etc.)
 //   - Workspace contacts (live search)
 //   - Workspace vault items (live search)
-//   - Vertical-specific commands (advisor: "draft RMD reminder";
-//     realtor: "schedule tour")
+//   - Suggested commands (common agent, research, and document tasks)
 //
 // Lightweight implementation — debounced fetch, keyboard nav, no
 // external library. Mounts once at the layout level via
@@ -18,7 +17,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, ArrowRight, X } from "lucide-react";
 import { useDensity } from "@/components/theme/DensityProvider";
-// CRE-only product — no vertical branch needed
+// Horizontal product — the same suggested commands apply to everyone
 
 interface CommandItem {
   id: string;
@@ -42,12 +41,12 @@ const STATIC_COMMANDS: CommandItem[] = [
   { id: "nav.help", label: "Help & Documentation", group: "Settings", href: "/help" },
 ];
 
-const CRE_COMMANDS: CommandItem[] = [
-  { id: "rec.deal-score", label: "Score a deal", group: "Suggested", href: "/dante?prompt=Run+a+deal+score+on+my+latest+acquisition+candidate" },
-  { id: "rec.void", label: "Run void analysis", group: "Suggested", href: "/dante?prompt=Run+a+void+analysis+for+retail+gaps+in+my+trade+area" },
-  { id: "rec.lease-abstract", label: "Abstract a lease", group: "Suggested", href: "/workflows" },
-  { id: "rec.underwrite", label: "Underwrite a rent roll", group: "Suggested", href: "/workflows" },
-  { id: "rec.closing", label: "Deals closing this month", group: "Suggested", href: "/dante?prompt=What+deals+are+closing+this+month" },
+const SUGGESTED_COMMANDS: CommandItem[] = [
+  { id: "rec.analyze", label: "Analyze a project", group: "Suggested", href: "/dante?prompt=Analyze+my+latest+project+and+summarize+the+key+findings" },
+  { id: "rec.research", label: "Research a topic on the web", group: "Suggested", href: "/dante?prompt=Research+this+topic+on+the+web+and+cite+your+sources" },
+  { id: "rec.extract", label: "Extract data from a document", group: "Suggested", href: "/workflows" },
+  { id: "rec.summarize", label: "Summarize a spreadsheet", group: "Suggested", href: "/workflows" },
+  { id: "rec.due", label: "Tasks due this month", group: "Suggested", href: "/dante?prompt=What+tasks+are+due+this+month" },
   { id: "rec.stale", label: "Contacts I haven't reached in 30 days", group: "Suggested", href: "/dante?prompt=Which+contacts+haven't+heard+from+me+in+30+days" },
 ];
 
@@ -85,7 +84,7 @@ export default function CommandPalette() {
   );
 
   const items = useMemo<CommandItem[]>(() => {
-    const base = [...STATIC_COMMANDS, ...CRE_COMMANDS, ...densityCommands];
+    const base = [...STATIC_COMMANDS, ...SUGGESTED_COMMANDS, ...densityCommands];
     if (!query.trim()) return base;
     const q = query.toLowerCase();
     return base.filter((c) => c.label.toLowerCase().includes(q));

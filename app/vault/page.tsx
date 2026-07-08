@@ -11,7 +11,7 @@ import VaultClient from "./VaultClient";
 
 export const metadata: Metadata = {
   title: "Vault — Dante",
-  description: "Workspace document store. Upload templates, leases, and deal docs for AI-powered search and analysis.",
+  description: "Workspace document store. Upload templates, contracts, and files for AI-powered search and analysis.",
 };
 
 export const dynamic = "force-dynamic";

@@ -27,7 +27,7 @@ function stripEmojis(text: string): string {
   return text.replace(EMOJI_RE, "").replace(/  +/g, " ");
 }
 
-const SYSTEM_PROMPT = `You are a deep research assistant for Drift, a platform for commercial real estate professionals.
+const SYSTEM_PROMPT = `You are a deep research assistant for Drift, a platform for building AI agents, voice assistants, and workflows.
 
 Conduct thorough web research on the given topic:
 1. Search multiple sources and cross-reference information — use several searches to build a complete picture.

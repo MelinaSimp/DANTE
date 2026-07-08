@@ -42,14 +42,14 @@ interface ProviderRow {
 
 const KIND_LABEL: Record<string, string> = {
   crm: "CRM",
-  property_mgmt: "Property management",
+  property_mgmt: "Files & storage",
   accounting: "Accounting",
-  market_data: "Market data",
-  deal_mgmt: "Deal management",
+  market_data: "Data & research",
+  deal_mgmt: "Project management",
   esignature: "E-signature",
-  networking: "Networking",
-  listings: "Listings",
-  parcel_data: "Parcel data",
+  networking: "Messaging",
+  listings: "Publishing",
+  parcel_data: "Data",
   geocoding: "Geocoding",
   entity_data: "Entity data",
 };
@@ -230,9 +230,9 @@ export default function IntegrationsClient() {
             Integrations
           </h1>
           <p className="prose-body text-[var(--ink-muted)] mt-1.5 max-w-prose">
-            Connect Drift to your tools -- CRM, property management,
-            accounting, market data, and more. Connected integrations
-            sync nightly, or on demand from the row's Sync button.
+            Connect Drift to your tools -- Gmail, Drive, Slack, CRM,
+            webhooks, and more. Connected integrations sync nightly,
+            or on demand from the row's Sync button.
           </p>
         </div>
 
@@ -275,8 +275,8 @@ export default function IntegrationsClient() {
           <>
             {connected.length > 0 && (
               <ProviderSection
-                title="Commercial real estate"
-                subtitle="Connect your PM, accounting, CRM, market data, and deal tools. Paste your API key or sign in with OAuth."
+                title="Connected apps"
+                subtitle="Connect your email, storage, messaging, CRM, and data tools. Paste your API key or sign in with OAuth."
                 rows={connected}
                 working={working}
                 onOAuth={connectOauth}

@@ -42,10 +42,10 @@ interface Analysis {
 }
 
 const TYPE_META: Record<DocType, { label: string; plural: string; icon: typeof Calculator }> = {
-  rent_roll: { label: "Rent roll", plural: "Rent rolls", icon: Calculator },
-  lease: { label: "Lease", plural: "Leases", icon: ScrollText },
-  operating_statement: { label: "Operating statement", plural: "Operating statements", icon: BarChart3 },
-  offering_memo: { label: "Offering memo", plural: "Offering memos", icon: FileText },
+  rent_roll: { label: "Spreadsheet", plural: "Spreadsheets", icon: Calculator },
+  lease: { label: "Contract", plural: "Contracts", icon: ScrollText },
+  operating_statement: { label: "Statement", plural: "Statements", icon: BarChart3 },
+  offering_memo: { label: "Report", plural: "Reports", icon: FileText },
   environmental: { label: "Environmental", plural: "Environmental", icon: Leaf },
   appraisal: { label: "Appraisal", plural: "Appraisals", icon: Scale },
   other: { label: "Document", plural: "Documents", icon: FileText },
@@ -305,7 +305,7 @@ export default function AutopilotClient() {
           </h1>
           <p className="text-sm text-[var(--ink-muted)] mt-1.5 max-w-xl">
             When a document lands in the vault, Drift classifies it and runs the matching
-            analysis with no prompt — rent rolls are underwritten automatically. Results
+            analysis with no prompt — documents are analyzed automatically. Results
             queue here for your review; nothing is sent anywhere until you act.
           </p>
         </div>
@@ -453,7 +453,7 @@ export default function AutopilotClient() {
               {filter === "pending" ? "Nothing waiting for review" : "No analyses here yet"}
             </p>
             <p className="text-sm text-[var(--ink-muted)] mt-1 max-w-sm mx-auto">
-              Add a rent roll, lease, or operating statement to the{" "}
+              Add a spreadsheet, contract, or statement to the{" "}
               <Link href="/vault" className="text-[var(--accent)] hover:underline">vault</Link>{" "}
               and Autopilot will analyze it automatically.
             </p>

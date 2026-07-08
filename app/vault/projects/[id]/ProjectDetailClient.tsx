@@ -922,7 +922,7 @@ export default function ProjectDetailClient({
                   rows={3}
                   placeholder={
                     uploadKind === "template"
-                      ? "Cash offers on residential listings in Texas. Includes seller-fills-title-fee clause."
+                      ? "Use this template for onboarding new customers. Includes the standard terms block."
                       : "Anything you want to remember about this doc."
                   }
                   className={`${inputClass} resize-y`}

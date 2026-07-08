@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Download Dante Desktop App",
     description:
-      "Native macOS app for commercial real estate deal intelligence.",
+      "Native macOS app to build AI agents, voice, and workflows on your desktop.",
     url: "https://driftai.studio/download",
   },
 };

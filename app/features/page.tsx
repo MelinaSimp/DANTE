@@ -1,18 +1,18 @@
 // app/features/page.tsx
 // Public-facing features + pricing page for driftai.studio.
-// CRE-vertical positioning: lease abstraction, deal intelligence,
-// parcel analytics, autonomous workflows.
+// Horizontal positioning: anyone can build AI agents, voice
+// assistants, and workflows on a low-hallucination LLM.
 
 import { Metadata } from "next";
 import Link from "next/link";
 import {
   Check,
-  FileText,
-  Brain,
-  MapPin,
+  Bot,
+  Phone,
+  ShieldCheck,
   Workflow,
   Shield,
-  Building2,
+  Sparkles,
   ArrowRight,
   Layers,
 } from "lucide-react";
@@ -20,69 +20,69 @@ import {
 export const metadata: Metadata = {
   title: "Features & Pricing - Dante",
   description:
-    "AI-powered deal intelligence for commercial real estate. Lease abstraction, 50-state parcel analytics, autonomous workflows, and citation-grounded search.",
+    "Build AI agents, voice assistants, and workflows on a powerful, low-hallucination LLM. Citation-grounded answers you can trust — for anyone, no code required.",
   openGraph: {
     title: "Features & Pricing - Dante",
     description:
-      "Lease abstraction, 50-state parcel analytics, deal scoring, and autonomous workflows for CRE brokers and developers.",
+      "AI agents, voice, and workflows on a low-hallucination LLM. Citation-grounded, accurate, and built for anyone.",
     url: "https://driftai.studio/features",
   },
 };
 
 const CAPABILITIES = [
   {
-    icon: Layers,
-    title: "Data aggregation",
-    body: "One place to ask questions across all your data -- internal files, web sources, and third-party feeds. Dante searches everything and cites every answer back to its source.",
+    icon: Bot,
+    title: "AI agents",
+    body: "Build AI agents that read your documents, cite their sources, and take action — deployed in minutes, no code required. Describe what you want in plain English and Dante builds the agent for you.",
     bullets: [
-      "Drag-and-drop document ingestion into the vault",
-      "Watched folders for automatic file sync",
-      "Web search and public-record lookups built in",
-      "Provenance tagging on every answer",
-    ],
-  },
-  {
-    icon: FileText,
-    title: "Lease abstraction",
-    body: "Upload a lease PDF and get structured extraction of tenant, rent, escalations, CAM, TI, options, and co-tenancy clauses. Cited to exact page and paragraph.",
-    bullets: [
-      "NNN, gross, ground, and percentage rent",
-      "Escalation schedules and CPI bumps",
-      "Co-tenancy and exclusivity clauses",
-      "Export to Excel or push to your CRM",
-    ],
-  },
-  {
-    icon: Brain,
-    title: "Deal intelligence",
-    body: "Dante, your AI analyst, searches your vault, public records, and market data to answer underwriting questions with citations.",
-    bullets: [
-      "Citation-grounded answers from your documents",
-      "SEC filings, press releases, regulatory briefs",
-      "Comparable rent and sale analysis",
+      "Build by chatting — no code, no config",
+      "Agents that search your files and cite every answer",
+      "Tools, skills, and MCP integrations built in",
       "Memory that grows with every conversation",
     ],
   },
   {
-    icon: MapPin,
-    title: "Parcel analytics",
-    body: "50-state GIS coverage for parcel-level zoning, assessed value, ownership, tax, and acreage. Void analysis finds gaps in a trade area.",
+    icon: Phone,
+    title: "Voice",
+    body: "Give any agent a voice. It answers your phone, makes outbound calls, qualifies leads, and books meetings — 24/7, in a natural voice, grounded in your data.",
     bullets: [
-      "Zoning class, land use, and overlay districts",
-      "Assessed and market value lookups",
-      "Void analysis for retail and industrial gaps",
-      "Owner name and sale history",
+      "Inbound and outbound phone agents",
+      "Natural, low-latency conversation",
+      "Live transcripts and call summaries",
+      "Hand off to a human whenever it matters",
     ],
   },
   {
     icon: Workflow,
-    title: "Autonomous workflows",
-    body: "Build multi-step automations that monitor lease expirations, generate reports, send alerts, and delegate sub-tasks to specialist agents.",
+    title: "Workflows",
+    body: "Build multi-step automations that monitor events, generate reports, send alerts, and delegate sub-tasks to specialist agents — all from a natural-language builder.",
     bullets: [
       "Natural-language workflow builder",
       "Cron, webhook, and event triggers",
       "Sub-agent delegation for complex tasks",
       "Supervisor queue for human-in-the-loop",
+    ],
+  },
+  {
+    icon: ShieldCheck,
+    title: "Low-hallucination LLM",
+    body: "A powerful language model tuned for accuracy. Every answer is grounded in your sources and cited back to the exact document, page, and paragraph — so you can trust what it tells you.",
+    bullets: [
+      "Answers grounded in your own data",
+      "Citations back to the exact source",
+      "Inconsistency detection across documents",
+      "Says \"I don't know\" instead of guessing",
+    ],
+  },
+  {
+    icon: Layers,
+    title: "Data aggregation",
+    body: "One place to ask questions across all your data — internal files, web sources, and third-party feeds. Dante searches everything and cites every answer back to its source.",
+    bullets: [
+      "Drag-and-drop document ingestion into the vault",
+      "Watched folders for automatic file sync",
+      "Web search and public-record lookups built in",
+      "Provenance tagging on every answer",
     ],
   },
   {
@@ -103,14 +103,14 @@ const TIERS = [
     name: "Starter",
     price: "$300",
     period: "/mo",
-    description: "Solo brokers and agents getting started with AI-assisted deal work.",
+    description: "Individuals and small teams getting started with AI agents.",
     features: [
       "Dante AI assistant with citations",
-      "Lease abstraction (upload and extract)",
+      "Build agents by chatting — no code",
       "Vault document storage and search",
-      "Contact and property CRM",
+      "Contact management built in",
       "Basic workflow automations",
-      "50-state parcel lookups",
+      "One voice agent included",
       "Email and chat support",
       "1 seat included",
     ],
@@ -121,13 +121,13 @@ const TIERS = [
     name: "Pro",
     price: "$800",
     period: "/mo",
-    description: "Small firms running autonomous agents and advanced deal workflows.",
+    description: "Teams running autonomous agents, voice, and advanced workflows.",
     features: [
       "Everything in Starter",
       "Advanced workflows with agent nodes",
       "Autonomous agents with supervisor queue",
+      "Inbound and outbound voice agents",
       "MCP server integrations",
-      "Void analysis and site scanning",
       "Priority support",
       "Up to 5 seats",
     ],
@@ -138,7 +138,7 @@ const TIERS = [
     name: "Enterprise",
     price: "$1,500+",
     period: "/mo",
-    description: "Large brokerages and developers with compliance, SSO, and dedicated support.",
+    description: "Organizations with compliance, SSO, and dedicated support needs.",
     features: [
       "Everything in Pro",
       "SSO / SAML and SCIM provisioning",
@@ -161,7 +161,7 @@ const jsonLd = {
   applicationCategory: "BusinessApplication",
   operatingSystem: "macOS",
   description:
-    "AI-powered deal intelligence platform for commercial real estate. Lease abstraction, 50-state parcel analytics, deal scoring, and autonomous workflows.",
+    "Build AI agents, voice assistants, and workflows on a powerful, low-hallucination LLM. Citation-grounded answers you can trust — for anyone, no code required.",
   url: "https://driftai.studio",
   offers: [
     {
@@ -169,30 +169,30 @@ const jsonLd = {
       name: "Starter",
       price: "300",
       priceCurrency: "USD",
-      description: "For solo brokers and agents. Chat, memory, vault, lease abstraction.",
+      description: "For individuals and small teams. Chat, memory, vault, agent builder.",
     },
     {
       "@type": "Offer",
       name: "Pro",
       price: "800",
       priceCurrency: "USD",
-      description: "For small firms. Full workflows, autonomous agents, up to 5 seats.",
+      description: "For teams. Full workflows, voice, autonomous agents, up to 5 seats.",
     },
     {
       "@type": "Offer",
       name: "Enterprise",
       price: "1500",
       priceCurrency: "USD",
-      description: "For brokerages. SSO, BYOK encryption, dedicated CSM, SLA.",
+      description: "For organizations. SSO, BYOK encryption, dedicated CSM, SLA.",
     },
   ],
   featureList: [
+    "Build AI agents by chatting — no code",
+    "Voice agents for inbound and outbound calls",
+    "Natural-language workflow engine",
+    "Low-hallucination, citation-grounded answers",
     "Unified data aggregation across files, web, and APIs",
-    "Lease abstraction from PDF",
-    "50-state parcel analytics",
-    "Autonomous workflow engine",
-    "Citation-grounded search",
-    "Comparable rent and sale analysis",
+    "Memory that grows with every conversation",
   ],
 };
 
@@ -224,13 +224,14 @@ export default function FeaturesPage() {
 
       {/* Hero */}
       <div className="max-w-6xl mx-auto px-6 pt-20 pb-16 text-center">
-        <p className="label-section text-[var(--accent)]">CRE deal intelligence</p>
+        <p className="label-section text-[var(--accent)]">AI agents for anyone</p>
         <h1 className="heading-display text-5xl md:text-6xl mt-4 max-w-3xl mx-auto">
-          AI that understands commercial real estate
+          Build AI agents, voice, and workflows
         </h1>
         <p className="mt-6 text-lg text-[var(--ink-muted)] max-w-2xl mx-auto">
-          Lease abstraction, parcel analytics, citation-grounded search, and
-          autonomous workflows -- built for brokers, developers, and asset managers.
+          Agents that read your documents, answer your phone, and run your
+          workflows — on a powerful LLM tuned for low hallucination, so every
+          answer is grounded and cited. No code required.
         </p>
         <div className="mt-8 flex items-center justify-center gap-4">
           <Link
@@ -253,7 +254,7 @@ export default function FeaturesPage() {
       <div className="max-w-6xl mx-auto px-6 py-16">
         <p className="label-section text-[var(--ink-subtle)] text-center">Capabilities</p>
         <h2 className="heading-display text-3xl md:text-4xl mt-3 text-center">
-          Everything your deal team needs
+          Everything you need to ship an agent
         </h2>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 mt-12">
@@ -348,31 +349,30 @@ export default function FeaturesPage() {
         </div>
       </div>
 
-      {/* Coverage */}
+      {/* Integrations */}
       <div className="max-w-6xl mx-auto px-6 py-16">
-        <p className="label-section text-[var(--ink-subtle)] text-center">Coverage</p>
+        <p className="label-section text-[var(--ink-subtle)] text-center">Integrations</p>
         <h2 className="heading-display text-3xl md:text-4xl mt-3 text-center">
-          50-state parcel data
+          Connects to your stack
         </h2>
         <p className="mt-4 text-sm text-[var(--ink-muted)] text-center max-w-xl mx-auto">
-          GIS-level parcel data for zoning, assessed value, ownership, and tax lookups.
-          Void analysis and listing search work nationwide via Google Places and listing APIs.
+          Bring your own tools. Agents can read from your files, search the web,
+          and act through any connected service via MCP — with new connectors
+          landing all the time.
         </p>
         <div className="card-flat p-6 mt-8">
           <div className="flex flex-wrap gap-2 justify-center">
             {[
-              "AK", "AL", "AR", "AZ", "CA", "CO", "CT", "DE", "FL", "GA",
-              "HI", "IA", "ID", "IL", "IN", "KS", "KY", "LA", "MA", "MD",
-              "ME", "MI", "MN", "MO", "MS", "MT", "NC", "ND", "NE", "NH",
-              "NJ", "NM", "NV", "NY", "OH", "OK", "OR", "PA", "RI", "SC",
-              "SD", "TN", "TX", "UT", "VA", "VT", "WA", "WI", "WV", "WY",
-            ].map((st) => (
+              "Gmail", "Google Drive", "Slack", "Notion", "Outlook", "Calendar",
+              "Dropbox", "Webhooks", "n8n", "Zapier", "Twilio", "Stripe",
+              "HubSpot", "Salesforce", "Airtable", "GitHub", "Linear", "Web search",
+            ].map((svc) => (
               <span
-                key={st}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] bg-[var(--canvas-subtle)] text-sm font-mono font-medium text-[var(--ink)]"
+                key={svc}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[4px] bg-[var(--canvas-subtle)] text-sm font-medium text-[var(--ink)]"
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                {st}
+                {svc}
               </span>
             ))}
           </div>
@@ -394,7 +394,7 @@ export default function FeaturesPage() {
             { label: "SOC 2 Type II", detail: "Compliance tracked via EasyAudit" },
             { label: "Row-level isolation", detail: "Every query scoped to your workspace" },
             { label: "Encrypted at rest", detail: "AES-256 for documents and embeddings" },
-            { label: "No model training", detail: "Your leases and deals are never used to train AI" },
+            { label: "No model training", detail: "Your documents and data are never used to train AI" },
           ].map((item) => (
             <div key={item.label} className="card-flat p-5">
               <div className="flex items-center gap-2 mb-2">
@@ -409,13 +409,13 @@ export default function FeaturesPage() {
 
       {/* CTA */}
       <div className="max-w-6xl mx-auto px-6 py-16 text-center">
-        <Building2 className="w-10 h-10 text-[var(--ink-subtle)] mx-auto mb-4" strokeWidth={1} />
+        <Sparkles className="w-10 h-10 text-[var(--ink-subtle)] mx-auto mb-4" strokeWidth={1} />
         <h2 className="heading-display text-3xl md:text-4xl">
-          Built for commercial real estate
+          Built for anyone
         </h2>
         <p className="mt-4 text-sm text-[var(--ink-muted)] max-w-lg mx-auto">
-          Drift is purpose-built for CRE brokers, developers, and asset managers.
-          Not a generic AI tool with a real estate template bolted on.
+          Whatever you do, Drift lets you build agents, voice, and workflows on a
+          low-hallucination LLM — grounded in your data and cited every time.
         </p>
         <div className="mt-8 flex items-center justify-center gap-4">
           <Link

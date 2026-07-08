@@ -1,6 +1,6 @@
 // lib/dante/templates.ts
 //
-// Pre-built workflow templates for CRE brokers and developers. Each
+// Pre-built workflow templates for building AI agents and workflows. Each
 // template defines a real WorkflowGraph that users can clone with one
 // click into their own workspace, then tweak in the visual editor.
 //
@@ -20,7 +20,7 @@ export interface WorkflowTemplate {
   slug: string;
   name: string;
   description: string;
-  category: "Deal pipeline" | "Lease management" | "Client communication" | "Operations" | "Prospecting" | "Site intelligence" | "Due diligence" | "Risk management";
+  category: "Pipeline" | "Document management" | "Client communication" | "Operations" | "Prospecting" | "Research" | "Due diligence" | "Risk management";
   icon: string;
   accent: "verified" | "ink" | "accent" | "flag";
   triggerLabel: string;
@@ -40,7 +40,7 @@ const edge = (src: string, dst: string, handle?: "true" | "false") => ({
 });
 
 // ══════════════════════════════════════════════════════════════
-// 1 - Lease expiration outreach (cron)
+// 1 - Contract renewal outreach (cron)
 // ══════════════════════════════════════════════════════════════
 
 const leaseExpirationGraph: WorkflowGraph = {
@@ -55,18 +55,18 @@ const leaseExpirationGraph: WorkflowGraph = {
     {
       id: "properties", type: "query_properties", position: row(1),
       data: { step: {
-        id: "properties", type: "query_properties", name: "Properties with active leases",
+        id: "properties", type: "query_properties", name: "Records with active contracts",
         config: { filter: {}, limit: 100 },
       } },
     },
     {
       id: "evaluate", type: "agent", position: row(2),
       data: { step: {
-        id: "evaluate", type: "agent", name: "Filter expiring leases + draft outreach",
+        id: "evaluate", type: "agent", name: "Filter expiring contracts + draft outreach",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You are a CRE operations assistant. Given a list of properties with lease data, identify those with lease_end_date within the next 90 days. For each, compose a professional SMS and email draft notifying the tenant and broker team that the lease expiration is approaching and offering to discuss renewal options.",
-          objective: "Review properties from the previous step. Filter to those whose lease_end_date falls within the next 90 days from today. For each qualifying property, draft a personalized SMS for the tenant and a summary for the broker. Return the filtered list as JSON.",
+          system: "You are an operations assistant. Given a list of records with contract data, identify those with lease_end_date within the next 90 days. For each, compose a professional SMS and email draft notifying the customer and your team that the contract expiration is approaching and offering to discuss renewal options.",
+          objective: "Review records from the previous step. Filter to those whose lease_end_date falls within the next 90 days from today. For each qualifying record, draft a personalized SMS for the customer and a summary for your team. Return the filtered list as JSON.",
           tools: ["clients.query", "memory.search"],
           max_steps: 6,
           output_schema: {
@@ -107,11 +107,11 @@ const leaseExpirationGraph: WorkflowGraph = {
     {
       id: "notify", type: "send_email", position: row(4),
       data: { step: {
-        id: "notify", type: "send_email", name: "Email broker team digest",
+        id: "notify", type: "send_email", name: "Email team digest",
         config: {
           to: "{{secrets.broker_email}}",
-          subject: "Lease expirations approaching -- {{steps.evaluate.output.expiring.length}} properties",
-          text: "The following leases expire within 90 days. Outreach drafts are ready for review:\n\n{{steps.evaluate.output.expiring}}",
+          subject: "Contract expirations approaching -- {{steps.evaluate.output.expiring.length}} records",
+          text: "The following contracts expire within 90 days. Outreach drafts are ready for review:\n\n{{steps.evaluate.output.expiring}}",
         },
       } },
     },
@@ -125,7 +125,7 @@ const leaseExpirationGraph: WorkflowGraph = {
 };
 
 // ══════════════════════════════════════════════════════════════
-// 2 - Tenant renewal drip sequence (cron)
+// 2 - Customer renewal drip sequence (cron)
 // ══════════════════════════════════════════════════════════════
 
 const tenantRenewalDripGraph: WorkflowGraph = {
@@ -140,14 +140,14 @@ const tenantRenewalDripGraph: WorkflowGraph = {
     {
       id: "properties", type: "query_properties", position: row(1),
       data: { step: {
-        id: "properties", type: "query_properties", name: "All properties with lease dates",
+        id: "properties", type: "query_properties", name: "All records with contract dates",
         config: { filter: {}, limit: 200 },
       } },
     },
     {
       id: "leases", type: "lease_lookup", position: row(2),
       data: { step: {
-        id: "leases", type: "lease_lookup", name: "Pull abstracted lease terms",
+        id: "leases", type: "lease_lookup", name: "Pull extracted contract terms",
         config: { status: "completed", limit: 100 },
       } },
     },
@@ -157,8 +157,8 @@ const tenantRenewalDripGraph: WorkflowGraph = {
         id: "triage", type: "openai", name: "Bucket into 90/60/30-day cohorts",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You are a CRE operations analyst. Return JSON only.",
-          prompt: "Today's date: {{steps.trigger.input.fired_at}}\n\nProperties:\n{{steps.properties.properties}}\n\nLease abstracts:\n{{steps.leases.abstracts}}\n\nFor each property with a lease ending within 90 days, assign it to a cohort: '90_day' (61-90 days out), '60_day' (31-60 days out), or '30_day' (1-30 days out). For each, draft an appropriate email: 90-day is a gentle heads-up about upcoming renewal, 60-day is a check-in asking about renewal intentions, 30-day is urgent action required. Return JSON: [{ property_id, address, tenant_name, cohort, days_remaining, email_subject, email_body }].",
+          system: "You are an operations analyst. Return JSON only.",
+          prompt: "Today's date: {{steps.trigger.input.fired_at}}\n\nRecords:\n{{steps.properties.properties}}\n\nContract extracts:\n{{steps.leases.abstracts}}\n\nFor each record with a contract ending within 90 days, assign it to a cohort: '90_day' (61-90 days out), '60_day' (31-60 days out), or '30_day' (1-30 days out). For each, draft an appropriate email: 90-day is a gentle heads-up about upcoming renewal, 60-day is a check-in asking about renewal intentions, 30-day is urgent action required. Return JSON: [{ property_id, address, tenant_name, cohort, days_remaining, email_subject, email_body }].",
           max_tokens: 2000,
         },
       } },
@@ -166,10 +166,10 @@ const tenantRenewalDripGraph: WorkflowGraph = {
     {
       id: "email", type: "send_email", position: row(4),
       data: { step: {
-        id: "email", type: "send_email", name: "Send renewal digest to broker",
+        id: "email", type: "send_email", name: "Send renewal digest to your team",
         config: {
           to: "{{secrets.broker_email}}",
-          subject: "Tenant renewal pipeline -- weekly update",
+          subject: "Customer renewal pipeline -- weekly update",
           text: "This week's renewal cohorts and draft communications:\n\n{{steps.triage.text}}",
         },
       } },
@@ -184,7 +184,7 @@ const tenantRenewalDripGraph: WorkflowGraph = {
 };
 
 // ══════════════════════════════════════════════════════════════
-// 3 - New listing distribution (webhook)
+// 3 - New record distribution (webhook)
 // ══════════════════════════════════════════════════════════════
 
 const newListingDistributionGraph: WorkflowGraph = {
@@ -192,25 +192,25 @@ const newListingDistributionGraph: WorkflowGraph = {
     {
       id: "trigger", type: "trigger_webhook", position: row(0),
       data: { step: {
-        id: "trigger", type: "trigger_webhook", name: "New listing webhook",
+        id: "trigger", type: "trigger_webhook", name: "New record webhook",
         config: {},
       } },
     },
     {
       id: "buyers", type: "query_clients", position: row(1),
       data: { step: {
-        id: "buyers", type: "query_clients", name: "Active buyer/tenant contacts",
+        id: "buyers", type: "query_clients", name: "Active contacts",
         config: { filter: {}, limit: 200 },
       } },
     },
     {
       id: "match", type: "openai", position: row(2),
       data: { step: {
-        id: "match", type: "openai", name: "Match listing to buyer requirements",
+        id: "match", type: "openai", name: "Match record to contact requirements",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You are a CRE listing distribution specialist. Match a new listing against buyer/tenant requirements. Return JSON only.",
-          prompt: "New listing details:\nAddress: {{steps.trigger.input.address}}\nProperty type: {{steps.trigger.input.property_type}}\nSize: {{steps.trigger.input.square_feet}} SF\nAsking price: {{steps.trigger.input.asking_price}}\nSubmarket: {{steps.trigger.input.submarket}}\n\nActive buyers/tenants:\n{{steps.buyers.contacts}}\n\nReturn [{ contact_id, name, email, match_reason }] for every contact whose requirements (price_range, property_focus, location preferences) align with this listing. Include a one-sentence match_reason explaining why.",
+          system: "You are a distribution specialist. Match a new record against contact requirements. Return JSON only.",
+          prompt: "New record details:\nName: {{steps.trigger.input.address}}\nType: {{steps.trigger.input.property_type}}\nSize: {{steps.trigger.input.square_feet}}\nPrice: {{steps.trigger.input.asking_price}}\nRegion: {{steps.trigger.input.submarket}}\n\nActive contacts:\n{{steps.buyers.contacts}}\n\nReturn [{ contact_id, name, email, match_reason }] for every contact whose requirements (price_range, focus, location preferences) align with this record. Include a one-sentence match_reason explaining why.",
           max_tokens: 1200,
         },
       } },
@@ -221,8 +221,8 @@ const newListingDistributionGraph: WorkflowGraph = {
         id: "blast", type: "openai", name: "Draft personalized blast emails",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You draft professional, concise CRE listing announcement emails. Each email should reference why this listing matches the recipient's known requirements. No fluff -- brokers respect brevity.",
-          prompt: "Listing: {{steps.trigger.input.address}}, {{steps.trigger.input.property_type}}, {{steps.trigger.input.square_feet}} SF at {{steps.trigger.input.asking_price}}\n\nMatched contacts:\n{{steps.match.text}}\n\nFor each matched contact, draft a personalized email (subject + body). Return JSON: [{ contact_id, name, email, subject, body }].",
+          system: "You draft professional, concise record announcement emails. Each email should reference why this record matches the recipient's known requirements. No fluff -- keep it brief.",
+          prompt: "Record: {{steps.trigger.input.address}}, {{steps.trigger.input.property_type}}, {{steps.trigger.input.square_feet}} at {{steps.trigger.input.asking_price}}\n\nMatched contacts:\n{{steps.match.text}}\n\nFor each matched contact, draft a personalized email (subject + body). Return JSON: [{ contact_id, name, email, subject, body }].",
           max_tokens: 1500,
         },
       } },
@@ -230,11 +230,11 @@ const newListingDistributionGraph: WorkflowGraph = {
     {
       id: "email", type: "send_email", position: row(4),
       data: { step: {
-        id: "email", type: "send_email", name: "Send drafts to broker for review",
+        id: "email", type: "send_email", name: "Send drafts to your team for review",
         config: {
           to: "{{secrets.broker_email}}",
-          subject: "New listing blast ready -- {{steps.trigger.input.address}}",
-          text: "Matched contacts and personalized email drafts for the new listing:\n\n{{steps.blast.text}}",
+          subject: "New record blast ready -- {{steps.trigger.input.address}}",
+          text: "Matched contacts and personalized email drafts for the new record:\n\n{{steps.blast.text}}",
         },
       } },
     },
@@ -252,7 +252,7 @@ const newListingDistributionGraph: WorkflowGraph = {
 
 
 // ══════════════════════════════════════════════════════════════
-// 6 - Property tour follow-up (webhook)
+// 6 - Meeting follow-up (webhook)
 // ══════════════════════════════════════════════════════════════
 
 const tourFollowupGraph: WorkflowGraph = {
@@ -260,25 +260,25 @@ const tourFollowupGraph: WorkflowGraph = {
     {
       id: "trigger", type: "trigger_webhook", position: row(0),
       data: { step: {
-        id: "trigger", type: "trigger_webhook", name: "Tour completed webhook",
+        id: "trigger", type: "trigger_webhook", name: "Meeting completed webhook",
         config: {},
       } },
     },
     {
       id: "leases", type: "lease_lookup", position: row(1),
       data: { step: {
-        id: "leases", type: "lease_lookup", name: "Pull lease terms for property",
+        id: "leases", type: "lease_lookup", name: "Pull contract terms for record",
         config: { status: "completed", limit: 5 },
       } },
     },
     {
       id: "draft", type: "openai", position: row(2),
       data: { step: {
-        id: "draft", type: "openai", name: "Draft tour follow-up email",
+        id: "draft", type: "openai", name: "Draft meeting follow-up email",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You write professional, specific follow-up emails from a CRE broker after a property tour. Reference concrete details about the property. Keep it under 200 words.",
-          prompt: "Tour details:\nProperty: {{steps.trigger.input.property_address}}\nAttendee: {{steps.trigger.input.attendee_name}} ({{steps.trigger.input.attendee_email}})\nRecap: {{steps.trigger.input.recap}}\nOutcome: {{steps.trigger.input.outcome}}\n\nLease terms (if available):\n{{steps.leases.abstracts}}\n\nDraft a follow-up email that:\n1. Thanks them for their time\n2. References specific features they liked or concerns they raised\n3. Includes a clear next-step CTA (schedule a second showing, submit an LOI, connect with lender)\n\nReturn JSON: { subject, body }.",
+          system: "You write professional, specific follow-up emails after a meeting. Reference concrete details from the meeting. Keep it under 200 words.",
+          prompt: "Meeting details:\nRecord: {{steps.trigger.input.property_address}}\nAttendee: {{steps.trigger.input.attendee_name}} ({{steps.trigger.input.attendee_email}})\nRecap: {{steps.trigger.input.recap}}\nOutcome: {{steps.trigger.input.outcome}}\n\nContract terms (if available):\n{{steps.leases.abstracts}}\n\nDraft a follow-up email that:\n1. Thanks them for their time\n2. References specific points they liked or concerns they raised\n3. Includes a clear next-step CTA (schedule a follow-up, send a proposal, loop in the right contact)\n\nReturn JSON: { subject, body }.",
           max_tokens: 600,
         },
       } },
@@ -286,10 +286,10 @@ const tourFollowupGraph: WorkflowGraph = {
     {
       id: "email", type: "send_email", position: row(3),
       data: { step: {
-        id: "email", type: "send_email", name: "Send to broker for review",
+        id: "email", type: "send_email", name: "Send to your team for review",
         config: {
           to: "{{secrets.broker_email}}",
-          subject: "Tour follow-up draft -- {{steps.trigger.input.property_address}}",
+          subject: "Meeting follow-up draft -- {{steps.trigger.input.property_address}}",
           text: "Review and send to {{steps.trigger.input.attendee_name}}:\n\n{{steps.draft.text}}",
         },
       } },
@@ -346,8 +346,8 @@ const coiExpirationGraph: WorkflowGraph = {
         id: "drafts", type: "openai", name: "Draft COI renewal notices",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You are a CRE compliance assistant. You review insurance documents and draft professional, firm but friendly renewal notices from a property manager to tenants.",
-          prompt: "Today: {{steps.trigger.input.fired_at}}\n\nInsurance / COI documents from the archive:\n{{steps.docs.context}}\n\nReview these documents for any certificates of insurance that are expiring within the next 60 days. For each expiring COI, draft a tenant notice:\n- State the lease requirement for valid insurance\n- Note the current expiration date\n- Request updated certificate by 15 days before expiration\n\nIf no COIs are expiring soon, say so. Otherwise return the drafted notices.",
+          system: "You are a compliance assistant. You review insurance documents and draft professional, firm but friendly renewal notices from your team to customers.",
+          prompt: "Today: {{steps.trigger.input.fired_at}}\n\nInsurance / COI documents from the archive:\n{{steps.docs.context}}\n\nReview these documents for any certificates of insurance that are expiring within the next 60 days. For each expiring COI, draft a customer notice:\n- State the contract requirement for valid insurance\n- Note the current expiration date\n- Request updated certificate by 15 days before expiration\n\nIf no COIs are expiring soon, say so. Otherwise return the drafted notices.",
           max_tokens: 1200,
         },
       } },
@@ -355,10 +355,10 @@ const coiExpirationGraph: WorkflowGraph = {
     {
       id: "email", type: "send_email", position: row(4),
       data: { step: {
-        id: "email", type: "send_email", name: "Send COI digest to broker",
+        id: "email", type: "send_email", name: "Send COI digest to your team",
         config: {
           to: "{{secrets.broker_email}}",
-          subject: "COI expirations -- tenant notices drafted",
+          subject: "COI expirations -- customer notices drafted",
           text: "Review and send the following insurance renewal notices:\n\n{{steps.drafts.text}}",
         },
       } },
@@ -388,21 +388,21 @@ const investorReportGraph: WorkflowGraph = {
     {
       id: "properties", type: "query_properties", position: row(1),
       data: { step: {
-        id: "properties", type: "query_properties", name: "All managed properties",
+        id: "properties", type: "query_properties", name: "All managed records",
         config: { filter: {}, limit: 200 },
       } },
     },
     {
       id: "leases", type: "lease_lookup", position: row(2),
       data: { step: {
-        id: "leases", type: "lease_lookup", name: "Current lease terms",
+        id: "leases", type: "lease_lookup", name: "Current contract terms",
         config: { status: "completed", limit: 100 },
       } },
     },
     {
       id: "clients", type: "query_clients", position: row(3),
       data: { step: {
-        id: "clients", type: "query_clients", name: "Investor/landlord contacts",
+        id: "clients", type: "query_clients", name: "Client contacts",
         config: { filter: {}, limit: 100 },
       } },
     },
@@ -412,8 +412,8 @@ const investorReportGraph: WorkflowGraph = {
         id: "report", type: "openai", name: "Generate portfolio summary",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You produce professional monthly CRE portfolio reports for landlord/investor clients. Use tables, keep it factual, include dollar figures.",
-          prompt: "Month: {{steps.trigger.input.fired_at}}\n\nProperties under management:\n{{steps.properties.properties}}\n\nLease terms:\n{{steps.leases.abstracts}}\n\nInvestor contacts:\n{{steps.clients.contacts}}\n\nFor each investor, produce a portfolio summary:\n1. Properties they own (address, occupancy, monthly rent)\n2. Lease expirations upcoming in next 6 months\n3. Vacancy status and estimated market rent for vacant units\n4. Total monthly revenue across their portfolio\n\nReturn JSON: [{ investor_name, investor_email, report_body }].",
+          system: "You produce professional monthly portfolio reports for clients. Use tables, keep it factual, include dollar figures.",
+          prompt: "Month: {{steps.trigger.input.fired_at}}\n\nRecords under management:\n{{steps.properties.properties}}\n\nContract terms:\n{{steps.leases.abstracts}}\n\nClient contacts:\n{{steps.clients.contacts}}\n\nFor each client, produce a portfolio summary:\n1. Records they own (name, status, monthly value)\n2. Contract expirations upcoming in next 6 months\n3. Status and estimated value for open items\n4. Total monthly revenue across their portfolio\n\nReturn JSON: [{ investor_name, investor_email, report_body }].",
           max_tokens: 2000,
         },
       } },
@@ -421,7 +421,7 @@ const investorReportGraph: WorkflowGraph = {
     {
       id: "email", type: "send_email", position: row(5),
       data: { step: {
-        id: "email", type: "send_email", name: "Send reports to broker for distribution",
+        id: "email", type: "send_email", name: "Send reports to your team for distribution",
         config: {
           to: "{{secrets.broker_email}}",
           subject: "Monthly investor reports -- ready for review",
@@ -440,7 +440,7 @@ const investorReportGraph: WorkflowGraph = {
 };
 
 // ══════════════════════════════════════════════════════════════
-// 11 - Lease abstraction completion alert (webhook)
+// 11 - Document extraction completion alert (webhook)
 // ══════════════════════════════════════════════════════════════
 
 const leaseAbstractionAlertGraph: WorkflowGraph = {
@@ -448,14 +448,14 @@ const leaseAbstractionAlertGraph: WorkflowGraph = {
     {
       id: "trigger", type: "trigger_webhook", position: row(0),
       data: { step: {
-        id: "trigger", type: "trigger_webhook", name: "Lease abstraction webhook",
+        id: "trigger", type: "trigger_webhook", name: "Document extraction webhook",
         config: {},
       } },
     },
     {
       id: "leases", type: "lease_lookup", position: row(1),
       data: { step: {
-        id: "leases", type: "lease_lookup", name: "Fetch completed abstraction",
+        id: "leases", type: "lease_lookup", name: "Fetch completed extraction",
         config: { status: "completed", limit: 1 },
       } },
     },
@@ -465,8 +465,8 @@ const leaseAbstractionAlertGraph: WorkflowGraph = {
         id: "summary", type: "openai", name: "Summarize key terms + flag risks",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You are a CRE lease analyst. Summarize extracted lease terms clearly and flag any unusual clauses or risks (below-market rent, missing escalation, short notice periods, onerous co-tenancy clauses).",
-          prompt: "Lease abstraction result:\n{{steps.leases.abstracts}}\n\nProperty: {{steps.trigger.input.property_address}}\nTenant: {{steps.trigger.input.tenant_name}}\n\nProduce:\n1. A one-paragraph executive summary of the key lease terms\n2. A table of the 10 most important terms (name, value)\n3. Risk flags -- any clauses that are unusual, tenant-favorable, or missing\n\nFormat as a professional email body.",
+          system: "You are a contract analyst. Summarize extracted contract terms clearly and flag any unusual clauses or risks (below-market pricing, missing escalation, short notice periods, onerous exclusivity clauses).",
+          prompt: "Contract extraction result:\n{{steps.leases.abstracts}}\n\nRecord: {{steps.trigger.input.property_address}}\nContact: {{steps.trigger.input.tenant_name}}\n\nProduce:\n1. A one-paragraph executive summary of the key contract terms\n2. A table of the 10 most important terms (name, value)\n3. Risk flags -- any clauses that are unusual, counterparty-favorable, or missing\n\nFormat as a professional email body.",
           max_tokens: 1000,
         },
       } },
@@ -474,10 +474,10 @@ const leaseAbstractionAlertGraph: WorkflowGraph = {
     {
       id: "email", type: "send_email", position: row(3),
       data: { step: {
-        id: "email", type: "send_email", name: "Email lease summary to broker",
+        id: "email", type: "send_email", name: "Email contract summary to your team",
         config: {
           to: "{{secrets.broker_email}}",
-          subject: "Lease abstracted -- {{steps.trigger.input.property_address}}",
+          subject: "Contract extracted -- {{steps.trigger.input.property_address}}",
           text: "{{steps.summary.text}}",
         },
       } },
@@ -508,14 +508,14 @@ const dueDiligenceGraph: WorkflowGraph = {
     {
       id: "leases", type: "lease_lookup", position: row(1),
       data: { step: {
-        id: "leases", type: "lease_lookup", name: "Existing lease abstractions",
+        id: "leases", type: "lease_lookup", name: "Existing contract extractions",
         config: { status: "completed", limit: 10 },
       } },
     },
     {
       id: "archive", type: "archive_lookup", position: row(2),
       data: { step: {
-        id: "archive", type: "archive_lookup", name: "Firm DD checklist template",
+        id: "archive", type: "archive_lookup", name: "Your DD checklist template",
         config: {
           query: "Due diligence checklist, inspection timeline, environmental review, title search, survey requirements",
           k: 5, kind: "policy",
@@ -528,8 +528,8 @@ const dueDiligenceGraph: WorkflowGraph = {
         id: "checklist", type: "openai", name: "Generate DD checklist",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You produce thorough, actionable due diligence checklists for CRE transactions. Cite firm policy where available. Include deadlines relative to the closing target. Be concise but complete — use bullet points, not full paragraphs.",
-          prompt: "Deal details:\nProperty: {{steps.trigger.input.property_address}}\nBuyer: {{steps.trigger.input.buyer_name}}\nSale price: {{steps.trigger.input.sale_price}}\nClosing target: {{steps.trigger.input.closing_target}}\nContingencies: {{steps.trigger.input.contingencies}}\n\nExisting lease data:\n{{steps.leases.abstracts}}\n\nFirm DD policy (if available):\n{{steps.archive.context}}\n\nGenerate a complete due diligence checklist with:\n1. Title and survey items (with deadlines)\n2. Environmental (Phase I/II if needed)\n3. Physical inspection items\n4. Financial review (rent rolls, operating statements, tax returns)\n5. Lease review (existing tenants, estoppels, SNDAs)\n6. Zoning and permitting verification\n7. Insurance requirements\n\nInclude responsible party and deadline for each item. Format as a professional email body.",
+          system: "You produce thorough, actionable due diligence checklists for business transactions. Cite company policy where available. Include deadlines relative to the closing target. Be concise but complete — use bullet points, not full paragraphs.",
+          prompt: "Project details:\nRecord: {{steps.trigger.input.property_address}}\nCounterparty: {{steps.trigger.input.buyer_name}}\nDeal value: {{steps.trigger.input.sale_price}}\nClosing target: {{steps.trigger.input.closing_target}}\nContingencies: {{steps.trigger.input.contingencies}}\n\nExisting contract data:\n{{steps.leases.abstracts}}\n\nYour DD policy (if available):\n{{steps.archive.context}}\n\nGenerate a complete due diligence checklist with:\n1. Documentation and records items (with deadlines)\n2. Compliance and regulatory review\n3. Operational inspection items\n4. Financial review (statements, tax returns, revenue data)\n5. Contract review (existing agreements, counterparties, obligations)\n6. Verification and permitting\n7. Insurance requirements\n\nInclude responsible party and deadline for each item. Format as a professional email body.",
           max_tokens: 4000,
         },
       } },
@@ -537,7 +537,7 @@ const dueDiligenceGraph: WorkflowGraph = {
     {
       id: "email", type: "send_email", position: row(4),
       data: { step: {
-        id: "email", type: "send_email", name: "Send DD checklist to broker",
+        id: "email", type: "send_email", name: "Send DD checklist to your team",
         config: {
           to: "{{secrets.broker_email}}",
           subject: "Due diligence checklist -- {{steps.trigger.input.property_address}}",
@@ -557,7 +557,7 @@ const dueDiligenceGraph: WorkflowGraph = {
 
 
 // ══════════════════════════════════════════════════════════════
-// 15 - Market volatility landlord update (manual)
+// 15 - Market volatility client update (manual)
 // ══════════════════════════════════════════════════════════════
 
 const marketUpdateGraph: WorkflowGraph = {
@@ -565,30 +565,30 @@ const marketUpdateGraph: WorkflowGraph = {
     {
       id: "trigger", type: "trigger_manual", position: row(0),
       data: { step: {
-        id: "trigger", type: "trigger_manual", name: "Broker triggers manually",
+        id: "trigger", type: "trigger_manual", name: "Trigger manually",
         config: {},
       } },
     },
     {
       id: "clients", type: "query_clients", position: row(1),
       data: { step: {
-        id: "clients", type: "query_clients", name: "All landlord/investor contacts",
+        id: "clients", type: "query_clients", name: "All client contacts",
         config: { filter: {}, limit: 200 },
       } },
     },
     {
       id: "properties", type: "query_properties", position: row(2),
       data: { step: {
-        id: "properties", type: "query_properties", name: "Managed properties",
+        id: "properties", type: "query_properties", name: "Managed records",
         config: { filter: {}, limit: 200 },
       } },
     },
     {
       id: "firmView", type: "archive_lookup", position: row(3),
       data: { step: {
-        id: "firmView", type: "archive_lookup", name: "Firm market outlook",
+        id: "firmView", type: "archive_lookup", name: "Your market outlook",
         config: {
-          query: "Firm's current CRE market outlook, cap rate expectations, submarket trends, leasing velocity",
+          query: "Your current market outlook, pricing expectations, segment trends, activity levels",
           k: 5, kind: "memo",
         },
       } },
@@ -596,11 +596,11 @@ const marketUpdateGraph: WorkflowGraph = {
     {
       id: "compose", type: "openai", position: row(4),
       data: { step: {
-        id: "compose", type: "openai", name: "Draft per-investor market update",
+        id: "compose", type: "openai", name: "Draft per-client market update",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You write factual, non-speculative CRE market updates from a broker to their investor clients. Reference specific portfolio data. Cite firm memos by number where available.",
-          prompt: "Context: {{steps.trigger.input.headline}}\n\nInvestor contacts:\n{{steps.clients.contacts}}\n\nProperties:\n{{steps.properties.properties}}\n\nFirm market outlook:\n{{steps.firmView.context}}\n\nFor each investor, draft a personalized market update that:\n1. Acknowledges the current market conditions\n2. References their specific properties and how they're positioned\n3. Provides the firm's outlook\n4. Notes any action items\n\nReturn JSON: [{ name, email, subject, body }].",
+          system: "You write factual, non-speculative market updates from your team to clients. Reference specific portfolio data. Cite company memos by number where available.",
+          prompt: "Context: {{steps.trigger.input.headline}}\n\nClient contacts:\n{{steps.clients.contacts}}\n\nRecords:\n{{steps.properties.properties}}\n\nYour market outlook:\n{{steps.firmView.context}}\n\nFor each client, draft a personalized market update that:\n1. Acknowledges the current market conditions\n2. References their specific records and how they're positioned\n3. Provides your outlook\n4. Notes any action items\n\nReturn JSON: [{ name, email, subject, body }].",
           max_tokens: 2000,
         },
       } },
@@ -627,7 +627,7 @@ const marketUpdateGraph: WorkflowGraph = {
 };
 
 // ══════════════════════════════════════════════════════════════
-// 16 - Rent escalation tracker (cron)
+// 16 - Price escalation tracker (cron)
 // ══════════════════════════════════════════════════════════════
 
 const rentEscalationGraph: WorkflowGraph = {
@@ -642,25 +642,25 @@ const rentEscalationGraph: WorkflowGraph = {
     {
       id: "leases", type: "lease_lookup", position: row(1),
       data: { step: {
-        id: "leases", type: "lease_lookup", name: "All completed lease abstractions",
+        id: "leases", type: "lease_lookup", name: "All completed contract extractions",
         config: { status: "completed", limit: 100 },
       } },
     },
     {
       id: "properties", type: "query_properties", position: row(2),
       data: { step: {
-        id: "properties", type: "query_properties", name: "Properties with active leases",
+        id: "properties", type: "query_properties", name: "Records with active contracts",
         config: { filter: {}, limit: 200 },
       } },
     },
     {
       id: "escalations", type: "openai", position: row(3),
       data: { step: {
-        id: "escalations", type: "openai", name: "Identify upcoming rent escalations",
+        id: "escalations", type: "openai", name: "Identify upcoming price escalations",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You are a CRE lease administrator. Return JSON only.",
-          prompt: "Today: {{steps.trigger.input.fired_at}}\n\nLease abstractions (contains escalation clauses, base rent, lease dates):\n{{steps.leases.abstracts}}\n\nProperties:\n{{steps.properties.properties}}\n\nIdentify leases with rent escalations due in the next 90 days. For each:\n- Calculate the new rent amount based on the escalation clause\n- Note the effective date\n- Flag if the escalation notice period hasn't been met yet\n\nReturn [{ property_address, tenant_name, current_rent, new_rent, escalation_type, effective_date, notice_required, notice_sent: false }].",
+          system: "You are a contract administrator. Return JSON only.",
+          prompt: "Today: {{steps.trigger.input.fired_at}}\n\nContract extractions (contains escalation clauses, base price, contract dates):\n{{steps.leases.abstracts}}\n\nRecords:\n{{steps.properties.properties}}\n\nIdentify contracts with price escalations due in the next 90 days. For each:\n- Calculate the new price amount based on the escalation clause\n- Note the effective date\n- Flag if the escalation notice period hasn't been met yet\n\nReturn [{ property_address, tenant_name, current_rent, new_rent, escalation_type, effective_date, notice_required, notice_sent: false }].",
           max_tokens: 1200,
         },
       } },
@@ -671,8 +671,8 @@ const rentEscalationGraph: WorkflowGraph = {
         id: "email", type: "send_email", name: "Send escalation report",
         config: {
           to: "{{secrets.broker_email}}",
-          subject: "Rent escalations due -- next 90 days",
-          text: "Upcoming rent escalations requiring notice or action:\n\n{{steps.escalations.text}}",
+          subject: "Price escalations due -- next 90 days",
+          text: "Upcoming price escalations requiring notice or action:\n\n{{steps.escalations.text}}",
         },
       } },
     },
@@ -686,7 +686,7 @@ const rentEscalationGraph: WorkflowGraph = {
 };
 
 // ══════════════════════════════════════════════════════════════
-// 17 - Vacancy marketing blast (manual)
+// 17 - Availability marketing blast (manual)
 // ══════════════════════════════════════════════════════════════
 
 const vacancyMarketingGraph: WorkflowGraph = {
@@ -694,32 +694,32 @@ const vacancyMarketingGraph: WorkflowGraph = {
     {
       id: "trigger", type: "trigger_manual", position: row(0),
       data: { step: {
-        id: "trigger", type: "trigger_manual", name: "Broker triggers manually",
+        id: "trigger", type: "trigger_manual", name: "Trigger manually",
         config: {},
       } },
     },
     {
       id: "properties", type: "query_properties", position: row(1),
       data: { step: {
-        id: "properties", type: "query_properties", name: "Vacant / available properties",
+        id: "properties", type: "query_properties", name: "Available records",
         config: { filter: { transaction_stage: "listed" }, limit: 50 },
       } },
     },
     {
       id: "prospects", type: "query_clients", position: row(2),
       data: { step: {
-        id: "prospects", type: "query_clients", name: "Active tenant prospects",
+        id: "prospects", type: "query_clients", name: "Active prospects",
         config: { filter: {}, limit: 300 },
       } },
     },
     {
       id: "match", type: "openai", position: row(3),
       data: { step: {
-        id: "match", type: "openai", name: "Match vacancies to tenant requirements",
+        id: "match", type: "openai", name: "Match availability to prospect requirements",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You are a CRE leasing specialist. Match vacant spaces to tenant requirements. Return JSON only.",
-          prompt: "Available properties:\n{{steps.properties.properties}}\n\nTenant prospects:\n{{steps.prospects.contacts}}\n\nFor each vacant property, identify matching prospects based on their requirements (size, price range, location, property type). Draft a personalized email for each match.\n\nReturn [{ property_address, property_type, prospect_name, prospect_email, match_score: 1-10, match_reason, email_subject, email_body }]. Sort by match_score desc.",
+          system: "You are an outreach specialist. Match available records to prospect requirements. Return JSON only.",
+          prompt: "Available records:\n{{steps.properties.properties}}\n\nProspects:\n{{steps.prospects.contacts}}\n\nFor each available record, identify matching prospects based on their requirements (size, price range, location, type). Draft a personalized email for each match.\n\nReturn [{ property_address, property_type, prospect_name, prospect_email, match_score: 1-10, match_reason, email_subject, email_body }]. Sort by match_score desc.",
           max_tokens: 2000,
         },
       } },
@@ -727,11 +727,11 @@ const vacancyMarketingGraph: WorkflowGraph = {
     {
       id: "email", type: "send_email", position: row(4),
       data: { step: {
-        id: "email", type: "send_email", name: "Send marketing drafts to broker",
+        id: "email", type: "send_email", name: "Send marketing drafts to your team",
         config: {
           to: "{{secrets.broker_email}}",
-          subject: "Vacancy marketing -- matched prospects ready",
-          text: "Matched prospects for your available properties:\n\n{{steps.match.text}}",
+          subject: "Availability marketing -- matched prospects ready",
+          text: "Matched prospects for your available records:\n\n{{steps.match.text}}",
         },
       } },
     },
@@ -763,8 +763,8 @@ const postCloseRetentionGraph: WorkflowGraph = {
         id: "thank_you", type: "openai", name: "Draft thank-you + referral ask",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You write professional, warm thank-you notes from a CRE broker after a successful closing. Include a subtle referral ask. Under 150 words.",
-          prompt: "Closing details:\nProperty: {{steps.trigger.input.property_address}}\nClient: {{steps.trigger.input.client_name}} ({{steps.trigger.input.client_email}})\nSide: {{steps.trigger.input.side}} (buyer/seller)\nSale price: {{steps.trigger.input.sale_price}}\n\nDraft:\n1. A personalized thank-you email referencing the specific deal\n2. A tasteful referral ask (do they know anyone else in the market?)\n3. An offer to keep them informed on market activity in their area\n\nReturn JSON: { subject, body }.",
+          system: "You write professional, warm thank-you notes after a successful closing. Include a subtle referral ask. Under 150 words.",
+          prompt: "Closing details:\nRecord: {{steps.trigger.input.property_address}}\nClient: {{steps.trigger.input.client_name}} ({{steps.trigger.input.client_email}})\nSide: {{steps.trigger.input.side}} (buyer/seller)\nDeal value: {{steps.trigger.input.sale_price}}\n\nDraft:\n1. A personalized thank-you email referencing the specific deal\n2. A tasteful referral ask (do they know anyone else who could use your help?)\n3. An offer to keep them informed on relevant updates\n\nReturn JSON: { subject, body }.",
           max_tokens: 500,
         },
       } },
@@ -772,7 +772,7 @@ const postCloseRetentionGraph: WorkflowGraph = {
     {
       id: "email_draft", type: "send_email", position: row(2),
       data: { step: {
-        id: "email_draft", type: "send_email", name: "Send draft to broker",
+        id: "email_draft", type: "send_email", name: "Send draft to your team",
         config: {
           to: "{{secrets.broker_email}}",
           subject: "Thank-you draft ready -- {{steps.trigger.input.client_name}}",
@@ -790,7 +790,7 @@ const postCloseRetentionGraph: WorkflowGraph = {
     {
       id: "reminder", type: "send_sms", position: row(4),
       data: { step: {
-        id: "reminder", type: "send_sms", name: "Text broker to add to CRM drip",
+        id: "reminder", type: "send_sms", name: "Text your team to add to follow-up list",
         config: {
           to_role: "owner",
           body: "Deal closed: {{steps.trigger.input.property_address}} with {{steps.trigger.input.client_name}}. Don't forget to add them to your quarterly market update list.",
@@ -807,13 +807,13 @@ const postCloseRetentionGraph: WorkflowGraph = {
 };
 
 // ══════════════════════════════════════════════════════════════
-// 19 - Corridor void analysis report (cron)
+// 19 - Weekly research scan report (cron)
 //
-// The flagship outbound intelligence workflow. Every week, the
-// agent runs a void analysis along a configured corridor (2-8
-// anchor points), scores parcels on zoning fit, acreage, vacancy,
-// and value efficiency, then pulls full auditor + EPA detail on
-// the top candidates. Delivers a ranked site report with citations.
+// The flagship outbound research workflow. Every week, the
+// agent runs a research scan across a configured target area (2-8
+// anchor points), scores candidates on fit, size, availability,
+// and value efficiency, then pulls full source detail on
+// the top candidates. Delivers a ranked research report with citations.
 // ══════════════════════════════════════════════════════════════
 
 const corridorVoidAnalysisGraph: WorkflowGraph = {
@@ -828,11 +828,11 @@ const corridorVoidAnalysisGraph: WorkflowGraph = {
     {
       id: "scan", type: "agent", position: row(1),
       data: { step: {
-        id: "scan", type: "agent", name: "Run corridor void analysis",
+        id: "scan", type: "agent", name: "Run research scan",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You are a CRE void analyst. Your job is to identify what is MISSING from a trade area -- which business categories have no presence, which corridor segments are underserved, and where vacant or underutilized parcels exist. Always cite every data point with [ss:N] markers. Be specific about acreage, zoning, assessed values, and land use. You may recommend tenants for confirmed void categories, but you MUST first call survey_area to verify the recommended brand does not already exist within 3 miles of the site. Never recommend a business that already operates nearby.",
-          objective: "Run a void analysis along the corridor defined by these anchor points: {{secrets.corridor_anchors}}. Target use: {{secrets.target_use}}. Search for parcels that are {{secrets.target_zoning}}-zoned, {{secrets.acreage_min}}-{{secrets.acreage_max}} acres, prefer vacant land. For each corridor segment, report which business categories are missing (the voids) and which are already saturated. Return the top 15 scored parcels. Then for the top 5 scoring sites, pull full parcel detail including auditor records, tax estimates, and environmental (EPA brownfield) status. Compile into a ranked report of voids and candidate sites.",
+          system: "You are a research analyst. Your job is to identify gaps in a target area -- which categories have no presence, which segments are underserved, and where opportunities exist. Always cite every data point with [ss:N] markers. Be specific with the numbers and details in the data. You may recommend options for confirmed gaps, but you MUST first call survey_area to verify the recommendation does not already exist within the target area. Never recommend something that is already present nearby.",
+          objective: "Run a research scan across the area defined by these anchor points: {{secrets.corridor_anchors}}. Target focus: {{secrets.target_use}}. Filter results to {{secrets.target_zoning}} criteria, {{secrets.acreage_min}}-{{secrets.acreage_max}} range, prefer high-potential candidates. For each segment, report which categories are missing (the gaps) and which are already saturated. Return the top 15 scored candidates. Then for the top 5 candidates, pull full detail including source records, estimates, and status. Compile into a ranked report of gaps and top candidates.",
           tools: ["site_scan.void_analysis", "site_scan.detail", "memory.write"],
           max_steps: 12,
         },
@@ -844,8 +844,8 @@ const corridorVoidAnalysisGraph: WorkflowGraph = {
         id: "synthesize", type: "openai", name: "Synthesize executive report",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You are a senior CRE analyst writing a weekly site intelligence brief for a development team. Write for decision-makers: lead with the best opportunity, explain why, include the numbers. Preserve all [ss:N] citation markers from the source data.",
-          prompt: "Void analysis results and parcel detail:\n{{steps.scan.text}}\n\nWrite a weekly site intelligence brief:\n\n1. EXECUTIVE SUMMARY (3 sentences -- best opportunity this week and why)\n2. TOP 5 SITES (ranked table: address, acreage, zoning, assessed value, tax estimate, vacancy status, score, environmental flags)\n3. DEEP DIVE on #1 and #2 (full auditor data, demographics if available, development feasibility notes)\n4. SITES TO WATCH (any parcels that scored well but need more investigation)\n5. DATA GAPS (counties with no coverage, parcels where detail was unavailable)\n\nPreserve all citation markers. Format for email delivery.",
+          system: "You are a senior analyst writing a weekly research brief for your team. Write for decision-makers: lead with the best opportunity, explain why, include the numbers. Preserve all [ss:N] citation markers from the source data.",
+          prompt: "Research results and detail:\n{{steps.scan.text}}\n\nWrite a weekly research brief:\n\n1. EXECUTIVE SUMMARY (3 sentences -- best opportunity this week and why)\n2. TOP 5 CANDIDATES (ranked table: name, key metrics, estimated value, status, score, flags)\n3. DEEP DIVE on #1 and #2 (full source data, context if available, feasibility notes)\n4. CANDIDATES TO WATCH (any that scored well but need more investigation)\n5. DATA GAPS (areas with no coverage, candidates where detail was unavailable)\n\nPreserve all citation markers. Format for email delivery.",
           max_tokens: 2500,
         },
       } },
@@ -853,10 +853,10 @@ const corridorVoidAnalysisGraph: WorkflowGraph = {
     {
       id: "email", type: "send_email", position: row(3),
       data: { step: {
-        id: "email", type: "send_email", name: "Deliver weekly site brief",
+        id: "email", type: "send_email", name: "Deliver weekly research brief",
         config: {
           to: "{{secrets.broker_email}}",
-          subject: "Site intelligence brief -- {{secrets.target_use}} corridor",
+          subject: "Research brief -- {{secrets.target_use}}",
           text: "{{steps.synthesize.text}}",
         },
       } },
@@ -869,30 +869,30 @@ const corridorVoidAnalysisGraph: WorkflowGraph = {
   ],
 };
 
-// On-demand corridor variant — catalog/editor preview only. The clone
+// On-demand research variant — catalog/editor preview only. The clone
 // route resolves this slug to the hand-crafted n8n JSON in
-// n8n-templates.ts (webhook trigger with the broker's brief / search
+// n8n-templates.ts (webhook trigger with the brief / search
 // area / email form), so this graph just has to read faithfully.
 const corridorVoidOnDemandGraph: WorkflowGraph = {
   nodes: [
     {
       id: "trigger", type: "trigger_manual", position: row(0),
       data: { step: {
-        id: "trigger", type: "trigger_manual", name: "Run corridor analysis",
+        id: "trigger", type: "trigger_manual", name: "Run research scan",
         config: { input_fields: [
-          { name: "brief", label: "What are you looking for?", type: "textarea" as const, required: true, placeholder: "My client is a Chick-fil-A franchisee looking for a 1-2 acre pad site along the I-71 corridor between Medina and downtown Cleveland. Needs C-2 or better zoning, high traffic count, and no environmental issues." },
-          { name: "corridor_anchors", label: "Search Area", type: "text" as const, required: true, placeholder: "I-71 from Medina to downtown Cleveland, OH" },
-          { name: "broker_email", label: "Send Results To (email)", type: "text" as const, required: true, placeholder: "broker@yourfirm.com" },
+          { name: "brief", label: "What are you looking for?", type: "textarea" as const, required: true, placeholder: "My client is looking for the best candidate for a new location in the target region. Prioritize high-potential options with strong fundamentals and no red flags." },
+          { name: "corridor_anchors", label: "Search Area", type: "text" as const, required: true, placeholder: "The region or segment to research" },
+          { name: "broker_email", label: "Send Results To (email)", type: "text" as const, required: true, placeholder: "you@yourcompany.com" },
         ] },
       } },
     },
     {
       id: "scan", type: "agent", position: row(1),
       data: { step: {
-        id: "scan", type: "agent", name: "Run void analysis",
+        id: "scan", type: "agent", name: "Run research scan",
         config: {
           model: "claude-sonnet-4-6",
-          objective: "Run a void analysis along the corridor the broker described: {{steps.trigger.input.corridor_anchors}}. Broker's brief: {{steps.trigger.input.brief}}. Identify missing business categories per segment, score and rank matching parcels, pull full detail on the top 5 with auditor, tax, and EPA brownfield status.",
+          objective: "Run a research scan across the area described: {{steps.trigger.input.corridor_anchors}}. Brief: {{steps.trigger.input.brief}}. Identify missing categories per segment, score and rank matching candidates, pull full detail on the top 5 with source records, estimates, and status.",
           tools: ["site_scan.void_analysis", "site_scan.search", "site_scan.detail", "survey_area"],
         },
       } },
@@ -900,8 +900,8 @@ const corridorVoidOnDemandGraph: WorkflowGraph = {
     {
       id: "email", type: "send_email", position: row(2),
       data: { step: {
-        id: "email", type: "send_email", name: "Email ranked site brief",
-        config: { to: "{{steps.trigger.input.broker_email}}", subject: "Site intelligence brief -- corridor analysis", text: "{{steps.scan.text}}" },
+        id: "email", type: "send_email", name: "Email ranked research brief",
+        config: { to: "{{steps.trigger.input.broker_email}}", subject: "Research brief -- research scan", text: "{{steps.scan.text}}" },
       } },
     },
   ],
@@ -912,10 +912,10 @@ const corridorVoidOnDemandGraph: WorkflowGraph = {
 };
 
 // ══════════════════════════════════════════════════════════════
-// 20 - Development site prospector (cron)
+// 20 - Opportunity prospector (cron)
 //
-// Broader than the corridor analysis. Searches multiple target
-// areas for parcels matching development criteria, pulls detail,
+// Broader than the single-area scan. Searches multiple target
+// areas for candidates matching criteria, pulls detail,
 // cross-references against existing pipeline to avoid duplicates,
 // and delivers net-new opportunities.
 // ══════════════════════════════════════════════════════════════
@@ -939,11 +939,11 @@ const developmentProspectorGraph: WorkflowGraph = {
     {
       id: "prospect", type: "agent", position: row(2),
       data: { step: {
-        id: "prospect", type: "agent", name: "Search target areas for sites",
+        id: "prospect", type: "agent", name: "Search target areas for candidates",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You are a CRE land acquisition analyst. Your job is to systematically search target markets for development-ready parcels. Search each target area, filter for the specified criteria, and pull detail on the most promising candidates. Always use [ss:N] citations. Flag any environmental concerns immediately.",
-          objective: "Search these target areas for development sites: {{secrets.target_areas}}. Criteria: {{secrets.target_zoning}}-zoned, {{secrets.acreage_min}}-{{secrets.acreage_max}} acres, prefer vacant or underutilized land. For each area, search for matching parcels. Then pull full auditor detail and EPA status on the top 3 candidates per area. Cross-reference against properties already in our pipeline to avoid duplicates:\n\nExisting pipeline:\n{{steps.existing.properties}}\n\nOnly report NET NEW sites not already in our system.",
+          system: "You are a research analyst. Your job is to systematically search target markets for promising candidates. Search each target area, filter for the specified criteria, and pull detail on the most promising candidates. Always use [ss:N] citations. Flag any concerns immediately.",
+          objective: "Search these target areas for candidates: {{secrets.target_areas}}. Criteria: {{secrets.target_zoning}}, {{secrets.acreage_min}}-{{secrets.acreage_max}} range, prefer high-potential or underutilized candidates. For each area, search for matching candidates. Then pull full source detail and status on the top 3 candidates per area. Cross-reference against records already in our pipeline to avoid duplicates:\n\nExisting pipeline:\n{{steps.existing.properties}}\n\nOnly report NET NEW candidates not already in our system.",
           tools: ["site_scan.search", "site_scan.detail", "memory.write"],
           max_steps: 18,
         },
@@ -955,8 +955,8 @@ const developmentProspectorGraph: WorkflowGraph = {
         id: "score", type: "openai", name: "Score and rank opportunities",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You are a CRE investment analyst. Score each site on a 1-10 scale across: location (proximity to demand drivers), size fit, zoning readiness, price efficiency (assessed value per acre), and environmental risk. Return a ranked table.",
-          prompt: "Raw site data with parcel detail:\n{{steps.prospect.text}}\n\nFor each net-new site found:\n1. Score 1-10 on: Location, Size Fit, Zoning Readiness, Price Efficiency, Environmental Risk (10 = best)\n2. Calculate a composite score (weighted: Location 30%, Size 20%, Zoning 20%, Price 20%, Environmental 10%)\n3. Write a 2-sentence investment thesis for the top 3\n4. Flag any deal-breakers (contamination, zoning incompatibility, title concerns)\n\nReturn as a formatted report preserving all [ss:N] citations.",
+          system: "You are an analyst. Score each candidate on a 1-10 scale across: location (proximity to demand drivers), size fit, readiness, price efficiency (value per unit), and risk. Return a ranked table.",
+          prompt: "Raw data with full detail:\n{{steps.prospect.text}}\n\nFor each net-new candidate found:\n1. Score 1-10 on: Location, Size Fit, Readiness, Price Efficiency, Risk (10 = best)\n2. Calculate a composite score (weighted: Location 30%, Size 20%, Readiness 20%, Price 20%, Risk 10%)\n3. Write a 2-sentence thesis for the top 3\n4. Flag any deal-breakers (major concerns, incompatibility, red flags)\n\nReturn as a formatted report preserving all [ss:N] citations.",
           max_tokens: 2000,
         },
       } },
@@ -967,7 +967,7 @@ const developmentProspectorGraph: WorkflowGraph = {
         id: "email", type: "send_email", name: "Deliver prospecting report",
         config: {
           to: "{{secrets.broker_email}}",
-          subject: "Development site prospector -- new opportunities found",
+          subject: "Opportunity prospector -- new opportunities found",
           text: "{{steps.score.text}}",
         },
       } },
@@ -982,14 +982,14 @@ const developmentProspectorGraph: WorkflowGraph = {
 };
 
 // ══════════════════════════════════════════════════════════════
-// 21 - Acquisition target deep-dive (webhook)
+// 21 - Target deep-dive (webhook)
 //
-// When a broker spots a property they're interested in (via
+// When a team member spots a record they're interested in (via
 // webhook from the UI or an external source), this workflow
-// runs the full intelligence stack: parcel search, auditor
-// detail, tax estimate, census demographics, EPA brownfield,
-// lease abstractions if we have any, and synthesizes it into
-// an acquisition memo.
+// runs the full research stack: record search, source
+// detail, estimates, demographics, status,
+// contract extractions if we have any, and synthesizes it into
+// a research memo.
 // ══════════════════════════════════════════════════════════════
 
 const acquisitionDeepDiveGraph: WorkflowGraph = {
@@ -997,18 +997,18 @@ const acquisitionDeepDiveGraph: WorkflowGraph = {
     {
       id: "trigger", type: "trigger_webhook", position: row(0),
       data: { step: {
-        id: "trigger", type: "trigger_webhook", name: "Acquisition target webhook",
+        id: "trigger", type: "trigger_webhook", name: "Target webhook",
         config: {},
       } },
     },
     {
       id: "intel", type: "agent", position: row(1),
       data: { step: {
-        id: "intel", type: "agent", name: "Full parcel intelligence",
+        id: "intel", type: "agent", name: "Full record research",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You are a CRE acquisition analyst conducting due diligence on a potential acquisition target. Run every available intelligence tool: search to find the parcel, then pull full detail (auditor, tax, census, EPA). Be thorough -- this memo will inform a purchase decision. Always cite with [ss:N] markers.",
-          objective: "Run full intelligence on: {{steps.trigger.input.address}}, {{steps.trigger.input.city}}, {{steps.trigger.input.state}}.\n\n1. Search for the parcel to get the parcel number and basic data\n2. Pull full detail: auditor records, tax estimate, census demographics, EPA brownfield status\n3. If the address is in a known corridor, note neighboring parcels and their zoning\n4. Save key findings to memory for future reference\n\nCompile all findings with full citations.",
+          system: "You are a research analyst conducting due diligence on a potential target. Run every available research tool: search to find the record, then pull full detail (source records, estimates, demographics, status). Be thorough -- this memo will inform a decision. Always cite with [ss:N] markers.",
+          objective: "Run full research on: {{steps.trigger.input.address}}, {{steps.trigger.input.city}}, {{steps.trigger.input.state}}.\n\n1. Search for the record to get its identifier and basic data\n2. Pull full detail: source records, estimates, demographics, status\n3. If the record is in a known segment, note neighboring records and their attributes\n4. Save key findings to memory for future reference\n\nCompile all findings with full citations.",
           tools: ["site_scan.search", "site_scan.detail", "memory.write", "memory.search"],
           max_steps: 10,
         },
@@ -1017,18 +1017,18 @@ const acquisitionDeepDiveGraph: WorkflowGraph = {
     {
       id: "leases", type: "lease_lookup", position: row(2),
       data: { step: {
-        id: "leases", type: "lease_lookup", name: "Check for existing lease data",
+        id: "leases", type: "lease_lookup", name: "Check for existing contract data",
         config: { status: "completed", limit: 5 },
       } },
     },
     {
       id: "memo", type: "openai", position: row(3),
       data: { step: {
-        id: "memo", type: "openai", name: "Draft acquisition memo",
+        id: "memo", type: "openai", name: "Draft research memo",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You write professional CRE acquisition memos for investment committees. Lead with the thesis, support with data, flag risks prominently. Preserve all [ss:N] citation markers.",
-          prompt: "Target: {{steps.trigger.input.address}}\nAsking price (if known): {{steps.trigger.input.asking_price}}\nProperty type: {{steps.trigger.input.property_type}}\nBroker notes: {{steps.trigger.input.notes}}\n\nParcel intelligence:\n{{steps.intel.text}}\n\nExisting lease data (if any):\n{{steps.leases.abstracts}}\n\nDraft an acquisition memo with these sections:\n\n1. INVESTMENT THESIS (3 sentences -- why this property, what's the opportunity)\n2. PROPERTY OVERVIEW (address, parcel #, acreage, zoning, year built, building SF)\n3. FINANCIAL SNAPSHOT (assessed value, tax estimate, asking price if known, implied cap rate if rental income is known)\n4. MARKET CONTEXT (census demographics -- population, median income, poverty rate)\n5. ENVIRONMENTAL STATUS (EPA findings, brownfield proximity)\n6. LEASE ANALYSIS (if lease data exists: term, rent, escalation, key clauses)\n7. RISKS AND CONCERNS (environmental, zoning incompatibility, structural, market)\n8. RECOMMENDED NEXT STEPS (site visit, Phase I, title search, broker meeting)\n\nFormat for email delivery. Preserve all citations.",
+          system: "You write professional research memos for decision-makers. Lead with the thesis, support with data, flag risks prominently. Preserve all [ss:N] citation markers.",
+          prompt: "Target: {{steps.trigger.input.address}}\nPrice (if known): {{steps.trigger.input.asking_price}}\nType: {{steps.trigger.input.property_type}}\nNotes: {{steps.trigger.input.notes}}\n\nRecord research:\n{{steps.intel.text}}\n\nExisting contract data (if any):\n{{steps.leases.abstracts}}\n\nDraft a research memo with these sections:\n\n1. THESIS (3 sentences -- why this record, what's the opportunity)\n2. OVERVIEW (name, identifier, size, attributes, key facts)\n3. FINANCIAL SNAPSHOT (estimated value, cost estimate, price if known, implied return if revenue is known)\n4. CONTEXT (demographics -- population, median income, other indicators)\n5. STATUS (findings, risk indicators)\n6. CONTRACT ANALYSIS (if contract data exists: term, price, escalation, key clauses)\n7. RISKS AND CONCERNS (major concerns, incompatibility, structural, market)\n8. RECOMMENDED NEXT STEPS (site visit, deeper review, verification, follow-up meeting)\n\nFormat for email delivery. Preserve all citations.",
           max_tokens: 2500,
         },
       } },
@@ -1036,10 +1036,10 @@ const acquisitionDeepDiveGraph: WorkflowGraph = {
     {
       id: "email", type: "send_email", position: row(4),
       data: { step: {
-        id: "email", type: "send_email", name: "Deliver acquisition memo",
+        id: "email", type: "send_email", name: "Deliver research memo",
         config: {
           to: "{{secrets.broker_email}}",
-          subject: "Acquisition memo -- {{steps.trigger.input.address}}",
+          subject: "Research memo -- {{steps.trigger.input.address}}",
           text: "{{steps.memo.text}}",
         },
       } },
@@ -1054,14 +1054,14 @@ const acquisitionDeepDiveGraph: WorkflowGraph = {
 };
 
 // ══════════════════════════════════════════════════════════════
-// 22 - Multi-market void analysis (manual)
+// 22 - Multi-market research analysis (manual)
 //
-// The most complex template. Broker provides a thesis ("I want
-// to find the best site for a 50,000 SF industrial distribution
-// center within 30 miles of Columbus, OH"). The agent runs void
-// analyses across multiple corridors, pulls detail on winners,
-// cross-references environmental and tax data, and delivers a
-// full site selection report with investment-grade analysis.
+// The most complex template. The user provides a thesis ("I want
+// to find the best option matching my criteria across a target
+// region"). The agent runs research scans
+// across multiple segments, pulls detail on winners,
+// cross-references supporting data, and delivers a
+// full selection report with rigorous analysis.
 // ══════════════════════════════════════════════════════════════
 
 const multiMarketVoidGraph: WorkflowGraph = {
@@ -1069,23 +1069,23 @@ const multiMarketVoidGraph: WorkflowGraph = {
     {
       id: "trigger", type: "trigger_manual", position: row(0),
       data: { step: {
-        id: "trigger", type: "trigger_manual", name: "Broker triggers with thesis",
+        id: "trigger", type: "trigger_manual", name: "Trigger with thesis",
         config: { input_fields: [
           { name: "brief", label: "Client Brief", type: "textarea" as const, required: true, placeholder: "Describe the client's needs..." },
-          { name: "target_use", label: "Target Use", type: "text" as const, required: true, placeholder: "e.g., Quick-service restaurant" },
+          { name: "target_use", label: "Target Use", type: "text" as const, required: true, placeholder: "e.g., New retail location" },
           { name: "target_area", label: "Target Area", type: "text" as const, required: true, placeholder: "e.g., Northeast Ohio" },
-          { name: "size_requirement", label: "Size Requirement", type: "text" as const, placeholder: "e.g., 2,000-5,000 SF" },
+          { name: "size_requirement", label: "Size Requirement", type: "text" as const, placeholder: "e.g., mid-size" },
         ] },
       } },
     },
     {
       id: "void_scan", type: "agent", position: row(1),
       data: { step: {
-        id: "void_scan", type: "agent", name: "Multi-corridor void analysis",
+        id: "void_scan", type: "agent", name: "Multi-segment research scan",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You are a senior CRE void analyst. You run systematic void analyses across multiple corridors to identify market gaps and underserved segments. You must search at least 3 distinct corridors to ensure coverage. For each corridor, report which business categories are missing and which are saturated. Pull full detail on every parcel that scores 4+ out of 7. You may recommend tenants for confirmed void categories, but you MUST first call survey_area to verify the recommended brand does not already exist within 3 miles. Always use [ss:N] citations.",
-          objective: "Client brief: {{steps.trigger.input.brief}}\nTarget use: {{steps.trigger.input.target_use}}\nTarget area: {{steps.trigger.input.target_area}}\nSize requirement: {{steps.trigger.input.size_requirement}}\nZoning: {{steps.trigger.input.zoning}}\nBudget: {{steps.trigger.input.budget}}\n\nRun void analyses along at least 3 corridors or submarkets within the target area. For each corridor, identify which business categories are MISSING (the voids) and which are already saturated. Search for vacant or underutilized parcels matching the criteria. After all corridors are scanned, pull full auditor detail and EPA status on every site scoring 4+/7. Save the top 10 overall to memory.",
+          system: "You are a senior research analyst. You run systematic research scans across multiple segments to identify market gaps and underserved areas. You must search at least 3 distinct segments to ensure coverage. For each segment, report which categories are missing and which are saturated. Pull full detail on every candidate that scores 4+ out of 7. You may recommend options for confirmed gaps, but you MUST first call survey_area to verify the recommendation does not already exist in the area. Always use [ss:N] citations.",
+          objective: "Client brief: {{steps.trigger.input.brief}}\nTarget focus: {{steps.trigger.input.target_use}}\nTarget area: {{steps.trigger.input.target_area}}\nSize requirement: {{steps.trigger.input.size_requirement}}\nCriteria: {{steps.trigger.input.zoning}}\nBudget: {{steps.trigger.input.budget}}\n\nRun research scans across at least 3 segments within the target area. For each segment, identify which categories are MISSING (the gaps) and which are already saturated. Search for high-potential or underutilized candidates matching the criteria. After all segments are scanned, pull full source detail and status on every candidate scoring 4+/7. Save the top 10 overall to memory.",
           tools: ["site_scan.void_analysis", "site_scan.detail", "memory.write"],
           max_steps: 20,
         },
@@ -1097,8 +1097,8 @@ const multiMarketVoidGraph: WorkflowGraph = {
         id: "competitive", type: "agent", name: "Competitive landscape scan",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You are a CRE market analyst. Given a set of candidate sites, you analyze the competitive landscape around each: what's nearby, what's missing, what demand drivers exist. Search for parcels near each top candidate to understand the surrounding commercial ecosystem.",
-          objective: "The void analysis identified these top sites:\n{{steps.void_scan.text}}\n\nFor the top 3 candidates, search the area within 2 miles for existing commercial properties to understand:\n1. What competing uses already exist nearby\n2. What anchor tenants or demand drivers are present\n3. Whether the area is saturated or underserved for the target use\n\nCompile a competitive landscape summary for each site.",
+          system: "You are a market analyst. Given a set of candidates, you analyze the competitive landscape around each: what's nearby, what's missing, what demand drivers exist. Search for records near each top candidate to understand the surrounding ecosystem.",
+          objective: "The research scan identified these top candidates:\n{{steps.void_scan.text}}\n\nFor the top 3 candidates, search the surrounding area for existing options to understand:\n1. What competing options already exist nearby\n2. What anchors or demand drivers are present\n3. Whether the area is saturated or underserved for the target focus\n\nCompile a competitive landscape summary for each candidate.",
           tools: ["site_scan.search", "site_scan.detail"],
           max_steps: 12,
         },
@@ -1107,11 +1107,11 @@ const multiMarketVoidGraph: WorkflowGraph = {
     {
       id: "report", type: "openai", position: row(3),
       data: { step: {
-        id: "report", type: "openai", name: "Final site selection report",
+        id: "report", type: "openai", name: "Final selection report",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You write investment-grade CRE site selection reports. This document will be presented to a development team or investment committee. Be rigorous, data-driven, and preserve every [ss:N] citation. Include tables where they add clarity.",
-          prompt: "Client brief: {{steps.trigger.input.brief}}\n\nVoid analysis + parcel detail:\n{{steps.void_scan.text}}\n\nCompetitive landscape:\n{{steps.competitive.text}}\n\nWrite the final site selection report:\n\n1. ENGAGEMENT SUMMARY\n   - Client objective\n   - Search parameters\n   - Corridors analyzed\n   - Total parcels scanned\n\n2. RECOMMENDED SITE (detailed profile)\n   - Address, parcel #, acreage, zoning\n   - Auditor data (assessed value, last sale, year built)\n   - Tax estimate and any abatement opportunities\n   - Environmental status\n   - Competitive landscape\n   - Why this site wins\n\n3. RUNNER-UP SITES (top 5, table format)\n   - Rank, address, acreage, zoning, score, assessed value, key advantage, key risk\n\n4. MARKET CONTEXT\n   - Demographics around the recommended site\n   - Competitive density analysis\n   - Supply/demand observations\n\n5. RISK MATRIX\n   - Environmental, zoning, structural, market, and execution risks for the top 3\n\n6. NEXT STEPS\n   - Recommended actions for each shortlisted site\n\nPreserve all citations. Format for email delivery.",
+          system: "You write rigorous selection reports. This document will be presented to your team or decision-makers. Be rigorous, data-driven, and preserve every [ss:N] citation. Include tables where they add clarity.",
+          prompt: "Client brief: {{steps.trigger.input.brief}}\n\nResearch scan + full detail:\n{{steps.void_scan.text}}\n\nCompetitive landscape:\n{{steps.competitive.text}}\n\nWrite the final selection report:\n\n1. ENGAGEMENT SUMMARY\n   - Client objective\n   - Search parameters\n   - Segments analyzed\n   - Total candidates scanned\n\n2. RECOMMENDED OPTION (detailed profile)\n   - Name, identifier, size, attributes\n   - Source data (estimated value, last activity, key facts)\n   - Cost estimate and any savings opportunities\n   - Status\n   - Competitive landscape\n   - Why this option wins\n\n3. RUNNER-UP OPTIONS (top 5, table format)\n   - Rank, name, size, attributes, score, estimated value, key advantage, key risk\n\n4. MARKET CONTEXT\n   - Demographics around the recommended option\n   - Competitive density analysis\n   - Supply/demand observations\n\n5. RISK MATRIX\n   - Compliance, structural, market, and execution risks for the top 3\n\n6. NEXT STEPS\n   - Recommended actions for each shortlisted option\n\nPreserve all citations. Format for email delivery.",
           max_tokens: 3500,
         },
       } },
@@ -1119,10 +1119,10 @@ const multiMarketVoidGraph: WorkflowGraph = {
     {
       id: "email", type: "send_email", position: row(4),
       data: { step: {
-        id: "email", type: "send_email", name: "Deliver site selection report",
+        id: "email", type: "send_email", name: "Deliver selection report",
         config: {
           to: "{{secrets.broker_email}}",
-          subject: "Site selection report -- {{steps.trigger.input.target_use}} in {{steps.trigger.input.target_area}}",
+          subject: "Selection report -- {{steps.trigger.input.target_use}} in {{steps.trigger.input.target_area}}",
           text: "{{steps.report.text}}",
         },
       } },
@@ -1137,12 +1137,12 @@ const multiMarketVoidGraph: WorkflowGraph = {
 };
 
 // ══════════════════════════════════════════════════════════════
-// 23 - Environmental risk scanner (manual)
+// 23 - Risk scanner (manual)
 //
-// Given a target area, searches for all parcels and runs EPA
-// brownfield checks on each. Produces a risk heat map showing
-// which sites are clear vs contaminated. Critical for developers
-// evaluating a new submarket.
+// Given a target area, searches for all candidates and runs
+// risk checks on each. Produces a risk heat map showing
+// which candidates are clear vs flagged. Critical for teams
+// evaluating a new area.
 // ══════════════════════════════════════════════════════════════
 
 const environmentalScannerGraph: WorkflowGraph = {
@@ -1150,23 +1150,23 @@ const environmentalScannerGraph: WorkflowGraph = {
     {
       id: "trigger", type: "trigger_manual", position: row(0),
       data: { step: {
-        id: "trigger", type: "trigger_manual", name: "Broker triggers with area",
+        id: "trigger", type: "trigger_manual", name: "Trigger with area",
         config: { input_fields: [
-          { name: "location", label: "Target Area", type: "text" as const, required: true, placeholder: "e.g., Euclid Ave corridor, Cleveland OH" },
-          { name: "zoning", label: "Zoning Filter", type: "text" as const, placeholder: "e.g., C-2 Commercial" },
-          { name: "acreage_min", label: "Min Acreage", type: "number" as const, placeholder: "1" },
-          { name: "acreage_max", label: "Max Acreage", type: "number" as const, placeholder: "10" },
+          { name: "location", label: "Target Area", type: "text" as const, required: true, placeholder: "e.g., a target region or segment" },
+          { name: "zoning", label: "Criteria Filter", type: "text" as const, placeholder: "e.g., a category filter" },
+          { name: "acreage_min", label: "Min Size", type: "number" as const, placeholder: "1" },
+          { name: "acreage_max", label: "Max Size", type: "number" as const, placeholder: "10" },
         ] },
       } },
     },
     {
       id: "scan", type: "agent", position: row(1),
       data: { step: {
-        id: "scan", type: "agent", name: "Search area + EPA check each parcel",
+        id: "scan", type: "agent", name: "Search area + risk check each candidate",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You are an environmental due diligence analyst for CRE. Search for parcels in the target area, then pull full detail on each to check EPA brownfield status. Flag any site with brownfield proximity, noting facility names and distances. Always cite with [ss:N] markers.",
-          objective: "Search for parcels near: {{steps.trigger.input.location}}. Filter for: {{steps.trigger.input.zoning}} zoning, {{steps.trigger.input.acreage_min}}-{{steps.trigger.input.acreage_max}} acres. Then pull full detail on every result to check EPA brownfield/environmental status. Categorize each parcel as: CLEAR (no EPA facilities nearby), CAUTION (facilities nearby but not on-site), or FLAG (brownfield site or adjacent to one). Save findings to memory.",
+          system: "You are a risk analyst. Search for candidates in the target area, then pull full detail on each to check risk status. Flag any candidate with risk indicators, noting the specifics and severity. Always cite with [ss:N] markers.",
+          objective: "Search for candidates near: {{steps.trigger.input.location}}. Filter for: {{steps.trigger.input.zoning}} criteria, {{steps.trigger.input.acreage_min}}-{{steps.trigger.input.acreage_max}} size. Then pull full detail on every result to check risk status. Categorize each candidate as: CLEAR (no risk indicators nearby), CAUTION (indicators nearby but not directly affecting), or FLAG (flagged candidate or adjacent to one). Save findings to memory.",
           tools: ["site_scan.search", "site_scan.detail", "memory.write"],
           max_steps: 18,
         },
@@ -1175,11 +1175,11 @@ const environmentalScannerGraph: WorkflowGraph = {
     {
       id: "report", type: "openai", position: row(2),
       data: { step: {
-        id: "report", type: "openai", name: "Environmental risk report",
+        id: "report", type: "openai", name: "Risk report",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You write environmental risk reports for CRE developers. Be factual, cite sources, and clearly categorize risk levels. This report will inform Phase I ESA decisions.",
-          prompt: "Environmental scan results:\n{{steps.scan.text}}\n\nLocation: {{steps.trigger.input.location}}\n\nWrite an environmental risk report:\n\n1. AREA OVERVIEW (location, total parcels scanned, coverage gaps)\n\n2. RISK SUMMARY TABLE\n   | Address | Parcel # | Acreage | Status | EPA Facilities | Distance | Recommendation |\n   For each parcel, status = CLEAR / CAUTION / FLAG\n\n3. FLAGGED SITES (detailed writeup for each FLAG parcel)\n   - What EPA facility is nearby\n   - Facility type and status\n   - Distance from parcel boundary\n   - Whether Phase I ESA is recommended\n\n4. CLEAR SITES (list of parcels with no environmental concerns)\n\n5. RECOMMENDATION\n   - Which sites to proceed with\n   - Which to avoid\n   - Where Phase I is warranted\n\nPreserve all [ss:N] citations.",
+          system: "You write risk reports for teams. Be factual, cite sources, and clearly categorize risk levels. This report will inform deeper review decisions.",
+          prompt: "Risk scan results:\n{{steps.scan.text}}\n\nLocation: {{steps.trigger.input.location}}\n\nWrite a risk report:\n\n1. AREA OVERVIEW (location, total candidates scanned, coverage gaps)\n\n2. RISK SUMMARY TABLE\n   | Name | Identifier | Size | Status | Risk Indicators | Severity | Recommendation |\n   For each candidate, status = CLEAR / CAUTION / FLAG\n\n3. FLAGGED CANDIDATES (detailed writeup for each FLAG candidate)\n   - What risk indicator is present\n   - Indicator type and status\n   - Severity\n   - Whether deeper review is recommended\n\n4. CLEAR CANDIDATES (list of candidates with no concerns)\n\n5. RECOMMENDATION\n   - Which candidates to proceed with\n   - Which to avoid\n   - Where deeper review is warranted\n\nPreserve all [ss:N] citations.",
           max_tokens: 2000,
         },
       } },
@@ -1187,10 +1187,10 @@ const environmentalScannerGraph: WorkflowGraph = {
     {
       id: "email", type: "send_email", position: row(3),
       data: { step: {
-        id: "email", type: "send_email", name: "Deliver environmental report",
+        id: "email", type: "send_email", name: "Deliver risk report",
         config: {
           to: "{{secrets.broker_email}}",
-          subject: "Environmental risk scan -- {{steps.trigger.input.location}}",
+          subject: "Risk scan -- {{steps.trigger.input.location}}",
           text: "{{steps.report.text}}",
         },
       } },
@@ -1204,11 +1204,11 @@ const environmentalScannerGraph: WorkflowGraph = {
 };
 
 // ══════════════════════════════════════════════════════════════
-// 24 - Saved parcel re-check (cron)
+// 24 - Saved record re-check (cron)
 //
-// Periodically re-runs detail on parcels the broker has saved
-// to the workspace, checking for changes in ownership, assessed
-// value, zoning, or environmental status. Surfaces anything that
+// Periodically re-runs detail on records the team has saved
+// to the workspace, checking for changes in ownership, estimated
+// value, attributes, or status. Surfaces anything that
 // changed since last check.
 // ══════════════════════════════════════════════════════════════
 
@@ -1224,11 +1224,11 @@ const parcelRecheckGraph: WorkflowGraph = {
     {
       id: "recheck", type: "agent", position: row(1),
       data: { step: {
-        id: "recheck", type: "agent", name: "Re-check saved parcels for changes",
+        id: "recheck", type: "agent", name: "Re-check saved records for changes",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You are a CRE portfolio monitoring analyst. You re-check saved parcels for any changes since the last review. Compare fresh auditor data against what was previously cached. Flag ownership transfers, assessed value changes >10%, zoning amendments, and new EPA activity. Always cite with [ss:N] markers.",
-          objective: "Search memory for previously saved parcel data. For each saved parcel, pull fresh detail from the county auditor. Compare against the cached version and flag any changes in: owner name, assessed value (>10% change), zoning class, land use designation, or new EPA brownfield activity. Compile a change report.",
+          system: "You are a monitoring analyst. You re-check saved records for any changes since the last review. Compare fresh source data against what was previously cached. Flag ownership transfers, estimated value changes >10%, attribute amendments, and new activity. Always cite with [ss:N] markers.",
+          objective: "Search memory for previously saved record data. For each saved record, pull fresh detail from the source. Compare against the cached version and flag any changes in: owner name, estimated value (>10% change), category, designation, or new activity. Compile a change report.",
           tools: ["memory.search", "site_scan.detail", "memory.write"],
           max_steps: 15,
         },
@@ -1250,8 +1250,8 @@ const parcelRecheckGraph: WorkflowGraph = {
         id: "report", type: "openai", name: "Format change report",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You write concise parcel change alerts for CRE professionals. Lead with what changed and why it matters. Only report actual changes -- don't pad with unchanged parcels.",
-          prompt: "Change detection results:\n{{steps.recheck.text}}\n\nFormat a change report:\n\n1. CHANGES DETECTED (table: parcel, address, what changed, old value, new value, significance)\n2. ACTION ITEMS (for each change, what should the broker do)\n3. NO CHANGES (count of parcels that were stable -- one line, no detail)\n\nPreserve all [ss:N] citations.",
+          system: "You write concise change alerts for teams. Lead with what changed and why it matters. Only report actual changes -- don't pad with unchanged records.",
+          prompt: "Change detection results:\n{{steps.recheck.text}}\n\nFormat a change report:\n\n1. CHANGES DETECTED (table: record, name, what changed, old value, new value, significance)\n2. ACTION ITEMS (for each change, what should the team do)\n3. NO CHANGES (count of records that were stable -- one line, no detail)\n\nPreserve all [ss:N] citations.",
           max_tokens: 1500,
         },
       } },
@@ -1262,7 +1262,7 @@ const parcelRecheckGraph: WorkflowGraph = {
         id: "email", type: "send_email", name: "Send change alert",
         config: {
           to: "{{secrets.broker_email}}",
-          subject: "Parcel watch -- changes detected",
+          subject: "Record watch -- changes detected",
           text: "{{steps.report.text}}",
         },
       } },
@@ -1277,12 +1277,12 @@ const parcelRecheckGraph: WorkflowGraph = {
 };
 
 // ══════════════════════════════════════════════════════════════
-// 25 - Zoning change opportunity finder (cron)
+// 25 - Undervalued opportunity finder (cron)
 //
-// Searches target areas for parcels whose current zoning doesn't
-// match the highest-and-best use for the area, indicating a
-// potential rezone + development play. Cross-references assessed
-// values to find undervalued land.
+// Searches target areas for candidates whose current profile doesn't
+// match the best potential use for the area, indicating a
+// potential upside play. Cross-references estimated
+// values to find undervalued candidates.
 // ══════════════════════════════════════════════════════════════
 
 const zoningOpportunityGraph: WorkflowGraph = {
@@ -1297,11 +1297,11 @@ const zoningOpportunityGraph: WorkflowGraph = {
     {
       id: "scan", type: "agent", position: row(1),
       data: { step: {
-        id: "scan", type: "agent", name: "Search for zoning mismatch parcels",
+        id: "scan", type: "agent", name: "Search for undervalued candidates",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You are a CRE land use analyst specializing in entitlement plays. You look for parcels where the current zoning is lower-intensity than surrounding uses, indicating a rezone opportunity. Search for parcels in high-demand commercial corridors that are still zoned residential or agricultural. Always cite with [ss:N] markers.",
-          objective: "Search these target areas: {{secrets.target_areas}}. For each area:\n1. Search for parcels zoned residential or agricultural that are 2+ acres\n2. Pull detail on each to check assessed value (looking for low value/acre indicating undeveloped land)\n3. Note surrounding zoning -- if neighbors are commercial/industrial but this parcel is residential, that's an opportunity\n4. Flag parcels where assessed_value/acreage is <50% of the area median (undervalued)\n\nSave opportunities to memory. Report all findings with citations.",
+          system: "You are a research analyst specializing in upside plays. You look for candidates where the current profile is lower-value than surrounding options, indicating an opportunity. Search for candidates in high-demand segments that are still underdeveloped. Always cite with [ss:N] markers.",
+          objective: "Search these target areas: {{secrets.target_areas}}. For each area:\n1. Search for underdeveloped candidates that are above a minimum size\n2. Pull detail on each to check estimated value (looking for low value per unit indicating untapped potential)\n3. Note surrounding options -- if neighbors are higher-value but this candidate is not, that's an opportunity\n4. Flag candidates where estimated value per unit is <50% of the area median (undervalued)\n\nSave opportunities to memory. Report all findings with citations.",
           tools: ["site_scan.search", "site_scan.detail", "memory.write"],
           max_steps: 15,
         },
@@ -1310,11 +1310,11 @@ const zoningOpportunityGraph: WorkflowGraph = {
     {
       id: "analysis", type: "openai", position: row(2),
       data: { step: {
-        id: "analysis", type: "openai", name: "Zoning opportunity analysis",
+        id: "analysis", type: "openai", name: "Opportunity analysis",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You write CRE land use opportunity briefs. Focus on the delta between current use/value and potential highest-and-best use. Include realistic rezone feasibility notes.",
-          prompt: "Zoning mismatch scan results:\n{{steps.scan.text}}\n\nWrite an opportunity brief:\n\n1. OPPORTUNITIES TABLE\n   | Address | Current Zoning | Surrounding Zoning | Acreage | Assessed Value | Value/Acre | Opportunity Type |\n\n2. TOP 3 OPPORTUNITIES (detailed writeup)\n   - Current state and why it's underutilized\n   - What the surrounding area suggests about highest-and-best use\n   - Estimated value uplift if rezoned (rough, based on assessed values of comparable commercial parcels)\n   - Rezone feasibility (is it consistent with surrounding uses? political climate?)\n\n3. RISKS\n   - Environmental, title, political opposition, infrastructure gaps\n\nPreserve all [ss:N] citations.",
+          system: "You write opportunity briefs. Focus on the delta between current value and potential best use. Include realistic feasibility notes.",
+          prompt: "Undervalued scan results:\n{{steps.scan.text}}\n\nWrite an opportunity brief:\n\n1. OPPORTUNITIES TABLE\n   | Name | Current Profile | Surrounding Profile | Size | Estimated Value | Value/Unit | Opportunity Type |\n\n2. TOP 3 OPPORTUNITIES (detailed writeup)\n   - Current state and why it's underutilized\n   - What the surrounding area suggests about best use\n   - Estimated value uplift if repositioned (rough, based on values of comparable options)\n   - Feasibility (is it consistent with surrounding options? conditions?)\n\n3. RISKS\n   - Compliance, ownership, opposition, resource gaps\n\nPreserve all [ss:N] citations.",
           max_tokens: 2000,
         },
       } },
@@ -1322,10 +1322,10 @@ const zoningOpportunityGraph: WorkflowGraph = {
     {
       id: "email", type: "send_email", position: row(3),
       data: { step: {
-        id: "email", type: "send_email", name: "Deliver zoning opportunity brief",
+        id: "email", type: "send_email", name: "Deliver opportunity brief",
         config: {
           to: "{{secrets.broker_email}}",
-          subject: "Zoning opportunity finder -- rezone plays identified",
+          subject: "Undervalued opportunity finder -- upside plays identified",
           text: "{{steps.analysis.text}}",
         },
       } },
@@ -1345,13 +1345,13 @@ const zoningOpportunityGraph: WorkflowGraph = {
 
 
 // ══════════════════════════════════════════════════════════════
-// 29 - Lease expiry auto-alert (trigger_lease_expiry)
+// 29 - Contract expiry auto-alert (trigger_lease_expiry)
 // ══════════════════════════════════════════════════════════════
 
 const leaseExpiryAutoAlertGraph: WorkflowGraph = {
   nodes: [
-    { id: "trigger", type: "trigger_lease_expiry", position: row(0), data: { step: { id: "trigger", type: "trigger_lease_expiry", name: "Lease expiry (90d)", config: { days_before: 90 } } } },
-    { id: "notify", type: "for_each", position: row(1), data: { step: { id: "notify", type: "for_each", name: "Email each tenant", config: { items: "{{steps.trigger.input.properties}}", action_type: "send_email", action_config: { to: "{{item.tenant_email}}", subject: "Lease Expiry Notice -- {{item.property_name}}", text: "Your lease at {{item.property_name}} expires on {{item.expiration_date}}. Please contact us to discuss renewal options." } } } } },
+    { id: "trigger", type: "trigger_lease_expiry", position: row(0), data: { step: { id: "trigger", type: "trigger_lease_expiry", name: "Contract expiry (90d)", config: { days_before: 90 } } } },
+    { id: "notify", type: "for_each", position: row(1), data: { step: { id: "notify", type: "for_each", name: "Email each contact", config: { items: "{{steps.trigger.input.properties}}", action_type: "send_email", action_config: { to: "{{item.tenant_email}}", subject: "Contract Expiry Notice -- {{item.property_name}}", text: "Your contract for {{item.property_name}} expires on {{item.expiration_date}}. Please contact us to discuss renewal options." } } } } },
   ],
   edges: [edge("trigger", "notify")],
 };
@@ -1364,7 +1364,7 @@ const weeklyPipelineDigestGraph: WorkflowGraph = {
   nodes: [
     { id: "trigger", type: "trigger_cron", position: row(0), data: { step: { id: "trigger", type: "trigger_cron", name: "Monday 9am UTC", config: { cron: "0 9 * * 1" } } } },
     { id: "props", type: "query_properties", position: row(1), data: { step: { id: "props", type: "query_properties", name: "Active pipeline", config: { filter: {}, limit: 100 } } } },
-    { id: "summarize", type: "openai", position: row(2), data: { step: { id: "summarize", type: "openai", name: "Summarize pipeline", config: { model: "gpt-4o-mini", system: "You are a CRE portfolio analyst. Write a concise weekly pipeline digest.", prompt: "Properties in pipeline:\n{{steps.props.properties}}\n\nWrite a brief pipeline digest grouped by stage. Highlight any deals stuck for over 14 days.", max_tokens: 1000 } } } },
+    { id: "summarize", type: "openai", position: row(2), data: { step: { id: "summarize", type: "openai", name: "Summarize pipeline", config: { model: "gpt-4o-mini", system: "You are a portfolio analyst. Write a concise weekly pipeline digest.", prompt: "Records in pipeline:\n{{steps.props.properties}}\n\nWrite a brief pipeline digest grouped by stage. Highlight any deals stuck for over 14 days.", max_tokens: 1000 } } } },
     { id: "email", type: "send_email", position: row(3), data: { step: { id: "email", type: "send_email", name: "Send digest", config: { to: "{{secrets.team_email}}", subject: "Weekly Pipeline Digest", text: "{{steps.summarize.text}}" } } } },
   ],
   edges: [edge("trigger", "props"), edge("props", "summarize"), edge("summarize", "email")],
@@ -1380,7 +1380,7 @@ const dealStageNotificationGraph: WorkflowGraph = {
   nodes: [
     { id: "trigger", type: "trigger_deal_stage", position: row(0), data: { step: { id: "trigger", type: "trigger_deal_stage", name: "Deal -> Pending", config: { to_stage: "pending" } } } },
     { id: "contacts", type: "query_clients", position: row(1), data: { step: { id: "contacts", type: "query_clients", name: "Get contacts", config: { filter: {}, limit: 25 } } } },
-    { id: "notify", type: "send_email", position: row(2), data: { step: { id: "notify", type: "send_email", name: "Notify team", config: { to: "{{secrets.team_email}}", subject: "Deal moved to Pending -- {{steps.trigger.input.address}}", text: "Property {{steps.trigger.input.address}} has moved from {{steps.trigger.input.from_stage}} to pending." } } } },
+    { id: "notify", type: "send_email", position: row(2), data: { step: { id: "notify", type: "send_email", name: "Notify team", config: { to: "{{secrets.team_email}}", subject: "Deal moved to Pending -- {{steps.trigger.input.address}}", text: "Record {{steps.trigger.input.address}} has moved from {{steps.trigger.input.from_stage}} to pending." } } } },
   ],
   edges: [edge("trigger", "contacts"), edge("contacts", "notify")],
 };
@@ -1388,7 +1388,7 @@ const dealStageNotificationGraph: WorkflowGraph = {
 
 
 // ══════════════════════════════════════════════════════════════
-// 31 - Deal score underwriting (manual)
+// 31 - Deal score analysis (manual)
 // ══════════════════════════════════════════════════════════════
 
 const dealScoreUnderwritingGraph: WorkflowGraph = {
@@ -1396,7 +1396,7 @@ const dealScoreUnderwritingGraph: WorkflowGraph = {
     {
       id: "trigger", type: "trigger_manual", position: row(0),
       data: { step: {
-        id: "trigger", type: "trigger_manual", name: "Start underwriting",
+        id: "trigger", type: "trigger_manual", name: "Start analysis",
         config: {
           input_fields: [
             { name: "property_address", type: "text", label: "Property address", required: true },
@@ -1446,18 +1446,18 @@ const dealScoreUnderwritingGraph: WorkflowGraph = {
     {
       id: "run_calc", type: "agent", position: row(2),
       data: { step: {
-        id: "run_calc", type: "agent", name: "Run underwriting battery",
+        id: "run_calc", type: "agent", name: "Run analysis battery",
         config: {
           model: "claude-sonnet-4-6",
           system:
-            "You are a CRE underwriting analyst. Use the cre.calculate tool to run a complete " +
+            "You are a financial analyst. Use the cre.calculate tool to run a complete " +
             "financial analysis. Request all applicable metrics in a single call: noi, cap_rate, " +
             "cash_on_cash, dscr, ltv, debt_yield, opex_ratio, break_even_occupancy, price_per_sf, " +
             "debt_service, deal_score. Interpret every result with context. Flag any concerning metrics.",
           objective:
-            "Use the numeric inputs from the previous step to run a full CRE underwriting battery. " +
+            "Use the numeric inputs from the previous step to run a full financial analysis battery. " +
             "Call the cre_calculate tool with all applicable metrics. Then interpret each result, " +
-            "noting whether values are strong, acceptable, or concerning for a typical CRE acquisition. " +
+            "noting whether values are strong, acceptable, or concerning for a typical acquisition. " +
             "Pay special attention to the deal_score composite and flag any dimension that grades D or F.",
           tools: ["cre.calculate"],
           max_steps: 4,
@@ -1467,9 +1467,9 @@ const dealScoreUnderwritingGraph: WorkflowGraph = {
     {
       id: "report", type: "generate_document", position: row(3),
       data: { step: {
-        id: "report", type: "generate_document", name: "Generate underwriting report",
+        id: "report", type: "generate_document", name: "Generate analysis report",
         config: {
-          title: "Deal Underwriting Report",
+          title: "Deal Analysis Report",
           subtitle: "{{steps.calc_noi.output.address}}",
           sections: [
             { heading: "Executive Summary", body: "{{steps.run_calc.output}}" },
@@ -1491,9 +1491,9 @@ const dealScoreUnderwritingGraph: WorkflowGraph = {
 // ══════════════════════════════════════════════════════════════
 
 // ══════════════════════════════════════════════════════════════
-// CRE single-step tools, exposed as manual-trigger workflows.
-// Each was formerly a standalone page; a broker now runs them from
-// the Workflows catalog. They wrap the matching Drift CRE n8n node.
+// Single-step tools, exposed as manual-trigger workflows.
+// Each was formerly a standalone page; a user now runs them from
+// the Workflows catalog. They wrap the matching Drift n8n node.
 // ══════════════════════════════════════════════════════════════
 
 const marketCompsGraph: WorkflowGraph = {
@@ -1501,16 +1501,16 @@ const marketCompsGraph: WorkflowGraph = {
     {
       id: "trigger", type: "trigger_manual", position: row(0),
       data: { step: {
-        id: "trigger", type: "trigger_manual", name: "Run market comps",
+        id: "trigger", type: "trigger_manual", name: "Run comparables lookup",
         config: { input_fields: [
-          { name: "property_type", label: "Property Type", type: "text" as const, placeholder: "Retail (blank = all types)" },
+          { name: "property_type", label: "Record Type", type: "text" as const, placeholder: "Retail (blank = all types)" },
         ] },
       } },
     },
     {
       id: "comps", type: "market_comps", position: row(1),
       data: { step: {
-        id: "comps", type: "market_comps", name: "Look up sales comparables",
+        id: "comps", type: "market_comps", name: "Look up comparables",
         config: { property_type: "{{steps.trigger.input.property_type}}", limit: 50 },
       } },
     },
@@ -1523,9 +1523,9 @@ const underwriteGraph: WorkflowGraph = {
     {
       id: "trigger", type: "trigger_manual", position: row(0),
       data: { step: {
-        id: "trigger", type: "trigger_manual", name: "Submit a rent roll",
+        id: "trigger", type: "trigger_manual", name: "Submit a spreadsheet",
         config: { input_fields: [
-          { name: "vault_item_id", label: "Rent Roll (vault item ID)", type: "text" as const, required: true, placeholder: "Vault item ID of the rent-roll spreadsheet" },
+          { name: "vault_item_id", label: "Spreadsheet (vault item ID)", type: "text" as const, required: true, placeholder: "Vault item ID of the spreadsheet" },
           { name: "purchase_price", label: "Purchase Price (optional)", type: "number" as const, placeholder: "e.g. 4250000" },
         ] },
       } },
@@ -1533,7 +1533,7 @@ const underwriteGraph: WorkflowGraph = {
     {
       id: "model", type: "underwrite", position: row(1),
       data: { step: {
-        id: "model", type: "underwrite", name: "Run DCF underwriting",
+        id: "model", type: "underwrite", name: "Run DCF analysis",
         config: { vault_item_id: "{{steps.trigger.input.vault_item_id}}", purchase_price: "{{steps.trigger.input.purchase_price}}" },
       } },
     },
@@ -1546,16 +1546,16 @@ const leaseAbstractGraph: WorkflowGraph = {
     {
       id: "trigger", type: "trigger_manual", position: row(0),
       data: { step: {
-        id: "trigger", type: "trigger_manual", name: "Submit a lease",
+        id: "trigger", type: "trigger_manual", name: "Submit a document",
         config: { input_fields: [
-          { name: "vault_item_id", label: "Lease (vault item ID)", type: "text" as const, required: true, placeholder: "Vault item ID of the lease document" },
+          { name: "vault_item_id", label: "Document (vault item ID)", type: "text" as const, required: true, placeholder: "Vault item ID of the document" },
         ] },
       } },
     },
     {
       id: "abstract", type: "lease_abstract", position: row(1),
       data: { step: {
-        id: "abstract", type: "lease_abstract", name: "Abstract lease terms",
+        id: "abstract", type: "lease_abstract", name: "Extract document terms",
         config: { vault_item_id: "{{steps.trigger.input.vault_item_id}}" },
       } },
     },
@@ -1564,7 +1564,7 @@ const leaseAbstractGraph: WorkflowGraph = {
 };
 
 // ══════════════════════════════════════════════════════════════
-// 26 - AI agent: corridor void brief (manual)
+// 26 - AI agent: research brief (manual)
 //
 // Demonstrates the Approach-B agent pattern from the design: an Agent
 // node with a Chat Model, Memory, and a Tool wired into its bottom
@@ -1584,11 +1584,11 @@ const agentCorridorBriefGraph: WorkflowGraph = {
     {
       id: "agent", type: "agent", position: { x: 380, y: 280 },
       data: { step: {
-        id: "agent", type: "agent", name: "Corridor void analysis",
+        id: "agent", type: "agent", name: "Research scan",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You are a CRE void analyst. Identify what is missing from a trade area -- underserved categories, vacant or underutilized parcels -- and cite every data point with [ss:N] markers.",
-          objective: "Run a void analysis along the corridor defined by {{secrets.corridor_anchors}}. Report the missing business categories and the top candidate parcels, then summarize the findings for a development team.",
+          system: "You are a research analyst. Identify what is missing from a target area -- underserved categories, high-potential or underutilized candidates -- and cite every data point with [ss:N] markers.",
+          objective: "Run a research scan across the area defined by {{secrets.corridor_anchors}}. Report the missing categories and the top candidates, then summarize the findings for your team.",
           tools: [],
           max_steps: 10,
         },
@@ -1611,7 +1611,7 @@ const agentCorridorBriefGraph: WorkflowGraph = {
     {
       id: "tool", type: "agent_tool", position: { x: 630, y: 540 },
       data: { step: {
-        id: "tool", type: "agent_tool", name: "Void analysis tool",
+        id: "tool", type: "agent_tool", name: "Research tool",
         config: { tool: "site_scan.void_analysis" },
       } },
     },
@@ -1621,7 +1621,7 @@ const agentCorridorBriefGraph: WorkflowGraph = {
         id: "email", type: "send_email", name: "Email the brief",
         config: {
           to: "{{secrets.broker_email}}",
-          subject: "Corridor void analysis brief",
+          subject: "Research scan brief",
           text: "{{steps.agent.text}}",
         },
       } },
@@ -1639,9 +1639,9 @@ const agentCorridorBriefGraph: WorkflowGraph = {
 export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   {
     slug: "market-comps-lookup",
-    name: "Market comps lookup",
-    description: "On demand. Pulls imported sales comparables for a property type and rolls up average price/SF and cap rate. Formerly the Market Comps page.",
-    category: "Deal pipeline",
+    name: "Comparables lookup",
+    description: "On demand. Pulls imported comparables for a record type and rolls up average price and key metrics. Formerly the Comparables page.",
+    category: "Pipeline",
     icon: "FileSpreadsheet",
     accent: "accent",
     triggerLabel: "Manual",
@@ -1649,9 +1649,9 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "one-click-underwriter",
-    name: "One-click underwriter",
-    description: "On demand. Runs a DCF model on a rent-roll spreadsheet from the vault: indicated value, NOI, implied cap, and (with a price) IRR and equity multiple. Formerly the Underwriter page.",
-    category: "Deal pipeline",
+    name: "One-click analyzer",
+    description: "On demand. Runs a DCF model on a spreadsheet from the vault: indicated value, NOI, implied return, and (with a price) IRR and equity multiple. Formerly the Analyzer page.",
+    category: "Pipeline",
     icon: "Calculator",
     accent: "accent",
     triggerLabel: "Manual",
@@ -1660,9 +1660,9 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "lease-abstractor",
-    name: "Lease abstractor",
-    description: "On demand. Runs AI lease abstraction on a lease document in the vault: extracted deal terms, financials, and key clauses. Formerly the Lease Abstractor page.",
-    category: "Lease management",
+    name: "Document extractor",
+    description: "On demand. Runs AI extraction on a document in the vault: extracted terms, financials, and key clauses. Formerly the Document Extractor page.",
+    category: "Document management",
     icon: "ScrollText",
     accent: "accent",
     triggerLabel: "Manual",
@@ -1671,9 +1671,9 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "lease-expiration-outreach",
-    name: "Lease expiration outreach",
-    description: "Runs daily. Finds properties with leases expiring in the next 90 days, drafts outreach for each tenant, and sends a digest to the broker.",
-    category: "Lease management",
+    name: "Contract renewal outreach",
+    description: "Runs daily. Finds records with contracts expiring in the next 90 days, drafts outreach for each customer, and sends a digest to your team.",
+    category: "Document management",
     icon: "CalendarClock",
     accent: "flag",
     triggerLabel: "Daily at 9am ET",
@@ -1681,9 +1681,9 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "tenant-renewal-drip",
-    name: "Tenant renewal drip sequence",
-    description: "Weekly. Buckets expiring leases into 90/60/30-day cohorts and drafts escalating renewal communications for each tier.",
-    category: "Lease management",
+    name: "Customer renewal drip sequence",
+    description: "Weekly. Buckets expiring contracts into 90/60/30-day cohorts and drafts escalating renewal communications for each tier.",
+    category: "Document management",
     icon: "Repeat",
     accent: "accent",
     triggerLabel: "Mondays 8am ET",
@@ -1691,29 +1691,29 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "new-listing-distribution",
-    name: "New listing distribution",
-    description: "When a property hits the market, matches it against active buyer/tenant requirements and drafts personalized blast emails.",
+    name: "New record distribution",
+    description: "When a record is added, matches it against active contact requirements and drafts personalized blast emails.",
     category: "Prospecting",
     icon: "Send",
     accent: "verified",
-    triggerLabel: "On new-listing webhook",
+    triggerLabel: "On new-record webhook",
     graph: newListingDistributionGraph,
   },
   {
     slug: "tour-followup",
-    name: "Property tour follow-up",
-    description: "After a tour completes, drafts a personalized follow-up email citing property specifics and the prospect's feedback.",
+    name: "Meeting follow-up",
+    description: "After a meeting completes, drafts a personalized follow-up email citing specifics and the prospect's feedback.",
     category: "Client communication",
     icon: "MapPin",
     accent: "verified",
-    triggerLabel: "On tour-completed webhook",
+    triggerLabel: "On meeting-completed webhook",
     graph: tourFollowupGraph,
   },
   {
     slug: "coi-expiration",
     name: "COI expiration tracker",
-    description: "Twice monthly, checks for tenant insurance certificates expiring in the next 60 days and drafts renewal notices.",
-    category: "Lease management",
+    description: "Twice monthly, checks for insurance certificates expiring in the next 60 days and drafts renewal notices.",
+    category: "Document management",
     icon: "ShieldCheck",
     accent: "flag",
     triggerLabel: "1st and 15th of each month",
@@ -1721,8 +1721,8 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "investor-portfolio-report",
-    name: "Investor portfolio report",
-    description: "Monthly. Generates per-investor portfolio summaries covering occupancy, rent rolls, upcoming lease expirations, and vacancy exposure.",
+    name: "Client portfolio report",
+    description: "Monthly. Generates per-client portfolio summaries covering status, revenue data, upcoming contract expirations, and open-item exposure.",
     category: "Client communication",
     icon: "PieChart",
     accent: "ink",
@@ -1731,19 +1731,19 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "lease-abstraction-alert",
-    name: "Lease abstraction summary",
-    description: "When a lease is abstracted, summarizes key terms, flags risks (below-market rent, missing escalation, onerous clauses), and emails the broker.",
-    category: "Lease management",
+    name: "Document extraction summary",
+    description: "When a document is extracted, summarizes key terms, flags risks (below-market pricing, missing escalation, onerous clauses), and emails your team.",
+    category: "Document management",
     icon: "FileSearch",
     accent: "verified",
-    triggerLabel: "On abstraction-complete webhook",
+    triggerLabel: "On extraction-complete webhook",
     graph: leaseAbstractionAlertGraph,
   },
   {
     slug: "due-diligence-checklist",
     name: "Due diligence checklist",
     description: "When an offer is accepted, generates a complete DD checklist with deadlines, responsible parties, and items tailored to the deal.",
-    category: "Deal pipeline",
+    category: "Pipeline",
     icon: "ClipboardCheck",
     accent: "verified",
     triggerLabel: "On offer-accepted webhook",
@@ -1752,8 +1752,8 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "market-update",
-    name: "Market update for investors",
-    description: "Manual trigger. Drafts personalized market updates for each investor, referencing their specific portfolio and the firm's outlook.",
+    name: "Market update for clients",
+    description: "Manual trigger. Drafts personalized market updates for each client, referencing their specific portfolio and your outlook.",
     category: "Client communication",
     icon: "TrendingUp",
     accent: "ink",
@@ -1763,9 +1763,9 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "rent-escalation-tracker",
-    name: "Rent escalation tracker",
-    description: "Monthly. Identifies leases with rent escalations due in the next 90 days, calculates new amounts, and flags overdue notices.",
-    category: "Lease management",
+    name: "Price escalation tracker",
+    description: "Monthly. Identifies contracts with price escalations due in the next 90 days, calculates new amounts, and flags overdue notices.",
+    category: "Document management",
     icon: "ArrowUpRight",
     accent: "accent",
     triggerLabel: "1st of each month",
@@ -1773,8 +1773,8 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "vacancy-marketing",
-    name: "Vacancy marketing blast",
-    description: "Manual trigger. Matches vacant properties against all tenant prospects, scores each match, and drafts personalized outreach.",
+    name: "Availability marketing blast",
+    description: "Manual trigger. Matches available records against all prospects, scores each match, and drafts personalized outreach.",
     category: "Prospecting",
     icon: "Megaphone",
     accent: "verified",
@@ -1784,19 +1784,19 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   {
     slug: "post-close-retention",
     name: "Post-close client retention",
-    description: "After a deal closes, drafts a thank-you email with a referral ask and reminds the broker to add the client to ongoing market updates.",
+    description: "After a deal closes, drafts a thank-you email with a referral ask and reminds your team to add the client to ongoing market updates.",
     category: "Client communication",
     icon: "Heart",
     accent: "verified",
     triggerLabel: "On transaction-closed webhook",
     graph: postCloseRetentionGraph,
   },
-  // ── Site intelligence ──
+  // ── Research ──
   {
     slug: "corridor-void-analysis",
-    name: "Corridor void analysis (weekly)",
-    description: "Weekly. Runs a directional void analysis along a configured corridor (set once via workspace secrets), scores parcels on zoning/acreage/vacancy/value, pulls full auditor + EPA detail on top candidates, and delivers a ranked site intelligence brief.",
-    category: "Site intelligence",
+    name: "Weekly research scan",
+    description: "Weekly. Runs a directional research scan across a configured area (set once via workspace secrets), scores candidates on fit/size/availability/value, pulls full source detail on top candidates, and delivers a ranked research brief.",
+    category: "Research",
     icon: "Radar",
     accent: "accent",
     triggerLabel: "Mondays 6am ET",
@@ -1806,9 +1806,9 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     // Clone resolves to the hand-crafted n8n JSON in n8n-templates.ts
     // (same slug); this graph is the catalog/editor preview.
     slug: "corridor-void-on-demand",
-    name: "Corridor void analysis (on demand)",
-    description: "On demand. Describe what your client needs and the corridor to search; an agent runs the void analysis, scores and ranks parcels, and emails a ranked site brief with citations.",
-    category: "Site intelligence",
+    name: "Research scan (on demand)",
+    description: "On demand. Describe what your client needs and the area to search; an agent runs the research scan, scores and ranks candidates, and emails a ranked research brief with citations.",
+    category: "Research",
     icon: "Radar",
     accent: "accent",
     triggerLabel: "Manual (one-click)",
@@ -1816,9 +1816,9 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "agent-corridor-brief",
-    name: "AI agent: corridor void brief",
-    description: "Manual. An autonomous agent runs the corridor void analysis with a wired Chat Model, Memory, and Void-analysis tool, then emails a cited brief. Showcases the agent + sub-node pattern from the editor.",
-    category: "Site intelligence",
+    name: "AI agent: research brief",
+    description: "Manual. An autonomous agent runs the research scan with a wired Chat Model, Memory, and research tool, then emails a cited brief. Showcases the agent + sub-node pattern from the editor.",
+    category: "Research",
     icon: "Bot",
     accent: "accent",
     triggerLabel: "Manual",
@@ -1826,9 +1826,9 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "development-prospector",
-    name: "Development site prospector",
-    description: "Biweekly. Searches multiple target areas for parcels matching development criteria, pulls full detail, de-dupes against existing pipeline, scores on location/size/zoning/price/environmental risk.",
-    category: "Site intelligence",
+    name: "Opportunity prospector",
+    description: "Biweekly. Searches multiple target areas for candidates matching criteria, pulls full detail, de-dupes against existing pipeline, scores on location/size/readiness/price/risk.",
+    category: "Research",
     icon: "Search",
     accent: "accent",
     triggerLabel: "Wednesdays 6am ET",
@@ -1836,19 +1836,19 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "acquisition-deep-dive",
-    name: "Acquisition target deep-dive",
-    description: "On demand. Given an address, runs the full intelligence stack -- parcel search, auditor records, tax estimate, census demographics, EPA brownfield, lease data -- and drafts an acquisition memo.",
-    category: "Site intelligence",
+    name: "Target deep-dive",
+    description: "On demand. Given an identifier, runs the full research stack -- record search, source records, estimates, demographics, status, contract data -- and drafts a research memo.",
+    category: "Research",
     icon: "Microscope",
     accent: "verified",
-    triggerLabel: "On acquisition-target webhook",
+    triggerLabel: "On target webhook",
     graph: acquisitionDeepDiveGraph,
   },
   {
     slug: "multi-market-void-analysis",
-    name: "Multi-market site selection",
-    description: "Manual trigger. Broker provides a development thesis; Dante runs void analyses across 3+ corridors, scans competitive landscape around top candidates, and delivers an investment-grade site selection report.",
-    category: "Site intelligence",
+    name: "Multi-market selection",
+    description: "Manual trigger. You provide a thesis; Dante runs research scans across 3+ segments, scans competitive landscape around top candidates, and delivers a rigorous selection report.",
+    category: "Research",
     icon: "Globe2",
     accent: "flag",
     triggerLabel: "Manual (one-click)",
@@ -1856,9 +1856,9 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "environmental-scanner",
-    name: "Environmental risk scanner",
-    description: "Manual trigger. Searches a target area for all matching parcels, runs EPA brownfield checks on each, and categorizes every site as CLEAR, CAUTION, or FLAG with Phase I ESA recommendations.",
-    category: "Site intelligence",
+    name: "Risk scanner",
+    description: "Manual trigger. Searches a target area for all matching candidates, runs risk checks on each, and categorizes every candidate as CLEAR, CAUTION, or FLAG with deeper-review recommendations.",
+    category: "Research",
     icon: "Leaf",
     accent: "flag",
     triggerLabel: "Manual (one-click)",
@@ -1866,9 +1866,9 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "parcel-recheck",
-    name: "Saved parcel re-check",
-    description: "Monthly. Re-checks all saved parcels for changes in ownership, assessed value, zoning, or EPA status since last review. Only alerts when something actually changed.",
-    category: "Site intelligence",
+    name: "Saved record re-check",
+    description: "Monthly. Re-checks all saved records for changes in ownership, estimated value, attributes, or status since last review. Only alerts when something actually changed.",
+    category: "Research",
     icon: "RefreshCw",
     accent: "ink",
     triggerLabel: "1st of each month",
@@ -1876,9 +1876,9 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "zoning-opportunity-finder",
-    name: "Zoning change opportunity finder",
-    description: "Biweekly. Searches target areas for parcels zoned below surrounding uses -- residential lots in commercial corridors, agricultural land near industrial parks -- indicating rezone + development plays.",
-    category: "Site intelligence",
+    name: "Undervalued opportunity finder",
+    description: "Biweekly. Searches target areas for candidates valued below surrounding options -- untapped potential in high-demand segments -- indicating upside plays.",
+    category: "Research",
     icon: "Layers",
     accent: "accent",
     triggerLabel: "Biweekly Fridays 6am ET",
@@ -1887,9 +1887,9 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   // ── Phase B templates (new step types) ──
   {
     slug: "lease-expiry-auto-alert",
-    name: "Lease expiry auto-alert",
-    description: "Fires daily when leases are within 90 days of expiration, emails each tenant contact automatically.",
-    category: "Lease management",
+    name: "Contract expiry auto-alert",
+    description: "Fires daily when contracts are within 90 days of expiration, emails each contact automatically.",
+    category: "Document management",
     icon: "CalendarX2",
     accent: "verified",
     triggerLabel: "90 days before expiry",
@@ -1899,7 +1899,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     slug: "weekly-pipeline-digest",
     name: "Weekly pipeline digest",
     description: "Every Monday at 9am, query the full pipeline, generate an AI summary grouped by stage, and email the team.",
-    category: "Deal pipeline",
+    category: "Pipeline",
     icon: "BarChart3",
     accent: "ink",
     triggerLabel: "Mondays 9am UTC",
@@ -1908,8 +1908,8 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   {
     slug: "deal-stage-notification",
     name: "Deal stage notification",
-    description: "When a property moves to a pending stage, automatically email the team with the deal details.",
-    category: "Deal pipeline",
+    description: "When a record moves to a pending stage, automatically email the team with the deal details.",
+    category: "Pipeline",
     icon: "ArrowRightLeft",
     accent: "verified",
     triggerLabel: "Stage change to pending",
@@ -1917,7 +1917,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "deal-score-underwriting",
-    name: "Deal score underwriting",
+    name: "Deal score analysis",
     description: "Run a full due diligence battery on a deal -- NOI, cap rate, DSCR, cash-on-cash, LTV, and composite deal score. Generates a branded PDF report.",
     category: "Due diligence",
     icon: "Target",

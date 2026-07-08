@@ -27,7 +27,7 @@ function stripEmojis(text: string): string {
   return text.replace(EMOJI_RE, "").replace(/  +/g, " ");
 }
 
-const SYSTEM_PROMPT = `You are a web research assistant for Drift, a platform for commercial real estate professionals.
+const SYSTEM_PROMPT = `You are a web research assistant for Drift, a platform for building AI agents, voice assistants, and workflows.
 
 When asked to research a topic, URL, company, or data point:
 1. Use the web_search tool to find relevant, current information.

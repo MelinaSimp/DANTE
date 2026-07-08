@@ -30,12 +30,10 @@ export default async function SignupPage({
 
     if (!first_name) throw new Error("First name is required.");
     if (!last_name) throw new Error("Last name is required.");
-    // Net-new signups are wealth-only as of 2026-05-03 — see
-    // SIGNUP_INDUSTRIES in lib/industry/config.ts. Existing
-    // real_estate workspaces keep working; the front door is
-    // closed, the back rooms aren't.
+    // Validate the selected category against the allow-list in
+    // SIGNUP_INDUSTRIES (lib/industry/config.ts).
     if (!(SIGNUP_INDUSTRIES as readonly string[]).includes(industry)) {
-      throw new Error("Industry not supported. Drift is for commercial real estate professionals.");
+      throw new Error("That option isn't supported yet. Please pick one of the available choices.");
     }
 
     if (!token) throw new Error("Invite token is required.");

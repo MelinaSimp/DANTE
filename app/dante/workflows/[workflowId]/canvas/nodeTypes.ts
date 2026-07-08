@@ -64,15 +64,15 @@ export const NODE_TYPES: NodeTypeMeta[] = [
       config: { scheduled_for: new Date().toISOString() } }),
   },
   {
-    type: "trigger_lease_expiry", label: "Lease expiry", hint: "Fires when leases expire within N days",
-    icon: CalendarX2, group: "trigger", category: "trigger", accent: "verified",
-    default: (id) => mk({ id, type: "trigger_lease_expiry", name: "Lease expiry",
+    type: "trigger_lease_expiry", label: "Deadline approaching", hint: "Fires when a dated record is within N days",
+    icon: CalendarX2, group: "trigger", category: "cre", accent: "verified",
+    default: (id) => mk({ id, type: "trigger_lease_expiry", name: "Deadline approaching",
       config: { days_before: 90 } }),
   },
   {
-    type: "trigger_deal_stage", label: "Deal stage change", hint: "Fires on pipeline stage transition",
-    icon: ArrowRightLeft, group: "trigger", category: "trigger", accent: "verified",
-    default: (id) => mk({ id, type: "trigger_deal_stage", name: "Deal stage change",
+    type: "trigger_deal_stage", label: "Stage change", hint: "Fires when a record's pipeline stage changes",
+    icon: ArrowRightLeft, group: "trigger", category: "cre", accent: "verified",
+    default: (id) => mk({ id, type: "trigger_deal_stage", name: "Stage change",
       config: {} }),
   },
   // ── Data ──
@@ -257,12 +257,16 @@ export const CATEGORY_LABELS: Record<NodeCategory, string> = {
   ai: "AI / LLM",
   communication: "Communication",
   control: "Control flow",
-  cre: "Commercial RE",
+  cre: "Domain",
   utility: "Utility",
 };
 
+// The "cre" group is intentionally omitted from the palette order so
+// its legacy domain-specific nodes aren't offered when building new
+// workflows. They remain in NODE_TYPES so existing workflows that
+// reference them still render (getMeta resolves by type).
 export const CATEGORY_ORDER: NodeCategory[] = [
-  "trigger", "data", "ai", "communication", "control", "cre", "utility",
+  "trigger", "data", "ai", "communication", "control", "utility",
 ];
 
 export function getMeta(type: StepType): NodeTypeMeta | undefined {
