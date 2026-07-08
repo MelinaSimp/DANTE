@@ -1350,8 +1350,8 @@ const zoningOpportunityGraph: WorkflowGraph = {
 
 const leaseExpiryAutoAlertGraph: WorkflowGraph = {
   nodes: [
-    { id: "trigger", type: "trigger_lease_expiry", position: row(0), data: { step: { id: "trigger", type: "trigger_lease_expiry", name: "Lease expiry (90d)", config: { days_before: 90 } } } },
-    { id: "notify", type: "for_each", position: row(1), data: { step: { id: "notify", type: "for_each", name: "Email each tenant", config: { items: "{{steps.trigger.input.properties}}", action_type: "send_email", action_config: { to: "{{item.tenant_email}}", subject: "Lease Expiry Notice -- {{item.property_name}}", text: "Your lease at {{item.property_name}} expires on {{item.expiration_date}}. Please contact us to discuss renewal options." } } } } },
+    { id: "trigger", type: "trigger_lease_expiry", position: row(0), data: { step: { id: "trigger", type: "trigger_lease_expiry", name: "Contract expiry (90d)", config: { days_before: 90 } } } },
+    { id: "notify", type: "for_each", position: row(1), data: { step: { id: "notify", type: "for_each", name: "Email each contact", config: { items: "{{steps.trigger.input.properties}}", action_type: "send_email", action_config: { to: "{{item.tenant_email}}", subject: "Contract Expiry Notice -- {{item.property_name}}", text: "Your contract for {{item.property_name}} expires on {{item.expiration_date}}. Please contact us to discuss renewal options." } } } } },
   ],
   edges: [edge("trigger", "notify")],
 };
@@ -1364,7 +1364,7 @@ const weeklyPipelineDigestGraph: WorkflowGraph = {
   nodes: [
     { id: "trigger", type: "trigger_cron", position: row(0), data: { step: { id: "trigger", type: "trigger_cron", name: "Monday 9am UTC", config: { cron: "0 9 * * 1" } } } },
     { id: "props", type: "query_properties", position: row(1), data: { step: { id: "props", type: "query_properties", name: "Active pipeline", config: { filter: {}, limit: 100 } } } },
-    { id: "summarize", type: "openai", position: row(2), data: { step: { id: "summarize", type: "openai", name: "Summarize pipeline", config: { model: "gpt-4o-mini", system: "You are a CRE portfolio analyst. Write a concise weekly pipeline digest.", prompt: "Properties in pipeline:\n{{steps.props.properties}}\n\nWrite a brief pipeline digest grouped by stage. Highlight any deals stuck for over 14 days.", max_tokens: 1000 } } } },
+    { id: "summarize", type: "openai", position: row(2), data: { step: { id: "summarize", type: "openai", name: "Summarize pipeline", config: { model: "gpt-4o-mini", system: "You are a portfolio analyst. Write a concise weekly pipeline digest.", prompt: "Records in pipeline:\n{{steps.props.properties}}\n\nWrite a brief pipeline digest grouped by stage. Highlight any deals stuck for over 14 days.", max_tokens: 1000 } } } },
     { id: "email", type: "send_email", position: row(3), data: { step: { id: "email", type: "send_email", name: "Send digest", config: { to: "{{secrets.team_email}}", subject: "Weekly Pipeline Digest", text: "{{steps.summarize.text}}" } } } },
   ],
   edges: [edge("trigger", "props"), edge("props", "summarize"), edge("summarize", "email")],
@@ -1380,7 +1380,7 @@ const dealStageNotificationGraph: WorkflowGraph = {
   nodes: [
     { id: "trigger", type: "trigger_deal_stage", position: row(0), data: { step: { id: "trigger", type: "trigger_deal_stage", name: "Deal -> Pending", config: { to_stage: "pending" } } } },
     { id: "contacts", type: "query_clients", position: row(1), data: { step: { id: "contacts", type: "query_clients", name: "Get contacts", config: { filter: {}, limit: 25 } } } },
-    { id: "notify", type: "send_email", position: row(2), data: { step: { id: "notify", type: "send_email", name: "Notify team", config: { to: "{{secrets.team_email}}", subject: "Deal moved to Pending -- {{steps.trigger.input.address}}", text: "Property {{steps.trigger.input.address}} has moved from {{steps.trigger.input.from_stage}} to pending." } } } },
+    { id: "notify", type: "send_email", position: row(2), data: { step: { id: "notify", type: "send_email", name: "Notify team", config: { to: "{{secrets.team_email}}", subject: "Deal moved to Pending -- {{steps.trigger.input.address}}", text: "Record {{steps.trigger.input.address}} has moved from {{steps.trigger.input.from_stage}} to pending." } } } },
   ],
   edges: [edge("trigger", "contacts"), edge("contacts", "notify")],
 };
@@ -1388,7 +1388,7 @@ const dealStageNotificationGraph: WorkflowGraph = {
 
 
 // ══════════════════════════════════════════════════════════════
-// 31 - Deal score underwriting (manual)
+// 31 - Deal score analysis (manual)
 // ══════════════════════════════════════════════════════════════
 
 const dealScoreUnderwritingGraph: WorkflowGraph = {
@@ -1396,7 +1396,7 @@ const dealScoreUnderwritingGraph: WorkflowGraph = {
     {
       id: "trigger", type: "trigger_manual", position: row(0),
       data: { step: {
-        id: "trigger", type: "trigger_manual", name: "Start underwriting",
+        id: "trigger", type: "trigger_manual", name: "Start analysis",
         config: {
           input_fields: [
             { name: "property_address", type: "text", label: "Property address", required: true },
@@ -1446,18 +1446,18 @@ const dealScoreUnderwritingGraph: WorkflowGraph = {
     {
       id: "run_calc", type: "agent", position: row(2),
       data: { step: {
-        id: "run_calc", type: "agent", name: "Run underwriting battery",
+        id: "run_calc", type: "agent", name: "Run analysis battery",
         config: {
           model: "claude-sonnet-4-6",
           system:
-            "You are a CRE underwriting analyst. Use the cre.calculate tool to run a complete " +
+            "You are a financial analyst. Use the cre.calculate tool to run a complete " +
             "financial analysis. Request all applicable metrics in a single call: noi, cap_rate, " +
             "cash_on_cash, dscr, ltv, debt_yield, opex_ratio, break_even_occupancy, price_per_sf, " +
             "debt_service, deal_score. Interpret every result with context. Flag any concerning metrics.",
           objective:
-            "Use the numeric inputs from the previous step to run a full CRE underwriting battery. " +
+            "Use the numeric inputs from the previous step to run a full financial analysis battery. " +
             "Call the cre_calculate tool with all applicable metrics. Then interpret each result, " +
-            "noting whether values are strong, acceptable, or concerning for a typical CRE acquisition. " +
+            "noting whether values are strong, acceptable, or concerning for a typical acquisition. " +
             "Pay special attention to the deal_score composite and flag any dimension that grades D or F.",
           tools: ["cre.calculate"],
           max_steps: 4,
@@ -1467,9 +1467,9 @@ const dealScoreUnderwritingGraph: WorkflowGraph = {
     {
       id: "report", type: "generate_document", position: row(3),
       data: { step: {
-        id: "report", type: "generate_document", name: "Generate underwriting report",
+        id: "report", type: "generate_document", name: "Generate analysis report",
         config: {
-          title: "Deal Underwriting Report",
+          title: "Deal Analysis Report",
           subtitle: "{{steps.calc_noi.output.address}}",
           sections: [
             { heading: "Executive Summary", body: "{{steps.run_calc.output}}" },
@@ -1491,9 +1491,9 @@ const dealScoreUnderwritingGraph: WorkflowGraph = {
 // ══════════════════════════════════════════════════════════════
 
 // ══════════════════════════════════════════════════════════════
-// CRE single-step tools, exposed as manual-trigger workflows.
-// Each was formerly a standalone page; a broker now runs them from
-// the Workflows catalog. They wrap the matching Drift CRE n8n node.
+// Single-step tools, exposed as manual-trigger workflows.
+// Each was formerly a standalone page; a user now runs them from
+// the Workflows catalog. They wrap the matching Drift n8n node.
 // ══════════════════════════════════════════════════════════════
 
 const marketCompsGraph: WorkflowGraph = {
@@ -1501,16 +1501,16 @@ const marketCompsGraph: WorkflowGraph = {
     {
       id: "trigger", type: "trigger_manual", position: row(0),
       data: { step: {
-        id: "trigger", type: "trigger_manual", name: "Run market comps",
+        id: "trigger", type: "trigger_manual", name: "Run comparables lookup",
         config: { input_fields: [
-          { name: "property_type", label: "Property Type", type: "text" as const, placeholder: "Retail (blank = all types)" },
+          { name: "property_type", label: "Record Type", type: "text" as const, placeholder: "Retail (blank = all types)" },
         ] },
       } },
     },
     {
       id: "comps", type: "market_comps", position: row(1),
       data: { step: {
-        id: "comps", type: "market_comps", name: "Look up sales comparables",
+        id: "comps", type: "market_comps", name: "Look up comparables",
         config: { property_type: "{{steps.trigger.input.property_type}}", limit: 50 },
       } },
     },
@@ -1523,9 +1523,9 @@ const underwriteGraph: WorkflowGraph = {
     {
       id: "trigger", type: "trigger_manual", position: row(0),
       data: { step: {
-        id: "trigger", type: "trigger_manual", name: "Submit a rent roll",
+        id: "trigger", type: "trigger_manual", name: "Submit a spreadsheet",
         config: { input_fields: [
-          { name: "vault_item_id", label: "Rent Roll (vault item ID)", type: "text" as const, required: true, placeholder: "Vault item ID of the rent-roll spreadsheet" },
+          { name: "vault_item_id", label: "Spreadsheet (vault item ID)", type: "text" as const, required: true, placeholder: "Vault item ID of the spreadsheet" },
           { name: "purchase_price", label: "Purchase Price (optional)", type: "number" as const, placeholder: "e.g. 4250000" },
         ] },
       } },
@@ -1533,7 +1533,7 @@ const underwriteGraph: WorkflowGraph = {
     {
       id: "model", type: "underwrite", position: row(1),
       data: { step: {
-        id: "model", type: "underwrite", name: "Run DCF underwriting",
+        id: "model", type: "underwrite", name: "Run DCF analysis",
         config: { vault_item_id: "{{steps.trigger.input.vault_item_id}}", purchase_price: "{{steps.trigger.input.purchase_price}}" },
       } },
     },
@@ -1546,16 +1546,16 @@ const leaseAbstractGraph: WorkflowGraph = {
     {
       id: "trigger", type: "trigger_manual", position: row(0),
       data: { step: {
-        id: "trigger", type: "trigger_manual", name: "Submit a lease",
+        id: "trigger", type: "trigger_manual", name: "Submit a document",
         config: { input_fields: [
-          { name: "vault_item_id", label: "Lease (vault item ID)", type: "text" as const, required: true, placeholder: "Vault item ID of the lease document" },
+          { name: "vault_item_id", label: "Document (vault item ID)", type: "text" as const, required: true, placeholder: "Vault item ID of the document" },
         ] },
       } },
     },
     {
       id: "abstract", type: "lease_abstract", position: row(1),
       data: { step: {
-        id: "abstract", type: "lease_abstract", name: "Abstract lease terms",
+        id: "abstract", type: "lease_abstract", name: "Extract document terms",
         config: { vault_item_id: "{{steps.trigger.input.vault_item_id}}" },
       } },
     },
@@ -1564,7 +1564,7 @@ const leaseAbstractGraph: WorkflowGraph = {
 };
 
 // ══════════════════════════════════════════════════════════════
-// 26 - AI agent: corridor void brief (manual)
+// 26 - AI agent: research brief (manual)
 //
 // Demonstrates the Approach-B agent pattern from the design: an Agent
 // node with a Chat Model, Memory, and a Tool wired into its bottom
@@ -1584,11 +1584,11 @@ const agentCorridorBriefGraph: WorkflowGraph = {
     {
       id: "agent", type: "agent", position: { x: 380, y: 280 },
       data: { step: {
-        id: "agent", type: "agent", name: "Corridor void analysis",
+        id: "agent", type: "agent", name: "Research scan",
         config: {
           model: "claude-sonnet-4-6",
-          system: "You are a CRE void analyst. Identify what is missing from a trade area -- underserved categories, vacant or underutilized parcels -- and cite every data point with [ss:N] markers.",
-          objective: "Run a void analysis along the corridor defined by {{secrets.corridor_anchors}}. Report the missing business categories and the top candidate parcels, then summarize the findings for a development team.",
+          system: "You are a research analyst. Identify what is missing from a target area -- underserved categories, high-potential or underutilized candidates -- and cite every data point with [ss:N] markers.",
+          objective: "Run a research scan across the area defined by {{secrets.corridor_anchors}}. Report the missing categories and the top candidates, then summarize the findings for your team.",
           tools: [],
           max_steps: 10,
         },
@@ -1611,7 +1611,7 @@ const agentCorridorBriefGraph: WorkflowGraph = {
     {
       id: "tool", type: "agent_tool", position: { x: 630, y: 540 },
       data: { step: {
-        id: "tool", type: "agent_tool", name: "Void analysis tool",
+        id: "tool", type: "agent_tool", name: "Research tool",
         config: { tool: "site_scan.void_analysis" },
       } },
     },
@@ -1621,7 +1621,7 @@ const agentCorridorBriefGraph: WorkflowGraph = {
         id: "email", type: "send_email", name: "Email the brief",
         config: {
           to: "{{secrets.broker_email}}",
-          subject: "Corridor void analysis brief",
+          subject: "Research scan brief",
           text: "{{steps.agent.text}}",
         },
       } },
@@ -1639,8 +1639,8 @@ const agentCorridorBriefGraph: WorkflowGraph = {
 export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   {
     slug: "market-comps-lookup",
-    name: "Market comps lookup",
-    description: "On demand. Pulls imported sales comparables for a property type and rolls up average price/SF and cap rate. Formerly the Market Comps page.",
+    name: "Comparables lookup",
+    description: "On demand. Pulls imported comparables for a record type and rolls up average price and key metrics. Formerly the Comparables page.",
     category: "Pipeline",
     icon: "FileSpreadsheet",
     accent: "accent",
@@ -1649,8 +1649,8 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "one-click-underwriter",
-    name: "One-click underwriter",
-    description: "On demand. Runs a DCF model on a rent-roll spreadsheet from the vault: indicated value, NOI, implied cap, and (with a price) IRR and equity multiple. Formerly the Underwriter page.",
+    name: "One-click analyzer",
+    description: "On demand. Runs a DCF model on a spreadsheet from the vault: indicated value, NOI, implied return, and (with a price) IRR and equity multiple. Formerly the Analyzer page.",
     category: "Pipeline",
     icon: "Calculator",
     accent: "accent",
@@ -1660,8 +1660,8 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "lease-abstractor",
-    name: "Lease abstractor",
-    description: "On demand. Runs AI lease abstraction on a lease document in the vault: extracted deal terms, financials, and key clauses. Formerly the Lease Abstractor page.",
+    name: "Document extractor",
+    description: "On demand. Runs AI extraction on a document in the vault: extracted terms, financials, and key clauses. Formerly the Document Extractor page.",
     category: "Document management",
     icon: "ScrollText",
     accent: "accent",
@@ -1671,8 +1671,8 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "lease-expiration-outreach",
-    name: "Lease expiration outreach",
-    description: "Runs daily. Finds properties with leases expiring in the next 90 days, drafts outreach for each tenant, and sends a digest to the broker.",
+    name: "Contract renewal outreach",
+    description: "Runs daily. Finds records with contracts expiring in the next 90 days, drafts outreach for each customer, and sends a digest to your team.",
     category: "Document management",
     icon: "CalendarClock",
     accent: "flag",
@@ -1681,8 +1681,8 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "tenant-renewal-drip",
-    name: "Tenant renewal drip sequence",
-    description: "Weekly. Buckets expiring leases into 90/60/30-day cohorts and drafts escalating renewal communications for each tier.",
+    name: "Customer renewal drip sequence",
+    description: "Weekly. Buckets expiring contracts into 90/60/30-day cohorts and drafts escalating renewal communications for each tier.",
     category: "Document management",
     icon: "Repeat",
     accent: "accent",
@@ -1691,28 +1691,28 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "new-listing-distribution",
-    name: "New listing distribution",
-    description: "When a property hits the market, matches it against active buyer/tenant requirements and drafts personalized blast emails.",
+    name: "New record distribution",
+    description: "When a record is added, matches it against active contact requirements and drafts personalized blast emails.",
     category: "Prospecting",
     icon: "Send",
     accent: "verified",
-    triggerLabel: "On new-listing webhook",
+    triggerLabel: "On new-record webhook",
     graph: newListingDistributionGraph,
   },
   {
     slug: "tour-followup",
-    name: "Property tour follow-up",
-    description: "After a tour completes, drafts a personalized follow-up email citing property specifics and the prospect's feedback.",
+    name: "Meeting follow-up",
+    description: "After a meeting completes, drafts a personalized follow-up email citing specifics and the prospect's feedback.",
     category: "Client communication",
     icon: "MapPin",
     accent: "verified",
-    triggerLabel: "On tour-completed webhook",
+    triggerLabel: "On meeting-completed webhook",
     graph: tourFollowupGraph,
   },
   {
     slug: "coi-expiration",
     name: "COI expiration tracker",
-    description: "Twice monthly, checks for tenant insurance certificates expiring in the next 60 days and drafts renewal notices.",
+    description: "Twice monthly, checks for insurance certificates expiring in the next 60 days and drafts renewal notices.",
     category: "Document management",
     icon: "ShieldCheck",
     accent: "flag",
@@ -1721,8 +1721,8 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "investor-portfolio-report",
-    name: "Investor portfolio report",
-    description: "Monthly. Generates per-investor portfolio summaries covering occupancy, rent rolls, upcoming lease expirations, and vacancy exposure.",
+    name: "Client portfolio report",
+    description: "Monthly. Generates per-client portfolio summaries covering status, revenue data, upcoming contract expirations, and open-item exposure.",
     category: "Client communication",
     icon: "PieChart",
     accent: "ink",
@@ -1731,12 +1731,12 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "lease-abstraction-alert",
-    name: "Lease abstraction summary",
-    description: "When a lease is abstracted, summarizes key terms, flags risks (below-market rent, missing escalation, onerous clauses), and emails the broker.",
+    name: "Document extraction summary",
+    description: "When a document is extracted, summarizes key terms, flags risks (below-market pricing, missing escalation, onerous clauses), and emails your team.",
     category: "Document management",
     icon: "FileSearch",
     accent: "verified",
-    triggerLabel: "On abstraction-complete webhook",
+    triggerLabel: "On extraction-complete webhook",
     graph: leaseAbstractionAlertGraph,
   },
   {
@@ -1752,8 +1752,8 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "market-update",
-    name: "Market update for investors",
-    description: "Manual trigger. Drafts personalized market updates for each investor, referencing their specific portfolio and the firm's outlook.",
+    name: "Market update for clients",
+    description: "Manual trigger. Drafts personalized market updates for each client, referencing their specific portfolio and your outlook.",
     category: "Client communication",
     icon: "TrendingUp",
     accent: "ink",
@@ -1763,8 +1763,8 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "rent-escalation-tracker",
-    name: "Rent escalation tracker",
-    description: "Monthly. Identifies leases with rent escalations due in the next 90 days, calculates new amounts, and flags overdue notices.",
+    name: "Price escalation tracker",
+    description: "Monthly. Identifies contracts with price escalations due in the next 90 days, calculates new amounts, and flags overdue notices.",
     category: "Document management",
     icon: "ArrowUpRight",
     accent: "accent",
@@ -1773,8 +1773,8 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "vacancy-marketing",
-    name: "Vacancy marketing blast",
-    description: "Manual trigger. Matches vacant properties against all tenant prospects, scores each match, and drafts personalized outreach.",
+    name: "Availability marketing blast",
+    description: "Manual trigger. Matches available records against all prospects, scores each match, and drafts personalized outreach.",
     category: "Prospecting",
     icon: "Megaphone",
     accent: "verified",
@@ -1784,18 +1784,18 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   {
     slug: "post-close-retention",
     name: "Post-close client retention",
-    description: "After a deal closes, drafts a thank-you email with a referral ask and reminds the broker to add the client to ongoing market updates.",
+    description: "After a deal closes, drafts a thank-you email with a referral ask and reminds your team to add the client to ongoing market updates.",
     category: "Client communication",
     icon: "Heart",
     accent: "verified",
     triggerLabel: "On transaction-closed webhook",
     graph: postCloseRetentionGraph,
   },
-  // ── Site intelligence ──
+  // ── Research ──
   {
     slug: "corridor-void-analysis",
-    name: "Corridor void analysis (weekly)",
-    description: "Weekly. Runs a directional void analysis along a configured corridor (set once via workspace secrets), scores parcels on zoning/acreage/vacancy/value, pulls full auditor + EPA detail on top candidates, and delivers a ranked site intelligence brief.",
+    name: "Weekly research scan",
+    description: "Weekly. Runs a directional research scan across a configured area (set once via workspace secrets), scores candidates on fit/size/availability/value, pulls full source detail on top candidates, and delivers a ranked research brief.",
     category: "Research",
     icon: "Radar",
     accent: "accent",
@@ -1806,8 +1806,8 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     // Clone resolves to the hand-crafted n8n JSON in n8n-templates.ts
     // (same slug); this graph is the catalog/editor preview.
     slug: "corridor-void-on-demand",
-    name: "Corridor void analysis (on demand)",
-    description: "On demand. Describe what your client needs and the corridor to search; an agent runs the void analysis, scores and ranks parcels, and emails a ranked site brief with citations.",
+    name: "Research scan (on demand)",
+    description: "On demand. Describe what your client needs and the area to search; an agent runs the research scan, scores and ranks candidates, and emails a ranked research brief with citations.",
     category: "Research",
     icon: "Radar",
     accent: "accent",
@@ -1816,8 +1816,8 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "agent-corridor-brief",
-    name: "AI agent: corridor void brief",
-    description: "Manual. An autonomous agent runs the corridor void analysis with a wired Chat Model, Memory, and Void-analysis tool, then emails a cited brief. Showcases the agent + sub-node pattern from the editor.",
+    name: "AI agent: research brief",
+    description: "Manual. An autonomous agent runs the research scan with a wired Chat Model, Memory, and research tool, then emails a cited brief. Showcases the agent + sub-node pattern from the editor.",
     category: "Research",
     icon: "Bot",
     accent: "accent",
@@ -1826,8 +1826,8 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "development-prospector",
-    name: "Development site prospector",
-    description: "Biweekly. Searches multiple target areas for parcels matching development criteria, pulls full detail, de-dupes against existing pipeline, scores on location/size/zoning/price/environmental risk.",
+    name: "Opportunity prospector",
+    description: "Biweekly. Searches multiple target areas for candidates matching criteria, pulls full detail, de-dupes against existing pipeline, scores on location/size/readiness/price/risk.",
     category: "Research",
     icon: "Search",
     accent: "accent",
@@ -1836,18 +1836,18 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "acquisition-deep-dive",
-    name: "Acquisition target deep-dive",
-    description: "On demand. Given an address, runs the full intelligence stack -- parcel search, auditor records, tax estimate, census demographics, EPA brownfield, lease data -- and drafts an acquisition memo.",
+    name: "Target deep-dive",
+    description: "On demand. Given an identifier, runs the full research stack -- record search, source records, estimates, demographics, status, contract data -- and drafts a research memo.",
     category: "Research",
     icon: "Microscope",
     accent: "verified",
-    triggerLabel: "On acquisition-target webhook",
+    triggerLabel: "On target webhook",
     graph: acquisitionDeepDiveGraph,
   },
   {
     slug: "multi-market-void-analysis",
-    name: "Multi-market site selection",
-    description: "Manual trigger. Broker provides a development thesis; Dante runs void analyses across 3+ corridors, scans competitive landscape around top candidates, and delivers an investment-grade site selection report.",
+    name: "Multi-market selection",
+    description: "Manual trigger. You provide a thesis; Dante runs research scans across 3+ segments, scans competitive landscape around top candidates, and delivers a rigorous selection report.",
     category: "Research",
     icon: "Globe2",
     accent: "flag",
@@ -1856,8 +1856,8 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "environmental-scanner",
-    name: "Environmental risk scanner",
-    description: "Manual trigger. Searches a target area for all matching parcels, runs EPA brownfield checks on each, and categorizes every site as CLEAR, CAUTION, or FLAG with Phase I ESA recommendations.",
+    name: "Risk scanner",
+    description: "Manual trigger. Searches a target area for all matching candidates, runs risk checks on each, and categorizes every candidate as CLEAR, CAUTION, or FLAG with deeper-review recommendations.",
     category: "Research",
     icon: "Leaf",
     accent: "flag",
@@ -1866,8 +1866,8 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "parcel-recheck",
-    name: "Saved parcel re-check",
-    description: "Monthly. Re-checks all saved parcels for changes in ownership, assessed value, zoning, or EPA status since last review. Only alerts when something actually changed.",
+    name: "Saved record re-check",
+    description: "Monthly. Re-checks all saved records for changes in ownership, estimated value, attributes, or status since last review. Only alerts when something actually changed.",
     category: "Research",
     icon: "RefreshCw",
     accent: "ink",
@@ -1876,8 +1876,8 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "zoning-opportunity-finder",
-    name: "Zoning change opportunity finder",
-    description: "Biweekly. Searches target areas for parcels zoned below surrounding uses -- residential lots in commercial corridors, agricultural land near industrial parks -- indicating rezone + development plays.",
+    name: "Undervalued opportunity finder",
+    description: "Biweekly. Searches target areas for candidates valued below surrounding options -- untapped potential in high-demand segments -- indicating upside plays.",
     category: "Research",
     icon: "Layers",
     accent: "accent",
@@ -1887,8 +1887,8 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   // ── Phase B templates (new step types) ──
   {
     slug: "lease-expiry-auto-alert",
-    name: "Lease expiry auto-alert",
-    description: "Fires daily when leases are within 90 days of expiration, emails each tenant contact automatically.",
+    name: "Contract expiry auto-alert",
+    description: "Fires daily when contracts are within 90 days of expiration, emails each contact automatically.",
     category: "Document management",
     icon: "CalendarX2",
     accent: "verified",
@@ -1908,7 +1908,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   {
     slug: "deal-stage-notification",
     name: "Deal stage notification",
-    description: "When a property moves to a pending stage, automatically email the team with the deal details.",
+    description: "When a record moves to a pending stage, automatically email the team with the deal details.",
     category: "Pipeline",
     icon: "ArrowRightLeft",
     accent: "verified",
@@ -1917,7 +1917,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
   },
   {
     slug: "deal-score-underwriting",
-    name: "Deal score underwriting",
+    name: "Deal score analysis",
     description: "Run a full due diligence battery on a deal -- NOI, cap rate, DSCR, cash-on-cash, LTV, and composite deal score. Generates a branded PDF report.",
     category: "Due diligence",
     icon: "Target",
