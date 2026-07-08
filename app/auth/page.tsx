@@ -2,7 +2,7 @@
 
 // Sign-in / sign-up page, Harvey-ized.
 // Pure white canvas, editorial serif heading, 1px rules, no glass, no
-// GLSL hills. The page that sets the tone for a broker's first
+// GLSL hills. The page that sets the tone for a new user's first
 // 30 seconds with the product.
 
 import { useState, useEffect } from "react";
@@ -179,10 +179,8 @@ export default function AuthPage() {
       </div>
 
       {/* Editorial intro column — shows only on wide screens. Reads from
-          the per-industry config so the marketing pitch on the left
-          updates live as the visitor toggles FA / RE on the form. When
-          signing in (no toggle visible), defaults to real_estate
-          since CRE is the active sales vertical. */}
+          the workspace config so the marketing pitch on the left can be
+          tuned per deployment without touching this component. */}
       <div className="hidden lg:flex absolute left-[8%] top-1/2 -translate-y-1/2 max-w-md flex-col gap-6 z-10">
         <div className="label-section">{industryConfig.eyebrow}</div>
         <h2

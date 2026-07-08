@@ -2,7 +2,7 @@
 
 // AnalysesFeed — dashboard widget. Two real, data-driven panels:
 //   1. Recent analyses — the autonomous pipeline's latest output
-//   2. Portfolio signals — lease-expiry clusters + elevated vacancy
+//   2. Signals — time-sensitive items the pipeline flags for you
 // Self-contained: fetches its own data so it can drop into the
 // dashboard without touching the main dashboard query. Hides itself
 // when there is nothing to show.
@@ -31,10 +31,10 @@ interface Signal {
 }
 
 const TYPE_LABEL: Record<string, string> = {
-  rent_roll: "Rent roll",
-  lease: "Lease",
-  operating_statement: "Operating statement",
-  offering_memo: "Offering memo",
+  spreadsheet: "Spreadsheet",
+  contract: "Contract",
+  statement: "Statement",
+  report: "Report",
   other: "Document",
 };
 
@@ -129,11 +129,11 @@ export default function AnalysesFeed() {
       <div className="glass-card p-4">
         <div className="flex items-center gap-1.5 mb-3 text-[10px] uppercase tracking-wider font-medium text-[var(--ink-subtle)]">
           <Bell className="w-3.5 h-3.5" strokeWidth={1.5} />
-          Portfolio signals
+          Signals
         </div>
         {signals.length === 0 ? (
           <p className="text-xs text-[var(--ink-subtle)] py-4 text-center">
-            No active signals. Lease expirations and vacancy will surface here.
+            No active signals. Deadlines and time-sensitive items will surface here.
           </p>
         ) : (
           <ul className="space-y-1.5">

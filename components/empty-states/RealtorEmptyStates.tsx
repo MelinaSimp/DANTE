@@ -85,11 +85,11 @@ export function RealtorListingsEmpty() {
   return (
     <Chassis
       icon={<Home className="w-5 h-5 text-[var(--ink-muted)]" strokeWidth={1.5} />}
-      eyebrow="No active listings"
-      headline="Your pipeline starts with a listing."
-      body="Add a property you're representing — Dante reads the listing agreement, MLS sheet, and disclosures and answers questions like 'what's the exclusivity term' with a citation back to the document."
-      primary={{ label: "Add a listing", href: "/properties/new" }}
-      secondary={{ label: "Connect MLS (coming soon)", href: "/settings/integrations" }}
+      eyebrow="No records yet"
+      headline="Your pipeline starts with a record."
+      body="Add something you're working on — Dante reads the attached documents and answers questions like 'what's the renewal term' with a citation back to the source."
+      primary={{ label: "Add a record", href: "/properties/new" }}
+      secondary={{ label: "Connect an integration", href: "/settings/integrations" }}
     />
   );
 }
@@ -98,10 +98,10 @@ export function RealtorBuyersEmpty() {
   return (
     <Chassis
       icon={<Users className="w-5 h-5 text-[var(--ink-muted)]" strokeWidth={1.5} />}
-      eyebrow="No buyers yet"
-      headline="Add a buyer Dante can prep you for."
-      body="Once a buyer is in the workspace, every showing recap, every email, every preference goes into Dante's memory — so 'prep me for my 2pm with the Marlows' becomes a one-line ask, not a ten-minute hunt."
-      primary={{ label: "Add a buyer", href: "/contacts/new" }}
+      eyebrow="No contacts yet"
+      headline="Add a contact Dante can prep you for."
+      body="Once a contact is in the workspace, every meeting recap, every email, every preference goes into Dante's memory — so 'prep me for my 2pm with the Marlows' becomes a one-line ask, not a ten-minute hunt."
+      primary={{ label: "Add a contact", href: "/contacts/new" }}
       secondary={{ label: "Import from CSV", href: "/contacts/import" }}
     />
   );
@@ -111,10 +111,10 @@ export function RealtorToursEmpty() {
   return (
     <Chassis
       icon={<Calendar className="w-5 h-5 text-[var(--ink-muted)]" strokeWidth={1.5} />}
-      eyebrow="No tours scheduled"
-      headline="Schedule a showing."
-      body="Tours sync with your calendar. After each one, Dante drafts the recap email — fair-housing-scanned and citation-grounded against the buyer's preferences in memory."
-      primary={{ label: "Schedule a tour", href: "/appointments/new?kind=tour" }}
+      eyebrow="No meetings scheduled"
+      headline="Schedule a meeting."
+      body="Meetings sync with your calendar. After each one, Dante drafts the recap email — citation-grounded against the contact's preferences in memory."
+      primary={{ label: "Schedule a meeting", href: "/appointments/new" }}
       secondary={{ label: "Connect Google Calendar", href: "/settings/integrations" }}
     />
   );
@@ -125,8 +125,8 @@ export function RealtorVaultEmpty() {
     <Chassis
       icon={<FileText className="w-5 h-5 text-[var(--ink-muted)]" strokeWidth={1.5} />}
       eyebrow="Vault is empty"
-      headline="Upload your first listing agreement."
-      body="Dante reads the documents you upload — listing agreements, buyer-broker agreements, leases, disclosures, MLS sheets — and cites them by name and page when you ask. Page numbers are verified; quotes are checked against the source."
+      headline="Upload your first document."
+      body="Dante reads the documents you upload — contracts, agreements, reports, spreadsheets — and cites them by name and page when you ask. Page numbers are verified; quotes are checked against the source."
       primary={{ label: "Upload a document", href: "/dante/archive?upload=1" }}
       secondary={{ label: "See what's supported", href: "/help/vault" }}
     />
@@ -138,10 +138,10 @@ export function RealtorPipelineEmpty() {
     <Chassis
       icon={<Upload className="w-5 h-5 text-[var(--ink-muted)]" strokeWidth={1.5} />}
       eyebrow="Pipeline is empty"
-      headline="No leads, listings, offers, or closings yet."
-      body="Drift's pipeline view aggregates everything you're working on — leads to follow up, listings going stale, offers expiring, closings approaching. Add a buyer or listing to populate it."
-      primary={{ label: "Add a buyer", href: "/contacts/new" }}
-      secondary={{ label: "Add a listing", href: "/properties/new" }}
+      headline="Nothing in your pipeline yet."
+      body="Drift's pipeline view aggregates everything you're working on — items to follow up, work going stale, deadlines approaching. Add a contact or record to populate it."
+      primary={{ label: "Add a contact", href: "/contacts/new" }}
+      secondary={{ label: "Add a record", href: "/properties/new" }}
     />
   );
 }

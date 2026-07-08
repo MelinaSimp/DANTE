@@ -7,7 +7,7 @@ import { getIndustryConfig } from "@/lib/industry/config";
 
 export const metadata: Metadata = {
   title: "Dante AI — Drift",
-  description: "AI assistant for commercial real estate. Ask about deals, leases, compliance, and property data.",
+  description: "AI assistant for any business. Build agents, voice assistants, and workflows on a low-hallucination, citation-grounded LLM.",
 };
 
 export const dynamic = "force-dynamic";

@@ -1,19 +1,18 @@
 // lib/industry/terminology.ts
 //
-// Phase 6 W6.12 — domain terminology dictionaries.
+// Domain terminology dictionaries.
 //
 // Two layers:
-//   1. Built-in per-vertical dictionary (this file). Curated list
+//   1. Built-in dictionary (this file). A small, platform-neutral set
 //      of proper-noun and acronym terms the agent should recognize
 //      and define inline if it's about to use them.
 //   2. Workspace-specific overrides (workspace_terminology table).
-//      Firms add their own custodian names, MLS codes, internal
-//      product names — augments the built-in.
+//      Teams add their own product names, internal acronyms, and
+//      jargon — augments the built-in.
 //
 // Dictionary entries get inlined into the system prompt when the
 // query contains them; this lifts retrieval recall on exact-match
-// queries ("show me account 12345" → recognize "account" + the
-// number; "Schwab" → know it's a custodian, not a noise word).
+// queries ("show me record 12345" → recognize "record" + the number).
 
 import type { Industry } from "./config";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -24,27 +23,21 @@ export interface TerminologyEntry {
   scope?: string;
 }
 
-const REALTOR_TERMS: TerminologyEntry[] = [
-  { term: "MLS", scope: "system", definition: "Multiple Listing Service — broker-shared listing database." },
-  { term: "BBA", scope: "doc_kind", definition: "Buyer-Broker Agreement." },
-  { term: "P&S", scope: "doc_kind", definition: "Purchase & Sale Agreement." },
-  { term: "DOM", scope: "metric", definition: "Days on Market — how long a listing has been active." },
-  { term: "GCI", scope: "metric", definition: "Gross Commission Income." },
-  { term: "earnest money", scope: "transaction", definition: "Buyer's good-faith deposit." },
-  { term: "contingency", scope: "transaction", definition: "Purchase condition (financing, inspection, appraisal, etc.)." },
-  { term: "HOA", scope: "doc_kind", definition: "Homeowners Association — covenants and dues." },
-  { term: "title", scope: "transaction", definition: "Legal document evidencing property ownership." },
-  { term: "escrow", scope: "transaction", definition: "Third-party-held funds during transaction." },
-  { term: "comp", scope: "metric", definition: "Comparable property used for pricing analysis." },
-  { term: "lockbox", scope: "system", definition: "Showing-time access device on a listing." },
-  { term: "pre-approval", scope: "financing", definition: "Lender's preliminary commitment to fund a buyer." },
-  { term: "dual agency", scope: "compliance", definition: "Same agent represents both buyer and seller; consent required." },
-  { term: "exclusive", scope: "doc_kind", definition: "Exclusive right-to-sell listing agreement." },
-  { term: "RESO", scope: "system", definition: "Real Estate Standards Organization — MLS data API standard." },
+const BUILTIN_TERMS: TerminologyEntry[] = [
+  { term: "agent", scope: "system", definition: "An AI worker that follows instructions, uses tools, and cites its sources." },
+  { term: "workflow", scope: "system", definition: "A multi-step automation that chains agents, tools, and triggers." },
+  { term: "vault", scope: "system", definition: "The workspace document store the assistant searches and cites." },
+  { term: "citation", scope: "system", definition: "A reference back to the exact source (document, page, or URL) behind an answer." },
+  { term: "MCP", scope: "system", definition: "Model Context Protocol — the standard for connecting external tools and data to an agent." },
+  { term: "trigger", scope: "workflow", definition: "The event that starts a workflow (schedule, webhook, or inbound message)." },
+  { term: "skill", scope: "system", definition: "A packaged, reusable capability an agent can run (e.g. draft an email, summarize a document)." },
+  { term: "SLA", scope: "metric", definition: "Service-Level Agreement — a committed response or resolution time." },
+  { term: "SSO", scope: "system", definition: "Single Sign-On — logging in through an identity provider." },
+  { term: "webhook", scope: "system", definition: "An HTTP callback that lets an external service push events into a workflow." },
 ];
 
 const BUILTIN: Record<Industry, TerminologyEntry[]> = {
-  real_estate: REALTOR_TERMS,
+  real_estate: BUILTIN_TERMS,
 };
 
 /**

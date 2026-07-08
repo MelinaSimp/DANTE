@@ -328,7 +328,7 @@ export default function WorkspacesPage() {
                         </div>
                       </td>
                       <td className="py-4 px-4 text-xs text-[var(--ink-muted)]">
-                        CRE
+                        Workspace
                       </td>
                       <td className="py-4 px-4">
                         <span

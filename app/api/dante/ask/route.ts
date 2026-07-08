@@ -723,7 +723,7 @@ async function generateFollowups(
   answer: string,
   industry: string | null,
 ): Promise<string[]> {
-  const verticalNoun = "commercial real estate professional";
+  const verticalNoun = "user";
 
   const result = await llmComplete({
     model: "claude-sonnet-4-6",

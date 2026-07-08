@@ -115,11 +115,10 @@ export async function buildDanteSystemPromptWithFirm(
       }
     }
 
-    // Inject market knowledge — factual local data for CRE analysis.
-    // Two sources: (1) free-text notes from market_context column,
-    // (2) extracted text from uploaded market files (PDFs, docs, etc.)
-    // Both are analyst ground truth: rent ranges, competitors,
-    // demographics, zoning nuances.
+    // Inject workspace knowledge — factual reference data the workspace
+    // wants the assistant to treat as ground truth. Two sources:
+    // (1) free-text notes from market_context column,
+    // (2) extracted text from uploaded reference files (PDFs, docs, etc.)
     const marketParts: string[] = [];
 
     // Source 1: free-text notes
@@ -127,7 +126,7 @@ export async function buildDanteSystemPromptWithFirm(
     if (market?.trim()) {
       const marketResult = sanitizeCustomInstructions(market);
       if (marketResult.ok && marketResult.text) {
-        marketParts.push("### Analyst notes\n\n" + marketResult.text);
+        marketParts.push("### Reference notes\n\n" + marketResult.text);
       }
     }
 
@@ -164,9 +163,9 @@ export async function buildDanteSystemPromptWithFirm(
         combined = combined.slice(0, 30000) + "\n\n[...market intel truncated for context budget]";
       }
       prompt +=
-        "\n\n---\n\n## Local market intelligence\n\nThe workspace admin has provided the following local market knowledge (analyst notes + uploaded research documents). Use this as ground truth during void analysis, trade area assessment, and any CRE market analysis. Cross-reference these facts against tool data (survey_area, site_scan) — if they conflict, note the discrepancy but trust the tool data for real-time supply counts.\n\n<<<MARKET_INTEL\n" +
+        "\n\n---\n\n## Workspace knowledge\n\nThe workspace admin has provided the following reference knowledge (notes + uploaded documents). Use this as ground truth when answering. Cross-reference these facts against live tool data — if they conflict, note the discrepancy but prefer the tool data for anything real-time.\n\n<<<WORKSPACE_KNOWLEDGE\n" +
         combined +
-        "\nMARKET_INTEL>>>";
+        "\nWORKSPACE_KNOWLEDGE>>>";
     }
 
     return prompt;

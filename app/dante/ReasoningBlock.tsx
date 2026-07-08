@@ -19,7 +19,7 @@
 //   chart        — bar / line / pie via recharts
 //
 // Why custom JSON instead of Mermaid:
-//   The audience (55-70+ CRE brokers) doesn't read flowcharts.
+//   Most users don't read flowcharts.
 //   Step-cards and charts are more familiar and more readable.
 //   No new dependency (mermaid would be +600KB).
 //   Tighter design control — matches the citation chip / vault
@@ -57,9 +57,9 @@ export type ReasoningKind =
   | "comparison"
   | "allocation"
   | "timeline"
-  // Chart — renders a recharts bar, line, or pie chart. Vergil uses
-  // this for rent comps, demographic breakdowns, vacancy rates, cap
-  // rate trends, and any numeric dataset that reads better visual.
+  // Chart — renders a recharts bar, line, or pie chart. Dante uses
+  // this for any numeric dataset — comparisons, breakdowns, trends —
+  // that reads better as a visual than as text.
   | "chart";
 
 export interface ReasoningStep {

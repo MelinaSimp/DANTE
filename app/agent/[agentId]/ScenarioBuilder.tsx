@@ -299,7 +299,7 @@ export default function ScenarioBuilder({
                     If answer matches… → go to step
                   </div>
                   <p className="text-[11px] text-[var(--ink-subtle)] -mt-1">
-                    Comma-separated synonyms count as one branch — e.g. <span className="mono">property management, PM, tenant, rent</span>.
+                    Comma-separated synonyms count as one branch — e.g. <span className="mono">billing, payment, invoice, refund</span>.
                   </p>
                   {n.branches.map((b, i) => (
                     <div key={i} className="grid grid-cols-[1fr_auto_1fr_auto] gap-2 items-center">
@@ -310,7 +310,7 @@ export default function ScenarioBuilder({
                           branches[i] = { ...b, match: e.target.value };
                           updateNode(n.id, { branches } as Partial<BranchNode>);
                         }}
-                        placeholder='property management, PM, tenant, rent'
+                        placeholder='billing, payment, invoice, refund'
                         className={inputClass}
                       />
                       <ArrowDown

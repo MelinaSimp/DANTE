@@ -47,20 +47,18 @@ export default function OnboardingWizardClient({
   progress: Progress;
 }) {
   const isRealtor = industry === "real_estate";
-  const verticalNoun = "CRE broker";
+  const verticalNoun = "your business";
   const assistantName = "Dante";
 
   const steps: Step[] = useMemo(() => {
-    const docCta = "Upload your first listing agreement";
-    const contactCta = isRealtor ? "Add your first buyer or seller" : "Add your first client";
-    const chatCta = isRealtor
-      ? `Ask ${assistantName} to prep you for a showing`
-      : `Ask ${assistantName} to summarize a client`;
+    const docCta = "Upload your first document";
+    const contactCta = "Add your first contact";
+    const chatCta = `Ask ${assistantName} to summarize a document`;
 
     return [
       {
         id: "industry",
-        title: "Confirm your vertical",
+        title: "Confirm your workspace",
         description: `Drift is configured for ${verticalNoun}. ${assistantName} is your AI assistant — citation-grounded, supervised, and tuned for your work.`,
         done: true, // Set at signup; re-affirmation only.
         href: "/settings/workspace",

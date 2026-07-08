@@ -8,11 +8,10 @@ import { Button } from "@/components/ui/button";
 
 type Step = "signin" | "signup";
 
-// CRE-only vertical. "Other" stays as a soft escape hatch so we
-// don't block signups from adjacent industries, but everything
-// onboarding/dashboard-wise is tuned for commercial real estate.
+// Company type is captured at signup so onboarding can adapt. "Other"
+// stays as a catch-all so we never block a signup.
 const COMPANY_OPTIONS = [
-  { value: "real_estate", label: "Commercial real estate" },
+  { value: "real_estate", label: "Business" },
   { value: "other", label: "Other" },
 ] as const;
 

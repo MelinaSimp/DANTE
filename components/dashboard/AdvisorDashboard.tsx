@@ -493,7 +493,7 @@ export default function AdvisorDashboard({ data }: { data: DashboardData }) {
                             {n.expiringDocsCount} document{n.expiringDocsCount === 1 ? "" : "s"} expiring soon
                           </div>
                           <div className="text-[11px] text-[var(--ink-muted)] mt-0.5">
-                            Leases, insurance, disclosures within the next month.
+                            Contracts, renewals, and other dated documents in the next month.
                           </div>
                         </div>
                       </div>

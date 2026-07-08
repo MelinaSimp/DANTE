@@ -9,7 +9,7 @@ import AutopilotClient from "./AutopilotClient";
 export const metadata: Metadata = {
   title: "Autopilot — Dante",
   description:
-    "The autonomous pipeline. Drop a document in the vault and Drift classifies it and runs the right analysis — rent rolls get underwritten automatically — into a review feed.",
+    "The autonomous pipeline. Drop a document in the vault and Drift classifies it and runs the right analysis — documents get analyzed automatically — into a review feed.",
 };
 
 export const dynamic = "force-dynamic";

@@ -45,9 +45,9 @@ interface DocRow {
 
 const KIND_OPTIONS: Array<{ value: ArchiveKind | ""; label: string }> = [
   { value: "", label: "Choose a kind…" },
-  { value: "lease", label: "Lease" },
-  { value: "listing_agreement", label: "Listing agreement" },
-  { value: "rent_roll", label: "Rent roll" },
+  { value: "lease", label: "Contract" },
+  { value: "listing_agreement", label: "Agreement" },
+  { value: "rent_roll", label: "Spreadsheet" },
   { value: "client_agreement", label: "Client agreement" },
   { value: "policy", label: "Internal policy / SOP" },
   { value: "regulation", label: "Regulation" },
@@ -226,11 +226,11 @@ export default function DanteArchiveClient() {
         <div className="mb-8">
           <div className="label-section mb-3">Archive</div>
           <h1 className="heading-display text-4xl text-[var(--ink)] mb-3">
-            Every document your brokerage touches — searchable.
+            Every document your team touches — searchable.
           </h1>
           <p className="text-sm text-[var(--ink-muted)] max-w-2xl leading-relaxed">
-            Drop in leases, listing agreements, rent rolls, disclosures, inspection
-            reports, or any deal document the team references. Dante extracts, chunks,
+            Drop in contracts, agreements, spreadsheets, reports, or any document
+            the team references. Dante extracts, chunks,
             and embeds each document so workflows and search queries can cite it
             with page-level precision.
           </p>
@@ -424,7 +424,7 @@ export default function DanteArchiveClient() {
             <div className="card-flat p-8 text-center">
               <Archive className="w-8 h-8 text-[var(--ink-subtle)] mx-auto mb-3" strokeWidth={1.5} />
               <p className="text-sm text-[var(--ink-muted)] mb-1">Nothing archived yet.</p>
-              <p className="text-xs text-[var(--ink-subtle)]">Upload your first document above to start building the firm&apos;s vault.</p>
+              <p className="text-xs text-[var(--ink-subtle)]">Upload your first document above to start building the team&apos;s vault.</p>
             </div>
           ) : (
             <div className="space-y-2">

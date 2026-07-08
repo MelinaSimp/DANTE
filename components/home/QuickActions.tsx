@@ -14,7 +14,7 @@ const quickActions = [
   {
     href: "/dante",
     title: "Ask Dante AI",
-    description: "Search deals, leases, and market data",
+    description: "Search your documents, data, and the web",
     iconName: "MessageSquare" as const,
   },
   {
@@ -26,7 +26,7 @@ const quickActions = [
   {
     href: "/workflows",
     title: "Run a workflow",
-    description: "Automate CRE tasks and reports",
+    description: "Automate tasks, reports, and follow-ups",
     iconName: "Workflow" as const,
   },
 ];

@@ -35,16 +35,15 @@ interface Props {
 }
 
 // Pre-written knowledge entries tailored to the workspace's vertical.
-// Advisor + real estate get industry-specific templates because (a)
-// they're the target audiences, and (b) the AI receptionist needs
-// vertical context to not say something dumb or regulatorily risky
-// (fee-only vs. dual-registered, broker vs. agent, etc.).
+// A couple of verticals get industry-specific templates, but the
+// default is a broad business template so any user starts with
+// something real. The AI needs some context to not make things up.
 //
 // Everything is placeholder text the user rewrites. Shipping *some*
 // text beats shipping none even if they skip — the alternative is an
 // empty knowledge base and an AI that makes things up.
 function seedsFor(category: Category, firmName: string): SeedEntry[] {
-  const nm = firmName || "our firm";
+  const nm = firmName || "our business";
 
   if (category === "real_estate") {
     return [
@@ -52,39 +51,39 @@ function seedsFor(category: Category, firmName: string): SeedEntry[] {
         id: "about",
         category: "Company Info",
         title: `About ${nm}`,
-        content: `One paragraph on ${nm}: brokerage type (investment sales, leasing, development, full-service), market focus, team size, and what sets you apart. Dante uses this to set context in analyses and voice calls.`,
+        content: `One paragraph on ${nm}: what you do, who you serve, team size, and what sets you apart. Dante uses this to set context in answers and voice calls.`,
         included: true,
       },
       {
         id: "markets",
         category: "Company Info",
-        title: "Markets & geography",
+        title: "Focus & specialization",
         content:
-          "MSAs, submarkets, or corridors you focus on. Include any specialization by property type (retail, industrial, office, multifamily, mixed-use). Dante uses this for site scanning and void analysis.",
+          "The areas, segments, or topics you focus on. Include any specialization. Dante uses this to scope research and analysis.",
         included: true,
       },
       {
         id: "services",
         category: "Services",
-        title: "Deal types & services",
+        title: "Services you offer",
         content:
-          "Acquisitions, dispositions, leasing, development, 1031 exchanges, sale-leasebacks -- list what you handle. Also note what you refer out (e.g., residential, property management). Dante will scope recommendations accordingly.",
+          "List what you handle and what you refer out. Dante will scope recommendations accordingly.",
         included: true,
       },
       {
-        id: "underwriting",
-        category: "Deal Criteria",
-        title: "Underwriting preferences",
+        id: "criteria",
+        category: "Preferences",
+        title: "Working preferences",
         content:
-          "Target cap rate range, minimum deal size, preferred hold period, return thresholds (cash-on-cash, IRR). These help Dante filter opportunities and flag deals that don't meet your criteria.",
+          "Any thresholds, criteria, or defaults you want applied to your work. These help Dante filter and flag items that don't meet your criteria.",
         included: true,
       },
       {
-        id: "tenants",
-        category: "Deal Criteria",
-        title: "Target tenants & credit",
+        id: "audience",
+        category: "Preferences",
+        title: "Who you work with",
         content:
-          "Preferred tenant profiles: national credit tenants, local operators, specific categories (QSR, medical, dollar stores). Any credit or lease-term minimums. Used for void analysis and tenant prospecting.",
+          "Preferred client or contact profiles and any qualifying criteria. Used to focus research and outreach.",
         included: true,
       },
       {
@@ -92,15 +91,15 @@ function seedsFor(category: Category, firmName: string): SeedEntry[] {
         category: "Hours & Coverage",
         title: "Availability & response time",
         content:
-          "When you take calls, typical response window for offers, and after-hours policy. CRE moves on its own timeline -- be specific about LOI review windows and showing availability.",
+          "When you take calls, typical response window, and after-hours policy. Be specific about turnaround expectations.",
         included: true,
       },
       {
         id: "compliance",
         category: "Compliance",
-        title: "Licensing & compliance notes",
+        title: "Policy & compliance notes",
         content:
-          "License jurisdiction, brokerage affiliation, any disclosure requirements. Dante's voice agent will follow these when speaking with prospects or tenants.",
+          "Any disclosure requirements or policies. Dante's voice agent will follow these when speaking with contacts.",
         included: false,
       },
     ];
@@ -361,17 +360,17 @@ function StepPractice({
         Hi, {firstName}. Let's set up your workspace.
       </h1>
       <p className="text-sm text-[var(--ink-muted)] max-w-xl mb-10">
-        Two minutes to give Drift the basics so your AI analyst knows
-        your market and your voice agent knows what to say.
+        Two minutes to give Drift the basics so your AI assistant knows
+        your business and your voice agent knows what to say.
       </p>
 
       <label className="label-section block mb-2">
-        Your firm or brokerage name
+        Your business or team name
       </label>
       <input
         value={firmName}
         onChange={(e) => onFirmNameChange(e.target.value)}
-        placeholder="e.g. Apex Commercial Advisors"
+        placeholder="e.g. Acme Inc."
         autoFocus
         className="w-full px-4 py-3 text-base border border-[var(--rule)] rounded-[6px] bg-[var(--canvas)] text-[var(--ink)] outline-none focus:border-[var(--rule-strong)]"
       />
@@ -426,7 +425,7 @@ function StepKnowledge({
         Teach Drift about your business.
       </h1>
       <p className="text-sm text-[var(--ink-muted)] max-w-xl mb-8">
-        Starter knowledge for Dante, your AI analyst. Check the entries
+        Starter knowledge for Dante, your AI assistant. Check the entries
         you want, rewrite them to match your operation, and skip the
         rest. You can always add more under Settings.
       </p>
@@ -539,20 +538,20 @@ function StepDone({
       <div className="space-y-4 mb-10">
         <DoneItem
           label={`${includedCount} knowledge entries seeded`}
-          detail="Dante will use these as context for deal analysis, void studies, and voice calls. Edit any time under Settings."
+          detail="Dante will use these as context for analysis, research, and voice calls. Edit any time under Settings."
           done
         />
         <DoneItem
-          label="Upload a lease to the Vault"
-          detail="Drop a PDF in the Vault and use the Lease Abstractor to pull key terms automatically. Dante cites vault docs in every analysis."
+          label="Upload a document to the Vault"
+          detail="Drop a PDF in the Vault and use document extraction to pull key details automatically. Dante cites vault docs in every answer."
         />
         <DoneItem
-          label="Ask Dante about a site"
-          detail="Try: 'Run a void analysis on [address]' or 'What's the cap rate on a $2M strip center with $140K NOI?' Dante is your CRE analyst."
+          label="Ask Dante a question"
+          detail="Try: 'Summarize the documents I uploaded this week' or 'Draft a follow-up email.' Dante is your AI assistant."
         />
         <DoneItem
           label="Set up a workflow"
-          detail="Automate lease expirations, market alerts, or tenant prospecting. Workflows run on a schedule or trigger from events."
+          detail="Automate reminders, alerts, or outreach. Workflows run on a schedule or trigger from events."
         />
       </div>
 
@@ -624,7 +623,7 @@ function DemoSeedButton() {
       <div className="border border-emerald-500/30 rounded-[6px] p-4 mb-6 flex items-center gap-3 bg-emerald-500/5">
         <Check className="w-4 h-4 text-emerald-600 shrink-0" strokeWidth={1.5} />
         <p className="text-xs text-[var(--ink-muted)]">
-          Demo data loaded -- sample portfolio, deal criteria, and a lease expiration workflow are ready to explore.
+          Demo data loaded -- sample records, preferences, and an example workflow are ready to explore.
         </p>
       </div>
     );
@@ -637,7 +636,7 @@ function DemoSeedButton() {
           Want to see Drift in action first?
         </p>
         <p className="text-xs text-[var(--ink-muted)]">
-          Load a sample CRE portfolio with properties, deal criteria, and an
+          Load a sample workspace with records, preferences, and an
           example workflow. You can delete it all later.
         </p>
       </div>

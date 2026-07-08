@@ -31,7 +31,7 @@ export default function SiteScanClient() {
 
       <div className="max-w-7xl mx-auto px-6 md:px-10 py-8 md:py-10">
         <div className="mb-8">
-          <div className="label-section mb-1.5">Commercial real estate</div>
+          <div className="label-section mb-1.5">Public records</div>
           <h1 className="heading-display text-3xl md:text-4xl text-[var(--ink)] leading-[1.1]">
             Site Scan
           </h1>

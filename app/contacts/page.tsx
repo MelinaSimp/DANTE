@@ -13,7 +13,7 @@ import ClientDetailsOverviewClient from "@/app/client-details-overview/ClientDet
 
 export const metadata: Metadata = {
   title: "Contacts — Dante",
-  description: "Manage your CRE contacts, deals, and communication history.",
+  description: "Manage your contacts, tasks, and communication history.",
 };
 
 export const dynamic = "force-dynamic";

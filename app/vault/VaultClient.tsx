@@ -187,8 +187,8 @@ export default function VaultClient() {
               No projects yet
             </h2>
             <p className="text-sm text-[var(--ink-muted)] max-w-md mx-auto mb-4">
-              Create your first project — e.g. "Smith family", "1234 Main
-              St", or "Standard listing templates".
+              Create your first project — e.g. "Q3 planning", "Acme
+              account", or "Standard templates".
             </p>
             <button
               onClick={() => setCreateOpen(true)}
