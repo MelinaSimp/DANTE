@@ -124,7 +124,9 @@ export async function middleware(req: NextRequest) {
 
     const session = (sessionResult as { data: { session: unknown } }).data.session;
     if (!session) {
-      const target = pathname === "/" ? "/download" : "/auth";
+      // Public marketing landing lives at /features; / is the product
+      // home for signed-in users and the marketing entry for everyone else.
+      const target = pathname === "/" ? "/features" : "/auth";
       return NextResponse.redirect(new URL(target, req.url));
     }
 
