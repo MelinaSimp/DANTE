@@ -95,6 +95,8 @@ export async function middleware(req: NextRequest) {
   // Protected routes that require authentication
   // Note: /agents is a top-level redirect (legacy URL support) — it
   // does not need auth gating here because the redirect target does.
+  // "/" is public: signed-out visitors see the Dante marketing site;
+  // signed-in visitors are routed by app/page.tsx into the product.
   const protectedRoutes = ["/app", "/admin", "/frontend", "/home", "/select", "/superadmin", "/dashboard", "/settings", "/dante", "/workflows", "/vault", "/agent", "/site-scan", "/properties", "/contacts"];
   const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
 
@@ -103,7 +105,7 @@ export async function middleware(req: NextRequest) {
   // call to Supabase). This means page loads never depend on Supabase
   // availability — a Supabase outage won't block the entire app.
   // API routes still verify tokens server-side via getUser().
-  if (isProtectedRoute || pathname === "/") {
+  if (isProtectedRoute) {
     // getSession() is meant to be a fast local JWT read, but an expired access
     // token makes it fire a network token-refresh to Supabase. If Supabase is
     // slow/degraded that refresh can hang 20s+ and the whole middleware
@@ -124,14 +126,7 @@ export async function middleware(req: NextRequest) {
 
     const session = (sessionResult as { data: { session: unknown } }).data.session;
     if (!session) {
-      // Public marketing landing lives at /features; / is the product
-      // home for signed-in users and the marketing entry for everyone else.
-      const target = pathname === "/" ? "/features" : "/auth";
-      return NextResponse.redirect(new URL(target, req.url));
-    }
-
-    if (pathname === "/") {
-      return response;
+      return NextResponse.redirect(new URL("/auth", req.url));
     }
   }
 
