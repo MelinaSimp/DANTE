@@ -60,13 +60,13 @@ export default function DownloadPage() {
     <div className="min-h-screen bg-[var(--canvas)] text-[var(--ink)]">
       <div className="border-b border-[var(--rule)]">
         <div className="max-w-5xl mx-auto px-6 py-5 flex items-center justify-between">
-          <Link href="/" className="inline-flex items-center gap-2 group">
+          <Link href="/features" className="inline-flex items-center gap-2 group">
             <img
-              src="/brand/logo-circle.png"
-              alt="Drift"
+              src="/brand/logo-new.png"
+              alt="Dante"
               className="w-6 h-6 rounded-full object-cover"
             />
-            <span className="text-base font-medium text-[var(--ink)]">Drift</span>
+            <span className="text-base font-medium text-[var(--ink)]">Dante</span>
           </Link>
           <nav className="flex items-center gap-5 text-sm text-[var(--ink-muted)]">
             <Link href="/features" className="hover:text-[var(--ink)] transition">Features</Link>

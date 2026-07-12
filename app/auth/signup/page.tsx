@@ -140,17 +140,17 @@ export default async function SignupPage({
     >
       {/* Top-left wordmark */}
       <div className="absolute top-6 left-6 md:top-8 md:left-10 z-10">
-        <Link href="/" className="inline-flex items-center gap-2 group">
+        <Link href="/features" className="inline-flex items-center gap-2 group">
           <img
-            src="/brand/logo-circle.png"
-            alt="Drift"
+            src="/brand/logo-new.png"
+            alt="Dante"
             className="w-6 h-6 rounded-full object-cover"
           />
           <span
             className="heading-display text-xl"
             style={{ color: "var(--ink)" }}
           >
-            Drift
+            Dante
           </span>
         </Link>
       </div>
