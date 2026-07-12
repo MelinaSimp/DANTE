@@ -33,12 +33,12 @@ export interface IndustryConfig {
 
 const GENERAL: IndustryConfig = {
   industry: "real_estate", // legacy internal key — see file header
-  eyebrow: "BUILD AI AGENTS FOR YOUR BUSINESS",
+  eyebrow: "ALL-IN-ONE AGENTIC PLATFORM",
   shortLabel: "builder",
-  marketingHeadline: "Agents that know your business.",
+  marketingHeadline: "Agents, sites, and workflows — grounded.",
   marketingDescription:
-    "Dante lets you build AI agents that read your documents and cite their sources, answer your phones, and run multi-step workflows — deployed in minutes, no code required.",
-  marketingChips: ["Citation-grounded", "Voice + workflows"],
+    "Dante is the all-in-one agentic platform. Build agents, publish them to sites, and run workflows on an almost hallucination-free LLM — for anyone, no code required.",
+  marketingChips: ["Almost hallucination-free", "Agents + sites"],
   displayName: "Business",
   assistantName: "Dante",
   assistantIconPath: "/brand/dante-sword.png",

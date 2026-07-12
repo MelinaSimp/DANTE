@@ -1,7 +1,7 @@
 {
   "name": "Dante",
   "short_name": "Dante",
-  "description": "Build AI agents that read your documents, answer your phones, and run your workflows",
+  "description": "All-in-one agentic platform — agents, sites, and workflows on an almost hallucination-free LLM",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -10,13 +10,13 @@
   "scope": "/",
   "icons": [
     {
-      "src": "/brand/logo-circle.png",
+      "src": "/brand/logo-new.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/brand/logo-circle.png",
+      "src": "/brand/logo-new.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
