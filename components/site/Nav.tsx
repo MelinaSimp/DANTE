@@ -113,7 +113,7 @@ export default function Nav() {
           href="/auth"
           className="ml-2 bg-white text-black px-5 py-2.5 rounded-full text-sm font-semibold whitespace-nowrap hover:bg-[#E8E2D5] transition"
         >
-          Open Dante
+          Meet Dante
         </Link>
       </nav>
 
@@ -228,7 +228,7 @@ export default function Nav() {
             }}
             className="mt-8 inline-block bg-white text-black px-8 py-3 rounded-full text-base font-semibold w-full text-center"
           >
-            Open Dante
+            Meet Dante
           </Link>
         </div>
       )}

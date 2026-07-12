@@ -204,7 +204,7 @@ export default function Page() {
             href="/auth"
             className="inline-flex items-center gap-2 bg-[#E8E2D5] text-black px-6 py-3 rounded-full text-sm font-semibold whitespace-nowrap hover:bg-white transition"
           >
-            Open Dante
+            Meet Dante
             <span aria-hidden>→</span>
           </Link>
         </div>

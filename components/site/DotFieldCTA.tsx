@@ -196,7 +196,7 @@ export default function DotFieldCTA() {
         </div>
 
         <div className="text-center mt-4 text-[12px] text-gray-500 font-light">
-          Want to start now? Open Dante from the nav.
+          Want to start now? Press Meet Dante to sign in.
         </div>
         <div className="text-center mt-3 text-xs tracking-[0.2em] text-gray-600">
           OPEN PLATFORM · CITATION-GROUNDED · HUMAN APPROVAL

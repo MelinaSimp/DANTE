@@ -9,7 +9,7 @@ const TIERS = [
     price: '$495',
     cadence: 'per workspace / month',
     headline: 'The full Dante surface for builders who want agents, sites, and workflows in one place.',
-    cta: { label: 'Open Dante', href: '/auth' },
+    cta: { label: 'Meet Dante', href: '/auth' },
     features: [
       'Assistant, Vault, Agents, Compliance',
       'Up to 5 data-source connections',
